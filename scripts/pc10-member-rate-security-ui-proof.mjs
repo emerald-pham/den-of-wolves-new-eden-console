@@ -345,6 +345,7 @@ export async function runP631MemberRateSecurityUiProof() {
     if (!gate?.evidenceDirectory) return;
     const retained = await retainProofFailure(gate.evidenceDirectory, 'p631-primary', error, {
       failureStage, sourceCommit: gate.sourceCommit,
+      lastReadinessTuple: activeRun.lastReadinessTuple ?? null,
       ...(error?.p631CleanupError ? { cleanupError: safeError(error.p631CleanupError) } : {}),
       cleanup: evidence.cleanup ?? null,
     });
@@ -423,10 +424,16 @@ export async function runP631MemberRateSecurityUiProof() {
           await gm.consent({ deadlineAt: gmAdmissionDeadlineAt });
           failureStage = 'normal GM admitted App/store authority';
           let live = await gm.until('Original normally admitted fresh GM', state => state.hasAuth && state.sameActor &&
-            state.sessionId === owned.sessionId && state.profileRoleId === null && state.profileSessionId === null &&
-            state.playerRole === null && state.connection === 'live' && state.freshness === 'server');
-          assert.equal(live.sdkHasServerAuthority, true);
-          assert.equal(live.sdkResumePending, false);
+            state.uidHash === shortHash(actorUids.get('GM')) && state.sessionId === owned.sessionId &&
+            state.meSessionId === owned.sessionId && state.profileRoleId === null && state.profileSessionId === null &&
+            state.invalidFields?.length === 0 && state.playerRole === 'player' && state.connected === true &&
+            state.currentOwnPlayerConfirmed === true && state.connectionGeneration >= 1 &&
+            state.connection === 'live' && state.freshness === 'server' && state.sdkHasServerAuthority === true &&
+            state.sdkResumePending === false && state.kicked === false && state.escapeLocked === false &&
+            state.replacementRoleId === null && state.replacementStatus === null && state.assignedRoleId === null &&
+            state.activeConsoleRoleId === null && state.seatId === null && state.currentCanonicalSeatOwned === false &&
+            state.instanceId === null && state.gmInstanceOwned === false,
+          { deadlineAt: gmAdmissionDeadlineAt });
           failureStage = 'normal local GM authorization';
           await proofLabelStage('normal local GM authorization', evidence, gate.evidenceDirectory)();
           const authorizationDeadlineAt = Date.now() + OPERATION_TIMEOUT_MS;
@@ -468,14 +475,18 @@ export async function runP631MemberRateSecurityUiProof() {
           const claimed = await action(gm, 'claimGmInstance', remaining =>
             gm.page.getByRole('button', { name: 'Join as GM', exact: true }).click({ timeout: remaining() }),
           { gm: true, deadlineAt: gmJoinDeadlineAt });
+          const claimedInstanceId = claimed.data.instanceId;
+          assert.match(claimedInstanceId ?? '', /^[\w-]{1,128}$/);
+          assert.equal(claimed.result.instance.id, claimedInstanceId);
           live = await gm.until('Original live GM authority', state => state.hasAuth && state.sameActor &&
-            state.sessionId === owned.sessionId && state.playerRole === 'gm' && state.gmInstanceOwned &&
-            state.connection === 'live' && state.freshness === 'server' && state.sdkHasServerAuthority &&
-            !state.sdkResumePending && state.profileRoleId === null && state.profileSessionId === null);
-          owned.instanceId = live.instanceId;
+            state.uidHash === shortHash(actorUids.get('GM')) && state.sessionId === owned.sessionId &&
+            state.meSessionId === owned.sessionId && state.playerRole === 'gm' && state.gmInstanceOwned &&
+            state.instanceId === claimedInstanceId && state.connection === 'live' && state.freshness === 'server' &&
+            state.sdkHasServerAuthority === true && state.sdkResumePending === false &&
+            state.invalidFields?.length === 0 && state.profileRoleId === null && state.profileSessionId === null,
+          { deadlineAt: gmJoinDeadlineAt });
+          owned.instanceId = claimedInstanceId;
           assert.match(owned.instanceId ?? '', /^[\w-]{1,128}$/);
-          assert.equal(claimed.data.instanceId, owned.instanceId);
-          assert.equal(claimed.result.instance.id, owned.instanceId);
 
           failureStage = 'legal roster configuration and setup';
           await proofLabelStage('legal roster configuration and setup', evidence, gate.evidenceDirectory)();
@@ -500,25 +511,38 @@ export async function runP631MemberRateSecurityUiProof() {
           { gm: true, deadlineAt: setupDeadlineAt });
           assert.equal(confirmed.result.status, 'committed');
           const setupState = await gm.until('Original legal Cycle 0 roster', state => state.setupConfirmed &&
-            state.cycle === 0 && state.phase === 'casting' && state.gmInstanceOwned &&
-            state.fullGameDemo === null && state.sdkHasServerAuthority && !state.sdkResumePending);
+            state.uidHash === shortHash(actorUids.get('GM')) && state.sessionId === owned.sessionId &&
+            state.meSessionId === owned.sessionId && state.playerRole === 'gm' && state.cycle === 0 &&
+            state.phase === 'casting' && state.gmInstanceOwned && state.instanceId === owned.instanceId &&
+            state.connection === 'live' && state.freshness === 'server' && state.sdkHasServerAuthority === true &&
+            state.sdkResumePending === false && state.profileRoleId === null && state.profileSessionId === null &&
+            state.invalidFields?.length === 0 && state.fullGameDemo === null,
+          { deadlineAt: setupDeadlineAt });
           assert.equal(setupState.playerRole, 'gm');
 
           failureStage = 'original UI preparation before ordinary join';
           await proofLabelStage('original UI preparation before ordinary join', evidence, gate.evidenceDirectory)();
           const training = gm.page.locator('fieldset[aria-label="Full-game demo preparation"]');
+          const preparationDeadlineAt = Date.now() + OPERATION_TIMEOUT_MS;
+          budget.assertBefore(OPERATION_TIMEOUT_MS);
           const original = await action(gm, 'prepareFullGameDemo', async remaining => {
             await training.getByRole('button', { name: 'Prepare full-game demo', exact: true })
               .click({ timeout: remaining() });
             await training.getByRole('button', { name: 'ARE YOU SURE? // PREPARE FULL-GAME DEMO', exact: true })
               .click({ timeout: remaining() });
-          }, { gm: true, matches: data => data?.sessionId === owned.sessionId && data?.instanceId === owned.instanceId });
+          }, { gm: true, deadlineAt: preparationDeadlineAt,
+            matches: data => data?.sessionId === owned.sessionId && data?.instanceId === owned.instanceId });
           assert.equal(original.httpStatus, 200);
           assert.equal(original.result.status, 'committed');
           assert.deepEqual(original.result.fullGameDemo, { status: 'preparing', progression: 'manual' });
           const prepared = await gm.until('Original manual Cycle 0 preparation', state => state.cycle === 0 &&
-            state.phase === 'casting' && state.gmInstanceOwned && state.fullGameDemo?.status === 'preparing' &&
-            state.fullGameDemo?.progression === 'manual' && state.sdkHasServerAuthority && !state.sdkResumePending);
+            state.uidHash === shortHash(actorUids.get('GM')) && state.sessionId === owned.sessionId &&
+            state.meSessionId === owned.sessionId && state.playerRole === 'gm' && state.phase === 'casting' &&
+            state.gmInstanceOwned && state.instanceId === owned.instanceId && state.connection === 'live' &&
+            state.freshness === 'server' && state.fullGameDemo?.status === 'preparing' &&
+            state.fullGameDemo?.progression === 'manual' && state.sdkHasServerAuthority === true &&
+            state.sdkResumePending === false && state.invalidFields?.length === 0,
+          { deadlineAt: preparationDeadlineAt });
           assert.equal(prepared.setupConfirmed, true);
           owned.originalRequest = original;
           evidence.claims.push('Normal GM create and consent, local UI authorization, live App/store/SDK authority, legal Cycle 0 setup, original preparation receipt before member join.');
@@ -586,9 +610,17 @@ export async function runP631MemberRateSecurityUiProof() {
           await member.consent({ deadlineAt: memberAdmissionDeadlineAt });
           failureStage = 'normal ordinary member App/store admission';
           const admitted = await member.until('Original normal member join and current SDK authority', state =>
-            state.hasAuth && state.sameActor && state.sessionId === gmContext.sessionId &&
-            state.playerRole === 'player' && state.connection === 'live' && state.freshness === 'server' &&
-            state.sdkHasServerAuthority && !state.sdkResumePending && state.profileRoleId === null && state.profileSessionId === null);
+            state.hasAuth && state.sameActor && state.uidHash === shortHash(actorUids.get('Member')) &&
+            state.sessionId === gmContext.sessionId && state.meSessionId === gmContext.sessionId &&
+            state.playerRole === 'player' && state.connected === true && state.currentOwnPlayerConfirmed === true &&
+            state.connectionGeneration >= 1 && state.connection === 'live' && state.freshness === 'server' &&
+            state.sdkHasServerAuthority === true && state.sdkResumePending === false &&
+            state.profileRoleId === null && state.profileSessionId === null && state.invalidFields?.length === 0 &&
+            state.kicked === false && state.escapeLocked === false && state.replacementRoleId === null &&
+            state.replacementStatus === null && state.assignedRoleId === null && state.activeConsoleRoleId === null &&
+            state.seatId === null && state.currentCanonicalSeatOwned === false && state.instanceId === null &&
+            state.gmInstanceOwned === false,
+          { deadlineAt: memberAdmissionDeadlineAt });
           assert.notEqual(actorUids.get('Member'), gmContext.actorUid);
           assert.equal(admitted.playerRole, 'player');
           evidence.claims.push('A second original Auth identity joins through normal UI consent and current-member hydration on the same loopback network; no role-seat action is needed for this reader proof.');
@@ -775,20 +807,31 @@ async function createSurface(label) {
     async observe() {
       return observeFullGameDemoPresentationMember(surface, { knownRoleIds: [ROLE_ID, 'icebreaker-miner'] });
     },
-    async until(description, predicate, timeoutMs = OPERATION_TIMEOUT_MS) {
-      budget.assertBefore(timeoutMs);
-      const deadline = Date.now() + timeoutMs;
+    async until(description, predicate, { deadlineAt = Date.now() + OPERATION_TIMEOUT_MS } = {}) {
+      budget.assertBefore(remainingUiMs(deadlineAt, `${description} readiness`, OPERATION_TIMEOUT_MS));
       let current;
-      while (Date.now() < deadline) {
-        const remaining = Math.min(PAGE_TIMEOUT_MS, deadline - Date.now());
+      while (Date.now() < deadlineAt) {
+        const remaining = remainingUiMs(deadlineAt, `${description} readiness`, PAGE_TIMEOUT_MS);
         current = await bounded(() => surface.observe(), remaining, `${description} SDK/store observation`);
+        activeRun.lastReadinessTuple = { surface: label, description,
+          observedAt: new Date().toISOString(), state: current };
+        if (current.hasAuth && surface.originalUid && current.uidHash !== shortHash(surface.originalUid)) {
+          throw new Error(`${description}: original registered Auth UID changed during readiness.`);
+        }
         if (current.hasAuth && current.sessionId !== null && current.sessionId !== owned.sessionId) {
           throw new Error(`${description}: an unexpected session identity was mounted.`);
         }
+        if (current.hasAuth && current.meSessionId !== null && current.meSessionId !== owned.sessionId) {
+          throw new Error(`${description}: an unexpected current-member identity was mounted.`);
+        }
+        if (description === 'Original normally admitted fresh GM' && current.hasAuth && current.instanceId !== null) {
+          throw new Error(`${description}: a pre-existing GM instance appeared before the explicit local GM claim.`);
+        }
         if (predicate(current)) return current;
-        await delay(200);
+        const waitMs = Math.min(200, deadlineAt - Date.now());
+        if (waitMs > 0) await delay(waitMs);
       }
-      throw new Error(`${description}: original mounted App/store/SDK authority tuple did not become ready.`);
+      throw new Error(`${description}: original shared UI deadline expired before mounted App/store/SDK authority became ready.`);
     },
     async consent({ deadlineAt = Date.now() + PAGE_TIMEOUT_MS } = {}) {
       const waiver = page.getByRole('dialog', { name: 'CODE OF CONDUCT', exact: true });
@@ -889,6 +932,7 @@ async function registerActor(surface, label, { deadlineAt = Date.now() + PAGE_TI
   }
   assert.ok(uid, 'Normal UI admission must create an Auth identity before its callable response is consumed.');
   assert.ok(![...activeRun.actorUids.values()].includes(uid), 'Each actor needs an independent original Auth identity.');
+  surface.originalUid = uid;
   activeRun.actorUids.set(label, uid);
   activeRun.evidence.actualAuthenticatedActors = activeRun.actorUids.size;
   return uid;
