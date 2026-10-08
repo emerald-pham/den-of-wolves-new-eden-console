@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { assertStationPopulationAcknowledgmentTransition, assertStationPopulationGmActorAuthority, assertStationPopulationGmActorObserver, minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext, stationDialogAccessibleName, stationPopulationAckMutinyRows, stationPopulationAlertsForGm, stationPopulationDialogMatches, stationPopulationDismissIntent, stationPopulationGmActorAnchor, stationPopulationGmAuthorityPreflight, stationPopulationGmRetainedObserver, stationPopulationSelectVisibleAlert, stationPopulationUiRows } from './pc10-fresh-minimum-ring-proof.mjs';
+import { assertStationPopulationAcknowledgmentTransition, assertStationPopulationGmActorAuthority, assertStationPopulationGmActorObserver, minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext, stationDialogAccessibleName, stationPopulationAckMutinyRows, stationPopulationAlertsForGm, stationPopulationDialogMatches, stationPopulationDismissIntent, stationPopulationDismissLocator, stationPopulationGmActorAnchor, stationPopulationGmAuthorityPreflight, stationPopulationGmRetainedObserver, stationPopulationSelectVisibleAlert, stationPopulationUiRows } from './pc10-fresh-minimum-ring-proof.mjs';
 
 const stationPopulationGmAttemptEvidence = JSON.parse(readFileSync(
   new URL('./fixtures/pc10-population-gm-observer-attempt-evidence.json', import.meta.url), 'utf8'));
@@ -243,6 +243,47 @@ test('population dialog matching uses the exact source-rendered sentence, not tr
   assert.equal(stationPopulationDialogMatches(stationAttempt20Dialog(alert, {
     textContent: sentence.replace(alert.shipName, 'Another ship'),
   }), alert), false);
+});
+
+test('population dismissal locator cannot click a replacement alert after its final mount await', async () => {
+  const sourceAlerts = stationAttempt20OrderedAlerts();
+  let current = sourceAlerts[4], selectedText = null;
+  const clicks = [];
+  const sentence = alert => `${alert.shipName} survivor population has reached ${alert.population.toLocaleString('en-US')}. A census threshold requires GM attention.`;
+  const matches = () => !selectedText || sentence(current[1]) === selectedText;
+  const dismiss = {
+    count: async () => matches() ? 1 : 0,
+    isEnabled: async () => matches(),
+    click: async () => {
+      if (!matches()) throw new Error('Exact population sentence no longer matches the mounted alert.');
+      clicks.push(current[0]);
+    },
+  };
+  const dialog = {
+    filter: ({ has }) => { selectedText = has.text; return dialog; },
+    count: async () => matches() ? 1 : 0,
+    isVisible: async () => matches(),
+    getByRole: () => dismiss,
+  };
+  const page = {
+    getByRole: (role, options) => {
+      assert.equal(role, 'alertdialog');
+      assert.deepEqual(options, { name: 'Survivor population threshold reached', exact: true });
+      return dialog;
+    },
+    getByText: (text, options) => {
+      assert.deepEqual(options, { exact: true });
+      return { text };
+    },
+  };
+
+  const mounted = stationPopulationDismissLocator(page, current[1]);
+  assert.equal(await mounted.alertDialog.count(), 1);
+  assert.equal(await mounted.dismiss.count(), 1);
+  current = sourceAlerts[0];
+  assert.equal(await mounted.dismiss.count(), 0);
+  await assert.rejects(mounted.dismiss.click(), /no longer matches/i);
+  assert.deepEqual(clicks, [], 'A generic title locator must never dismiss the newly selected ship.');
 });
 
 test('Attempt18 serialized postclaim observer schemas pass the production GM preflight and bind its callback anchor', async () => {
