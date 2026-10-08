@@ -144,7 +144,7 @@ test('PR17 consumes the real legacy reply, role card hrefs and committed mainten
   const proof = namedRegion(runnerSource, 'async function runPr17Proof', 'startAt=Date.now()');
   assert.doesNotMatch(proof, /legacy\.result\.status/);
   assert.match(proof, /legacy\.result\.locked,true/);
-  assert.match(proof, /legacy\.result\.requestId,legacy\.data\.requestId/);
+  assert.match(proof, /legacy\.result\.idempotencyKey,legacy\.data\.requestId/);
   assert.doesNotMatch(proof, /getByRole\('link',\{name:'(?:Engineer|Admiral)',exact:true\}\)/);
   assert.match(proof, /a\[href="#\/ships\/dione\/roles\/dione-engineer"\]/);
   assert.match(proof, /waitForMaintenanceReceipt/);
