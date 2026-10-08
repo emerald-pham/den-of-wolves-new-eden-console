@@ -1,0 +1,24 @@
+.operations-reference {
+  min-width: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.operations-reference__toggle {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  text-align: left;
+  white-space: normal;
+  font-size: 0.875rem;
+}
+
+.operations-reference__content {
+  min-width: 0;
+}
+
+.operations-reference__content[hidden] {
+  display: none;
+}

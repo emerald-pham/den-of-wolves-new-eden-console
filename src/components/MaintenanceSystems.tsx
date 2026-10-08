@@ -1,3 +1,4 @@
+import OperationsReference from './OperationsReference';
 import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useSessionStore } from '@/store/useSessionStore';
 import { runMaintenance, rollbackMaintenance, type MaintenanceChoices } from '@/lib/maintenanceService';
@@ -159,6 +160,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   return <div className="maintenance-systems">
     <section className="maintenance-systems__cycle" aria-label={`${name} maintenance cycle`}>
       <h3>Maintenance cycle</h3>
+      <OperationsReference key={`${shipId}:${session?.id ?? ""}:${me?.uid ?? ""}:${access.roleId ?? ""}`}>
       <aside className="maintenance-reference cic-frame" aria-label={`${name} maintenance reference`}>
         <h4>{name} maintenance reference</h4>
         <dl>
@@ -171,6 +173,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
           <div><dt>Fuel expiry</dt><dd>Shuttle fuel granted during maintenance clears when the next cycle starts.</dd></div>
         </dl>
       </aside>
+      </OperationsReference>
       <button className="cic-action-button" disabled={disabled(0)}
         style={confirmBegin ? { color: 'var(--cic-danger)', borderColor: 'var(--cic-danger)' } : undefined}
         onBlur={() => setConfirmBegin(false)}
