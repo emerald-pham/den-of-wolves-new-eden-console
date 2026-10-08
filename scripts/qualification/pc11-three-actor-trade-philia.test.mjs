@@ -118,3 +118,24 @@ test('normal readiness binds only to the clean client server-authority contract'
   assert.match(adapterSource, /value\.connection === 'live'/);
   assert.match(adapterSource, /value\.freshness === 'server'/);
 });
+
+test('PR17 proof is an explicit bounded branch of the canonical normal-start runner', () => {
+  assert.match(runnerSource, /const pr17Proof=process\.env\.PC11_PR17_PROOF==='1'/);
+  const branch = runnerSource.indexOf('if(pr17Proof){');
+  assert.ok(branch > runnerSource.indexOf('await ordinaryStartPreflight();'));
+  assert.ok(branch < runnerSource.indexOf("await mark('GM-visible physical tabletop baseline attestation')"));
+  assert.match(runnerSource.slice(branch, branch + 500), /await runPr17Proof\(\)/);
+  assert.match(runnerSource, /PC11_PR17_AUTHENTICATED_PASS/);
+});
+
+test('PR17 authority proof uses real console routing, compatibility service and current-member observers', () => {
+  const proof = namedRegion(runnerSource, 'async function runPr17Proof', 'startAt=Date.now()');
+  assert.match(proof, /hash='\/console'/);
+  assert.match(proof, /View ship consoles/);
+  assert.match(proof, /setGmShipConsoleWriteGrant/);
+  assert.match(proof, /setShipConsoleLock\('dione',true\)/);
+  assert.match(proof, /restoredMember\(owner,'Owner'/);
+  assert.match(proof, /memberNavigate\(owner,'Owner'/);
+  assert.match(proof, /foreign-vessel/);
+  assert.doesNotMatch(proof, /setState\(|\.setMe\(|\.setSession\(|Engage ICN|Release ICN/);
+});
