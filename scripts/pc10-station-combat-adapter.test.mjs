@@ -106,6 +106,7 @@ test('Station Reactor plan skips only a source-marked lost row and rejects malfo
 function stationDeclareRetryContext(overrides={}) {
  const actor={sessionId:'owned-synthetic',uidHash:'synthetic-gm-hash',generation:1,hydrationRevision:1,
   instanceId:'gm-instance-synthetic',claimedAt:'synthetic-claim',hasAuth:true,sameActor:true,
+  privateAudienceMatches:true,foreignPendingCount:0,
   connection:'live',freshness:'server',playerRole:'gm',profileRoleId:null,profileSessionId:null,
   gmInstanceOwned:true,phase:'active',cycle:2};
  return {
@@ -193,6 +194,7 @@ test('Station declaration recovery fails closed on changed authority, phase, pre
  const expected=stationDeclareRetryContext();const patches=[
   {actor:{...expected.actor,sessionId:'foreign'}},{actor:{...expected.actor,uidHash:'foreign'}},
   {actor:{...expected.actor,instanceId:'replacement'}},{actor:{...expected.actor,claimedAt:'new-lease'}},
+  {actor:{...expected.actor,privateAudienceMatches:false}},{actor:{...expected.actor,foreignPendingCount:1}},
   {actor:{...expected.actor,generation:2}},{actor:{...expected.actor,hydrationRevision:2}},
   {session:{...expected.session,turnState:{...expected.session.turnState,phase:'team'}}},
   {session:{...expected.session,turnPhase:{...expected.session.turnPhase,airspace:{...expected.session.turnPhase.airspace,state:'restricted'}}}},
