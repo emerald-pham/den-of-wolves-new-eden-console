@@ -92,7 +92,7 @@ function makeConsumer() {
       const request = { sessionId: 'normal-session', requestId: 'begin-1', shuttleId: 'starlight',
         expectedDepartureRequestId: departure.requestId, expectedControlRevision: before.control.revision,
         expectedCycle: before.cycle };
-      state.session.transit = { transitRequestId: 'transit-1', status: 'in-transit',
+      state.session.transit = { transitRequestId: 'transit-1', revision: 1, status: 'in-transit',
         originShipId: 'aegis', destinationShipId: departure.destinationShipId,
         departedAt: new Date().toISOString(), arrivesAt: new Date(Date.now() + 60_000).toISOString(), cycle: before.cycle };
       state.session.departure = null;
