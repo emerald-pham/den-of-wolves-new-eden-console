@@ -1,4 +1,5 @@
 import { endeavourResearchTrack } from './endeavourResearch';
+import { requireEndeavourScienceDeviceBuilt } from './endeavourScienceDevices';
 
 export interface WolfAgentDetectorState {
   readonly cycle: number;
@@ -46,19 +47,19 @@ export function parseWolfAgentDetectorState(value: unknown): WolfAgentDetectorSt
 }
 
 /**
- * Reserve one of the completed detector's three cycle-local test allowances.
+ * Reserve one of the built detector's three cycle-local test allowances.
  * Target selection, private server randomness, and private delivery belong to
  * Prompt 508 and are deliberately absent from this shared state.
  */
 export function reserveWolfAgentDetectorTest(input: Readonly<{
   progress: unknown;
+  construction: unknown;
   state: unknown;
   expectedRevision: number;
   cycle: number;
 }>): WolfAgentDetectorReservation {
-  if (!endeavourResearchTrack(input.progress, 'wolf-agent-detector').complete) {
-    throw new Error('Wolf Agent Detector research must be complete before testing.');
-  }
+  endeavourResearchTrack(input.progress, 'wolf-agent-detector');
+  requireEndeavourScienceDeviceBuilt(input.construction, 'wolf-agent-detector');
   const state = parseWolfAgentDetectorState(input.state);
   if (!state) throw new Error('Wolf Agent Detector state is malformed.');
   if (!Number.isSafeInteger(input.cycle) || input.cycle < 1) {

@@ -10,6 +10,7 @@ import {
   type EndeavourEcmDeviceState,
 } from './endeavourEcmDevice';
 import { endeavourResearchTrack } from './endeavourResearch';
+import { parseEndeavourScienceDevicesState, requireEndeavourScienceDeviceBuilt } from './endeavourScienceDevices';
 import { fleetGroupRecord, type FleetGroupRecord } from './fleetGroups';
 import {
   isValidPursuitAuthority,
@@ -52,6 +53,7 @@ export interface EndeavourEcmDeviceWorkspace {
   readonly cycle: number;
   readonly controlRevision: number;
   readonly researchComplete: boolean;
+  readonly built: boolean;
   readonly device: EndeavourEcmDeviceState;
   readonly pursuit: Readonly<{ groupId: string; current: number }>;
 }
@@ -344,12 +346,15 @@ function buildWorkspace(
   device: DocumentSnapshot,
   navigationDoc: DocumentSnapshot,
   groupDocs: { docs: readonly DocumentSnapshot[] },
+  construction: DocumentSnapshot,
 ): EndeavourEcmDeviceWorkspace {
   const cycle = session.get('currentTurn');
   if (!Number.isSafeInteger(cycle) || (cycle as number) < 1) {
     throw new HttpsError('failed-precondition', 'The current ECM Device cycle is unavailable.');
   }
   const complete = researchComplete(research.exists ? research.data() : {});
+  const scienceDevices = parseEndeavourScienceDevicesState(construction.exists ? construction.data() : undefined);
+  if (!scienceDevices) throw new HttpsError('failed-precondition', 'Science device construction state is malformed.');
   const groups = canonicalFleetGroups(groupDocs);
   const owners = groups.filter((group) => group.vesselIds.includes('shepherd'));
   if (owners.length !== 1 || owners[0]!.id !== authority.groupId) {
@@ -367,6 +372,7 @@ function buildWorkspace(
     status: 'ready', sessionId, cycle: cycle as number,
     controlRevision: authority.controlRevision,
     researchComplete: complete,
+    built: scienceDevices.ecmBuilt,
     device: deviceState(device),
     pursuit: { groupId: authority.groupId, current: value as number },
   };
@@ -384,16 +390,17 @@ export const readEndeavourEcmDeviceWorkspace = auditedOnCall<{ sessionId?: unkno
     const deviceRef = db.doc(`sessions/${sessionId}/serverState/endeavourEcmDevice`);
     const navigationRef = db.doc(navigationStateDocumentPath(sessionId));
     const groupsRef = db.collection(`sessions/${sessionId}/fleetGroups`);
+    const constructionRef = db.doc(`sessions/${sessionId}/serverState/endeavourScienceDevices`);
     return db.runTransaction(async (tx) => {
-      const [session, actor, research, device, navigation, groups] = await Promise.all([
+      const [session, actor, research, device, navigation, groups, construction] = await Promise.all([
         tx.get(sessionRef), tx.get(actorRef), tx.get(researchRef), tx.get(deviceRef),
-        tx.get(navigationRef), tx.get(groupsRef),
+        tx.get(navigationRef), tx.get(groupsRef), tx.get(constructionRef),
       ]);
       if (!session.exists || session.get('phase') !== 'active') {
         throw new HttpsError('failed-precondition', 'The ECM Device is available only during active gameplay.');
       }
       const authority = await requireCurrentScientist(tx, session, actor, sessionId, uid);
-      return buildWorkspace(sessionId, session, authority, research, device, navigation, groups);
+      return buildWorkspace(sessionId, session, authority, research, device, navigation, groups, construction);
     });
   },
 );
@@ -415,6 +422,7 @@ export const activateEndeavourEcmDevice = auditedOnCall<{
     const actorRef = db.doc(`sessions/${command.sessionId}/players/${uid}`);
     const receiptRef = db.doc(`sessions/${command.sessionId}/commandReceipts/${command.requestId}`);
     const researchRef = db.doc(`sessions/${command.sessionId}/serverState/endeavourResearch`);
+    const constructionRef = db.doc(`sessions/${command.sessionId}/serverState/endeavourScienceDevices`);
     const deviceRef = db.doc(`sessions/${command.sessionId}/serverState/endeavourEcmDevice`);
     const navigationRef = db.doc(navigationStateDocumentPath(command.sessionId));
     const gmProjectionRef = db.doc(`sessions/${command.sessionId}/gmDiscovery/current`);
@@ -447,9 +455,9 @@ export const activateEndeavourEcmDevice = auditedOnCall<{
         throw new HttpsError('failed-precondition', 'Endeavour control changed; refresh before use.');
       }
 
-      const [research, device, navigationDoc, groupDocs, gmProjection, playerProjections, players] = await Promise.all([
+      const [research, device, navigationDoc, groupDocs, gmProjection, playerProjections, players, construction] = await Promise.all([
         tx.get(researchRef), tx.get(deviceRef), tx.get(navigationRef), tx.get(groupsRef),
-        tx.get(gmProjectionRef), tx.get(playerProjectionsRef), tx.get(playersRef),
+        tx.get(gmProjectionRef), tx.get(playerProjectionsRef), tx.get(playersRef), tx.get(constructionRef),
       ]);
       const state = deviceState(device);
       if (state.revision !== command.expectedDeviceRevision) {
@@ -459,8 +467,10 @@ export const activateEndeavourEcmDevice = auditedOnCall<{
         throw new HttpsError('failed-precondition', 'The ECM Device has already been used.');
       }
       const progress = research.exists ? research.data() : {};
-      if (!researchComplete(progress)) {
-        throw new HttpsError('failed-precondition', 'ECM Device research must be complete before activation.');
+      try {
+        requireEndeavourScienceDeviceBuilt(construction.exists ? construction.data() : undefined, 'ecm-device');
+      } catch (cause) {
+        throw new HttpsError('failed-precondition', cause instanceof Error ? cause.message : 'ECM construction is unavailable.');
       }
       const groups = canonicalFleetGroups(groupDocs);
       const navigation = currentNavigation(navigationDoc, session, authority.activeVesselIds);
@@ -488,6 +498,7 @@ export const activateEndeavourEcmDevice = auditedOnCall<{
       try {
         result = resolveEndeavourEcmDevice({
           progress,
+          construction: construction.exists ? construction.data() : undefined,
           state,
           expectedRevision: command.expectedDeviceRevision,
           navigation,

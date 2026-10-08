@@ -27,6 +27,8 @@ import { ROLE_IDS } from './roleConfiguration';
 import { parsePlayerEscapeState } from './escapeState';
 import { parseEndeavourFieldUpgradeState } from './endeavourFieldUpgrades';
 import { requirePursuitEmergencyWindowAbsent } from './pursuitEmergencyWindow';
+import { parseEndeavourScienceDevicesState } from './endeavourScienceDevices';
+import { parseEndeavourEcmDeviceState } from './endeavourEcmDevice';
 
 type RecordValue = Record<string, unknown>;
 
@@ -300,6 +302,8 @@ function readPrivateState(
   cadenceSnapshot: DocumentSnapshot,
   fieldUpgradeSnapshot: DocumentSnapshot,
   shepherdOre: number,
+  construction: DocumentSnapshot,
+  ecmSnapshot: DocumentSnapshot,
 ) {
   const cycle = session.get('currentTurn');
   const turnPhase = turnPhaseState(session.get('turnPhase'));
@@ -322,6 +326,12 @@ function readPrivateState(
   if (!fieldUpgrades || fieldUpgrades.cycle > (cycle as number)) {
     throw new HttpsError('failed-precondition', 'The private Endeavour field-upgrade state is malformed.');
   }
+  const devices = parseEndeavourScienceDevicesState(construction.exists ? construction.data() : undefined);
+  const ecm = parseEndeavourEcmDeviceState(ecmSnapshot.exists ? ecmSnapshot.data() : undefined);
+  const resources = serviceRechargeResourceState(session.get('shipResources'), 'shepherd');
+  if (!devices || !ecm || !resources) {
+    throw new HttpsError('failed-precondition', 'The private science device or Shepherd material state is unavailable.');
+  }
   return {
     status: 'ready' as const,
     sessionId,
@@ -333,6 +343,7 @@ function readPrivateState(
     })(),
     tracks: researchTracks(progress),
     shepherdOre,
+    scienceDevices: Object.freeze({ ...devices, ecmUsed: ecm.status === 'used', shepherdMaterials: resources.materials }),
     fieldUpgradeState: Object.freeze({
       upgradeRevision: fieldUpgrades.revision,
       targetsUsedThisCycle: fieldUpgrades.cycle === cycle ? fieldUpgrades.targets.length : 0,
@@ -351,16 +362,18 @@ export const readEndeavourResearchWorkspace = auditedOnCall<{ sessionId?: unknow
     const researchRef = db.doc(`sessions/${sessionId}/serverState/endeavourResearch`);
     const cadenceRef = db.doc(`sessions/${sessionId}/serverState/endeavourResearchCadence`);
     const fieldUpgradeRef = db.doc(`sessions/${sessionId}/serverState/endeavourFieldUpgrades`);
+    const constructionRef = db.doc(`sessions/${sessionId}/serverState/endeavourScienceDevices`);
+    const ecmRef = db.doc(`sessions/${sessionId}/serverState/endeavourEcmDevice`);
     return db.runTransaction(async (tx) => {
-      const [session, actor, research, cadence, fieldUpgrades] = await Promise.all([
-        tx.get(sessionRef), tx.get(actorRef), tx.get(researchRef), tx.get(cadenceRef), tx.get(fieldUpgradeRef),
+      const [session, actor, research, cadence, fieldUpgrades, construction, ecm] = await Promise.all([
+        tx.get(sessionRef), tx.get(actorRef), tx.get(researchRef), tx.get(cadenceRef), tx.get(fieldUpgradeRef), tx.get(constructionRef), tx.get(ecmRef),
       ]);
       if (!session.exists) throw new HttpsError('not-found', 'No such session.');
       if (session.get('phase') !== 'active') {
         throw new HttpsError('failed-precondition', 'Endeavour research is available only during active gameplay.');
       }
       const authority = await requireCurrentScientist(tx, session, actor, sessionId, uid);
-      return readPrivateState(sessionId, session, research, cadence, fieldUpgrades, authority.shepherdOre);
+      return readPrivateState(sessionId, session, research, cadence, fieldUpgrades, authority.shepherdOre, construction, ecm);
     });
   },
 );

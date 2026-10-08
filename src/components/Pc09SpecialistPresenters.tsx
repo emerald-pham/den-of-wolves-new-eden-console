@@ -18,6 +18,7 @@ export function WolfAgentDetectorPanel({
   targets,
   report,
   onTest,
+  canTest = true,
 }: {
   readonly cycle: number;
   readonly testsUsed: number;
@@ -25,6 +26,7 @@ export function WolfAgentDetectorPanel({
   /** This is the investigator's sanitized report, never the hidden truth. */
   readonly report: Pc09DetectorReport | null;
   readonly onTest: (targetUid: string) => Promise<unknown>;
+  readonly canTest?: boolean;
 }) {
   const [targetUid, setTargetUid] = useState(targets[0]?.uid ?? '');
   const [busy, setBusy] = useState(false);
@@ -38,7 +40,7 @@ export function WolfAgentDetectorPanel({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedTarget || availableTests === 0 || busy) return;
+    if (!canTest || !selectedTarget || availableTests === 0 || busy) return;
     setBusy(true);
     setMessage(null);
     try {
@@ -58,15 +60,16 @@ export function WolfAgentDetectorPanel({
         <span className="pc09-specialist-panel__cycle">Cycle {cycle}</span>
       </header>
       <p className="pc09-specialist-panel__copy">Run up to three private tests this cycle. Only the investigator receives each reported result.</p>
+      {!canTest && <p className="pc09-specialist-panel__copy">Detector tests require the current live Team Phase.</p>}
       <p className="pc09-specialist-panel__count" role="status">{availableTests} {availableTests === 1 ? 'test remains' : 'tests remain'} this cycle.</p>
       <form className="pc09-specialist-panel__form" onSubmit={(event) => void submit(event)}>
         <label htmlFor="pc09-detector-target">Player to test</label>
         <select id="pc09-detector-target" value={targetUid} onChange={(event) => setTargetUid(event.target.value)}
-          disabled={targets.length === 0 || availableTests === 0 || busy}>
+          disabled={!canTest || targets.length === 0 || availableTests === 0 || busy}>
           {targets.length === 0 && <option value="">No eligible player</option>}
           {targets.map((target) => <option key={target.uid} value={target.uid}>{target.label}</option>)}
         </select>
-        <button className="cic-action-button" type="submit" disabled={!selectedTarget || availableTests === 0 || busy}>
+        <button className="cic-action-button" type="submit" disabled={!canTest || !selectedTarget || availableTests === 0 || busy}>
           {busy ? 'Testing…' : 'Run detector test'}
         </button>
       </form>

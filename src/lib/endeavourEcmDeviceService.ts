@@ -23,6 +23,7 @@ export interface EndeavourEcmDeviceWorkspace {
   readonly cycle: number;
   readonly controlRevision: number;
   readonly researchComplete: boolean;
+  readonly built: boolean;
   readonly device: EndeavourEcmDeviceState;
   readonly pursuit: Readonly<{ groupId: string; current: number }>;
 }
@@ -91,17 +92,18 @@ export function parseEndeavourEcmDeviceWorkspace(
   expectedSessionId: string,
 ): EndeavourEcmDeviceWorkspace | null {
   if (!isRecord(value) || !hasExactKeys(value, [
-    'status', 'sessionId', 'cycle', 'controlRevision', 'researchComplete', 'device', 'pursuit',
+    'status', 'sessionId', 'cycle', 'controlRevision', 'researchComplete', 'built', 'device', 'pursuit',
   ]) || value.status !== 'ready' || value.sessionId !== expectedSessionId ||
       !isCounter(value.cycle) || value.cycle < 1 || !isCounter(value.controlRevision) ||
-      typeof value.researchComplete !== 'boolean' || !isRecord(value.pursuit) ||
+      typeof value.researchComplete !== 'boolean' || typeof value.built !== 'boolean' || !isRecord(value.pursuit) ||
       !hasExactKeys(value.pursuit, ['groupId', 'current']) || !isGroupId(value.pursuit.groupId) ||
       !isPursuitValue(value.pursuit.current)) return null;
   const device = parseDeviceState(value.device);
-  if (!device || (device.status === 'used' && !value.researchComplete)) return null;
+  if (!device) return null;
   return {
     status: 'ready', sessionId: expectedSessionId, cycle: value.cycle,
     controlRevision: value.controlRevision, researchComplete: value.researchComplete,
+    built: value.built,
     device, pursuit: { groupId: value.pursuit.groupId, current: value.pursuit.current },
   };
 }
@@ -181,7 +183,7 @@ export function createEndeavourEcmDeviceAttempt(
 ): EndeavourEcmDeviceAttempt {
   const { session, me, control } = currentScientistAuthority();
   if (workspace.sessionId !== session.id || workspace.cycle !== session.currentTurn ||
-      workspace.controlRevision !== control.revision || !workspace.researchComplete ||
+      workspace.controlRevision !== control.revision || !workspace.built ||
       workspace.device.status !== 'ready' || workspace.pursuit.groupId !== me.fleetGroupId ||
       workspace.device.revision !== 0) {
     throw new Error('Endeavour ECM Device state changed. Refresh before use.');

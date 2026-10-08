@@ -26,7 +26,7 @@ export function EndeavourEcmDeviceView({
       <h3>ECM Device</h3>
       {state.status === 'unavailable' && <>
         <p>Status: Unavailable</p>
-        <p>Complete ECM Device research before use.</p>
+        <p>Build the ECM Device before use.</p>
         <div className="console-workspace__actions">
           <button type="button" className="cic-action-button" disabled>Use ECM Device</button>
         </div>

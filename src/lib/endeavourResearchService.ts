@@ -6,8 +6,32 @@ import {
   requireFreshSessionAuthority,
 } from './sessionMutationAuthority';
 import { useSessionStore } from '@/store/useSessionStore';
+import { turnPhaseDeadlinePassed } from './turnPhase';
 
 export type EndeavourResearchFunding = 'standard' | 'shepherd-ore';
+export type EndeavourScienceDeviceId = 'ecm-device' | 'wolf-agent-detector';
+
+export interface EndeavourScienceDeviceAttempt {
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly expectedControlRevision: number;
+  readonly expectedResearchRevision: number;
+  readonly expectedDeviceRevision: number;
+  readonly expectedCycle: number;
+  readonly deviceId: EndeavourScienceDeviceId;
+}
+
+export interface EndeavourScienceDeviceBuildReply {
+  readonly status: 'committed' | 'replayed';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly cycle: number;
+  readonly deviceId: EndeavourScienceDeviceId;
+  readonly deviceRevision: number;
+  readonly built: true;
+  readonly materialCost: number;
+  readonly shepherdMaterials: number;
+}
 
 export interface EndeavourResearchTrackView {
   readonly trackId: string;
@@ -37,6 +61,13 @@ export interface EndeavourResearchWorkspace {
   readonly progress: Readonly<Record<string, number>>;
   readonly tracks: readonly EndeavourResearchTrackView[];
   readonly shepherdOre: number;
+  readonly scienceDevices?: Readonly<{
+    revision: number;
+    ecmBuilt: boolean;
+    detectorBuilt: boolean;
+    ecmUsed: boolean;
+    shepherdMaterials: number;
+  }>;
   readonly fieldUpgradeState: Readonly<{
     upgradeRevision: number;
     targetsUsedThisCycle: number;
@@ -84,12 +115,17 @@ function isCounter(value: unknown): value is number {
 function parseWorkspace(value: unknown, expectedSessionId: string): EndeavourResearchWorkspace | null {
   const fields = [
     'status', 'sessionId', 'cycle', 'researchRevision', 'cadence', 'progress', 'tracks', 'shepherdOre',
-    'fieldUpgradeState',
+    'fieldUpgradeState', 'scienceDevices',
   ];
   if (!isRecord(value) || !hasExactKeys(value, fields) || value.status !== 'ready' ||
       value.sessionId !== expectedSessionId || !isCounter(value.cycle) || value.cycle < 1 ||
       !isCounter(value.researchRevision) || !isCounter(value.shepherdOre) ||
       !isRecord(value.progress) || !Array.isArray(value.tracks) || value.tracks.length === 0 ||
+      !isRecord(value.scienceDevices) || !hasExactKeys(value.scienceDevices,
+        ['revision', 'ecmBuilt', 'detectorBuilt', 'ecmUsed', 'shepherdMaterials']) ||
+      typeof value.scienceDevices.ecmBuilt !== 'boolean' || typeof value.scienceDevices.detectorBuilt !== 'boolean' ||
+      typeof value.scienceDevices.ecmUsed !== 'boolean' || !isCounter(value.scienceDevices.shepherdMaterials) ||
+      value.scienceDevices.revision !== Number(value.scienceDevices.ecmBuilt) + Number(value.scienceDevices.detectorBuilt) ||
       !isRecord(value.fieldUpgradeState) ||
       !hasExactKeys(value.fieldUpgradeState, ['upgradeRevision', 'targetsUsedThisCycle']) ||
       !isCounter(value.fieldUpgradeState.upgradeRevision) ||
@@ -163,6 +199,13 @@ function parseWorkspace(value: unknown, expectedSessionId: string): EndeavourRes
     progress,
     tracks,
     shepherdOre: value.shepherdOre,
+    scienceDevices: {
+      revision: value.scienceDevices.revision as number,
+      ecmBuilt: value.scienceDevices.ecmBuilt,
+      detectorBuilt: value.scienceDevices.detectorBuilt,
+      ecmUsed: value.scienceDevices.ecmUsed,
+      shepherdMaterials: value.scienceDevices.shepherdMaterials,
+    },
     fieldUpgradeState: {
       upgradeRevision: value.fieldUpgradeState.upgradeRevision,
       targetsUsedThisCycle: value.fieldUpgradeState.targetsUsedThisCycle,
@@ -207,6 +250,56 @@ function assertCurrentScientistAuthority(
 
 function requestId(): string {
   return window.crypto.randomUUID();
+}
+
+export function createEndeavourScienceDeviceAttempt(input: Readonly<{
+  workspace: EndeavourResearchWorkspace; deviceId: EndeavourScienceDeviceId;
+}>): EndeavourScienceDeviceAttempt {
+  const { session, control } = currentScientistAuthority();
+  const phase = session.turnPhase;
+  const devices = input.workspace.scienceDevices;
+  const track = input.workspace.tracks.find((row) => row.trackId === input.deviceId);
+  if (session.phase !== 'active' || input.workspace.sessionId !== session.id || input.workspace.cycle !== session.currentTurn ||
+      !phase || phase.turn !== input.workspace.cycle || phase.airspace.state !== 'restricted' ||
+      phase.timerPause !== undefined || turnPhaseDeadlinePassed(phase, 'team') || !devices ||
+      !isCounter(devices.revision) || devices.revision > 1 || !isCounter(input.workspace.researchRevision) ||
+      input.workspace.researchRevision >= Number.MAX_SAFE_INTEGER || !track || track.currentMaterialCost === null ||
+      devices.shepherdMaterials < track.currentMaterialCost ||
+      (input.deviceId === 'ecm-device' ? devices.ecmBuilt || devices.ecmUsed : devices.detectorBuilt) ||
+      (input.deviceId !== 'ecm-device' && input.deviceId !== 'wolf-agent-detector')) {
+    throw new Error('Science device purchase changed. Refresh during the live Team Phase.');
+  }
+  return Object.freeze({ sessionId: session.id, requestId: requestId(), expectedControlRevision: control.revision,
+    expectedResearchRevision: input.workspace.researchRevision, expectedDeviceRevision: devices.revision,
+    expectedCycle: input.workspace.cycle, deviceId: input.deviceId });
+}
+
+/** The same immutable attempt confirms an uncertain response without a second purchase. */
+export async function buildEndeavourScienceDevice(attempt: EndeavourScienceDeviceAttempt): Promise<EndeavourScienceDeviceBuildReply> {
+  const { session, me, checkpoint } = currentScientistAuthority();
+  if (!attempt || attempt.sessionId !== session.id || !/^[\w-]{1,128}$/.test(attempt.requestId) ||
+      !isCounter(attempt.expectedCycle) || attempt.expectedCycle < 1 || !isCounter(attempt.expectedControlRevision) ||
+      !isCounter(attempt.expectedResearchRevision) || attempt.expectedResearchRevision >= Number.MAX_SAFE_INTEGER ||
+      !isCounter(attempt.expectedDeviceRevision) || attempt.expectedDeviceRevision > 1 ||
+      (attempt.deviceId !== 'ecm-device' && attempt.deviceId !== 'wolf-agent-detector')) {
+    throw new Error('Science device purchase changed. Refresh the Scientist console.');
+  }
+  const payload = { sessionId: attempt.sessionId, requestId: attempt.requestId, expectedCycle: attempt.expectedCycle,
+    expectedControlRevision: attempt.expectedControlRevision, expectedResearchRevision: attempt.expectedResearchRevision,
+    expectedDeviceRevision: attempt.expectedDeviceRevision, deviceId: attempt.deviceId };
+  const response = await httpsCallable<typeof payload, unknown>(functions(), 'buildEndeavourScienceDevice')(payload);
+  if (!isCurrentSessionAuthority(checkpoint)) throw new Error('Endeavour authority changed before the purchase result arrived.');
+  assertCurrentScientistAuthority(attempt.sessionId, me.uid);
+  const value = response.data;
+  if (!isRecord(value) || !hasExactKeys(value, ['status', 'sessionId', 'requestId', 'cycle', 'deviceId',
+    'deviceRevision', 'built', 'materialCost', 'shepherdMaterials']) ||
+      (value.status !== 'committed' && value.status !== 'replayed') || value.sessionId !== attempt.sessionId ||
+      value.requestId !== attempt.requestId || value.cycle !== attempt.expectedCycle || value.deviceId !== attempt.deviceId ||
+      value.deviceRevision !== attempt.expectedDeviceRevision + 1 || value.built !== true ||
+      !isCounter(value.materialCost) || value.materialCost < 1 || !isCounter(value.shepherdMaterials)) {
+    throw new Error('The server returned an invalid science device purchase result.');
+  }
+  return value as unknown as EndeavourScienceDeviceBuildReply;
 }
 
 export async function readEndeavourResearchWorkspace(): Promise<EndeavourResearchWorkspace> {
