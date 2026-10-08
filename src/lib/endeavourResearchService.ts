@@ -120,7 +120,8 @@ function parseWorkspace(value: unknown, expectedSessionId: string): EndeavourRes
           (!isCounter(rawTrack.currentMaterialCost) || rawTrack.currentMaterialCost < 1)) ||
         typeof rawTrack.complete !== 'boolean' ||
         rawTrack.complete !== (rawTrack.crossedBoxes === rawTrack.totalBoxes) ||
-        (rawTrack.complete !== (rawTrack.currentMaterialCost === null))) return null;
+        (rawTrack.complete && rawTrack.currentMaterialCost === null) ||
+        (rawTrack.currentMaterialCost === null && (rawTrack.trackId !== 'wolf-agent-detector' || rawTrack.crossedBoxes > 2))) return null;
     trackIds.add(rawTrack.trackId);
     tracks.push({
       trackId: rawTrack.trackId,
@@ -292,7 +293,7 @@ function parseCommittedReply(value: unknown, attempt: EndeavourResearchAttempt):
       value.cycle !== attempt.expectedCycle || value.researchRevision !== attempt.expectedResearchRevision + 1 ||
       value.trackId !== attempt.trackId || value.funding !== attempt.funding ||
       value.oreCost !== (attempt.funding === 'standard' ? 0 : 5) ||
-      !isCounter(value.previousMaterialCost) ||
+      (value.previousMaterialCost !== null && !isCounter(value.previousMaterialCost)) ||
       (value.currentMaterialCost !== null && !isCounter(value.currentMaterialCost)) ||
       !isCounter(value.shepherdOre) || !isRecord(value.progress) || !isRecord(value.cadence)) return null;
   if (Object.getPrototypeOf(value.progress) !== Object.prototype ||
@@ -320,7 +321,8 @@ function parseCommittedReply(value: unknown, attempt: EndeavourResearchAttempt):
   const lastChoice = choices.at(-1);
   if (standardChoices > 3 || oreChoices > 2 || !isRecord(lastChoice) ||
       lastChoice.trackId !== attempt.trackId || lastChoice.funding !== attempt.funding ||
-      !isCounter(value.previousMaterialCost) || (value.previousMaterialCost as number) < 1 ||
+      (value.previousMaterialCost !== null && (value.previousMaterialCost as number) < 1) ||
+      (value.previousMaterialCost === null && attempt.trackId !== 'wolf-agent-detector') ||
       (value.currentMaterialCost !== null && (value.currentMaterialCost as number) < 1)) return null;
   return { status: value.status };
 }

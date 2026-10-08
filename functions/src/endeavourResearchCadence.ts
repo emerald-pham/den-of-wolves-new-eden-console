@@ -66,7 +66,7 @@ export function parseEndeavourResearchCadenceState(value: unknown): EndeavourRes
   }
   if (standardCount > 3 || oreCount > 2 ||
     (value.cycle === 0 && (value.revision !== 0 || choices.length > 0)) ||
-    (value.cycle > 0 && (choices.length === 0 || value.revision < choices.length))) return null;
+    (value.cycle > 0 && (value.revision === 0 || value.revision < choices.length))) return null;
   return Object.freeze({
     cycle: value.cycle,
     revision: value.revision,

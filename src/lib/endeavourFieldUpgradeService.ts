@@ -245,7 +245,7 @@ export function availableEndeavourFieldUpgradeOptions(
       if (installed.has(system.id)) return [];
       const trackId = researchTrackId(system.id, workspace);
       const track = trackId ? workspace.tracks.find((candidate) => candidate.trackId === trackId) : undefined;
-      if (!track || track.complete || track.currentMaterialCost === null) return [];
+      if (!track || track.currentMaterialCost === null) return [];
       return [{
         shipId: ship.id,
         shipName: ship.name,

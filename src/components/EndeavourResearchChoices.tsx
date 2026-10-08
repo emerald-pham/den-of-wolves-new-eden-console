@@ -73,7 +73,9 @@ export default function EndeavourResearchChoices({
               : 'Available for a research choice.';
           return <li key={track.trackId}>
             {track.name}: {track.crossedBoxes} of {track.totalBoxes} boxes crossed;{' '}
-            {track.complete ? 'no further field-upgrade cost. ' : `next field-upgrade cost is ${track.currentMaterialCost} materials. `}
+            {track.currentMaterialCost === null ? 'purchase unavailable. '
+              : track.complete ? `current purchase cost is ${track.currentMaterialCost} materials. `
+                : `next field-upgrade cost is ${track.currentMaterialCost} materials. `}
             {status}
           </li>;
         })}
@@ -95,8 +97,9 @@ export default function EndeavourResearchChoices({
         </select>
       </label>
       {selectedTrack && <p>
-        Cross the left-most research box for {selectedTrack.name}. Its next field-upgrade cost is
-        {' '}{selectedTrack.currentMaterialCost} materials.
+        Cross the left-most remaining research box for {selectedTrack.name}.
+        {' '}{selectedTrack.currentMaterialCost === null ? 'Purchase becomes available after more research.'
+          : `Its current purchase cost is ${selectedTrack.currentMaterialCost} materials.`}
       </p>}
       <div className="console-workspace__actions">
         <button type="button" className="cic-action-button" disabled={standardDisabled}

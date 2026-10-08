@@ -1,6 +1,6 @@
 import { consoleMetadataFor } from './consoleMetadata';
 
-const track = (name: string, materialCosts: readonly number[]) => Object.freeze({
+const track = (name: string, materialCosts: readonly (number | null)[]) => Object.freeze({
   name,
   materialCosts: Object.freeze([...materialCosts]),
 });
@@ -15,15 +15,20 @@ export const ENDEAVOUR_RESEARCH_TRACKS = Object.freeze({
   'fuel-refinery': track('Fuel Refinery', [14, 12, 8, 6, 5]),
   'mining-drone-control': track('Mining Drone Control', [18, 14, 10, 6, 4]),
   'ram-scoop': track('Ram Scoop', [14, 12, 10, 8, 5]),
-  'command-and-control': track('Command and Control', [12, 9, 7, 5, 6]),
+  'command-and-control': track('Command and Control', [12, 9, 7, 7, 6]),
   'point-defence-lasers': track('Point Defence Lasers', [12, 11, 8, 5, 2]),
   'missile-launchers': track('Missile Launchers', [12, 10, 7, 5, 3]),
   'ecm-device': track('ECM Device', [18, 13, 9, 7, 5]),
-  'wolf-agent-detector': track('Wolf Agent Detector', [18, 12, 7, 5]),
+  'wolf-agent-detector': track('Wolf Agent Detector', [null, null, 18, 12, 10]),
 } as const);
 
 export type EndeavourResearchTrackId = keyof typeof ENDEAVOUR_RESEARCH_TRACKS;
 export type EndeavourResearchProgress = Readonly<Partial<Record<EndeavourResearchTrackId, number>>>;
+
+export interface EndeavourResearchRewardEffect {
+  readonly trackId: EndeavourResearchTrackId;
+  readonly marks: 1 | 2 | 'complete';
+}
 
 export interface EndeavourResearchTrackView {
   readonly trackId: EndeavourResearchTrackId;
@@ -37,7 +42,7 @@ export interface EndeavourResearchTrackView {
 export interface EndeavourResearchAdvance {
   readonly progress: EndeavourResearchProgress;
   readonly crossedBox: number;
-  readonly previousMaterialCost: number;
+  readonly previousMaterialCost: number | null;
   readonly track: EndeavourResearchTrackView;
 }
 
@@ -76,7 +81,7 @@ function requireTrackId(value: unknown): asserts value is EndeavourResearchTrack
   }
 }
 
-function crossedBoxesFor(progressValue: unknown, trackId: EndeavourResearchTrackId): number {
+function earnedMarksFor(progressValue: unknown, trackId: EndeavourResearchTrackId): number {
   const progress = canonicalProgress(progressValue);
   for (const [candidateId, candidateValue] of Object.entries(progress)) {
     if (!TRACK_ID_SET.has(candidateId)) throw new Error('Endeavour research progress contains an unknown track.');
@@ -88,20 +93,23 @@ function crossedBoxesFor(progressValue: unknown, trackId: EndeavourResearchTrack
   return progress[trackId] ?? 0;
 }
 
-/** Return the next printed material cost after crossing boxes strictly from left to right. */
+/** Stored progress counts earned marks; the printed first cross is supplied once. */
 export function endeavourResearchTrack(
   progress: unknown,
   trackId: EndeavourResearchTrackId,
 ): EndeavourResearchTrackView {
   requireTrackId(trackId);
   const definition = ENDEAVOUR_RESEARCH_TRACKS[trackId];
-  const crossedBoxes = crossedBoxesFor(progress, trackId);
+  // Five earned marks were writable before the printed pre-cross was represented.
+  // Preserve those records as complete while all new transitions stop at four.
+  const earnedMarks = Math.min(earnedMarksFor(progress, trackId), definition.materialCosts.length - 1);
+  const crossedBoxes = earnedMarks + 1;
   return {
     trackId,
     name: definition.name,
     crossedBoxes,
     totalBoxes: definition.materialCosts.length,
-    currentMaterialCost: definition.materialCosts[crossedBoxes] ?? null,
+    currentMaterialCost: definition.materialCosts[earnedMarks] ?? null,
     complete: crossedBoxes === definition.materialCosts.length,
   };
 }
@@ -114,16 +122,43 @@ export function advanceEndeavourResearch(
   requireTrackId(trackId);
   const canonical = canonicalProgress(progress);
   const before = endeavourResearchTrack(canonical, trackId);
-  if (before.complete || before.currentMaterialCost === null) {
+  if (before.complete) {
     throw new Error(`${before.name} research is already complete.`);
   }
-  const nextProgress = Object.freeze({ ...canonical, [trackId]: before.crossedBoxes + 1 });
+  const nextProgress = Object.freeze({ ...canonical, [trackId]: before.crossedBoxes });
   return {
     progress: nextProgress,
     crossedBox: before.crossedBoxes,
     previousMaterialCost: before.currentMaterialCost,
     track: endeavourResearchTrack(nextProgress, trackId),
   };
+}
+
+/** Apply mission-granted marks without charging Team choices or changing writer revisions. */
+export function applyEndeavourResearchReward(
+  progress: unknown,
+  effects: readonly EndeavourResearchRewardEffect[],
+): EndeavourResearchProgress {
+  const canonical = canonicalProgress(progress);
+  // Validate the complete record even when no selected effect touches a bad track.
+  endeavourResearchTrack(canonical, 'reactor');
+  if (!Array.isArray(effects)) throw new Error('Endeavour research reward effects must be an array.');
+  const next: Partial<Record<EndeavourResearchTrackId, number>> = { ...canonical };
+  for (const effect of effects) {
+    if (typeof effect !== 'object' || effect === null || Array.isArray(effect) ||
+        Object.getPrototypeOf(effect) !== Object.prototype ||
+        Object.keys(effect).length !== 2 || !Object.hasOwn(effect, 'trackId') || !Object.hasOwn(effect, 'marks')) {
+      throw new Error('Endeavour research reward effect is malformed.');
+    }
+    requireTrackId(effect.trackId);
+    if (effect.marks !== 1 && effect.marks !== 2 && effect.marks !== 'complete') {
+      throw new Error('Endeavour research reward marks are invalid.');
+    }
+    const maximum = ENDEAVOUR_RESEARCH_TRACKS[effect.trackId].materialCosts.length - 1;
+    const earned = endeavourResearchTrack(next, effect.trackId).crossedBoxes - 1;
+    next[effect.trackId] = effect.marks === 'complete' ? maximum : Math.min(maximum, earned + effect.marks);
+  }
+  return Object.freeze(next);
 }
 
 /** Map a canonical ship console to its shared Endeavour research track. */

@@ -49,7 +49,7 @@ export type EndeavourResearchWriterReply = Readonly<{
   trackId: EndeavourResearchTrackId;
   funding: EndeavourResearchFunding;
   oreCost: 0 | 5;
-  previousMaterialCost: number;
+  previousMaterialCost: number | null;
   currentMaterialCost: number | null;
   shepherdOre: number;
   progress: Readonly<Record<string, number>>;
@@ -197,7 +197,7 @@ function isWriterReply(
       value.researchRevision !== fingerprint.expectedRevision! + 1 ||
       value.trackId !== fingerprint.payload.trackId || value.funding !== fingerprint.payload.funding ||
       value.oreCost !== (fingerprint.payload.funding === 'standard' ? 0 : 5) ||
-      !isSafeCounter(value.previousMaterialCost) ||
+      (value.previousMaterialCost !== null && !isSafeCounter(value.previousMaterialCost)) ||
       (value.currentMaterialCost !== null && !isSafeCounter(value.currentMaterialCost)) ||
       !isSafeCounter(value.shepherdOre) || !isResearchProgress(value.progress)) return false;
   const cadence = parseEndeavourResearchCadenceState(value.cadence);
@@ -206,7 +206,7 @@ function isWriterReply(
     return false;
   }
   const track = endeavourResearchTrack(value.progress, fingerprint.payload.trackId);
-  const expectedPreviousCost = ENDEAVOUR_RESEARCH_TRACKS[fingerprint.payload.trackId].materialCosts[track.crossedBoxes - 1];
+  const expectedPreviousCost = ENDEAVOUR_RESEARCH_TRACKS[fingerprint.payload.trackId].materialCosts[track.crossedBoxes - 2];
   return expectedPreviousCost !== undefined && value.previousMaterialCost === expectedPreviousCost &&
     value.currentMaterialCost === track.currentMaterialCost;
 }
@@ -430,7 +430,7 @@ export const advanceEndeavourResearchTrack = auditedOnCall<{
       );
       if (!cadence) throw new HttpsError('failed-precondition', 'The private Endeavour research cadence is malformed.');
       const before = researchTracks(progress).find((track) => track.trackId === command.trackId)!;
-      if (before.currentMaterialCost === null) {
+      if (before.complete) {
         throw new HttpsError('failed-precondition', 'The selected Endeavour research track is complete.');
       }
       const resolveAtRevision = (expectedRevision: number) => resolveEndeavourResearchChoice({
