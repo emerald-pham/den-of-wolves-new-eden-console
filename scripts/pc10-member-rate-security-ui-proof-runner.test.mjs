@@ -611,6 +611,8 @@ for (const mode of ['readiness-ready-at-deadline', 'readiness-ready-after-deadli
       const retained = JSON.parse(await readFile(join(run.evidenceDirectory, run.failureArtifacts[0]), 'utf8'));
       assert.match(retained.originalError?.message ?? '', /original shared UI deadline/);
       assert.match(retained.contextInspect ?? '', /sdkHasServerAuthority: true/);
+      assert.match(retained.contextInspect ?? '', /Original normally admitted fresh GM/,
+        'The late delivery tuple remains attached to the original timeout evidence.');
     } finally { await rm(run.temporary, { recursive: true, force: true }); }
   });
 }
