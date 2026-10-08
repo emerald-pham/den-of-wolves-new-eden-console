@@ -35,17 +35,32 @@ const markers = [
   ['malformed ready', { policyVersion: 1, epoch: 0, state: 'ready', writeRevision: 17 }],
 ] as const;
 
-it.each(markers)('denies an actual owner server get of legacy failed K while safety is %s', async (_label, marker) => {
+it.each(markers)('denies an actual owner server get of legacy failed K while safety is %s', async (label, marker) => {
   await setMarker(marker);
   expect(fixture.record.outcomes?.[0]).toMatchObject({ contributorCount: 1, difficulty: 30, criticalThreshold: 40, outcome: 'failure', rewardBranch: 'none' });
   expect(fixture.pointers[0]!.lifecyclePublicState.outcomes?.[0]).toMatchObject({ difficulty: 30, criticalThreshold: 40 });
-  await assertFails(getDocFromServer(doc(as('alice'), `${session}/awayMissionHandPointers/${fixture.pointers[0]!.handId}`)));
+  await assertFails(getDocFromServer(doc(as('alice'), `${session}/awayMissionHandPointers/${fixture.pointers[0]!.handId}`)).then(snapshot => {
+    const outcome = snapshot.data()?.lifecyclePublicState.outcomes[0];
+    expect(outcome).toMatchObject({ difficulty: 30, criticalThreshold: 40, outcome: 'failure' });
+    console.info(JSON.stringify({ type: 'synthetic-k-raw-disclosure', operation: 'owner-get', safety: label,
+      difficulty: outcome.difficulty, criticalThreshold: outcome.criticalThreshold, outcome: outcome.outcome }));
+    return snapshot;
+  }));
 });
 
-it.each(markers)('denies the actual two-filter owner list of legacy failed K while safety is %s', async (_label, marker) => {
+it.each(markers)('denies the actual two-filter owner list of legacy failed K while safety is %s', async (label, marker) => {
   await setMarker(marker);
   expect(fixture.record.rewards).toEqual([expect.objectContaining({ branch: 'none', resources: {}, effects: [] })]);
-  await assertFails(getDocs(ownerQuery()));
+  await assertFails(getDocs(ownerQuery()).then(snapshot => {
+    expect(snapshot.docs).toHaveLength(1);
+    for (const pointer of snapshot.docs) {
+      const outcome = pointer.data().lifecyclePublicState.outcomes[0];
+      expect(outcome).toMatchObject({ difficulty: 30, criticalThreshold: 40, outcome: 'failure' });
+      console.info(JSON.stringify({ type: 'synthetic-k-raw-disclosure', operation: 'owner-list', safety: label,
+        pointerId: pointer.id, difficulty: outcome.difficulty, criticalThreshold: outcome.criticalThreshold, outcome: outcome.outcome }));
+    }
+    return snapshot;
+  }));
 });
 
 it('keeps current GM get/list readiness complete while held and rejects foreign owner access', async () => {
