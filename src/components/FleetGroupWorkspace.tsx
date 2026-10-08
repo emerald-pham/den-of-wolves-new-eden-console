@@ -53,6 +53,11 @@ export default function FleetGroupWorkspace() {
   if (!ready) return null;
   const notes = loaded?.key === key ? loaded.notes : [];
   const projection = loadedNavigation?.key === key ? loadedNavigation.projection : null;
+  const pursuitValue = me.role === 'gm'
+    ? session.pursuitGroups?.[me.fleetGroupId!]
+    : session.playerDiscovery?.groupId === me.fleetGroupId
+      ? session.playerDiscovery.pursuitValue
+      : undefined;
   const run = async (kind: 'read' | 'send' | 'partition' | 'share' | 'taxi', value?: unknown) => {
     setBusy(true); setNotice('');
     try {
@@ -93,6 +98,7 @@ export default function FleetGroupWorkspace() {
   });
   const taxiPlayers = connectedPlayers.filter(player => player.uid !== me.uid).map(player => ({ uid: player.uid, label: player.displayName }));
   return <FleetGroupPanel groupId={me.fleetGroupId!} actorUid={me.uid} notes={notes} draft={draft} busy={busy} notice={notice}
+    pursuitValue={pursuitValue}
     navigation={projection} scannedCoordinates={scannedCoordinates} taxiDestinations={taxiDestinations}
     taxiShuttles={taxiShuttles} taxiPlayers={taxiPlayers} canShare={me.role === 'player' && !!projection && scannedCoordinates.length > 0}
     onDraft={setDraft} onSend={() => void run('send')} onRefresh={() => void run('read')}

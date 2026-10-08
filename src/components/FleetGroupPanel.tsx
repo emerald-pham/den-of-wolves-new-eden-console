@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { MAX_PURSUIT, authoritativePursuitValue } from '@/data/pursuit';
 import { findVessel } from '@/data/ships';
 import type { FleetGroupNavigationProjection, FleetGroupNote, FleetTaxiPayload, FleetTaxiShuttleId } from '@/lib/fleetGroupService';
 import './FleetGroupWorkspace.css';
@@ -8,6 +9,7 @@ const EMPTY_OPTIONS = [] as const;
 interface Props {
   readonly groupId: string; readonly actorUid: string; readonly notes: readonly FleetGroupNote[];
   readonly draft: string; readonly busy: boolean; readonly notice: string;
+  readonly pursuitValue?: number | undefined;
   readonly navigation?: FleetGroupNavigationProjection | null;
   readonly scannedCoordinates?: readonly string[];
   readonly taxiDestinations?: readonly string[];
@@ -28,6 +30,7 @@ function shipLabel(shipId: string): string {
 }
 
 export default function FleetGroupPanel({ groupId, actorUid, notes, draft, busy, notice, navigation = null,
+  pursuitValue,
   scannedCoordinates = EMPTY_OPTIONS, taxiDestinations = EMPTY_OPTIONS, taxiShuttles = EMPTY_OPTIONS,
   taxiPlayers = EMPTY_OPTIONS, canShare = false, onDraft, onSend, onRefresh,
   onConfirm, onShare, onTaxi }: Props) {
@@ -54,6 +57,7 @@ export default function FleetGroupPanel({ groupId, actorUid, notes, draft, busy,
   }, [scannedCoordinates, navigation, taxiShuttles, taxiDestinations, taxiPlayers, coordinate, shuttleId, destinationShipId]);
 
   const ships = navigation?.ships ?? [];
+  const authoritativePursuit = authoritativePursuitValue(pursuitValue);
   const shareRecipients = allRecipients ? 'all' : recipientShipIds;
   const shareReady = canShare && !!coordinate && (shareRecipients === 'all' || shareRecipients.length > 0) && ships.length > 0;
   const taxiReady = !!shuttleId && !!destinationShipId &&
@@ -74,6 +78,15 @@ export default function FleetGroupPanel({ groupId, actorUid, notes, draft, busy,
         {navigation.transits.length > 0 && <ul aria-label="Current group shuttle transits">{navigation.transits.map(transit =>
           <li key={transit.shuttleId}>{transit.shuttleId.toUpperCase()} in transit // {transit.destinationShipId} // sampled {new Date(transit.sampledAt).toLocaleTimeString()}</li>)}</ul>}
       </> : <p role="status">Current group positions are unavailable until a fresh server sample arrives.</p>}
+    </section>
+    <section className="fleet-group-workspace__pursuit" aria-label="Current fleet group pursuit" data-fleet-group-id={groupId}>
+      <h3>HOUSE RULE // SPLIT-GROUP PURSUIT</h3>
+      <p>Each separated group tracks its own pursuit.</p>
+      <dl>
+        <div><dt>Current fleet group</dt><dd>{groupId.toUpperCase()}</dd></div>
+        <div><dt>Wolf pursuit</dt><dd>{authoritativePursuit === undefined
+          ? 'Pursuit unavailable' : `${authoritativePursuit} / ${MAX_PURSUIT}`}</dd></div>
+      </dl>
     </section>
     <ul aria-label="Current group announcements">{notes.map(note => <li key={note.id}><p>{note.text}</p>
       <small>{note.actorUid === actorUid ? 'You' : 'Group participant'} // {new Date(note.sentAt).toLocaleTimeString()}</small></li>)}</ul>
