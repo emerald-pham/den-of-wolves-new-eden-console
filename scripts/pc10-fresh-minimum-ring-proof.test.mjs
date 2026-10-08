@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { assertStationPopulationAcknowledgmentTransition, assertStationPopulationGmActorAuthority, assertStationPopulationGmActorObserver, minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext, stationDialogAccessibleName, stationPopulationAckMutinyRows, stationPopulationAlertsForGm, stationPopulationAssertFreshProjection, stationPopulationDialogMatches, stationPopulationDismissIntent, stationPopulationDismissLocator, stationPopulationGmActorAnchor, stationPopulationGmAuthorityPreflight, stationPopulationGmRetainedObserver, stationPopulationPostDismissProjection, stationPopulationSelectVisibleAlert, stationPopulationUiRows } from './pc10-fresh-minimum-ring-proof.mjs';
+import { heldProofFailureObservations, rememberProofFailure } from './pc10-proof-failure-evidence.mjs';
 
 const stationPopulationGmAttemptEvidence = JSON.parse(readFileSync(
   new URL('./fixtures/pc10-population-gm-observer-attempt-evidence.json', import.meta.url), 'utf8'));
@@ -99,6 +100,65 @@ test('station wave consumer seam preserves actor, Declare, combat and publicatio
     { wave: 1, attackId: 'attack-1', repeat: { status: 'repeat' } },
     { wave: 2, attackId: 'attack-2', repeat: { status: 'stopped' } },
   ]);
+});
+
+test('station wave consumer resumes only after one bounded recovery of the exact observed declaration rate limit', async () => {
+  // Source-shaped synthetic consumer failure based on the retained Attempt 24
+  // browser response. The actor/session markers below are test-only; this is
+  // not a replay or claim of native authority.
+  const denied = new Error('declareWolfAttack: actual UI request rejected.');
+  rememberProofFailure(denied, {
+    operation: 'captureLifecycleUiAction', endpoint: 'declareWolfAttack', httpStatus: 429,
+    requestData: { sessionId: 'owned-synthetic', instanceId: 'gm-instance-synthetic',
+      requestId: 'attempt24-source-shaped-request', expectedRevision: 10 },
+    before: { sessionId: 'owned-synthetic', uidHash: 'synthetic-gm-hash', generation: 1,
+      hydrationRevision: 2, instanceId: 'gm-instance-synthetic', claimedAt: 'synthetic-claim',
+      connection: 'live', freshness: 'server' },
+    current: { sessionId: 'owned-synthetic', uidHash: 'synthetic-gm-hash', generation: 1,
+      hydrationRevision: 2, instanceId: 'gm-instance-synthetic', claimedAt: 'synthetic-claim',
+      connection: 'live', freshness: 'server' },
+    body: { error: { status: 'RESOURCE_EXHAUSTED', message: 'Too many requests for this session.',
+      details: { commandError: 'rate-limited', retryAfterSeconds: 26 } } },
+  });
+  const trace = [];
+  const deadlineAt = Date.now() + 60_000;
+  const waves = await runStationCombatWaves({ maximumWaves: 1,
+    assertActors: async () => trace.push('actors'),
+    prepareAndDeclare: async () => { trace.push('declare:first-click'); throw denied; },
+    retryDeclaration: async ({ wave }) => {
+      assert.equal(wave, 1);
+      trace.push('declare:fresh-click');
+      return { httpStatus: 200,
+        data: { sessionId: 'owned-synthetic', instanceId: 'gm-instance-synthetic',
+          requestId: 'attempt24-source-shaped-retry', expectedRevision: 10 } };
+    },
+    recoverRateLimitedDeclaration: async ({ error, wave, deadlineAt: passedDeadline, retryDeclaration }) => {
+      assert.equal(error, denied);
+      assert.equal(wave, 1);
+      assert.equal(passedDeadline, deadlineAt);
+      assert.ok(passedDeadline > Date.now());
+      const [held] = heldProofFailureObservations(error);
+      assert.equal(held.endpoint, 'declareWolfAttack');
+      assert.equal(held.httpStatus, 429);
+      assert.equal(held.body.error.status, 'RESOURCE_EXHAUSTED');
+      assert.equal(held.body.error.details.commandError, 'rate-limited');
+      assert.equal(held.body.error.details.retryAfterSeconds, 26);
+      trace.push('wait:26s-within-original-deadline');
+      trace.push('same-actor-and-source-checked');
+      const capture = await retryDeclaration();
+      assert.equal(capture.httpStatus, 200);
+      assert.equal(capture.data.sessionId, held.requestData.sessionId);
+      assert.equal(capture.data.instanceId, held.requestData.instanceId);
+      assert.equal(capture.data.expectedRevision, held.requestData.expectedRevision);
+      assert.notEqual(capture.data.requestId, held.requestData.requestId);
+      return true;
+    },
+    runWave: async () => { trace.push('combat'); return { attackId: 'same-wave', pStationRepeat: { status: 'stopped' } }; },
+    persistWaves: async () => trace.push('persist'),
+  });
+  assert.deepEqual(trace, ['actors', 'declare:first-click', 'wait:26s-within-original-deadline',
+    'same-actor-and-source-checked', 'declare:fresh-click', 'combat', 'persist']);
+  assert.equal(waves.length, 1);
 });
 
 test('station wave consumer dismisses its exact informational population alert before the next Declare', async () => {
