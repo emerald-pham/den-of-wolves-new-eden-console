@@ -2034,6 +2034,7 @@ it('hydrates stable seat role ids without treating Press as a core seat', () => 
 it('hydrates only the current player loyalty and a GM-visible setup receipt after reconnect', () => {
   vi.mocked(doc).mockImplementation(((_database: unknown, path: string) => ({ path })) as never);
   const { callbacks } = captureSessionListener();
+  const listenerCallOffset = vi.mocked(onSnapshot).mock.calls.length;
   const onPrivateLoyalty = vi.fn();
   const onSetupReceipt = vi.fn();
 
@@ -2042,10 +2043,11 @@ it('hydrates only the current player loyalty and a GM-visible setup receipt afte
     onPrivateLoyalty, onSetupReceipt, onError: vi.fn(),
   });
 
-  const privateListenerIndex = vi.mocked(onSnapshot).mock.calls.findIndex(([reference]) =>
+  const privateListenerIndex = vi.mocked(onSnapshot).mock.calls.findIndex(([reference], index) =>
+    index >= listenerCallOffset &&
     (reference as { readonly path?: string } | undefined)?.path === 'sessions/s1/secrets/loyalty-u1');
   expect(privateListenerIndex).toBeGreaterThanOrEqual(0);
-  callbacks[privateListenerIndex]?.({
+  callbacks[privateListenerIndex - listenerCallOffset]?.({
     metadata: { fromCache: false },
     exists: () => true,
     get: (field: string) => field === 'payload'
