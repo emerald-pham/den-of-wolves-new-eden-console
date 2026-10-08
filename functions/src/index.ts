@@ -23616,7 +23616,6 @@ export const createWolfAmnestyOffer = auditedOnCall<{
   const sessionRef = db.doc(`sessions/${sessionId}`);
   const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
   const playersRef = db.collection(`sessions/${sessionId}/players`);
-  const addressRef = db.doc(`sessions/${sessionId}/wolfCommanderAddresses/cycle-${cycle}`);
   const offerRef = db.doc(`sessions/${sessionId}/wolfCommanderAmnesty/current`);
   const auditRef = db.doc(`sessions/${sessionId}/wolfCommanderAmnesty/current/audit/${raw.requestId}`);
   const receiptRef = commandReceiptRef(sessionId, raw.requestId);
@@ -23626,8 +23625,8 @@ export const createWolfAmnestyOffer = auditedOnCall<{
     payload: { expectedCycle: cycle, targetShipId, responseDeadlineMinutes: deadlineMinutes },
   };
   return db.runTransaction(async (tx: Transaction) => {
-    const [session, player, players, address, current, receipt, audit] = await Promise.all([
-      tx.get(sessionRef), tx.get(playerRef), tx.get(playersRef), tx.get(addressRef),
+    const [session, player, players, current, receipt, audit] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(playersRef),
       tx.get(offerRef), tx.get(receiptRef), tx.get(auditRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
@@ -23651,10 +23650,6 @@ export const createWolfAmnestyOffer = auditedOnCall<{
     const phase = turnPhaseState(session.get('turnPhase'));
     if (!phase || phase.turn !== cycle || phase.timerPause !== undefined || turnPhaseDeadlinePassed(phase, 'open')) {
       throw commandError('failed-precondition', 'Offer amnesty during the current live cycle.', 'invalid-phase');
-    }
-    if (!address.exists || address.get('type') !== 'wolf-commander-address' ||
-        address.get('status') !== 'committed' || address.get('actorUid') !== uid || address.get('cycle') !== cycle) {
-      throw commandError('failed-precondition', 'The Commander must address the fleet before offering amnesty.', 'conflict');
     }
     if (!activeVesselIdsForSession(session).includes(targetShipId)) {
       throw commandError('failed-precondition', 'Choose a currently active ship for the amnesty offer.', 'conflict');

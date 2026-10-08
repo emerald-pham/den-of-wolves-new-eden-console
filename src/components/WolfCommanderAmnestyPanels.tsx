@@ -114,7 +114,7 @@ export function WolfCommanderAddressAmnestyPanel() {
   }
 
   async function offerAmnesty(): Promise<void> {
-    if (busy || !addressPublished || !targetShipId || currentCycle < 1) return;
+    if (busy || !targetShipId || currentCycle < 1) return;
     setBusy(true);
     setActionError(null);
     setNotice(null);
@@ -146,8 +146,8 @@ export function WolfCommanderAddressAmnestyPanel() {
       </header>
       <p className="wolf-amnesty__copy">
         {manualFullGameDemo
-          ? 'Address the fleet during Team Phase; the address remains available until the GM advances the cycle. An amnesty offer states the printed surrender condition, with no wall-clock expiry in this manual full-game demo; it does not decide the bargain.'
-          : 'Address the fleet during Team Phase for up to 30 seconds. An amnesty offer states the printed surrender condition and a response deadline; it does not decide the bargain.'}
+          ? 'A fleet address is a separate optional Team Phase action. An amnesty offer states the printed surrender condition; the captain or facilitator decides the response, with no wall-clock expiry in this manual full-game demo.'
+          : 'A fleet address is a separate optional Team Phase action. An amnesty offer states the printed surrender condition and response deadline; it does not decide the bargain.'}
       </p>
       {loading && <p role="status">Loading current address and amnesty state…</p>}
       {!addressPublished && (
@@ -169,8 +169,7 @@ export function WolfCommanderAddressAmnestyPanel() {
       {addressPublished && <p className="wolf-amnesty__status" role="status">
         {notice ?? 'The fleet has been addressed this cycle. You may now issue a private amnesty offer.'}
       </p>}
-      {addressPublished && (
-        <div className="wolf-amnesty__form">
+      <div className="wolf-amnesty__form">
           <label className="wolf-amnesty__field">
             Target ship
             <select value={targetShipId} disabled={busy || activeShips.length === 0}
@@ -196,8 +195,7 @@ export function WolfCommanderAddressAmnestyPanel() {
             onClick={() => void offerAmnesty()}>
             {busy ? 'Sending amnesty offer…' : 'Offer amnesty'}
           </button>
-        </div>
-      )}
+      </div>
       {offer && <section className="wolf-amnesty__offer" aria-label="Current private amnesty offer">
         <h3>Current amnesty offer</h3>
         <OfferDetails offer={offer} manualProgression={manualFullGameDemo} />
