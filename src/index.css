@@ -3203,6 +3203,7 @@ body {
 }
 
 .ship-console__identity {
+  min-width: 0;
   position: absolute;
   z-index: 21;
   left: clamp(1rem, 5vw, 4rem);
@@ -5370,6 +5371,7 @@ body {
 
   .ship-console:not(.shuttle-console) {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     align-content: start;
     gap: 1rem;
     overflow-y: auto;
@@ -6533,6 +6535,11 @@ body {
   aspect-ratio: auto;
   border-color: transparent;
   background: color-mix(in srgb, var(--cic-void) 97%, transparent);
+}
+/* Bound the fixed two-word GM heading to its actual panel, retaining CIC type. */
+.gm-console > .ship-console__identity { container-type: inline-size; }
+.gm-console > .ship-console__identity > .ship-console__name {
+  font-size: min(clamp(3.3rem, 12vw, 8.5rem), 22cqi);
 }
 .gm-console .console-workspace__header { grid-template-columns: 1fr; }
 @media (max-width: 42rem), (max-height: 42rem) {

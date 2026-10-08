@@ -181,6 +181,20 @@ export function publicLifecycleReceipt(capture) {
 
 export async function captureLifecycleUiAction(surface, endpoint, choose, options = {}) {
   let before, current, requestData, body, response, httpStatus;
+  // Match the request emitted by this choice, not a queued response from a prior choice.
+  // Resume observers use the same canonical request-object pairing.
+  let choosing = false;
+  const intendedRequests = new Map();
+  const captureRequest = request => {
+    if (!choosing || !options.correlateRequests) return;
+    if (!new URL(request.url()).pathname.endsWith(`/us-central1/${endpoint}`) || request.method() !== 'POST') return;
+    const data = request.postDataJSON()?.data;
+    if (data?.sessionId !== before.sessionId) return;
+    if (data.requestId !== undefined && (typeof data.requestId !== 'string' || !data.requestId)) return;
+    if (options.matches && !options.matches(data)) return;
+    intendedRequests.set(request, { requestId: data.requestId, payload: JSON.stringify(data) });
+  };
+  if (options.correlateRequests) surface.page.on('request', captureRequest);
   const consumed = { endpoint, deadlineAt: options.deadlineAt, originalTimeoutMs: options.timeout ?? 60_000,
     original: options.original, gm: options.gm };
   try {
@@ -196,6 +210,10 @@ export async function captureLifecycleUiAction(surface, endpoint, choose, option
           if (!new URL(response.url()).pathname.endsWith(`/us-central1/${endpoint}`) || response.request().method() !== 'POST') return false;
           const data = response.request().postDataJSON()?.data;
           if (options.matches && !options.matches(data)) return false;
+          if (options.correlateRequests) {
+            const intended = intendedRequests.get(response.request());
+            if (!intended || intended.requestId !== data?.requestId || intended.payload !== JSON.stringify(data)) return false;
+          }
           requestData = data; return true;
         }, { timeout: consumed.responseObserverTimeoutMs });
       },
@@ -206,6 +224,7 @@ export async function captureLifecycleUiAction(surface, endpoint, choose, option
         if (options.original) assertObserverOperationActor(options.original, current);
         await retainUiReceiptContext(surface.page, consumed);
         if (options.deadlineAt !== undefined) remainingLifecycleOperation(options.deadlineAt);
+        choosing = true;
         await choose();
       },
     });
@@ -221,6 +240,8 @@ export async function captureLifecycleUiAction(surface, endpoint, choose, option
     rememberProofFailure(error, { operation: 'captureLifecycleUiAction', ...consumed, before, current,
       requestData, body, httpStatus });
     throw error;
+  } finally {
+    if (options.correlateRequests) surface.page.off('request', captureRequest);
   }
 }
 

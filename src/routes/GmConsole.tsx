@@ -10,6 +10,7 @@ import { resolveArrestPosse } from '@/lib/arrestPosseService';
 import { resolveArrestCaseDisposition } from '@/lib/arrestCaseDispositionService';
 import EmergencyTimerPauseControl from '@/components/EmergencyTimerPauseControl';
 import WolfAttackRecoveryControl from '@/components/WolfAttackRecoveryControl';
+import DradisEffectControls from '@/components/DradisEffectControls';
 import GmWolfDecisionSummary from '@/components/GmWolfDecisionSummary';
 import { projectWolfAttackGmAftermathView, WolfAttackGmAftermathView } from '@/components/WolfAttackGmAftermathView';
 import { GmWolfAmnestyPanel } from '@/components/WolfCommanderAmnestyPanels';
@@ -3013,6 +3014,7 @@ export default function GmConsole() {
   const renderGmDradis = (expanded: boolean) => (
     <ShipPlot
       layout="gm"
+      showGmEffects={false}
       hostile={false}
       aboard
       viewerId={viewer?.id ?? 'aegis'}
@@ -3033,7 +3035,7 @@ export default function GmConsole() {
     />
   );
 
-  const renderDradisPerspectives = () => (
+  const renderDradisPerspectives = (expanded = false) => (
     <div className="gm-dradis__controls">
       <p className="gm-dradis__perspective">
         DRADIS perspective // {viewer?.name ?? 'AEGIS'} // GALACTIC COORDINATES // {viewerCoordinate}
@@ -3051,6 +3053,7 @@ export default function GmConsole() {
           </button>
         ))}
       </div>
+      {expanded && <DradisEffectControls expanded />}
     </div>
   );
 
@@ -5598,7 +5601,7 @@ export default function GmConsole() {
             data-expanded="true"
           >
             <div className="gm-dradis-modal__plot">{renderGmDradis(true)}</div>
-            {renderDradisPerspectives()}
+            {renderDradisPerspectives(true)}
           </section>
         </>,
         document.body,

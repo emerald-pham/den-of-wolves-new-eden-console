@@ -89,6 +89,7 @@ describe('fleet system reference workspaces', () => {
       })).toBeInTheDocument();
       if (role.id === 'admiral') {
         expect(screen.getByRole('heading', { name: 'Maintenance cycle' })).toBeVisible();
+        await userEvent.click(screen.getByRole('button', { name: 'Operations reference' }));
         const reference = screen.getByRole('complementary', { name: `${ship.name} maintenance reference` });
         expect(reference).toHaveTextContent(/sequence.*1 storage.*7 shuttle bay omega/i);
         expect(reference).toHaveTextContent(/rations.*food 0 \/ 3 \/ 5 \/ 8.*water 0 \/ 2 \/ 3 \/ 6/i);
@@ -220,7 +221,7 @@ describe('fleet system reference workspaces', () => {
   });
 });
 
-it.each(SHIPS.filter(ship => ship.maintenance))('keeps the complete $name maintenance reference together', (ship) => {
+it.each(SHIPS.filter(ship => ship.maintenance))('keeps the complete $name maintenance reference together', async (ship) => {
   const role = ship.roles[0];
   if (!role) throw new Error('Expected a ship role');
   renderWorkspace(<FleetSystemsWorkspace ship={ship} role={role} fuel={3} galacticCoordinate="0000" />);
@@ -228,6 +229,7 @@ it.each(SHIPS.filter(ship => ship.maintenance))('keeps the complete $name mainte
   expect(screen.getByRole('list', { name: `${ship.name} maintenance sequence` })).toBeVisible();
   expect(screen.getByRole('heading', { name: 'Storage' })).toBeVisible();
   expect(screen.getByRole('heading', { name: 'Role procedures' })).toBeVisible();
+  await userEvent.click(screen.getByRole('button', { name: 'Operations reference' }));
   const reference = screen.getByRole('complementary', { name: `${ship.name} maintenance reference` });
   expect(reference).toHaveTextContent(/sequence.*1 storage.*6 shuttle bay/i);
   expect(reference).toHaveTextContent(new RegExp(

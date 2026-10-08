@@ -224,6 +224,8 @@ export function projectShipState(session: GameSession, shipId: string): ShipCons
       : {}),
     ...(jumps === undefined ? {} : { jumpState: jumps }),
     ...(transition === undefined ? {} : { jumpTransition: transition }),
-    consoleLocked: session.shipConsoleLocks?.[shipId] === true,
+    // Legacy session snapshots may retain the retired ICN travel lock.
+    // Keep the workspace compatibility flag clear without changing shared game data.
+    consoleLocked: false,
   };
 }

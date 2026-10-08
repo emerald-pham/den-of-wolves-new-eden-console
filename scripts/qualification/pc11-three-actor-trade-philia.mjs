@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile, realpath } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
+import { waitForMaintenanceReceipt } from '../pc10-candidate-proof-helpers.mjs';
 import { observeUiReceipt, attachUiReceiptDiagnostics } from '../pc10-browser-ui-receipt.mjs';
 import { originalProofError, retainProofFailure } from '../pc10-proof-failure-evidence.mjs';
 import { observeFullGameDemoPresentationMember as observeNormalMember, proofRuntimeFromViteSource, validateProofRuntime } from '../pc10-full-game-demo-proof-helpers.mjs';
@@ -30,6 +31,8 @@ const sourceContractPreflight=runPc11ContractPreflight(root);
 const require=createRequire(`${root}/package.json`), {chromium}=require('playwright');
 
 const gmOnly=process.env.PC11_GM_ONLY==='1';
+const pr17Proof=process.env.PC11_PR17_PROOF==='1';
+assert.ok(!(gmOnly&&pr17Proof),'PR17 needs the canonical three admitted actors');
 const browsers=[],surfaces=[],errors=[],calls=[],requests=[],remoteRequests=[],states=[],receipts=[],claims=[];
 let gm,owner,recipient,sid,joinCode,creationRequestId,startRequestId,stage='not-started',consumed=null,primaryFailure=null,startAt,workEnd,totalEnd;
 const actorUids=new Map(),admissionActors=new Map(),pendingLaunches=[],pendingOriginalIdentities=[];let stopped=false;
@@ -40,7 +43,7 @@ const evidence={schemaVersion:1,sourceCommit,sourceContractPreflight,configuredR
  wholeGameProof:false,endingProof:false,capacityProof:false,visualUsabilityAccepted:false,
  renderedReleaseGatesPending:true,demoProfileAdapterUsed:false,clockAcceleration:false,
  cohortReason:gmOnly?'One ordinary authenticated GM proves only fresh claim ownership and server authority; no players or gameplay setup.':'Ordinary GM production start and briefing clearance with separately admitted Dione Engineer and President prove the exact trade and Philia target-consent path. Legal configured 12-seat Chart A leaves ten other player seats open.',
- unchangedAdmissionManualSetupAndObserversReused:true,tradeAndPhiliaReloadReadback:!gmOnly,
+ unchangedAdmissionManualSetupAndObserversReused:true,tradeAndPhiliaReloadReadback:!gmOnly&&!pr17Proof,pr17AuthenticatedProof:pr17Proof,
  executionTargetMs:180000,executionCapMs:480000,originalPageTimeoutMs:35000,originalOperationTimeoutMs:60000,
  states,receipts,claims,requests,calls,remoteRequests,errors};
 async function bounded(operation,timeout,name,onTimeout=()=>{}) {let timer;try{return await Promise.race([operation,new Promise((_,reject)=>{timer=setTimeout(()=>{onTimeout();reject(new Error(name));},timeout);})]);}finally{clearTimeout(timer);}}
@@ -48,7 +51,7 @@ function budget() { assert.equal(stopped,false,'Work has stopped; do not begin a
 async function mark(name) { budget();stage=name; await writeFile(`${directory}/progress.json`,JSON.stringify({sourceCommit,stage,elapsedMs:Date.now()-startAt,claims},null,2)+'\n');console.log(JSON.stringify({stage,elapsedMs:Date.now()-startAt})); }
 async function snapshot(surface,label) { if(new URL(surface.page.url()).origin!==new URL(baseUrl).origin)return {skipped:true,reason:'Original App origin has not mounted; no actor observer was imported.'};const value=await observeLifecycleActor(surface,sid);states.push({label,origin:new URL(surface.page.url()).origin,state:value});consumed={stage,label,state:value};await writeFile(`${directory}/consumed-state.json`,JSON.stringify(consumed,null,2)+'\n');return value; }
 async function register(surface,label) { const uid=await surface.page.evaluate(async()=>{const {auth}=await import('/src/lib/firebase.ts');if(!auth().currentUser)throw new Error('Normal admission has no Auth user.');return auth().currentUser.uid;});assert.ok(![...actorUids].some(([actor,value])=>actor!==label&&value===uid),'Require independent normally admitted Auth identities.');if(actorUids.has(label))assert.equal(actorUids.get(label),uid,'Original request Auth UID must be retained.');actorUids.set(label,uid);evidence.actualAuthenticatedActors=actorUids.size;await writeFile(`${directory}/owned-identities.json`,JSON.stringify({sid,joinCode,actors:Object.fromEntries(actorUids)},null,2)+'\n',{mode:0o600}); }
-async function action(surface,endpoint,choose,options={}) { budget();const value=await captureLifecycleUiAction(surface,endpoint,()=>{budget();return choose();},options);receipts.push(publicLifecycleReceipt(value));return value; }
+async function action(surface,endpoint,choose,options={}) { budget();const value=await captureLifecycleUiAction(surface,endpoint,()=>{budget();return choose();},{...options,correlateRequests:pr17Proof});receipts.push(publicLifecycleReceipt(value));return value; }
 // Existing ordinary UI surface factory, copied verbatim; original35s/60s budgets retained.
   async function surface(label) {
     const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -127,6 +130,7 @@ async function action(surface,endpoint,choose,options={}) { budget();const value
             rosterStatus: document.querySelector('[aria-label="Roster confirmation status"]')?.textContent ?? '',
             authorityStatus: document.querySelector('[aria-label="Setup authority status"]')?.textContent ?? '' },
           gmInstanceOwned: !!state.gmInstance && state.gmInstance.uid === state.me?.uid && state.gmInstance.sessionId === state.session?.id,
+          grantShipId: state.gmInstance?.shipConsoleWriteGrant?.shipId ?? null,
           instanceId: state.gmInstance?.id ?? null, setupConfirmed: state.session?.setupConfirmed ?? false,
           setupRevision: state.session?.setupRevision ?? null, activeRoleIds: state.session?.activeRoleIds ?? [],
           activeVesselIds: state.session?.activeVesselIds ?? [], pressEnabled: state.session?.pressEnabled !== false,
@@ -379,6 +383,108 @@ async function ordinaryStartPreflight(){
  claims.push('Normal active Cycle 1, cleared briefing, live original GM and two seats match the exact mounted canonical Chart A roster and independently captured admissions');
  return snapshot;
 }
+async function runPr17Proof(){
+ const deadlineAt=workEnd;
+ const limits={deadlineAt};
+ const panel=surface=>surface.page.getByRole('region',{name:'Dione maintenance cycle',exact:true});
+ const lockState=async surface=>surface.page.evaluate(moduleUrl=>{
+  return import(moduleUrl).then(({useSessionStore})=>{
+   const state=useSessionStore.getState();
+   return {legacyTrue:state.session?.shipConsoleLocks?.dione===true,
+    cycle:state.session?.currentTurn,phase:state.session?.phase,
+    maintenance:state.session?.maintenanceCycles?.dione??null,
+    grantShipId:state.gmInstance?.shipConsoleWriteGrant?.shipId??null,
+    live:state.connection==='live'&&state.sessionSnapshotFreshness==='server',sessionId:state.session?.id??null,
+    maintenanceCycles:state.session?.maintenanceCycles??{},
+    mode:state.mode,route:location.hash};
+  });
+ },surface.storeModuleUrl());
+ const inspectRendered=()=>panel(owner).evaluate(element=>{
+  const current=[...element.querySelectorAll('ol[aria-label$=" maintenance sequence"] li[aria-current="step"]')];
+  return {currentStep:current.length===0?null:current.length===1?Number(current[0].querySelector('.maintenance-systems__step > span')?.textContent):'ambiguous',
+   endEnabled:[...element.querySelectorAll('button')].some(button=>button.textContent?.trim()==='End maintenance cycle'&&!button.disabled),
+   results:[...element.querySelectorAll('[role="status"]')].map(status=>status.textContent??'')};
+ });
+ const originalEngineer=await memberReady(owner,'Owner',limits);
+ const synchronize=expectedMaintenance=>waitForMaintenanceReceipt({shipId:'dione',cycle:expectedMaintenance.turn,revision:expectedMaintenance.revision,expectedActor:originalEngineer,expectedMaintenance,
+  inspectGm:()=>lockState(gm),inspectCrew:()=>lockState(owner),inspectActor:()=>owner.observe(),inspectRendered,timeoutMs:Math.max(1,Math.min(60000,deadlineAt-Date.now()))});
+ const noIcn=async surface=>assert.equal(await surface.page.getByRole('button',{name:/Engage.*ICN|Release.*ICN/}).count(),0);
+ await mark('PR17 real GM Console-mode observer and scoped grant');
+ const gmUrl=new URL(gm.page.url());gmUrl.hash='/console';await gm.page.goto(gmUrl.href);
+ await gm.page.locator('a[href$="/ships/dione/roles"]').click();
+ await gm.page.getByRole('link',{name:'View ship consoles',exact:true}).click();
+ await liveGm(gm,'GM1','active',limits);
+ const access=gm.page.getByRole('button',{name:'GM ship console read write access',exact:true});
+ await access.waitFor();assert.equal((await lockState(gm)).mode,'console');
+ assert.equal(await access.getAttribute('aria-pressed'),'false');
+ assert.equal(await panel(gm).getByRole('button',{name:/Begin Maintenance Cycle/}).isDisabled(),true);
+ await noIcn(gm);
+ const originalGm=await observeLifecycleActor(gm,sid);
+ await access.click();
+ const grant=await action(gm,'setGmShipConsoleWriteGrant',()=>gm.page.getByRole('alertdialog',{name:'Are you sure?',exact:true}).getByRole('button',{name:'ARE YOU SURE?',exact:true}).click(),{gm:true,original:originalGm,deadlineAt,matches:data=>data?.shipId==='dione'&&data?.enabled===true&&data?.instanceId===originalGm.instanceId&&data?.claimedAt===originalGm.claimedAt});
+ assert.equal(grant.result.enabled,true);
+ await gm.until('Current original GM has Dione scoped grant',asyncValue=>asyncValue.sameActor&&asyncValue.gmInstanceOwned&&asyncValue.grantShipId==='dione');
+ assert.equal(await access.getAttribute('aria-pressed'),'true');
+ const legacy=await action(gm,'setShipConsoleLock',()=>gm.page.evaluate(async()=>{
+  const service=await import('/src/lib/sessionService.ts');await service.setShipConsoleLock('dione',true);
+ }),{gm:true,original:originalGm,deadlineAt,matches:data=>data?.shipId==='dione'&&data?.locked===true});
+ assert.equal(legacy.result.locked,true);assert.equal(legacy.result.shipId,'dione');
+ assert.equal(legacy.result.vesselId,'dione');assert.equal(legacy.result.idempotencyKey,legacy.data.requestId);
+ assert.equal(legacy.result.actorUid,actorUids.get('GM1'));assert.ok(Number.isSafeInteger(legacy.result.revision));
+ await memberReady(owner,'Owner',limits);await memberReady(recipient,'Recipient',limits);
+ // Wait on the normal member projection rather than treating the GM reply as player freshness.
+ const lockEnd=Math.min(Date.now()+35000,deadlineAt);let playerLock;
+ do{playerLock=await lockState(owner);if(playerLock.legacyTrue)break;await delay(200);}while(Date.now()<lockEnd);
+ assert.equal(playerLock.legacyTrue,true,'Original Engineer receives authoritative legacy true');
+ states.push({label:'PR17 server-projected legacy true',state:playerLock});
+ await noIcn(owner);
+ await mark('PR17 authorized mounted maintenance while legacy true');
+ const begin=panel(owner).getByRole('button',{name:/Begin Maintenance Cycle/});
+ assert.equal(await begin.isEnabled(),true);
+ const begun=await action(owner,'runMaintenance',async()=>{
+  await begin.click();await panel(owner).getByRole('button',{name:'ARE YOU SURE?',exact:true}).click();
+ },{deadlineAt,matches:data=>data?.shipId==='dione'&&data?.action==='begin'});
+ assert.equal(begun.data.shipId,'dione');assert.equal(begun.data.action,'begin');
+ assert.equal(begun.result.status,'committed');await synchronize(begun.result.cycle);
+ const storage=panel(owner).getByRole('button',{name:'Check storage',exact:true});
+ await storage.waitFor();assert.equal(await storage.isEnabled(),true);
+ const checked=await action(owner,'runMaintenance',()=>storage.click(),{deadlineAt,matches:data=>data?.shipId==='dione'&&data?.action==='storage'});
+ assert.equal(checked.data.action,'storage');assert.equal(checked.result.status,'committed');
+ await waitForMaintenanceReceipt({shipId:'dione',cycle:checked.result.cycle.turn,revision:checked.result.cycle.revision,expectedActor:originalEngineer,expectedMaintenance:checked.result.cycle,
+  inspectGm:()=>lockState(gm),inspectCrew:()=>lockState(owner),inspectActor:()=>owner.observe(),inspectRendered,timeoutMs:Math.max(1,Math.min(60000,deadlineAt-Date.now()))});
+ const after=await lockState(owner);assert.equal(after.legacyTrue,true);
+ assert.ok(checked.result,'Actual gameplay callable result required');
+ states.push({label:'PR17 actual gameplay under legacy true',state:after});
+ claims.push('Original authenticated Engineer begin/storage UI receipts commit while legacy true; no ICN control');
+ await mark('PR17 original member cold resume and visible role re-entry');
+ await restoredMember(owner,'Owner',deadlineAt);assert.equal((await lockState(owner)).legacyTrue,true);await noIcn(owner);
+ const roles=owner.page.locator('a.ship-console__back[href="#/ships/dione/roles"]');
+ await memberNavigate(owner,'Owner',()=>roles.click(),owner.page.locator('a[href="#/ships/dione/roles/dione-engineer"]'),deadlineAt);
+ await memberNavigate(owner,'Owner',()=>owner.page.locator('a[href="#/ships/dione/roles/dione-engineer"]').click(),panel(owner),deadlineAt);
+ assert.equal((await lockState(owner)).legacyTrue,true);await noIcn(owner);
+ claims.push('Same authenticated member normal reload/resume and visible Engineer return/re-entry retain legacy true and current seat');
+ await mark('PR17 foreign-vessel role denies gameplay without altering assignment');
+ const foreignUrl=new URL(owner.page.url());foreignUrl.hash='/console';
+ await memberNavigate(owner,'Owner',()=>owner.page.goto(foreignUrl.href),owner.page.locator('a[href$="/ships/aegis/roles"]'),deadlineAt);
+ await memberNavigate(owner,'Owner',()=>owner.page.locator('a[href$="/ships/aegis/roles"]').click(),owner.page.locator('a[href="#/ships/aegis/roles/admiral"]'),deadlineAt);
+ await memberNavigate(owner,'Owner',()=>owner.page.locator('a[href="#/ships/aegis/roles/admiral"]').click(),owner.page.getByRole('button',{name:'Operations reference',exact:true}),deadlineAt);
+ const foreign=await memberReady(owner,'Owner',limits);
+ assert.equal(foreign.assignedRoleId,'dione-engineer');assert.equal(foreign.activeConsoleRoleId,'dione-engineer');
+ assert.match(owner.page.url(),/ships\/aegis\/roles\/admiral/);
+ assert.equal(await owner.page.getByRole('button',{name:/Begin Maintenance Cycle/}).isDisabled(),true);
+ await noIcn(owner);states.push({label:'PR17 foreign-vessel denied',actor:foreign});
+ claims.push('Server-assigned Dione Engineer retains identity while AEGIS Admiral gameplay is disabled; no same-ship short-staff claim');
+ await mark('PR17 visible GM revoke and observer read-only');
+ const revoked=await action(gm,'setGmShipConsoleWriteGrant',()=>access.click(),{gm:true,original:originalGm,deadlineAt,matches:data=>data?.shipId==='dione'&&data?.enabled===false&&data?.instanceId===originalGm.instanceId&&data?.claimedAt===originalGm.claimedAt});
+ assert.equal(revoked.result.enabled,false);
+ assert.equal(await access.getAttribute('aria-pressed'),'false');
+ assert.equal(await panel(gm).getByRole('button',{name:'Proceed with rations',exact:true}).isDisabled(),true);
+ assert.equal((await lockState(gm)).grantShipId,null);
+ claims.push('Original GM normal Console-mode observer read-only, scoped confirmed grant, authenticated legacy compatibility mutation and visible revoke preserve authority');
+ evidence.pr17={legacySetup:'normal authenticated retained compatibility service; no removed UI or Admin gameplay write',syntheticSession:true,authenticated:true,foreignCase:'foreign-vessel; same-ship short-staff exception unchanged',deadlineAt};
+ assert.equal(remoteRequests.length,0);assert.equal(errors.length,0);
+}
+
 startAt=Date.now();({totalEnd,workEnd,executionCapMs:evidence.executionCapMs}=pc11ProofTiming(startAt,Number(process.env.PC11_ALLOCATION_DEADLINE_MS)));evidence.startedAt=new Date(startAt).toISOString();
 try{await bounded((async()=>{
  await mark(gmOnly?'launch exactly one normal GM browser':'launch exactly GM/printed-owner/recipient browser surfaces');gm=await launchSurface('browser-A-normal-GM');if(!gmOnly){owner=await launchSurface('browser-B-normal-Engineer');recipient=await launchSurface('browser-C-normal-Captain');}
@@ -392,6 +498,10 @@ try{await bounded((async()=>{
  await mark('ordinary GM production start');const production=gm.page.locator('fieldset[aria-label="Ordinary production start"]');const started=await action(gm,'startGame',async()=>{await production.getByRole('button',{name:PC11_NORMAL_START.ui.productionButton,exact:true}).click();await production.getByRole('button',{name:'ARE YOU SURE? // ADVANCE TO CYCLE 1',exact:true}).click();});startRequestId=started.data.requestId;assert.match(startRequestId,/^[\w-]{1,128}$/);assert.ok(['committed','replayed'].includes(started.result.status),'Ordinary production start must retain its actual committed UI receipt.');await liveGm(gm,'GM1','active');
  await mark('original GM clears actual Cycle 1 briefing');const briefing=gm.page.getByRole('region',{name:'Cycle briefing clearance',exact:true});const clear=await action(gm,'clearTurnAdvanceInterstitial',()=>briefing.getByRole('button',{name:PC11_NORMAL_START.ui.briefingClearButton,exact:true}).click());assert.ok(['cleared','replayed'].includes(clear.result.status),'The mounted briefing clear must retain its actual UI receipt.');await gm.until('Cycle 1 briefing cleared and clock resumed',v=>v.cycle===1&&v.phase==='active'&&!v.ordinaryBriefingMounted&&!v.ordinaryBriefingHeld);await Promise.all([owner,recipient].map(surface=>surface.paintTwoFrames()));
  await memberReady(owner,'Owner');await memberReady(recipient,'Recipient');await ordinaryStartPreflight();
+
+ if(pr17Proof){
+  await runPr17Proof();evidence.status='PC11_PR17_AUTHENTICATED_PASS';evidence.completedAt=new Date().toISOString();return;
+ }
 
  await mark('GM-visible physical tabletop baseline attestation');
  evidence.physicalBaselineDisclosure='The actual GM records the two players’ declared physical tabletop counts in the mounted UI; the runner does not observe or seed physical tokens.';

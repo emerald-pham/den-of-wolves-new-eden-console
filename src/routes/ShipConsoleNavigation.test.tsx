@@ -39,7 +39,6 @@ vi.mock('@/lib/sessionService', () => ({
   applyAegisCommandAndControl: vi.fn(),
   popShipConfetti: vi.fn(),
   selectConsoleRole: vi.fn(),
-  setShipConsoleLock: vi.fn(),
 }));
 
 vi.mock('@/lib/firestore', () => ({
@@ -53,11 +52,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeVipCards: vi.fn(() => vi.fn()),
 }));
 
-const { setShipConsoleLock } = await import('@/lib/sessionService');
-
 beforeEach(() => {
-  vi.mocked(setShipConsoleLock).mockReset();
-  vi.mocked(setShipConsoleLock).mockResolvedValue('applied');
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
     id: 's1', name: 'Table one', joinCode: '4821', phase: 'active', ownerUid: 'u1', currentTurn: 1,
@@ -188,25 +183,33 @@ it('does not show another ship knowledge on the currently viewed ship map', asyn
   expect(map.querySelector('[data-system-coordinate="6798"]')).toBeNull();
 });
 
-it('shows the ICN travel lock and disables console actions while it is engaged', async () => {
+it('keeps navigation and maintenance available with a legacy engaged ICN lock', async () => {
   const user = userEvent.setup();
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Expected session.');
   useSessionStore.getState().setSession({ ...session, shipConsoleLocks: { aegis: true } });
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
   renderShip();
 
-  expect(screen.getByText(/ICN console lock.*engaged/i)).toBeVisible();
-  expect(screen.getByRole('button', { name: /release ICN console lock/i })).toBeEnabled();
-  expect(screen.getByRole('button', { name: /begin maintenance/i })).toBeDisabled();
-
-  await user.click(screen.getByRole('button', { name: /release ICN console lock/i }));
-  expect(setShipConsoleLock).toHaveBeenCalledWith('aegis', false);
+  expect(screen.queryByRole('region', { name: 'ICN console lock' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /ICN console lock/i })).not.toBeInTheDocument();
+  const maintenance = screen.getByRole('button', { name: /begin maintenance/i });
+  expect(maintenance).toBeEnabled();
+  maintenance.focus();
+  expect(maintenance).toHaveFocus();
+  const navigation = screen.getByRole('button', { name: 'Navigation' });
+  navigation.focus();
+  await user.keyboard('{Enter}');
+  expect(await screen.findByRole('region', { name: 'Ship navigation map' })).toBeVisible();
+  expect(screen.getByRole('link', { name: 'Resource stores' })).toHaveAttribute('href', '#aegis-resource-stores');
 });
 
-it('allows the entitled local travel lock independently of the Iris gate', () => {
+it('removes the ICN control at cycle zero while retaining the maintenance cycle gate', () => {
   const session = useSessionStore.getState().session!;
-  useSessionStore.getState().setSession({ ...session, currentTurn: 0 });
+  useSessionStore.getState().setSession({ ...session, currentTurn: 0, shipConsoleLocks: { aegis: true } });
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
   renderShip();
 
-  expect(screen.getByRole('button', { name: /engage ICN console lock/i })).toBeEnabled();
+  expect(screen.queryByRole('button', { name: /ICN console lock/i })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /begin maintenance/i })).toBeDisabled();
 });

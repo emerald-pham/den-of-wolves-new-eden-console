@@ -249,8 +249,8 @@ test('every active runner browser callback binds published modules and normal fi
       // The copied factory's callable controller is never invoked by this UI-only runner.
       if(!text.includes('httpsCallable'))callbacks.push({text,kind:node.expression.name.text});
     }ts.forEachChild(node,visit);
-  }visit(ast);assert.equal(callbacks.length,15,'Active browser callback inventory must be updated for changes.');
-  for(const [file,names]of [['src/lib/firebase.ts',['auth']],['src/lib/firestore.ts',['db']],['src/store/useSessionStore.ts',['useSessionStore']]]) {
+  }visit(ast);assert.equal(callbacks.length,18,'Active browser callback inventory must be updated for changes.');
+  for(const [file,names]of [['src/lib/firebase.ts',['auth']],['src/lib/firestore.ts',['db']],['src/store/useSessionStore.ts',['useSessionStore']],['src/lib/sessionService.ts',['setShipConsoleLock']]]) {
     const module=ts.createSourceFile(file,readFileSync(resolve(root,file),'utf8'),ts.ScriptTarget.Latest,true);
     const exported=new Set();for(const statement of module.statements){if(!statement.modifiers?.some(modifier=>modifier.kind===ts.SyntaxKind.ExportKeyword))continue;
       if(ts.isFunctionDeclaration(statement)&&statement.name)exported.add(statement.name.text);
@@ -267,23 +267,26 @@ test('every active runner browser callback binds published modules and normal fi
   const modules={'/src/lib/firebase.ts':{auth:()=>({currentUser:{uid}})},'/src/store/useSessionStore.ts':{useSessionStore:store},
     '/src/lib/sessionSnapshotAuthority.ts':sdk,'/src/data/rolePresets.ts':rolePresets,'/src/lib/firestore.ts':{db:()=>({})},
     '/node_modules/.vite/deps/firebase_firestore.js':{doc:(_db,path)=>{assert.equal(path,`sessions/${sid}/playerHeldResourceInventories/${uid}`);return path;},getDocFromServer:async()=>({exists:()=>true,data:()=>({balances:heldBalances})})}};
+  let compatibilityCalls=0;
+  modules['/src/lib/sessionService.ts']={setShipConsoleLock:async(shipId,locked)=>{assert.equal(shipId,'dione');assert.equal(locked,true);compatibilityCalls++;}};
+  const location={hash:'#/ships/dione/observer'};
   const window={};const node={textContent:'actual diagnostic',isConnected:true,querySelectorAll:()=>[],getAttribute:()=>null};
   const document={querySelector:selector=>selector==='section.same-table-trade'?node:null,querySelectorAll:()=>[]};
   const context={load:async path=>{assert.ok(Object.hasOwn(modules,path),`Unavailable active browser import ${path}`);return modules[path];},
-    crypto:webcrypto,performance:{timeOrigin:100,now:()=>1},document,window,TextEncoder,
+    crypto:webcrypto,performance:{timeOrigin:100,now:()=>1},document,window,location,TextEncoder,
     requestAnimationFrame:callback=>callback(),fetch:async path=>{assert.equal(path,'/src/lib/firestore.ts');return{text:async()=>`import {getDocFromServer} from '/node_modules/.vite/deps/firebase_firestore.js';`};}};
   let executed=0;
   for(const {text,kind}of callbacks){
     const func=new Function(...Object.keys(context),`return (${text.replace(/\bimport\s*\(/g,'load(')});`)(...Object.values(context));
     const parameter=text.match(/^(?:async\s*)?(?:\(([^)]*)\)|([A-Za-z]+))\s*=>/)?.slice(1).find(Boolean)?.trim();
-    const argument=kind==='evaluateAll'?[]:parameter==='playerCount'?12:parameter==='moduleUrl'||parameter==='storeUrl'?'/src/store/useSessionStore.ts':
+    const argument=kind==='evaluateAll'?[]:parameter==='element'?node:parameter==='playerCount'?12:parameter==='moduleUrl'||parameter==='storeUrl'?'/src/store/useSessionStore.ts':
       {sid,uid,authorityUrl:'/src/lib/sessionSnapshotAuthority.ts',storeUrl:'/src/store/useSessionStore.ts'};
     const result=await func(argument);executed++;
     if(text.includes('wrongSessionAuthority'))assert.deepEqual(result,{ownAuthority:true,wrongSessionAuthority:false});
     if(text.includes('Held inventory absent'))assert.deepEqual(result,heldBalances);
     if(text.includes('recommendedRoleIds'))assert.equal(result.length,12);
     if(text.includes('occupiedSeatCount'))assert.equal(result.occupiedSeatCount,1);
-  }assert.equal(executed,15);assert.equal(window.__pc11GmClaimObservation,undefined);
+  }assert.equal(executed,18);assert.equal(compatibilityCalls,1,'Exactly one retained normal service invocation is bound');assert.equal(window.__pc11GmClaimObservation,undefined);
 });
 
 test('hosted Philia and normal reload retain original Dione seat and exact own host map',()=>{
@@ -326,11 +329,12 @@ test('active UI receipt helper consumes every exercised normal callable and refu
     const data={sessionId:sid,requestId:`${endpoint}-1`,...fields};
     const request={url:()=>`http://127.0.0.1:5013/demo-pc11-test/us-central1/${endpoint}`,method:()=> 'POST',postDataJSON:()=>({data})};
     const response={request:()=>request,url:request.url,status:()=>200,json:async()=>({result})};
-    surface.page.waitForResponse=async predicate=>{assert.equal(predicate(response),true);return response;};
-    const captured=await captureLifecycleUiAction(surface,endpoint,async()=>{});
+    surface.page.waitForResponse=predicate=>new Promise((resolve,reject)=>surface.page.once('request',()=>queueMicrotask(()=>predicate(response)?resolve(response):reject(new Error('Unmatched request')))));
+    const choose=async()=>{surface.page.emit('request',request);};
+    const captured=await captureLifecycleUiAction(surface,endpoint,choose,{correlateRequests:true});
     assert.deepEqual(captured.data,data);assert.deepEqual(captured.result,result);assert.equal(publicLifecycleReceipt(captured).endpoint,endpoint);
-    data.sessionId='foreign';await assert.rejects(captureLifecycleUiAction(surface,endpoint,async()=>{}));data.sessionId=sid;
-    response.json=async()=>({result:{status:'denied'}});await assert.rejects(captureLifecycleUiAction(surface,endpoint,async()=>{}));
+    data.sessionId='foreign';await assert.rejects(captureLifecycleUiAction(surface,endpoint,choose,{correlateRequests:true}));data.sessionId=sid;
+    response.json=async()=>({result:{status:'denied'}});await assert.rejects(captureLifecycleUiAction(surface,endpoint,choose,{correlateRequests:true}));
   }}finally{await rm(directory,{recursive:true});}
 });
 
@@ -393,11 +397,17 @@ test('all six actual runner wait predicates consume the published ordinary setup
 
   const source=ts.createSourceFile('runner',runner,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS),predicates=new Map();
   function visit(node){if(ts.isCallExpression(node)&&ts.isPropertyAccessExpression(node.expression)&&node.expression.name.text==='until'&&node.arguments[1]&&ts.isArrowFunction(node.arguments[1]))predicates.set(node.arguments[0].getText(source),node.arguments[1].getText(source));ts.forEachChild(node,visit);}visit(source);
-  assert.equal(predicates.size,6,'Every added wait requires an explicit ordinary lifecycle fixture.');
+  assert.equal(predicates.size,7,'Every added wait requires an explicit ordinary lifecycle fixture.');
   const deps={assert,sid,before:member(),phase:undefined,expectedUidHash:hash(uid),roleIds:{Owner:roleId},label:'Owner'};
   const predicate=(prefix,overrides={})=>{const entry=[...predicates].find(([name])=>name.includes(prefix));assert.ok(entry,`Missing actual ${prefix} wait`);return new Function('deps',`const {${Object.keys(deps).join(',')}}=deps;return (${entry[1]});`)({...deps,...overrides});};
   const ordinary={hasAuth:true,sameActor:true,uidHash:hash(uid),sessionId:sid,cycle:0,phase:lobby,setupConfirmed:false,connection:'live',freshness:'server',profileRoleId:null,profileSessionId:null};
   assert.equal(predicate('Fresh ordinary Cycle0')(ordinary),true);
+  const grantActor=predicate('Current original GM has Dione scoped grant');
+  assert.equal(grantActor({sameActor:true,gmInstanceOwned:true,grantShipId:'dione'}),true);
+  assert.equal(grantActor({sameActor:false,gmInstanceOwned:true,grantShipId:'dione'}),false);
+  assert.equal(grantActor({sameActor:true,gmInstanceOwned:false,grantShipId:'dione'}),false);
+  assert.equal(grantActor({sameActor:true,gmInstanceOwned:true,grantShipId:'aegis'}),false);
+  assert.equal(grantActor({sameActor:true,gmInstanceOwned:true}),false);
   const configured={...ordinary,setupConfirmed:true,activeRoleIds:pureSourceModule('src/data/rolePresets.ts').recommendedRoleIds(12)};
   assert.equal(predicate('Legal12 roster confirmed')(configured),true);
   assert.equal(predicate('Normal joined fresh')(configured),true,'First join sees configured lobby');
@@ -428,4 +438,50 @@ test('all six actual runner wait predicates consume the published ordinary setup
   assert.equal(predicate('Cycle 1 briefing cleared')({...active,ordinaryBriefingMounted:false,ordinaryBriefingHeld:clearedPhase.timerPause?.reason==='turn-interstitial'}),true);
   assert.equal(predicate('Original persisted Auth/member document restoration')({...active,playerRole:'player',activeConsoleRoleId:roleId}),true);
   for(const delta of [{hasAuth:false},{sameActor:false},{connection:'offline'},{freshness:'cache'}])assert.equal(predicate('Original persisted Auth/member document restoration')({...active,playerRole:'player',activeConsoleRoleId:roleId,...delta}),false);
+});
+
+
+test('canonical lifecycle correlation ignores stale and foreign operation responses and preserves intended rejection', async () => {
+  const surface = nativeSurface(stateFixture('gm'));
+  for (const denied of [false, true]) {
+    const make = (requestId, enabled, shipId = 'dione') => {
+      const data = { sessionId: sid, instanceId: 'gm-original', requestId, shipId, enabled };
+      const request = { url: () => 'http://127.0.0.1:5013/demo-pc11-test/us-central1/setGmShipConsoleWriteGrant', method: () => 'POST', postDataJSON: () => ({ data }) };
+      return { request: () => request, url: request.url, status: () => denied && requestId === 'intended' ? 403 : 200, json: async () => denied && requestId === 'intended' ? { error: { status: 'PERMISSION_DENIED' } } : { result: { enabled } } };
+    };
+    const stale = make('earlier-disable', false), earlierEnable = make('earlier-enable', true), foreign = make('foreign', true, 'aegis'), intended = make('intended', true);
+    surface.page.waitForResponse = predicate => new Promise(resolve => {
+      const listener = response => { if (predicate(response)) { surface.page.off('response', listener); resolve(response); } };
+      surface.page.on('response', listener);
+    });
+    const run = captureLifecycleUiAction(surface, 'setGmShipConsoleWriteGrant', async () => {
+      surface.page.emit('response', stale); surface.page.emit('response', earlierEnable);
+      surface.page.emit('request', foreign.request()); surface.page.emit('response', foreign);
+      surface.page.emit('request', intended.request()); surface.page.emit('response', intended);
+    }, { correlateRequests: true, matches: data => data?.shipId === 'dione' && data?.enabled === true });
+    if (denied) await assert.rejects(run, /actual UI request rejected/);
+    else { const result = await run; assert.equal(result.data.requestId, 'intended'); assert.equal(result.result.enabled, true); }
+    assert.equal(surface.page.listenerCount('request'), 0);
+  }
+});
+
+
+test('canonical state-repeat grant/revoke pair actual no-wire-ID requests without changing the backend envelope', async () => {
+  for (const enabled of [true, false]) {
+  const surface = nativeSurface(stateFixture('gm'));
+  const data = { sessionId: sid, instanceId: 'gm-original', claimedAt: '2026-10-08T00:00:00.000Z', shipId: 'dione', enabled };
+  const request = { url: () => 'http://127.0.0.1:5013/demo-pc11-test/us-central1/setGmShipConsoleWriteGrant', method: () => 'POST', postDataJSON: () => ({ data }) };
+  const response = { request: () => request, url: request.url, status: () => 200, json: async () => ({ result: { enabled } }) };
+  // Deliver the real request only when the choice runs, then inspect the response predicate.
+  let predicate;
+  surface.page.waitForResponse = match => new Promise((resolve, reject) => {
+    predicate = match;
+    surface.page.once('response', value => predicate(value) ? resolve(value) : reject(new Error('Intended no-wire-ID request was ignored')));
+  });
+  const result = await captureLifecycleUiAction(surface, 'setGmShipConsoleWriteGrant', async () => {
+    surface.page.emit('request', request); surface.page.emit('response', response);
+  }, { correlateRequests: true, matches: value => value?.shipId === 'dione' && value?.enabled === enabled });
+  assert.deepEqual(result.data, data); assert.equal(result.result.enabled, enabled);
+  assert.equal(surface.page.listenerCount('request'), 0);
+  }
 });
