@@ -232,7 +232,7 @@ export function assertStationPopulationAcknowledgmentTransition(before,after,shi
  delete priorRevisions[shipId];delete nextRevisions[shipId];assert.deepEqual(nextRevisions,priorRevisions,'Dismissal must not revise another vessel.');
  return {expectedRevision,revision:expectedRevision+1};
 }
-export function stationCombatConsoles(){return ['jump-drive','fighter-bay-alpha','fighter-bay-bravo'];}
+export function stationCombatConsoles(shipId='aegis'){return shipId==='aegis'?['jump-drive','fighter-bay-alpha','fighter-bay-bravo','missile-launchers','point-defence-lasers']:shipId==='refinery-124'?['jump-drive','fighter-bay']:['jump-drive'];}
 export async function readStationLiberation(readDocument,root,expected){const require=createRequire(new URL('../functions/package.json',import.meta.url));const {parseCandidateStationLiberations}=require('../functions/lib/candidateStationLiberation.js');const markers=parseCandidateStationLiberations(await readDocument('serverState/candidateStationLiberations'));const marker=markers[`${expected.groupId}:${expected.coordinate}`];assert.ok(marker);for(const key of ['sessionId','groupId','coordinate','sourceId','cycle'])assert.equal(marker[key],expected[key]);assert.equal(marker.cycle,root.currentTurn);return marker;}
 export function stationReady(value,roleId){return roleId==='press-officer'?value.activeConsoleRoleId===roleId&&value.assignedRoleId===null&&value.seatId===null&&value.pressEnabled&&value.pressCraftScopeMatches&&(value.phase==='casting'||(value.currentMemberBerthPresent&&value.currentMemberBerthNull&&value.memberVesselCount===0&&value.memberCraftCount===1)):value.activeConsoleRoleId===roleId&&value.seatId===roleId&&value.currentCanonicalSeatOwned;}
 function stationLossEscapeTuple(value){
@@ -306,9 +306,9 @@ export async function dispatchStationWingChoice(current, {
     }else if(['medium-range','short-range'].includes(current.currentStep)){
      const range=current.currentStep==='medium-range'?'Medium Range':'Short Range';
      for(const label of ['Fighter Wing Alpha','Fighter Wing Bravo']){const panel=recipient.page.getByRole('region',{name:`${label} ${range} actions`,exact:true});if(!await panel.isVisible())continue;
-      if(range==='Medium Range'){const actions=panel.getByRole('combobox',{name:/^Fighter \d+ action$/});for(let i=0;i<await actions.count();i++){const select=actions.nth(i),name=(await select.getAttribute('aria-label')).replace('action','target');await select.selectOption('attack');const target=panel.getByRole('combobox',{name,exact:true}),options=await target.locator('option').evaluateAll(nodes=>nodes.filter(node=>node.value&&!node.disabled).map(node=>({value:node.value,label:node.textContent})));if(options.length)await target.selectOption((options.find(option=>/battlestation/i.test(option.label))??options[i%options.length]).value);}}
-      else for(const box of await panel.getByRole('checkbox',{name:/^Fighter \d+ Short attack$/}).all())await box.check();
-      const use=panel.getByRole('button',{name:range==='Medium Range'?'Resolve Medium actions':'Resolve selected Short attacks',exact:true}),pass=panel.getByRole('button',{name:range==='Medium Range'?'Pass Medium Range':'Pass Short Range',exact:true});const button=await use.isVisible()&&await use.isEnabled()?use:pass;
+      if(range==='Medium Range'){const actions=panel.getByRole('combobox',{name:/^Fighter \d+ action$/});for(let i=0;i<await actions.count();i++){const select=actions.nth(i),name=(await select.getAttribute('aria-label')).replace('action','target');await select.selectOption('attack');const target=panel.getByRole('combobox',{name,exact:true}),options=await target.locator('option').evaluateAll(nodes=>nodes.filter(node=>node.value&&!node.disabled).map(node=>({value:node.value,label:node.textContent})));if(options.length)await target.selectOption(options.at(-1).value);}}
+      // Preserve the current fighters for legal Medium offense on repeat waves. Short uses the explicit Pass.
+      const use=panel.getByRole('button',{name:range==='Medium Range'?'Resolve Medium actions':'Resolve selected Short attacks',exact:true}),pass=panel.getByRole('button',{name:range==='Medium Range'?'Pass Medium Range':'Pass Short Range',exact:true});const button=range==='Medium Range'&&await use.isVisible()&&await use.isEnabled()?use:pass;
       if(await button.isVisible()&&await button.isEnabled()){await action(recipient,'commitWolfFighterRangeActionChoice',()=>button.click(),{deadlineAt});return {committed:true};}
      }
     }
@@ -475,30 +475,33 @@ export async function selectStationCombatCrew(actors,{ships,readRoot,readPlayers
   }
  }catch(error){rememberProofFailure(error,{stationInactiveOwnerObservations:observations});throw error;}
 }
-export const stationRoleIds={Recipient:'wing-commander',Miner:'icebreaker-miner',Scientist:'shepherd-scientist',Explorer:'quellon-explorer',Colonel:'refinery-124-pdf-colonel',Press:'press-officer'};
+export const stationRoleIds={Recipient:'wing-commander',Miner:'icebreaker-miner',Scientist:'shepherd-scientist',Explorer:'quellon-explorer',Colonel:'refinery-124-pdf-colonel',Press:'press-officer',Executive:'executive-officer'};
 // Read-only preflight of the actual normally admitted preset14 custody roster.
 export function assertStationOwnerCustody(root,players,actorUids){
  const require=createRequire(new URL('../functions/package.json',import.meta.url));
  const {recommendedRoleIds}=require('../functions/lib/roleConfiguration.js');
  const {roleOwnedCraftForRoles,shuttleDockingsMatchRoleOwnedCraft}=require('../functions/lib/craftOwnership.js');
  const {parseShuttleControl}=require('../functions/lib/shuttleControl.js');
- assert.deepEqual([...root.activeRoleIds].sort(),[...recommendedRoleIds(14)].sort());
+ assert.deepEqual([...root.activeRoleIds].sort(),[...recommendedRoleIds(15)].sort());
  assert.equal(root.pressEnabled,true);assert.equal(root.capybaraEnabled,false);
  assert.equal(shuttleDockingsMatchRoleOwnedCraft(root.activeRoleIds,root.shuttleDockings),true);
  const expected=roleOwnedCraftForRoles(root.activeRoleIds).filter(craft=>craft.kind==='shuttle'&&craft.enabledMode==='standard');
  assert.deepEqual(root.shuttleDockings.map(row=>row.shuttleId).sort(),expected.map(craft=>craft.id).sort(),'All six mandatory owned shuttles; optional Union craft must be absent.');
  const control=parseShuttleControl(root.shuttleControl);assert.ok(control,'Actual authoritative custody must parse.');
  const occupied=players.filter(player=>player.role==='player'&&!player.kickedAt);
- assert.equal(occupied.length,6);assert.equal(new Set(Object.values(actorUids)).size,7);
+ assert.equal(occupied.length,7);assert.equal(new Set(Object.values(actorUids)).size,8);
+ const executive=occupied.filter(player=>player.assignedRoleId==='executive-officer');
+ assert.equal(executive.length,1,'A distinct normally assigned EO is required.');
+ assert.equal(executive[0].uid,actorUids.Executive);assert.equal(executive[0].activeConsoleRoleId,'executive-officer');
  for(const craft of expected){
   const owners=occupied.filter(player=>(player.assignedRoleId??(player.activeConsoleRoleId==='press-officer'?'press-officer':null))===craft.ownerRoleId);assert.equal(owners.length,1,`Printed owner for ${craft.id} is mandatory.`);
   const [label]=Object.entries(stationRoleIds).find(([,roleId])=>roleId===craft.ownerRoleId);
   assert.equal(owners[0].uid,actorUids[label]);assert.equal(control[craft.id]?.ownerRoleId,craft.ownerRoleId);
   assert.equal(control[craft.id]?.ownerUid,owners[0].uid);assert.equal(control[craft.id]?.holderUid,owners[0].uid);
  }
- return {actualAuthenticatedActors:7,configuredRoles:14,custodyValidated:true,mandatoryShuttleIds:expected.map(craft=>craft.id)};
+ return {actualAuthenticatedActors:8,configuredRoles:15,custodyValidated:true,mandatoryShuttleIds:expected.map(craft=>craft.id)};
 }
-export function minimumStationPlan(){return {actualAuthenticatedActors:7,configuredRoles:14,browserProcesses:1,browserContexts:7,hardCapMs:1200000,probeFamily:'station-success',forcedOutcome:false};}
+export function minimumStationPlan(){return {actualAuthenticatedActors:8,configuredRoles:15,browserProcesses:1,browserContexts:8,hardCapMs:1200000,probeFamily:'station-success',forcedOutcome:false};}
 export async function runStationWorkflow(operations){await operations.setup();await operations.stationArrivalMaintenance();await operations.stationDeferCombat();await operations.advance(2);await operations.stationCombatMaintenance();await operations.stationArrival();await operations.stationCombat();await operations.stationActivate();await operations.stationEnding();}
 export function minimumPursuitClosurePlan(){return {actualAuthenticatedActors:2,configuredRoles:13,browserProcesses:1,browserContexts:2,hardCapMs:300000,probeFamily:'pursuit-closure',nClosedHistoryObserved:false};}
 export async function presentPursuitCycle(surfaces,observe,present=completeOfferedCyclePresentation){for(const surface of surfaces)await present(surface,await observe(surface),{clearBriefing:true});}
@@ -1161,7 +1164,7 @@ async function enterRole(surface,label){
    await liveGm(gm,'GM1','active');
    for(const surface of surfaces)await completeOfferedCyclePresentation(surface,await snapshot(surface,'Actual Cycle1 presentation'),{clearBriefing:true});
    if(sparse){const reader=await memberReady(recipient,'Recipient');groupId=reader.fleetGroupId;if(stationOnly){evidence.stationWingOriginal=reader;for(const actor of stationCrew){const member=await memberReady(actor.surface,actor.label);assert.equal(member.fleetGroupId,groupId);actor.original=member;}await assertStationCustody();}
-    claims.push(stationOnly?'Fresh normal14-role manual setup with GM and six printed craft owners including separate Press; unused core seats open, optional Union craft absent':'Fresh normal13-role manual setup with GM and one ordinary reader; no Ring prerequisites or recovery replay');return;}
+    claims.push(stationOnly?'Fresh normal15-role manual setup with GM, six printed craft owners including separate Press, and a distinct Executive Officer; unused core seats open, optional Union craft absent':'Fresh normal13-role manual setup with GM and one ordinary reader; no Ring prerequisites or recovery replay');return;}
    const science=await memberReady(recipient,'Recipient'),engineer=await memberReady(owner,'Owner');assert.equal(science.fleetGroupId,engineer.fleetGroupId);groupId=science.fleetGroupId;
    const current=await recordRoot();ships=current.activeVesselIds;assert.equal(ships.length,6);assert.ok(ships.includes('aegis'));
    coordinate=await op(async deadlineAt=>{await liveGm(gm,'GM1','active',{deadlineAt});return readRingCoordinate(gm);});
@@ -1197,7 +1200,7 @@ async function enterRole(surface,label){
   },
   async stationCombatMaintenance(){
    await mark('legitimate Station Cycle2 maintenance and actual fighter charges');
-   for(const ship of ships)await maintain(ship,ship==='aegis'?stationCombatConsoles():['jump-drive']);
+   for(const ship of ships)await maintain(ship,stationCombatConsoles(ship));
    await coordination(2);
   },
   async stationCombat(){

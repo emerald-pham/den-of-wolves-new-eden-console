@@ -108,7 +108,54 @@ function sourceFor(spec) {
     'range-support': { endpoint: 'getWolfRangeSupportActionChoice', fields: { range: spec.range, sourceId: spec.sourceId } },
     'boarding-special': { endpoint: 'getWolfBoardingSpecialChoice', fields: {} },
     'boarding-defence': { endpoint: 'getWolfBoardingDefenceChoice', fields: {} },
+    warheads: { endpoint: 'getAegisEnrichedWarheadChoice', fields: {} },
+    'command-and-control': { endpoint: 'getAegisCommandAndControl', fields: {} },
+    'range-actions': { endpoint: 'getWolfRangeActionChoice', fields: {} },
   }[spec.kind];
+}
+
+const executiveActionLabels = {
+  'aegis-missile-launchers': 'Missile launchers',
+  'aegis-point-defence-lasers': 'Point-defence lasers',
+  'aegis-alpha-wing': 'Fighter Wing Alpha', 'aegis-bravo-wing': 'Fighter Wing Bravo',
+  highwall: 'Highwall Cannon', 'pdf-escort-wing': 'PDF Escort Wing',
+  maliades: 'Maliades', boa: 'Boa Scrap Strike',
+  'gorgoneion-missile-array': 'Gorgoneion Missile Array', 'vulcan-laser-cannon': 'Vulcan Laser Cannon',
+};
+
+function validateExecutiveRangeView(view, current) {
+  assert.equal(view.type, 'wolf-range-action-choice-view');
+  const fields = new Set(['type', 'sessionId', 'turn', 'revision', 'currentStep', 'range',
+    'deadlineAt', 'choiceStatus', 'eligibleActions', 'hitSlots', 'contacts']);
+  assert.ok(Object.keys(view).every(key => fields.has(key)), 'Current EO view must retain the ordinary safe projection.');
+  assert.equal(view.range, current.currentStep); assert.equal(view.currentStep, current.currentStep);
+  assert.ok(['pending', 'targets-required', 'committed'].includes(view.choiceStatus));
+  assert.ok(typeof view.deadlineAt === 'string' && Number.isFinite(Date.parse(view.deadlineAt)));
+  for (const key of ['eligibleActions', 'hitSlots', 'contacts']) assert.ok(Array.isArray(view[key]), `Current EO ${key} is required.`);
+  const unique = (rows, key) => {
+    assert.ok(rows.every(row => row && typeof row[key] === 'string' && row[key]));
+    assert.equal(new Set(rows.map(row => row[key])).size, rows.length, `Current EO ${key}s must be distinct.`);
+  };
+  unique(view.eligibleActions, 'actionId'); unique(view.hitSlots, 'actionId'); unique(view.contacts, 'contactId');
+  for (const action of view.eligibleActions) {
+    assert.ok(Object.hasOwn(executiveActionLabels, action.sourceId), 'Unknown current EO action source.');
+    assert.equal(action.range, view.range);
+    if (action.sourceId === 'aegis-missile-launchers') assert.ok(['long-range', 'medium-range'].includes(view.range));
+    if (action.sourceId === 'aegis-point-defence-lasers') assert.ok(['medium-range', 'short-range'].includes(view.range));
+  }
+  for (const slot of view.hitSlots) {
+    assert.ok(view.eligibleActions.some(action => action.actionId === slot.actionId), 'EO hits must belong to an actual offered action.');
+    assert.ok(Number.isSafeInteger(slot.count) && slot.count >= 0 && Number.isSafeInteger(slot.damagePerHit) && slot.damagePerHit >= 1,
+      'EO hits and damage must come from the current locked source.');
+  }
+  assert.ok(view.choiceStatus !== 'pending' || view.hitSlots.length === 0, 'Uncommitted EO actions cannot supply locked hits.');
+  for (const contact of view.contacts) {
+    assert.ok(typeof contact.targetShipId === 'string' && contact.targetShipId);
+    assert.equal(typeof contact.available, 'boolean');
+    if (view.range === 'short-range' && view.choiceStatus === 'targets-required')
+      assert.ok(contact.requiredCoverageDamage === null || Number.isSafeInteger(contact.requiredCoverageDamage) && contact.requiredCoverageDamage >= 0,
+        'Current Short contacts require their actual public coverage value.');
+  }
 }
 
 function validateSourceView(view, spec, current, sessionId) {
@@ -117,8 +164,13 @@ function validateSourceView(view, spec, current, sessionId) {
   if (view.type?.endsWith('-unavailable')) {
     const reasons = spec.kind === 'boarding-special'
       ? ['not-your-choice', 'automatic-progress-pending', 'no-special-choice']
-      : spec.kind === 'boarding-defence' ? ['no-boarders', 'not-your-choice'] : [];
+      : spec.kind === 'boarding-defence' ? ['no-boarders', 'not-your-choice']
+        : spec.kind === 'range-actions' ? ['waiting'] : [];
     assert.ok(reasons.includes(view.reason), `Unknown ${spec.kind} unavailable reason: ${view.reason ?? '(missing)'}.`);
+    if (spec.kind === 'range-actions') {
+      assert.equal(view.type, 'wolf-range-action-choice-unavailable');
+      assert.ok(Object.keys(view).every(key => ['type', 'sessionId', 'reason'].includes(key)));
+    }
     return view;
   }
   assert.equal(view.turn, current.turn, `Current ${spec.kind} source turn must match the original attack.`);
@@ -129,7 +181,23 @@ function validateSourceView(view, spec, current, sessionId) {
   if (Object.hasOwn(view, 'range')) assert.equal(view.range, current.currentStep,
     `Current ${spec.kind} source range must match the original attack step.`);
 
-  if (spec.kind === 'pdf-launch') {
+  if (spec.kind === 'warheads') {
+    assert.equal(view.type, 'aegis-enriched-warhead-view');
+    assert.equal(view.attackId, current.attackId, 'Current warhead view requires its actual original attack identity.');
+    assert.equal(typeof view.eligible, 'boolean'); assert.equal(view.oreCost, 5);
+    assert.ok(['pending', 'enriched', 'passed', 'unavailable'].includes(view.choiceStatus));
+    assert.equal(view.eligible, view.choiceStatus === 'pending');
+  } else if (spec.kind === 'command-and-control') {
+    assert.equal(view.type, 'aegis-command-and-control-view');
+    for (const key of ['eligible', 'commanderAssigned', 'rerollsFinalized']) assert.equal(typeof view[key], 'boolean');
+    assert.ok(Array.isArray(view.targets));
+    assert.ok(view.reason === undefined || ['passed', 'already-used', 'uncharged', 'damaged',
+      'damage-unknown', 'no-targets', 'commander-pending'].includes(view.reason));
+    assert.ok(!view.eligible || view.reason === undefined && view.targets.length > 0 && view.rerollsFinalized);
+    assert.ok(view.eligible || typeof view.reason === 'string', 'Unavailable Command and Control requires its actual reason.');
+  } else if (spec.kind === 'range-actions') {
+    validateExecutiveRangeView(view, current);
+  } else if (spec.kind === 'pdf-launch') {
     assert.equal(view.type, 'pdf-escort-wing-launch-view', 'Unknown current PDF Escort Wing launch view type.');
     assert.equal(typeof view.eligible, 'boolean'); assert.equal(typeof view.launched, 'boolean');
     assert.ok(Number.isSafeInteger(view.wingRevision) && view.wingRevision >= 0,
@@ -171,6 +239,12 @@ function validateSourceView(view, spec, current, sessionId) {
 }
 
 async function inspectSourcePaint(page, spec, view, onObservation) {
+  // The normal EO component deliberately renders null for this exact waiting
+  // projection. readySource already validated its shape/session and retains
+  // canonical actor, original GM/phase and attack bookends on both sides.
+  // This is zero intent, even if an old enabled panel remains on screen.
+  if (spec.kind === 'range-actions' && view.type === 'wolf-range-action-choice-unavailable' && view.reason === 'waiting')
+    return { status: 'blocked', reason: 'waiting', explicit: true, sourcePanelOmitted: true };
   let panelText = null;
   const painted = await inspectWolfChoicePaint(page, spec, view, text => { panelText = text; });
   let result = painted;
@@ -578,6 +652,12 @@ async function observePreFreezeActor(actor, current, context, trace) {
   assert.equal(sample.phase, 'active', 'Lock readiness requires the original active gameplay phase.');
   assert.equal(sample.cycle, current.turn, 'Lock readiness must stay in the original attack cycle.');
   assert.equal(sample.phaseProgression, 'manual', 'Original Station actor must retain manual source progression.');
+  if (actor.roleId === 'executive-officer') {
+    assert.equal(sample.playerRole, 'player', 'Only the actual ordinary EO may make its weapon choice.');
+    for (const key of ['assignedRoleId', 'activeConsoleRoleId', 'seatId'])
+      assert.equal(sample[key], 'executive-officer', `Current EO ${key} must authorize its actual source handler.`);
+    assert.equal(sample.currentBerthShipId, 'aegis', 'Current EO requires its actual AEGIS member berth.');
+  }
   if (context.frozenActor) {
     if (sample.airspace !== context.frozenActor.airspace && sample.turnStatePhase === context.frozenActor.turnStatePhase)
       assert.equal(sample.airspace, context.frozenActor.airspace,
@@ -596,7 +676,7 @@ async function observePreFreezeActor(actor, current, context, trace) {
   // PDF/Wing choices need an actual ship audience. Other current ship-backed
   // members use the same server berth binding. Press craft and scoped GM
   // observers retain their legitimate no-ship projections and grant no choice.
-  const shipChoiceActor = ['refinery-124-pdf-colonel', 'wing-commander'].includes(actor.roleId);
+  const shipChoiceActor = ['refinery-124-pdf-colonel', 'wing-commander', 'executive-officer'].includes(actor.roleId);
   if (sample.playerRole === 'player' && actor.roleId !== 'press-officer' &&
       (shipChoiceActor || sample.currentBerthShipId != null)) {
     const discovery = sample.discoveryAuthority, vessels = discovery?.fleetGroupVesselIds;
@@ -1055,7 +1135,7 @@ async function dispatchPdfEscortRange(current, actor, context) {
       });
       if (!(await enabledControl(actionControl)))
         throw new Error(`Current PDF Medium action control for fighter ${fighter.fighterIndex + 1} is not enabled.`);
-      const target = view.targets[index % view.targets.length];
+      const target = view.targets.at(-1);
       assert.ok(typeof target?.instanceId === 'string' && target.instanceId,
         'Current PDF Medium target must come from the ordinary escort source view.');
       await actionControl.selectOption('attack', { timeout: Math.max(1, context.deadlineAt - Date.now()) });
@@ -1079,28 +1159,107 @@ async function dispatchPdfEscortRange(current, actor, context) {
   assert.ok(Array.isArray(view.fighters), 'Current PDF Short fighter rows are required.');
   const boxes = await panel.getByRole('checkbox', { name: /^Fighter \d+ Short attack$/ }).all();
   assert.equal(boxes.length, view.fighters.length, 'Rendered PDF Short fighter controls must match the current source view.');
-  if (view.fighters.length === 0) {
-    assert.ok(await enabledControl(pass), 'Current PDF Short range needs its explicit pass control.');
-    return commitUiChoice(current, actor, 'commitWolfEscortRangeActionChoice',
-      ({ timeout }) => pass.click({ timeout }),
-      { sessionId: context.sessionId, expectedTurn: view.turn, expectedRevision: view.revision,
-        range: view.range, sourceId: 'pdf-escort-fighter-wing', fighterIndexes: [] }, context, ready.finalIntentFence);
-  }
   const fighterIndexes = view.fighters.map(({ fighterIndex }) => fighterIndex);
   assert.ok(fighterIndexes.every(index => Number.isSafeInteger(index) && index >= 0) &&
     new Set(fighterIndexes).size === fighterIndexes.length, 'Current PDF Short fighter indexes must be distinct non-negative integers.');
-  for (const box of boxes) {
-    if (!(await enabledControl(box))) throw new Error('Current PDF Short fighter control is not enabled.');
-    await box.check({ timeout: Math.max(1, context.deadlineAt - Date.now()) });
+  assert.ok(await enabledControl(pass), 'Current PDF Short range needs its explicit pass control.');
+  return commitUiChoice(current, actor, 'commitWolfEscortRangeActionChoice',
+    ({ timeout }) => pass.click({ timeout }),
+    { sessionId: context.sessionId, expectedTurn: view.turn, expectedRevision: view.revision,
+      range: view.range, sourceId: 'pdf-escort-fighter-wing', fighterIndexes: [] },
+    context, ready.finalIntentFence);
+}
+
+async function dispatchExecutiveTargeting(current, actor, context) {
+  for (const kind of ['warheads', 'command-and-control']) {
+    const ready = await readySource(current, actor, { kind }, context);
+    if (ready.status === 'source-changed') return { sourceChanged: true };
+    if (ready.status !== 'eligible') continue;
+    const warheads = kind === 'warheads';
+    const panel = actor.surface.page.getByRole('region', { name: warheads ? 'Enriched warheads' : 'Command and Control', exact: true });
+    const pass = button(panel, warheads ? 'Pass enriched warheads' : 'Pass Command and Control');
+    assert.ok(await enabledControl(pass), 'The current EO optional choice requires its visible explicit Pass control.');
+    return commitUiChoice(current, actor, warheads ? 'commitAegisEnrichedWarheadChoice' : 'passAegisCommandAndControl',
+      ({ timeout }) => pass.click({ timeout }),
+      { sessionId: context.sessionId, expectedTurn: ready.choice.turn, expectedRevision: ready.choice.revision,
+        ...(warheads ? { choice: 'pass' } : {}) }, context, ready.finalIntentFence);
+  }
+  return undefined;
+}
+
+// Uses only the ordinary range view's locked hit slots and public contacts.
+// A contact may repeat across actions, but never twice within one action.
+function executiveTargetAssignments(view) {
+  const contacts = view.contacts.filter(contact => contact.available).reverse();
+  const remainingCoverage = new Map(contacts.filter(contact => typeof contact.requiredCoverageDamage === 'number')
+    .map(contact => [contact.contactId, contact.requiredCoverageDamage]));
+  const slots = view.hitSlots.filter(slot => {
+    const action = view.eligibleActions.find(action => action.actionId === slot.actionId);
+    return !(view.range === 'medium-range' && ['aegis-alpha-wing', 'aegis-bravo-wing'].includes(action.sourceId));
+  });
+  const selected = new Map();
+  // First spend all actions' available hits on required public Short coverage.
+  // Filling non-wing contacts early could consume a later necessary hit.
+  for (const slot of [...slots].sort((a, b) => b.damagePerHit - a.damagePerHit)) {
+    const choices = [];
+    for (const contact of contacts) {
+      if (choices.length === Math.min(slot.count, contacts.length)) break;
+      if ((remainingCoverage.get(contact.contactId) ?? 0) <= 0) continue;
+      choices.push(contact.contactId);
+      remainingCoverage.set(contact.contactId, Math.max(0, remainingCoverage.get(contact.contactId) - slot.damagePerHit));
+    }
+    selected.set(slot.actionId, choices);
+  }
+  const uncovered = [...remainingCoverage.values()].some(value => value > 0);
+  return slots.map(slot => {
+    const contactIds = selected.get(slot.actionId);
+    for (const contact of contacts) {
+      if (contactIds.length === Math.min(slot.count, contacts.length)) break;
+      if (contactIds.includes(contact.contactId)) continue;
+      if (uncovered && contact.requiredCoverageDamage === null) continue;
+      contactIds.push(contact.contactId);
+    }
+    assert.equal(contactIds.length, Math.min(slot.count, contacts.length),
+      'Actual EO hits cannot make complete legal Short assignments; no forced target or mutation.');
+    return { actionId: slot.actionId, contactIds };
+  });
+}
+
+async function dispatchExecutiveRange(current, actor, context) {
+  const ready = await readySource(current, actor, { kind: 'range-actions', range: current.currentStep }, context);
+  if (ready.status === 'source-changed') return { sourceChanged: true };
+  if (ready.status !== 'eligible') return undefined;
+  const view = ready.choice, panel = actor.surface.page.getByRole('region', { name: 'Wolf range actions', exact: true });
+  const request = { sessionId: context.sessionId, expectedTurn: view.turn, expectedRevision: view.revision, range: view.range };
+  if (view.choiceStatus === 'targets-required') {
+    const assignments = executiveTargetAssignments(view);
+    for (const { actionId, contactIds } of assignments) {
+      const action = view.eligibleActions.find(action => action.actionId === actionId);
+      for (let index = 0; index < contactIds.length; index++) {
+        const control = panel.getByRole('combobox', { name: `${executiveActionLabels[action.sourceId]} hit ${index + 1}`, exact: true });
+        assert.ok(await enabledControl(control), 'The current locked EO hit needs its ordinary target selector.');
+        const values = await control.locator('option').evaluateAll(nodes => nodes.filter(node => node.value && !node.disabled).map(node => node.value));
+        assert.ok(values.includes(contactIds[index]), 'The selected EO contact must also be offered by its mounted hit selector.');
+        await control.selectOption(contactIds[index], { timeout: Math.max(1, context.deadlineAt - Date.now()) });
+        assertBudget(context.deadlineAt);
+      }
+    }
+    const commit = button(panel, 'Commit target assignments');
+    assert.ok(await enabledControl(commit), 'Current EO hit assignments need their enabled ordinary commit control.');
+    return commitUiChoice(current, actor, 'assignWolfRangeTargets', ({ timeout }) => commit.click({ timeout }),
+      { ...request, assignments }, context, ready.finalIntentFence);
+  }
+  const weapons = view.eligibleActions.filter(action => ['aegis-missile-launchers', 'aegis-point-defence-lasers'].includes(action.sourceId));
+  for (const weapon of weapons) {
+    const control = panel.getByRole('checkbox', { name: executiveActionLabels[weapon.sourceId], exact: true });
+    assert.ok(await enabledControl(control), 'An offered EO weapon requires its actual enabled checkbox.');
+    await control.check({ timeout: Math.max(1, context.deadlineAt - Date.now()) });
     assertBudget(context.deadlineAt);
   }
-  const resolve = button(panel, 'Resolve selected Short attacks');
-  assert.ok(await enabledControl(resolve), 'Selected current PDF Short fighters need their visible resolution control.');
-  return commitUiChoice(current, actor, 'commitWolfEscortRangeActionChoice',
-    ({ timeout }) => resolve.click({ timeout }),
-    { sessionId: context.sessionId, expectedTurn: view.turn, expectedRevision: view.revision,
-      range: view.range, sourceId: 'pdf-escort-fighter-wing', fighterIndexes: fighterIndexes.sort((a, b) => a - b) },
-    context, ready.finalIntentFence);
+  const selected = button(panel, weapons.length ? 'Use selected actions' : 'Pass this range');
+  assert.ok(await enabledControl(selected), 'The current EO use/pass choice needs its ordinary enabled control.');
+  return commitUiChoice(current, actor, 'commitWolfRangeActionChoice', ({ timeout }) => selected.click({ timeout }),
+    { ...request, actionIds: weapons.map(weapon => weapon.actionId) }, context, ready.finalIntentFence);
 }
 
 function specialChoice(view) {
@@ -1202,8 +1361,14 @@ async function dispatchCurrentStationCrewChoice(current, {
 
   if (current.currentStep === 'targeting') {
     const pdf = roleActor(actors, 'refinery-124-pdf-colonel');
-    if (!pdf) return undefined;
-    const result = await dispatchPdfLaunch(current, pdf, context);
+    if (pdf) {
+      const result = await dispatchPdfLaunch(current, pdf, context);
+      if (result?.sourceChanged) return undefined;
+      if (result?.committed) return result;
+    }
+    const executive = roleActor(actors, 'executive-officer');
+    if (!executive) return undefined;
+    const result = await dispatchExecutiveTargeting(current, executive, context);
     return result?.sourceChanged ? undefined : result;
   }
   if (rangeSteps.has(current.currentStep)) {
@@ -1216,8 +1381,14 @@ async function dispatchCurrentStationCrewChoice(current, {
       }
     }
     const miner = roleActor(actors, 'icebreaker-miner');
-    if (!miner) return undefined;
-    const result = await dispatchHighwallRange(current, miner, context);
+    if (miner) {
+      const result = await dispatchHighwallRange(current, miner, context);
+      if (result?.sourceChanged) return undefined;
+      if (result?.committed) return result;
+    }
+    const executive = roleActor(actors, 'executive-officer');
+    if (!executive) return undefined;
+    const result = await dispatchExecutiveRange(current, executive, context);
     return result?.sourceChanged ? undefined : result;
   }
 
