@@ -86,7 +86,8 @@ const evaluateStage = new Function('SUCCESS_RESULT_STATUSES', js(
   `${functionText(capy, 'sourceActionStageOutcome')}\nreturn sourceActionStageOutcome;`,
 ))(new Set(['committed', 'replayed'])) as (input: Row) => Row;
 const readPrivate = new Function('isResearchProgress', 'researchTracks', 'turnPhaseState',
-  'parseEndeavourResearchCadenceState', 'parseEndeavourFieldUpgradeState', 'HttpsError', js(
+  'parseEndeavourResearchCadenceState', 'parseEndeavourFieldUpgradeState',
+  'parseEndeavourScienceDevicesState', 'parseEndeavourEcmDeviceState', 'serviceRechargeResourceState', 'HttpsError', js(
     `${functionText(writer, 'readPrivateState')}\nreturn readPrivateState;`,
   ));
 const isResearchProgress = new Function('isRecord', 'ENDEAVOUR_RESEARCH_TRACKS', 'endeavourResearchTrack', js(
@@ -102,9 +103,14 @@ const tracks = (progress: unknown) => Object.keys(ENDEAVOUR_RESEARCH_TRACKS).map
 import { parseEndeavourResearchCadenceState } from '../../functions/src/endeavourResearchCadence';
 import { parseEndeavourFieldUpgradeState } from '../../functions/src/endeavourFieldUpgrades';
 import { turnPhaseState } from '../../functions/src/turnZero';
+import { parseEndeavourScienceDevicesState } from '../../functions/src/endeavourScienceDevices';
+import { parseEndeavourEcmDeviceState } from '../../functions/src/endeavourEcmDevice';
+import { serviceRechargeResourceState } from '../../functions/src/serviceShuttleRecharge';
 const workspaceFromSource = readPrivate(isResearchProgress, tracks, turnPhaseState,
-  parseEndeavourResearchCadenceState, parseEndeavourFieldUpgradeState, Error) as
-  (sid: string, session: { get: (key: string) => unknown }, research: Row, cadence: Row, upgrades: Row, ore: number) => EndeavourResearchWorkspace;
+  parseEndeavourResearchCadenceState, parseEndeavourFieldUpgradeState,
+  parseEndeavourScienceDevicesState, parseEndeavourEcmDeviceState, serviceRechargeResourceState, Error) as
+  (sid: string, session: { get: (key: string) => unknown }, research: Row, cadence: Row, upgrades: Row,
+    ore: number, construction: Row, ecm: Row) => EndeavourResearchWorkspace;
 const proofReceipt = new Function('assert', 'delay', js(
   `${functionText(helpers, 'assertOriginalIdentity')}\n${functionText(helpers, 'assertOriginalBaseActor')}\n` +
   `${functionText(helpers, 'waitForBaseResearchReceipt')}\nreturn waitForBaseResearchReceipt;`,
@@ -162,6 +168,7 @@ const me: Player = { uid, sessionId: sid, displayName: 'Scientist', role: 'playe
 const session: GameSession = { id: sid, name: 'Native source composition', joinCode: 'NATIVE', ownerUid: 'native-gm',
   createdAt: '', updatedAt: '', phase: 'active', currentTurn: 1, activeRoleIds: ['shepherd-scientist'],
   activeVesselIds: ['shepherd'], fullGameDemo: { status: 'active', progression: 'manual' },
+  shipResources: { shepherd: { materials: 30, ore: 8, fuel: 4, food: 10, water: 8, securityTeams: 2 } },
   turnPhase: { turn: 1, progression: 'manual', teamPhaseEndsAt: '2026-10-06T00:00:00.000Z',
     openAirspaceEndsAt: '2026-10-06T00:00:00.000Z',
     airspace: { state: 'restricted', tickerActive: false, pressAccess: false } },
@@ -172,7 +179,7 @@ function snapshot(data?: Row) {
 }
 type Reply = { status: string; sessionId: string; cycle: number; researchRevision: number;
   trackId: string; funding: string; oreCost: number; shepherdOre: number;
-  progress: unknown; cadence: unknown; requestId: string; previousMaterialCost: number; currentMaterialCost: number | null };
+  progress: unknown; cadence: unknown; requestId: string; previousMaterialCost: number | null; currentMaterialCost: number | null };
 function fixture() {
   let progress: Row = {}, cadence: Row | undefined, ore = 8;
   let uiPhaseClicks = 0, uiResearchClicks = 0, exactReplays = 0, readCalls = 0;
@@ -187,7 +194,8 @@ function fixture() {
     freshness: useSessionStore.getState().sessionSnapshotFreshness });
   function workspace() {
     const current = useSessionStore.getState().session!;
-    return workspaceFromSource(sid, snapshot(current as unknown as Row), snapshot(progress), snapshot(cadence), snapshot(), ore);
+    return workspaceFromSource(sid, snapshot(current as unknown as Row), snapshot(progress), snapshot(cadence),
+      snapshot(), ore, snapshot(), snapshot());
   }
   transport.invoke.mockImplementation(async (request: Row) => {
     const endpoint = transport.callable.mock.calls.at(-1)?.[1];

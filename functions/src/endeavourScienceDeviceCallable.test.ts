@@ -53,8 +53,7 @@ vi.mock('firebase-functions/v2/https', () => ({
 }));
 vi.mock('firebase-functions/v2/scheduler', () => ({ onSchedule: (_schedule: string, handler: unknown) => ({ run: handler }) }));
 
-import { buildEndeavourScienceDevice } from './endeavourScienceDeviceWriter';
-import { activateEndeavourEcmDevice, readEndeavourResearchWorkspace,
+import { buildEndeavourScienceDevice, activateEndeavourEcmDevice, readEndeavourResearchWorkspace,
   runWolfAgentDetectorTest } from './index';
 
 const command = { sessionId: 's1', requestId: 'build-1', expectedCycle: 1, expectedControlRevision: 2,
