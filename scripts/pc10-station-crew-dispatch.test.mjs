@@ -1657,9 +1657,9 @@ assert.ok(normalObserveStart > 0 && normalObserveEnd > normalObserveStart);
 const actualSummaryProducer = new Function('page', 'storeUrl',
   `${observerRunnerSource.slice(normalObserveStart, normalObserveEnd)} return observe;`);
 
-async function runtimeObserverFixture(roleId = 'refinery-124-pdf-colonel') {
+async function runtimeObserverFixture(roleId = 'refinery-124-pdf-colonel', suppliedView) {
   const uid = `controlled-original-${roleId}`, sid = 'attempt26-observer-source';
-  const shipId = roleId === 'wing-commander' ? 'aegis' : 'refinery-124';
+  const shipId = ['wing-commander','executive-officer'].includes(roleId) ? 'aegis' : 'refinery-124';
   const member = { uid, sessionId: sid, role: 'player', connected: true, connectionGeneration: 2,
     assignedRoleId: roleId, activeConsoleRoleId: roleId, seatId: roleId, fleetGroupId: 'fleet-1',
     replacementRoleId: null, replacementStatus: null };
@@ -1690,10 +1690,10 @@ async function runtimeObserverFixture(roleId = 'refinery-124-pdf-colonel') {
     status: 'declared', currentStep: 'targeting', airspaceLocked: true,
     targetGroupId: 'fleet-1', threatSourceId: 'arrival-original-p' };
   let latest = current;
-  const response = { type: 'pdf-escort-wing-launch-view', sessionId: sid, turn: 2, revision: 1,
+  const response = suppliedView ? {...suppliedView,sessionId:sid,turn:2,revision:1} : { type: 'pdf-escort-wing-launch-view', sessionId: sid, turn: 2, revision: 1,
     wingRevision: 1, launched: false, eligible: true };
   const actorSurface = surface(roleId, response, { profileRoleId: null, entitledShipId: shipId,
-    path: `/ships/${shipId}/roles/${roleId}` });
+    path: `/ships/${shipId}/roles/${roleId}`, ...(suppliedView?{defenceOptions:(response.contacts??[]).map(row=>row.contactId)}:{}) });
   actorSurface.storeModuleUrl = () => 'http://127.0.0.1/src/state/useSessionStore.ts';
   actorSurface.sessionAuthorityModuleUrl = () => 'http://127.0.0.1/src/lib/sessionSnapshotAuthority.ts';
   actorSurface.page.evaluate = async (callback, args) => {
@@ -1748,7 +1748,7 @@ async function runtimeObserverFixture(roleId = 'refinery-124-pdf-colonel') {
       startedAt: state.session.turnPhase.teamPhaseEndsAt, endsAt: state.session.turnPhase.openAirspaceEndsAt });
   };
   return { current, state, authUser, sdkAuthority, browserPerformance, deps, counts, hooks, original,
-    actorSurface, opts, readMember, assertMember, readPhase, action, finalize,
+    actorSurface, opts, readMember, assertMember, readPhase, action, finalize, response,
     invoke: () => dispatchStationCrewChoice(current, opts) };
 }
 
@@ -2021,7 +2021,7 @@ test('Attempt26 scoped GM with absent ship berth preserves actual lease authorit
 
 // Runtime-shaped public EO views from the real SDK producer; no private roster.
 function eoRange(range='medium-range',extra={}) {return {type:'wolf-range-action-choice-view',sessionId,turn:3,revision:8,currentStep:range,range,deadlineAt:'9999-12-31T23:59:59.999Z',choiceStatus:'pending',eligibleActions:[{actionId:'missile',sourceId:'aegis-missile-launchers',range},{actionId:'laser',sourceId:'aegis-point-defence-lasers',range}],hitSlots:[],contacts:[{contactId:'Wolf contact 1',targetShipId:'aegis',available:true},{contactId:'Wolf contact 2',targetShipId:'icebreaker',available:true},{contactId:'Wolf contact 3',targetShipId:'shepherd',available:true}],...extra};}
-function eoSurface(view,extra={}) {return surface('executive-officer',view,{entitledShipId:'aegis',path:'/ships/aegis/roles/executive-officer',...extra});}
+function eoSurface(view,extra={}) {return surface('executive-officer',view,{entitledShipId:'aegis',path:'/ships/aegis/roles/executive-officer',defenceOptions:(view.contacts??[]).map(row=>row.contactId),...extra});}
 test('actual PDF Medium consumer focuses last public contact without a hidden type preference',async()=>{
  const view={type:'wolf-fighter-range-action-view',sessionId,attackId:'attack-p',turn:3,revision:8,wingId:'pdf-escort-fighter-wing',wingLabel:'P.D.F. Escort Fighter Wing',range:'medium-range',choiceStatus:'pending',launched:true,fighters:[{fighterIndex:0}],targets:[{instanceId:'first',label:'Wolf contact 1',targetNumber:1},{instanceId:'last',label:'Wolf contact 2',targetNumber:2}]};
  const pdf=surface('refinery-124-pdf-colonel',view);let receipt;await dispatchStationCrewChoice(attack('medium-range'),options([{roleId:pdf.label,surface:pdf}],attack('medium-range'),r=>receipt=r));assert.equal(receipt.metadata.expectedRequest.actions[0].targetContactId,'last');
@@ -2056,3 +2056,20 @@ for(const [name,mutate] of [
 ]) test(`actual EO ${name} remains fatal without any capture`,async()=>{const eo=eoSurface(eoRange());mutate(eo);let captures=0;await assert.rejects(dispatchStationCrewChoice(attack('medium-range'),options([{roleId:eo.label,surface:eo}],attack('medium-range'),()=>captures++)));assert.equal(captures,0);assert.deepEqual(eo.effects.clicks,[]);});
 test('actual EO original expired deadline has zero reads and actions',async()=>{const eo=eoSurface(eoRange());await assert.rejects(dispatchStationCrewChoice(attack('medium-range'),options([{roleId:eo.label,surface:eo}],attack('medium-range'),undefined,Date.now()-1)));assert.deepEqual(eo.effects.reads,[]);assert.deepEqual(eo.effects.clicks,[]);});
 test('actual EO unknown getter denial cannot become a pass',async()=>{const eo=eoSurface(eoRange());const error=Error('permission denied');eo.callable=async()=>{throw error};await assert.rejects(dispatchStationCrewChoice(attack('medium-range'),options([{roleId:eo.label,surface:eo}],attack('medium-range'))),e=>e===error);assert.deepEqual(eo.effects.clicks,[]);});
+
+test('actual summary and canonical EO producer drive normal SDK use then locked-target capture receipts',async()=>{
+ const f=await runtimeObserverFixture('executive-officer',eoRange());f.current.currentStep='medium-range';
+ // The actual response producer replaces turn/cycle above; paint uses that live value.
+ const panel=f.actorSurface.page.getByRole('region',{name:'Wolf range actions'}),text=panel.innerText;
+ panel.innerText=async()=> (await text()).replace('Cycle 3','Cycle 2');
+ let requests=[];const normalCapture=f.opts.action;f.opts.action=async(...args)=>{requests.push(args[3].expectedRequest);return normalCapture(...args)};
+ assert.deepEqual(await f.invoke(),{committed:true});assert.equal(f.counts.capture,1);assert.ok(f.counts.summary>0&&f.counts.atomic>0&&f.counts.shared>0&&f.counts.member>0);assert.equal(f.actorSurface.effects.reads[0].endpoint,'getWolfRangeActionChoice');assert.deepEqual(requests[0].actionIds,['missile','laser']);
+ Object.assign(f.response,{revision:2,choiceStatus:'targets-required',hitSlots:[{actionId:'missile',count:1,damagePerHit:1},{actionId:'laser',count:0,damagePerHit:1}]});f.current.revision=2;
+ assert.deepEqual(await f.invoke(),{committed:true});assert.equal(f.counts.capture,2);assert.deepEqual(requests[1].assignments,[{actionId:'missile',contactIds:['Wolf contact 3']},{actionId:'laser',contactIds:[]}]);assert.deepEqual(f.actorSurface.effects.clicks,['Use selected actions','Commit target assignments']);
+});
+for(const [name,change] of [
+ ['lost active console',f=>{f.state.me.activeConsoleRoleId=null;f.state.session.currentActorBerthAuthority.activeConsoleRoleId=null}],
+ ['missing actual berth',f=>{delete f.state.session.currentActorBerthAuthority}],
+ ['foreign discovery',f=>{f.state.session.playerDiscovery.groupId='fleet-foreign'}],
+ ['SDK authority revoked',f=>{f.sdkAuthority.hasServerSessionAuthority=false}],
+]) test(`actual EO producer ${name} has zero normal capture`,async()=>{const f=await runtimeObserverFixture('executive-officer',eoRange());f.current.currentStep='medium-range';change(f);await assert.rejects(f.invoke());assert.equal(f.counts.capture,0);assert.deepEqual(f.actorSurface.effects.clicks,[]);});
