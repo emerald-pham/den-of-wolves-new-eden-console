@@ -124,3 +124,58 @@ before applied patches, which does not rewrite their earlier implementation.
 
 Native typography release-gate contracts pass13/13 without browser/runtime;
 these prove the gate wiring/readiness contract only, not rendered approval.
+
+## Release preparation after qualification approval
+
+Parent accepted cb838785 for qualification, not final release. Read-only font/UI
+owner inspection identifies reviewed candidate94d8ba9c / planned0.5.70, PR15;
+its source repair is TurnStartAnnouncement/intrusion.css and typography CI/
+fixture contracts. Remote main stilla0e38bef. No edits to that owner's checkout,
+no hotfix commit merged here. The sampled global iPhone font report remains open;
+PC11 does not claim to solve it.
+
+Read-only overlap map: committed extraction overlaps font/UI only in CLAUDE.md,
+with disjoint test-policy versus appended independent-typography sections. Future
+release metadata overlaps package.json/package-lock.json/src/changelog.ts. Keep
+font/UI0.5.70's notes as historical, add separate APP_VERSION0.5.71 notes, and
+preserve its CI cycle-consumer wiring. No component/service/CSS collision with
+current reviewed hotfix. Recheck latest exact hotfix tip and verified merged/
+deployed baseline before reconciliation; a draft merge is not a verified base.
+
+Prepared, unapplied metadata patch:
+/tmp/dow-pc11-release-0.5.71-after-font-0.5.70.patch (50 lines, exactly three
+metadata files, based on94d8ba9c). It synchronizes package/root-lock versions,
+freezes prior entry0.5.70 and adds guidance/trade/GM/readability notes. Catalog
+snapshot remains703done/6partial/42missing of751, with no fabricated PC10
+closures. Revalidate these counts against verified merged catalog. After applying
+on that base, run focused changelog/header metadata checks and final exact build/
+classification/artifact audit; do not append notes into the font/UI release.
+
+Smallest clean-base flows that must repeat: one fresh ordinary GM admission,
+consent/local authorization/named ownership; two fresh ordinary players legally
+assigned Dione Engineer/President and their canonical seats; normal live-supported
+setup/start and GM briefing clearance; physical-token GM attestation2/0; actual
+normalized offer visible at both endpoints; acceptance/immutable revision0 and
+privateinventory1/1; both cold reloads; basePhilia request/grant no mutation,
+apply exact storage damage/+3targetmaterials and visible Engineer return. Three
+actors total, not a full roster of accounts. Existing unit authority negatives
+and other guidance tests remain reused when exact source is unchanged. Actual7/8
+remain separately recorded prior-candidate evidence, not clean-base runtime pass.
+
+Source check removes the apparent ten-minute Coordination wait as a prerequisite:
+live sameTableTradeCallable requires a nonterminal session (not Coordination),
+and permissionedDismantlingCallable:465 requires active session (not an airspace
+phase). Thus the smallest proof can run after normal start/briefing clearance in
+Team, retaining the real source eligibility guards. No GM timer/admin bypass or
+PC10 fullGameDemo mode is needed. If normal setup/start blocks, stop and retain
+that specific live prerequisite; do not import training mechanics or add actors
+without a distinct claim. New proof-adapter functionality must get discriminating
+RED before implementation, with original consumer/SDK ownership assertions kept.
+
+Expected bounded gameplay qualification: five minutes including emulator/start,
+three actors, exact scenario and owned cleanup (previous combined proof97s,
+allowing normal live-base setup variability). Independent final-built typography
+capture/review: a separate five-to-eight-minute bounded window depending on
+representative states; can retain the same minimum actor surfaces if explicitly
+allocated. Report time limits separately from measured results. Parent schedules
+after PC10 cargo/recharge and editor priority. No runtime has started for either.
