@@ -119,7 +119,7 @@ it('shows the detailed status instrument only in authenticated GM app chrome', a
   expect(within(status).getByText('SHUTTLE // I.C.S.S. Starlight')).toBeVisible();
 });
 
-it('explains awaiting CIC handshake before the GM starts Cycle 1', async () => {
+it('explains awaiting CIC authentication before the GM starts Cycle 1', async () => {
   const session = useSessionStore.getState().session!;
   useSessionStore.getState().setSession({ ...session, currentTurn: 0 });
   useSessionStore.getState().setMe(connectedPlayer('u1'));
@@ -130,18 +130,18 @@ it('explains awaiting CIC handshake before the GM starts Cycle 1', async () => {
   await screen.findByText('2 connected to CIC');
 
   const indicator = screen.getByRole('status', {
-    name: 'Fleet link connected // awaiting CIC handshake',
+    name: 'Fleet link connected // awaiting CIC authentication',
   });
-  expect(indicator).toHaveTextContent('CONNECTED // AWAITING CIC HANDSHAKE');
-  expect(indicator).toHaveAttribute('data-status', 'blue');
+  expect(indicator).toHaveTextContent('CONNECTED // AWAITING CIC AUTHENTICATION');
+  expect(indicator).toHaveAttribute('data-status', 'awaiting-cic');
   expect(indicator).toHaveAttribute(
     'title',
-    'Fleet link connected // awaiting CIC handshake',
+    'Fleet link connected // awaiting CIC authentication',
   );
 
   await userEvent.setup().click(screen.getByRole('button', { name: /^Settings$/ }));
   const settings = screen.getByRole('dialog', { name: 'Session settings' });
-  expect(within(settings).getByText('Awaiting CIC handshake means waiting for the GM to start the game.')).toBeVisible();
+  expect(within(settings).getByText('Awaiting CIC authentication means waiting for the GM to start the game.')).toBeVisible();
 
   act(() => useSessionStore.getState().setSession({ ...session, currentTurn: 1 }));
   expect(indicator).toHaveTextContent('In session');
