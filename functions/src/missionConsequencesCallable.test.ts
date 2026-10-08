@@ -104,7 +104,8 @@ vi.mock('node:crypto', async original => ({ ...await original<typeof NodeCrypto>
 
 import { commitAwayMissionLifecycleCommand, stageWolfAttackPreparation, declareWolfAttack,
   readEndeavourResearchWorkspace, advanceEndeavourResearchTrack, getWolfAttackThreatWindowOptions,
-  setWolfAttackWindow, advanceWolfAttackLifecycle, getWolfBoardingSpecialChoice } from './index';
+  setWolfAttackWindow, advanceWolfAttackLifecycle, getWolfBoardingSpecialChoice,
+  openPrivateMissionDiscards, discardPrivateMissionCard } from './index';
 import { missionDeck, missionDeckStateFromCards } from './missionDeck';
 import { awayMissionHandId } from './awayMissionCards';
 import { organiserSitesForChart } from './starChartLookup';
@@ -190,6 +191,40 @@ async function resolve(site: string, opportunity: string, contributors = 3, setu
   return reply as ResolvedMissionReply;
 }
 beforeEach(() => { mock.documents.clear(); mock.writes.length = 0; mock.d6 = 2; mock.resetTransactionFaults(); });
+
+it.each(['canonical command', 'legacy synchronization', 'legacy open fallback', 'legacy discard fallback'] as const)(
+  'advances the private K repair generation atomically with the actual %s pointer writer', async writer => {
+    seed('L');
+    const legacyRequest = (requestId: string, uid = 'gm') => ({ auth: { uid }, data: {
+      sessionId, missionId, requestId, expectedSetupRevision: 1,
+      ...(uid === 'gm' ? { instanceId: 'bridge' } : {}),
+    } }) as CallableRequest<Record<string, unknown>>;
+    if (writer === 'legacy synchronization') {
+      await send('distributeExtraCard', { participantUid: 'alice', opportunityId: 'L-1' });
+      expect(mock.documents.get(missionPath)!.lifecycleRecord).toBeDefined();
+    }
+    if (writer === 'legacy discard fallback') {
+      expect(await openPrivateMissionDiscards.run(legacyRequest('generation-open-setup'))).toMatchObject({ status: 'committed' });
+      expect(mock.documents.get(missionPath)!.phase).toBe('discarding');
+    }
+    const marker = { policyVersion: 1, epoch: 3, state: 'held', writeRevision: 17 };
+    put('sessions/s1', { ...mock.documents.get('sessions/s1')!, awayMissionProjectionSafety: marker });
+    const before = mock.writes.length;
+    let reply;
+    if (writer === 'canonical command') reply = await send('distributeExtraCard', { participantUid: 'alice', opportunityId: 'L-1' });
+    else if (writer === 'legacy discard fallback') reply = await discardPrivateMissionCard.run({
+      ...legacyRequest('generation-discard', 'alice'),
+      data: { ...legacyRequest('generation-discard', 'alice').data, cardId: 'A♥' },
+    });
+    else reply = await openPrivateMissionDiscards.run(legacyRequest('generation-open'));
+
+    expect(reply.status).toBe('committed');
+    const pointerWrites = mock.writes.slice(before).filter(write => write.path.includes('/awayMissionHandPointers/'));
+    expect(pointerWrites.length).toBeGreaterThan(0);
+    expect(mock.documents.get(`sessions/s1/awayMissionHandPointers/${awayMissionHandId(missionId, 'alice')}`)!.phase)
+      .toBe(writer === 'canonical command' ? 'awaiting-card-selection' : 'discarding');
+    expect(mock.documents.get('sessions/s1')!.awayMissionProjectionSafety).toEqual({ ...marker, writeRevision: 18 });
+  });
 
 it.each(['fresh reply', 'alice', 'bob', 'scientist'] as const)(
   'redacts failed K difficulty in the actual %s resolution consumer without changing protected arithmetic', async surface => {

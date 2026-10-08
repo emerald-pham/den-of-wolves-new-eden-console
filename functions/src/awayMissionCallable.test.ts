@@ -190,6 +190,7 @@ beforeEach(() => {
     mock.pointerDocuments[handId] = { ...(mock.pointerDocuments[handId] ?? {}), ...patch };
   });
   delete (sessionFields as Record<string, unknown>).candidateVesselOutcomes;
+  delete (sessionFields as Record<string, unknown>).awayMissionProjectionSafety;
   delete (sessionFields as Record<string, unknown>).candidateCraftReservations;
   sessionFields.currentTurn = 2;
   delete (sessionFields as Record<string, unknown>).fleetPartitionRevision;
@@ -655,6 +656,22 @@ describe('dealPrivateInitialCards', () => {
     coordinate: '5143', sourceCycle: 2, missionLeaderUid: 'alice',
     participantUids: ['alice', 'bob'],
   };
+
+  it('advances the private K repair generation in the same actual initial-deal transaction as all participant pointers', async () => {
+    const marker = { policyVersion: 1, epoch: 3, state: 'held', writeRevision: 17 };
+    (sessionFields as Record<string, unknown>).awayMissionProjectionSafety = marker;
+
+    const reply = await dealPrivateInitialCards.run(request(command));
+
+    expect(reply.status).toBe('committed');
+    expect(mock.set.mock.calls.filter(([ref]) => ref.path.includes('/awayMissionHandPointers/'))).toHaveLength(2);
+    expect(Object.values(mock.pointerDocuments)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ participantUid: 'alice', phase: 'awaiting-card-selection', revision: 0 }),
+      expect.objectContaining({ participantUid: 'bob', phase: 'awaiting-card-selection', revision: 0 }),
+    ]));
+    expect(mock.update).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1' }),
+      expect.objectContaining({ 'awayMissionProjectionSafety.writeRevision': 18 }));
+  });
 
   it('rejects a team-selected Mission Leader who is outside the source-bound participant roster', async () => {
     await expect(dealPrivateInitialCards.run(request({
