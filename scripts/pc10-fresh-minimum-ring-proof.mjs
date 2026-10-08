@@ -34,7 +34,7 @@ export async function runRingWorkflow(operations) {
  await operations.arrive();await operations.repairRing();await operations.crossAndRecover();
  await operations.finishPassages();await operations.sabotageAndClose();
 }
-export async function runStationCombatWaves({maximumWaves=12,assertActors,prepareAndDeclare,runWave,persistWaves}) {
+export async function runStationCombatWaves({maximumWaves=12,assertActors,prepareAndDeclare,runWave,persistWaves,acknowledgeBetweenWaves}) {
  let liberated=false;const waves=[];
  for(let wave=1;wave<=maximumWaves&&!liberated;wave++){
   await assertActors({wave});
@@ -43,6 +43,7 @@ export async function runStationCombatWaves({maximumWaves=12,assertActors,prepar
   waves.push({wave,attackId:final.attackId,repeat:final.pStationRepeat});
   liberated=final.pStationRepeat.status==='stopped';
   await persistWaves(waves);
+  if(!liberated&&wave<maximumWaves)await acknowledgeBetweenWaves?.({wave,final,nextWave:wave+1});
  }
  assert.equal(liberated,true,'Real Station combat must end with zero surviving Wolves before activation.');
  return waves;
@@ -70,9 +71,20 @@ export async function readStationCombatGuardAuthority({db,scope}){
   inspection:{channel:'isolated-emulator-admin-read-only',projectId:scope.projectId,firestoreHost:scope.firestoreHost,observedAt:new Date().toISOString()}};
 }
 export function stationCombatServerContext({sessionId,root,pdfWing,publicAudience,players,fleetGroups}){
- const keys=['currentTurn','phase','turnPhase','turnState','activeRoleIds','activeVesselIds','shipDamage','maintenanceCycles','shuttleControl','shuttleDockings','shuttleVisitLog','retainedShuttles','shuttleFuelled','maliadesState','shipResources','shipUpgrades','fighterWingCounts','smallShipStates','expansion','capybaraEnabled','shipSurvivors','candidateState','navigation'];
+ const keys=['currentTurn','phase','turnPhase','turnState','activeRoleIds','activeVesselIds','shipDamage','maintenanceCycles','shuttleControl','shuttleDockings','shuttleVisitLog','retainedShuttles','shuttleFuelled','maliadesState','shipResources','shipUpgrades','fighterWingCounts','smallShipStates','expansion','capybaraEnabled','shipSurvivors','shipUnrest','shipMutinies','populationAlerts','unrestAlerts','vesselActionRevisions','gameOutcome','survivorOutcome','debriefSnapshot','debriefMode','candidateState','navigation'];
  const playerKeys=['uid','role','assignedRoleId','activeConsoleRoleId','replacementRoleId','replacementStatus','connected','seatId','kickedAt','escapeState','fleetGroupId'];
  return {sessionId,...Object.fromEntries(keys.filter(key=>root[key]!==undefined).map(key=>[key,root[key]])),pdfEscortWing:pdfWing,publicAudience,fleetGroups:fleetGroups.map(group=>Object.fromEntries(['id','vesselIds','memberUids','memberShipIds'].filter(key=>group[key]!==undefined).map(key=>[key,group[key]]))),players:players.map(player=>Object.fromEntries(playerKeys.filter(key=>player[key]!==undefined).map(key=>[key,player[key]])))};
+}
+export function assertStationPopulationAcknowledgmentTransition(before,after,shipId){
+ const unchanged=['sessionId','currentTurn','phase','turnPhase','turnState','activeRoleIds','activeVesselIds','shipDamage','maintenanceCycles','shuttleControl','shuttleDockings','shuttleVisitLog','retainedShuttles','shuttleFuelled','maliadesState','shipResources','shipUpgrades','fighterWingCounts','smallShipStates','expansion','capybaraEnabled','shipSurvivors','shipUnrest','shipMutinies','unrestAlerts','gameOutcome','survivorOutcome','debriefSnapshot','debriefMode','candidateState','navigation'];
+ for(const key of unchanged)assert.deepEqual(after[key],before[key],`Population acknowledgment must not change ${key}.`);
+ const priorAlerts={...(before.populationAlerts??{})};assert.ok(Object.hasOwn(priorAlerts,shipId),'Only a current server-owned population alert may be acknowledged.');delete priorAlerts[shipId];
+ assert.deepEqual(after.populationAlerts??{},priorAlerts,'Only the exact acknowledged population alert may be removed.');
+ const priorRevisions={...(before.vesselActionRevisions??{})},nextRevisions={...(after.vesselActionRevisions??{})};
+ const expectedRevision=priorRevisions[shipId]??0;assert.ok(Number.isSafeInteger(expectedRevision)&&expectedRevision>=0);
+ assert.equal(nextRevisions[shipId],expectedRevision+1,'Dismissal must commit its one actual vessel revision.');
+ delete priorRevisions[shipId];delete nextRevisions[shipId];assert.deepEqual(nextRevisions,priorRevisions,'Dismissal must not revise another vessel.');
+ return {expectedRevision,revision:expectedRevision+1};
 }
 export function stationCombatConsoles(){return ['jump-drive','fighter-bay-alpha','fighter-bay-bravo'];}
 export async function readStationLiberation(readDocument,root,expected){const require=createRequire(new URL('../functions/package.json',import.meta.url));const {parseCandidateStationLiberations}=require('../functions/lib/candidateStationLiberation.js');const markers=parseCandidateStationLiberations(await readDocument('serverState/candidateStationLiberations'));const marker=markers[`${expected.groupId}:${expected.coordinate}`];assert.ok(marker);for(const key of ['sessionId','groupId','coordinate','sourceId','cycle'])assert.equal(marker[key],expected[key]);assert.equal(marker.cycle,root.currentTurn);return marker;}
@@ -610,7 +622,7 @@ async function launchSurface(label) {
  const {MAINTENANCE_ORDERS}=adminRequire(`${root}/functions/lib/maintenanceOrder.js`);
  const {MAINTENANCE_RULES}=adminRequire(`${root}/functions/lib/maintenance.js`);
 const stable=value=>value===null||typeof value!=='object'?JSON.stringify(value):Array.isArray(value)?`[${value.map(stable).join(',')}]`:`{${Object.keys(value).sort().map(key=>`${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}`;
-let gm1Instance;
+let gm1Instance,gm1OriginalAuthority;
 async function liveGm(surface,label,phase,{deadlineAt=Date.now()+60000}={}) {
  const remaining=()=>{const left=deadlineAt-Date.now();assert.ok(left>0,'Original live GM operation deadline expired.');return left;};
  const expectedUidHash=short(actorUids.get(label));
@@ -639,7 +651,7 @@ async function authorizeAndClaim(surface,label,name) {
  await closeLifecycleSettings(settings);await surface.page.getByRole('link',{name:/GM join$/i}).click();await surface.page.getByLabel('Input GM Name',{exact:true}).fill(name);
  const claimed=await action(surface,'claimGmInstance',()=>surface.page.getByRole('button',{name:'Join as GM',exact:true}).click());
  const live=await liveGm(surface,label);assert.equal(claimed.data.instanceId,live.instanceId);assert.equal(claimed.result.instance.id,live.instanceId);
- gm1Instance=live.instanceId;
+ gm1Instance=live.instanceId;gm1OriginalAuthority=live;
  claims.push(`${label} ordinary admission/consent, normal local GM authorization and independent owned live instance`);return live;
 }
 
@@ -1048,6 +1060,79 @@ async function enterRole(surface,label){
     }
     assert.ok(Date.now()<deadlineAt); // Additional actors use only their current ordinary crew surfaces.
    };
+   const readOwnedStationAuthority=deadlineAt=>candidateWait(()=>readStationCombatGuardAuthority({db,scope:{ownedSyntheticSession:true,sessionId:sid,ownedSessionId:sid,projectId,expectedProjectId:allocation.projectId,firestoreHost:process.env.FIRESTORE_EMULATOR_HOST,expectedFirestoreHost:`127.0.0.1:${ports.firestore}`}}),deadlineAt,'Station population acknowledgment source read');
+   const stationAckActorAnchor=actor=>Object.fromEntries(['sessionId','uidHash','generation','hydrationRevision','instanceId','claimedAt'].map(key=>[key,actor[key]]));
+   const assertStationAckActor=(anchor,actor)=>{for(const key of Object.keys(anchor))assert.equal(actor[key],anchor[key],`Original Station GM ${key} changed during population acknowledgment.`);};
+   const stationGmPopulationProjection=deadlineAt=>candidateWait(()=>gm.page.evaluate(async storeUrl=>{
+    const{useSessionStore}=await import(storeUrl),store=useSessionStore.getState(),session=store.session,instance=store.gmInstance;
+    const targets=value=>Object.values(value??{}).filter(alert=>instance&&Array.isArray(alert.targetGmInstanceIds)&&alert.targetGmInstanceIds.includes(instance.id)).map(alert=>({shipId:alert.shipId,shipName:alert.shipName,population:alert.population,targetGmInstanceIds:[...alert.targetGmInstanceIds]}));
+    const visible=element=>element.getClientRects().length>0&&getComputedStyle(element).visibility!=='hidden'&&getComputedStyle(element).display!=='none';
+    const visibleDialogs=Array.from(document.querySelectorAll('[role="dialog"],[role="alertdialog"]')).filter(visible).map(element=>({role:element.getAttribute('role'),name:(element.getAttribute('aria-labelledby')??'').split(/\\s+/).map(id=>document.getElementById(id)?.textContent?.trim()).filter(Boolean).join(' '),text:element.innerText.slice(0,1200)}));
+    const mutinyPanels=Array.from(document.querySelectorAll('section[aria-label]')).filter(element=>visible(element)&&/mutiny recovery/i.test(element.getAttribute('aria-label')??'')).map(element=>element.getAttribute('aria-label'));
+    return{sessionId:session?.id??null,phase:session?.phase??null,connection:store.connection,freshness:store.sessionSnapshotFreshness,generation:store.me?.connectionGeneration??null,hydrationRevision:store.identityHydrationRevision,instanceId:instance?.id??null,vesselActionRevisions:session?.vesselActionRevisions??{},targetedPopulation:targets(session?.populationAlerts),targetedUnrest:targets(session?.unrestAlerts),visibleDialogs,mutinyPanels};
+   },gm.storeModuleUrl()),deadlineAt,'Station current GM population alert projection');
+   const assertSafePopulationAckState=(authority,context)=>{
+    assert.equal(context.phase,'active','Only active gameplay may dismiss an informational population alert.');
+    assert.equal(context.gameOutcome??null,null,'Stop on a game outcome.');assert.equal(context.survivorOutcome??null,null,'Stop on a survivor ending.');assert.equal(context.debriefSnapshot??null,null,'Stop on debrief or ruling.');assert.notEqual(context.debriefMode?.active,true,'Stop on an active endgame review.');
+    const unrest=Object.values(context.unrestAlerts??{}).filter(alert=>alert.targetGmInstanceIds?.includes(gm1Instance));assert.equal(unrest.length,0,'Do not acknowledge while an unrest alert is pending.');
+    const activeMutinies=Object.entries(context.shipMutinies??{}).filter(([shipId,mutiny])=>mutiny?.status==='active'||Number(context.shipUnrest?.[shipId]??0)>=8&&mutiny?.status!=='resolved');assert.deepEqual(activeMutinies,[],'Stop while mutiny recovery is active or unresolved.');
+    const replacements=authority.players.filter(player=>player.replacementRoleId!=null||player.replacementStatus!=null);assert.deepEqual(replacements,[],'Stop while any replacement transfer is pending.');
+   };
+   const stationAckSafeSummary=(context,shipId)=>({sessionId:context.sessionId,currentTurn:context.currentTurn,phase:context.phase,shipId,populationAlert:context.populationAlerts?.[shipId]??null,vesselActionRevision:context.vesselActionRevisions?.[shipId]??0,shipSurvivors:context.shipSurvivors,shipResources:context.shipResources,shipDamage:context.shipDamage,shipUnrest:context.shipUnrest,shipMutinies:context.shipMutinies,unrestAlerts:context.unrestAlerts,gameOutcome:context.gameOutcome??null,survivorOutcome:context.survivorOutcome??null,debriefSnapshot:context.debriefSnapshot??null,debriefMode:context.debriefMode??null});
+   const acknowledgeStationPopulationAlert=async({wave,nextWave,final,deadlineAt})=>{
+    assert.ok(Number.isFinite(deadlineAt)&&Date.now()<deadlineAt,'Original Station wave deadline expired before population acknowledgment.');
+    assert.equal(final.status,'resolved');assert.equal(final.currentStep,'resolved');assert.equal(final.pStationRepeat?.status,'repeat','Only a normal repeat wave may acknowledge its informational alert.');
+    const initialActor=await liveGm(gm,'GM1','active',{deadlineAt}),actorAnchor=stationAckActorAnchor(gm1OriginalAuthority);assertStationAckActor(actorAnchor,initialActor);
+    let ready=null;
+    while(Date.now()<deadlineAt){
+     const currentActor=await liveGm(gm,'GM1','active',{deadlineAt});assertStationAckActor(actorAnchor,currentActor);
+     const authority=await readOwnedStationAuthority(deadlineAt),context=stationCombatServerContext({...authority,publicAudience:null});assertSafePopulationAckState(authority,context);
+     const sourceAlerts=Object.entries(context.populationAlerts??{}).filter(([,alert])=>alert.targetGmInstanceIds?.includes(gm1Instance));assert.ok(sourceAlerts.length<=1,'Stop on multiple current-GM population alerts.');
+     const projection=await stationGmPopulationProjection(deadlineAt);
+     for(const key of ['sessionId','phase','generation','hydrationRevision','instanceId'])assert.equal(projection[key],({sessionId:sid,phase:'active',generation:actorAnchor.generation,hydrationRevision:actorAnchor.hydrationRevision,instanceId:actorAnchor.instanceId})[key],`Current GM browser projection ${key} changed.`);
+     assert.equal(projection.connection,'live');assert.equal(projection.freshness,'server');
+     assert.deepEqual(projection.targetedUnrest,[],'Do not dismiss a population alert while the GM-targeted unrest alert is visible.');
+     assert.deepEqual(projection.mutinyPanels,[],'Do not proceed while a mutiny recovery panel is visible.');
+     const exactDialog=projection.visibleDialogs.length===1&&projection.visibleDialogs[0].role==='alertdialog'&&projection.visibleDialogs[0].name==='Survivor population threshold reached';
+     if(projection.visibleDialogs.length&&!exactDialog)throw new Error('Stop on an unknown or consequential modal; only the exact population alert is eligible.');
+     const uiAlerts=projection.targetedPopulation;assert.ok(uiAlerts.length<=1,'Stop on multiple browser-projected population alerts.');
+     if(sourceAlerts.length===0&&uiAlerts.length===0&&projection.visibleDialogs.length===0)return false;
+     if(sourceAlerts.length===1&&uiAlerts.length===1&&exactDialog){
+      const [mapShipId,alert]=sourceAlerts[0],uiAlert=uiAlerts[0];assert.equal(alert.shipId,mapShipId);assert.equal(uiAlert.shipId,mapShipId);assert.equal(uiAlert.shipName,alert.shipName);assert.equal(uiAlert.population,alert.population);assert.deepEqual(uiAlert.targetGmInstanceIds,alert.targetGmInstanceIds);
+      assert.ok(Number.isSafeInteger(alert.population)&&alert.population>=0);assert.equal(projection.visibleDialogs[0].text.includes(alert.shipName),true);assert.equal(projection.visibleDialogs[0].text.includes(alert.population.toLocaleString('en-US')),true);assert.ok(projection.visibleDialogs[0].text.includes('A census threshold requires GM attention.'));
+      ready={authority,context,projection,shipId:mapShipId,alert};break;
+     }
+     await candidateWait(()=>delay(Math.min(150,deadlineAt-Date.now())),deadlineAt,'Station normal population alert feed wait');
+    }
+    assert.ok(ready,'The original Station wave deadline expired before the population alert was consistently visible.');
+    const beforeActor=await liveGm(gm,'GM1','active',{deadlineAt});assertStationAckActor(actorAnchor,beforeActor);
+    const beforeAuthority=await readOwnedStationAuthority(deadlineAt),before=stationCombatServerContext({...beforeAuthority,publicAudience:null});assertSafePopulationAckState(beforeAuthority,before);
+    assert.equal(stable(before),stable(ready.context),'Station source changed before the targeted informational acknowledgment.');
+    assert.ok(beforeAuthority.authoritativeAttack,'Retain the actual final server Station attack before acknowledgment.');assert.equal(beforeAuthority.authoritativeAttack.attackId,final.attackId);assert.equal(beforeAuthority.authoritativeAttack.revision,final.revision);assert.equal(beforeAuthority.authoritativeAttack.status,'resolved');assert.equal(beforeAuthority.authoritativeAttack.currentStep,'resolved');assert.equal(beforeAuthority.authoritativeAttack.pStationRepeat?.status,'repeat');
+    const beforeProjection=await stationGmPopulationProjection(deadlineAt);assert.equal(stable(beforeProjection),stable(ready.projection),'The exact alert/actor projection changed before the acknowledgment.');
+    const shipId=ready.shipId,expectedRevision=before.vesselActionRevisions?.[shipId]??0;assert.ok(Number.isSafeInteger(expectedRevision)&&expectedRevision>=0);
+    assert.equal(beforeProjection.vesselActionRevisions?.[shipId]??0,expectedRevision,'The current GM feed must expose the same source vessel revision as the server before dismissal.');
+    const alertDialog=gm.page.getByRole('alertdialog',{name:'Survivor population threshold reached',exact:true});assert.equal(await alertDialog.count(),1);assert.equal(await alertDialog.isVisible(),true);
+    const dismiss=alertDialog.getByRole('button',{name:'Dismiss population alert',exact:true});assert.equal(await dismiss.count(),1);assert.equal(await dismiss.isEnabled(),true);
+    const capture=await action(gm,'dismissPopulationAlert',()=>dismiss.click(),{deadlineAt,original:beforeActor,gm:true,matches:data=>data?.sessionId===sid&&data?.shipId===shipId&&data?.instanceId===gm1Instance&&data?.expectedRevision===expectedRevision});
+    assert.equal(capture.httpStatus,200);assert.equal(capture.data.sessionId,sid);assert.equal(capture.data.shipId,shipId);assert.equal(capture.data.instanceId,gm1Instance);assert.equal(capture.data.expectedRevision,expectedRevision);assert.equal(typeof capture.data.requestId,'string');assert.ok(capture.data.requestId.length>0);
+    const response=capture.result,gmPlayer=beforeAuthority.players.find(player=>player.uid===actorUids.get('GM1'));assert.ok(gmPlayer);assert.equal(gmPlayer.role,'gm');assert.equal(response.dismissed,true);assert.equal(response.actorUid,actorUids.get('GM1'));assert.equal(response.actorRoleId,gmPlayer.activeConsoleRoleId??null);assert.equal(response.vesselId,shipId);assert.equal(response.turn,before.currentTurn);assert.equal(response.phase,'active');assert.equal(response.revision,expectedRevision+1);assert.equal(response.idempotencyKey,capture.data.requestId);assert.equal(response.auditId,`dismiss-population-${capture.data.requestId}`);
+    const entry={wave,nextWave,attack:{attackId:final.attackId,revision:final.revision,status:final.status,currentStep:final.currentStep,pStationRepeat:final.pStationRepeat},actor:actorAnchor,ui:{role:'alertdialog',name:'Survivor population threshold reached',button:'Dismiss population alert',shipId,shipName:ready.alert.shipName,population:ready.alert.population},request:{endpoint:'dismissPopulationAlert',httpStatus:capture.httpStatus,data:capture.data,responseBody:{result:response}},sourceBefore:stationAckSafeSummary(before,shipId),sourceAfter:null,browserBefore:beforeProjection,browserAfter:null};
+    (evidence.stationPopulationAcknowledgments??=[]).push(entry);await writeFile(`${directory}/Station-population-alert-acks.json`,JSON.stringify(evidence.stationPopulationAcknowledgments,null,2)+'\n');
+    const afterAuthority=await readOwnedStationAuthority(deadlineAt),after=stationCombatServerContext({...afterAuthority,publicAudience:null});entry.sourceAfter=stationAckSafeSummary(after,shipId);await writeFile(`${directory}/Station-population-alert-acks.json`,JSON.stringify(evidence.stationPopulationAcknowledgments,null,2)+'\n');
+    assertStationPopulationAcknowledgmentTransition(before,after,shipId);assert.equal(stable(afterAuthority.authoritativeAttack),stable(beforeAuthority.authoritativeAttack),'Population acknowledgment must not change the resolved Station attack.');
+    const afterActor=await liveGm(gm,'GM1','active',{deadlineAt});assertStationAckActor(actorAnchor,afterActor);
+    let clearedProjection=null;while(Date.now()<deadlineAt){
+     const currentActor=await liveGm(gm,'GM1','active',{deadlineAt});assertStationAckActor(actorAnchor,currentActor);
+     const current=await stationGmPopulationProjection(deadlineAt);for(const key of ['sessionId','phase','connection','freshness','generation','hydrationRevision','instanceId'])assert.equal(current[key],beforeProjection[key],`Normal GM feed ${key} changed during population dismissal.`);
+     assert.deepEqual(current.targetedUnrest,[],'Stop if unrest becomes pending during dismissal.');assert.deepEqual(current.mutinyPanels,[],'Stop if mutiny recovery appears during dismissal.');
+     if(current.targetedPopulation.length===0&&current.visibleDialogs.length===0&&stable(current.vesselActionRevisions)===stable(after.vesselActionRevisions)){clearedProjection=current;break;}
+     if(current.visibleDialogs.some(dialog=>dialog.role!=='alertdialog'||dialog.name!=='Survivor population threshold reached'))throw new Error('Stop if a consequential or unknown modal replaces the population alert.');
+     await candidateWait(()=>delay(Math.min(150,deadlineAt-Date.now())),deadlineAt,'Station normal population dismissal feed wait');
+    }
+    assert.ok(clearedProjection,'Normal browser feed did not remove the acknowledged alert before the next wave.');entry.browserAfter=clearedProjection;await writeFile(`${directory}/Station-population-alert-acks.json`,JSON.stringify(evidence.stationPopulationAcknowledgments,null,2)+'\n');
+    return true;
+   };
    const activeCrew=async(deadlineAt)=>{
     const actors=stationCrew.map(actor=>({...actor,uid:actorUids.get(actor.label)}));
     return selectStationCombatCrew(actors,{ships,
@@ -1060,10 +1145,12 @@ async function enterRole(surface,label){
    };
    const choose=(current,{deadlineAt})=>chooseStationCombatActor(current,{deadlineAt,chooseWing,pendingWingRecovery:[...recoveredLaunches.values()].some(row=>row.view.attackId===current.attackId&&!row.committed),chooseCrew:async(attack,options)=>dispatchStationCrewChoice(attack,{...options,sessionId:sid,actors:await activeCrew(options.deadlineAt),assertActor:assertCrewActor,readAttack,action})});
    try {
+   let stationWaveDeadlineAt;
    const waves=await runStationCombatWaves({maximumWaves:12,
     assertActors:async()=>{await assertStationActors();},
     prepareAndDeclare:async()=>{for(const ship of stationSurvivingRepairTargets(ships,await recordRoot()))await repair(ship);await liveGm(gm,'GM1','active');await action(gm,'declareWolfAttack',()=>preparation.getByRole('button',{name:'Declare Wolf attack',exact:true}).click());},
-    runWave:async()=>runSparseStationCombat({deadlineAt:Math.min(Date.now()+480000,workEnd-60000),readAttack,onState:retainCombatState,onDiagnosticError:async(error,attack)=>{recordDiagnosticError('diagnostic-retention',error,attack);},assertActors:async()=>{budget();await liveGm(gm,'GM1','active');assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);},choose,recoverChoice}),
+    runWave:async()=>{stationWaveDeadlineAt=Math.min(Date.now()+480000,workEnd-60000);return runSparseStationCombat({deadlineAt:stationWaveDeadlineAt,readAttack,onState:retainCombatState,onDiagnosticError:async(error,attack)=>{recordDiagnosticError('diagnostic-retention',error,attack);},assertActors:async()=>{budget();await liveGm(gm,'GM1','active');assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);},choose,recoverChoice});},
+    acknowledgeBetweenWaves:context=>acknowledgeStationPopulationAlert({...context,deadlineAt:stationWaveDeadlineAt}),
     persistWaves:currentWaves=>writeFile(`${directory}/Station-combat-waves.json`,JSON.stringify(currentWaves,null,2)+'\n')});
    const current=await recordRoot();await readStationLiberation(path=>db.doc(`sessions/${sid}/${path}`).get().then(doc=>doc.data()),current,{sessionId:sid,groupId,coordinate,sourceId:waves.at(-1).attackId,cycle:current.currentTurn});evidence.stationCombatWaves=waves;
    claims.push('Actual source-bound Station waves finalized with real server rolls; durable zero-survivor liberation precedes any Reactor contribution');
