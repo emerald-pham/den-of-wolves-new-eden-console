@@ -1997,10 +1997,11 @@ it('releases deferred Force Field targeting with the canonical source ring after
     calculationReceipt: { step: 'targeting', targeting: {
       ring: participatingRing,
       sourceRing: CORE_WOLF_TARGET_RING,
-      rolls: [expect.objectContaining({ rosterIndex: 0, sourceDie: 3, initialDie: 1,
-        nonparticipatingTargetRerolls: 1, target: 'aegis' })],
     } },
     forceFieldChoice: { status: 'selected', targetShipId: 'aegis', actorUid: 'gorg-1' } });
+  const rolls = ((targeted.calculationReceipt as Fields).targeting as Fields).rolls as Fields[];
+  expect(rolls[0]).toMatchObject({ rosterIndex: 0, sourceDie: 3, initialDie: 1,
+    nonparticipatingTargetRerolls: 1, target: 'aegis' });
 });
 
 

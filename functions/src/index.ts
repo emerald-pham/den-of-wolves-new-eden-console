@@ -24369,7 +24369,7 @@ function wolfAttackActiveVesselIds(session: DocumentSnapshot): readonly string[]
   return [...stored] as string[];
 }
 
-function configuredWolfTargetRingForSession(session: DocumentSnapshot): WolfTargetRing {
+function configuredWolfPrintedTargetRingForSession(session: DocumentSnapshot): WolfTargetRing {
   const activeVesselIds = wolfAttackActiveVesselIds(session);
   const storedPlayerCount = session.get('playerCount');
   const storedExpansion = session.get('expansion');
@@ -24384,7 +24384,20 @@ function configuredWolfTargetRingForSession(session: DocumentSnapshot): WolfTarg
     ? storedExpansion
     : playerCount >= 19 ? 'capybara' : 'base';
   try {
-    const ring = candidateAvailableVesselIds(session, configuredWolfAttackTargetRing(activeVesselIds, { playerCount, expansion }));
+    return configuredWolfAttackTargetRing(activeVesselIds, { playerCount, expansion });
+  } catch (error) {
+    throw commandError(
+      'failed-precondition',
+      error instanceof Error ? error.message : 'The active fleet cannot supply a valid Wolf target ring.',
+      'conflict',
+    );
+  }
+}
+
+function availableWolfTargetRingForSession(session: DocumentSnapshot): WolfTargetRing {
+  const printedRing = configuredWolfPrintedTargetRingForSession(session);
+  try {
+    const ring = candidateAvailableVesselIds(session, printedRing);
     if (!ring.length) throw new Error('All combat vessels have a committed candidate disposition.');
     return ring as WolfTargetRing;
   } catch (error) {
@@ -24400,7 +24413,7 @@ function configuredWolfTargetRingForGroup(
   session: DocumentSnapshot,
   targetGroupVesselIds: readonly string[],
 ): WolfTargetRing {
-  const fullRing = configuredWolfTargetRingForSession(session);
+  const fullRing = availableWolfTargetRingForSession(session);
   const members = new Set(targetGroupVesselIds);
   const ring = fullRing.filter((target) => members.has(target));
   if (ring.length === 0 || ring.length !== new Set(ring).size) {
@@ -24417,7 +24430,7 @@ function configuredWolfTargetRingForAttack(
   return Array.isArray(targetGroupVesselIds) && targetGroupVesselIds.length > 0 &&
     targetGroupVesselIds.every((vesselId) => typeof vesselId === 'string')
     ? configuredWolfTargetRingForGroup(session, targetGroupVesselIds as string[])
-    : configuredWolfTargetRingForSession(session);
+    : availableWolfTargetRingForSession(session);
 }
 
 function wolfAttackCarryoverDocumentRefs(
@@ -25128,7 +25141,7 @@ export const declareWolfAttack = auditedOnCall<{
     )
     : wolfTargetingStageReceipt(
       preflight.phase.turn, preflight.preparation, declaredAt, preflight.targetRing,
-      configuredWolfTargetRingForSession(preflightSession), preflightPursuit,
+      configuredWolfPrintedTargetRingForSession(preflightSession), preflightPursuit,
     );
   const announcementId = `wolf-attack-${declaration.requestId}`;
   const result: WolfAttackDeclarationResult = {
@@ -27224,7 +27237,7 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
         const committedAt = new Date().toISOString();
         const targetingReceipt = wolfTargetingStageReceipt(
           turn as number, preparation, committedAt, targetRing,
-          configuredWolfTargetRingForSession(session), pursuit,
+          configuredWolfPrintedTargetRingForSession(session), pursuit,
         );
         const nextRevision = (revision as number) + 1;
         tx.update(stateRef, {
@@ -27853,7 +27866,7 @@ function wolfCommanderTargetingInputs(
       throw new Error('The Wolf targeting receipt does not match its preparation.');
     }
     const expectedRing = configuredWolfTargetRingForAttack(session, state);
-    const expectedSourceRing = configuredWolfTargetRingForSession(session);
+    const expectedSourceRing = configuredWolfPrintedTargetRingForSession(session);
     if (JSON.stringify(receipt.ring) !== JSON.stringify(expectedRing) ||
         JSON.stringify(receipt.sourceRing) !== JSON.stringify(expectedSourceRing)) {
       throw new Error('The Wolf targeting receipt does not match the active fleet and selected group.');
