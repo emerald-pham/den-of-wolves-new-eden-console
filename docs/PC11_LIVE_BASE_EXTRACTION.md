@@ -340,3 +340,20 @@ The synthetic landscape incoming-offer card wraps existing name/resource text
 almost one character per line. This is a presentation caveat, not demonstrated
 authenticated workspace sizing. All eleven authenticated guidance panels and
 full final typography acceptance remain unverified. No publication occurred.
+
+`6bffb96d` observed the published-SDK export binding regression RED;
+`f11404c4` removes the unsupported pending-resume API from the two active
+observations and readiness adapter, preserving the actual published live/server
+freshness, own Auth/member/session, positive epochs, exact seat and GM ownership
+floors. Independent source review approved this narrow repair; no new runtime
+was attempted. Final adapter/runner/launcher source checks26/26 pass, log
+`/tmp/dow-pc11-published-sdk-final.log`. Bundled/server inputs still match2cc643ea.
+
+Independent review also identified a conditional navigation tooling blocker:
+if a normal role navigation advances generation or hydration, the retained
+legacy navigation-resume observer expects berth and clientAcceptance fields
+absent from the clean baseline. It fails closed; unchanged-epoch navigation is
+unaffected. Reconcile this clean navigation adapter with focused RED/GREEN and
+review before claiming general runnable qualification or requesting the next
+actual proof. Full normal-flow proof and authenticated guidance/render acceptance
+remain open; parent owns the next allocation and release decision.
