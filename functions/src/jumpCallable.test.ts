@@ -3006,6 +3006,12 @@ it('does not merge colocated groups with different pursuit inputs until the live
   await expect(call.run(request({ sessionId: 's1', instanceId: 'bridge', expectedNavigationRevision: 0 }))).resolves.toEqual({
     status: 'adjudication-required', navigationRevision: 0, fleetPartitionRevision: 0,
     candidates: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 } }],
+    previewBinding: { actorUid: 'u1', instanceId: 'bridge', leaseClaimedAt: null,
+      navigationRevision: 0, fleetPartitionRevision: 0, currentTurn: 1,
+      turnPhase: { turn: 1, teamPhaseEndsAt: '2026-09-06T12:05:00.000Z', openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+        airspace: { state: 'lifted', tickerActive: true, pressAccess: false } },
+      candidates: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'],
+        pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 } }] },
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
@@ -3082,7 +3088,8 @@ it('records a current live-GM choice before applying it, then consumes and exact
   expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
   await expect(calls.recordFleetGroupRejoinAdjudication.run(request({ sessionId: 's1', instanceId: 'bridge',
     requestId: 'record-pursuit-decision', expectedNavigationRevision: 0, expectedFleetPartitionRevision: 0,
-    decisions: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter: 3 }] })))
+    decisions: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter: 3 }],
+    ...(previewBinding === undefined ? {} : { previewBinding }) })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
 
