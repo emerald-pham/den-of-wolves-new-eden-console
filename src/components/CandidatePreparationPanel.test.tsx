@@ -67,7 +67,7 @@ it('labels Home as the default and gives the GM a pre-outcome Deluxe alternative
   expect(screen.getByRole('option', { name: 'Deluxe (alternative)' })).toBeInTheDocument();
   const user = userEvent.setup();
   await user.selectOptions(edition, 'deluxe');
-  await waitFor(() => expect(service.edition).toHaveBeenCalledWith('fleet-1', 'deluxe'));
+  await waitFor(() => expect(service.edition).toHaveBeenCalledWith('fleet-1', 'deluxe', 0));
 });
 it('keeps the selected edition visible and locked to the GM after any fleet group starts N or O', async () => {
   service.read.mockResolvedValueOnce({ type: 'candidate-workspace', sessionId: 's1', groupId: 'fleet-1', cycle: 6, revision: 3,
@@ -91,7 +91,7 @@ it('renders Deluxe thresholds without importing Home-only Ring stop-Wolf wording
     revision: 2, edition: 'deluxe', editionLocked: true, paths: [path('N', 'deluxe'), path('O', 'deluxe')] });
   render(<CandidatePreparationPanel />);
   await screen.findByRole('heading', { name: 'Ancient Jump Ring' });
-  expect(screen.getByText(/15 materials.*Engineering Shuttle.*five distinct completed Endeavour technologies.*five fuel from each ship/i)).toBeInTheDocument();
+  expect(screen.getByText(/15 materials.*Engineering Shuttle.*five distinct fully completed Endeavour technologies.*five fuel from each ship/i)).toBeInTheDocument();
   expect(screen.getByText(/one d6.*protected scouting.*eight.*prior losses do not add a bonus/i)).toBeInTheDocument();
   expect(screen.queryByText(/far-side sabotage.*Wolf|stop.*Wolf fleet|Wolf pursuit through the Ring/i)).not.toBeInTheDocument();
 });
