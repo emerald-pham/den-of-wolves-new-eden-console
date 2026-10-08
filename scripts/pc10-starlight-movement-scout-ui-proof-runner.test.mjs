@@ -53,7 +53,7 @@ function makeConsumer() {
       privateResult: null, privateNote: null,
     },
   };
-  let commandCount = 0;
+  let commandCount = 0, scoutCount = 0;
   const page = new EventEmitter();
   page.url = () => 'http://127.0.0.1:5174/#/shuttles/starlight';
   const result = async (endpoint, request, value) => {
@@ -127,7 +127,8 @@ function makeConsumer() {
     },
     async waitForDocking() { return structuredClone(state.session); },
     async currentScoutOffer() { return structuredClone(state.session.scoutOffer); },
-    async requestScout(coordinate, before, ordinal) {
+    async requestScout(coordinate, before) {
+      const ordinal = ++scoutCount;
       const request = { sessionId: 'normal-session', requestId: `scout-${ordinal}`,
         entitlementId: 'starlight', targetCoordinate: coordinate };
       const response = { status: 'requested', resolution: 'pending', requestId: request.requestId,
