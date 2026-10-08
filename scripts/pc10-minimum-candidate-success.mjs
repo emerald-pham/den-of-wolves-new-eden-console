@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {stationReactorCapacity} from './pc10-station-combat-adapter.mjs';
 import { randomUUID } from 'node:crypto';
 
 // Bounded callback for sparse ordinary-account setup; no launch, admission, seed or die.
@@ -109,7 +110,12 @@ export async function runMinimumCandidateSuccessProbe(context) {
   }
   const start = await workspace();
   if (code === 'N') assert.equal(start.path.repaired, true, 'Real research/materials/holder-craft repair is required.');
-  if (code === 'P') assert.equal(start.path.liberated, true, 'Actual authoritative Station liberation is required.');
+  if (code === 'P') {
+    assert.equal(start.path.liberated, true, 'Actual authoritative Station liberation is required.');
+    const capacity=stationReactorCapacity(start.path.ships);
+    assert.ok(capacity.meetsThreshold,`Available Station Reactor capacity ${capacity.capacity} is below the required 18`);
+    context.stationCapacity=capacity;
+  }
   let outcomeObserved;
   for (const ship of start.path.ships) {
     if (ship.result && ship.result !== 'awaiting-choice') continue;

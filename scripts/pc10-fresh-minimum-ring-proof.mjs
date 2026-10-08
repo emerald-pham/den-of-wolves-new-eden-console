@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {assertSparseStationWing,runSparseStationCombat,stationBoardingRead,recoverStationLaunch,assertRecoveredStationLaunch} from './pc10-station-combat-adapter.mjs';
+import {assertSparseStationWing,runSparseStationCombat,stationBoardingRead,recoverStationLaunch,assertRecoveredStationLaunch,stationSurvivingRepairTargets} from './pc10-station-combat-adapter.mjs';
 import {runMinimumCandidateSuccessProbe} from './pc10-minimum-candidate-success.mjs';
 import { runPursuitLimitEnding } from './pc10-full-game-cycle-ending.mjs';
 import { createHash } from 'node:crypto';
@@ -62,7 +62,31 @@ export function stationCombatServerContext({sessionId,root,pdfWing,publicAudienc
 }
 export function stationCombatConsoles(){return ['jump-drive','fighter-bay-alpha','fighter-bay-bravo'];}
 export async function readStationLiberation(readDocument,root,expected){const require=createRequire(new URL('../functions/package.json',import.meta.url));const {parseCandidateStationLiberations}=require('../functions/lib/candidateStationLiberation.js');const markers=parseCandidateStationLiberations(await readDocument('serverState/candidateStationLiberations'));const marker=markers[`${expected.groupId}:${expected.coordinate}`];assert.ok(marker);for(const key of ['sessionId','groupId','coordinate','sourceId','cycle'])assert.equal(marker[key],expected[key]);assert.equal(marker.cycle,root.currentTurn);return marker;}
-export function minimumStationPlan(){return {actualAuthenticatedActors:2,configuredRoles:13,browserProcesses:1,browserContexts:2,hardCapMs:1200000,probeFamily:'station-success',forcedOutcome:false};}
+export function stationReady(value,roleId){return roleId==='press-officer'?value.activeConsoleRoleId===roleId&&value.assignedRoleId===null&&value.seatId===null&&value.pressEnabled&&value.pressCraftScopeMatches&&(value.phase==='casting'||(value.currentMemberBerthPresent&&value.currentMemberBerthNull&&value.memberVesselCount===0&&value.memberCraftCount===1)):value.activeConsoleRoleId===roleId&&value.seatId===roleId&&value.currentCanonicalSeatOwned;}
+export const stationRoleIds={Recipient:'wing-commander',Miner:'icebreaker-miner',Scientist:'shepherd-scientist',Explorer:'quellon-explorer',Colonel:'refinery-124-pdf-colonel',Press:'press-officer'};
+// Read-only preflight of the actual normally admitted preset14 custody roster.
+export function assertStationOwnerCustody(root,players,actorUids){
+ const require=createRequire(new URL('../functions/package.json',import.meta.url));
+ const {recommendedRoleIds}=require('../functions/lib/roleConfiguration.js');
+ const {roleOwnedCraftForRoles,shuttleDockingsMatchRoleOwnedCraft}=require('../functions/lib/craftOwnership.js');
+ const {parseShuttleControl}=require('../functions/lib/shuttleControl.js');
+ assert.deepEqual([...root.activeRoleIds].sort(),[...recommendedRoleIds(14)].sort());
+ assert.equal(root.pressEnabled,true);assert.equal(root.capybaraEnabled,false);
+ assert.equal(shuttleDockingsMatchRoleOwnedCraft(root.activeRoleIds,root.shuttleDockings),true);
+ const expected=roleOwnedCraftForRoles(root.activeRoleIds).filter(craft=>craft.kind==='shuttle'&&craft.enabledMode==='standard');
+ assert.deepEqual(root.shuttleDockings.map(row=>row.shuttleId).sort(),expected.map(craft=>craft.id).sort(),'All six mandatory owned shuttles; optional Union craft must be absent.');
+ const control=parseShuttleControl(root.shuttleControl);assert.ok(control,'Actual authoritative custody must parse.');
+ const occupied=players.filter(player=>player.role==='player'&&!player.kickedAt);
+ assert.equal(occupied.length,6);assert.equal(new Set(Object.values(actorUids)).size,7);
+ for(const craft of expected){
+  const owners=occupied.filter(player=>(player.assignedRoleId??(player.activeConsoleRoleId==='press-officer'?'press-officer':null))===craft.ownerRoleId);assert.equal(owners.length,1,`Printed owner for ${craft.id} is mandatory.`);
+  const [label]=Object.entries(stationRoleIds).find(([,roleId])=>roleId===craft.ownerRoleId);
+  assert.equal(owners[0].uid,actorUids[label]);assert.equal(control[craft.id]?.ownerRoleId,craft.ownerRoleId);
+  assert.equal(control[craft.id]?.ownerUid,owners[0].uid);assert.equal(control[craft.id]?.holderUid,owners[0].uid);
+ }
+ return {actualAuthenticatedActors:7,configuredRoles:14,custodyValidated:true,mandatoryShuttleIds:expected.map(craft=>craft.id)};
+}
+export function minimumStationPlan(){return {actualAuthenticatedActors:7,configuredRoles:14,browserProcesses:1,browserContexts:7,hardCapMs:1200000,probeFamily:'station-success',forcedOutcome:false};}
 export async function runStationWorkflow(operations){await operations.setup();await operations.stationArrivalMaintenance();await operations.stationDeferCombat();await operations.advance(2);await operations.stationCombatMaintenance();await operations.stationArrival();await operations.stationCombat();await operations.stationActivate();await operations.stationEnding();}
 export function minimumPursuitClosurePlan(){return {actualAuthenticatedActors:2,configuredRoles:13,browserProcesses:1,browserContexts:2,hardCapMs:300000,probeFamily:'pursuit-closure',nClosedHistoryObserved:false};}
 export async function presentPursuitCycle(surfaces,observe,present=completeOfferedCyclePresentation){for(const surface of surfaces)await present(surface,await observe(surface),{clearBriefing:true});}
@@ -212,7 +236,8 @@ export async function runFreshMinimumRingProof({allocationPath,directory,probeFa
  const startAt=Date.now(),totalEnd=startAt+plan.hardCapMs,workEnd=totalEnd-60000;
  const actorUids=new Map(),pendingLaunches=[],preexistingUids=new Set();let stopped=false;
  const paceMaintenance=createRingMaintenancePacer();
- const roleIds={Owner:'shepherd-engineer',Recipient:stationOnly?'wing-commander':'shepherd-scientist'};
+ const roleIds=stationOnly?stationRoleIds:{Owner:'shepherd-engineer',Recipient:'shepherd-scientist'};
+ const stationCrew=[];
  const evidence={schemaVersion:1,...plan,sourceCommit,runnerSha256:allocation.runnerSha256,
   compiledIndexSha256:allocation.compiledIndexSha256,sourceBinding,actualHumans:0,actualBrowserProcesses:0,
   actualBrowserContexts:0,actualAuthenticatedActors:0,adminGameplayWrites:0,acceleratedClock:false,
@@ -472,20 +497,22 @@ async function installLossAck(surface,endpoint,waitCommitted,operationDeadlineAt
 }
 // End of finite lost-ack adapter.
 
+async function assertStationCustody(){const current=await recordRoot(),players=await db.collection(`sessions/${sid}/players`).get();const result=assertStationOwnerCustody(current,players.docs.map(player=>({...player.data(),uid:player.id})),Object.fromEntries(actorUids));evidence.stationCustody=result;return result;}
 async function fullMember(surface){return observeFullGameDemoPresentationMember(surface,{knownRoleIds:Object.values(roleIds)});}
 function currentMember(value,label,roleId){
  assert.equal(value.uidHash,short(actorUids.get(label)));assert.equal(value.sessionId,sid);assert.equal(value.meSessionId,sid);
  assert.equal(value.hasAuth,true);assert.equal(value.sameActor,true);assert.equal(value.profileRoleId,null);assert.equal(value.profileSessionId,null);
  assert.equal(value.playerRole,'player');assert.equal(value.replacementRoleId,null);assert.equal(value.replacementStatus,null);assert.equal(value.escapeLocked,false);assert.equal(value.kicked,false);assert.deepEqual(value.invalidFields,[]);
- if(value.assignedRoleId===null)return false;assert.equal(value.assignedRoleId,roleId);
+ if(roleId==='press-officer'){assert.equal(value.assignedRoleId,null);if(value.activeConsoleRoleId!=='press-officer')return false;assert.equal(value.seatId,null);if(!value.pressEnabled||!value.pressCraftScopeMatches)return false;}else {if(value.assignedRoleId===null)return false;assert.equal(value.assignedRoleId,roleId);}
  return value.connection==='live'&&value.freshness==='server'&&value.currentOwnPlayerConfirmed&&value.memberScopeMatches&&value.sdkHasServerAuthority&&!value.sdkResumePending;
 }
-function stationReady(value,roleId){return value.activeConsoleRoleId===roleId&&value.seatId===roleId&&value.currentCanonicalSeatOwned;}
+
 // Casting binds the primary station; the normal GM start transaction establishes operational berths.
 function castingStationReady(value,roleId){return stationReady(value,roleId)&&value.cycle===0&&value.phase==='casting'&&value.setupConfirmed&&value.fullGameDemoExact&&value.fullGameDemo?.status==='preparing'&&value.fullGameDemo?.progression==='manual';}
 async function currentMemberBerthReady(surface,value,label,roleId,deadlineAt){
  const remaining=()=>{const ms=deadlineAt-Date.now();assert.ok(ms>0,'Original member operation deadline expired.');return ms;};remaining();
  if(!stationReady(value,roleId))return false;
+ if(roleId==='press-officer')return value; // Actual Press craft scope is authoritative; Press has no core ship berth.
  if(value.currentMemberBerthPresent)return value.currentMemberBerthMatches?value:false;
  const raw=await bounded(db.doc(`sessions/${sid}/fleetGroups/${value.fleetGroupId}`).get(),remaining(),'Original member berth group-read deadline expired.');const group=fleetGroupRecord(raw.data());
  const absentMap=raw.exists&&group?.id===value.fleetGroupId&&group.memberUids.includes(actorUids.get(label))&&!Object.hasOwn(raw.data(),'memberShipIds');
@@ -517,6 +544,10 @@ async function normalJoin(surface,label){
  await surface.page.goto(baseUrl);await surface.reducedMotion();await surface.page.getByRole('textbox',{name:'Session code',exact:true}).fill(joinCode);
  const response=await observeUiReceipt({page:surface.page,consumed:{stage,label,ordinaryOrigin:baseUrl},waitForResponse:()=>surface.page.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/us-central1/joinSession')&&r.request().method()==='POST',{timeout:35000}),choose:()=>surface.page.getByRole('button',{name:'Join a session',exact:true}).click()});assert.equal(response.status(),200);
  await register(surface,label);await surface.consent();await surface.until('Normal joined fresh manual training',v=>v.hasAuth&&v.sameActor&&v.sessionId===sid&&v.connection==='live'&&v.freshness==='server'&&v.fullGameDemo?.status==='preparing');claims.push(`${label} independent normal Auth/join/consent`);
+}
+async function enterStationPress(surface){
+ const deadlineAt=Date.now()+60000;await action(surface,'refreshPresence',()=>surface.page.getByRole('link',{name:'Press Officer',exact:true}).click(),{deadlineAt,matches:data=>data.sessionId===sid&&data.activeConsoleRoleId==='press-officer'});
+ return memberReady(surface,'Press',{casting:true,deadlineAt});
 }
 async function enterRole(surface,label){
  const roleId=roleIds[label],deadlineAt=Date.now()+60000,original=await memberReady(surface,label,{station:false,deadlineAt});const navigation=createMemberNavigationResumeObserver(surface.page,{directory,roleId,deadlineAt});let failed;
@@ -612,6 +643,7 @@ async function enterRole(surface,label){
   async setup(){
    await mark(sparse?`fresh ordinary GM plus ${stationOnly?'Wing Station':'reader Pursuit'} setup`:'fresh ordinary three-actor Ring setup');
    gm=await launchSurface('browser-A-normal-GM');if(!sparse)owner=await launchSurface('browser-A-independent-Engineer');recipient=await launchSurface(sparse?`browser-A-independent-${stationOnly?'Wing':'Scientist'}`:'browser-B-normal-Scientist');
+   if(stationOnly){stationCrew.push({label:'Recipient',roleId:roleIds.Recipient,surface:recipient});for(const[label,roleId]of Object.entries(roleIds).filter(([label])=>label!=='Recipient'))stationCrew.push({label,roleId,surface:await launchSurface(`browser-A-independent-${label}`)});}
    assert.equal(browsers.length,plan.browserProcesses);assert.equal(surfaces.length,plan.browserContexts);
    await gm.page.goto(baseUrl);await gm.reducedMotion();
    const created=await observeUiReceipt({page:gm.page,waitForResponse:()=>gm.page.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/us-central1/createSession')&&r.request().method()==='POST'),choose:()=>gm.page.getByRole('button',{name:'Create a session',exact:true}).click()});
@@ -620,13 +652,17 @@ async function enterRole(surface,label){
    await authorizeAndClaim(gm,'GM1','PC10 minimum Ring GM');
    if(!await gm.page.getByRole('region',{name:'Setup',exact:true}).isVisible()){await gm.page.getByRole('button',{name:/^Open station catalog/}).click();await gm.page.getByRole('link',{name:'GM Console',exact:true}).click();}
    const setup=gm.page.getByRole('region',{name:'Setup',exact:true});await setup.getByRole('button',{name:'Setup',exact:true}).click();
-   await setup.getByLabel('Recommended player count',{exact:true}).selectOption('13');await setup.getByLabel('Star chart',{exact:true}).selectOption(stationOnly?'B':'A');
+   await setup.getByLabel('Recommended player count',{exact:true}).selectOption(String(plan.configuredRoles));await setup.getByLabel('Star chart',{exact:true}).selectOption(stationOnly?'B':'A');
+   if(stationOnly){
+    const disableCapybara=setup.getByRole('button',{name:'Disable Capybara',exact:true});
+    if(await disableCapybara.isVisible()){await disableCapybara.click();await gm.page.getByRole('button',{name:'Confirm remove Capybara',exact:true}).click();}
+   }
    await action(gm,'confirmSetup',()=>setup.getByRole('button',{name:'Confirm setup // Confirm roster',exact:true}).click());
-   await gm.until('Legal13 configured roles with unused seats open',v=>v.setupConfirmed&&v.activeRoleIds.length===13&&Object.values(roleIds).every(id=>v.activeRoleIds.includes(id)));
+   await gm.until('Legal configured roles with unused seats open',v=>v.setupConfirmed&&v.activeRoleIds.length===plan.configuredRoles&&Object.values(roleIds).filter(id=>id!=='press-officer').every(id=>v.activeRoleIds.includes(id))&&(!stationOnly||(v.pressEnabled&&!v.capybaraEnabled)));
    const training=gm.page.locator('fieldset[aria-label="Full-game demo preparation"]');
    await action(gm,'prepareFullGameDemo',async()=>{await training.getByRole('button',{name:'Prepare full-game demo',exact:true}).click();await training.getByRole('button',{name:'ARE YOU SURE? // PREPARE FULL-GAME DEMO',exact:true}).click();});
-   for(const[surface,label]of(sparse?[[recipient,'Recipient']]:[[owner,'Owner'],[recipient,'Recipient']])){
-    await normalJoin(surface,label);const name=(await observeLifecycleActor(surface)).displayName;assert.ok(name);
+   for(const[surface,label]of(stationOnly?stationCrew.map(actor=>[actor.surface,actor.label]):sparse?[[recipient,'Recipient']]:[[owner,'Owner'],[recipient,'Recipient']])){
+    await normalJoin(surface,label);if(stationOnly&&label==='Press'){await enterStationPress(surface);continue;}const name=(await observeLifecycleActor(surface)).displayName;assert.ok(name);
     const casting=gm.page.getByRole('region',{name:'Facilitator casting',exact:true});await casting.getByLabel(`Role for ${name}`,{exact:true}).selectOption(roleIds[label]);
     await action(gm,'assignRole',()=>casting.getByRole('button',{name:`Assign role to ${name}`,exact:true}).click());
     await memberReady(surface,label,{station:false});await enterRole(surface,label);
@@ -635,7 +671,8 @@ async function enterRole(surface,label){
    await action(gm,'startGame',async()=>{await training.getByRole('button',{name:'Start full-game demo // Advance to Cycle 1',exact:true}).click();await training.getByRole('button',{name:'ARE YOU SURE? // START FULL-GAME DEMO // CYCLE 1',exact:true}).click();});
    await liveGm(gm,'GM1','active');
    for(const surface of surfaces)await completeOfferedCyclePresentation(surface,await snapshot(surface,'Actual Cycle1 presentation'),{clearBriefing:true});
-   if(sparse){const reader=await memberReady(recipient,'Recipient');groupId=reader.fleetGroupId;if(stationOnly)evidence.stationWingOriginal=reader;claims.push(`Fresh normal13-role manual setup with only GM and ${stationOnly?'Wing':'one ordinary reader'}; no Ring prerequisites or recovery replay`);return;}
+   if(sparse){const reader=await memberReady(recipient,'Recipient');groupId=reader.fleetGroupId;if(stationOnly){evidence.stationWingOriginal=reader;for(const actor of stationCrew){const member=await memberReady(actor.surface,actor.label);assert.equal(member.fleetGroupId,groupId);actor.original=member;}await assertStationCustody();}
+    claims.push(stationOnly?'Fresh normal14-role manual setup with GM and six printed craft owners including separate Press; unused core seats open, optional Union craft absent':'Fresh normal13-role manual setup with GM and one ordinary reader; no Ring prerequisites or recovery replay');return;}
    const science=await memberReady(recipient,'Recipient'),engineer=await memberReady(owner,'Owner');assert.equal(science.fleetGroupId,engineer.fleetGroupId);groupId=science.fleetGroupId;
    const current=await recordRoot();ships=current.activeVesselIds;assert.equal(ships.length,6);assert.ok(ships.includes('aegis'));
    coordinate=await op(async deadlineAt=>{await liveGm(gm,'GM1','active',{deadlineAt});return readRingCoordinate(gm);});
@@ -726,6 +763,11 @@ async function enterRole(surface,label){
     } catch(error){recordDiagnosticError('passive-launch-ui-read',error,{});}
    };
    recipient.page.on('response',observeLaunchRead);
+   const assertCrewActor=async(actor,{current,deadlineAt})=>{
+    const member=await memberReady(actor.surface,actor.label,{deadlineAt});
+    for(const key of ['uidHash','sessionId','meSessionId','playerRole','assignedRoleId','fleetGroupId'])assert.equal(member[key],actor.original[key],`Original Station ${actor.label} ${key}`);
+    assert.equal(member.cycle,current.turn);assert.equal(member.phase,'active');return member;
+   };
    const assertStationActors=async()=>{budget();await liveGm(gm,'GM1','active');assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);};
    const recoverChoice=async(error,current,{deadlineAt})=>recoverStationLaunch(error,current,{
     observations:heldProofFailureObservations(error),readAttack:async()=>{const fresh=await readAttack();await retainCombatState(fresh);return fresh;},assertActors:assertStationActors,deadlineAt,used:recoveredLaunches,
@@ -774,7 +816,7 @@ async function enterRole(surface,label){
    try {
    let liberated=false;const waves=[];
    for(let wave=1;wave<=12&&!liberated;wave++){
-    for(const ship of ships)await repair(ship);await liveGm(gm,'GM1','active');await action(gm,'declareWolfAttack',()=>preparation.getByRole('button',{name:'Declare Wolf attack',exact:true}).click());
+    for(const ship of stationSurvivingRepairTargets(ships,await recordRoot()))await repair(ship);await liveGm(gm,'GM1','active');await action(gm,'declareWolfAttack',()=>preparation.getByRole('button',{name:'Declare Wolf attack',exact:true}).click());
     const final=await runSparseStationCombat({deadlineAt:Math.min(Date.now()+480000,workEnd-60000),readAttack,onState:retainCombatState,onDiagnosticError:async(error,attack)=>{recordDiagnosticError('diagnostic-retention',error,attack);},assertActors:async()=>{budget();await liveGm(gm,'GM1','active');assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);},choose,recoverChoice});
     waves.push({wave,attackId:final.attackId,repeat:final.pStationRepeat});liberated=final.pStationRepeat.status==='stopped';await writeFile(`${directory}/Station-combat-waves.json`,JSON.stringify(waves,null,2)+'\n');
    }
@@ -784,8 +826,8 @@ async function enterRole(surface,label){
    } finally {recipient.page.off('response',observeLaunchRead);}
   },
   async stationActivate(){
-   await mark('existing tested sparse activation callback after actual liberation');for(const ship of ships)await repair(ship);
-   const before=await recordRoot();const result=await runMinimumCandidateSuccessProbe(stationActivationContext({gm,wing:{...recipient,observe:()=>fullMember(recipient)},sessionId:sid,groupId,coordinate,recordRoot,selectGmShip:grant,deadlineAt:Math.min(Date.now()+60000,workEnd),configuredRoleCount:13}));
+   await mark('existing tested sparse activation callback after actual liberation');for(const ship of stationSurvivingRepairTargets(ships,await recordRoot()))await repair(ship);
+   const before=await recordRoot();const result=await runMinimumCandidateSuccessProbe(stationActivationContext({gm,wing:{...recipient,observe:()=>fullMember(recipient)},sessionId:sid,groupId,coordinate,recordRoot,selectGmShip:grant,deadlineAt:Math.min(Date.now()+60000,workEnd),configuredRoleCount:plan.configuredRoles}));
    evidence.stationActivation=result;assert.equal((await recordRoot()).debriefSnapshot.candidate.code,'P');claims.push('Unique real available Reactors consumed through current GM scoped grants; actual18+ capacity triggers immutable P success');
   },
   async stationEnding(){

@@ -71,7 +71,7 @@ function stationProbe() {
     if (endpoint === 'readCandidateWorkspace') return { status: 'committed', result: {
       type: 'candidate-workspace', sessionId: 'owned-s1', groupId: 'fleet-1', cycle: 2,
       revision: state.revision, paths: [{ code: 'P', coordinate: '2222', liberated: true,
-        ships: Object.entries(capacities).filter(([id]) => !committed.includes(id)).map(([shipId, reactorCapacity]) => ({ shipId, reactorCapacity, canAct: true })) }] } };
+        ships: Object.entries(capacities).filter(([id]) => !committed.includes(id)).map(([shipId, reactorCapacity]) => ({ shipId, reactorCapacity, canAct: true, result:'awaiting-choice', blocker:'' })) }] } };
     assert.equal(endpoint, 'executeCandidateAction');
     assert.equal(data.action, 'contribute-reactor');
     assert.equal(data.expectedRevision, state.revision);
@@ -176,4 +176,13 @@ test('malformed committed envelope retains the exact uncertain request and never
     assert.equal(requests.length, 1);
     assert.deepEqual(context.pendingCandidateRequest, requests[0].data);
   }
+});
+
+// Pure workspace fixture: native survival is not implied.
+test('insufficient genuine P capacity stops before any Reactor cannibalisation',async()=>{
+ const {context,calls}=stationProbe(),original=context.gm.callable;
+ context.deadlineAt=Date.now()+80;
+ context.gm.callable=async(endpoint,data)=>{const reply=await original(endpoint,data);if(endpoint==='readCandidateWorkspace')reply.result.paths[0].ships=reply.result.paths[0].ships.filter(row=>row.shipId!=='icebreaker');return reply;};
+ await assert.rejects(runMinimumCandidateSuccessProbe(context),/Available Station Reactor capacity 15 is below the required 18/);
+ assert.equal(calls.filter(call=>call.endpoint==='executeCandidateAction').length,0);
 });

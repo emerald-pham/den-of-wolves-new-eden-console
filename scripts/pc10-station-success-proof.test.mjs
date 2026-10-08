@@ -1,5 +1,5 @@
-import test from 'node:test';import assert from 'node:assert/strict';import * as runner from './pc10-fresh-minimum-ring-proof.mjs';
-test('Station plan has only normal GM and Wing actors, open unused seats and bounded genuine combat',()=>{const p=runner.minimumStationPlan();assert.equal(p.actualAuthenticatedActors,2);assert.equal(p.configuredRoles,13);assert.equal(p.browserProcesses,1);assert.equal(p.browserContexts,2);assert.equal(p.hardCapMs,1200000);assert.equal(p.forcedOutcome,false);});
+import {createRequire} from 'node:module';import test from 'node:test';import assert from 'node:assert/strict';import * as runner from './pc10-fresh-minimum-ring-proof.mjs';
+test('Station plan covers every preset14 printed craft owner with seven normal actors and bounded genuine combat',()=>{const p=runner.minimumStationPlan();assert.equal(p.actualAuthenticatedActors,7);assert.equal(p.configuredRoles,14);assert.equal(p.browserProcesses,1);assert.equal(p.browserContexts,7);assert.equal(p.hardCapMs,1200000);assert.equal(p.forcedOutcome,false);});
 test('Station workflow establishes real paid arrival and combat before existing activation callback',async()=>{const trace=[];const names=['setup','stationArrivalMaintenance','stationDeferCombat','advance','stationCombatMaintenance','stationArrival','stationCombat','stationActivate','stationEnding'];await runner.runStationWorkflow(Object.fromEntries(names.map(name=>[name,async()=>trace.push(name)])));assert.deepEqual(trace,names);});
 test('failed actual Station combat precludes activation and close',async()=>{let activated=false;await assert.rejects(runner.runStationWorkflow({setup:async()=>{},stationArrivalMaintenance:async()=>{},stationArrival:async()=>{},stationDeferCombat:async()=>{},advance:async()=>{},stationCombatMaintenance:async()=>{},stationCombat:async()=>{throw Error('surviving Wolves')},stationActivate:async()=>{activated=true}}));assert.equal(activated,false);});
 test('Station GM coordinate read binds live owned chart B and unique P without raw-root guessing',async()=>{const surface={storeModuleUrl:()=>'/normal-store',page:{evaluate:async(fn,url)=>{assert.equal(url,'/normal-store');return {chartId:'B',locked:true,candidates:[{coordinate:'1234',code:'P'}]}}}};assert.equal(await runner.readStationCoordinate(surface),'1234');});
@@ -27,4 +27,27 @@ test('combat diagnostics retain guard authority while excluding player private d
  const context=runner.stationCombatServerContext({sessionId:'sid',root,pdfWing:{attackId:'attack'},publicAudience:{revision:3},fleetGroups:[{id:'fleet-1',vesselIds:['aegis'],memberUids:['owned'],memberShipIds:{owned:'aegis'}}],players:[{seatId:'wing-commander',kickedAt:null,escapeState:null,uid:'owned',role:'player',assignedRoleId:'wing-commander',fleetGroupId:'fleet-1',email:'private',privateBrief:'private'}]});
  for(const key of ['activeRoleIds','activeVesselIds','shipDamage','maintenanceCycles','shuttleControl','shuttleDockings','shuttleFuelled','maliadesState','shipResources','shipUpgrades','fighterWingCounts'])assert.deepEqual(context[key],root[key]);
  assert.deepEqual(context.pdfEscortWing,{attackId:'attack'});assert.equal(context.players[0].assignedRoleId,'wing-commander');assert.equal(context.players[0].uid,'owned');assert.equal(context.players[0].seatId,'wing-commander');assert.equal(context.players[0].kickedAt,null);assert.equal(context.players[0].escapeState,null);assert.deepEqual(context.fleetGroups[0].memberShipIds,{owned:'aegis'});assert.equal(context.email,undefined);assert.equal(context.joinCode,undefined);assert.equal(context.players[0].email,undefined);assert.equal(context.players[0].privateBrief,undefined);
+});
+
+test('preset14 custody preflight rejects omitted core or Press printed owners, disabled Press, absent actual custody and optional Union craft',()=>{
+ const req=createRequire(new URL('../functions/package.json',import.meta.url));
+ const {recommendedRoleIds}=req('../functions/lib/roleConfiguration.js'),{roleOwnedCraftForRoles}=req('../functions/lib/craftOwnership.js'),{initialShuttleDockingsForRoles}=req('../functions/lib/shuttlecraft.js'),{initialShuttleControl}=req('../functions/lib/shuttleControl.js');
+ const activeRoleIds=recommendedRoleIds(14),uids={GM1:'gm',...Object.fromEntries(Object.keys(runner.stationRoleIds).map(label=>[label,label]))};
+ const players=Object.entries(runner.stationRoleIds).map(([label,assignedRoleId])=>({uid:uids[label],role:'player',assignedRoleId:assignedRoleId==='press-officer'?null:assignedRoleId,activeConsoleRoleId:assignedRoleId}));
+ const dockings=initialShuttleDockingsForRoles(activeRoleIds);
+ const root={activeRoleIds,pressEnabled:true,capybaraEnabled:false,shuttleDockings:dockings,shuttleControl:initialShuttleControl(roleOwnedCraftForRoles(activeRoleIds),players.map(player=>({uid:player.uid,roleId:player.assignedRoleId??player.activeConsoleRoleId})))};
+ assert.equal(runner.assertStationOwnerCustody(root,players,uids).custodyValidated,true);
+ assert.throws(()=>runner.assertStationOwnerCustody({...root,pressEnabled:false},players,uids));
+ assert.throws(()=>runner.assertStationOwnerCustody(root,players.filter(player=>player.uid!=='Press'),uids));
+ assert.throws(()=>runner.assertStationOwnerCustody(root,players.filter(player=>player.uid!=='Miner'),uids));
+ assert.throws(()=>runner.assertStationOwnerCustody({...root,shuttleControl:{}},players,uids));
+ assert.throws(()=>runner.assertStationOwnerCustody({...root,shuttleDockings:[...dockings,{shuttleId:'wobbly',shipId:'quellon'}]},players,uids));
+});
+
+test('Station runtime includes a separate ordinary Press holder without claiming a core seat',()=>{assert.equal(runner.stationRoleIds.Press,'press-officer');});
+
+test('active ordinary Press requires its actual craft scope and explicit null ship berth',()=>{
+ const value={activeConsoleRoleId:'press-officer',assignedRoleId:null,seatId:null,pressEnabled:true,pressCraftScopeMatches:true,phase:'active',currentMemberBerthPresent:true,currentMemberBerthNull:true,memberVesselCount:0,memberCraftCount:1};
+ assert.equal(runner.stationReady(value,'press-officer'),true);
+ for(const patch of [{currentMemberBerthPresent:false},{currentMemberBerthNull:false},{memberVesselCount:1},{memberCraftCount:0}])assert.equal(runner.stationReady({...value,...patch},'press-officer'),false);
 });
