@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile, realpath } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
+import { waitForMaintenanceReceipt } from '../pc10-candidate-proof-helpers.mjs';
 import { observeUiReceipt, attachUiReceiptDiagnostics } from '../pc10-browser-ui-receipt.mjs';
 import { originalProofError, retainProofFailure } from '../pc10-proof-failure-evidence.mjs';
 import { observeFullGameDemoPresentationMember as observeNormalMember, proofRuntimeFromViteSource, validateProofRuntime } from '../pc10-full-game-demo-proof-helpers.mjs';
@@ -393,9 +394,20 @@ async function runPr17Proof(){
     cycle:state.session?.currentTurn,phase:state.session?.phase,
     maintenance:state.session?.maintenanceCycles?.dione??null,
     grantShipId:state.gmInstance?.shipConsoleWriteGrant?.shipId??null,
+    live:state.connection==='live'&&state.sessionSnapshotFreshness==='server',sessionId:state.session?.id??null,
+    maintenanceCycles:state.session?.maintenanceCycles??{},
     mode:state.mode,route:location.hash};
   });
  },surface.storeModuleUrl());
+ const inspectRendered=()=>panel(owner).evaluate(element=>{
+  const current=[...element.querySelectorAll('ol[aria-label$=" maintenance sequence"] li[aria-current="step"]')];
+  return {currentStep:current.length===0?null:current.length===1?Number(current[0].querySelector('.maintenance-systems__step > span')?.textContent):'ambiguous',
+   endEnabled:[...element.querySelectorAll('button')].some(button=>button.textContent?.trim()==='End maintenance cycle'&&!button.disabled),
+   results:[...element.querySelectorAll('[role="status"]')].map(status=>status.textContent??'')};
+ });
+ const originalEngineer=await memberReady(owner,'Owner',limits);
+ const synchronize=expectedMaintenance=>waitForMaintenanceReceipt({shipId:'dione',cycle:expectedMaintenance.turn,revision:expectedMaintenance.revision,expectedActor:originalEngineer,expectedMaintenance,
+  inspectGm:()=>lockState(gm),inspectCrew:()=>lockState(owner),inspectActor:()=>owner.observe(),inspectRendered,timeoutMs:Math.max(1,Math.min(60000,deadlineAt-Date.now()))});
  const noIcn=async surface=>assert.equal(await surface.page.getByRole('button',{name:/Engage.*ICN|Release.*ICN/}).count(),0);
  await mark('PR17 real GM Console-mode observer and scoped grant');
  const gmUrl=new URL(gm.page.url());gmUrl.hash='/console';await gm.page.goto(gmUrl.href);
@@ -416,7 +428,9 @@ async function runPr17Proof(){
  const legacy=await action(gm,'setShipConsoleLock',()=>gm.page.evaluate(async()=>{
   const service=await import('/src/lib/sessionService.ts');await service.setShipConsoleLock('dione',true);
  }),{gm:true,original:originalGm,deadlineAt});
- assert.ok(['committed','replayed'].includes(legacy.result.status));
+ assert.equal(legacy.result.locked,true);assert.equal(legacy.result.shipId,'dione');
+ assert.equal(legacy.result.vesselId,'dione');assert.equal(legacy.result.idempotencyKey,legacy.data.requestId);
+ assert.equal(legacy.result.actorUid,actorUids.get('GM1'));assert.ok(Number.isSafeInteger(legacy.result.revision));
  await memberReady(owner,'Owner',limits);await memberReady(recipient,'Recipient',limits);
  // Wait on the normal member projection rather than treating the GM reply as player freshness.
  const lockEnd=Math.min(Date.now()+35000,deadlineAt);let playerLock;
@@ -431,10 +445,13 @@ async function runPr17Proof(){
   await begin.click();await panel(owner).getByRole('button',{name:'ARE YOU SURE?',exact:true}).click();
  },{deadlineAt});
  assert.equal(begun.data.shipId,'dione');assert.equal(begun.data.action,'begin');
+ assert.equal(begun.result.status,'committed');await synchronize(begun.result.cycle);
  const storage=panel(owner).getByRole('button',{name:'Check storage',exact:true});
  await storage.waitFor();assert.equal(await storage.isEnabled(),true);
  const checked=await action(owner,'runMaintenance',()=>storage.click(),{deadlineAt});
- assert.equal(checked.data.action,'storage');
+ assert.equal(checked.data.action,'storage');assert.equal(checked.result.status,'committed');
+ await waitForMaintenanceReceipt({shipId:'dione',cycle:checked.result.cycle.turn,revision:checked.result.cycle.revision,expectedActor:originalEngineer,expectedMaintenance:checked.result.cycle,
+  inspectGm:()=>lockState(gm),inspectCrew:()=>lockState(owner),inspectActor:()=>owner.observe(),inspectRendered,timeoutMs:Math.max(1,Math.min(60000,deadlineAt-Date.now()))});
  const after=await lockState(owner);assert.equal(after.legacyTrue,true);
  assert.ok(checked.result,'Actual gameplay callable result required');
  states.push({label:'PR17 actual gameplay under legacy true',state:after});
@@ -442,15 +459,15 @@ async function runPr17Proof(){
  await mark('PR17 original member cold resume and visible role re-entry');
  await restoredMember(owner,'Owner',deadlineAt);assert.equal((await lockState(owner)).legacyTrue,true);await noIcn(owner);
  const roles=owner.page.locator('a.ship-console__back[href="#/ships/dione/roles"]');
- await memberNavigate(owner,'Owner',()=>roles.click(),owner.page.getByRole('link',{name:'Engineer',exact:true}),deadlineAt);
- await memberNavigate(owner,'Owner',()=>owner.page.getByRole('link',{name:'Engineer',exact:true}).click(),panel(owner),deadlineAt);
+ await memberNavigate(owner,'Owner',()=>roles.click(),owner.page.locator('a[href="#/ships/dione/roles/dione-engineer"]'),deadlineAt);
+ await memberNavigate(owner,'Owner',()=>owner.page.locator('a[href="#/ships/dione/roles/dione-engineer"]').click(),panel(owner),deadlineAt);
  assert.equal((await lockState(owner)).legacyTrue,true);await noIcn(owner);
  claims.push('Same authenticated member normal reload/resume and visible Engineer return/re-entry retain legacy true and current seat');
  await mark('PR17 foreign-vessel role denies gameplay without altering assignment');
  const foreignUrl=new URL(owner.page.url());foreignUrl.hash='/console';
  await memberNavigate(owner,'Owner',()=>owner.page.goto(foreignUrl.href),owner.page.locator('a[href$="/ships/aegis/roles"]'),deadlineAt);
- await memberNavigate(owner,'Owner',()=>owner.page.locator('a[href$="/ships/aegis/roles"]').click(),owner.page.getByRole('link',{name:'Admiral',exact:true}),deadlineAt);
- await memberNavigate(owner,'Owner',()=>owner.page.getByRole('link',{name:'Admiral',exact:true}).click(),owner.page.getByRole('button',{name:'Operations reference',exact:true}),deadlineAt);
+ await memberNavigate(owner,'Owner',()=>owner.page.locator('a[href$="/ships/aegis/roles"]').click(),owner.page.locator('a[href="#/ships/aegis/roles/admiral"]'),deadlineAt);
+ await memberNavigate(owner,'Owner',()=>owner.page.locator('a[href="#/ships/aegis/roles/admiral"]').click(),owner.page.getByRole('button',{name:'Operations reference',exact:true}),deadlineAt);
  const foreign=await memberReady(owner,'Owner',limits);
  assert.equal(foreign.assignedRoleId,'dione-engineer');assert.equal(foreign.activeConsoleRoleId,'dione-engineer');
  assert.match(owner.page.url(),/ships\/aegis\/roles\/admiral/);
