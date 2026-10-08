@@ -60,6 +60,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
 }));
 
 import { investigateAsIntelligenceAgent } from './index';
+import { privateLoyaltyDirectives } from './privateLoyaltyDirectives';
 
 const data = {
   sessionId: 's1', requestId: 'investigate-1', expectedCycle: 2, targetUid: 'u3',
@@ -148,6 +149,25 @@ it('inverts the private answer on the fifth accuracy outcome', async () => {
   });
   expect(mock.documents.get('sessions/s1/intelligenceInvestigationAudits/investigate-1'))
     .toMatchObject({ actualWolf: false, reportedWolf: true, accurate: false, accuracyRoll: 5 });
+});
+
+it('retains the current Intelligence Agent private directives when its suspicion changes', async () => {
+  const directives = privateLoyaltyDirectives('intelligence-agent');
+  put('sessions/s1/secrets/loyalty-u2', {
+    visibleToUids: ['u2'],
+    payload: { type: 'loyalty', kind: 'intelligence-agent', suspicion: 6, directives },
+  });
+
+  await investigateAsIntelligenceAgent.run(request());
+
+  expect(mock.documents.get('sessions/s1/secrets/loyalty-u2')).toEqual({
+    visibleToUids: ['u2'],
+    payload: { type: 'loyalty', kind: 'intelligence-agent', suspicion: 8, directives },
+  });
+  expect(mock.documents.get('sessions/s1/intelligenceInvestigations/u2')).not.toHaveProperty('directives');
+  expect(mock.documents.get('sessions/s1/secrets/loyalty-u3')).toEqual({
+    visibleToUids: ['u3'], payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 },
+  });
 });
 
 it('treats Wolf Cult as Wolf aligned for the private report', async () => {
