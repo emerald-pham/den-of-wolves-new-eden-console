@@ -101,16 +101,17 @@ it('renders the directives delivered on the current holder private loyalty paylo
 });
 
 it.each([
-  ['fleet-loyalist', 'reach New Eden with as many survivors as possible'],
-  ['wolf-agent', 'sleeper priority overrides your former loyalty objective when you activate'],
-  ['intelligence-agent', 'keep your Intelligence Bureau cover hidden while identifying Wolf agents'],
-  ['universal-arbour', 'recruit fleet members and spread Universal Arbour influence'],
-  ['wolf-cult', 'prevent the Survivor Fleet from escaping through the Wolf-created Arbour cult'],
-  ['android', 'reach New Eden with as many survivors as possible and keep your android identity secret'],
-  ['friend', 'your matching Friend card names you back as someone known not to be a Wolf agent'],
+  ['fleet-loyalist', 'Objective // Reach New Eden with as many survivors as possible; keep faith with the fleet.'],
+  ['wolf-agent', 'Your sleeper priority overrides your former loyalty objective when you activate. Objective // Keep the fleet from escaping by spreading fear or confusion, weakening its infrastructure or defences, or reducing morale.'],
+  ['intelligence-agent', 'Keep your Intelligence Bureau cover hidden while identifying Wolf agents. Your undercover assignment has no working chain of command to contact or prove your credentials.'],
+  ['universal-arbour', 'Objective // Recruit fleet members and spread Universal Arbour influence.'],
+  ['wolf-cult', 'Override // Your Arbour is a Wolf-created cult. Objective // Prevent the Survivor Fleet from escaping through the Wolf-created Arbour cult; pass Wolf intelligence as religious insight.'],
+  ['android', 'Objective // Reach New Eden with as many survivors as possible and keep your android identity secret. You may choose to show your card as proof that you are not a Wolf agent.'],
+  ['friend', 'Objective // Reach New Eden with as many survivors as possible and trust your reciprocal Friend. Your matching Friend card names you back as someone known not to be a Wolf agent.'],
 ] as const)('shows the printed private goal for %s to its current holder', (kind, expected) => {
   useSessionStore.getState().setPrivateLoyalty({
     kind, suspicion: kind === 'android' ? null : 0,
+    directives: [expected],
     ...(kind === 'friend' ? { partnerUid: 'u3', partnerRoleId: 'admiral' } : {}),
   } as never);
 
