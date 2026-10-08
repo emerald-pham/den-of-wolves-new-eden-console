@@ -146,3 +146,20 @@ it('does not expose GM lifecycle actions to a fleet member', () => {
   expect(debriefMocks.begin).not.toHaveBeenCalled();
   expect(debriefMocks.close).not.toHaveBeenCalled();
 });
+
+it.each(['candidate', 'failure-review'] as const)('closes %s debrief from the entitled GM read when the session observer omits its snapshot', async source => {
+  const snapshot = { type: 'session-debrief', version: 1, source, result: source === 'candidate' ? 'success' : 'failure',
+    cause: source === 'candidate' ? 'candidate-complete' : 'pursuit-limit', cycle: 4,
+    occurredAt: '2026-10-08T03:21:05.655Z', committedAt: '2026-10-08T03:21:05.655Z',
+    candidate: { code: 'N', groups: [] } };
+  debriefMocks.read.mockResolvedValue(snapshot);
+  useSessionStore.getState().setIdentity({ id: 's1', phase: 'debrief' } as never,
+    { uid: 'gm1', sessionId: 's1', role: 'gm', connectionGeneration: 1 } as never);
+  useSessionStore.getState().setGmInstance({ id: 'gm-1', sessionId: 's1', uid: 'gm1' } as never);
+  render(<EndgameDialog />);
+  expect(await screen.findByText(/Server result/)).toBeVisible();
+  const close = screen.getByRole('button', { name: 'Close session' });
+  expect(close).toBeEnabled();
+  await userEvent.click(close);
+  expect(debriefMocks.close).toHaveBeenCalledTimes(1);
+});
