@@ -370,14 +370,17 @@ it('starts a fully staffed roster in one transaction with locked setup, Turn 1, 
   );
   const privateLoyaltyWrites = mock.set.mock.calls
     .filter(([reference]) => reference.path.startsWith('sessions/s1/secrets/loyalty-'))
-    .map(([, value]) => value as {
-      visibleToUids?: readonly string[];
-      payload?: { directives?: readonly unknown[] };
+    .map(([reference, value]) => ({
+      uid: reference.path.slice('sessions/s1/secrets/loyalty-'.length),
+      document: value as {
+        visibleToUids?: readonly string[];
+        payload?: { directives?: readonly unknown[] };
+      },
     });
   expect(privateLoyaltyWrites.length).toBeGreaterThan(0);
   for (const write of privateLoyaltyWrites) {
-    expect(write.visibleToUids).toHaveLength(1);
-    expect(write.payload?.directives).toEqual(expect.arrayContaining([expect.any(String)]));
+    expect(write.document.visibleToUids).toEqual([write.uid]);
+    expect(write.document.payload?.directives).toEqual(expect.arrayContaining([expect.any(String)]));
   }
   const activeVesselIds = mock.session.activeVesselIds as string[];
   expect(sessionUpdate).toMatchObject({

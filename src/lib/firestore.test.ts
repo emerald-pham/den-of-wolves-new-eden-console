@@ -2079,6 +2079,26 @@ it('hydrates only the current player loyalty and a GM-visible setup receipt afte
   }));
 });
 
+it('clears a peer reader when its own loyalty secret path denies access', () => {
+  vi.mocked(doc).mockImplementation(((_database: unknown, path: string) => ({ path })) as never);
+  const { callbacks, errors } = captureSessionListener();
+  const onPrivateLoyalty = vi.fn();
+  const onError = vi.fn();
+  subscribeSessionState('s1', 'u2', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
+    onPrivateLoyalty, onError,
+  });
+
+  const privateListenerIndex = vi.mocked(onSnapshot).mock.calls.findIndex(([reference]) =>
+    (reference as { readonly path?: string } | undefined)?.path === 'sessions/s1/secrets/loyalty-u2');
+  expect(privateListenerIndex).toBeGreaterThanOrEqual(0);
+  errors[privateListenerIndex]?.({ code: 'permission-denied' });
+
+  expect(onPrivateLoyalty).toHaveBeenLastCalledWith(null);
+  expect(onPrivateLoyalty).not.toHaveBeenCalledWith(expect.objectContaining({ directives: expect.any(Array) }));
+  expect(onError).not.toHaveBeenCalled();
+});
+
 it('hydrates the server-owned Android proof disclosure marker only for the current player', () => {
   const { callbacks } = captureSessionListener();
   const onPrivateLoyalty = vi.fn();
