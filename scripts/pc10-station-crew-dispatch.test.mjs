@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { dispatchStationCrewChoice } from './pc10-station-crew-dispatch.mjs';
+import { runSparseStationCombat } from './pc10-station-combat-adapter.mjs';
+import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import { heldProofFailureObservations } from './pc10-proof-failure-evidence.mjs';
 
 const sessionId = 'session-pc10';
@@ -1278,5 +1280,225 @@ test('does not extend the original deadline while reading the GM phase source', 
 
   await assert.rejects(dispatchStationCrewChoice(current, opts), /deadline|expired/i);
   assert.deepEqual(pdf.effects.reads, [], 'A phase read completing after the original budget cannot earn source readiness.');
+  assert.deepEqual(pdf.effects.clicks, []);
+});
+
+
+// Source-shaped consumer regressions after Attempt25. These drive the real
+// dispatcher/finite combat loop; they do not retroactively prove native finalization.
+function stationFinalizationScenario(stage, { denial, drift, progressPatch = {} } = {}) {
+  const current = { ...attack('boarding', 17), targetGroupId: 'fleet-p',
+    threatSourceId: 'arrival-original-p' };
+  const defence = { type: 'wolf-boarding-defence-choice-view', sessionId, turn: 3,
+    revision: 17, targetShipId: 'icebreaker', boardingParties: 2,
+    availableSecurityTeams: 2, choiceStatus: 'pending', deadlineAt: '9999-12-31T23:59:59.999Z' };
+  const crew = surface('icebreaker-miner', { type: 'wolf-boarding-special-choice-unavailable',
+    sessionId, reason: 'no-special-choice' }, { responses: { getWolfBoardingDefenceChoice: defence } });
+  let latest = current, triggered = false, insideAction = false, actions = 0, canceledCallbacks = 0;
+  const finalize = () => {
+    if (triggered) return;
+    triggered = true;
+    latest = { ...current, revision: current.revision + 3, status: 'resolved',
+      currentStep: 'resolved', airspaceLocked: false, pStationRepeat: { status: 'repeat' }, ...progressPatch };
+    Object.assign(crew.testActor, { airspace: 'lifted', turnStatePhase: 'coordination',
+      turnStatePhaseRevision: crew.testActor.turnStatePhaseRevision + 1,
+      turnStateStartedAt: crew.testActor.turnPhaseTeamPhaseEndsAt,
+      turnStateEndsAt: crew.testActor.turnPhaseOpenAirspaceEndsAt });
+    drift?.(crew);
+  };
+  const opts = options([{ roleId: crew.label, surface: crew }], current);
+  opts.readAttack = async () => structuredClone(latest);
+  opts.readTurnState = async () => {
+    if (stage === 'pre-freeze phase' || stage === 'final-intent phase' && insideAction) finalize();
+    const phase = stationPhaseEnvelope(crew.testActor);
+    if (triggered && stage === 'GM lease drift') phase.gmAuthority.instanceId = 'foreign-lease';
+    return phase;
+  };
+  const evaluate = crew.page.evaluate;
+  crew.page.evaluate = async (...args) => {
+    if (stage === 'pre-freeze actor' && !triggered || stage === 'final-intent actor' && insideAction) finalize();
+    return evaluate(...args);
+  };
+  const callable = crew.callable;
+  crew.callable = async (...args) => {
+    const reply = await callable(...args);
+    if (['source getter', 'closed getter', 'denied getter', 'GM lease drift'].includes(stage)) {
+      finalize();
+      return denial ?? reply;
+    }
+    return reply;
+  };
+  const getByRole = crew.page.getByRole;
+  crew.page.getByRole = (...args) => {
+    const panel = getByRole(...args);
+    if (stage === 'paint' && args[0] === 'region') return { ...panel,
+      innerText: async () => { const text = await panel.innerText(); finalize(); return text; } };
+    return panel;
+  };
+  opts.action = async (_surface, endpoint, choose, metadata) => {
+    actions++; insideAction = true;
+    let rejectObserver;
+    try {
+      await observeUiReceipt({
+        waitForResponse: () => new Promise((_, reject) => { rejectObserver = reject; }),
+        choose: async () => { await choose(); throw new Error('A stale choice unexpectedly clicked.'); },
+      });
+    } catch (error) {
+      canceledCallbacks++;
+      throw error;
+    } finally {
+      rejectObserver?.(new Error('Abandoned response wait is handled after zero-click cancellation.'));
+    }
+    throw new Error(`Canceled ${endpoint} cannot manufacture ${JSON.stringify(metadata.expectedRequest)}.`);
+  };
+  return { current, crew, opts, finalize, readAttack: opts.readAttack,
+    latest: () => latest, counts: () => ({ triggered, actions, canceledCallbacks }) };
+}
+
+for (const stage of ['pre-freeze phase', 'pre-freeze actor', 'source getter', 'closed getter',
+  'paint', 'final-intent phase', 'final-intent actor']) {
+  test(`Station finalization during ${stage} cancels stale choice and lets actual loop read completion`, async () => {
+    const scenario = stationFinalizationScenario(stage, { denial: stage === 'closed getter'
+      ? { status: 'denied', code: 'functions/failed-precondition',
+        message: 'Wolf boarding defence is not currently open.' } : undefined });
+    const limit = Date.now() + 2000;
+    scenario.opts.deadlineAt = limit;
+    const choices = [];
+    const final = await runSparseStationCombat({ deadlineAt: limit, readAttack: scenario.readAttack,
+      assertActors: async () => {}, wait: async () => {}, choose: async current => {
+        const result = await dispatchStationCrewChoice(current, scenario.opts);
+        choices.push(result);
+        return result;
+      } });
+    assert.equal(scenario.counts().triggered, true, 'The actual consumer must reach the transition seam.');
+    assert.deepEqual(choices, [undefined], 'Cancellation grants no action/receipt credit.');
+    assert.deepEqual(final, scenario.latest(), 'Completion comes only from the outer fresh attack read.');
+    assert.equal(final.revision, 20, 'A legitimate transition is not restricted to +1 or +2.');
+    assert.deepEqual(scenario.crew.effects.clicks, [], 'No stale irreversible UI intent is allowed.');
+    if (stage.startsWith('final-intent')) assert.deepEqual(scenario.counts(),
+      { triggered: true, actions: 1, canceledCallbacks: 1 }, 'The original capture callback cancels without waiting for a nonexistent response.');
+  });
+}
+
+for (const denial of [
+  { status: 'denied', code: 'functions/permission-denied', message: 'not entitled' },
+  { status: 'denied', code: 'functions/unavailable', message: 'transport unavailable' },
+  { status: 'denied', code: 'functions/failed-precondition', message: 'unknown boarding denial' },
+]) {
+  test(`Station source progress never masks ${denial.code}: ${denial.message}`, async () => {
+    const scenario = stationFinalizationScenario('denied getter', { denial });
+    await assert.rejects(dispatchStationCrewChoice(scenario.current, scenario.opts),
+      error => error.message === denial.message && error.code === denial.code);
+    assert.equal(scenario.counts().triggered, true);
+    assert.deepEqual(scenario.crew.effects.clicks, []);
+  });
+}
+
+for (const [name, drift] of [
+  ['UID', crew => { crew.testActor.uidHash = 'foreign'; }],
+  ['session', crew => { crew.testActor.sessionId = 'foreign'; }],
+  ['generation', crew => { crew.testActor.connectionGeneration++; }],
+  ['hydration', crew => { crew.testActor.identityHydrationRevision++; }],
+  ['role', crew => { crew.testActor.assignedRoleId = 'foreign-role'; }],
+  ['seat', crew => { crew.testActor.seatId = 'foreign-seat'; }],
+  ['discovery', crew => { crew.testAuthority.discoveryAuthority.revision++; }],
+  ['document', crew => { crew.testActor.documentTimeOrigin = 12345; }],
+]) {
+  test(`Station ${name} drift remains fatal with simultaneous finalized source progress`, async () => {
+    const scenario = stationFinalizationScenario('source getter', { drift });
+    await assert.rejects(dispatchStationCrewChoice(scenario.current, scenario.opts));
+    assert.equal(scenario.counts().triggered, true);
+    assert.deepEqual(scenario.crew.effects.clicks, []);
+  });
+}
+
+test('Station original GM lease drift remains fatal with simultaneous finalized source progress', async () => {
+  const scenario = stationFinalizationScenario('GM lease drift');
+  await assert.rejects(dispatchStationCrewChoice(scenario.current, scenario.opts), /lease|instanceId/);
+  assert.deepEqual(scenario.crew.effects.clicks, []);
+});
+
+for (const patch of [{ attackId: 'foreign' }, { turn: 4 }, { threatSiteCode: 'Q' },
+  { targetGroupId: 'fleet-foreign' }, { threatSourceId: 'arrival-foreign' }, { revision: 16 },
+  { airspaceLocked: true }, { currentStep: 'boarding' }, { pStationRepeat: { status: 'fabricated' } }]) {
+  test(`Station invalid finalized progress stays fatal: ${JSON.stringify(patch)}`, async () => {
+    const scenario = stationFinalizationScenario('pre-freeze phase', { progressPatch: patch });
+    await assert.rejects(dispatchStationCrewChoice(scenario.current, scenario.opts));
+    assert.deepEqual(scenario.crew.effects.clicks, []);
+  });
+}
+
+test('Station Coordination alone remains fatal when the original declared attack has not progressed', async () => {
+  const scenario = stationFinalizationScenario('unchanged');
+  scenario.opts.readTurnState = async () => {
+    const value = stationPhaseEnvelope(scenario.crew.testActor);
+    value.session.turnPhase.airspace.state = 'lifted';
+    value.session.turnState.phase = 'coordination';
+    value.session.turnState.phaseRevision++;
+    value.session.turnState.startedAt = value.session.turnPhase.teamPhaseEndsAt;
+    value.session.turnState.endsAt = value.session.turnPhase.openAirspaceEndsAt;
+    return value;
+  };
+  await assert.rejects(dispatchStationCrewChoice(scenario.current, scenario.opts), /Team|phase/);
+  assert.deepEqual(scenario.crew.effects.clicks, []);
+});
+
+
+test('Station committed UI receipt remains credited across normal post-click finalization', async () => {
+  const scenario = stationFinalizationScenario('post-click');
+  let captures = 0;
+  scenario.opts.action = async (_surface, endpoint, choose, metadata) => {
+    await choose();
+    captures++;
+    scenario.finalize();
+    return { endpoint, data: metadata.expectedRequest, httpStatus: 200,
+      result: { status: 'committed', revision: 18 } };
+  };
+  assert.deepEqual(await dispatchStationCrewChoice(scenario.current, scenario.opts), { committed: true });
+  assert.equal(captures, 1);
+  assert.deepEqual(scenario.crew.effects.clicks, ['Commit defence']);
+});
+
+for (const [name, mutate] of [
+  ['session identity', value => { value.sessionId = 'foreign'; }],
+  ['cycle', value => { value.session.currentTurn++; }],
+  ['manual mode', value => { value.session.fullGameDemo.progression = 'automatic'; }],
+  ['failure outcome', value => { value.session.phase = 'failure'; }],
+]) {
+  test(`Station GM ${name} remains fatal with simultaneous finalization`, async () => {
+    const scenario = stationFinalizationScenario('pre-freeze phase');
+    const read = scenario.opts.readTurnState;
+    scenario.opts.readTurnState = async (...args) => { const value = await read(...args); mutate(value); return value; };
+    await assert.rejects(dispatchStationCrewChoice(scenario.current, scenario.opts));
+    assert.deepEqual(scenario.crew.effects.clicks, []);
+  });
+}
+
+test('Station foreign committed getter payload remains fatal with simultaneous finalization', async () => {
+  const scenario = stationFinalizationScenario('source getter', { denial: { status: 'committed',
+    result: { type: 'wolf-boarding-special-choice-unavailable', sessionId: 'foreign', reason: 'no-special-choice' } } });
+  await assert.rejects(dispatchStationCrewChoice(scenario.current, scenario.opts), /source session/);
+  assert.deepEqual(scenario.crew.effects.clicks, []);
+});
+
+test('Station ordered range progress during final capture cancels with zero stale clicks', async () => {
+  const current = { ...attack('medium-range', 8), targetGroupId: 'fleet-p', threatSourceId: 'arrival-original-p' };
+  let latest = current, insideAction = false;
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'wolf-fighter-range-action-view', sessionId,
+    turn: 3, revision: 8, wingId: 'pdf-escort-fighter-wing', wingLabel: 'P.D.F. Escort Fighter Wing',
+    range: 'medium-range', choiceStatus: 'pending', fighters: [{ fighterIndex: 0 }],
+    targets: [{ instanceId: 'wolf-contact' }] }, { entitledShipId: 'refinery-124' });
+  const opts = options([{ roleId: pdf.label, surface: pdf }], current);
+  opts.readAttack = async () => latest;
+  opts.readTurnState = async () => {
+    if (insideAction) latest = { ...current, revision: 11, currentStep: 'short-range' };
+    return stationPhaseEnvelope(pdf.testActor);
+  };
+  opts.action = async (_surface, endpoint, choose, metadata) => {
+    insideAction = true;
+    await choose();
+    throw new Error(`A canceled ${endpoint} cannot manufacture a receipt for ${JSON.stringify(metadata.expectedRequest)}.`);
+  };
+  assert.equal(await dispatchStationCrewChoice(current, opts), undefined);
   assert.deepEqual(pdf.effects.clicks, []);
 });
