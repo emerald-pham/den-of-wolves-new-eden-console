@@ -154,6 +154,39 @@ test('dispatches the currently offered PDF launch through its colonel console an
     'An assigned actor with null profileRoleId stays bound to its observed live identity.');
 });
 
+test('stops without a second actor choice when the attack tuple changes during the source read', async () => {
+  let latest = attack('targeting');
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+  pdf.callable = async (endpoint, payload, timeoutMs) => {
+    pdf.effects.reads.push({ endpoint, payload, timeoutMs });
+    latest = attack('targeting', 9);
+    return { status: 'committed', result: { type: 'pdf-escort-wing-launch-view', sessionId,
+      turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true } };
+  };
+  let actions = 0;
+  const current = attack('targeting');
+  const opts = options([{ roleId: pdf.label, surface: pdf }], current);
+  opts.readAttack = async () => latest;
+  opts.action = async () => { actions++; throw new Error('Changed source must stop before UI action.'); };
+  assert.equal(await dispatchStationCrewChoice(current, opts), undefined);
+  assert.equal(actions, 0);
+  assert.ok(pdf.effects.reads[0].timeoutMs > 0 && pdf.effects.reads[0].timeoutMs <= 35_000);
+});
+
+test('does not treat a generic action wrapper status as a committed source receipt', async () => {
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+  const current = attack('targeting');
+  const opts = options([{ roleId: pdf.label, surface: pdf }], current);
+  opts.action = async (surface, endpoint, choose, metadata) => {
+    await choose();
+    return { endpoint, data: metadata.expectedRequest, status: 'committed' };
+  };
+  await assert.rejects(dispatchStationCrewChoice(current, opts),
+    /Actual launchPdfEscortWing UI result did not carry a committed or replayed source receipt/);
+});
+
 test('dispatches the PDF medium-range choice from the current escort view', async () => {
   const pdf = surface('refinery-124-pdf-colonel', { type: 'wolf-fighter-range-action-view',
     sessionId, attackId: 'attack-p', turn: 3, revision: 8, wingId: 'pdf-escort-fighter-wing',
