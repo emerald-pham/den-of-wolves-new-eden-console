@@ -324,6 +324,7 @@ import {
   type LoyaltyKind,
 } from './gameSetup';
 import { liveLoyaltySuspicionDecision } from './loyaltySuspicion';
+import { privateLoyaltyDirectives } from './privateLoyaltyDirectives';
 import { calculateArrestPosseSize } from './arrestPosse';
 import {
   applyPdfFighterAceResults,
@@ -7239,7 +7240,7 @@ export const startGame = auditedOnCall<{
         if (!assignment) throw commandError('failed-precondition', 'Start blocked: loyalties-missing-result.', 'unavailable-service');
         tx.set(db.doc(`sessions/${start.sessionId}/secrets/loyalty-${holder.uid}`), {
           visibleToUids: [holder.uid],
-          payload: { type: 'loyalty', ...assignment },
+          payload: { type: 'loyalty', ...assignment, directives: privateLoyaltyDirectives(assignment.kind) },
           createdAt: FieldValue.serverTimestamp(),
         });
       }
@@ -17420,6 +17421,7 @@ export const assignLoyalty = auditedOnCall<{
         type: 'loyalty',
         kind,
         suspicion: validSuspicion,
+        directives: privateLoyaltyDirectives(kind),
         ...(assignment.partnerUid ? { partnerUid: assignment.partnerUid } : {}),
         ...(kind === 'friend' && partnerRoleId ? { partnerRoleId } : {}),
       },
@@ -17431,6 +17433,7 @@ export const assignLoyalty = auditedOnCall<{
         payload: {
           type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: assignment.targetUid,
           partnerRoleId: targetRoleId,
+          directives: privateLoyaltyDirectives('friend'),
         },
         createdAt: FieldValue.serverTimestamp(),
       });
@@ -19459,6 +19462,25 @@ export const resumeSession = auditedOnCall<{ sessionId?: string }>('resumeSessio
       connectionGeneration,
       stationSelectionRequired,
     };
+  });
+
+  await db.runTransaction(async (tx) => {
+    const loyaltyRef = db.doc(`sessions/${sessionId}/secrets/loyalty-${uid}`);
+    const [currentSession, currentPlayer, membership, secret] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(membershipRef), tx.get(loyaltyRef),
+    ]);
+    if (!currentSession.exists || currentSession.get('deletingAt') || currentSession.get('phase') === 'closed' ||
+        !isConnectedPlayer(currentPlayer) || currentPlayer.get('role') !== 'player' ||
+        currentPlayer.get('replacementStatus') != null || playerEscapeState(currentPlayer) ||
+        currentPlayer.get('connectionGeneration') !== resumeResult.connectionGeneration ||
+        !membership.exists || membership.get('sessionId') !== sessionId) return;
+    const card = privateLoyaltyPayload(secret, uid);
+    const payload = secret.get('payload');
+    if (!card || !isRecord(payload)) return;
+    const directives = privateLoyaltyDirectives(card.kind);
+    if (!directives || (Array.isArray(payload.directives) && payload.directives.length === directives.length &&
+        payload.directives.every((value, index) => value === directives[index]))) return;
+    tx.update(loyaltyRef, { payload: { ...payload, directives } });
   });
 
   playerSnap = await playerRef.get();
@@ -35950,7 +35972,7 @@ export const investigateAsIntelligenceAgent = auditedOnCall<{
       suspicion: newSuspicion,
     };
     tx.update(actorLoyaltyRef, {
-      payload: { type: 'loyalty', kind: 'intelligence-agent', suspicion: newSuspicion },
+      payload: { ...(actorLoyalty.get('payload') as Record<string, unknown>), suspicion: newSuspicion },
     });
     tx.set(censusRef, {
       type: 'loyalty-census', revision: (censusRevision as number) + 1,
