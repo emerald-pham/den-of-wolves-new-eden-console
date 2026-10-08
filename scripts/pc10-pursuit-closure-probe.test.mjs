@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import * as runner from './pc10-fresh-minimum-ring-proof.mjs';
+test('closure probe has two fresh actors and no Ring recovery claim',()=>{assert.deepEqual(runner.minimumPursuitClosurePlan(),{actualAuthenticatedActors:2,configuredRoles:13,browserProcesses:1,browserContexts:2,hardCapMs:300000,probeFamily:'pursuit-closure',nClosedHistoryObserved:false});});
+test('closure probe workflow contains only legitimate setup and genuine Pursuit closure',async()=>{const trace=[];await runner.runPursuitClosureWorkflow({setup:async()=>trace.push('setup'),pursuitAndClose:async()=>trace.push('pursuit-close')});assert.deepEqual(trace,['setup','pursuit-close']);});
+test('closure probe stops if normal setup fails',async()=>{let called=false;await assert.rejects(runner.runPursuitClosureWorkflow({setup:async()=>{throw Error('setup failed')},pursuitAndClose:async()=>{called=true}}));assert.equal(called,false);});
