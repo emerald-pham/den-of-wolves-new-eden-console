@@ -2,6 +2,27 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { minimumRingPlan, runRingWorkflow, selectStationCombatCrew } from './pc10-fresh-minimum-ring-proof.mjs';
 
+function stationLossFixture({ originalGeneration = 4, currentGeneration = 4 } = {}) {
+  const actor = { uid: 'pdf', roleId: 'refinery-124-pdf-colonel',
+    original: { uidHash: 'pdf-hash', sessionId: 'sid', fleetGroupId: 'fleet-1',
+      connectionGeneration: originalGeneration, documentTimeOrigin: 10000, identityHydrationRevision: 2 } };
+  const escapeState = { status: 'pending', shipId: 'refinery-124', destructionEventId: 'wolf-loss-1', revision: 3 };
+  const root = { shipDamage: { 'refinery-124': { damagedSystemIds: ['reactor'], destroyed: true } } };
+  const player = { uid: 'pdf', sessionId: 'sid', role: 'player', assignedRoleId: actor.roleId,
+    activeConsoleRoleId: null, seatId: actor.roleId, fleetGroupId: 'fleet-1', connectionGeneration: currentGeneration,
+    connected: true, escapeState };
+  const commonMember = { hasAuth: true, sameActor: true, uidHash: 'pdf-hash', sessionId: 'sid', meSessionId: 'sid',
+    profileRoleId: null, profileSessionId: null, playerRole: 'player', assignedRoleId: actor.roleId,
+    seatId: actor.roleId, fleetGroupId: 'fleet-1', connectionGeneration: currentGeneration, documentTimeOrigin: 10000,
+    identityHydrationRevision: 2, connection: 'live', freshness: 'server', kicked: false,
+    replacementRoleId: null, replacementStatus: null, invalidFields: [] };
+  return { actor, root, player, escapeState,
+    before: { ...commonMember, activeConsoleRoleId: actor.roleId, escapeLocked: false,
+      escapeState: null, browserProjectionConsistent: true },
+    after: { ...commonMember, activeConsoleRoleId: null, escapeLocked: true,
+      escapeState, browserProjectionConsistent: true } };
+}
+
 test('fresh Ring plan has three entitled Auth identities and zero unused-seat accounts', () => {
   const plan = minimumRingPlan();
   assert.equal(plan.actualAuthenticatedActors, 3);
@@ -72,6 +93,66 @@ test('station consumer waits for normal browser feed after authoritative server 
   assert.deepEqual(reads, { root: 2, players: 2, member: 2 });
   assert.equal(waits.length, 1);
   assert.ok(waits[0] > 0 && waits[0] <= 200);
+});
+
+test('station loss wait tolerates connecting/cache publication while pinning the first current generation', async () => {
+  const { actor, root, player, before, after } = stationLossFixture({ originalGeneration: 3, currentGeneration: 4 });
+  const connecting = { ...before, connection: 'connecting', freshness: 'cache', connectionGeneration: 4 };
+  const reads = { root: 0, players: 0, member: 0 };
+  const active = await selectStationCombatCrew([actor], {
+    deadlineAt: Date.now() + 1000,
+    readRoot: async () => { reads.root++; return root; },
+    readPlayers: async () => { reads.players++; return [player]; },
+    readMember: async () => [connecting, after][Math.min(reads.member++, 1)],
+    wait: async () => {},
+  });
+  assert.deepEqual(active, []);
+  assert.deepEqual(reads, { root: 2, players: 2, member: 2 });
+});
+
+test('station loss wait rejects a changed server escape tuple instead of rebasing to it', async () => {
+  const { actor, root, player, before, after } = stationLossFixture();
+  const nextEscape = { ...player.escapeState, destructionEventId: 'wolf-loss-2', revision: 4 };
+  let playerReads = 0, memberReads = 0;
+  await assert.rejects(selectStationCombatCrew([actor], {
+    deadlineAt: Date.now() + 1000,
+    readRoot: async () => root,
+    readPlayers: async () => [{ ...player, escapeState: playerReads++ === 0 ? player.escapeState : nextEscape }],
+    readMember: async () => [before, { ...after, escapeState: nextEscape }][Math.min(memberReads++, 1)],
+    wait: async () => {},
+  }), /loss tuple changed/i);
+  assert.equal(playerReads, 2);
+  assert.equal(memberReads, 1);
+});
+
+test('station loss wait rejects a destroyed root that disappears after the server loss was observed', async () => {
+  const { actor, root, player, before } = stationLossFixture();
+  const roots = [root, { shipDamage: { 'refinery-124': { damagedSystemIds: [], destroyed: false } } }];
+  let rootReads = 0;
+  await assert.rejects(selectStationCombatCrew([actor], {
+    deadlineAt: Date.now() + 1000,
+    readRoot: async () => roots[Math.min(rootReads++, 1)],
+    readPlayers: async () => [player],
+    readMember: async () => before,
+    wait: async () => {},
+  }), /destroyed root changed/i);
+  assert.equal(rootReads, 2);
+});
+
+test('station loss wait rejects torn before/after browser reads before accepting the normal feed', async () => {
+  const { actor, root, player, before, after } = stationLossFixture();
+  const torn = { ...after, browserLossSample: after, browserLossSamples: [before, after], browserProjectionConsistent: true };
+  const coherent = { ...after, browserLossSample: after, browserLossSamples: [after, after], browserProjectionConsistent: true };
+  let memberReads = 0;
+  const active = await selectStationCombatCrew([actor], {
+    deadlineAt: Date.now() + 1000,
+    readRoot: async () => root,
+    readPlayers: async () => [player],
+    readMember: async () => [torn, coherent][Math.min(memberReads++, 1)],
+    wait: async () => {},
+  });
+  assert.deepEqual(active, []);
+  assert.equal(memberReads, 2);
 });
 
 import * as proof from './pc10-fresh-minimum-ring-proof.mjs';

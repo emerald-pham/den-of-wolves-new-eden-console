@@ -73,4 +73,6 @@ test('escaped owner of an actually destroyed host retains custody but receives n
  for(const patch of [{uid:'foreign'},{escapeState:null},{escapeState:{...player.escapeState,shipId:'icebreaker'}},{activeConsoleRoleId:actor.roleId}])assert.throws(()=>runner.stationInactiveOwner(actor,root,{...player,...patch},member));
  assert.throws(()=>runner.stationInactiveOwner(actor,root,player,{...member,freshness:'cache'}));
  for(const patch of [{escapeState:{...escapeState,destructionEventId:'other-event'}},{escapeState:{...escapeState,revision:2}},{escapeState:{...escapeState,status:'fled'}},{connectionGeneration:5},{documentTimeOrigin:10001},{browserProjectionConsistent:false}])assert.throws(()=>runner.stationInactiveOwner(actor,root,player,{...member,...patch}));
+ assert.throws(()=>runner.stationInactiveOwner(actor,root,{...player,escapeState:{...escapeState,fleeRequestId:'flee-1'}},member));
+ assert.throws(()=>runner.stationInactiveOwner(actor,root,{...player,escapeState:{...escapeState,status:'fled',fleeRequestId:'flee-1'}},{...member,escapeState:{...escapeState,status:'fled',fleeRequestId:'flee-1'}}));
 });
