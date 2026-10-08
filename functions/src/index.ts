@@ -13560,7 +13560,7 @@ function isArrestCaseDispositionResult(value: unknown, sessionId: string): value
     (value.ruling === undefined || typeof value.ruling === 'string' && value.ruling.length > 0 && value.ruling.length <= 240);
 }
 
-/** Record the GM's human ruling for an arrested prisoner by the next Team Phase. */
+/** Record a GM's prisoner ruling during the arrest Team Phase or by the next Team Phase deadline. */
 export const resolveArrestCaseDisposition = auditedOnCall<{
   sessionId?: unknown; instanceId?: unknown; requestId?: unknown; targetUid?: unknown;
   expectedCycle?: unknown; expectedRevision?: unknown; expectedSetupRevision?: unknown;
@@ -13600,24 +13600,30 @@ export const resolveArrestCaseDisposition = auditedOnCall<{
     }
     const stored = currentCase.exists ? currentCase.data() : undefined;
     const deadlineCycle = isRecord(stored) ? stored.deadlineCycle : undefined;
+    const caseTurn = isRecord(stored) ? stored.turn : undefined;
     const caseRevision = isRecord(stored) ? stored.revision : undefined;
     if (!isRecord(stored) || stored.type !== 'arrest-case' || stored.sessionId !== command.sessionId ||
         stored.targetUid !== command.targetUid || stored.status !== 'pending-resolution' || stored.outcome !== 'arrested' ||
-        !Number.isSafeInteger(deadlineCycle) || (deadlineCycle as number) < 2 ||
+        !Number.isSafeInteger(caseTurn) || (caseTurn as number) < 1 || (caseTurn as number) >= Number.MAX_SAFE_INTEGER ||
+        !Number.isSafeInteger(deadlineCycle) || deadlineCycle !== (caseTurn as number) + 1 ||
         !Number.isSafeInteger(caseRevision) || caseRevision !== command.expectedRevision ||
         (caseRevision as number) >= Number.MAX_SAFE_INTEGER) {
       throw commandError('failed-precondition', 'This prisoner case is no longer pending at the expected revision.', 'conflict');
     }
-    if (currentTurn < (deadlineCycle as number)) {
-      throw commandError('failed-precondition', 'The prisoner outcome is due in the next Team Phase; keep the case pending.', 'invalid-phase');
-    }
     const phase = turnPhaseState(authority.session.get('turnPhase'));
+    const teamPhaseOpen = phase?.turn === currentTurn && phase.airspace.state === 'restricted' &&
+      phase.timerPause === undefined && !turnPhaseDeadlinePassed(phase, 'team');
+    const sameCycleOpen = currentTurn === caseTurn && teamPhaseOpen;
     const deadlineOpen = currentTurn === deadlineCycle && phase?.turn === currentTurn &&
-      phase.airspace.state === 'restricted' && phase.timerPause === undefined &&
-      !turnPhaseDeadlinePassed(phase, 'team');
-    if (!deadlineOpen && (command.disposition !== 'facilitator-resolution' || !command.ruling)) {
+      teamPhaseOpen;
+    const deadlineMet = sameCycleOpen || deadlineOpen;
+    const afterDeadline = currentTurn > (deadlineCycle as number) || currentTurn === deadlineCycle && !deadlineOpen;
+    if (!deadlineMet && (!afterDeadline || command.disposition !== 'facilitator-resolution' || !command.ruling)) {
       throw commandError('failed-precondition',
-        'After the next Team Phase deadline, record a reasoned facilitator resolution.', 'invalid-phase');
+        afterDeadline
+          ? 'After the next Team Phase deadline, record a reasoned facilitator resolution.'
+          : 'Release or execute during the current Team Phase or by the next Team Phase deadline.',
+        'invalid-phase');
     }
     let eligibilityRevision: number | undefined;
     let setupRevisionAfter = setupRevisionBefore;
@@ -13640,7 +13646,7 @@ export const resolveArrestCaseDisposition = auditedOnCall<{
       status: 'committed', type: 'arrest-case-disposition', sessionId: command.sessionId,
       requestId: command.requestId, targetUid: command.targetUid, turn: currentTurn,
       revision: (caseRevision as number) + 1, deadlineCycle: deadlineCycle as number,
-      deadlineMet: deadlineOpen, disposition: command.disposition, setupRevision: setupRevisionAfter,
+      deadlineMet, disposition: command.disposition, setupRevision: setupRevisionAfter,
       ...(eligibilityRevision === undefined ? {} : { replacementEligibilityRevision: eligibilityRevision }),
       ...(command.ruling === undefined ? {} : { ruling: command.ruling }),
     };
@@ -13665,7 +13671,7 @@ export const resolveArrestCaseDisposition = auditedOnCall<{
       type: 'arrest-case-disposition-audit', sessionId: command.sessionId,
       targetUid: command.targetUid, requestId: command.requestId, actorUid: uid,
       disposition: command.disposition, turn: currentTurn, deadlineCycle: deadlineCycle as number,
-      deadlineMet: deadlineOpen, expectedRevision: command.expectedRevision,
+      deadlineMet, expectedRevision: command.expectedRevision,
       ...(command.ruling === undefined ? {} : { ruling: command.ruling }),
       ...(eligibilityRevision === undefined ? {} : { replacementEligibilityRevision: eligibilityRevision }),
       createdAt: FieldValue.serverTimestamp(),

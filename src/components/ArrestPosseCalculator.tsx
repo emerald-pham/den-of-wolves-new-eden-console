@@ -118,15 +118,24 @@ export default function ArrestPosseCalculator({
     uid !== targetUid && presentPlayerOptions.some((player) => player.uid === uid));
   const canResolve = Boolean(onResolve && expectedCycle !== undefined && Number.isSafeInteger(expectedCycle) &&
     expectedCycle >= 1 && inputsMatch && censusIsCurrent && !resolving && !busy);
-  const activeCase = caseRecord?.targetUid === targetUid && caseRecord.status === 'pending-resolution' &&
-    caseRecord.deadlineCycle !== undefined
-    ? caseRecord : null;
+  const visibleCase = caseRecord?.targetUid === targetUid ? caseRecord : null;
+  const activeCase = visibleCase?.status === 'pending-resolution' && visibleCase.deadlineCycle !== undefined
+    ? visibleCase : null;
+  const sameCycleWindowOpen = Boolean(activeCase && currentCycle === activeCase.turn && deadlineTeamPhaseOpen);
   const deadlineOpen = Boolean(activeCase && currentCycle === activeCase.deadlineCycle && deadlineTeamPhaseOpen);
   const caseIsOverdue = Boolean(activeCase && currentCycle !== undefined &&
     (currentCycle > activeCase.deadlineCycle! || currentCycle === activeCase.deadlineCycle && !deadlineTeamPhaseOpen));
+  const ordinaryDispositionWindowOpen = sameCycleWindowOpen || deadlineOpen;
   const canDisposition = Boolean(activeCase && onDisposition && currentCycle !== undefined &&
-    Number.isSafeInteger(currentCycle) && currentCycle >= activeCase.deadlineCycle! && !resolving &&
-    (deadlineOpen || caseIsOverdue && ruling.trim().length > 0));
+    Number.isSafeInteger(currentCycle) && !resolving &&
+    (ordinaryDispositionWindowOpen || caseIsOverdue && ruling.trim().length > 0));
+  const completedDispositionMessage = visibleCase?.outcome === 'arrested' && visibleCase.status !== 'pending-resolution'
+    ? visibleCase.status === 'executed'
+      ? 'Prisoner case recorded // executed; replacement eligibility opened.'
+      : visibleCase.status === 'facilitator-resolution'
+        ? 'Prisoner case recorded // facilitator resolution.'
+        : visibleCase.status === 'released' ? 'Prisoner case recorded // released.' : null
+    : null;
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -276,7 +285,8 @@ export default function ArrestPosseCalculator({
           {resolving ? 'Resolving attendance…' : attendanceEvidence ? 'Simulate attendance' : 'Resolve attendance'}
         </button>
       )}
-      {visibleOutcome?.outcome === 'arrested' && visibleOutcome.deadlineCycle !== undefined && (
+      {visibleOutcome?.outcome === 'arrested' && visibleOutcome.deadlineCycle !== undefined &&
+        (!visibleCase || visibleCase.status === 'pending-resolution') && (
         <p className="gm-console__status" role="status" aria-live="polite">
           Arrested; resolve the prisoner by the end of Team Phase {visibleOutcome.deadlineCycle}.
         </p>
@@ -287,17 +297,25 @@ export default function ArrestPosseCalculator({
         </p>
       )}
       {visibleOutcome?.attendanceEvidence && <p role="status">Demo result based on simulated attendance.</p>}
+      {completedDispositionMessage && (
+        <p className="gm-console__status" role="status" aria-live="polite">{completedDispositionMessage}</p>
+      )}
       {activeCase && (
         <section className="gm-arrest-posse__case" aria-label="Arrested prisoner case">
           <h3>Prisoner ruling // due by Team Phase {activeCase.deadlineCycle}</h3>
-          <p>Record a facilitator decision for this arrested player. Execution opens the ordinary replacement eligibility process.</p>
-          {currentCycle !== undefined && currentCycle < activeCase.deadlineCycle! && (
+          <p>
+            {sameCycleWindowOpen
+              ? `Release or execute now during Team Phase ${activeCase.turn}, or by the end of Team Phase ${activeCase.deadlineCycle}. `
+              : `Release or execute by the end of Team Phase ${activeCase.deadlineCycle}. `}
+            Execution opens the ordinary replacement eligibility process.
+          </p>
+          {currentCycle !== undefined && currentCycle < activeCase.deadlineCycle! && !sameCycleWindowOpen && (
             <p role="status">The ruling window begins in Team Phase {activeCase.deadlineCycle}.</p>
           )}
           {currentCycle === activeCase.deadlineCycle && !deadlineTeamPhaseOpen && (
             <p role="status">The Team Phase ruling window is closed. Record a reasoned facilitator resolution.</p>
           )}
-          {onDisposition && deadlineOpen && (
+          {onDisposition && ordinaryDispositionWindowOpen && (
             <div className="gm-arrest-posse__case-actions">
               <button type="button" className="cic-action-button" disabled={resolving}
                 onClick={() => void recordDisposition('released')}>Release prisoner</button>
