@@ -198,3 +198,22 @@ test('exact-owned top-level proof receipts and GM access are cleaned and foreign
   assert.equal((await adapter.removePc11OwnedRootRecords(expected)).absent, true);
   assert.equal(records.size, 0);
 });
+
+test('actual selector failure remains primary when bounded read-only diagnostics also fail', async () => {
+  const source = await readFile(resolve(root, 'scripts/qualification/pc11-three-actor-trade-philia.mjs'), 'utf8');
+  const start = source.indexOf('try{await recipientSelector.selectOption('), end = source.indexOf("await trade.getByLabel('Materials amount'", start);
+  const primary = new Error('original exact recipient timeout'), diagnostic = new Error('diagnostic failed');
+  const dependencies = { assert, recipientSelector: { selectOption: async () => { throw primary; } },
+    actorUids: new Map([['Recipient', 'original-president']]), retainRecipientSelector: async () => { throw diagnostic; },
+    bounded: promise => promise, workEnd: Date.now() + 5000, evidence: {} };
+  const execute = new Function('deps', `const {${Object.keys(dependencies).join(',')}}=deps;return (async()=>{${source.slice(start, end)}})();`);
+  await assert.rejects(execute(dependencies), error => error === primary);
+  assert.equal(dependencies.evidence.tradeDiagnosticErrors.length, 1);
+});
+
+test('proof evidence reports actual absolute allocation cap and preserves cleanup reserve', () => {
+  assert.equal(typeof adapter.pc11ProofTiming, 'function');
+  assert.deepEqual(adapter.pc11ProofTiming(1000000, 1270000), { totalEnd: 1270000, workEnd: 1210000, executionCapMs: 270000 });
+  assert.throws(() => adapter.pc11ProofTiming(1000000, 1119999));
+  assert.throws(() => adapter.pc11ProofTiming(1000000, Number.NaN));
+});
