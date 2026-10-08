@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, expect, it, vi } from 'vitest';
@@ -7,6 +7,11 @@ import { useSessionStore } from '@/store/useSessionStore';
 
 vi.mock('@/lib/airspaceService', () => ({ unlockPressAirspace: vi.fn() }));
 const { unlockPressAirspace } = await import('@/lib/airspaceService');
+const exchangeMock = vi.hoisted(() => ({ exchange: vi.fn() }));
+vi.mock('@/lib/sessionService', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/lib/sessionService')>(),
+  exchangeAegisFighterWings: exchangeMock.exchange,
+}));
 
 beforeEach(() => {
   const now = Date.now();
@@ -27,6 +32,7 @@ beforeEach(() => {
   });
   useSessionStore.getState().setConnection('live');
   useSessionStore.getState().setSessionSnapshotFreshness('server');
+  exchangeMock.exchange.mockReset().mockResolvedValue({ amount: 1 });
 });
 
 it('routes the Admiral to the bounded fleet policy and defence coordination workspace', async () => {
@@ -100,7 +106,7 @@ it('shows live Fighter Wing counts separately from bay status and effective capa
   expect(bravo).not.toHaveTextContent(/tracked at the table/i);
 });
 
-it('offers the Wing Commander a live paired fighter exchange during Team', () => {
+it('offers and invokes the live paired fighter exchange during Team', async () => {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Expected a session.');
   useSessionStore.getState().setIdentity({
@@ -122,7 +128,10 @@ it('offers the Wing Commander a live paired fighter exchange during Team', () =>
   const exchange = screen.getByRole('region', { name: /fighter wing exchange/i });
   expect(exchange).toBeVisible();
   expect(exchange).toHaveTextContent(/Alpha.*3 fighters.*Bravo.*2 fighters/i);
-  expect(screen.getByRole('button', { name: /transfer fighter/i })).toBeEnabled();
+  const transfer = screen.getByRole('button', { name: /transfer fighter/i });
+  expect(transfer).toBeEnabled();
+  await userEvent.setup().click(transfer);
+  await waitFor(() => expect(exchangeMock.exchange).toHaveBeenCalledWith('fighter-wing-alpha', 1));
 });
 
 it('describes the Starlight fuel readout as tracked at its console', () => {

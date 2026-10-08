@@ -83,6 +83,7 @@ const {
   fleeDestroyedShip,
   scavengeDestroyedShipStores,
   setFighterWingCount,
+  exchangeAegisFighterWings,
   createJumpShipAttempt,
   isJumpShipOutcomeUncertain,
   adjudicateFailedJump,
@@ -5828,6 +5829,64 @@ describe('GM fighter-wing stale recovery', () => {
   );
 });
 
+describe('Wing Commander Fighter Wing exchange service', () => {
+  beforeEach(() => {
+    vi.mocked(httpsCallable).mockReset();
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity({
+      ...session, phase: 'active', currentTurn: 2,
+      turnPhase: {
+        turn: 2, teamPhaseEndsAt: new Date(Date.now() + 60_000).toISOString(),
+        openAirspaceEndsAt: new Date(Date.now() + 120_000).toISOString(),
+        airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+      },
+      fighterWingCounts: {
+        'fighter-wing-alpha': { count: 3, revision: 4 },
+        'fighter-wing-bravo': { count: 2, revision: 7 },
+      },
+      shipUpgrades: { aegis: [] },
+    }, {
+      ...player, assignedRoleId: 'wing-commander', seatId: 'wing-commander',
+      activeConsoleRoleId: 'wing-commander',
+    });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+
+  it('sends both current wing revisions and applies the paired server result', async () => {
+    let request: Record<string, unknown> | undefined;
+    const call = Object.assign(vi.fn((payload: Record<string, unknown>) => {
+      request = payload;
+      return Promise.resolve({ data: {
+        status: 'committed', sessionId: 's1', requestId: payload.requestId,
+        sourceWingId: 'fighter-wing-alpha', amount: 1, turn: 2, capacity: 4,
+        counts: {
+          'fighter-wing-alpha': { count: 2, revision: 5 },
+          'fighter-wing-bravo': { count: 3, revision: 8 },
+        },
+      } });
+    }), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(call as never);
+
+    await expect(exchangeAegisFighterWings('fighter-wing-alpha', 1)).resolves.toMatchObject({
+      status: 'committed', sourceWingId: 'fighter-wing-alpha', amount: 1,
+      counts: {
+        'fighter-wing-alpha': { count: 2, revision: 5 },
+        'fighter-wing-bravo': { count: 3, revision: 8 },
+      },
+    });
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'exchangeAegisFighterWings');
+    expect(request).toMatchObject({
+      sessionId: 's1', sourceWingId: 'fighter-wing-alpha', amount: 1,
+      expectedTurn: 2, expectedAlphaRevision: 4, expectedBravoRevision: 7,
+    });
+    expect(useSessionStore.getState().session?.fighterWingCounts).toMatchObject({
+      'fighter-wing-alpha': { count: 2, revision: 5 },
+      'fighter-wing-bravo': { count: 3, revision: 8 },
+    });
+  });
+});
 
 describe('GM recovery reconciliation', () => {
   const remembered = { id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge',
