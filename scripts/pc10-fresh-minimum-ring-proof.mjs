@@ -80,15 +80,16 @@ export function stationCombatServerContext({sessionId,root,pdfWing,publicAudienc
 }
 function stationPopulationGmAuthorityTuple({live,lifecycle,serverPlayer,serverInstance,claimInstance,expectedSessionId,expectedUid}){
  assert.ok(live&&lifecycle&&serverPlayer&&serverInstance,'Station GM authority requires both browser observers and current server-owned lease rows.');
- assert.equal(live.hasAuth,true);assert.equal(live.sameActor,true);assert.equal(live.sessionId,expectedSessionId);assert.equal(live.connection,'live');assert.equal(live.freshness,'server');
+ assert.equal(live.hasAuth,true);assert.equal(live.sameActor,true);assert.equal(live.sessionId,expectedSessionId,'Native live GM sessionId must match the original owned session.');assert.equal(live.connection,'live');assert.equal(live.freshness,'server');
  assert.ok(typeof live.uidHash==='string'&&live.uidHash.length>0);assert.ok(Number.isSafeInteger(live.connectionGeneration)&&live.connectionGeneration>=1,'Native live GM observer must expose its actual connectionGeneration.');
- assert.ok(Number.isSafeInteger(live.hydrationRevision)&&live.hydrationRevision>=1);
+ assert.ok(Number.isSafeInteger(live.hydrationRevision)&&live.hydrationRevision>=1,'Native live GM observer must expose its actual hydrationRevision.');
+ assert.equal(live.profileSessionId,null,'Native live GM profileSessionId must be null.');
  assert.equal(lifecycle.hasAuth,true);assert.equal(lifecycle.sameActor,true);assert.equal(lifecycle.sessionId,expectedSessionId);assert.equal(lifecycle.connection,'live');assert.equal(lifecycle.freshness,'server');
  assert.equal(lifecycle.uidHash,live.uidHash);assert.equal(lifecycle.generation,live.connectionGeneration,'Lifecycle generation must agree with the native live observer connectionGeneration.');
  assert.equal(lifecycle.hydrationRevision,live.hydrationRevision,'Both browser observations must share the current identity hydration revision.');
- assert.equal(lifecycle.playerRole,'gm');assert.equal(lifecycle.profileRoleId,null);assert.equal(lifecycle.profileSessionId,null);
- assert.equal(lifecycle.gmInstanceOwned,true);assert.equal(live.gmInstanceOwned,true);assert.equal(lifecycle.instanceId,live.instanceId);
- assert.ok(typeof live.instanceId==='string'&&live.instanceId.length>0);assert.ok(typeof lifecycle.claimedAt==='string'&&lifecycle.claimedAt.length>0);
+ assert.equal(lifecycle.playerRole,'gm');assert.equal(lifecycle.profileRoleId,null);
+ assert.equal(lifecycle.gmInstanceOwned,true);assert.equal(live.gmInstanceOwned,true);assert.equal(lifecycle.instanceId,live.instanceId,'Lifecycle and native observer must share the current GM instanceId.');
+ assert.ok(typeof live.instanceId==='string'&&live.instanceId.length>0);assert.ok(typeof lifecycle.claimedAt==='string'&&lifecycle.claimedAt.length>0,'Lifecycle observer must expose its actual claimedAt lease.');
  assert.equal(serverPlayer.uid,expectedUid);assert.equal(serverPlayer.sessionId,expectedSessionId);assert.equal(serverPlayer.role,'gm');assert.equal(serverPlayer.connected,true);
  assert.equal(serverPlayer.connectionGeneration,live.connectionGeneration,'Server player generation must agree with both current browser observations.');
  assert.equal(serverInstance.id,live.instanceId);assert.equal(serverInstance.uid,expectedUid);assert.equal(serverInstance.sessionId,expectedSessionId);assert.equal(serverInstance.connected,true);
@@ -114,8 +115,15 @@ export function assertStationPopulationGmActorAuthority(anchor,input){
  for(const key of ['sessionId','uidHash','generation','hydrationRevision','instanceId','claimedAt'])assert.equal(current[key],anchor[key],`Original Station GM ${key} changed during population acknowledgment.`);
  return true;
 }
-export async function stationPopulationGmAuthorityPreflight({readActor,readServerAuthority,claimInstance,expectedSessionId,expectedUid}){
- const before=await readActor(),server=await readServerAuthority(),current=await readActor();
+export function stationPopulationGmRetainedObserver(actor){
+ assert.ok(actor?.live&&actor?.lifecycle,'A retained Station GM observation requires both actual browser observers.');
+ const live={...actor.live},joinCodePresent=Object.hasOwn(live,'joinCode'),joinCodeWasNull=live.joinCode===null;
+ delete live.joinCode;
+ return {live,lifecycle:actor.lifecycle,redactions:{nativeJoinCode:{present:joinCodePresent,wasNull:joinCodeWasNull}}};
+}
+export async function stationPopulationGmAuthorityPreflight({readActor,readServerAuthority,claimInstance,expectedSessionId,expectedUid,onActorObservation=()=>{}}){
+ const before=await readActor();onActorObservation('before',before);
+ const server=await readServerAuthority(),current=await readActor();onActorObservation('current',current);
  const authorityInput=actor=>({...actor,serverPlayer:server.serverPlayer,serverInstance:server.serverInstance,claimInstance,expectedSessionId,expectedUid});
  const initialAnchor=stationPopulationGmActorAnchor(authorityInput(before));
  const anchor=stationPopulationGmActorAnchor(authorityInput(current));
@@ -736,7 +744,9 @@ async function authorizeAndClaim(surface,label,name) {
  const deadlineAt=Date.now()+60000,preflight=await stationPopulationGmAuthorityPreflight({
   readActor:()=>readStationGmActor(surface,label,null,deadlineAt),
   readServerAuthority:()=>readStationGmAuthorityServerRows(deadlineAt,gm1Instance,'Original GM claim server preflight'),
-  claimInstance:gm1ClaimInstance,expectedSessionId:sid,expectedUid:actorUids.get(label)});
+  claimInstance:gm1ClaimInstance,expectedSessionId:sid,expectedUid:actorUids.get(label),
+  onActorObservation:(sample,actor)=>states.push({label:`${label} GM claim preflight ${sample} browser authority`,actor:label,
+   browserObservation:stationPopulationGmRetainedObserver(actor)})});
  gm1OriginalAuthority=preflight.anchor;
  claims.push(`${label} ordinary admission/consent, normal local GM authorization and independent owned live instance`);return live;
 }

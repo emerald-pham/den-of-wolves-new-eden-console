@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { assertStationPopulationAcknowledgmentTransition, assertStationPopulationGmActorAuthority, assertStationPopulationGmActorObserver, minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext, stationDialogAccessibleName, stationPopulationAckMutinyRows, stationPopulationAlertsForGm, stationPopulationDismissIntent, stationPopulationGmActorAnchor, stationPopulationGmAuthorityPreflight } from './pc10-fresh-minimum-ring-proof.mjs';
+import { assertStationPopulationAcknowledgmentTransition, assertStationPopulationGmActorAuthority, assertStationPopulationGmActorObserver, minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext, stationDialogAccessibleName, stationPopulationAckMutinyRows, stationPopulationAlertsForGm, stationPopulationDismissIntent, stationPopulationGmActorAnchor, stationPopulationGmAuthorityPreflight, stationPopulationGmRetainedObserver } from './pc10-fresh-minimum-ring-proof.mjs';
 
 const stationPopulationGmAttemptEvidence = JSON.parse(readFileSync(
   new URL('./fixtures/pc10-population-gm-observer-attempt-evidence.json', import.meta.url), 'utf8'));
@@ -255,14 +255,15 @@ test('Attempt18 production preflight retains each full observer sample before la
     serverInstance: { ...input.serverInstance, connected: false } };
   await assert.rejects(stationPopulationGmPreflight(input, {
     readServerAuthority: async () => server,
-    onActorObservation: (stage, actor) => retained.push({ stage, actor }),
+    onActorObservation: (stage, actor) => retained.push({ stage, actor: stationPopulationGmRetainedObserver(actor) }),
   }));
   assert.deepEqual(retained.map(value => value.stage), ['before', 'current']);
   for (const value of retained) {
-    assert.deepEqual(Object.keys(value.actor.live), Object.keys(input.live));
+    assert.deepEqual(Object.keys(value.actor.live), Object.keys(input.live).filter(key => key !== 'joinCode'));
     assert.deepEqual(Object.keys(value.actor.lifecycle), Object.keys(input.lifecycle));
     assert.equal(value.actor.lifecycle.profileSessionId, undefined);
     assert.equal(value.actor.live.profileSessionId, null);
+    assert.deepEqual(value.actor.redactions.nativeJoinCode, { present: true, wasNull: false });
   }
 });
 
