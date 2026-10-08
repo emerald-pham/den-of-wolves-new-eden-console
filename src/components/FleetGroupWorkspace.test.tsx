@@ -76,6 +76,33 @@ it('offers a legal taxi payload form and reports the server committed fuel resul
   expect(await screen.findByRole('status')).toHaveTextContent(/fuel/i);
 });
 
+it('shows the current player group pursuit from its own authoritative projection and labels the house rule', async () => {
+  seed();
+  useSessionStore.setState(state => ({ session: { ...state.session!, playerDiscovery: {
+    ...state.session!.playerDiscovery!, pursuitValue: 7,
+  } } as never }));
+  render(<FleetGroupWorkspace />);
+
+  const pursuit = await screen.findByRole('region', { name: 'Current fleet group pursuit' });
+  expect(pursuit).toHaveTextContent('HOUSE RULE // SPLIT-GROUP PURSUIT');
+  expect(pursuit).toHaveTextContent('Each separated group tracks its own pursuit.');
+  expect(pursuit).toHaveTextContent('FLEET-2');
+  expect(pursuit).toHaveTextContent('7 / 10');
+});
+
+it('shows only the selected group pursuit in the current facilitator workspace', async () => {
+  seed('gm');
+  useSessionStore.setState(state => ({ session: { ...state.session!, pursuitGroups: {
+    'fleet-1': 3, 'fleet-2': 8,
+  } } as never }));
+  render(<FleetGroupWorkspace />);
+
+  const pursuit = await screen.findByRole('region', { name: 'Current fleet group pursuit' });
+  expect(pursuit).toHaveTextContent('FLEET-2');
+  expect(pursuit).toHaveTextContent('8 / 10');
+  expect(pursuit).not.toHaveTextContent('3 / 10');
+});
+
 it('lets the current taxi owner select at most two connected members from the server scoped group roster', async () => {
   seed(); useSessionStore.setState(state => ({ me: { ...state.me!, assignedRoleId: 'quellon-explorer' } as never }));
   render(<FleetGroupWorkspace />);
