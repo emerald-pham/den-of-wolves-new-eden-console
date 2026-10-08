@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { dispatchStationCrewChoice } from './pc10-station-crew-dispatch.mjs';
+import { heldProofFailureObservations } from './pc10-proof-failure-evidence.mjs';
 
 const sessionId = 'session-pc10';
 const deadlineAt = Date.now() + 60_000;
 
 function attack(currentStep, revision = 8) {
   return { attackId: 'attack-p', threatSiteCode: 'P', turn: 3, revision,
-    status: 'declared', currentStep };
+    status: 'declared', currentStep, airspaceLocked: true };
 }
 
 function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/ships/icebreaker/roles/icebreaker-miner',
@@ -18,7 +19,7 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
     profileRoleId, assignedRoleId: roleId, activeConsoleRoleId: roleId, seatId: roleId,
     playerRole: 'player', phase: 'active', cycle: 3, fleetGroupId: 'fleet-p', connectionGeneration: 1,
     identityHydrationRevision: 1, replacementRoleId: null, replacementStatus: null,
-    airspace: 'lifted', turnStatePhase: 'coordination', phaseProgression: 'manual',
+    airspace: 'restricted', turnStatePhase: 'coordination', phaseProgression: 'manual',
     connection: 'live', freshness: 'server' };
   const authority = { sessionId, fleetGroupId: 'fleet-p', connectionGeneration: 1,
     identityHydrationRevision: 1, replacementRoleId: null, replacementStatus: null,
@@ -115,11 +116,13 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
       return panel;
     },
     url: () => `https://new-eden.invalid/#${currentRoute}`,
-    evaluate: async () => authority,
+    evaluate: async () => ({ ...actor, ...authority }),
   };
   return Object.assign({ label: roleId, page,
     observe: async () => actor,
     storeModuleUrl: () => 'test://useSessionStore',
+    testActor: actor,
+    testAuthority: authority,
     callable: async (endpoint, payload) => {
       effects.reads.push({ endpoint, payload });
       currentResponse = responses[endpoint] ?? response;
@@ -178,6 +181,26 @@ test('stops without a second actor choice when the attack tuple changes during t
   assert.ok(pdf.effects.reads[0].timeoutMs > 0 && pdf.effects.reads[0].timeoutMs <= 35_000);
 });
 
+test('does not dispatch if the authoritative attack lock drops after the strict scope snapshot', async () => {
+  let latest = attack('targeting');
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+  pdf.callable = async (endpoint, payload, timeoutMs) => {
+    pdf.effects.reads.push({ endpoint, payload, timeoutMs });
+    latest = { ...latest, airspaceLocked: false };
+    return { status: 'committed', result: { type: 'pdf-escort-wing-launch-view', sessionId,
+      turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true } };
+  };
+  const current = attack('targeting');
+  const opts = options([{ roleId: pdf.label, surface: pdf }], current);
+  opts.readAttack = async () => latest;
+  let actions = 0;
+  opts.action = async () => { actions++; throw new Error('Unlocked attack must stop before UI action.'); };
+  assert.equal(await dispatchStationCrewChoice(current, opts), undefined);
+  assert.equal(actions, 0);
+  assert.deepEqual(pdf.effects.clicks, []);
+});
+
 test('returns no choice when the supplied attack has already changed before dispatcher entry', async () => {
   const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
     sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
@@ -187,6 +210,136 @@ test('returns no choice when the supplied attack has already changed before disp
   assert.equal(await dispatchStationCrewChoice(current, opts), undefined);
   assert.deepEqual(pdf.effects.reads, []);
   assert.deepEqual(pdf.effects.clicks, []);
+});
+
+test('waits for the declared attack lock and restricted member view before freezing PDF action scope', async () => {
+  const initial = { ...attack('targeting'), airspaceLocked: false };
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+  let latest = { ...initial, airspaceLocked: false };
+  pdf.testActor.airspace = 'lifted';
+  let pageSamples = 0;
+  pdf.page.evaluate = async () => {
+    const observed = { ...pdf.testActor, ...pdf.testAuthority };
+    pageSamples++;
+    if (pageSamples === 1) {
+      pdf.testActor.airspace = 'restricted';
+      latest = { ...latest, airspaceLocked: true };
+    }
+    return observed;
+  };
+  const opts = options([{ roleId: pdf.label, surface: pdf }], initial);
+  opts.readAttack = async () => latest;
+  opts.assertActor = async actor => { assert.equal(actor.surface.label, actor.roleId); return actor.surface.observe(); };
+  const callable = pdf.callable;
+  pdf.callable = async (...args) => {
+    assert.equal(latest.airspaceLocked, true, 'No source view may be read before the server attack lock.');
+    assert.equal(pdf.testActor.airspace, 'restricted', 'No source view may be read before the member projection is restricted.');
+    return callable(...args);
+  };
+
+  assert.deepEqual(await dispatchStationCrewChoice(initial, opts), { committed: true });
+  assert.ok(pageSamples >= 3, 'The actor must be sampled again after the attack locks and once more by the strict observer.');
+  assert.equal(pdf.effects.reads.length, 1);
+  assert.equal(pdf.effects.clicks.at(-1), 'Launch PDF Escort Wing');
+});
+
+function installDelayedRestrictedProjection(actor, current) {
+  const initial = { ...current, airspaceLocked: false };
+  let latest = initial, sampleCount = 0;
+  actor.testActor.airspace = 'lifted';
+  actor.page.evaluate = async () => {
+    const observed = { ...actor.testActor, ...actor.testAuthority };
+    sampleCount++;
+    if (sampleCount === 1) {
+      actor.testActor.airspace = 'restricted';
+      latest = { ...latest, airspaceLocked: true };
+    }
+    return observed;
+  };
+  const callable = actor.callable;
+  actor.callable = async (...args) => {
+    assert.equal(latest.airspaceLocked, true, 'The exact P attack must be authoritatively locked before any current choice read.');
+    assert.equal(actor.testActor.airspace, 'restricted', 'The source read must wait for this member’s restricted projection.');
+    return callable(...args);
+  };
+  return { initial, readAttack: async () => latest, sampleCount: () => sampleCount };
+}
+
+const delayedLockCases = [
+  { name: 'PDF escort range', roleId: 'refinery-124-pdf-colonel', step: 'medium-range',
+    view: { type: 'wolf-fighter-range-action-view', sessionId, attackId: 'attack-p', turn: 3, revision: 8,
+      wingId: 'pdf-escort-fighter-wing', wingLabel: 'P.D.F. Escort Fighter Wing', range: 'medium-range',
+      choiceStatus: 'pending', launched: true, fighters: [{ fighterIndex: 0 }],
+      targets: [{ instanceId: 'contact-1', label: 'Wolf contact 1', targetNumber: 4 }] },
+    endpoint: 'getWolfEscortRangeActionChoice' },
+  { name: 'Miner Highwall range', roleId: 'icebreaker-miner', step: 'long-range', path: '/shuttles/highwall',
+    view: { type: 'wolf-range-support-action-choice-view', sessionId, attackId: 'attack-p', turn: 3, revision: 8,
+      sourceId: 'highwall', actorRoleId: 'icebreaker-miner', range: 'long-range', choiceStatus: 'pending',
+      eligible: true, actionAvailable: false }, endpoint: 'getWolfRangeSupportActionChoice' },
+  { name: 'boarding special', roleId: 'refinery-124-pdf-colonel', step: 'boarding',
+    view: { type: 'wolf-boarding-special-choice-view', sessionId, turn: 3, revision: 8,
+      choice: { kind: 'relocation', craftId: 'chepu', currentHostId: 'refinery-124', fuelled: false,
+        controlRevision: 2, legalHostIds: ['refinery-124'] } }, endpoint: 'getWolfBoardingSpecialChoice',
+    entitledShipId: 'refinery-124' },
+  { name: 'boarding defence', roleId: 'icebreaker-miner', step: 'boarding',
+    view: { type: 'wolf-boarding-special-choice-unavailable', sessionId, reason: 'no-special-choice' },
+    responses: { getWolfBoardingDefenceChoice: { type: 'wolf-boarding-defence-choice-view', sessionId,
+      turn: 3, revision: 8, targetShipId: 'icebreaker', boardingParties: 1,
+      availableSecurityTeams: 2, choiceStatus: 'pending' } }, endpoint: 'getWolfBoardingSpecialChoice',
+    secondaryEndpoint: 'getWolfBoardingDefenceChoice' },
+];
+
+for (const scenario of delayedLockCases) {
+  test(`waits for the locked restricted projection before reading ${scenario.name}`, async () => {
+    const actor = surface(scenario.roleId, scenario.view, { path: scenario.path,
+      entitledShipId: scenario.entitledShipId, responses: scenario.responses });
+    const current = attack(scenario.step);
+    const delayed = installDelayedRestrictedProjection(actor, current);
+    const opts = options([{ roleId: actor.label, surface: actor }], delayed.initial);
+    opts.readAttack = delayed.readAttack;
+    opts.assertActor = async supplied => {
+      assert.equal(supplied.surface.label, supplied.roleId);
+      const sample = await supplied.surface.observe();
+      assert.equal(sample.uidHash, supplied.surface.testActor.uidHash);
+      return sample;
+    };
+
+    const result = await dispatchStationCrewChoice(delayed.initial, opts);
+    assert.ok(result === undefined || result.committed === true);
+    assert.ok(actor.effects.reads.some(read => read.endpoint === scenario.endpoint));
+    if (scenario.secondaryEndpoint)
+      assert.ok(actor.effects.reads.some(read => read.endpoint === scenario.secondaryEndpoint));
+    assert.ok(delayed.sampleCount() >= 3);
+  });
+}
+
+test('keeps the original discovery epoch pinned during restricted-lock readiness and retains the failure evidence', async () => {
+  const actor = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+  const current = attack('targeting');
+  const delayed = installDelayedRestrictedProjection(actor, current);
+  const originalEvaluate = actor.page.evaluate;
+  let samples = 0;
+  actor.page.evaluate = async (...args) => {
+    samples++;
+    if (samples === 2) actor.testAuthority.discoveryAuthority = { ...actor.testAuthority.discoveryAuthority,
+      revision: actor.testAuthority.discoveryAuthority.revision + 1 };
+    return originalEvaluate(...args);
+  };
+  const opts = options([{ roleId: actor.label, surface: actor }], delayed.initial);
+  opts.readAttack = delayed.readAttack;
+  opts.assertActor = async supplied => supplied.surface.observe();
+  let failure;
+  try { await dispatchStationCrewChoice(delayed.initial, opts); } catch (error) { failure = error; }
+  assert.match(failure?.message ?? '', /discovery authority changed before choice scope freeze/);
+  const [held] = heldProofFailureObservations(failure);
+  assert.equal(held.operation, 'station-crew-lock-readiness');
+  assert.equal(held.consumedObservations.actorScopes.length, 2);
+  assert.equal(held.consumedObservations.actorScopes[0].discoveryAuthority.revision, 2);
+  assert.equal(held.consumedObservations.actorScopes[1].discoveryAuthority.revision, 3);
+  assert.deepEqual(actor.effects.reads, []);
+  assert.deepEqual(actor.effects.clicks, []);
 });
 
 test('does not treat a generic action wrapper status as a committed source receipt', async () => {
