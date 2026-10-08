@@ -132,11 +132,14 @@ work, and give the successor exact remaining seams and active worker boundaries.
 
 ## Risk-based verification for remaining checkpoints
 
-**Owner correction, 2026-10-07:** apply risk-based TDD and claim-based actor
-cohorts to remaining PC10, existing post-PC10 work, PC11 and conditional PC12.
-This supersedes blanket failing-test-first, 19/21-account, full-census and
-340-command/84-cell replay defaults. Preserve prior evidence and assertions;
-this correction neither marks a failed run passed nor waives actual behavior.
+**Owner corrections, 2026-10-07 and 2026-10-08:** observe a meaningful RED before
+every functional change, implement, then observe GREEN. Risk determines test
+selection, execution breadth and regression depth, not permission to implement
+first. The October 8 instruction supersedes the October 7 implementation-first
+exception for low-risk functionality; its small claim-based actor cohorts and
+evidence reuse remain. Blanket 19/21-account, full-census and
+340-command/84-cell replay defaults remain superseded. Preserve prior evidence
+and assertions; neither correction marks a failed run passed or waives actual behavior.
 PC10's fixed 48 IDs, fresh two-browser solo game through an ending, every role
 and game function, genuine GM authority, manual progression and privacy remain.
 Trace shared role families and each unique mechanic without an endpoint-by-role
@@ -149,13 +152,22 @@ Choose verification from the changed behavior and credible failure risk:
   conflicting writes, persistence, recovery or data-loss behavior; retain
   separate test-first commits. Keep entitled, wrong/foreign/revoked actor,
   stale/conflicting authority and duplicate-effect negatives that apply.
-- **Navigation and integration:** use a focused behavioral test or mounted-app
-  probe for the changed route, control, authority binding or handoff. A
-  proof-adapter repair needs its discriminating contract check and affected
+- **Navigation and integration:** observe RED before implementation using a
+  focused behavioral test or mounted-app probe for the changed route, control,
+  authority binding or handoff, then observe GREEN. Interactive layout,
+  visibility, defaults, parsers and provider features are functional changes.
+  A proof-adapter repair needs its discriminating contract check and affected
   mounted slice, not a new whole-game replay for each guard.
-- **Documentation, copy and presentation without logic changes:** use document
-  consistency checks or rendered inspection of affected configurations. Do not
-  invent red tests or run Native/Functions/browser suites for a docs-only edit.
+- **Pure prose/docs:** use consistency review. Do not invent red tests or run
+  Native/Functions/browser suites for a prose-only edit. A presentation change
+  affecting interaction, layout, visibility or defaults is functionality and
+  requires observed RED before implementation.
+
+Audit the current candidate change by change and send a concise compliance
+summary before final release. Identify genuine contemporaneous RED separately
+from retrospective base-versus-fixed verification. Do not rewrite history or
+claim a later failure was observed first. Report historical timing gaps honestly,
+add meaningful regression validation, and hold release of unvalidated functionality.
 
 Record the claim, actual cohort and why fewer actors cannot prove it, affected
 regression scope, evidence reused and stop condition in the existing checkpoint

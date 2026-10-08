@@ -14,9 +14,12 @@ For the remaining numbered-prompt campaign, read
 [`docs/PRODUCT_MILESTONES.md`](docs/PRODUCT_MILESTONES.md) before shaping or
 building a playtest checkpoint. Its one-sitting product checks, fixed shape,
 source-backed assumption log, owner authorization, optional feedback and
-cooldown process govern that campaign. Apply the October 7
+cooldown process govern that campaign. Apply the October 8 mandatory
+functional test-first correction and the October 7
 [risk-based verification policy](docs/AGENT_EXECUTION_POLICY.md#risk-based-verification-for-remaining-checkpoints)
-for test choice, actor cohorts, evidence reuse and stopping. Explicit owner
+for test choice, actor cohorts, evidence reuse and stopping. Observe a meaningful
+RED before every functional change, implement, then observe GREEN; risk governs
+test scope, not an implementation-first exception. Explicit owner
 authorization accepts a checkpoint; a completed walkthrough or written UI
 feedback is not required. Agents own gameplay and technical correctness. The
 older M1–M13 fixtures remain internal gates.

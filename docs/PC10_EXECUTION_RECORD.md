@@ -65,10 +65,16 @@ fresh-game scenarios.
 ## Bounded behavior groups and handoffs
 
 Workers read their own exact catalog rows, routed private sources and relevant
-workflow/aesthetic instructions. Apply the October 7
+workflow/aesthetic instructions. Apply the October 8 mandatory functional
+test-first correction and October 7
 [risk-based verification policy](AGENT_EXECUTION_POLICY.md#risk-based-verification-for-remaining-checkpoints):
-meaningful test-first commits for authority/privacy and durable-state risk,
-focused mounted integration slices, and direct checks for low-risk changes.
+meaningful observed RED before every functional change, implementation then
+GREEN, with risk governing test selection, breadth and regression depth.
+Interactive layout, visibility, defaults, parsers and provider features count
+as functionality. Pure prose/docs use consistency review. Audit the current
+candidate change by change; distinguish contemporaneous RED from retrospective
+base-versus-fixed verification, retain honest historical timing gaps, add
+meaningful regression validation and hold release of unvalidated functionality.
 They own ordinary repairs and focused validation,
 return exact local commits/evidence/gaps, and do not push or start CI. The
 orchestrator owns roadmap/release metadata and reconciles additive shared-file

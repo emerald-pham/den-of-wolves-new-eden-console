@@ -158,15 +158,20 @@ client writes, callable authorization rejects the wrong actor, and the server
 transaction owns the mutation. New routes need a route-level test that activates
 the visible return control. Components should use accessible roles and text;
 pure logic belongs in focused unit tests. Apply the linked risk-based policy:
-new or changed authority/privacy, durable-state, replay, conflict and data-loss
-behavior needs a
-meaningful failing regression before code in separate commits. Navigation or
-integration needs a focused behavioral test or mounted slice; documentation,
-copy and presentation without logic changes need consistency or rendered checks.
+every functional change needs a meaningful observed failing regression before
+implementation, followed by GREEN, with the test-first change in a separate
+commit. Risk determines test selection, execution breadth and regression depth;
+it never permits implementation-first for low-risk functionality. Navigation,
+integration, interactive layout, visibility, defaults, parsers and provider
+features count as functionality. Pure prose/docs use consistency review.
 For behavior-changing transitions, exercise the real consumer or change handler
 from its previous state. A helper test or fixture already in the final state
 does not prove the transition. Check equivalent entry points that must share
 the rule, using focused regressions proportional to the risk.
+Audit current candidates change by change. Distinguish contemporaneous RED from
+retrospective base-versus-fixed verification; never rewrite history or claim a
+later failure was observed first. Record historical timing gaps honestly, add
+meaningful regression validation, and hold release of unvalidated functionality.
 Never weaken, skip, or delete an existing test to pass; leave a suspect test
 intact and flag it. Never modify an existing test in the code commit it covers.
 Record reasons for every test added, changed, skipped, or deleted in the

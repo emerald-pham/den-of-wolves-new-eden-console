@@ -301,12 +301,16 @@ make, even when the shaped UI passed.
    prevents a shaped acceptance check from passing is part of that check;
    unrelated discoveries and extra features go to the candidate list. Keep
    technical exit fixtures, authority/privacy/reconnect coverage, rendered QA,
-   and release evidence as internal gates. Apply the October 7
+   and release evidence as internal gates. Apply the October 8 mandatory
+   functional test-first correction and October 7
    [risk-based execution policy](AGENT_EXECUTION_POLICY.md#risk-based-verification-for-remaining-checkpoints):
-   new or changed authority/privacy and durable-state behavior needs a meaningful
-   failing regression before implementation in separate commits; integration
-   uses a focused affected test/mounted slice, and low-risk documentation/copy
-   uses direct checks. Choose actual actor count by the claim and reuse valid
+   every functional change needs a meaningful observed RED before implementation
+   in a separate test-first commit, then GREEN. Risk governs test selection,
+   breadth and depth, not an implementation-first exception. Interactive layout,
+   visibility, defaults, parsers and provider features count as functionality;
+   pure prose/docs use consistency review. Report historical timing gaps
+   honestly and distinguish later base-versus-fixed verification. Hold release
+   of unvalidated functionality. Choose actual actor count by the claim and reuse valid
    unaffected evidence. Never weaken, skip, or delete an existing test to make
    the build pass. If an existing test
    appears wrong, leave it intact and flag it. Never modify an existing test

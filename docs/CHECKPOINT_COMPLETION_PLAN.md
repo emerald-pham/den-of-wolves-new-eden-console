@@ -219,13 +219,17 @@ demo, fresh-game every-role/function acceptance across two browsers,
 claim-based overlapping/reconnect/retry/privacy checks, and explicit
 action/cost/blocker/next-actor usability evidence. The October 7 owner correction
 in [the execution policy](AGENT_EXECUTION_POLICY.md#risk-based-verification-for-remaining-checkpoints)
-supersedes the blanket test-first and about-21-session defaults: use the
-smallest legitimate cohort for the specific claim and reuse unaffected evidence.
+supersedes about-21-session defaults: use the smallest legitimate cohort for
+the specific claim and reuse unaffected evidence. The October 8 correction
+requires meaningful observed RED before every functional change, implementation
+then GREEN. Risk governs test selection, breadth and depth, not permission to
+implement first. Pure prose/docs use consistency review; report historical
+timing gaps honestly and hold release of unvalidated functionality.
 A 21-account run needs an explicit scale claim impossible with fewer or a
 reproduced scale-dependent bug; untested capacity remains unclaimed.
 Prepared scenes alone are insufficient. The primary Firebase Settings join QR
 and full-game demo are explicit additions with zero fixed-catalog credit.
-Preserve Cycle 0 AWAITING CIC HANDSHAKE and its Settings GM-start explanation.
+Preserve Cycle 0 AWAITING CIC AUTHENTICATION and its Settings GM-start explanation.
 
 Record automated actors/browser concurrency separately from human device
 playtesting. PC10 completion returns to the parent before existing post-PC10
