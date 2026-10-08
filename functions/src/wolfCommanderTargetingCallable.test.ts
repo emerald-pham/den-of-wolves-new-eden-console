@@ -253,6 +253,39 @@ it('rerolls nonparticipating split-group targets in the declaration handler with
   expect(rolls[0]).toMatchObject({ target: 'shepherd', nonparticipatingTargetRerolls: 1 });
 });
 
+it('parses the canonical Commander source ring after a candidate disposition settles', async () => {
+  const currentSession = mock.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...currentSession, candidateVesselOutcomes: { icebreaker: { code: 'O',
+    groupId: 'fleet-1', shipId: 'icebreaker', sourceId: 'candidate-O-1', cycle: 1, outcome: 'settled' } } });
+  await declare();
+
+  const attackPath = 'sessions/s1/wolfAttackState/current';
+  const declaration = mock.documents.get(attackPath)!;
+  const declarationTargeting = (declaration.calculationReceipt as Fields).targeting as Fields;
+  expect(declarationTargeting.ring).toEqual(['aegis', 'dione', 'quellon', 'shepherd', 'refinery-124']);
+  expect(declarationTargeting.sourceRing)
+    .toEqual(['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124']);
+
+  const rerollBounds: number[] = [];
+  const rerollSamples = [2, 1];
+  cryptoMock.randomInt.mockImplementation((upperBound: number) => {
+    rerollBounds.push(upperBound);
+    const sample = rerollSamples.shift();
+    if (sample === undefined || sample >= upperBound) throw new Error('Unexpected candidate reroll draw.');
+    return sample;
+  });
+  await applyWolfCommanderTargetRerolls.run(request({
+    sessionId: 's1', requestId: 'settled-candidate-commander-reroll', expectedTurn: 1, expectedRevision: 1,
+    rosterIndexes: [0],
+  }, 'wolf-1'));
+
+  const targeting = (mock.documents.get(attackPath)!.calculationReceipt as Fields).targeting as Fields;
+  const rolls = targeting.rolls as Fields[];
+  expect(rerollBounds).toEqual([6, 5]);
+  expect(rolls[0]).toMatchObject({ commanderSourceDie: 3, commanderNonparticipatingTargetRerolls: 1, target: 'dione' });
+  expect(rolls.every(({ target }) => target !== 'icebreaker')).toBe(true);
+});
+
 it('keeps an actual Commander reroll inside the selected group after a nonparticipating source face', async () => {
   configureSecondSplitGroupAttack();
   await declare();
