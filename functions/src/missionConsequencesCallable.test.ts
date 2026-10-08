@@ -233,7 +233,7 @@ it('retains successful K reward quantities and exact replay while redacting its 
 it('preserves another site\'s public numeric difficulty and protected resolution unchanged', async () => {
   const reply = await resolve('D', 'D-1', 1);
   expect(reply.publicState.outcomes.find(result => result.opportunityId === 'D-1'))
-    .toMatchObject({ contributorCount: 1, total: 20, difficulty: 14, criticalThreshold: 20, outcome: 'critical-success' });
+    .toMatchObject({ contributorCount: 1, total: 21, bonusTotal: 1, difficulty: 14, criticalThreshold: 20, outcome: 'critical-success' });
   const record = mock.documents.get(missionPath)!.lifecycleRecord as { outcomes: AwayMissionPublicState['outcomes'] };
   expect(record.outcomes?.find(result => result.opportunityId === 'D-1'))
     .toMatchObject({ difficulty: 14, criticalThreshold: 20, outcome: 'critical-success' });
