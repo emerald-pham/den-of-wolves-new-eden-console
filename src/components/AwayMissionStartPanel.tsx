@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { replacementRoleAvailableForSession, replacementRoleFor } from '@/data/replacementRoles';
 import './AwayMissionStartPanel.css';
+import GmMissionPrivacyPreparation from './GmMissionPrivacyPreparation';
+import { parseAwayMissionProjectionSafetyFacts } from '@/lib/awayMissionProjectionBarrier';
 import {
   subscribeGmMissionOpportunities,
   subscribeGmMissionStartSnapshots,
@@ -205,6 +207,7 @@ export default function AwayMissionStartPanel({
   const [pendingAttempt, setPendingAttempt] = useState<PendingAttempt | null>(() =>
     session?.id && instanceId ? restoreAttempt(storageKey(session.id, instanceId), session.id, instanceId) : null);
   const [busy, setBusy] = useState(false);
+  const [privacyPreparationPending, setPrivacyPreparationPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -277,7 +280,8 @@ export default function AwayMissionStartPanel({
     return participant ? [participant] : [];
   });
   const leaderIsSelected = missionLeaderUid !== '' && selectedUids.includes(missionLeaderUid);
-  const canStart = Boolean(session && selectedOpportunity && activePhaseReady && instanceId &&
+  const privacyReady = parseAwayMissionProjectionSafetyFacts(session?.awayMissionProjectionSafety)?.state === 'ready';
+  const canStart = Boolean(privacyReady && !privacyPreparationPending && session && selectedOpportunity && activePhaseReady && instanceId &&
     selectedUids.length > 0 && leaderIsSelected && !busy && !pendingAttempt);
 
   if (!isGm || !session) return null;
@@ -356,7 +360,7 @@ export default function AwayMissionStartPanel({
 
   const retryExact = async () => {
     const attempt = pendingAttempt;
-    if (!session || !isGm || !attempt || !pendingStorageKey || busy ||
+    if (!session || !isGm || !privacyReady || privacyPreparationPending || !attempt || !pendingStorageKey || busy ||
         attempt.command.sessionId !== session.id || attempt.command.instanceId !== instanceId) return;
     setBusy(true);
     setMessage(null);
@@ -384,6 +388,8 @@ export default function AwayMissionStartPanel({
   return (
     <section className="gm-console__module away-mission-start-panel cic-frame" aria-label="New-location mission start">
       <h2 className="gm-console__section-title">Away mission // new location</h2>
+      <GmMissionPrivacyPreparation key={`${session.id}:${instanceId}`} session={session} instanceId={instanceId}
+        onBlockingChange={setPrivacyPreparationPending} />
       <p className="gm-console__hint">
         Record the connected team roster and its selected Mission Leader at the exact newly reached opportunity.
         The server validates current group, usable source craft, phase, and source authority before it deals private cards.
