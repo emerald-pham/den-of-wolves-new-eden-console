@@ -3140,6 +3140,9 @@ it('revokes the Gorgoneion face projection when docking changes or the first car
 it('keeps overlapping away-mission pointers private and revokes stale GM access', async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
+    await updateDoc(doc(db, SESSION), { awayMissionProjectionSafety: {
+      policyVersion: 1, epoch: 3, state: 'ready', writeRevision: 1,
+    } });
     const pointer = (missionId: string, handId: string) => ({
       type: 'away-mission-hand-pointer',
       sessionId: 's1',
