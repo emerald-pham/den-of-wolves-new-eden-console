@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { HttpsError } from 'firebase-functions/v2/https';
 import type { Firestore } from 'firebase-admin/firestore';
 import type * as FirestoreModule from '@/lib/firestore';
 import { legacyFailedKProjectionFixture } from '../../tests/fixtures/legacyFailedKProjection';
@@ -106,7 +105,7 @@ const maintenance = createAwayMissionProjectionMaintenance({ db: database as unk
     if (player.get('role') !== 'gm' || player.get('connected') !== true || instance.get('uid') !== actorUid ||
         !isLiveSetupGm({ id: instanceId, uid: actorUid, connected: instance.get('connected') !== false,
           lastSeenAt: String(instance.get('lastSeenAt') ?? '') })) {
-      throw new HttpsError('permission-denied', 'A current live owned GM instance is required.');
+      throw Object.assign(new Error('A current live owned GM instance is required.'), { code: 'permission-denied' });
     }
   },
 });
