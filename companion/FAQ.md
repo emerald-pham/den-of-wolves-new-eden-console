@@ -67,8 +67,7 @@ are discarded. The isolated source uses Firebase Auth and callables. Password lo
 clears the password input; re-enter it to try again. No live deployment is approved.
 
 **Can I export responses?** The Responses screen includes CSV export; the real adapter source uses session-bound GM checks. Formula-like
-values are emitted as text. Actual spreadsheet-consumer verification is still
-required before real-data release. Downloaded exports need the owner's approved
+values are emitted as text. Import behavior in individual spreadsheet applications has not been tested. Downloaded exports need the owner's approved
 purpose and recipients.
 
 **Will data delete automatically?** The synthetic preview clears on reload and has no scheduled data deletion. DoW automatically removes empty/disconnected sessions after seven days; their companion links then fail closed. Casting data has no automatic deletion, as requested. No scheduled casting cleanup is installed. Explicit casting deletion is deferred until its confirmation, cascade and retry tombstones are tested. Revocation disables
