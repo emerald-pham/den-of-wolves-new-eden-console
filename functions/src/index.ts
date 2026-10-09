@@ -1,4 +1,6 @@
 import { holdTurnAdvancePhase } from './turnInterstitial';
+import { awayMissionPointerWriteSafetyPatch } from './awayMissionProjectionSafety';
+import { createAwayMissionProjectionMaintenance } from './awayMissionProjectionMaintenance';
 import { parsedMemberSessionDetails } from './memberSession';
 import { createCurrentMemberSessionReader } from './memberSessionCallable';
 import { limitCurrentMemberSessionReader } from './memberSessionLimit';
@@ -1278,6 +1280,14 @@ export const applyGorgoneionMissionSupport = auditedOnCall('applyGorgoneionMissi
 
 export const commitAwayMissionLifecycleCommand = auditedOnCall('commitAwayMissionLifecycleCommand', (request) =>
   awayMissionLifecycleCallables.commitAwayMissionLifecycleCommand(request));
+
+const awayMissionProjectionMaintenance = createAwayMissionProjectionMaintenance({ db,
+  serverTimestamp: () => FieldValue.serverTimestamp(),
+  requireActiveGm: (transaction, sessionId, uid, instanceId) =>
+    requireFacilitatorInstance(transaction as Transaction, sessionId, uid, instanceId).then(() => undefined),
+});
+export const repairAwayMissionProjectionPrivacy = auditedOnCall('repairAwayMissionProjectionPrivacy', request =>
+  awayMissionProjectionMaintenance(request));
 
 export const consentToPermissionedDismantling = auditedOnCall('consentToPermissionedDismantling', (request) =>
   permissionedDismantlingCallables.consentToPermissionedDismantling(request));
@@ -11428,6 +11438,7 @@ export const dealPrivateInitialCards = auditedOnCall<{
         updatedAt: FieldValue.serverTimestamp(),
       });
     }
+    tx.update(authority.session.ref, awayMissionPointerWriteSafetyPatch(authority.session.get('awayMissionProjectionSafety')));
     tx.update(missionDeckRef, {
       dealtCount: finiteDeal.dealtCountAfter,
       resolvedDiscardCardIds: [...finiteDeal.remainingResolvedDiscardCardIds],
@@ -11504,6 +11515,7 @@ function synchronizeLegacyMissionLifecycle(
       discarded: state.privateState!.cards.some(({ status }) => status === 'discarded'),
     });
   }
+  tx.update(session.ref, awayMissionPointerWriteSafetyPatch(session.get('awayMissionProjectionSafety')));
 }
 
 type AwayMissionDiscardReadyReply = Readonly<{
@@ -11686,6 +11698,9 @@ export const openPrivateMissionDiscards = auditedOnCall<{
         updatedAt: FieldValue.serverTimestamp(),
       });
     });
+    if (missionSnapshot.get('lifecycleRecord') === undefined) {
+      tx.update(authority.session.ref, awayMissionPointerWriteSafetyPatch(authority.session.get('awayMissionProjectionSafety')));
+    }
     tx.set(eventRef, buildPrivacySafeEventRecord({
       type: 'mission-discards-opened',
       payload: {},
@@ -11926,6 +11941,9 @@ export const discardPrivateMissionCard = auditedOnCall<{
           updatedAt: FieldValue.serverTimestamp(),
         });
       });
+    }
+    if (missionSnapshot.get('lifecycleRecord') === undefined) {
+      tx.update(session.ref, awayMissionPointerWriteSafetyPatch(session.get('awayMissionProjectionSafety')));
     }
     tx.set(eventRef, buildPrivacySafeEventRecord({
       type: 'mission-card-discarded',

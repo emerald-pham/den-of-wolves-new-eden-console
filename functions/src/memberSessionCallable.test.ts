@@ -170,6 +170,44 @@ it('retains a valid full-game preparation marker in the current member projectio
   expect((await read(request())).session.fullGameDemo).toEqual({ status: 'preparing', progression: 'manual' });
 });
 
+it.each(['held', 'ready'] as const)('returns the server-owned K privacy epoch to the current member (%s)', async state => {
+  records['sessions/s1']!.awayMissionProjectionSafety = { policyVersion: 1, epoch: 3, state, writeRevision: 17 };
+
+  const response = await read(request());
+
+  expect(response.actorUid).toBe('u1');
+  expect(response.session.shipResources).toEqual({ shepherd: { fuel: 3 } });
+  expect(response.session.awayMissionProjectionSafety).toEqual({ policyVersion: 1, epoch: 3, state });
+  expect(JSON.stringify(response.session)).not.toContain('writeRevision');
+});
+
+it('keeps current GM readiness independent of a held K privacy epoch and denies foreign membership', async () => {
+  records['sessions/s1']!.awayMissionProjectionSafety = { policyVersion: 1, epoch: 3, state: 'held', writeRevision: 17 };
+  records['sessions/s1/players/u1']!.role = 'gm';
+
+  const response = await read(request());
+
+  expect(response.session.shipResources).toEqual({ aegis: { fuel: 90 }, shepherd: { fuel: 3 } });
+  expect(response.session).not.toHaveProperty('missionCraftCommitments');
+  await expect(read(request(undefined, 'stranger'))).rejects.toMatchObject({ code: 'permission-denied' });
+});
+
+it.each([
+  ['missing', undefined], ['null', null], ['wrong policy', { policyVersion: 2, epoch: 3, state: 'ready', writeRevision: 17 }],
+  ['zero epoch', { policyVersion: 1, epoch: 0, state: 'ready', writeRevision: 17 }],
+  ['unsafe epoch', { policyVersion: 1, epoch: Number.MAX_SAFE_INTEGER + 1, state: 'ready', writeRevision: 17 }],
+  ['wrong state', { policyVersion: 1, epoch: 3, state: 'READY', writeRevision: 17 }],
+  ['missing generation', { policyVersion: 1, epoch: 3, state: 'ready' }],
+  ['negative generation', { policyVersion: 1, epoch: 3, state: 'ready', writeRevision: -1 }],
+  ['extra private field', { policyVersion: 1, epoch: 3, state: 'ready', writeRevision: 17, audit: 'secret' }],
+] as const)('returns an explicit fail-closed privacy marker for %s stored safety state', async (_label, marker) => {
+  if (marker !== undefined) records['sessions/s1']!.awayMissionProjectionSafety = marker;
+  const response = await read(request());
+  expect(response.session.shipResources).toEqual({ shepherd: { fuel: 3 } });
+  expect(response.session.awayMissionProjectionSafety).toBeNull();
+  expect(JSON.stringify(response.session)).not.toMatch(/writeRevision|secret/);
+});
+
 it('denies closed history to disconnected outsiders, stale-group readers, and kicked members', async () => {
   records['sessions/s1']!.phase = 'closed';
   records['sessions/s1/players/u1']!.connected = false;

@@ -1,4 +1,7 @@
 import { memberPhiliaRepairLedger, memberRedactedCraftUse, memberSessionProjection } from '../../functions/src/memberSession';
+import { projectedAwayMissionSafety, subscribeAwayMissionProjectionAccess, confirmAwayMissionProjectionSession,
+  confirmAwayMissionProjectionPlayer, withdrawAwayMissionProjectionAuthority, hasAwayMissionOwnerAccess,
+  markGmAwayMissionProjectionRead } from './awayMissionProjectionBarrier';
 import { parseAwayMissionLifecyclePublicState } from './awayMissionLifecycleService';
 import {
   collection,
@@ -3840,6 +3843,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
       ? { dradisContactTriggeredAt: iso(dradisContactTriggeredAt) }
       : {}),
     ...(ownerUid ? { ownerUid } : {}),
+    awayMissionProjectionSafety: projectedAwayMissionSafety(data.awayMissionProjectionSafety),
     createdAt: iso(data.createdAt),
     updatedAt: iso(data.updatedAt),
   };
@@ -3851,6 +3855,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
       throw new Error('The current member session scope is malformed.');
     }
     const projected = memberSessionProjection(session, { groupId: scope.groupId, vesselIds, craftIds });
+    projected.awayMissionProjectionSafety = session.awayMissionProjectionSafety;
     // The server already bound this independent craft to the current Press
     // actor. Keep its validated docking/history through the second local
     // projection without giving Press any vessel operational maps.
@@ -4096,6 +4101,13 @@ export function subscribeSessionState(
   const database = db();
   let subscribed = true;
   const subscriptionToken = Symbol('session-subscription');
+  let ownerMissionAccess = false;
+  let gmMissionAccess = false;
+  let ownerMissionStop: Unsubscribe | undefined;
+  let gmMissionStop: Unsubscribe | undefined;
+  let missionAccessStop: Unsubscribe | undefined;
+  let missionPointerGeneration = 0;
+  let gmMissionPointerGeneration = 0;
   let gmDiscoveryTerminated = false;
   sessionSubscriptionOwner.memberProjectionConfirmation?.cancel();
   sessionSubscriptionOwner.memberProjectionConfirmation = undefined;
@@ -4199,7 +4211,8 @@ export function subscribeSessionState(
     unsubscribeAwayMissionHands.forEach((unsubscribe) => unsubscribe());
     unsubscribeAwayMissionHands = [];
     const generation = ++awayMissionHandListenerGeneration;
-    if (pointers.length === 0 || (!handlers.onAwayMissionHand && !handlers.onAwayMissionHands)) {
+    if (pointers.length === 0 || !ownerMissionAccess || !hasAwayMissionOwnerAccess(sessionId, uid) ||
+        (!handlers.onAwayMissionHand && !handlers.onAwayMissionHands)) {
       handlers.onAwayMissionHand?.(null);
       handlers.onAwayMissionHands?.([]);
       return;
@@ -4219,7 +4232,7 @@ export function subscribeSessionState(
         { includeMetadataChanges: true },
         (snapshot) => {
           if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
-              generation !== awayMissionHandListenerGeneration) return;
+              generation !== awayMissionHandListenerGeneration || !ownerMissionAccess || !hasAwayMissionOwnerAccess(sessionId, uid)) return;
           if (snapshot.metadata?.fromCache === true) return;
           const hand = snapshot.exists() ? awayMissionHand(snapshot.data(), sessionId, uid) : null;
           if (hand) hands.set(pointer.handId, hand);
@@ -4228,7 +4241,7 @@ export function subscribeSessionState(
         },
         (error: { readonly code?: string }) => {
           if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
-              generation !== awayMissionHandListenerGeneration) return;
+              generation !== awayMissionHandListenerGeneration || !ownerMissionAccess || !hasAwayMissionOwnerAccess(sessionId, uid)) return;
           if (error.code === 'permission-denied' || error.code === 'not-found') {
             hands.delete(pointer.handId);
             publishHands();
@@ -4254,6 +4267,12 @@ export function subscribeSessionState(
     }
     if (listenersStopped) return;
     listenersStopped = true;
+    missionAccessStop?.(); missionAccessStop = undefined;
+    ownerMissionStop?.(); ownerMissionStop = undefined;
+    gmMissionStop?.(); gmMissionStop = undefined;
+    ownerMissionAccess = false; gmMissionAccess = false;
+    missionPointerGeneration += 1; gmMissionPointerGeneration += 1;
+    withdrawAwayMissionProjectionAuthority(sessionId, uid);
     privateLoyaltyListenerGeneration += 1;
     unsubscribeWolfCult();
     unsubscribeArbourVision();
@@ -4310,6 +4329,7 @@ export function subscribeSessionState(
     handlers.onPlayerDiscovery?.(projection.groupId === memberPlayer?.fleetGroupId ? projection : null);
   };
   const revokeMemberActor = () => {
+    confirmAwayMissionProjectionPlayer(sessionId, uid, undefined);
     if (handlers.sessionReadAudience !== 'member') return;
     memberActorAvailable = false;
     memberSessionConfirmed = false;
@@ -4401,6 +4421,7 @@ export function subscribeSessionState(
               memberSessionConfirmed = true;
               confirmedMemberActorFingerprint = fingerprint;
               handlers.onSessionFreshness?.(true);
+              confirmAwayMissionProjectionSession(sessionId, uid, session.awayMissionProjectionSafety);
               if (session.phase === 'closed') stopForClosedHistory();
               else publishPendingMemberDiscovery();
               settleConfirmations(readingConfirmationRevision, true);
@@ -4413,6 +4434,7 @@ export function subscribeSessionState(
               memberSessionConfirmed = false;
               pendingMemberDiscovery = undefined;
               handlers.onSessionFreshness?.(false);
+              withdrawAwayMissionProjectionAuthority(sessionId, uid);
               onError();
             }
           }
@@ -4485,6 +4507,46 @@ export function subscribeSessionState(
     );
     return stopPlayerDiscoveryListener;
   };
+  const startOwnerMissionReader = () => {
+    const generation = ++missionPointerGeneration;
+    ownerMissionStop = onSnapshot(query(
+      collection(database, `sessions/${sessionId}/awayMissionHandPointers`),
+      where('sessionId', '==', sessionId), where('participantUid', '==', uid),
+    ), { includeMetadataChanges: true }, snapshot => {
+      if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
+          generation !== missionPointerGeneration || !ownerMissionAccess || !hasAwayMissionOwnerAccess(sessionId, uid)) return;
+      if (snapshot.metadata?.fromCache === true) return;
+      const pointers = snapshot.docs.map(entry => awayMissionHandPointer(entry.data(), sessionId, uid))
+        .filter((pointer): pointer is AwayMissionHandPointer => pointer !== null);
+      handlers.onAwayMissionHandPointers?.(pointers); handlers.onAwayMissionHandPointer?.(pointers[0] ?? null);
+      startAwayMissionHandListeners(pointers);
+    }, (error: { readonly code?: string }) => {
+      if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
+          generation !== missionPointerGeneration || !ownerMissionAccess) return;
+      if (error.code === 'permission-denied' || error.code === 'not-found') {
+        handlers.onAwayMissionHandPointers?.([]); handlers.onAwayMissionHandPointer?.(null);
+        startAwayMissionHandListeners([]); return;
+      }
+      onError();
+    });
+  };
+  const startGmMissionReader = () => {
+    const generation = ++gmMissionPointerGeneration;
+    markGmAwayMissionProjectionRead();
+    gmMissionStop = onSnapshot(query(collection(database, `sessions/${sessionId}/awayMissionHandPointers`),
+      where('sessionId', '==', sessionId)), { includeMetadataChanges: true }, snapshot => {
+      if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
+          generation !== gmMissionPointerGeneration || !gmMissionAccess) return;
+      if (snapshot.metadata?.fromCache === true) return;
+      handlers.onGmAwayMissionHandPointers?.(snapshot.docs.map(entry => awayMissionHandPointer(entry.data(), sessionId))
+        .filter((pointer): pointer is AwayMissionHandPointer => pointer !== null));
+    }, (error: { readonly code?: string }) => {
+      if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
+          generation !== gmMissionPointerGeneration || !gmMissionAccess) return;
+      if (error.code === 'permission-denied' || error.code === 'not-found') { handlers.onGmAwayMissionHandPointers?.([]); return; }
+      onError();
+    });
+  };
   unsubscribes = [
     sessionDocument ? onSnapshot(sessionDocument, { includeMetadataChanges: true }, (snapshot) => {
       if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
@@ -4509,6 +4571,7 @@ export function subscribeSessionState(
             // without replaying it. A matching updatedAt alone is insufficient:
             // some session writes do not advance that field.
             if (!sessionConfirmationInFlight) handlers.onSessionFreshness?.(true);
+            if (!sessionConfirmationInFlight) confirmAwayMissionProjectionSession(sessionId, uid, session.awayMissionProjectionSafety);
             return;
           }
           const previousCursor = sessionSnapshotAuthority.latestServerAuthorityCursor;
@@ -4531,6 +4594,7 @@ export function subscribeSessionState(
           handlers.onSessionFreshness?.(false);
         } else {
           handlers.onSessionFreshness?.(true);
+          confirmAwayMissionProjectionSession(sessionId, uid, session.awayMissionProjectionSafety);
         }
         if (session.phase === 'closed') stopForClosedHistory();
       }
@@ -4593,6 +4657,7 @@ export function subscribeSessionState(
         }
         memberPlayer = player;
         handlers.onPlayer(player);
+        if (!fromCache) confirmAwayMissionProjectionPlayer(sessionId, uid, player);
         // The actor change withdraws the old projection. Its private document
         // may be unchanged, so the old listener need not emit again. Rebind the
         // same UID's reader for a fresh server authorization; retired callbacks
@@ -4758,59 +4823,6 @@ export function subscribeSessionState(
         onError();
       },
     )] : []),
-    ...((handlers.onAwayMissionHandPointer || handlers.onAwayMissionHand ||
-      handlers.onAwayMissionHandPointers || handlers.onAwayMissionHands) ? [onSnapshot(
-      query(
-        collection(database, `sessions/${sessionId}/awayMissionHandPointers`),
-        where('sessionId', '==', sessionId),
-        where('participantUid', '==', uid),
-      ),
-      { includeMetadataChanges: true },
-      (snapshot) => {
-        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
-        if (snapshot.metadata?.fromCache === true) return;
-        const pointers = snapshot.docs
-          .map((entry) => awayMissionHandPointer(entry.data(), sessionId, uid))
-          .filter((pointer): pointer is AwayMissionHandPointer => pointer !== null);
-        handlers.onAwayMissionHandPointers?.(pointers);
-        handlers.onAwayMissionHandPointer?.(pointers[0] ?? null);
-        startAwayMissionHandListeners(pointers);
-      },
-      (error: { readonly code?: string }) => {
-        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
-        if (error.code === 'permission-denied' || error.code === 'not-found') {
-          handlers.onAwayMissionHandPointers?.([]);
-          handlers.onAwayMissionHandPointer?.(null);
-          startAwayMissionHandListeners([]);
-          return;
-        }
-        onError();
-      },
-    )] : []),
-    ...(handlers.onGmAwayMissionHandPointers ? [onSnapshot(
-      query(
-        collection(database, `sessions/${sessionId}/awayMissionHandPointers`),
-        where('sessionId', '==', sessionId),
-      ),
-      { includeMetadataChanges: true },
-      (snapshot) => {
-        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
-        if (snapshot.metadata?.fromCache === true) return;
-        handlers.onGmAwayMissionHandPointers?.(
-          snapshot.docs
-            .map((entry) => awayMissionHandPointer(entry.data(), sessionId))
-            .filter((pointer): pointer is AwayMissionHandPointer => pointer !== null),
-        );
-      },
-      (error: { readonly code?: string }) => {
-        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
-        if (error.code === 'permission-denied' || error.code === 'not-found') {
-          handlers.onGmAwayMissionHandPointers?.([]);
-          return;
-        }
-        onError();
-      },
-    )] : []),
     ...(handlers.onSetupReceipt ? [onSnapshot(
       query(
         collection(database, `sessions/${sessionId}/secrets`),
@@ -4831,6 +4843,27 @@ export function subscribeSessionState(
     )] : []),
   ];
   subscriptionsReady = true;
+  if (subscribed && (handlers.onAwayMissionHandPointer || handlers.onAwayMissionHand ||
+      handlers.onAwayMissionHandPointers || handlers.onAwayMissionHands || handlers.onGmAwayMissionHandPointers)) {
+    missionAccessStop = subscribeAwayMissionProjectionAccess(sessionId, uid, access => {
+      if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
+      ownerMissionAccess = access.owner; gmMissionAccess = access.gm;
+      if (access.owner && (handlers.onAwayMissionHandPointer || handlers.onAwayMissionHand ||
+          handlers.onAwayMissionHandPointers || handlers.onAwayMissionHands)) {
+        if (!ownerMissionStop) startOwnerMissionReader();
+      } else {
+        ownerMissionStop?.(); ownerMissionStop = undefined; missionPointerGeneration += 1;
+        handlers.onAwayMissionHandPointers?.([]); handlers.onAwayMissionHandPointer?.(null);
+        startAwayMissionHandListeners([]);
+      }
+      if (access.gm && handlers.onGmAwayMissionHandPointers) {
+        if (!gmMissionStop) startGmMissionReader();
+      } else {
+        gmMissionStop?.(); gmMissionStop = undefined; gmMissionPointerGeneration += 1;
+        handlers.onGmAwayMissionHandPointers?.([]);
+      }
+    });
+  }
   if (stopRequestedBeforeReady) unsubscribeSessionListeners();
   startWolfCultListener = (resetRevision: boolean) => {
     if (closedHistoryTerminated) return;

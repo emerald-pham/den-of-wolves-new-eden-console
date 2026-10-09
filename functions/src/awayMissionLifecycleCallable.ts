@@ -1,4 +1,5 @@
 import { shipForRole } from './crewAccess';
+import { awayMissionPointerWriteSafetyPatch } from './awayMissionProjectionSafety';
 import { requireCandidateCraftActionAvailable } from './candidateAvailability';
 import { randomInt } from 'node:crypto';
 import { HttpsError } from 'firebase-functions/v2/https';
@@ -639,6 +640,8 @@ export function createAwayMissionLifecycleCallables(
             updatedAt,
           });
         });
+        transaction.update(dependencies.db.doc(`sessions/${parsed.sessionId}`),
+          awayMissionPointerWriteSafetyPatch(sessionSnapshot.get('awayMissionProjectionSafety')));
         transaction.create(dependencies.db.doc(p.event), {
           type: 'away-mission-lifecycle-command',
           sessionId: parsed.sessionId,
@@ -1021,6 +1024,70 @@ function requireStoredLifecycleRecord(
     }
   }
   return record;
+}
+
+/** Reuse the command loader's immutable authority for administrative repair.
+ * This read never bootstraps gameplay, rolls dice, or changes a command receipt. */
+export async function readAwayMissionProjectionRepairAuthority(input: Readonly<{
+  db: AwayMissionLifecycleCallableDatabase;
+  transaction: unknown;
+  sessionId: string;
+  mission: AwayMissionLifecycleCallableSnapshot;
+  deck: AwayMissionLifecycleCallableSnapshot;
+}>): Promise<Readonly<{
+  missionId: string;
+  handIds: readonly string[];
+  pointers: readonly Readonly<{ handId: string; publicState: AwayMissionPublicState | null; needsSanitation: boolean }>[];
+}>> {
+  const transaction = input.transaction as LifecycleTransaction;
+  const missionId = input.mission.id;
+  if (!missionId || !input.mission.exists) fail('failed-precondition', 'The protected mission is unavailable.');
+  const mission = requireSnapshotData(input.mission, 'The protected mission is malformed.');
+  const p403 = parseP403MissionContext(mission, missionId);
+  const deckData = requireSnapshotData(input.deck, 'The shared mission deck is unavailable.');
+  const deck = parseMissionDeckState(deckData);
+  const deckCount = deck ? missionDeckDealtCount(deckData, deck.order.length) : null;
+  const discardIds = deck && deckCount !== null ? missionDeckResolvedDiscardCardIds(deckData, deck, deckCount) : null;
+  if (!deck || deckCount === null || discardIds === null || p403.dealtThrough > deckCount) {
+    fail('failed-precondition', 'The protected mission deck authority is malformed.');
+  }
+  validateP403DeckSlice(p403, deck);
+  const start = await transaction.get(input.db.doc(`sessions/${input.sessionId}/missionStartSnapshots/${p403.opportunityId}`));
+  if (!start.exists) fail('failed-precondition', 'The immutable mission-start receipt is missing.');
+  validateStartSnapshot(requireSnapshotData(start, 'The mission-start receipt is malformed.'), p403, input.sessionId);
+  const cards = new Map(missionCardsForState(deck).map(card => [card.id, card]));
+  const participants: LoadedParticipantDocuments[] = await Promise.all(p403.participantSnapshots.map(async (participant, index) => {
+    const handId = p403.handIds[index]!;
+    const handRef = input.db.doc(`sessions/${input.sessionId}/awayMissionHands/${handId}`);
+    const pointerRef = input.db.doc(`sessions/${input.sessionId}/awayMissionHandPointers/${handId}`);
+    const [handSnapshot, pointerSnapshot] = await Promise.all([transaction.get(handRef), transaction.get(pointerRef)]);
+    if (!handSnapshot.exists || !pointerSnapshot.exists) fail('failed-precondition', 'A canonical participant hand or pointer is missing.');
+    const hand = requireSnapshotData(handSnapshot, 'A canonical participant hand is malformed.');
+    const pointer = requireSnapshotData(pointerSnapshot, 'A canonical participant pointer is malformed.');
+    const card = cards.get(p403.cardIds[index]!);
+    if (!card || hand.type !== 'away-mission-hand' || hand.sessionId !== input.sessionId ||
+        hand.missionId !== missionId || hand.handId !== handId || hand.participantUid !== participant.uid ||
+        hand.cardId !== card.id || hand.rank !== card.rank || hand.suit !== card.suit || hand.value !== card.value ||
+        (hand.discarded !== undefined && typeof hand.discarded !== 'boolean')) {
+      fail('failed-precondition', 'A canonical participant hand no longer matches its initial deal.');
+    }
+    validatePointerIdentity(pointer, p403, participant, handId, input.sessionId);
+    return { participant, handId, handRef, pointerRef, hand, pointer };
+  }));
+  if (!Object.hasOwn(mission, 'lifecycleRecord')) {
+    if (mission.status !== undefined || mission.overrun !== undefined || !INITIAL_P403_PHASES.has(p403.phase) ||
+        participants.some(({ hand, pointer }) => hand.lifecyclePrivateState !== undefined || pointer.lifecyclePublicState !== undefined)) {
+      fail('failed-precondition', 'A projected mission lacks its canonical protected record.');
+    }
+    validateLegacyDiscardProjections(p403, participants);
+    return { missionId, handIds: p403.handIds,
+      pointers: participants.map(({ handId }) => ({ handId, publicState: null, needsSanitation: false })) };
+  }
+  const record = requireStoredLifecycleRecord(mission.lifecycleRecord, mission, input.sessionId, p403, deck, deckCount, participants);
+  return { missionId, handIds: p403.handIds, pointers: participants.map(({ participant, handId, pointer }) => {
+    const publicState = safePublicProjection(record, participant.uid)!;
+    return { handId, publicState, needsSanitation: !sameJson(pointer.lifecyclePublicState, publicState) };
+  }) };
 }
 
 function validateStartSnapshot(value: Data, p403: P403MissionContext, sessionId: string): void {

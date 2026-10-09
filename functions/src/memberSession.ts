@@ -1,4 +1,5 @@
 import { fleetGroupRecord } from './fleetGroups';
+import { memberAwayMissionProjectionSafety } from './awayMissionProjectionSafety';
 import { publicSmallShipStatesForSession } from './extraShipAdmission';
 import { parseVoyage33MaintenanceState } from './voyage33Maintenance';
 import { parseVoyage33Admission, VOYAGE_33_ID } from './voyageAdmission';
@@ -158,6 +159,7 @@ export function memberSessionProjection(value: unknown, scope: MemberSessionScop
   }
   const result: Record<string, unknown> = Object.fromEntries(PUBLIC_FIELDS
     .filter(key => root[key] !== undefined).map(key => [key, root[key]]));
+  result.awayMissionProjectionSafety = memberAwayMissionProjectionSafety(root.awayMissionProjectionSafety);
   const outcome = safeGameOutcome(root.gameOutcome);
   if (outcome) result.gameOutcome = outcome;
   else delete result.gameOutcome;
