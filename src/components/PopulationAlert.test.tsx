@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
+import type { PopulationAlert as PopulationAlertData } from '@/types/game';
 import PopulationAlert from './PopulationAlert';
 import attemptEvidence from '../../scripts/fixtures/pc10-population-gm-observer-attempt-evidence.json';
 
@@ -57,7 +58,7 @@ function attempt20PopulationAlerts(order: 'server' | 'reverse' = 'server') {
   return Object.fromEntries(ordered.map(([mapKey, alert]) => [mapKey, alert]));
 }
 
-function setPopulationView(populationAlerts: Record<string, unknown>, gmInstanceId: string, unrestAlerts = {}) {
+function setPopulationView(populationAlerts: Record<string, PopulationAlertData>, gmInstanceId: string, unrestAlerts = {}) {
   const state = useSessionStore.getState();
   useSessionStore.setState({
     session: { ...state.session!, populationAlerts, unrestAlerts },
@@ -70,7 +71,7 @@ it('renders the source component’s first targeted alert in browser feed order 
   // projection. This is a source-rendered control, not a reconstruction of it.
   expect(attemptEvidence.attempt20.nativeDomProjection).toBeNull();
   const firstClientAlert = attemptEvidence.attempt20.orderedServerAlerts.at(-1)!;
-  setPopulationView(attempt20PopulationAlerts('reverse'), firstClientAlert.targetGmInstanceIds[0]);
+  setPopulationView(attempt20PopulationAlerts('reverse'), firstClientAlert.targetGmInstanceIds[0]!);
   render(<PopulationAlert />);
 
   const dialog = screen.getByRole('alertdialog', { name: 'Survivor population threshold reached' });
@@ -82,8 +83,8 @@ it('renders the source component’s first targeted alert in browser feed order 
 });
 
 it('skips another GM’s alert and suppresses population UI while its unrest alert is pending', () => {
-  const alert = attemptEvidence.attempt20.orderedServerAlerts[0];
-  const gmInstanceId = alert.targetGmInstanceIds[0];
+  const alert = attemptEvidence.attempt20.orderedServerAlerts[0]!;
+  const gmInstanceId = alert.targetGmInstanceIds[0]!;
   const unrelated = { ...alert, shipId: 'other-ship', shipName: 'Other Ship', targetGmInstanceIds: ['other-gm'] };
   setPopulationView({ unrelated, [alert.shipId]: alert }, gmInstanceId);
   const view = render(<PopulationAlert />);

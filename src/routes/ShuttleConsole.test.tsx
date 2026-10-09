@@ -3370,8 +3370,8 @@ it('returns the normal Highwall printed Miner owner through the named parent con
     <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
     <Route path="/ships/icebreaker/roles/icebreaker-miner" element={<p>Actual Miner parent console</p>} />
   </Routes></MemoryRouter>);
-  expect(screen.queryByRole('link', { name: 'Back to assigned console', exact: true })).not.toBeInTheDocument();
-  const back = screen.getByRole('link', { name: 'Back to Icebreaker Miner console', exact: true });
+  expect(screen.queryByRole('link', { name: 'Back to assigned console' })).not.toBeInTheDocument();
+  const back = screen.getByRole('link', { name: 'Back to Icebreaker Miner console' });
   expect(back).toHaveAttribute('href', '/ships/icebreaker/roles/icebreaker-miner');
   fireEvent.click(back);
   expect(screen.getByText('Actual Miner parent console')).toBeInTheDocument();
