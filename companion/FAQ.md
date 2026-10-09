@@ -3,6 +3,7 @@
 
 The isolated source connects the real Firebase adapter and transaction handler at
 `/casting`. No live deployment or real participant collection is approved.
+The reconciled released-main candidate still awaits fresh allocated Firebase integration and final rendered qualification. The following evidence belongs to the earlier isolated candidate and applies only within the inheritance limits in [RELEASE_CANDIDATE.md](RELEASE_CANDIDATE.md).
 Actual synthetic local Auth/callable/Firestore integration passed on October 9;
 see [LOCAL_QUALIFICATION_20261009.md](LOCAL_QUALIFICATION_20261009.md). Clean-route and enlarged-gallery focused actual checks also passed; see
 [NARROW_QUALIFICATION_20261009.md](NARROW_QUALIFICATION_20261009.md).
@@ -83,3 +84,9 @@ authored synthetic content only.
 **Does global GM access allow editing every workspace?** No. The real handler source checks current GM-access validity plus the live owned GM instance in the workspace’s bound session on every private action. Non-GM, expired/revoked, stale and cross-session attempts must fail. A selected lobby and an explicitly claimed current instance are required. Source/native checks and synthetic local Firebase authorization-boundary qualification passed. Production security and release gates remain separate.
 
 **Can I cast before play begins?** Yes: the source preview requires creating/selecting a turn-zero lobby, then separately claiming a current GM instance and binding casting. The actual DoW lifecycle supports lobby sessions before the separate startGame action. Existing GM login/claim is required by the real adapter source. Empty/disconnected sessions have seven-day retention; deleted/closed sessions disable their companion links, so availability is not indefinite.
+
+**Can I deactivate a link when the workspace is full?** Yes. Unpublish and Revoke
+retire their public indexes atomically with private durable retry receipts stored
+under the workspace. These receipts do not consume the serialized workspace limit.
+Retained submissions, templates and prior retry acknowledgements are not deleted.
+Current GM authority is required even when replaying an acknowledged action.

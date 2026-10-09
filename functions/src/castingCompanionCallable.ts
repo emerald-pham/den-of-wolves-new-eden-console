@@ -5,7 +5,7 @@ import { isGmAccessActive } from './gmAccess';
 import { PRESENCE_LEASE_MS } from './sessionLifecycle';
 
 type Actor = { uid: string; workspace: string; instanceId: string };
-type State = { forms: [string, { workspace: string; published?: { handle: string } }][]; shares: [string, { workspace: string }][]; responses: unknown[] };
+type State = { forms: [string, { workspace: string; published?: { handle: string } }][]; shares: [string, { workspace: string }][]; responses: unknown[]; receipts: [string, unknown][] };
 type Model = { exportSyntheticState(): State; assign(...args: unknown[]): unknown; dossier(...args: unknown[]): unknown } & Record<string, (...args: unknown[]) => unknown>;
 type Gateway = { handle(request: unknown): Promise<unknown> };
 type Core = { CastingService: new (input: unknown) => Model; createSessionCastingGateway(dependencies: unknown): Gateway };
@@ -62,12 +62,22 @@ export function createCastingCommands({ db, requireGm, verifyIdentity, now = Dat
         else { if (!actor) fail('unauthenticated'); await currentGm(tx, sessionId, actor); }
         const raw = root.get('stateJson'); if (typeof raw !== 'string' || Buffer.byteLength(raw) > 700 * 1024) fail('internal');
         const before = JSON.parse(raw) as State;
+        // Deactivation receipts live in a denied workspace subcollection so retries
+        // cannot consume the capacity needed to retire a public link. Never prune data.
+        const deactivation = method === 'unpublish' || method === 'revoke';
+        const embeddedReceiptKeys = new Set(before.receipts.map(([key]) => key));
+        const receiptRef = deactivation && actor ? db.doc(`castingWorkspaces/${workspace}/deactivationReceipts/${hash(JSON.stringify([actor.uid, method, args.at(-1)]))}`) : undefined;
+        const durableReceipt = receiptRef ? await tx.get(receiptRef) : undefined;
+        if (durableReceipt?.exists) before.receipts.push(durableReceipt.get('receipt') as [string, unknown]);
         const model = new core.CastingService({ memberships: actor ? [{ uid: actor.uid, workspace, role: 'owner' }] : [], state: before });
         let result: unknown;
         if (method === 'assign') result = model.assign(actor, args[0], args[1], 'internal-bearer-snapshot', args[2], args[3], args[4]);
         else if (method === 'dossier') result = model.dossier({ uid: 'internal-bearer-snapshot', workspace }, args[0]);
         else { const operation = model[method]; if (typeof operation !== 'function') fail('invalid-argument'); result = ['publicForm','submit'].includes(method) ? operation.call(model, ...args) : operation.call(model, actor, ...args); }
-        const after = model.exportSyntheticState(), stateJson = JSON.stringify(after); if (Buffer.byteLength(stateJson) > 700 * 1024) fail('resource-exhausted');
+        const after = model.exportSyntheticState();
+        const deactivationReceipt = deactivation ? after.receipts.find(([key]) => !embeddedReceiptKeys.has(key)) : undefined;
+        if (deactivation) after.receipts = after.receipts.filter(([key]) => embeddedReceiptKeys.has(key));
+        const stateJson = JSON.stringify(after); if (Buffer.byteLength(stateJson) > 700 * 1024) fail('resource-exhausted');
         const oldHandles = handles(before), newHandles = handles(after), changed = [...new Set([...oldHandles.keys(), ...newHandles.keys()])].filter(handle => oldHandles.has(handle) !== newHandles.has(handle));
         const updates = await Promise.all(changed.map(async handle => ({ handle, ref: db.doc(`castingPublishedHandles/${hash(handle)}`), previous: await tx.get(db.doc(`castingPublishedHandles/${hash(handle)}`)) })));
         for (const update of updates) if (newHandles.has(update.handle) && update.previous.exists) fail('already-exists');
@@ -81,6 +91,7 @@ export function createCastingCommands({ db, requireGm, verifyIdentity, now = Dat
           }));
         }
         if (stateJson !== raw) tx.set(ref, { sessionId, stateJson });
+        if (receiptRef && !durableReceipt?.exists && deactivationReceipt) tx.create(receiptRef, { receipt: deactivationReceipt });
         for (const update of updates) { const data = { workspace, kind: newHandles.get(update.handle) ?? oldHandles.get(update.handle), active: newHandles.has(update.handle) }; if (update.previous.exists) tx.set(update.ref, data); else tx.create(update.ref, data); }
         for (const budget of budgets) tx.set(budget.ref, { count: budget.count });
         return result;
