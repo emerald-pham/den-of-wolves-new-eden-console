@@ -1,0 +1,16 @@
+{
+  "candidate": "14240fc0c6cd79a465282c9a692ea303927bc0b2",
+  "observed": true,
+  "viewport": {
+    "width": 844,
+    "height": 390
+  },
+  "rootFontSize": "200%",
+  "independent_reviewers": [
+    "casting_typography",
+    "casting_motion"
+  ],
+  "failure": "Heading/status/Skip consume viewport; gallery shrinks to a strip showing flag tops without readable captions. Final orientation acceptance blocked.",
+  "runtime_clean": "2026-10-09T02:28:52.934Z",
+  "functional_repair_not_yet_applied": true
+}
