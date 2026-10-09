@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { legacyFailedKProjectionFixture } from '../../tests/fixtures/legacyFailedKProjection';
 import { missionDeck } from '../../functions/src/missionDeck';
-import type { GameSession } from '@/types/game';
+import type { GameSession, AwayMissionHand, AwayMissionHandPointer } from '@/types/game';
 import type * as StoreModule from '@/store/useSessionStore';
 import type * as ServiceModule from './awayMissionLifecycleService';
 import type * as FirestoreModule from './firestore';
@@ -163,3 +163,52 @@ it.each(constructions.flatMap(construction => ['held', 'missing marker', 'malfor
     if (construction === 'global member feed') { expect(onPointers).toHaveBeenLastCalledWith([]); expect(onHands).toHaveBeenLastCalledWith([]); }
     else expect(onState.mock.lastCall?.[0].missions).toEqual([]);
   });
+
+const gmPointers = () => mock.listeners.filter(listener => listener.reference.path.includes('/awayMissionHandPointers') &&
+  !listener.reference.constraints?.some(constraint => constraint.field === 'participantUid'));
+async function startGm(state: 'held' | undefined = 'held') {
+  seed('gm');
+  stops.push(firestore.subscribeSessionState('s1', 'alice', {
+    sessionReadAudience: 'gm', onSession: session => store.setState({ session }),
+    onSessionFreshness: fresh => store.setState({ sessionSnapshotFreshness: fresh ? 'server' : 'unknown' }),
+    onPlayer: me => store.setState({ me }), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+    onGmAwayMissionHandPointers: onGmPointers,
+  }));
+  const raw = { ...(mock.memberReply.session as Data), memberSessionScope: undefined,
+    awayMissionProjectionSafety: state ? { policyVersion: 1, epoch: 3, state, writeRevision: 18 } : undefined };
+  mock.listeners.filter(listener => listener.reference.path === 'sessions/s1').forEach(listener => listener.next({
+    id: 's1', metadata: { fromCache: false }, exists: () => true, data: () => raw,
+  }));
+  ownPlayer(); await settle();
+}
+it.each(['held', undefined] as const)('preserves the complete current-GM reader independently of participant readiness (%s)', async state => {
+  await startGm(state);
+  expect(gmPointers()).toHaveLength(1); expect(ownerPointers()).toEqual([]);
+  const fixture = legacyFailedKProjectionFixture('s1');
+  gmPointers()[0]!.next({ metadata: { fromCache: false }, docs: fixture.pointers.map(pointer => ({ id: pointer.handId, data: () => pointer })) });
+  expect(onGmPointers.mock.lastCall?.[0]).toHaveLength(2);
+  ownPlayer({ role: 'player' }); await settle();
+  expect(gmPointers()[0]!.stop).toHaveBeenCalledOnce(); expect(onGmPointers).toHaveBeenLastCalledWith([]);
+  expect(ownerPointers()).toEqual([]);
+});
+it('requires a new server own-player confirmation before GM raw readers reattach after offline', async () => {
+  await startGm(); expect(gmPointers()).toHaveLength(1);
+  Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: false }); window.dispatchEvent(new Event('offline'));
+  expect(gmPointers()[0]!.stop).toHaveBeenCalledOnce();
+  Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: true }); store.setState({ connection: 'live' });
+  expect(gmPointers()).toHaveLength(1);
+  ownPlayer(); await settle(); expect(gmPointers()).toHaveLength(2);
+});
+it.each(constructions)('withdraws retained app private views independently of retired callbacks in the actual %s', async construction => {
+  await start(construction); const delivered = deliverMission();
+  store.getState().setAwayMissionHandPointers([delivered.pointer as unknown as AwayMissionHandPointer]);
+  store.getState().setAwayMissionHands([delivered.hand as unknown as AwayMissionHand]);
+  store.getState().setGmAwayMissionHandPointers([delivered.pointer as unknown as AwayMissionHandPointer]);
+  expect(store.getState().awayMissionHand?.cardId).toBe('A♥');
+  withdraw('Auth UID replacement'); await settle();
+  expect(store.getState().awayMissionHandPointers).toEqual([]); expect(store.getState().awayMissionHands).toEqual([]);
+  expect(store.getState().awayMissionHandPointer).toBeNull(); expect(store.getState().awayMissionHand).toBeNull();
+  expect(store.getState().gmAwayMissionHandPointers).toEqual([]);
+  // App references can be withdrawn; previously downloaded bytes are retained.
+  expect(delivered.pointer.lifecyclePublicState.outcomes?.[0]).toMatchObject({ difficulty: 30, criticalThreshold: 40 });
+});
