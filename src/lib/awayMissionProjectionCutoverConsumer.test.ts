@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { legacyFailedKProjectionFixture } from '../../tests/fixtures/legacyFailedKProjection';
+import { missionDeck } from '../../functions/src/missionDeck';
 import type { GameSession } from '@/types/game';
+import type * as StoreModule from '@/store/useSessionStore';
+import type * as ServiceModule from './awayMissionLifecycleService';
+import type * as FirestoreModule from './firestore';
 
 type Data = Record<string, unknown>;
 type Reference = { path: string; constraints?: readonly Data[] };
@@ -30,9 +34,9 @@ vi.mock('./firebaseConfig', () => ({ emulatorPorts: { firestore: 8080 }, useEmul
 const intentKey = 'dow-away-mission-memory-cutover';
 const constructions = ['global member feed', 'standalone mission workspace'] as const;
 type Construction = typeof constructions[number];
-let store: typeof import('@/store/useSessionStore')['useSessionStore'];
-let service: typeof import('./awayMissionLifecycleService');
-let firestore: typeof import('./firestore');
+let store: typeof StoreModule.useSessionStore;
+let service: typeof ServiceModule;
+let firestore: typeof FirestoreModule;
 const stops: Array<() => void> = [];
 const onPointers = vi.fn(); const onHands = vi.fn(); const onState = vi.fn(); const onGmPointers = vi.fn();
 beforeEach(async () => {
@@ -87,7 +91,9 @@ const ownerPointers = () => mock.listeners.filter(listener => listener.reference
   listener.reference.constraints?.some(constraint => constraint.field === 'participantUid'));
 const hands = () => mock.listeners.filter(listener => listener.reference.path.includes('/awayMissionHands/'));
 function deliverMission() {
-  const fixture = legacyFailedKProjectionFixture('s1'); const pointer = fixture.pointers[0]!; const hand = fixture.hands[0]!;
+  const fixture = legacyFailedKProjectionFixture('s1'); const pointer = fixture.pointers[0]!;
+  const physicalCard = missionDeck().find(card => card.id === fixture.hands[0]!.cardId)!;
+  const hand = { ...fixture.hands[0]!, rank: physicalCard.rank, suit: physicalCard.suit, value: physicalCard.value };
   expect(pointer.lifecyclePublicState.outcomes?.[0]).toMatchObject({ total: 20, difficulty: 30, criticalThreshold: 40, outcome: 'failure' });
   ownerPointers().forEach(listener => listener.next({ metadata: { fromCache: false, hasPendingWrites: false },
     docs: [{ id: pointer.handId, data: () => pointer }] }));
