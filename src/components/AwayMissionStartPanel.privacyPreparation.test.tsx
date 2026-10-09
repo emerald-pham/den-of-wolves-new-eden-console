@@ -269,3 +269,60 @@ it('rejects malformed callable success without optimistically preparing or enabl
   expect(mock.calls.map(c => c.step)).toEqual(['hold']);
   expect(screen.getByRole('button', { name: 'Start mission' })).toBeDisabled();
 });
+
+it.each(['player', 'foreign Auth', 'foreign instance', 'offline', 'cached session'])('disables preparation before a request for initial %s authority', defect => {
+  if (defect === 'player') useSessionStore.setState({ me: { ...useSessionStore.getState().me!, role: 'player' } });
+  else if (defect === 'foreign Auth') mock.uid = 'foreign';
+  else if (defect === 'foreign instance') useSessionStore.setState({ gmInstance: { ...useSessionStore.getState().gmInstance!, uid: 'foreign' } });
+  else if (defect === 'offline') Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+  else useSessionStore.setState({ sessionSnapshotFreshness: 'cache' });
+  render(<Consumer />);
+  expect(screen.getByRole('button', { name: 'Prepare participant missions' })).toBeDisabled();
+  prepare(); expect(mock.calls).toEqual([]); expect(mock.writes).toEqual([]);
+});
+it('keeps pending preparation visible and first deal blocked until its actual hold response returns', async () => {
+  let release: ((value: unknown) => void) | undefined;
+  mock.invoke = async payload => {
+    const reply = await registered(payload);
+    return payload.step === 'hold' ? new Promise<unknown>(resolve => { release = resolve; }) : reply;
+  };
+  render(<Consumer />); chooseFirstDeal(); prepare();
+  await waitFor(() => expect(mock.documents.get('sessions/s1')!.awayMissionProjectionSafety).toMatchObject({ state: 'held' }));
+  expect(screen.getByRole('button', { name: 'Preparing participant missions…' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Start mission' })).toBeDisabled();
+  const receipt = [...mock.documents].find(([path]) => path.includes('/commands/'))![1];
+  await act(async () => release!(receipt.result));
+  await waitFor(() => expect(mock.documents.get('sessions/s1')!.awayMissionProjectionSafety).toMatchObject({ state: 'ready' }));
+  expect(screen.getByRole('status', { name: 'Participant mission preparation' })).toHaveTextContent(/waiting for live session confirmation/i);
+  expect(screen.getByRole('button', { name: 'Start mission' })).toBeDisabled();
+});
+it('rechecks revoked server authority during automatic repair without falsely completing or unlocking reads', async () => {
+  mock.afterStep = step => { if (step === 'hold') mock.documents.get('sessions/s1/players/gm')!.connected = false; };
+  render(<Consumer />); prepare();
+  await screen.findByRole('button', { name: 'Retry preparation' });
+  expect(mock.calls.map(c => c.step)).toEqual(['hold', 'repair']);
+  expect(mock.documents.get('sessions/s1')!.awayMissionProjectionSafety).toMatchObject({ state: 'held' });
+  const writes = mock.writes.length; fireEvent.click(screen.getByRole('button', { name: 'Retry preparation' }));
+  await waitFor(() => expect(mock.calls).toHaveLength(3));
+  expect(mock.writes).toHaveLength(writes);
+  expect(screen.getByRole('button', { name: 'Start mission' })).toBeDisabled();
+});
+it('retains an old finalized receipt as zero-write replay while a newer held epoch requires an explicit new preparation run', async () => {
+  mock.lossStep = 'finalize'; render(<Consumer />); prepare();
+  await screen.findByRole('button', { name: 'Retry preparation' });
+  const oldFinalize = { ...mock.calls.at(-1)! };
+  expect(mock.documents.get('sessions/s1')!.awayMissionProjectionSafety).toMatchObject({ state: 'ready', epoch: 1 });
+  const newer = await registered({ sessionId: 's1', instanceId: 'bridge', requestId: 'newer-hold', repairRunId: 'newer-run', step: 'hold' });
+  expect(newer).toMatchObject({ state: 'held', epoch: 2 }); liveProjection();
+  const before = mock.writes.length;
+  expect(await registered(oldFinalize)).toMatchObject({ status: 'replayed', state: 'ready', epoch: 1 });
+  expect(mock.writes).toHaveLength(before);
+  fireEvent.click(screen.getByRole('button', { name: 'Retry preparation' }));
+  await screen.findByRole('button', { name: 'Restart preparation' });
+  expect(mock.writes).toHaveLength(before);
+  expect(mock.documents.get('sessions/s1')!.awayMissionProjectionSafety).toMatchObject({ state: 'held', epoch: 2 });
+  expect(screen.getByRole('button', { name: 'Start mission' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Restart preparation' }));
+  await waitFor(() => expect(mock.documents.get('sessions/s1')!.awayMissionProjectionSafety).toMatchObject({ state: 'ready', epoch: 3 }));
+  expect(new Set(mock.calls.map(c => c.repairRunId)).size).toBe(2);
+});
