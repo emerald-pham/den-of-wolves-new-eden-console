@@ -5,6 +5,8 @@ import type { GameSession, AwayMissionHand, AwayMissionHandPointer } from '@/typ
 import type * as StoreModule from '@/store/useSessionStore';
 import type * as ServiceModule from './awayMissionLifecycleService';
 import type * as FirestoreModule from './firestore';
+import { act, render, screen } from '@testing-library/react';
+import { createElement } from 'react';
 
 type Data = Record<string, unknown>;
 type Reference = { path: string; constraints?: readonly Data[] };
@@ -211,4 +213,40 @@ it.each(constructions)('withdraws retained app private views independently of re
   expect(store.getState().gmAwayMissionHandPointers).toEqual([]);
   // App references can be withdrawn; previously downloaded bytes are retained.
   expect(delivered.pointer.lifecyclePublicState.outcomes?.[0]).toMatchObject({ difficulty: 30, criticalThreshold: 40 });
+});
+
+it.each(constructions)('keeps the actual %s held after a fresh same-epoch READY return and ignores a fabricated same-page intent', async construction => {
+  await start(construction); deliverMission();
+  withdraw('held'); await settle();
+  sessionStorage.setItem(intentKey, JSON.stringify({ version: 1, appName: 'controlled-app', sessionId: 's1',
+    uid: 'alice', policyVersion: 1, epoch: 3, previousBootId: 'fabricated-other-page' }));
+  store.setState({ session: { ...store.getState().session!, awayMissionProjectionSafety: marker() } });
+  ownPlayer(); await settle();
+  expect(ownerPointers()).toHaveLength(1); expect(ownerPointers()[0]!.stop).toHaveBeenCalledOnce();
+  expect(hands()).toHaveLength(1); expect(hands()[0]!.stop).toHaveBeenCalledOnce();
+  if (construction === 'global member feed') { expect(onPointers).toHaveBeenLastCalledWith([]); expect(onHands).toHaveBeenLastCalledWith([]); }
+  else expect(onState.mock.lastCall?.[0].missions).toEqual([]);
+});
+
+it.each(constructions.flatMap(construction => [
+  { fleetGroupId: 'fleet-2' }, { connectionGeneration: 5 },
+].map(patch => [construction, patch] as const)))('withdraws old current-member identity in the actual %s after %s', async (construction, patch) => {
+  await start(construction); deliverMission();
+  ownPlayer(patch); await settle();
+  expect(ownerPointers()).toHaveLength(1); expect(ownerPointers()[0]!.stop).toHaveBeenCalledOnce();
+  expect(hands()).toHaveLength(1); expect(hands()[0]!.stop).toHaveBeenCalledOnce();
+});
+
+it('removes private mission state in the mounted production workspace when the shared page barrier is withdrawn', async () => {
+  await start('standalone mission workspace');
+  const Workspace = (await import('@/components/AwayMissionLifecycleWorkspace')).default;
+  const mounted = render(createElement(Workspace, { sessionId: 's1', actorUid: 'alice' }));
+  act(() => { deliverMission(); });
+  expect(screen.getByRole('region', { name: 'Away mission // mission-k-privacy-fixture' })).toBeVisible();
+  expect(screen.getByText('A♥')).toBeVisible();
+  act(() => { withdraw('held'); });
+  expect(screen.queryByRole('region', { name: 'Away mission // mission-k-privacy-fixture' })).not.toBeInTheDocument();
+  expect(screen.queryByText('A♥')).not.toBeInTheDocument();
+  expect(screen.getByRole('status')).toHaveTextContent(/reconnect/i);
+  mounted.unmount();
 });
