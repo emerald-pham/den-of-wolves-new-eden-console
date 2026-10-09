@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { expect, it } from 'vitest';
@@ -22,6 +22,7 @@ it('accepts a downloaded Functions artifact without compiling it again', async (
   const root = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-functions-artifact-'));
   try {
     await mkdir(resolve(root, 'lib'), { recursive: true });
+    await copyFile(resolve('functions/lib/casting-companion-core.cjs'), resolve(root, 'lib/casting-companion-core.cjs'));
     await writeFile(resolve(root, 'lib/index.js'), 'exports.ready = true;\n');
     await writeFile(resolve(root, 'package.json'), JSON.stringify({ dependencies: {} }));
     await expect(verifyFunctionsArtifact(root)).resolves.toEqual({
@@ -38,6 +39,7 @@ it('discovers every required runtime dependency from the downloaded artifact tre
   const root = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-functions-artifact-'));
   try {
     await mkdir(resolve(root, 'lib'), { recursive: true });
+    await copyFile(resolve('functions/lib/casting-companion-core.cjs'), resolve(root, 'lib/casting-companion-core.cjs'));
     await mkdir(resolve(root, 'node_modules', 'fixture-runtime'), { recursive: true });
     await writeFile(resolve(root, 'lib/index.js'), 'exports.ready = true;\n');
     await writeFile(resolve(root, 'package.json'), JSON.stringify({
@@ -61,6 +63,7 @@ it('rejects a downloaded artifact when a required runtime dependency is absent',
   const root = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-functions-artifact-'));
   try {
     await mkdir(resolve(root, 'lib'), { recursive: true });
+    await copyFile(resolve('functions/lib/casting-companion-core.cjs'), resolve(root, 'lib/casting-companion-core.cjs'));
     await writeFile(resolve(root, 'lib/index.js'), 'exports.ready = true;\n');
     await writeFile(resolve(root, 'package.json'), JSON.stringify({
       dependencies: { 'missing-runtime': '1.0.0' },
