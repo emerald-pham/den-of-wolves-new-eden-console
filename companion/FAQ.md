@@ -2,15 +2,17 @@
 
 
 The isolated source connects the real Firebase adapter and transaction handler at
-`/casting`. No live deployment or real participant collection is approved.
-The reconciled candidate14240fc0 passed fresh synthetic Firebase integration on October9 (11 groups), private-rule engine checks and actual entry captures. See [FINAL_LOCAL_QUALIFICATION.md](FINAL_LOCAL_QUALIFICATION.md) for exact bindings and limits. Independent visual review found an enlarged short-landscape gallery defect; its focused CSS repair still awaits allocated rendered qualification. The following older evidence applies only within the inheritance limits in [RELEASE_CANDIDATE.md](RELEASE_CANDIDATE.md).
+`/casting`. The release ships an empty authoring tool; the owner controls actual
+questions, publishing, purpose and recipients.
+The reconciled candidate14240fc0 passed fresh synthetic Firebase integration on October9 (11 groups), private-rule engine checks and actual entry captures. See [FINAL_LOCAL_QUALIFICATION.md](FINAL_LOCAL_QUALIFICATION.md) for exact bindings and limits. Independent visual review found an enlarged short-landscape gallery defect; the focused repair passed allocated rendered qualification and independent typography/motion review at682dd67c. The following older evidence applies only within the inheritance limits in [RELEASE_CANDIDATE.md](RELEASE_CANDIDATE.md).
 Actual synthetic local Auth/callable/Firestore integration passed on October 9;
 see [LOCAL_QUALIFICATION_20261009.md](LOCAL_QUALIFICATION_20261009.md). Clean-route and enlarged-gallery focused actual checks also passed; see
 [NARROW_QUALIFICATION_20261009.md](NARROW_QUALIFICATION_20261009.md).
 
-**Is this collecting real responses?** No approved live service is deployed.
-The standalone fixture preview clears on reload; the Firebase entry is disabled
-until explicitly enabled and must be qualified using synthetic local emulators.
+**Is this collecting real responses?** Only forms explicitly published by the owner
+collect submissions. No real casting content is seeded by the release.
+The standalone fixture preview clears on reload; reviewed production builds enable
+the Firebase entry, while development qualification uses synthetic local emulators.
 The real adapter stores through server transactions rather than the fixture store.
 Reload preserves server data but clears tab authority; explicitly claim again.
 
@@ -30,7 +32,7 @@ succeeds. Unsaved edits are not published.
 **Who can use a direct form link?** In the proposed live product, anyone with
 the published handle can see its questions and submit. Unlisted is not secret.
 Private review/editing will require server-validated GM authority for the workspace’s associated session. There is no main DoW navigation entry.
-The approved address is an unlisted `/casting` path under DoW; isolated source routing is implemented, deployment remains pending.
+The approved address is an unlisted `/casting` path under DoW; there is no main-app navigation entry.
 
 **What does unpublish do?** It disables new reads/submissions using that form
 handle. Existing responses remain private to authorized editing/review access. Publishing again creates a new
@@ -64,7 +66,7 @@ be recalled.
 answers/drafts and retry identity. Stale changes require refresh. Definitive
 authority denial/account change clears private UI; pending old reads/exports
 are discarded. The isolated source uses Firebase Auth and callables. Password login is one-shot and excluded from retained retry keys. Failed login
-clears the password input; re-enter it to try again. No live deployment is approved.
+clears the password input; re-enter it to try again. Publishing real forms remains the owner’s explicit choice.
 
 **Can I export responses?** The Responses screen includes CSV export; the real adapter source uses session-bound GM checks. Formula-like
 values are emitted as text. Import behavior in individual spreadsheet applications has not been tested. Downloaded exports need the owner's approved

@@ -1,0 +1,10 @@
+{
+  "finishedAt": "2026-10-09T02:39:55.149Z",
+  "ownedPids": [
+    94298
+  ],
+  "releasedReservationId": "94272-1791513563694-85acbdc1-be6b-4d5d-9f5b-96376c841ce6",
+  "port": 5178,
+  "listening": false,
+  "hardStop": "2026-10-09T02:43:00Z"
+}

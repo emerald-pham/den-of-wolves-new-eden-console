@@ -1,0 +1,26 @@
+{
+  "candidate": "682dd67c5240c5021643ff7002331792107f8d59",
+  "parentGrant": true,
+  "start": "2026-10-09T02:39:00Z",
+  "stopProbes": "2026-10-09T02:42:00Z",
+  "cleanupStart": "2026-10-09T02:42:15Z",
+  "hardStop": "2026-10-09T02:43:00Z",
+  "port": 5178,
+  "startedAt": "2026-10-09T02:39:23.698Z",
+  "pid": 94272,
+  "pids": [
+    94298
+  ],
+  "reservation": {
+    "id": "94272-1791513563694-85acbdc1-be6b-4d5d-9f5b-96376c841ce6",
+    "slot": 5,
+    "worktree": "/Users/emeraldpham/Documents/Codex/2026-10-08/task-14/casting-release",
+    "kind": "vite",
+    "command": "Parent allocated landscape200%CSSqualification",
+    "pid": 94272,
+    "claimedAt": "2026-10-09T02:39:23.694Z",
+    "ports": [
+      5178
+    ]
+  }
+}

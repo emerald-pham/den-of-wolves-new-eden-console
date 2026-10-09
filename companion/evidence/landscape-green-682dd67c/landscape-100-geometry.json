@@ -1,0 +1,219 @@
+{
+  "stage": {
+    "x": 292,
+    "y": 16,
+    "right": 828,
+    "bottom": 374,
+    "width": 536,
+    "height": 358
+  },
+  "viewportWidth": 844,
+  "viewportHeight": 390,
+  "scrollWidth": 844,
+  "skip": {
+    "x": 96.828125,
+    "y": 322,
+    "right": 203.15625,
+    "bottom": 366,
+    "width": 106.328125,
+    "height": 44
+  },
+  "figures": [
+    {
+      "flag": "cpa",
+      "frame": {
+        "x": 300,
+        "y": 24,
+        "right": 418,
+        "bottom": 144.25,
+        "width": 118,
+        "height": 120.25
+      },
+      "image": {
+        "x": 300,
+        "y": 24,
+        "right": 418,
+        "bottom": 102.65625,
+        "width": 118,
+        "height": 78.65625
+      },
+      "caption": {
+        "x": 333.1875,
+        "y": 102.65625,
+        "right": 384.8125,
+        "bottom": 144.25,
+        "width": 51.625,
+        "height": 41.59375
+      },
+      "animation": "none"
+    },
+    {
+      "flag": "fas",
+      "frame": {
+        "x": 434,
+        "y": 24,
+        "right": 552,
+        "bottom": 144.25,
+        "width": 118,
+        "height": 120.25
+      },
+      "image": {
+        "x": 434,
+        "y": 24,
+        "right": 552,
+        "bottom": 102.65625,
+        "width": 118,
+        "height": 78.65625
+      },
+      "caption": {
+        "x": 467.1875,
+        "y": 102.65625,
+        "right": 518.8125,
+        "bottom": 144.25,
+        "width": 51.625,
+        "height": 41.59375
+      },
+      "animation": "none"
+    },
+    {
+      "flag": "gliese",
+      "frame": {
+        "x": 568,
+        "y": 24,
+        "right": 686,
+        "bottom": 144.25,
+        "width": 118,
+        "height": 120.25
+      },
+      "image": {
+        "x": 568,
+        "y": 24,
+        "right": 686,
+        "bottom": 102.65625,
+        "width": 118,
+        "height": 78.65625
+      },
+      "caption": {
+        "x": 583.375,
+        "y": 102.65625,
+        "right": 670.625,
+        "bottom": 144.25,
+        "width": 87.25,
+        "height": 41.59375
+      },
+      "animation": "none"
+    },
+    {
+      "flag": "icn",
+      "frame": {
+        "x": 702,
+        "y": 24,
+        "right": 820,
+        "bottom": 144.25,
+        "width": 118,
+        "height": 120.25
+      },
+      "image": {
+        "x": 702,
+        "y": 24,
+        "right": 820,
+        "bottom": 102.65625,
+        "width": 118,
+        "height": 78.65625
+      },
+      "caption": {
+        "x": 735.1875,
+        "y": 102.65625,
+        "right": 786.8125,
+        "bottom": 144.25,
+        "width": 51.625,
+        "height": 41.59375
+      },
+      "animation": "none"
+    },
+    {
+      "flag": "proxima",
+      "frame": {
+        "x": 300,
+        "y": 160.25,
+        "right": 418,
+        "bottom": 280.5,
+        "width": 118,
+        "height": 120.25
+      },
+      "image": {
+        "x": 300,
+        "y": 160.25,
+        "right": 418,
+        "bottom": 238.90625,
+        "width": 118,
+        "height": 78.65625
+      },
+      "caption": {
+        "x": 309.4375,
+        "y": 238.90625,
+        "right": 408.5625,
+        "bottom": 280.5,
+        "width": 99.125,
+        "height": 41.59375
+      },
+      "animation": "none"
+    },
+    {
+      "flag": "rosal",
+      "frame": {
+        "x": 434,
+        "y": 160.25,
+        "right": 552,
+        "bottom": 280.5,
+        "width": 118,
+        "height": 120.25
+      },
+      "image": {
+        "x": 434,
+        "y": 160.25,
+        "right": 552,
+        "bottom": 238.90625,
+        "width": 118,
+        "height": 78.65625
+      },
+      "caption": {
+        "x": 455.3125,
+        "y": 238.90625,
+        "right": 530.6875,
+        "bottom": 280.5,
+        "width": 75.375,
+        "height": 41.59375
+      },
+      "animation": "none"
+    },
+    {
+      "flag": "san",
+      "frame": {
+        "x": 568,
+        "y": 160.25,
+        "right": 686,
+        "bottom": 280.5,
+        "width": 118,
+        "height": 120.25
+      },
+      "image": {
+        "x": 568,
+        "y": 160.25,
+        "right": 686,
+        "bottom": 238.90625,
+        "width": 118,
+        "height": 78.65625
+      },
+      "caption": {
+        "x": 601.1875,
+        "y": 238.90625,
+        "right": 652.8125,
+        "bottom": 280.5,
+        "width": 51.625,
+        "height": 41.59375
+      },
+      "animation": "none"
+    }
+  ]
+}

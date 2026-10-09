@@ -9,7 +9,8 @@ The preservation manifest proves released Functions index is exact apart from
 three additive imports and one casting endpoint block; game rules are exact
 apart from four explicit client-deny namespaces. Released Firebase wiring,
 GM/presence/request helpers and all prior baseline type-repair files are exact.
-Model/UI/CSS/adapter/main entry/flags remain byte-identical to reviewed source.
+Model/UI/adapter/main entry/flags remain byte-identical to reviewed source.
+The focused short-landscape CSS repair and its render probe are documented below.
 
 The scoped casting callable transport changed: explicit released runtime/
 AppCheck options and privacy-safe hashed-denial telemetry. Meaningful consumer
@@ -70,3 +71,17 @@ retry, stable acknowledgement, conflict, retained answers/templates and revoked
 GM replay. Scoped lint and Functions build passed. Independent code review found
 no actionable defect in e37d878d or5b24afa8. Fresh actual Firebase qualification
 and final real-entry typography remain required under a parent runtime allocation.
+
+## Final independent local acceptance
+
+Backend/securityevidence14240fc0acceptedindependently; FAQstatusandCSVcoverage
+updated. An actual200%short-landscapeRED fromfinalvisualreview was committed
+044cdec7 beforeCSSrepair. IndependentcodeacceptedCSS e73d4b22 andfullSkipbounds
+probe682dd67c. Existing23UItests andenabledbuildpassed; no redundantbackend suite.
+
+Allocatednarrowrealcomponentrender682dd67c passedfourcases andindependent
+motion/typographyacceptance, including326pxlandscapegallery andallfourSkipbounds.
+Cleanhandback02:40:08. SeeFINAL_LOCAL_QUALIFICATION.md forsource/adapters/limits.
+Onlysource/docs/evidencefollowups occurred; backendauthoritysourcehashesunchanged.
+RoutineauthorizedPR/CI/release mayproceed; separateboundedlivebrowserallocation
+isrequiredafterdeploymentandexactassetverification. No unpublishedPC10included.

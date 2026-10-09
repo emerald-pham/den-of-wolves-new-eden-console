@@ -31,3 +31,19 @@ Prelaunch import, first Functions-source-path and final Auth-reference setup
 failures are retained with corrected runs in evidence/final-backend-14240fc0.
 The dossier's first phone capture caught loading; later signed-out and desktop
 captures show the loaded personalized snapshot. No real casting content is seeded.
+
+## Affected rendered GREEN
+
+Exact682dd67c5240c5021643ff7002331792107f8d59 passed the parent-allocated
+02:39–02:43Vite/one-browser window. Fourcases: landscape844×390200%, portrait
+390×844200%, landscape100%, and media-onlyreducedlandscape200%. Allsevenflags,
+image/captioncontainment andnonoverlap,326pxenlargedgalleryheight, fullSkipbounds
+onbothaxes, title/controlseparation, finalSANscrollreach, keyboardandexactReplay
+focus passed. Allthreeownedprocesses/5178/reservation verifiedgone02:40:08.
+
+Independent typography andmotionreviewers inspectedactualtop/middle/bottompixels
+andacceptedtheaffectedrepair. This narrowrun mountsactualUI/CSS/CIC/fonts/assets
+with a syntheticlayoutadapter; backendproof inherits the unchanged142source.
+SavedGREENevidence andindependentreviewreceipt: evidence/landscape-green-682dd67c.
+OriginalobservedRED remains evidence/landscape-200-red-14240fc0. No failinggatewas
+waived. LiveAppCheck andNode22qualification remain separateproductionlimits.
