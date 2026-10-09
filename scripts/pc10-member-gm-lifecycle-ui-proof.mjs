@@ -74,14 +74,29 @@ export async function assertMemberTurnContext(context) {
 }
 
 /** No private contents, raw UID, auth token or command payload leaves the page. */
-export async function observeLifecycleActor(surface, expectedSessionId) {
-  return surface.page.evaluate(async ({ moduleUrl, expectedSessionId }) => {
+export async function observeLifecycleActor(surface, expectedSessionId, { sdkAuthority = false } = {}) {
+  const authorityModuleUrl = sdkAuthority ? surface.sessionAuthorityModuleUrl?.() : undefined;
+  if (sdkAuthority) {
+    assert.ok(typeof authorityModuleUrl === 'string' && authorityModuleUrl.length > 0,
+      'Observe the mounted App SDK authority module before dispatch.');
+    const storeUrl = new URL(surface.storeModuleUrl(), 'http://127.0.0.1');
+    const authorityUrl = new URL(authorityModuleUrl, storeUrl);
+    assert.equal(authorityUrl.origin, storeUrl.origin);
+    assert.equal(authorityUrl.pathname, '/src/lib/sessionSnapshotAuthority.ts');
+  }
+  return surface.page.evaluate(async ({ moduleUrl, expectedSessionId, authorityModuleUrl }) => {
     const { auth } = await import('/src/lib/firebase.ts');
-    const { activeDemoActorProfile } = await import('/src/lib/demoActorContext.ts');
+    const demoActorContext = await import('/src/lib/demoActorContext.ts');
     const { useSessionStore } = await import(moduleUrl);
-    const s = useSessionStore.getState(), user = auth().currentUser, session = s.session;
+    const sdk = authorityModuleUrl ? await import(authorityModuleUrl) : null;
     const hash = async value => value ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))))
       .map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) : null;
+    const originalUid = auth().currentUser?.uid, uidHash = await hash(originalUid);
+    // Take the store and SDK cursor after all asynchronous preparation, together.
+    const s = useSessionStore.getState(), user = auth().currentUser, session = s.session;
+    if (user?.uid !== originalUid) throw new Error('Original Auth UID changed during lifecycle observation.');
+    const activeDemoActorProfile = demoActorContext.activeDemoActorProfile;
+    const authority = sdk && originalUid && session?.id ? sdk.sessionSnapshotAuthorityFor(session.id, originalUid) : null;
     const privateKeys = Object.keys(s).filter(key =>
       /^gm[A-Z]/.test(key) && !['gmInstance', 'gmAccessAuthenticatedAt'].includes(key) ||
       ['privateLoyalty', 'roleBrief', 'wolfCult', 'arbourVision', 'intelligenceInvestigation', 'awayMissionHand',
@@ -105,12 +120,14 @@ export async function observeLifecycleActor(surface, expectedSessionId) {
     // These two non-nullable Source defaults must be present and valid.
     if (!pointerDefaultPresent) privatePayloadCount++;
     if (!censusStatusPresent) privatePayloadCount++;
-    return { sessionId: session?.id ?? null, uidHash: await hash(user?.uid), hasAuth: !!user,
+    return { sessionId: session?.id ?? null, uidHash, hasAuth: !!user,
       sameActor: !!user && s.me?.uid === user.uid, connection: s.connection, freshness: s.sessionSnapshotFreshness,
       generation: s.me?.connectionGeneration ?? null, hydrationRevision: s.identityHydrationRevision,
       playerRole: s.me?.role ?? null, profileRoleId: activeDemoActorProfile?.roleId ?? null,
       displayName: s.me?.displayName ?? null, assignedRoleId: s.me?.assignedRoleId ?? null,
       activeConsoleRoleId: s.me?.activeConsoleRoleId ?? null, seatId: s.me?.seatId ?? null,
+      fleetGroupId: s.me?.fleetGroupId ?? null, replacementRoleId: s.me?.replacementRoleId ?? null,
+      replacementStatus: s.me?.replacementStatus ?? null,
       instanceId: s.gmInstance?.id ?? null, claimedAt: s.gmInstance?.claimedAt ?? null,
       gmInstanceOwned: !!s.gmInstance && s.gmInstance.uid === user?.uid && s.gmInstance.sessionId === session?.id,
       grantShipId: s.gmInstance?.shipConsoleWriteGrant?.shipId ?? null,
@@ -124,7 +141,13 @@ export async function observeLifecycleActor(surface, expectedSessionId) {
       briefingPresent: !!document.querySelector('[aria-label="Cycle briefing clearance"]'),
       transmissionPresent: !!document.querySelector('.intrusion--fleet .turn-start-announcement__console'),
       phaseProgression: session?.turnPhase?.progression ?? null, progression: session?.turnPhase?.progression ?? null,
-      airspace: session?.turnPhase?.airspace.state ?? null, timerPause: session?.turnPhase?.timerPause ?? null,
+      phaseTurn: session?.turnPhase?.turn ?? null,
+      airspaceTickerActive: session?.turnPhase?.airspace?.tickerActive ?? null,
+      airspacePressAccess: session?.turnPhase?.airspace?.pressAccess ?? null,
+      announcementTurn: session?.turnStartAnnouncement?.turn ?? null,
+      announcementRevisionPresent: Object.hasOwn(session?.turnStartAnnouncement ?? {}, 'revision'),
+      announcementRevisionRaw: session?.turnStartAnnouncement?.revision ?? null,
+      airspace: session?.turnPhase?.airspace?.state ?? null, timerPause: session?.turnPhase?.timerPause ?? null,
       teamEndsAt: session?.turnPhase?.teamPhaseEndsAt ?? null, openEndsAt: session?.turnPhase?.openAirspaceEndsAt ?? null,
       announcementRevision: session?.turnStartAnnouncement?.revision ?? 0, localReplayToken: s.turnStartReplay?.token ?? null,
       singlePlayerDemo: session?.singlePlayerDemo ?? null, fullGameDemo: session?.fullGameDemo ?? null,
@@ -135,8 +158,13 @@ export async function observeLifecycleActor(surface, expectedSessionId) {
         cycle: session.debriefSnapshot.cycle } : null,
       pursuitEmergency: Boolean(session?.pursuitEmergencyWindowAuthority ?? session?.pursuitEmergencyWindow),
       // Buttons remain the actual source guard. Absence of this hint never grants authority.
-      attackLocked: null };
-  }, { moduleUrl: surface.storeModuleUrl(), expectedSessionId });
+      attackLocked: null,
+      ...(sdk ? { sdkHasServerAuthority: authority?.hasServerSessionAuthority === true,
+        sdkResumePending: authority ? sdk.memberSessionResumeBlocksFreshness(authority) : true,
+        recoveryPending: s.gmRecoveryPending, connected: s.me?.connected === true,
+        currentOwnPlayerConfirmed: s.me?.connected === true, kicked: s.me?.kickedAt != null,
+        escapeLocked: s.me?.escapeState != null, profileSessionId: activeDemoActorProfile?.sessionId ?? null } : {}) };
+  }, { moduleUrl: surface.storeModuleUrl(), expectedSessionId, authorityModuleUrl });
 }
 
 export async function untilLifecycle(surface, expected, predicate, description, { timeout = 60_000, ...authority } = {}) {

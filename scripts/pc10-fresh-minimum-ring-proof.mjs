@@ -13,6 +13,7 @@ import { originalProofError, rememberProofFailure, retainProofFailure, heldProof
 import { observeFullGameCallableDiagnostics } from './pc10-full-game-demo-ui-proof.mjs';
 import { observeFullGameDemoPresentationMember, proofRuntimeFromViteSource, validateProofRuntime } from './pc10-full-game-demo-proof-helpers.mjs';
 import { observeLifecycleActor, captureLifecycleUiAction, publicLifecycleReceipt, openLifecycleSettings, closeLifecycleSettings } from './pc10-member-gm-lifecycle-ui-proof.mjs';
+import { assertOriginalActor } from './pc10-member-gm-lifecycle-contracts.mjs';
 import { completeOfferedCyclePresentation } from './pc10-turn-cycle-demo-ui-proof.mjs';
 import { createMemberNavigationResumeObserver } from './pc10-member-navigation-resume.mjs';
 import { capturePc10Gate2SourceBinding } from './pc10-gate2-functional-proof.mjs';
@@ -664,7 +665,7 @@ export async function runFreshMinimumRingProof({allocationPath,directory,probeFa
 async function bounded(operation,timeout,name,onTimeout=()=>{}) {let timer;try{return await Promise.race([operation,new Promise((_,reject)=>{timer=setTimeout(()=>{onTimeout();reject(new Error(name));},timeout);})]);}finally{clearTimeout(timer);}}
 function budget() { if(lossAckFirstError)throw lossAckFirstError;assert.equal(stopped,false,'Work has stopped; do not begin a subsequent action.');assert.ok(Date.now()+60000<=workEnd,'Not enough cap budget to begin another full original60s operation and normal cleanup.'); }
 async function mark(name) { budget();stage=name; await writeFile(`${directory}/progress.json`,JSON.stringify({sourceCommit,stage,elapsedMs:Date.now()-startAt,claims},null,2)+'\n');console.log(JSON.stringify({stage,elapsedMs:Date.now()-startAt})); }
-async function snapshot(surface,label) { const value=await observeLifecycleActor(surface,sid);states.push({label,origin:new URL(surface.page.url()).origin,state:value});consumed={stage,label,state:value};await writeFile(`${directory}/consumed-state.json`,JSON.stringify(consumed,null,2)+'\n');return value; }
+async function snapshot(surface,label,options) { const value=await observeLifecycleActor(surface,sid,options);states.push({label,origin:new URL(surface.page.url()).origin,state:value});consumed={stage,label,state:value};await writeFile(`${directory}/consumed-state.json`,JSON.stringify(consumed,null,2)+'\n');return value; }
 async function register(surface,label) { const uid=await surface.page.evaluate(async()=>{const {auth}=await import('/src/lib/firebase.ts');if(!auth().currentUser)throw new Error('Normal admission has no Auth user.');return auth().currentUser.uid;});assert.ok(![...actorUids.values()].includes(uid),'Require independent normally admitted Auth identities.');actorUids.set(label,uid);evidence.actualAuthenticatedActors=actorUids.size;await writeFile(`${directory}/owned-identities.json`,JSON.stringify({sid,joinCode,actors:Object.fromEntries(actorUids)},null,2)+'\n',{mode:0o600}); }
 async function action(surface,endpoint,choose,options={}) { budget();const value=await captureLifecycleUiAction(surface,endpoint,()=>{budget();return choose();},options);receipts.push(publicLifecycleReceipt(value));return value; }
   async function surface(label) {
@@ -1160,9 +1161,22 @@ async function enterRole(surface,label){
     await memberReady(surface,label,{station:false});await enterRole(surface,label);
    }
    assert.equal(actorUids.size,plan.actualAuthenticatedActors);
-   await action(gm,'startGame',async()=>{await training.getByRole('button',{name:'Start full-game demo // Advance to Cycle 1',exact:true}).click();await training.getByRole('button',{name:'ARE YOU SURE? // START FULL-GAME DEMO // CYCLE 1',exact:true}).click();});
+   const setupPresentationAnchors=new Map();
+   if(stationOnly)for(const surface of surfaces)await op(async()=>{
+    const original=await snapshot(surface,'Actual live prestart presentation anchor',{sdkAuthority:true});
+    assertOriginalActor(original,original,{gm:original.gmInstanceOwned});
+    assert.equal(original.sdkHasServerAuthority,true);assert.equal(original.sdkResumePending,false);
+    assert.equal(original.recoveryPending,false);assert.equal(original.connected,true);
+    assert.equal(original.currentOwnPlayerConfirmed,true);assert.equal(original.kicked,false);assert.equal(original.escapeLocked,false);
+    assert.equal(original.phase,'casting');assert.equal(original.cycle,0);setupPresentationAnchors.set(surface,original);
+   });
+   const startCapture=await action(gm,'startGame',async()=>{await training.getByRole('button',{name:'Start full-game demo // Advance to Cycle 1',exact:true}).click();await training.getByRole('button',{name:'ARE YOU SURE? // START FULL-GAME DEMO // CYCLE 1',exact:true}).click();});
    await liveGm(gm,'GM1','active');
-   for(const surface of surfaces)await completeOfferedCyclePresentation(surface,await snapshot(surface,'Actual Cycle1 presentation'),{clearBriefing:true});
+   for(const surface of surfaces)await op(async deadlineAt=>{
+    const current=await snapshot(surface,'Actual Cycle1 presentation',stationOnly?{sdkAuthority:true}:undefined);
+    await completeOfferedCyclePresentation(surface,stationOnly?setupPresentationAnchors.get(surface):current,
+     {clearBriefing:true,deadlineAt,...(stationOnly?{sdkAuthority:true,setupStart:startCapture}:{})});
+   });
    if(sparse){const reader=await memberReady(recipient,'Recipient');groupId=reader.fleetGroupId;if(stationOnly){evidence.stationWingOriginal=reader;for(const actor of stationCrew){const member=await memberReady(actor.surface,actor.label);assert.equal(member.fleetGroupId,groupId);actor.original=member;}await assertStationCustody();}
     claims.push(stationOnly?'Fresh normal15-role manual setup with GM, six printed craft owners including separate Press, and a distinct Executive Officer; unused core seats open, optional Union craft absent':'Fresh normal13-role manual setup with GM and one ordinary reader; no Ring prerequisites or recovery replay');return;}
    const science=await memberReady(recipient,'Recipient'),engineer=await memberReady(owner,'Owner');assert.equal(science.fleetGroupId,engineer.fleetGroupId);groupId=science.fleetGroupId;
@@ -1716,7 +1730,7 @@ async function enterRole(surface,label){
      inspect:async()=>({...await gm.observe(),confirmationOffered:await confirmation.isVisible()}),
      clickAdvance:()=>gm.page.getByRole('button',{name:`Advance to Cycle ${cycle}`,exact:true}).click(),clickConfirmation:()=>confirmation.click()}));
     await gm.until('Original next cycle publication',v=>v.cycle===cycle&&v.phase==='active',deadlineAt-Date.now());
-    for(const surface of surfaces)await completeOfferedCyclePresentation(surface,await snapshot(surface,`Cycle${cycle} presentation`),{clearBriefing:true});
+    for(const surface of surfaces)await completeOfferedCyclePresentation(surface,await snapshot(surface,`Cycle${cycle} presentation`),{clearBriefing:true,deadlineAt});
    });
   },
   async arrive(){

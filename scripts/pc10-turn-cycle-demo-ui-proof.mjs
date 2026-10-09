@@ -17,29 +17,137 @@ async function offered(locator) { return await locator.count() === 1 && await lo
 /** Wait for real presentation completion; acknowledge only a real held briefing.
  * No clock override, DOM hiding, forced click or store mutation is available here.
  */
-export async function completeOfferedCyclePresentation(surface, expected, { clearBriefing = false } = {}) {
-  const deadline = Date.now() + 60_000, receipts = []; let sawTransmission = false, sawBriefing = false;
-  while (Date.now() < deadline) {
-    const current = await observeLifecycleActor(surface, expected.sessionId);
+export async function completeOfferedCyclePresentation(surface, expected, {
+  clearBriefing = false, deadlineAt, sdkAuthority = false, setupStart,
+} = {}) {
+  if (deadlineAt !== undefined) assert.ok(Number.isFinite(deadlineAt), 'Use an actual absolute presentation deadline.');
+  const deadline = Math.min(Date.now() + 60_000, deadlineAt ?? Infinity), receipts = [];
+  const checkDeadline = () => assert.ok(Date.now() < deadline, 'Original presentation deadline/budget expired.');
+  checkDeadline();
+  let sawTransmission = false, sawBriefing = false;
+  const identityKeys = ['playerRole', 'profileRoleId', 'profileSessionId', 'assignedRoleId',
+    'activeConsoleRoleId', 'seatId', 'fleetGroupId', 'replacementRoleId', 'replacementStatus',
+    'hydrationRevision', 'instanceId', 'claimedAt', 'gmInstanceOwned'];
+  const sourceKeys = ['phase', 'cycle', 'setupRevision', 'phaseTurn', 'progression', 'airspace',
+    'airspaceTickerActive', 'airspacePressAccess', 'timerPause', 'teamEndsAt', 'openEndsAt',
+    'announcementTurn', 'announcementRevisionPresent', 'announcementRevisionRaw', 'fullGameDemo'];
+  const phaseTuple = phase => {
+    assert.ok(phase && typeof phase === 'object' && !Array.isArray(phase), 'Use the actual committed turnPhase.');
+    assert.ok(Number.isSafeInteger(phase.turn) && phase.turn >= 1);
+    assert.equal(phase.progression, 'manual');
+    assert.equal(phase.airspace?.state, 'restricted');
+    for (const key of ['tickerActive', 'pressAccess']) assert.equal(typeof phase.airspace[key], 'boolean');
+    for (const key of ['teamPhaseEndsAt', 'openAirspaceEndsAt']) {
+      assert.equal(typeof phase[key], 'string'); assert.ok(Number.isFinite(Date.parse(phase[key])), 'Actual committed clock is required.');
+    }
+    assert.ok(Date.parse(phase.openAirspaceEndsAt) >= Date.parse(phase.teamPhaseEndsAt));
+    const pause = phase.timerPause ?? null;
+    assert.equal(pause, null, 'Actual manual start phase has no timer hold.');
+    return { phaseTurn: phase.turn, progression: phase.progression, airspace: phase.airspace.state,
+      airspaceTickerActive: phase.airspace.tickerActive, airspacePressAccess: phase.airspace.pressAccess,
+      timerPause: pause, teamEndsAt: phase.teamPhaseEndsAt, openEndsAt: phase.openAirspaceEndsAt };
+  };
+  let committed;
+  if (sdkAuthority) {
+    assertOriginalActor(expected, expected, { gm: expected.gmInstanceOwned });
+    assert.ok(Number.isSafeInteger(expected.hydrationRevision) && expected.hydrationRevision >= 1);
+    for (const key of identityKeys) assert.ok(Object.hasOwn(expected, key), `Actual original ${key} must be sampled.`);
+    if (expected.profileRoleId === null) assert.equal(expected.profileSessionId, null);
+    else {
+      assert.ok(typeof expected.profileRoleId === 'string' && expected.profileRoleId.length > 0);
+      assert.equal(expected.profileSessionId, expected.sessionId, 'Original profile must belong to this actual session.');
+    }
+    assert.equal(expected.sdkHasServerAuthority, true); assert.equal(expected.sdkResumePending, false);
+    assert.equal(expected.recoveryPending, false); assert.equal(expected.currentOwnPlayerConfirmed, true);
+    assert.equal(expected.connected, true); assert.equal(expected.kicked, false); assert.equal(expected.escapeLocked, false);
+    if (setupStart) {
+      assert.equal(setupStart.endpoint, 'startGame'); assert.equal(setupStart.httpStatus, 200);
+      assertOriginalActor(setupStart.before, setupStart.before, { gm: true });
+      assert.equal(setupStart.before.sessionId, expected.sessionId);
+      assert.equal(setupStart.before.phase, 'casting'); assert.equal(setupStart.before.cycle, 0);
+      assert.equal(expected.phase, 'casting'); assert.equal(expected.cycle, 0);
+      const { data, result } = setupStart;
+      assert.equal(data.sessionId, expected.sessionId); assert.equal(data.instanceId, setupStart.before.instanceId);
+      assert.ok(typeof data.requestId === 'string' && data.requestId.length > 0);
+      assert.equal(data.expectedSetupRevision, expected.setupRevision);
+      assert.equal(data.expectedSetupRevision, setupStart.before.setupRevision);
+      assert.equal(result.status, 'committed'); assert.equal(result.sessionId, data.sessionId);
+      assert.equal(result.requestId, data.requestId); assert.equal(result.currentTurn, 1);
+      assert.equal(result.setupRevision, data.expectedSetupRevision + 1);
+      assert.equal(result.fullGameDemo?.status, 'active'); assert.equal(result.fullGameDemo?.progression, 'manual');
+      const phase = phaseTuple(result.turnPhase);
+      assert.equal(phase.phaseTurn, result.currentTurn);
+      assert.equal(result.turnStartAnnouncement?.turn, result.currentTurn);
+      const revisionPresent = Object.hasOwn(result.turnStartAnnouncement, 'revision');
+      if (revisionPresent) assert.ok(Number.isSafeInteger(result.turnStartAnnouncement.revision) && result.turnStartAnnouncement.revision >= 0);
+      committed = { phase: 'active', cycle: result.currentTurn, setupRevision: result.setupRevision,
+        ...phase, announcementTurn: result.turnStartAnnouncement.turn,
+        announcementRevisionPresent: revisionPresent,
+        announcementRevisionRaw: revisionPresent ? result.turnStartAnnouncement.revision : null, fullGameDemo: result.fullGameDemo };
+    }
+  } else assert.equal(setupStart, undefined, 'Receipt-bound setup requires actual SDK authority.');
+  const matchesSource = (current, source) => sourceKeys.every(key => {
+    try { assert.deepEqual(current[key], source[key]); return true; } catch { return false; }
+  });
+  const inspect = async () => {
+    checkDeadline();
+    const current = await observeLifecycleActor(surface, expected.sessionId, { sdkAuthority });
+    checkDeadline();
+    if (!sdkAuthority) { assertOriginalActor(expected, current, { gm: expected.gmInstanceOwned }); return { current, ready: true }; }
+    assert.equal(current.hasAuth, true); assert.equal(current.sameActor, true);
+    assert.equal(current.uidHash, expected.uidHash); assert.equal(current.sessionId, expected.sessionId);
+    assert.equal(current.generation, expected.generation);
+    for (const key of identityKeys) assert.deepEqual(current[key], expected[key], `Original presentation ${key} changed.`);
+    assert.equal(current.privateAudienceMatches, true); assert.equal(current.foreignPendingCount, 0);
+    assert.equal(current.connected, true); assert.equal(current.currentOwnPlayerConfirmed, true);
+    assert.equal(current.kicked, false); assert.equal(current.escapeLocked, false);
+    for (const key of ['sdkHasServerAuthority', 'sdkResumePending', 'recoveryPending']) assert.equal(typeof current[key], 'boolean');
+    const published = committed ? matchesSource(current, committed) : matchesSource(current, expected);
+    assert.ok(published || committed && matchesSource(current, expected), 'Original or exact committed setup publication required.');
+    if (current.connection === 'connecting') {
+      assert.ok(['cache', 'server'].includes(current.freshness)); return { current, ready: false };
+    }
     assertOriginalActor(expected, current, { gm: expected.gmInstanceOwned });
+    assert.equal(current.sdkHasServerAuthority, true); assert.equal(current.sdkResumePending, false);
+    assert.equal(current.recoveryPending, false);
+    return { current, ready: published };
+  };
+  while (Date.now() < deadline) {
+    const { current, ready } = await inspect();
     sawTransmission ||= current.transmissionPresent; sawBriefing ||= current.briefingPresent;
+    if (!ready) { await delay(Math.min(100, deadline - Date.now())); continue; }
     if (current.briefingPresent && clearBriefing) {
+      assert.equal(committed, undefined, 'Manual setup cannot acquire a fabricated held-briefing choice.');
       const button = surface.page.getByRole('region', { name: 'Cycle briefing clearance', exact: true })
         .getByRole('button', { name: 'Clear cycle briefing // resume clock', exact: true });
-      if (await offered(button)) {
-        const receipt = await captureLifecycleUiAction(surface, 'clearTurnAdvanceInterstitial', () => button.click());
-        receipts.push({ ...publicLifecycleReceipt(receipt), recovery: await recoverLifecycleUiAction(surface, receipt) });
+      const available = await offered(button);
+      const final = await inspect();
+      if (available && final.ready && final.current.briefingPresent) {
+        const receipt = await captureLifecycleUiAction(surface, 'clearTurnAdvanceInterstitial', async () => {
+          const beforeClick = await inspect();
+          assert.equal(beforeClick.ready, true, 'Only currently live published authority clears a briefing.');
+          assert.equal(beforeClick.current.briefingPresent, true); checkDeadline(); await button.click();
+        }, { deadlineAt: deadline });
+        checkDeadline();
+        // Recovery repeats this real receipt only; its final callable also uses the original authority/deadline.
+        const recoverySurface = { ...surface, callable: async (...args) => {
+          assert.equal((await inspect()).ready, true); checkDeadline();
+          const result = await surface.callable(...args); checkDeadline(); return result;
+        } };
+        const recovery = await recoverLifecycleUiAction(recoverySurface, receipt);
+        await inspect(); receipts.push({ ...publicLifecycleReceipt(receipt), recovery });
       }
     }
     if (!current.transmissionPresent && !current.briefingPresent) {
       await surface.paintTwoFrames();
-      const painted = await observeLifecycleActor(surface, expected.sessionId);
-      assertOriginalActor(expected, painted, { gm: expected.gmInstanceOwned });
-      if (!painted.transmissionPresent && !painted.briefingPresent) return { sawTransmission, sawBriefing, receipts, actualPaintReady: true };
+      const { current: painted, ready: paintReady } = await inspect();
+      if (paintReady && !painted.transmissionPresent && !painted.briefingPresent) {
+        checkDeadline(); return { sawTransmission, sawBriefing, receipts, actualPaintReady: true };
+      }
     }
-    await delay(100);
+    await delay(Math.min(100, deadline - Date.now()));
   }
-  throw new Error('Normal transmission/briefing did not complete inside the existing 60-second presentation budget.');
+  throw new Error('Normal transmission/briefing did not complete inside the original presentation deadline/budget.');
 }
 
 /** Additive hooks for full games or a separately sourced ordinary timed game. */
