@@ -65,3 +65,20 @@ body { --cic-mono: Menlo, 'SFMono-Regular', Consolas, 'Liberation Mono', monospa
   .casting-intro__flag { grid-template-rows: auto auto; align-self: start; }
   .casting-intro > button { position: static; margin: .5rem auto; }
 }
+
+/* In short landscape, put the gallery beside the title and Skip rather than
+   letting enlarged footer text consume its vertical reading space. */
+@media (max-height: 28rem) and (orientation: landscape) {
+  .casting-intro--static { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); grid-template-rows: minmax(0, 1fr) auto; column-gap: .5rem; }
+  .casting-intro--static h2 { grid-column: 1; grid-row: 1; }
+  .casting-intro--static .casting-intro__flags { grid-column: 2; grid-row: 1 / -1; }
+  .casting-intro--static > button { grid-column: 1; grid-row: 2; max-width: 100%; }
+  .casting-intro--static > p { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+@media (prefers-reduced-motion: reduce) and (max-height: 28rem) and (orientation: landscape) {
+  .casting-intro { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); grid-template-rows: minmax(0, 1fr) auto; column-gap: .5rem; }
+  .casting-intro h2 { grid-column: 1; grid-row: 1; }
+  .casting-intro .casting-intro__flags { grid-column: 2; grid-row: 1 / -1; }
+  .casting-intro > button { grid-column: 1; grid-row: 2; max-width: 100%; }
+  .casting-intro > p { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
