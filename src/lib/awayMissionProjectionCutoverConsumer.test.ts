@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { legacyFailedKProjectionFixture } from '../../tests/fixtures/legacyFailedKProjection';
 import { missionDeck } from '../../functions/src/missionDeck';
-import type { GameSession, AwayMissionHand, AwayMissionHandPointer } from '@/types/game';
+import type { GameSession, AwayMissionHand, AwayMissionHandPointer, AwayMissionProjectionSafetyFacts, Player } from '@/types/game';
 import type * as StoreModule from '@/store/useSessionStore';
 import type * as ServiceModule from './awayMissionLifecycleService';
 import type * as FirestoreModule from './firestore';
@@ -59,13 +59,14 @@ afterEach(() => {
   store.setState({ session: null, me: null, connection: 'offline', sessionSnapshotFreshness: 'unknown' });
 });
 
-function marker(epoch = 3, state: 'held' | 'ready' = 'ready') { return { policyVersion: 1, epoch, state }; }
+function marker(epoch = 3, state: 'held' | 'ready' = 'ready'): AwayMissionProjectionSafetyFacts { return { policyVersion: 1, epoch, state }; }
 function seed(role: 'player' | 'gm' = 'player') {
   const raw = { id: 's1', name: 'Controlled fresh table', phase: 'active', currentTurn: 2, playerCount: 8,
     memberSessionScope: { groupId: 'fleet-1', vesselIds: ['aegis'], craftIds: [] },
     awayMissionProjectionSafety: marker(), createdAt: '2026-10-09T00:00:00.000Z', updatedAt: '2026-10-09T00:00:00.000Z' };
   const session = { ...firestore.sessionFrom('s1', raw), awayMissionProjectionSafety: marker() };
-  const me = { uid: 'alice', sessionId: 's1', role, connected: true, displayName: 'Alice', fleetGroupId: 'fleet-1',
+  const me: Player = { uid: 'alice', sessionId: 's1', role, connected: true, displayName: 'Alice', fleetGroupId: 'fleet-1',
+    seatId: null, joinedAt: '2026-10-09T00:00:00.000Z',
     connectionGeneration: 4, assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander' };
   store.setState({ session, me, connection: 'live', sessionSnapshotFreshness: 'server', identityHydrationRevision: 1 });
   mock.memberReply = { type: 'current-member-session', sessionId: 's1', actorUid: 'alice', groupId: 'fleet-1',
@@ -73,7 +74,7 @@ function seed(role: 'player' | 'gm' = 'player') {
 }
 async function start(construction: Construction, gmCallback = false) {
   stops.push(firestore.subscribeSessionState('s1', 'alice', {
-    sessionReadAudience: 'member', initialMemberActor: () => store.getState().me,
+    sessionReadAudience: 'member', initialMemberActor: () => store.getState().me ?? undefined,
     onSession: session => store.setState({ session }), onSessionFreshness: fresh => store.setState({ sessionSnapshotFreshness: fresh ? 'server' : 'unknown' }),
     onPlayer: me => store.setState({ me }), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
     ...(construction === 'global member feed' ? { onAwayMissionHandPointers: onPointers, onAwayMissionHands: onHands } : {}),
