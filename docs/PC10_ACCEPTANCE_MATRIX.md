@@ -10,11 +10,17 @@ evidence. Inventory and focused regression passes grant no gameplay credit.
 Regenerate it after the final Functions integration and bind each accepted row
 to the corresponding real scenario and source/runtime evidence.
 
-The committed JSON remains the retained 241-export/232-callable baseline.
-The current compiled inventory has 242 exports and 233 callables, with
-`transferWarriorCargo` recorded separately until the final owner generation.
-The source-only taxonomy audit resolves all 233 review rows and 842 declaration
-anchors; that coverage does not establish an enabled control or gameplay.
+The current JSON binds 247 compiled exports, including 238 callables and 42
+role descriptors, to functional source `639ad674`. The six additions to the
+retained 241-export/232-callable baseline are `buildEndeavourScienceDevice`,
+`exchangeAegisFighterWings`, `recordFleetGroupRejoinAdjudication`,
+`repairAwayMissionProjectionPrivacy`, `selectCandidateEdition` and
+`transferWarriorCargo`. The original baseline stays in committed history and
+the retained evidence. This is declaration/consumer inventory; all function
+and role proof fields remain pending, and descriptor counts are not actor
+counts. The earlier source-only taxonomy audit retains its original 233 review
+rows and 842 declaration anchors; it is not relabeled as complete current
+coverage or an enabled-control/gameplay pass.
 
 The October 8 owner choice makes Home the N/O default in the app and canonical
 paper, with coherent labeled Deluxe alternatives. Home N: 10 Materials,

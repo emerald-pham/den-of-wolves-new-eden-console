@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "68d4429fd9d4c16060da85e0df9a591b0e6db76f",
+  "sourceCommit": "639ad674afd383fd0690dbdb299c5ef351c43f46",
   "binding": "Built SDK __endpoint exports from current Functions source; independent review and gameplay evidence remain separate.",
   "accounting": "Every callable is inventoried. Background jobs are separately traced; an inventory row alone is not acceptance.",
   "roles": [
@@ -356,6 +356,28 @@
       "humanDeviceProof": "not claimed"
     },
     {
+      "name": "transferWarriorCargo",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/baseCapybaraCargoService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "exchangeAegisFighterWings",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
       "name": "readPrivateScoutResult",
       "kind": "callable",
       "clientConsumers": [
@@ -423,6 +445,17 @@
     },
     {
       "name": "readEndeavourResearchWorkspace",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/endeavourResearchService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "buildEndeavourScienceDevice",
       "kind": "callable",
       "clientConsumers": [
         "src/lib/endeavourResearchService.ts"
@@ -554,6 +587,17 @@
       "kind": "callable",
       "clientConsumers": [
         "src/lib/awayMissionLifecycleService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "repairAwayMissionProjectionPrivacy",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/awayMissionProjectionPreparationService.ts"
       ],
       "currentFreshGameProof": "pending",
       "authorityPrivacyRecoveryProof": "pending",
@@ -705,6 +749,17 @@
     },
     {
       "name": "executeCandidateAction",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/candidateService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "selectCandidateEdition",
       "kind": "callable",
       "clientConsumers": [
         "src/lib/candidateService.ts"
@@ -994,7 +1049,11 @@
     {
       "name": "setShipPreference",
       "kind": "callable",
-      "clientConsumers": [],
+      "clientConsumers": [
+        "src/components/CastingPreferencePanel.tsx",
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
       "currentFreshGameProof": "pending",
       "authorityPrivacyRecoveryProof": "pending",
       "automatedBrowserProof": "pending",
@@ -1369,6 +1428,17 @@
     },
     {
       "name": "sendScoutTaxiTransfer",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/fleetGroupService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "recordFleetGroupRejoinAdjudication",
       "kind": "callable",
       "clientConsumers": [
         "src/lib/fleetGroupService.ts"
@@ -2315,7 +2385,9 @@
     {
       "name": "submitWolfSupplySabotage",
       "kind": "callable",
-      "clientConsumers": [],
+      "clientConsumers": [
+        "src/lib/wolfActionService.ts"
+      ],
       "currentFreshGameProof": "pending",
       "authorityPrivacyRecoveryProof": "pending",
       "automatedBrowserProof": "pending",
