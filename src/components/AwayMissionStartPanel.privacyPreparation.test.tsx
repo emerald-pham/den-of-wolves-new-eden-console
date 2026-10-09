@@ -5,6 +5,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import type * as FirestoreModule from '@/lib/firestore';
 import { legacyFailedKProjectionFixture } from '../../tests/fixtures/legacyFailedKProjection';
 import { missionDeck } from '../../functions/src/missionDeck';
+import { isLiveSetupGm } from '../../functions/src/gameSetup';
 import { useSessionStore } from '@/store/useSessionStore';
 
 type Data = Record<string, unknown>;
@@ -102,9 +103,9 @@ const maintenance = createAwayMissionProjectionMaintenance({ db: database as unk
   serverTimestamp: () => 'server-time', requireActiveGm: async (_tx, sessionId, actorUid, instanceId) => {
     const player = snapshot(`sessions/${sessionId}/players/${actorUid}`);
     const instance = snapshot(`sessions/${sessionId}/gmInstances/${instanceId}`);
-    const lease = Date.parse(String(instance.get('lastSeenAt')));
     if (player.get('role') !== 'gm' || player.get('connected') !== true || instance.get('uid') !== actorUid ||
-        instance.get('connected') !== true || !Number.isFinite(lease) || Date.now() - lease >= 120_000) {
+        !isLiveSetupGm({ id: instanceId, uid: actorUid, connected: instance.get('connected') !== false,
+          lastSeenAt: String(instance.get('lastSeenAt') ?? '') })) {
       throw new HttpsError('permission-denied', 'A current live owned GM instance is required.');
     }
   },
