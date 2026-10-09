@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import type { CallableRequest } from 'firebase-functions/v2/https';
+import { HttpsError } from 'firebase-functions/v2/https';
+import type { Firestore } from 'firebase-admin/firestore';
 import type * as FirestoreModule from '@/lib/firestore';
 import { legacyFailedKProjectionFixture } from '../../tests/fixtures/legacyFailedKProjection';
 import { missionDeck } from '../../functions/src/missionDeck';
@@ -44,11 +45,6 @@ const database = {
     mock.writes.push(...writes); return result;
   },
 };
-vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
-vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => database,
-  FieldValue: { serverTimestamp: () => 'server-time', delete: () => 'delete-field' },
-  Timestamp: class { static fromDate(date: Date) { return { toDate: () => date }; } },
-}));
 vi.mock('@/lib/firebase', () => ({ auth: () => ({ currentUser: { uid: mock.uid } }), functions: () => ({}), app: () => ({ name: 'controlled-k-preparation' }) }));
 vi.mock('firebase/auth', () => ({ onAuthStateChanged: (_auth: unknown, next: (user: { uid: string }) => void) => { next({ uid: mock.uid }); return vi.fn(); } }));
 vi.mock('firebase/functions', () => ({ httpsCallable: (_functions: unknown, name: string) => async (payload: Data) => {
@@ -64,13 +60,13 @@ vi.mock('@/lib/firestore', async original => ({ ...await original<typeof Firesto
 }));
 vi.mock('@/lib/sessionService', () => ({ startAwayMission: mock.start }));
 
-import { repairAwayMissionProjectionPrivacy } from '../../functions/src/index';
+import { createAwayMissionProjectionMaintenance } from '../../functions/src/awayMissionProjectionMaintenance';
 import { sessionFrom } from '@/lib/firestore';
 import AwayMissionStartPanel from './AwayMissionStartPanel';
 
 const opportunity = { id: 'new-site', groupId: 'fleet-1', chart: 'A', coordinate: '5143', siteCode: 'L', sourceShipId: 'aegis', sourceTransitionId: 'jump-1', sourceCycle: 2 };
 function seed() {
-  const session = sessionFrom('s1', { name: 'Connected preparation table', phase: 'active', currentTurn: 2, playerCount: 8,
+  const session = sessionFrom('s1', { name: 'Connected preparation table', phase: 'active', currentTurn: 2, playerCount: 8, turnLimit: 6,
     chartId: 'A', chartSelectionLocked: true, setupRevision: 1, activeRoleIds: ['wing-commander'],
     turnPhase: { turn: 2, teamPhaseEndsAt: '2099-10-09T00:00:00.000Z', openAirspaceEndsAt: '2099-10-09T00:15:00.000Z',
       airspace: { state: 'lifted', tickerActive: true, pressAccess: true } },
@@ -102,7 +98,21 @@ function chooseFirstDeal() {
   fireEvent.change(screen.getByLabelText('Mission Leader'), { target: { value: 'alice' } });
 }
 const prepare = () => fireEvent.click(screen.getByRole('button', { name: 'Prepare participant missions' }));
-async function registered(payload: Data) { return repairAwayMissionProjectionPrivacy.run({ data: payload, auth: { uid: mock.uid } } as CallableRequest<Data>); }
+const maintenance = createAwayMissionProjectionMaintenance({ db: database as unknown as Firestore,
+  serverTimestamp: () => 'server-time', requireActiveGm: async (_tx, sessionId, actorUid, instanceId) => {
+    const player = snapshot(`sessions/${sessionId}/players/${actorUid}`);
+    const instance = snapshot(`sessions/${sessionId}/gmInstances/${instanceId}`);
+    const lease = Date.parse(String(instance.get('lastSeenAt')));
+    if (player.get('role') !== 'gm' || player.get('connected') !== true || instance.get('uid') !== actorUid ||
+        instance.get('connected') !== true || !Number.isFinite(lease) || Date.now() - lease >= 120_000) {
+      throw new HttpsError('permission-denied', 'A current live owned GM instance is required.');
+    }
+  },
+});
+// The actual existing transaction/canonical loader is injected directly here.
+// Existing functions-project registered authority regressions remain separate;
+// jsdom must never import index and initialize an unmocked Admin SDK provider.
+async function registered(payload: Data) { return maintenance({ data: payload, auth: { uid: mock.uid } }); }
 async function maintain(step: string, requestId = step) {
   return registered({ sessionId: 's1', instanceId: 'bridge', requestId, repairRunId: 'baseline-run', step });
 }
@@ -117,7 +127,7 @@ function seedLegacy() {
     handIds: f.pointers.map(p => p.handId), cardIds: f.hands.map(h => h.cardId), dealtFrom: 0, dealtThrough: 2 };
   mock.documents.set(`sessions/s1/serverState/awayMissions/instances/${f.missionId}`, { ...source, schemaVersion: 1,
     phase: r.lifecycle.phase, revision: r.revision, status: r.status, overrun: r.overrun, lifecycleRecord: r,
-    discardedParticipantUids: ['alice', 'bob'], discardedCardIds: ['A♥', 'A♦'] });
+    discardedParticipantUids: r.lifecycle.discardedParticipantUids, discardedCardIds: r.lifecycle.discardedCardIds });
   mock.documents.set(`sessions/s1/missionStartSnapshots/${opportunityId}`, { type: 'away-mission-start-snapshot', schemaVersion: 1,
     sessionId: 's1', ...source, missionLeader: { uid: 'alice', roleId: 'wing-commander' },
     stateDelta: { missionDeckDealtCountBefore: 0, missionDeckDealtCountAfter: 2 }, revisions: { missionDeck: { before: 0, after: 2 } },
@@ -145,13 +155,13 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-it('validates the unchanged actual registered empty namespace hold→verify→READY authority control', async () => {
+it('validates the unchanged actual maintenance empty namespace hold→verify→READY authority control', async () => {
   expect(await maintain('hold')).toMatchObject({ state: 'held' });
   expect(await maintain('repair')).toMatchObject({ state: 'held', pointerCount: 0, missionId: null });
   expect(await maintain('finalize')).toMatchObject({ state: 'ready' });
   expect(mock.documents.get('sessions/s1')!.awayMissionProjectionSafety).toMatchObject({ state: 'ready' });
 });
-it('validates full canonical legacy K setup through the existing registered loader and all-participant repair control', async () => {
+it('validates full canonical legacy K setup through the existing canonical loader and all-participant repair control', async () => {
   const f = seedLegacy(); const before = protectedBytes();
   expect(f.record.outcomes?.[0]).toMatchObject({ total: 20, difficulty: 30, criticalThreshold: 40, outcome: 'failure' });
   await maintain('hold');
