@@ -1887,3 +1887,14 @@ test('selects only the lifecycle writer for the resolved mission hold repair and
   assert.deepEqual(selectedFunctions(select(current)), functionTargets(['commitAwayMissionLifecycleCommand']));
   assert.throws(() => select(current + '\n// unaudited hold mutation\n'), /Cannot safely map PC06/);
 });
+
+test('casting bundle sources select Functions and Hosting without Firestore deployment',()=>{
+ for(const file of ['companion/casting.mjs','companion/csv.mjs','companion/session-contract.mjs','scripts/build-casting-companion-core.mjs']){const result=classifyChangedFiles([file]);assert.deepEqual(result.targets,['hosting','functions']);assert.deepEqual(result.unknownFiles,[]);}
+ assert.deepEqual(classifyChangedFiles(['casting/index.html']).targets,['hosting']);
+});
+test('casting core-only changes select the exported companion callable and fail closed if absent',()=>{
+ for(const file of ['companion/casting.mjs','companion/csv.mjs','companion/session-contract.mjs','functions/src/castingCompanionCallable.ts','functions/src/castingCallableTransport.ts','functions/casting-companion-entry.mjs','scripts/build-casting-companion-core.mjs']){
+ const options={before:'before',after:'after',files:[file],targets:['hosting','functions'],isAncestor:()=>false,sourceAtRevision:(_revision,path)=>path==='functions/src/index.ts'?"export const castingCompanionCommand = auditedOnCall('castingCompanionCommand', CALLABLE_RUNTIME_OPTIONS, castingCommands);":''};
+ assert.equal(deploymentSelector(options),'hosting,functions:castingCompanionCommand');assert.throws(()=>deploymentSelector({...options,sourceAtRevision:()=>''}),/casting.*export/i);
+ }
+});
