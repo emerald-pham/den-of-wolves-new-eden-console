@@ -26,6 +26,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     changes: [
       'Casting supports customizable forms, private GM response review, and view-only personalized dossiers with up to three distinct instances of a character.',
       'The seven-nation flag intro supports Skip, reduced motion and replay in casting Settings.',
+      '703 of 751 planned items are complete in the catalog snapshot used to build this release (93.61%).',
     ],
   },
   {
