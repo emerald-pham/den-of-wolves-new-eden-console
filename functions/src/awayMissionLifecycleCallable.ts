@@ -776,7 +776,7 @@ function parseCallableCommand(value: unknown): ParsedCallableCommand {
     case 'chooseRewardTargets': {
       if (!safePathSegment(value.opportunityId) || !isRecord(value.choice)) fail('invalid-argument', 'Choose the printed reward targets.');
       // The selected reward's structural/target validation is authoritative in the adapter and delivery preparation.
-      const definition = missionCardForCode(value.opportunityId.split('-')[0] as string);
+      const definition = missionCardForCode((value.opportunityId as string).split('-')[0] as string);
       const opportunity = definition?.opportunities.find(opportunity => opportunity.id === value.opportunityId);
       const effectReward = opportunity && { opportunityId: opportunity.id, branch: 'critical' as const,
         resources: {}, effects: [...opportunity.reward.successEffects, ...(opportunity.reward.criticalEffects ?? [])], bulkHaulageApplied: false };

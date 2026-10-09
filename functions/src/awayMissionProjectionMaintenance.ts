@@ -25,7 +25,7 @@ interface Dependencies {
 }
 const isRecord = (value: unknown): value is Data => value !== null && typeof value === 'object' && !Array.isArray(value);
 const safeId = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 1_500 && !value.includes('/');
-const fail = (message: string): never => { throw new HttpsError('failed-precondition', message); };
+const fail: (message: string) => never = (message: string): never => { throw new HttpsError('failed-precondition', message); };
 const exactKeys = (value: Data, keys: readonly string[]) => Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
 
 export function createAwayMissionProjectionMaintenance(dependencies: Dependencies) {

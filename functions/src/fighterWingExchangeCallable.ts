@@ -61,7 +61,7 @@ function validResult(value: unknown, sessionId: string, requestId: string): valu
       !Number.isSafeInteger(value.turn) || (value.turn as number) < 1 ||
       (value.capacity !== 4 && value.capacity !== 6) || !record(value.counts)) return false;
   return FIGHTER_WING_IDS.every((wingId) => {
-    const count = value.counts[wingId];
+    const count = (value.counts as Record<string, unknown>)[wingId];
     return record(count) && Number.isSafeInteger(count.count) && (count.count as number) >= 0 &&
       Number.isSafeInteger(count.revision) && (count.revision as number) >= 1;
   });
