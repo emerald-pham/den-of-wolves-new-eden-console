@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import type { Firestore } from 'firebase-admin/firestore';
 import type * as FirestoreModule from '@/lib/firestore';
 import { legacyFailedKProjectionFixture } from '../../tests/fixtures/legacyFailedKProjection';
 import { missionDeck } from '../../functions/src/missionDeck';
@@ -98,7 +97,7 @@ function chooseFirstDeal() {
   fireEvent.change(screen.getByLabelText('Mission Leader'), { target: { value: 'alice' } });
 }
 const prepare = () => fireEvent.click(screen.getByRole('button', { name: 'Prepare participant missions' }));
-const maintenance = createAwayMissionProjectionMaintenance({ db: database as unknown as Firestore,
+const maintenance = createAwayMissionProjectionMaintenance({ db: database as unknown as Parameters<typeof createAwayMissionProjectionMaintenance>[0]['db'],
   serverTimestamp: () => 'server-time', requireActiveGm: async (_tx, sessionId, actorUid, instanceId) => {
     const player = snapshot(`sessions/${sessionId}/players/${actorUid}`);
     const instance = snapshot(`sessions/${sessionId}/gmInstances/${instanceId}`);

@@ -145,7 +145,7 @@ export interface AwayMissionLifecycleCallableDependencies {
   /** Source-deterministic research, nebula and attack consequences at the real resolution transition. */
   readonly prepareResolvedConsequences?: (context: AwayMissionLifecycleAuthorityContext & {
     readonly nextRecord: AwayMissionLifecycleRecord;
-    readonly currentGroupId?: string;
+    readonly currentGroupId?: string | undefined;
   }) => Promise<() => void>;
   /** Recheck private targets against current server authority before storing the choice. */
   readonly validateRewardChoice?: (context: AwayMissionLifecycleAuthorityContext & {
