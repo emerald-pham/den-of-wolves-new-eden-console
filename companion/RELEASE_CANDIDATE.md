@@ -11,7 +11,7 @@ apart from four explicit client-deny namespaces. Released Firebase wiring,
 GM/presence/request helpers and all prior baseline type-repair files are exact.
 Model/UI/CSS/adapter/main entry/flags remain byte-identical to reviewed source.
 
-Only the scoped casting callable transport changed: explicit released runtime/
+The scoped casting callable transport changed: explicit released runtime/
 AppCheck options and privacy-safe hashed-denial telemetry. Meaningful consumer
 RED observed before repair (missing runtime and no denial record), commitabfc93ee.
 SDK AppCheck enforcement is an HTTP-closure option, not exported endpoint
@@ -53,3 +53,20 @@ only casting notes. Parent coordinates eventual narrow PR/CI/merge/deploy and
 live verification. Routine authorized release does not require another generic
 approval; actual missing permissions or service requirements must be reported
 before expansion. No release success is claimed by this source milestone.
+
+## Capacity repair and current source gate
+
+Security review of d8ebf682 found that a new retry receipt at700KiB could block
+Unpublish/Revoke and leave the public link active. Meaningful actual-handler RED
+was observed and committed as2d47db49 before implementation. a7fd8a25 moves only
+new deactivation receipts into the existing client-denied workspace subcollection;
+canonical payload digest/result, current GM authorization and atomic index
+retirement remain intact. Historical receipts and all user data are retained.
+Functional fix is frozen at e37d878d;5b24afa8 adds an interruption regression only.
+
+Full Functions suite passed282 files/4693 tests on the8-test capacity fixture;
+the subsequent9-test handler fixture also passed, including interrupted commit,
+retry, stable acknowledgement, conflict, retained answers/templates and revoked
+GM replay. Scoped lint and Functions build passed. Independent code review found
+no actionable defect in e37d878d or5b24afa8. Fresh actual Firebase qualification
+and final real-entry typography remain required under a parent runtime allocation.
