@@ -25,7 +25,7 @@ export async function assertReducedGallery(page, evidenceDirectory, label) {
   const overlapHeight = Math.min(metrics.skip.bottom, metrics.stage.bottom) - Math.max(metrics.skip.y, metrics.stage.y);
   assert.ok(overlapWidth <= 1 || overlapHeight <= 1, 'Skip never covers the gallery');
   assert.ok(metrics.stage.height >= Math.min(200, metrics.viewportHeight * .4), 'gallery retains a readable viewport');
-  assert.ok(metrics.skip.y >= 0 && metrics.skip.bottom <= metrics.viewportHeight + 1, 'Skip remains inside the viewport');
+  assert.ok(metrics.skip.x >= 0 && metrics.skip.right <= metrics.viewportWidth + 1 && metrics.skip.y >= 0 && metrics.skip.bottom <= metrics.viewportHeight + 1, 'Skip remains inside the viewport');
   for (const item of metrics.figures) {
     assert.equal(item.animation, 'none');
     assert.ok(item.image.height > 0 && item.caption.height > 0);
