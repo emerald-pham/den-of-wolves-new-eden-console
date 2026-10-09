@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/sessionService', () => ({ startAwayMission: mocks.startAwayMission }));
+vi.mock('@/lib/firebase', () => ({ auth: () => ({ currentUser: { uid: 'gm' } }), functions: () => ({}) }));
+vi.mock('firebase/functions', () => ({ httpsCallable: vi.fn() }));
 vi.mock('@/lib/firestore', () => ({
   subscribeGmMissionOpportunities: mocks.subscribeGmMissionOpportunities,
   subscribeGmMissionStartSnapshots: mocks.subscribeGmMissionStartSnapshots,
@@ -30,6 +32,7 @@ const players = [
 ];
 const session = {
   id: 's1', phase: 'active', currentTurn: 2, turnLimit: 6, setupRevision: 4, chartId: 'A',
+  awayMissionProjectionSafety: { policyVersion: 1, epoch: 1, state: 'ready' },
   chartSelectionLocked: true,
   activeRoleIds: ['wing-commander', 'icebreaker-miner', 'admiral'],
   turnPhase: {

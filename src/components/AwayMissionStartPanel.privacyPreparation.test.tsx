@@ -207,3 +207,65 @@ it.each(['hold', 'repair', 'finalize'])('recovers lost %s acknowledgement using 
   if (step === 'finalize') expect(mock.writes).toHaveLength(writes);
   expect(screen.getByRole('button', { name: 'Start mission' })).toBeDisabled();
 });
+
+it.each(['player', 'revoked', 'stale lease', 'foreign instance'])('retains existing server authority denial for %s before hold or receipt replay', async defect => {
+  await maintain('hold'); const before = mock.writes.length;
+  if (defect === 'player') mock.documents.get('sessions/s1/players/gm')!.role = 'player';
+  else if (defect === 'revoked') mock.documents.get('sessions/s1/players/gm')!.connected = false;
+  else if (defect === 'stale lease') mock.documents.get('sessions/s1/gmInstances/bridge')!.lastSeenAt = '2000-01-01T00:00:00.000Z';
+  else mock.documents.get('sessions/s1/gmInstances/bridge')!.uid = 'foreign';
+  await expect(maintain('hold')).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.writes).toHaveLength(before);
+  expect(mock.documents.get('sessions/s1')!.awayMissionProjectionSafety).toMatchObject({ state: 'held' });
+});
+it.each(['Auth UID change', 'member demotion', 'instance replacement', 'offline', 'stale projection'])('withdraws the connected sequence after hold on %s', async defect => {
+  mock.afterStep = step => {
+    if (step !== 'hold') return;
+    if (defect === 'Auth UID change') mock.uid = 'foreign';
+    else if (defect === 'member demotion') useSessionStore.setState({ me: { ...useSessionStore.getState().me!, role: 'player' } });
+    else if (defect === 'instance replacement') useSessionStore.setState({ gmInstance: { ...useSessionStore.getState().gmInstance!, id: 'replacement' } });
+    else if (defect === 'offline') Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    else useSessionStore.setState({ sessionSnapshotFreshness: 'cache' });
+  };
+  render(<Consumer />); prepare();
+  await waitFor(() => expect(mock.calls).toHaveLength(1));
+  await waitFor(() => expect(screen.getByRole('status', { name: 'Participant mission preparation' })).toHaveTextContent(/blocked|reconnect|authority|identity/i));
+  expect(mock.documents.get('sessions/s1')!.awayMissionProjectionSafety).toMatchObject({ state: 'held' });
+  expect(screen.getByRole('button', { name: 'Start mission' })).toBeDisabled();
+});
+it('keeps malformed canonical participant authority held and shows recovery without partial pointer changes', async () => {
+  const f = seedLegacy(); const pointer = mock.documents.get(`sessions/s1/awayMissionHandPointers/${f.pointers[0]!.handId}`)!;
+  const publicState = pointer.lifecyclePublicState as Data;
+  pointer.lifecyclePublicState = { ...publicState, outcomes: [{ ...(publicState.outcomes as Data[])[0], difficulty: 25 }] };
+  const before = protectedBytes(); render(<Consumer />); prepare();
+  await screen.findByRole('button', { name: 'Retry preparation' });
+  expect(mock.calls.map(c => c.step)).toEqual(['hold', 'repair']);
+  expect(protectedBytes()).toEqual(before);
+  expect(mock.documents.get('sessions/s1')!.awayMissionProjectionSafety).toMatchObject({ state: 'held' });
+});
+it('pauses a real writer-generation race at finalize and explicitly continues verification with fresh request identities', async () => {
+  let raced = false;
+  mock.invoke = async payload => {
+    if (payload.step === 'finalize' && !raced) {
+      raced = true; const marker = mock.documents.get('sessions/s1')!.awayMissionProjectionSafety as Data;
+      mock.documents.get('sessions/s1')!.awayMissionProjectionSafety = { ...marker, writeRevision: Number(marker.writeRevision) + 1 };
+    }
+    return registered(payload);
+  };
+  render(<Consumer />); prepare();
+  await screen.findByRole('button', { name: 'Continue preparation' });
+  expect(mock.calls.map(c => c.step)).toEqual(['hold', 'repair', 'finalize']);
+  const firstFinalize = mock.calls.at(-1)!;
+  expect(mock.documents.get('sessions/s1')!.awayMissionProjectionSafety).toMatchObject({ state: 'held' });
+  fireEvent.click(screen.getByRole('button', { name: 'Continue preparation' }));
+  await waitFor(() => expect(mock.documents.get('sessions/s1')!.awayMissionProjectionSafety).toMatchObject({ state: 'ready' }));
+  expect(mock.calls.map(c => c.step)).toEqual(['hold', 'repair', 'finalize', 'repair', 'finalize']);
+  expect(mock.calls.at(-1)!.requestId).not.toBe(firstFinalize.requestId);
+  expect(new Set(mock.calls.map(c => c.repairRunId)).size).toBe(1);
+});
+it('rejects malformed callable success without optimistically preparing or enabling a first deal', async () => {
+  mock.alterReply = value => ({ ...(value as Data), epoch: 0 }); render(<Consumer />); chooseFirstDeal(); prepare();
+  await screen.findByRole('button', { name: 'Retry preparation' });
+  expect(mock.calls.map(c => c.step)).toEqual(['hold']);
+  expect(screen.getByRole('button', { name: 'Start mission' })).toBeDisabled();
+});
