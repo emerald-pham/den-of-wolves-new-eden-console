@@ -120,7 +120,7 @@ function nextResearchWorkspace(
       ? {
           ...track,
           crossedBoxes,
-          currentMaterialCost: prices[earnedMarks],
+          currentMaterialCost: prices[earnedMarks]!,
           complete: crossedBoxes >= track.totalBoxes,
         }
       : track),

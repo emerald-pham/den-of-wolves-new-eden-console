@@ -18460,9 +18460,9 @@ function fleetGroupRejoinPreviewBinding(value: unknown): FleetGroupRejoinPreview
         candidate.groupIds.some(id => typeof id !== 'string' || !/^fleet-[1-9][0-9]*$/.test(id)) ||
         new Set(candidate.groupIds).size !== candidate.groupIds.length || !isRecord(candidate.pursuitBefore) ||
         Object.keys(candidate.pursuitBefore).length !== candidate.groupIds.length ||
-        Object.keys(candidate.pursuitBefore).some(id => !candidate.groupIds.includes(id)) ||
-        candidate.groupIds.some(id => !Number.isSafeInteger(candidate.pursuitBefore[id]) ||
-          (candidate.pursuitBefore[id] as number) < 0 || (candidate.pursuitBefore[id] as number) > 10)) return null;
+        Object.keys(candidate.pursuitBefore).some(id => !(candidate.groupIds as unknown[]).includes(id)) ||
+        candidate.groupIds.some(id => !Number.isSafeInteger((candidate.pursuitBefore as Record<string, unknown>)[id]) ||
+          ((candidate.pursuitBefore as Record<string, unknown>)[id] as number) < 0 || ((candidate.pursuitBefore as Record<string, unknown>)[id] as number) > 10)) return null;
   }
   return value as unknown as FleetGroupRejoinPreviewBinding;
 }

@@ -111,7 +111,9 @@ it('holds an uncertain decision to the exact GM choice and refuses player adjudi
   await expect(actions.recordRejoinAdjudication(original)).resolves.toMatchObject({ adjudicationId: 'request-1' });
   expect(transport.mock.calls[1]).toEqual(transport.mock.calls[2]);
 
-  context = { ...context, role: 'player', gmInstanceId: undefined };
+  const playerContext = { ...context };
+  delete playerContext.gmInstanceId;
+  context = { ...playerContext, role: 'player' };
   const playerActions = createFleetGroupActions(() => context, vi.fn());
   await expect(playerActions.recordRejoinAdjudication(original)).rejects.toThrow(/facilitator/i);
 });

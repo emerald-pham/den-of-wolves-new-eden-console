@@ -990,7 +990,7 @@ function isValidMissionLifecycleState(value: unknown): value is MissionLifecycle
         (receipt.recycledCardIds !== undefined && !Array.isArray(receipt.recycledCardIds)) ||
         !Array.isArray(recycledCardIds) || new Set(recycledCardIds).size !== recycledCardIds.length ||
         recycledCardIds.some((cardId) => !isMissionCardId(cardId) ||
-          deckState.order.indexOf(cardId) >= receipt.dealtCountBefore ||
+          deckState.order.indexOf(cardId) >= (receipt.dealtCountBefore as number) ||
           availableResolvedDiscardCardIds.includes(cardId)) ||
         !Array.isArray(receiptOpportunityIds) ||
         receipt.addedCount !== expectedOpportunityIds.length ||

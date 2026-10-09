@@ -53,7 +53,7 @@ export function planFleetGroupRejoins(
   }
   if (!Array.isArray(decisions) || decisions.some(decision => !decision || typeof decision.coordinate !== 'string' ||
       !isStarSystemCoordinate(decision.coordinate) || !Array.isArray(decision.groupIds) || decision.groupIds.length < 2 ||
-      decision.groupIds.some(id => typeof id !== 'string' || !/^fleet-[1-9][0-9]*$/.test(id)) ||
+      decision.groupIds.some((id: unknown) => typeof id !== 'string' || !/^fleet-[1-9][0-9]*$/.test(id)) ||
       new Set(decision.groupIds).size !== decision.groupIds.length || !Number.isSafeInteger(decision.pursuitAfter) ||
       decision.pursuitAfter < 0 || decision.pursuitAfter > 10 ||
       (decision.adjudicationId !== undefined && (typeof decision.adjudicationId !== 'string' || !decision.adjudicationId)))) {

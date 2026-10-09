@@ -132,7 +132,7 @@ export default function ArrestPosseCalculator({
   const deadlineOpen = Boolean(activeCase && currentCycle === activeCase.deadlineCycle &&
     currentDispositionPhase === 'team');
   const ordinaryDispositionWindowOpen = sameCycleTeamWindowOpen || sameCycleCoordinationWindowOpen || deadlineOpen;
-  const caseIsOverdue = Boolean(activeCase && currentCycle !== undefined && dispositionPhaseAvailable &&
+  const caseIsOverdue = Boolean(activeCase && currentCycle !== undefined && typeof activeCase.deadlineCycle === 'number' && dispositionPhaseAvailable &&
     (currentCycle > activeCase.deadlineCycle || currentCycle === activeCase.deadlineCycle && !deadlineOpen));
   const canDisposition = Boolean(activeCase && onDisposition && currentCycle !== undefined &&
     Number.isSafeInteger(currentCycle) && !resolving &&

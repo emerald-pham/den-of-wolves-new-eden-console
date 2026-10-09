@@ -439,7 +439,7 @@ describe('Boa half-point outcome delivery', () => {
     const stop = createAwayMissionLifecycleProjectionSubscription({
       sessionId: 's1', actorUid: 'bob', onState, reader,
     });
-    const emitPointer = (state: ReturnType<typeof resolvedBoaState>) => pointerListener!({
+    const emitPointer = (state: typeof publicState | ReturnType<typeof resolvedBoaState>) => pointerListener!({
       fromCache: false,
       hasPendingWrites: false,
       docs: [{ id: 'hand-bob', data: () => ({

@@ -9,7 +9,7 @@ vi.mock('@/lib/airspaceService', () => ({ unlockPressAirspace: vi.fn() }));
 const { unlockPressAirspace } = await import('@/lib/airspaceService');
 const exchangeMock = vi.hoisted(() => ({ exchange: vi.fn() }));
 vi.mock('@/lib/sessionService', async (importOriginal) => {
-  const original = await importOriginal();
+  const original = await importOriginal<typeof import('@/lib/sessionService')>();
   return { ...original, exchangeAegisFighterWings: exchangeMock.exchange };
 });
 

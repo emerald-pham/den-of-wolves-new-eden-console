@@ -164,7 +164,7 @@ export function addResolvedMissionDiscards(
     if (typeof cardId !== 'string' || state.order.indexOf(cardId as MissionCardId) < 0 ||
         state.order.indexOf(cardId as MissionCardId) >= dealtCount || seen.has(cardId)) return null;
     seen.add(cardId);
-    appended.push(cardId);
+    appended.push(cardId as MissionCardId);
   }
   return [...available, ...appended];
 }

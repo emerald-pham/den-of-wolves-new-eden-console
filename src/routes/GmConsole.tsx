@@ -2699,7 +2699,7 @@ export default function GmConsole() {
 
   async function changeWolfAttackWindow(
     status: WolfAttackWindowStatus,
-    threat?: Readonly<{ targetGroupId: string; threatSiteCode?: 'L' | 'M' | 'P'; threatSourceId?: string }>,
+    threat?: Parameters<typeof setWolfAttackWindow>[2],
   ): Promise<void> {
     if (wolfWindowMutation || !session || !local) return;
     setWolfWindowMutation(status);

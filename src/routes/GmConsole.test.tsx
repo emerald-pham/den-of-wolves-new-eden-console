@@ -607,10 +607,9 @@ it('routes only a current unpaused arrest phase to mounted prisoner actions', as
   expect(within(panel).getByText(/a current unpaused phase is required/i)).toBeVisible();
 
   act(() => {
-    useSessionStore.getState().setSession({
-      ...useSessionStore.getState().session!,
-      turnPhase: undefined,
-    });
+    const withoutPhase = { ...useSessionStore.getState().session! };
+    delete withoutPhase.turnPhase;
+    useSessionStore.getState().setSession(withoutPhase);
   });
   expect(within(panel).queryByRole('button', { name: 'Release prisoner' })).not.toBeInTheDocument();
   expect(within(panel).queryByRole('button', { name: 'Record facilitator resolution' })).not.toBeInTheDocument();

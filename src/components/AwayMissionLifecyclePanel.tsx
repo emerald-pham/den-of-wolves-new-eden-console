@@ -452,7 +452,7 @@ export default function AwayMissionLifecyclePanel({
                   onClick={() => void run(() => actions.chooseRewardTargets!(option.opportunityId, option.researchSelections ?
                     { kind: 'research', trackIds: selected.slice(0, count) } :
                     { kind: 'consoles', action, targets: selected.slice(0, count).map(key => {
-                      const [shipId, systemId] = key.split(':'); return { shipId, systemId };
+                      const [shipId, systemId] = key.split(':') as [string, string]; return { shipId, systemId };
                     }) }))}>
                   Select reward targets
                 </button>

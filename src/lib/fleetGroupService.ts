@@ -106,9 +106,9 @@ function strictRejoinCandidates(value: unknown): value is readonly FleetGroupRej
     candidate.groupIds.length >= 2 && candidate.groupIds.length <= 32 && new Set(candidate.groupIds).size === candidate.groupIds.length &&
     candidate.groupIds.every(id => typeof id === 'string' && /^fleet-[1-9][0-9]*$/.test(id)) &&
     record(candidate.pursuitBefore) && Object.keys(candidate.pursuitBefore).length === candidate.groupIds.length &&
-    Object.keys(candidate.pursuitBefore).every(id => candidate.groupIds.includes(id)) && candidate.groupIds.every(id =>
-      Number.isSafeInteger(candidate.pursuitBefore[id]) && (candidate.pursuitBefore[id] as number) >= 0 &&
-      (candidate.pursuitBefore[id] as number) <= 10));
+    Object.keys(candidate.pursuitBefore).every(id => (candidate.groupIds as unknown[]).includes(id)) && candidate.groupIds.every(id =>
+      Number.isSafeInteger((candidate.pursuitBefore as Record<string, unknown>)[id]) && ((candidate.pursuitBefore as Record<string, unknown>)[id] as number) >= 0 &&
+      ((candidate.pursuitBefore as Record<string, unknown>)[id] as number) <= 10));
 }
 function requireContext(context: FleetGroupContext) {
   if (!context.sessionId || !context.actorUid ||
@@ -342,7 +342,7 @@ export function createFleetGroupActions(getContext: () => FleetGroupContext, tra
       if (context.role !== 'gm' || !context.gmInstanceId) throw new Error('Fresh facilitator authority is required to record a rejoin decision.');
       if (!Array.isArray(decisions) || decisions.length < 1 || decisions.length > 32 || decisions.some(decision =>
         !decision || !/^\d{4}$/.test(decision.coordinate) || !Array.isArray(decision.groupIds) || decision.groupIds.length < 2 ||
-        decision.groupIds.some(id => typeof id !== 'string' || !/^fleet-[1-9][0-9]*$/.test(id)) ||
+        decision.groupIds.some((id: unknown) => typeof id !== 'string' || !/^fleet-[1-9][0-9]*$/.test(id)) ||
         new Set(decision.groupIds).size !== decision.groupIds.length || !Number.isSafeInteger(decision.pursuitAfter) ||
         decision.pursuitAfter < 0 || decision.pursuitAfter > 10)) {
         throw new Error('Record one explicit pursuit result for every current exceptional rejoin.');
