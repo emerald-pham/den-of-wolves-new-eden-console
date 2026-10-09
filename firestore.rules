@@ -32,6 +32,24 @@ service cloud.firestore {
       ).data.role == 'gm';
     }
 
+    // This session-wide predicate can authorize an unchanged owner query.
+    // Missing or malformed legacy administration never grants participant reads.
+    function isAwayMissionProjectionReady(sessionId) {
+      let session = get(/databases/$(database)/documents/sessions/$(sessionId)).data;
+      return 'awayMissionProjectionSafety' in session
+        && session.awayMissionProjectionSafety is map
+        && session.awayMissionProjectionSafety.keys().hasAll(['policyVersion', 'epoch', 'state', 'writeRevision'])
+        && session.awayMissionProjectionSafety.keys().hasOnly(['policyVersion', 'epoch', 'state', 'writeRevision'])
+        && session.awayMissionProjectionSafety.policyVersion == 1
+        && session.awayMissionProjectionSafety.epoch is int
+        && session.awayMissionProjectionSafety.epoch > 0
+        && session.awayMissionProjectionSafety.epoch <= 9007199254740991
+        && session.awayMissionProjectionSafety.state == 'ready'
+        && session.awayMissionProjectionSafety.writeRevision is int
+        && session.awayMissionProjectionSafety.writeRevision >= 0
+        && session.awayMissionProjectionSafety.writeRevision <= 9007199254740991;
+    }
+
     function isPressLogReader(sessionId) {
       let session = get(
         /databases/$(database)/documents/sessions/$(sessionId)
@@ -992,19 +1010,20 @@ service cloud.firestore {
         allow list, write: if false;
       }
 
-      // A current-hand pointer carries only mission/phase metadata. The owner
-      // can use it to discover their private hand, while the current GM may
-      // enumerate pointers to operate the facilitator readiness control. It
-      // never contains a card identity or card content.
+      // Pointers carry mission metadata and recipient public lifecycle state.
+      // Ordinary reads wait for verified legacy-K sanitation. Current GM
+      // readiness remains available independently of that session-wide hold.
       match /awayMissionHandPointers/{pointerId} {
         allow get: if isMember(sessionId)
           && resource.data.keys().hasAll(['sessionId', 'participantUid', 'handId'])
           && resource.data.sessionId == sessionId
           && resource.data.handId == pointerId
-          && (resource.data.participantUid == uid() || isGm(sessionId));
+          && (isGm(sessionId) || (resource.data.participantUid == uid()
+            && isAwayMissionProjectionReady(sessionId)));
         allow list: if isMember(sessionId)
           && resource.data.sessionId == sessionId
-          && (resource.data.participantUid == uid() || isGm(sessionId));
+          && (isGm(sessionId) || (resource.data.participantUid == uid()
+            && isAwayMissionProjectionReady(sessionId)));
         allow write: if false;
       }
 
