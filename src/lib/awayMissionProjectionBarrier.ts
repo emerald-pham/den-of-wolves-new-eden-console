@@ -47,9 +47,20 @@ function readBootIntent(): Intent | null {
 // Later storage writes cannot manufacture evidence of a different document.
 let bootIntent = readBootIntent();
 const authorityKey = (sessionId: string, uid: string) => JSON.stringify([sessionId, uid]);
+function clearMissionViews(clearGm: boolean) {
+  const store = useSessionStore.getState();
+  if (store.awayMissionHandPointer !== null || store.awayMissionHand !== null ||
+      store.awayMissionHandPointers.length || store.awayMissionHands.length || clearGm && store.gmAwayMissionHandPointers.length) {
+    useSessionStore.setState({ awayMissionHandPointer: null, awayMissionHand: null,
+      awayMissionHandPointers: [], awayMissionHands: [], ...(clearGm ? { gmAwayMissionHandPointers: [] } : {}) });
+  }
+}
 function invalidate(clearAuthority = false) {
   acceptedKey = null; bootIntent = null; dirty = true;
-  if (clearAuthority) for (const authority of authorities.values()) authority.sessionConfirmed = false;
+  if (clearAuthority) for (const authority of authorities.values()) {
+    authority.sessionConfirmed = false; authority.player = undefined;
+  }
+  clearMissionViews(clearAuthority);
 }
 function identity(): { uid: string; appName: string } | null {
   try {
@@ -78,7 +89,7 @@ function accessFor(sessionId: string, uid: string): AwayMissionProjectionAccess 
       player.sessionId !== sessionId || player.connected !== true || store.session?.id !== sessionId ||
       store.session.phase === 'closed' || store.connection !== 'live' || store.me?.uid !== uid || store.me.sessionId !== sessionId ||
       store.me.connected !== true || store.me.role !== player.role) {
-    if (acceptedKey !== null) invalidate(true);
+    if (acceptedKey !== null || dirty) invalidate(true);
     return { owner: false, gm: false };
   }
   // This role came from the fresh own-player listener, not a supplied callback.
