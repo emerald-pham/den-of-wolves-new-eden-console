@@ -11,6 +11,7 @@ import {
 import { httpsCallable } from 'firebase/functions';
 import { app, auth, functions } from './firebase';
 import { useSessionStore } from '@/store/useSessionStore';
+import { subscribeAwayMissionProjectionAccess, hasAwayMissionOwnerAccess } from './awayMissionProjectionBarrier';
 import { validMissionRewardChoiceProjection, type MissionRewardChoice, type MissionRewardSelection, type MissionRewardChoiceOptions } from './missionRewardChoices';
 import {
   captureSessionAuthority,
@@ -434,7 +435,7 @@ function productionProjectionReader(): AwayMissionLifecycleProjectionReader {
   const database = getFirestore(app());
   return {
     watchAuth: (onUid) => onAuthStateChanged(auth(), (user) => onUid(user?.uid ?? null)),
-    watchOwnPointers: (sessionId, actorUid, onNext, onError) => onSnapshot(
+    watchOwnPointers: (sessionId, actorUid, onNext, onError) => hasAwayMissionOwnerAccess(sessionId, actorUid) ? onSnapshot(
       query(
         collection(database, `sessions/${sessionId}/awayMissionHandPointers`),
         where('sessionId', '==', sessionId),
@@ -447,8 +448,8 @@ function productionProjectionReader(): AwayMissionLifecycleProjectionReader {
         docs: snapshot.docs.map((entry) => ({ id: entry.id, data: () => entry.data() })),
       }),
       onError,
-    ),
-    watchOwnHand: (sessionId, _actorUid, handId, onNext, onError) => onSnapshot(
+    ) : () => undefined,
+    watchOwnHand: (sessionId, actorUid, handId, onNext, onError) => hasAwayMissionOwnerAccess(sessionId, actorUid) ? onSnapshot(
       doc(database, `sessions/${sessionId}/awayMissionHands/${handId}`),
       { includeMetadataChanges: true },
       (snapshot) => onNext({
@@ -458,7 +459,7 @@ function productionProjectionReader(): AwayMissionLifecycleProjectionReader {
         data: () => snapshot.data(),
       }),
       onError,
-    ),
+    ) : () => undefined,
   };
 }
 
@@ -701,12 +702,29 @@ export function subscribeToOwnAwayMissionLifecycles(
   actorUid: string,
   onState: (state: AwayMissionLifecycleFeedState) => void,
 ): Unsubscribe {
-  return createAwayMissionLifecycleProjectionSubscription({
-    sessionId,
-    actorUid,
-    onState,
-    reader: productionProjectionReader(),
+  let closed = false;
+  let generation = 0;
+  let stopProjection: Unsubscribe | undefined;
+  onState({ status: 'loading', missions: [], projectionMissing: false });
+  const stopAccess = subscribeAwayMissionProjectionAccess(sessionId, actorUid, access => {
+    if (closed) return;
+    if (!access.owner) {
+      generation += 1; stopProjection?.(); stopProjection = undefined;
+      onState({ status: 'stale', missions: [], projectionMissing: false });
+      return;
+    }
+    if (stopProjection) return;
+    const currentGeneration = ++generation;
+    stopProjection = createAwayMissionLifecycleProjectionSubscription({ sessionId, actorUid,
+      onState: state => {
+        if (!closed && currentGeneration === generation && hasAwayMissionOwnerAccess(sessionId, actorUid)) onState(state);
+      }, reader: productionProjectionReader(),
+    });
   });
+  return () => {
+    if (closed) return;
+    closed = true; generation += 1; stopAccess(); stopProjection?.(); stopProjection = undefined;
+  };
 }
 
 function parseLifecycleReply(

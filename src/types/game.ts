@@ -1640,7 +1640,14 @@ export interface CurrentActorBerthAuthority {
   readonly shipId: VesselId;
 }
 
+export interface AwayMissionProjectionSafetyFacts {
+  readonly policyVersion: 1;
+  readonly epoch: number;
+  readonly state: 'held' | 'ready';
+}
+
 export interface GameSession {
+  readonly awayMissionProjectionSafety?: AwayMissionProjectionSafetyFacts | null;
   /** Private live-read authority; never sourced from a session document or cache.
    * Present null withdraws current-berth navigation without legacy fallback. */
   readonly currentActorBerthAuthority?: CurrentActorBerthAuthority | null;
