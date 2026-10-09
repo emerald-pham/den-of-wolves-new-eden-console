@@ -7,7 +7,7 @@ import type { AwayMissionProjectionSafetyFacts, Player } from '@/types/game';
 const INTENT_KEY = 'dow-away-mission-memory-cutover';
 const bootId = crypto.randomUUID();
 type Intent = { version: 1; appName: string; sessionId: string; uid: string; policyVersion: 1; epoch: number; previousBootId: string };
-type Authority = { sessionConfirmed: boolean; marker: AwayMissionProjectionSafetyFacts | null; player?: Player };
+type Authority = { sessionConfirmed: boolean; marker: AwayMissionProjectionSafetyFacts | null; player?: Player | undefined };
 export interface AwayMissionProjectionAccess { readonly owner: boolean; readonly gm: boolean }
 type Observer = { sessionId: string; uid: string; next: (access: AwayMissionProjectionAccess) => void; last?: AwayMissionProjectionAccess };
 const authorities = new Map<string, Authority>();
