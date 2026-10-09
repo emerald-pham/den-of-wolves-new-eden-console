@@ -1,0 +1,1773 @@
+{
+  "startedAt": "2026-10-09T02:26:43.771Z",
+  "cases": [
+    {
+      "name": "phone-reduced-first-intro",
+      "metrics": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "focus": "BUTTON",
+        "items": [
+          {
+            "tag": "H1",
+            "text": "Choose a DoW session",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "22.4px",
+            "lineHeight": "29.12px",
+            "width": 358,
+            "height": 29.125,
+            "x": 16,
+            "y": 149.5625
+          },
+          {
+            "tag": "LABEL",
+            "text": "New lobby name",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 80.359375,
+            "x": 16,
+            "y": 364.25
+          },
+          {
+            "tag": "INPUT",
+            "text": "",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 48.375,
+            "x": 16,
+            "y": 396.234375
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Create lobby",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 149.59375,
+            "height": 48.375,
+            "x": 16,
+            "y": 464.609375
+          },
+          {
+            "tag": "LABEL",
+            "text": "Selected session",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 75.984375,
+            "x": 16,
+            "y": 532.984375
+          },
+          {
+            "tag": "SELECT",
+            "text": "",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "normal",
+            "width": 358,
+            "height": 44,
+            "x": 16,
+            "y": 564.96875
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Claim GM instance",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 197.765625,
+            "height": 48.375,
+            "x": 16,
+            "y": 696.15625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Use selected session for casting",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 342.25,
+            "height": 48.375,
+            "x": 16,
+            "y": 752.53125
+          },
+          {
+            "tag": "LABEL",
+            "text": "Session join code",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 80.359375,
+            "x": 16,
+            "y": 820.90625
+          },
+          {
+            "tag": "INPUT",
+            "text": "",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 48.375,
+            "x": 16,
+            "y": 852.890625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Join existing session",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 236.296875,
+            "height": 48.375,
+            "x": 16,
+            "y": 921.265625
+          },
+          {
+            "tag": "LABEL",
+            "text": "GM access password",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 80.359375,
+            "x": 16,
+            "y": 989.640625
+          },
+          {
+            "tag": "INPUT",
+            "text": "",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 48.375,
+            "x": 16,
+            "y": 1021.625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Sign in to GM access",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 226.65625,
+            "height": 48.375,
+            "x": 16,
+            "y": 1090
+          },
+          {
+            "tag": "H2",
+            "text": "Seven nations. One fleet.",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "18.4px",
+            "lineHeight": "27.6px",
+            "width": 276.953125,
+            "height": 27.609375,
+            "x": 56.515625,
+            "y": 24
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Skip intro",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 130.328125,
+            "height": 48.375,
+            "x": 129.828125,
+            "y": 771.625
+          }
+        ],
+        "platformFonts": [
+          {
+            "familyName": "Menlo",
+            "postScriptName": "Menlo-Bold",
+            "isCustomFont": false,
+            "glyphCount": 20
+          }
+        ]
+      }
+    },
+    {
+      "name": "phone-prerequisite",
+      "metrics": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "focus": "H1",
+        "items": [
+          {
+            "tag": "H1",
+            "text": "Choose a DoW session",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "22.4px",
+            "lineHeight": "29.12px",
+            "width": 358,
+            "height": 29.125,
+            "x": 16,
+            "y": 149.5625
+          },
+          {
+            "tag": "LABEL",
+            "text": "New lobby name",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 80.359375,
+            "x": 16,
+            "y": 364.25
+          },
+          {
+            "tag": "INPUT",
+            "text": "",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 48.375,
+            "x": 16,
+            "y": 396.234375
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Create lobby",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 149.59375,
+            "height": 48.375,
+            "x": 16,
+            "y": 464.609375
+          },
+          {
+            "tag": "LABEL",
+            "text": "Selected session",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 75.984375,
+            "x": 16,
+            "y": 532.984375
+          },
+          {
+            "tag": "SELECT",
+            "text": "",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "normal",
+            "width": 358,
+            "height": 44,
+            "x": 16,
+            "y": 564.96875
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Claim GM instance",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 197.765625,
+            "height": 48.375,
+            "x": 16,
+            "y": 696.15625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Use selected session for casting",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 342.25,
+            "height": 48.375,
+            "x": 16,
+            "y": 752.53125
+          },
+          {
+            "tag": "LABEL",
+            "text": "Session join code",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 80.359375,
+            "x": 16,
+            "y": 820.90625
+          },
+          {
+            "tag": "INPUT",
+            "text": "",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 48.375,
+            "x": 16,
+            "y": 852.890625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Join existing session",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 236.296875,
+            "height": 48.375,
+            "x": 16,
+            "y": 921.265625
+          },
+          {
+            "tag": "LABEL",
+            "text": "GM access password",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 80.359375,
+            "x": 16,
+            "y": 989.640625
+          },
+          {
+            "tag": "INPUT",
+            "text": "",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 48.375,
+            "x": 16,
+            "y": 1021.625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Sign in to GM access",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 226.65625,
+            "height": 48.375,
+            "x": 16,
+            "y": 1090
+          }
+        ],
+        "platformFonts": [
+          {
+            "familyName": "Menlo",
+            "postScriptName": "Menlo-Bold",
+            "isCustomFont": false,
+            "glyphCount": 20
+          }
+        ]
+      }
+    },
+    {
+      "name": "fields-phone-owner-workspace",
+      "metrics": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "focus": "H1",
+        "items": [
+          {
+            "tag": "BUTTON",
+            "text": "Workspace",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 175,
+            "height": 48.375,
+            "x": 16,
+            "y": 150.5625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Form builder",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 175,
+            "height": 48.375,
+            "x": 199,
+            "y": 150.5625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Responses",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 175,
+            "height": 48.375,
+            "x": 16,
+            "y": 206.9375
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Characters",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 175,
+            "height": 48.375,
+            "x": 199,
+            "y": 206.9375
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Settings",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 48.375,
+            "x": 16,
+            "y": 263.3125
+          },
+          {
+            "tag": "H1",
+            "text": "Casting workspace",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "22.4px",
+            "lineHeight": "29.12px",
+            "width": 358,
+            "height": 29.125,
+            "x": 16,
+            "y": 327.6875
+          }
+        ],
+        "platformFonts": [
+          {
+            "familyName": "Menlo",
+            "postScriptName": "Menlo-Bold",
+            "isCustomFont": false,
+            "glyphCount": 17
+          }
+        ]
+      }
+    },
+    {
+      "name": "fields-phone-builder",
+      "metrics": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "focus": "TEXTAREA",
+        "items": [
+          {
+            "tag": "BUTTON",
+            "text": "Workspace",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 175,
+            "height": 48.375,
+            "x": 16,
+            "y": -985.4375
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Form builder",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 175,
+            "height": 48.375,
+            "x": 199,
+            "y": -985.4375
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Responses",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 175,
+            "height": 48.375,
+            "x": 16,
+            "y": -929.0625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Characters",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 175,
+            "height": 48.375,
+            "x": 199,
+            "y": -929.0625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Settings",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 48.375,
+            "x": 16,
+            "y": -872.6875
+          },
+          {
+            "tag": "H1",
+            "text": "Form builder",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "22.4px",
+            "lineHeight": "29.12px",
+            "width": 358,
+            "height": 29.125,
+            "x": 16,
+            "y": -808.3125
+          },
+          {
+            "tag": "LABEL",
+            "text": "Title",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 80.359375,
+            "x": 16,
+            "y": -763.1875
+          },
+          {
+            "tag": "INPUT",
+            "text": "Synthetic public casting",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 48.375,
+            "x": 16,
+            "y": -731.203125
+          },
+          {
+            "tag": "LABEL",
+            "text": "Description",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 143.984375,
+            "x": 16,
+            "y": -666.828125
+          },
+          {
+            "tag": "TEXTAREA",
+            "text": "",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 112,
+            "x": 16,
+            "y": -634.84375
+          },
+          {
+            "tag": "LABEL",
+            "text": "Section title",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 332,
+            "height": 80.359375,
+            "x": 29,
+            "y": -449.25
+          },
+          {
+            "tag": "INPUT",
+            "text": "Player preferences",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 332,
+            "height": 48.375,
+            "x": 29,
+            "y": -417.265625
+          },
+          {
+            "tag": "LABEL",
+            "text": "Question label",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 306,
+            "height": 80.359375,
+            "x": 42,
+            "y": -295.296875
+          },
+          {
+            "tag": "INPUT",
+            "text": "Player name",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 306,
+            "height": 48.375,
+            "x": 42,
+            "y": -263.3125
+          },
+          {
+            "tag": "LABEL",
+            "text": "Question typeShort textLong textSingle choiceMultiple choiceDropdownHTTPS link",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 306,
+            "height": 75.984375,
+            "x": 42,
+            "y": -198.9375
+          },
+          {
+            "tag": "SELECT",
+            "text": "Short textLong textSingle choiceMultiple choiceDropdownHTTPS link",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "normal",
+            "width": 306,
+            "height": 44,
+            "x": 42,
+            "y": -166.953125
+          },
+          {
+            "tag": "LABEL",
+            "text": "Required",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 306,
+            "height": 44,
+            "x": 42,
+            "y": -106.953125
+          },
+          {
+            "tag": "INPUT",
+            "text": "on",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 19.1875,
+            "height": 19.1875,
+            "x": 46,
+            "y": -94.546875
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Remove question",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 178.5,
+            "height": 48.375,
+            "x": 42,
+            "y": -46.953125
+          },
+          {
+            "tag": "LABEL",
+            "text": "Question label",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 306,
+            "height": 80.359375,
+            "x": 42,
+            "y": 88.015625
+          },
+          {
+            "tag": "INPUT",
+            "text": "Preferred role",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 306,
+            "height": 48.375,
+            "x": 42,
+            "y": 120
+          },
+          {
+            "tag": "LABEL",
+            "text": "Question typeShort textLong textSingle choiceMultiple choiceDropdownHTTPS link",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 306,
+            "height": 75.984375,
+            "x": 42,
+            "y": 184.375
+          },
+          {
+            "tag": "SELECT",
+            "text": "Short textLong textSingle choiceMultiple choiceDropdownHTTPS link",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "normal",
+            "width": 306,
+            "height": 44,
+            "x": 42,
+            "y": 216.359375
+          },
+          {
+            "tag": "LABEL",
+            "text": "Choices — one per line",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 306,
+            "height": 143.984375,
+            "x": 42,
+            "y": 276.359375
+          },
+          {
+            "tag": "TEXTAREA",
+            "text": "Pilot\nDiplomat",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 306,
+            "height": 112,
+            "x": 42,
+            "y": 308.34375
+          },
+          {
+            "tag": "LABEL",
+            "text": "Required",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 306,
+            "height": 44,
+            "x": 42,
+            "y": 436.34375
+          },
+          {
+            "tag": "INPUT",
+            "text": "on",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 19.1875,
+            "height": 19.1875,
+            "x": 46,
+            "y": 448.75
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Remove question",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 178.5,
+            "height": 48.375,
+            "x": 42,
+            "y": 496.34375
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Add question",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 149.59375,
+            "height": 48.375,
+            "x": 29,
+            "y": 577.71875
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Add section",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 139.96875,
+            "height": 48.375,
+            "x": 16,
+            "y": 663.09375
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Preview form",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 149.59375,
+            "height": 48.375,
+            "x": 163.96875,
+            "y": 663.09375
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Save draft",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 130.328125,
+            "height": 48.375,
+            "x": 16,
+            "y": 719.46875
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Publish form",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 149.59375,
+            "height": 48.375,
+            "x": 154.328125,
+            "y": 719.46875
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Unpublish form",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 168.859375,
+            "height": 48.375,
+            "x": 16,
+            "y": 775.84375
+          }
+        ],
+        "platformFonts": [
+          {
+            "familyName": "Menlo",
+            "postScriptName": "Menlo-Bold",
+            "isCustomFont": false,
+            "glyphCount": 12
+          }
+        ]
+      }
+    },
+    {
+      "name": "fields-phone-public-form",
+      "metrics": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "focus": "BODY",
+        "items": [
+          {
+            "tag": "H1",
+            "text": "Synthetic public casting",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "22.4px",
+            "lineHeight": "29.12px",
+            "width": 358,
+            "height": 29.125,
+            "x": 16,
+            "y": 149.5625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Close form",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 130.328125,
+            "height": 48.375,
+            "x": 16,
+            "y": 197.6875
+          },
+          {
+            "tag": "LABEL",
+            "text": "Player name *",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 332,
+            "height": 80.359375,
+            "x": 29,
+            "y": 323.65625
+          },
+          {
+            "tag": "INPUT",
+            "text": "",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 332,
+            "height": 48.375,
+            "x": 29,
+            "y": 355.640625
+          },
+          {
+            "tag": "LABEL",
+            "text": "Pilot",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 306,
+            "height": 44,
+            "x": 42,
+            "y": 477.609375
+          },
+          {
+            "tag": "INPUT",
+            "text": "Pilot",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 19.1875,
+            "height": 19.1875,
+            "x": 47,
+            "y": 491.515625
+          },
+          {
+            "tag": "LABEL",
+            "text": "Diplomat",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 306,
+            "height": 44,
+            "x": 42,
+            "y": 537.609375
+          },
+          {
+            "tag": "INPUT",
+            "text": "Diplomat",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 19.1875,
+            "height": 19.1875,
+            "x": 47,
+            "y": 551.515625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Submit response",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 178.5,
+            "height": 48.375,
+            "x": 16,
+            "y": 663.609375
+          }
+        ],
+        "platformFonts": [
+          {
+            "familyName": "Menlo",
+            "postScriptName": "Menlo-Bold",
+            "isCustomFont": false,
+            "glyphCount": 24
+          }
+        ]
+      }
+    },
+    {
+      "name": "fields-phone-submission",
+      "metrics": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "focus": "H1",
+        "items": [
+          {
+            "tag": "H1",
+            "text": "Response received",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "22.4px",
+            "lineHeight": "29.12px",
+            "width": 358,
+            "height": 29.125,
+            "x": 16,
+            "y": 149.5625
+          }
+        ],
+        "platformFonts": [
+          {
+            "familyName": "Menlo",
+            "postScriptName": "Menlo-Bold",
+            "isCustomFont": false,
+            "glyphCount": 17
+          }
+        ]
+      }
+    },
+    {
+      "name": "fields-phone-instance",
+      "metrics": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "focus": "H1",
+        "items": [
+          {
+            "tag": "BUTTON",
+            "text": "Workspace",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 175,
+            "height": 48.375,
+            "x": 16,
+            "y": 150.5625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Form builder",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 175,
+            "height": 48.375,
+            "x": 199,
+            "y": 150.5625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Responses",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 175,
+            "height": 48.375,
+            "x": 16,
+            "y": 206.9375
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Characters",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 175,
+            "height": 48.375,
+            "x": 199,
+            "y": 206.9375
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Settings",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 48.375,
+            "x": 16,
+            "y": 263.3125
+          },
+          {
+            "tag": "H1",
+            "text": "Character instances",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "22.4px",
+            "lineHeight": "29.12px",
+            "width": 358,
+            "height": 29.125,
+            "x": 16,
+            "y": 327.6875
+          },
+          {
+            "tag": "LABEL",
+            "text": "Player name",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 332,
+            "height": 80.359375,
+            "x": 29,
+            "y": 574.375
+          },
+          {
+            "tag": "INPUT",
+            "text": "Synthetic Browser Player",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 332,
+            "height": 48.375,
+            "x": 29,
+            "y": 606.359375
+          },
+          {
+            "tag": "LABEL",
+            "text": "Character name",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 332,
+            "height": 80.359375,
+            "x": 29,
+            "y": 670.734375
+          },
+          {
+            "tag": "INPUT",
+            "text": "Synthetic Commander",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 332,
+            "height": 48.375,
+            "x": 29,
+            "y": 702.71875
+          },
+          {
+            "tag": "LABEL",
+            "text": "Details",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 332,
+            "height": 143.984375,
+            "x": 29,
+            "y": 767.09375
+          },
+          {
+            "tag": "TEXTAREA",
+            "text": "Synthetic personalized details",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 332,
+            "height": 112,
+            "x": 29,
+            "y": 799.078125
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Save character draft",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 226.65625,
+            "height": 48.375,
+            "x": 29,
+            "y": 927.078125
+          },
+          {
+            "tag": "H2",
+            "text": "Author a character template",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "18.4px",
+            "lineHeight": "27.6px",
+            "width": 358,
+            "height": 27.609375,
+            "x": 16,
+            "y": 1008.453125
+          },
+          {
+            "tag": "LABEL",
+            "text": "New template name",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 80.359375,
+            "x": 16,
+            "y": 1052.0625
+          },
+          {
+            "tag": "INPUT",
+            "text": "",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 48.375,
+            "x": 16,
+            "y": 1084.046875
+          },
+          {
+            "tag": "LABEL",
+            "text": "New template details",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 143.984375,
+            "x": 16,
+            "y": 1148.421875
+          },
+          {
+            "tag": "TEXTAREA",
+            "text": "",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 112,
+            "x": 16,
+            "y": 1180.40625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Create character template",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 274.828125,
+            "height": 48.375,
+            "x": 16,
+            "y": 1312.40625
+          },
+          {
+            "tag": "H2",
+            "text": "Create a distinct instance",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "18.4px",
+            "lineHeight": "27.6px",
+            "width": 358,
+            "height": 27.609375,
+            "x": 16,
+            "y": 1380.046875
+          },
+          {
+            "tag": "LABEL",
+            "text": "Character templateSynthetic Pilot",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 75.984375,
+            "x": 16,
+            "y": 1423.65625
+          },
+          {
+            "tag": "SELECT",
+            "text": "Synthetic Pilot",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "normal",
+            "width": 358,
+            "height": 44,
+            "x": 16,
+            "y": 1455.640625
+          },
+          {
+            "tag": "LABEL",
+            "text": "New player name",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 80.359375,
+            "x": 16,
+            "y": 1515.640625
+          },
+          {
+            "tag": "INPUT",
+            "text": "",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 48.375,
+            "x": 16,
+            "y": 1547.625
+          },
+          {
+            "tag": "LABEL",
+            "text": "New character name",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 80.359375,
+            "x": 16,
+            "y": 1612
+          },
+          {
+            "tag": "INPUT",
+            "text": "",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 48.375,
+            "x": 16,
+            "y": 1643.984375
+          },
+          {
+            "tag": "LABEL",
+            "text": "New character details",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 143.984375,
+            "x": 16,
+            "y": 1708.359375
+          },
+          {
+            "tag": "TEXTAREA",
+            "text": "",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 112,
+            "x": 16,
+            "y": 1740.34375
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Create character instance",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 274.828125,
+            "height": 48.375,
+            "x": 16,
+            "y": 1872.34375
+          }
+        ],
+        "platformFonts": [
+          {
+            "familyName": "Menlo",
+            "postScriptName": "Menlo-Bold",
+            "isCustomFont": false,
+            "glyphCount": 19
+          }
+        ]
+      }
+    },
+    {
+      "name": "fields-phone-assignment",
+      "metrics": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "focus": "H1",
+        "items": [
+          {
+            "tag": "BUTTON",
+            "text": "Workspace",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 175,
+            "height": 48.375,
+            "x": 16,
+            "y": 150.5625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Form builder",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 175,
+            "height": 48.375,
+            "x": 199,
+            "y": 150.5625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Responses",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 175,
+            "height": 48.375,
+            "x": 16,
+            "y": 206.9375
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Characters",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 175,
+            "height": 48.375,
+            "x": 199,
+            "y": 206.9375
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Settings",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 48.375,
+            "x": 16,
+            "y": 263.3125
+          },
+          {
+            "tag": "H1",
+            "text": "Preview recipient dossier",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "22.4px",
+            "lineHeight": "29.12px",
+            "width": 358,
+            "height": 29.125,
+            "x": 16,
+            "y": 327.6875
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Back to responses",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 197.765625,
+            "height": 48.375,
+            "x": 16,
+            "y": 375.8125
+          },
+          {
+            "tag": "LABEL",
+            "text": "Character instanceSynthetic Commander / Synthetic Browser Player",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 75.984375,
+            "x": 16,
+            "y": 444.1875
+          },
+          {
+            "tag": "SELECT",
+            "text": "Synthetic Commander / Synthetic Browser Player",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "normal",
+            "width": 358,
+            "height": 44,
+            "x": 16,
+            "y": 476.171875
+          },
+          {
+            "tag": "H2",
+            "text": "Synthetic Commander",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "18.4px",
+            "lineHeight": "27.6px",
+            "width": 358,
+            "height": 27.609375,
+            "x": 16,
+            "y": 536.171875
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Publish view-only dossier link",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 322.984375,
+            "height": 48.375,
+            "x": 16,
+            "y": 785.34375
+          }
+        ],
+        "platformFonts": [
+          {
+            "familyName": "Menlo",
+            "postScriptName": "Menlo-Bold",
+            "isCustomFont": false,
+            "glyphCount": 25
+          }
+        ]
+      }
+    },
+    {
+      "name": "fields-phone-dossier",
+      "metrics": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "focus": "BODY",
+        "items": [
+          {
+            "tag": "H1",
+            "text": "Character dossier",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "22.4px",
+            "lineHeight": "29.12px",
+            "width": 358,
+            "height": 29.125,
+            "x": 16,
+            "y": 149.5625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Close dossier",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 159.234375,
+            "height": 48.375,
+            "x": 16,
+            "y": 197.6875
+          },
+          {
+            "tag": "H2",
+            "text": "Synthetic Commander",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "18.4px",
+            "lineHeight": "27.6px",
+            "width": 358,
+            "height": 27.609375,
+            "x": 16,
+            "y": 265.328125
+          }
+        ],
+        "platformFonts": [
+          {
+            "familyName": "Menlo",
+            "postScriptName": "Menlo-Bold",
+            "isCustomFont": false,
+            "glyphCount": 17
+          }
+        ]
+      }
+    },
+    {
+      "name": "fields-phone-revoke-confirmation",
+      "metrics": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "focus": "H1",
+        "items": [
+          {
+            "tag": "BUTTON",
+            "text": "Workspace",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 175,
+            "height": 48.375,
+            "x": 16,
+            "y": 150.5625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Form builder",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 175,
+            "height": 48.375,
+            "x": 199,
+            "y": 150.5625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Responses",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 175,
+            "height": 48.375,
+            "x": 16,
+            "y": 206.9375
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Characters",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 175,
+            "height": 48.375,
+            "x": 199,
+            "y": 206.9375
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Settings",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 358,
+            "height": 48.375,
+            "x": 16,
+            "y": 263.3125
+          },
+          {
+            "tag": "H1",
+            "text": "Revoke recipient access",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "22.4px",
+            "lineHeight": "29.12px",
+            "width": 358,
+            "height": 29.125,
+            "x": 16,
+            "y": 327.6875
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Cancel revocation",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 197.765625,
+            "height": 48.375,
+            "x": 16,
+            "y": 495.1875
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Confirm revocation",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 207.390625,
+            "height": 48.375,
+            "x": 16,
+            "y": 551.5625
+          }
+        ],
+        "platformFonts": [
+          {
+            "familyName": "Menlo",
+            "postScriptName": "Menlo-Bold",
+            "isCustomFont": false,
+            "glyphCount": 23
+          }
+        ]
+      }
+    },
+    {
+      "name": "fields-phone-heartbeat-cleared",
+      "metrics": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "focus": "BODY",
+        "items": [
+          {
+            "tag": "H1",
+            "text": "Session closed",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "22.4px",
+            "lineHeight": "29.12px",
+            "width": 358,
+            "height": 29.125,
+            "x": 16,
+            "y": 122.53125
+          }
+        ],
+        "platformFonts": [
+          {
+            "familyName": "Menlo",
+            "postScriptName": "Menlo-Bold",
+            "isCustomFont": false,
+            "glyphCount": 14
+          }
+        ]
+      }
+    },
+    {
+      "name": "fields-phone-signedout-bearer",
+      "metrics": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "focus": "BODY",
+        "items": [
+          {
+            "tag": "H1",
+            "text": "Character dossier",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "22.4px",
+            "lineHeight": "29.12px",
+            "width": 358,
+            "height": 29.125,
+            "x": 16,
+            "y": 149.5625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Close dossier",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 159.234375,
+            "height": 48.375,
+            "x": 16,
+            "y": 197.6875
+          },
+          {
+            "tag": "H2",
+            "text": "Synthetic Commander",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "18.4px",
+            "lineHeight": "27.6px",
+            "width": 358,
+            "height": 27.609375,
+            "x": 16,
+            "y": 265.328125
+          }
+        ],
+        "platformFonts": [
+          {
+            "familyName": "Menlo",
+            "postScriptName": "Menlo-Bold",
+            "isCustomFont": false,
+            "glyphCount": 17
+          }
+        ]
+      }
+    },
+    {
+      "name": "fields-desktop-font-sample",
+      "metrics": {
+        "width": 1440,
+        "height": 900,
+        "scrollWidth": 1440,
+        "focus": "BODY",
+        "items": [
+          {
+            "tag": "H1",
+            "text": "Character dossier",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "35.2px",
+            "lineHeight": "45.76px",
+            "width": 1040,
+            "height": 45.75,
+            "x": 200,
+            "y": 161.671875
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Close dossier",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "16px",
+            "lineHeight": "25.6px",
+            "width": 159.234375,
+            "height": 48.375,
+            "x": 200,
+            "y": 235
+          },
+          {
+            "tag": "H2",
+            "text": "Synthetic Commander",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "18.4px",
+            "lineHeight": "27.6px",
+            "width": 1040,
+            "height": 27.609375,
+            "x": 200,
+            "y": 302.640625
+          }
+        ],
+        "platformFonts": [
+          {
+            "familyName": "Menlo",
+            "postScriptName": "Menlo-Bold",
+            "isCustomFont": false,
+            "glyphCount": 17
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [],
+  "requests": [],
+  "finishedAt": "2026-10-09T02:27:02.806Z"
+}

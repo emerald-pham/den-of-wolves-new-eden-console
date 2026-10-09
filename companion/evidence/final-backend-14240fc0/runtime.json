@@ -1,0 +1,59 @@
+{
+  "candidate": "14240fc0c6cd79a465282c9a692ea303927bc0b2",
+  "project": "demo-dow-casting-release-20261009",
+  "ports": {
+    "auth": 9149,
+    "firestore": 8130,
+    "firestoreWebsocket": 9150,
+    "functions": 5051,
+    "hosting": 5050,
+    "hub": 4451,
+    "logging": 4651
+  },
+  "vitePort": 5178,
+  "previewPort": 5179,
+  "start": "2026-10-09T02:24:00Z",
+  "stopProbes": "2026-10-09T02:34:00Z",
+  "cleanupStart": "2026-10-09T02:34:30Z",
+  "hardStop": "2026-10-09T02:36:00Z",
+  "parentGrant": true,
+  "startedAt": "2026-10-09T02:26:08.693Z",
+  "pid": 90602,
+  "pids": [
+    90706,
+    90707
+  ],
+  "reservations": [
+    {
+      "id": "90602-1791512768650-1e5bcffe-f49c-41e0-8ba4-6883ca3d02cf",
+      "slot": 5,
+      "worktree": "/Users/emeraldpham/Documents/Codex/2026-10-08/task-14/casting-release",
+      "kind": "emulators",
+      "command": "Parent-allocated final casting synthetic qualification",
+      "pid": 90602,
+      "claimedAt": "2026-10-09T02:26:08.650Z",
+      "ports": [
+        9149,
+        8130,
+        9150,
+        5051,
+        5050,
+        4451,
+        4651
+      ]
+    },
+    {
+      "id": "90602-1791512768688-6bbcbcf8-f778-4572-a22f-984f0b2cbcad",
+      "slot": 5,
+      "worktree": "/Users/emeraldpham/Documents/Codex/2026-10-08/task-14/casting-release",
+      "kind": "vite",
+      "command": "Parent-allocated final casting actual entry",
+      "pid": 90602,
+      "claimedAt": "2026-10-09T02:26:08.688Z",
+      "ports": [
+        5178,
+        5179
+      ]
+    }
+  ]
+}

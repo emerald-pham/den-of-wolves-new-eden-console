@@ -11,7 +11,7 @@ export async function assertReducedGallery(page, evidenceDirectory, label) {
   });
   const metrics = await gallery.evaluate(stage => {
     const rect = element => { const r = element.getBoundingClientRect(); return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, width: r.width, height: r.height }; };
-    return { stage: rect(stage), viewportWidth: innerWidth, scrollWidth: document.documentElement.scrollWidth,
+    return { stage: rect(stage), viewportWidth: innerWidth, viewportHeight: innerHeight, scrollWidth: document.documentElement.scrollWidth,
       skip: rect(stage.parentElement.querySelector('button')), figures: [...stage.querySelectorAll('figure')].map(figure => ({
         flag: figure.dataset.flag, frame: rect(figure), image: rect(figure.querySelector('img')),
         caption: rect(figure.querySelector('figcaption')), animation: getComputedStyle(figure).animationName,
@@ -21,7 +21,11 @@ export async function assertReducedGallery(page, evidenceDirectory, label) {
   assert.equal(metrics.figures.length, 7);
   assert.equal(new Set(metrics.figures.map(item => item.flag)).size, 7);
   assert.ok(metrics.scrollWidth <= metrics.viewportWidth + 1, 'no horizontal overflow');
-  assert.ok(metrics.skip.y >= metrics.stage.bottom - 1, 'Skip has a separate row');
+  const overlapWidth = Math.min(metrics.skip.right, metrics.stage.right) - Math.max(metrics.skip.x, metrics.stage.x);
+  const overlapHeight = Math.min(metrics.skip.bottom, metrics.stage.bottom) - Math.max(metrics.skip.y, metrics.stage.y);
+  assert.ok(overlapWidth <= 1 || overlapHeight <= 1, 'Skip never covers the gallery');
+  assert.ok(metrics.stage.height >= Math.min(200, metrics.viewportHeight * .4), 'gallery retains a readable viewport');
+  assert.ok(metrics.skip.y >= 0 && metrics.skip.bottom <= metrics.viewportHeight + 1, 'Skip remains inside the viewport');
   for (const item of metrics.figures) {
     assert.equal(item.animation, 'none');
     assert.ok(item.image.height > 0 && item.caption.height > 0);

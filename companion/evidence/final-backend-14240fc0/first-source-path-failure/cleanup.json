@@ -1,0 +1,50 @@
+{
+  "finishedAt": "2026-10-09T02:25:57.761Z",
+  "ownedPids": [
+    90009,
+    90010
+  ],
+  "releasedReservationIds": [
+    "89905-1791512676159-4a8c6c95-c5a1-417d-8e6f-777f6a529a18",
+    "89905-1791512676196-4ca7162f-4921-4dd3-91a2-20003ea8332c"
+  ],
+  "listeners": [
+    {
+      "port": 9149,
+      "listening": false
+    },
+    {
+      "port": 8130,
+      "listening": false
+    },
+    {
+      "port": 9150,
+      "listening": false
+    },
+    {
+      "port": 5051,
+      "listening": false
+    },
+    {
+      "port": 5050,
+      "listening": false
+    },
+    {
+      "port": 4451,
+      "listening": false
+    },
+    {
+      "port": 4651,
+      "listening": false
+    },
+    {
+      "port": 5178,
+      "listening": false
+    },
+    {
+      "port": 5179,
+      "listening": false
+    }
+  ],
+  "deadline": "2026-10-09T02:36:00Z"
+}

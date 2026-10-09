@@ -3,7 +3,7 @@
 
 The isolated source connects the real Firebase adapter and transaction handler at
 `/casting`. No live deployment or real participant collection is approved.
-The reconciled released-main candidate still awaits fresh allocated Firebase integration and final rendered qualification. The following evidence belongs to the earlier isolated candidate and applies only within the inheritance limits in [RELEASE_CANDIDATE.md](RELEASE_CANDIDATE.md).
+The reconciled candidate14240fc0 passed fresh synthetic Firebase integration on October9 (11 groups), private-rule engine checks and actual entry captures. See [FINAL_LOCAL_QUALIFICATION.md](FINAL_LOCAL_QUALIFICATION.md) for exact bindings and limits. Independent visual review found an enlarged short-landscape gallery defect; its focused CSS repair still awaits allocated rendered qualification. The following older evidence applies only within the inheritance limits in [RELEASE_CANDIDATE.md](RELEASE_CANDIDATE.md).
 Actual synthetic local Auth/callable/Firestore integration passed on October 9;
 see [LOCAL_QUALIFICATION_20261009.md](LOCAL_QUALIFICATION_20261009.md). Clean-route and enlarged-gallery focused actual checks also passed; see
 [NARROW_QUALIFICATION_20261009.md](NARROW_QUALIFICATION_20261009.md).

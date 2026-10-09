@@ -1,0 +1,21 @@
+{
+  "qualified_candidate": "14240fc0c6cd79a465282c9a692ea303927bc0b2",
+  "later_change_scope": "Short-landscape gallery CSS and focused render probe only; backend hashes remain exact.",
+  "backend_source_sha256": {
+    "functions/src/index.ts": "20c86c6675df602427c7c0e94efaa23b1a0b278c67f4d59697731ca02da67042",
+    "functions/src/castingCompanionCallable.ts": "9487a57c037de5c45d0906e1c7b0382feb6324514a5d5d469ebd85ce98282959",
+    "functions/src/castingCallableTransport.ts": "e0c042daccc7c68099adce9cc460ddd897aec894e5925db01258bd3bdf201a82",
+    "companion/casting.mjs": "3081544efb02d3831c5c751a1c1dd4dbc0517aebe039ae67239545a09fe30f7d",
+    "src/casting/adapter.ts": "68961819f644be41158316184ad37228a674f82d434c5c520cc76ad67091c3d7",
+    "src/casting/main.ts": "14c978d26b0f753388ad1d8137dc60b1e72b39b1e69c78bb2958aa2e11acca36",
+    "firestore.rules": "a11ee53c14831d6ecda7298e93e7ec53802afcd6c5aa4c7d6899811587c2ecf0",
+    "firebase.json": "0a964d2fecf4479225157cca4df8c1d3ead7061cdc0e86a7adf16f043e91fee2"
+  },
+  "limits": [
+    "Read/list denied for five actors; create/update/delete denied for owner and unauthenticated actors.",
+    "Hosting02:25:11 is from first setup attempt; unchanged Hosting source/dist hashes inherit.",
+    "Functions emulator used host Node23, production/CI configured Node22.",
+    "No live AppCheck attestation proof.",
+    "Final enlarged landscape rendered acceptance blocked pending repair qualification."
+  ]
+}

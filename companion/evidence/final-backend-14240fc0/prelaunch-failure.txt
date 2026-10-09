@@ -1,0 +1,1 @@
+02:24 launch failed before any process/reservation: static registry import required typescript before transient dependency symlinks were created. Harness corrected to import registry after creating links. No source edits.

@@ -1,0 +1,61 @@
+{
+  "startedAt": "2026-10-09T02:26:45.140Z",
+  "cases": [
+    {
+      "name": "real createSession lobby turn0 does not grant GM",
+      "passed": true,
+      "at": "2026-10-09T02:26:46.431Z"
+    },
+    {
+      "name": "real explicit GM claim and scoped prerequisite",
+      "passed": true,
+      "at": "2026-10-09T02:26:47.449Z"
+    },
+    {
+      "name": "durable builder publication and private response boundary",
+      "passed": true,
+      "at": "2026-10-09T02:26:47.610Z"
+    },
+    {
+      "name": "anonymous-auth submission required validation and repeat receipt",
+      "passed": true,
+      "at": "2026-10-09T02:26:47.688Z"
+    },
+    {
+      "name": "three independent identities and fourth limit",
+      "passed": true,
+      "at": "2026-10-09T02:26:47.806Z"
+    },
+    {
+      "name": "bearer view-only snapshot and explicit update without duplicate overwrite",
+      "passed": true,
+      "at": "2026-10-09T02:26:47.966Z"
+    },
+    {
+      "name": "capacity revoke durable replay conflict and retained data",
+      "passed": true,
+      "at": "2026-10-09T02:26:48.120Z"
+    },
+    {
+      "name": "revoke bearer fails closed",
+      "passed": true,
+      "at": "2026-10-09T02:26:48.129Z"
+    },
+    {
+      "name": "private CSV and unpublish",
+      "passed": true,
+      "at": "2026-10-09T02:26:48.288Z"
+    },
+    {
+      "name": "stale instance and revoked GM denied",
+      "passed": true,
+      "at": "2026-10-09T02:26:49.231Z"
+    }
+  ],
+  "project": "demo-dow-casting-release-20261009",
+  "failure": {
+    "message": "The default Firebase app does not exist. Make sure you call initializeApp() before using any of the Firebase services.",
+    "code": "app/no-app"
+  },
+  "finishedAt": "2026-10-09T02:26:50.485Z"
+}
