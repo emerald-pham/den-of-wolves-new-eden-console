@@ -7,6 +7,7 @@ import { legacyFailedKProjectionFixture } from '../fixtures/legacyFailedKProject
 import type { AwayMissionLifecycleFeedState } from '../../src/lib/awayMissionLifecycleService';
 import type { RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import type * as FirestoreSdk from 'firebase/firestore';
+import type { GameSession } from '../../src/types/game';
 
 // Every Firestore implementation is real. The listener spy forwards unchanged
 // to the installed SDK; Auth identity is controlled using the same emulator UID.
@@ -59,9 +60,10 @@ it('holds the actual production reader before resuming in a page retaining a raw
   await env.withSecurityRulesDisabled(async context => { await updateDoc(doc(context.firestore(), `sessions/${fixture.sessionId}`), {
     awayMissionProjectionSafety: { policyVersion: 1, epoch: 3, state: 'held', writeRevision: 17 },
   }); });
-  const session = { ...sessionFrom(fixture.sessionId, { name: 'Synthetic K cache', phase: 'active', currentTurn: 2, playerCount: 8 }),
+  const session: GameSession = { ...sessionFrom(fixture.sessionId, { name: 'Synthetic K cache', phase: 'active', currentTurn: 2, playerCount: 8 }),
     awayMissionProjectionSafety: { policyVersion: 1, epoch: 3, state: 'held' as const } };
   useSessionStore.setState({ session, me: { uid: 'alice', sessionId: fixture.sessionId, role: 'player', connected: true,
+    seatId: null, joinedAt: '2026-10-08T12:00:00.000Z',
     displayName: 'Alice', fleetGroupId: 'fleet-1', connectionGeneration: 4 },
   connection: 'live', sessionSnapshotFreshness: 'server', identityHydrationRevision: 1 });
   const states: AwayMissionLifecycleFeedState[] = [];

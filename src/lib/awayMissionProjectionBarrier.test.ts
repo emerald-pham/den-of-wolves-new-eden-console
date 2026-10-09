@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { legacyFailedKProjectionFixture } from '../../tests/fixtures/legacyFailedKProjection';
 import { useSessionStore } from '@/store/useSessionStore';
+import type { AwayMissionProjectionSafetyFacts, Player } from '@/types/game';
 
 type Data = Record<string, unknown>;
 type Reference = { path: string; constraints?: readonly Data[] };
@@ -81,18 +82,19 @@ function start(construction: 'global member feed' | 'standalone mission workspac
   return construction === 'standalone mission workspace'
     ? subscribeToOwnAwayMissionLifecycles('s1', 'alice', vi.fn())
     : subscribeSessionState('s1', 'alice', {
-      sessionReadAudience: 'member', initialMemberActor: () => useSessionStore.getState().me,
+      sessionReadAudience: 'member', initialMemberActor: () => useSessionStore.getState().me ?? undefined,
       onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
       onAwayMissionHandPointers: vi.fn(), onAwayMissionHands: vi.fn(),
     });
 }
 
 function prepareMember(state: 'held' | 'ready' | undefined) {
-  const marker = state ? { policyVersion: 1, epoch: 3, state } : undefined;
+  const marker: AwayMissionProjectionSafetyFacts | undefined = state ? { policyVersion: 1, epoch: 3, state } : undefined;
   const session = { ...sessionFrom('s1', { name: 'Controlled table', phase: 'active', currentTurn: 2, playerCount: 8,
     createdAt: '2026-10-08T12:00:00.000Z', updatedAt: '2026-10-08T12:00:00.000Z' }),
     ...(marker ? { awayMissionProjectionSafety: marker } : {}) };
-  const me = { uid: 'alice', sessionId: 's1', role: 'player' as const, connected: true, displayName: 'Alice',
+  const me: Player = { uid: 'alice', sessionId: 's1', role: 'player' as const, connected: true, displayName: 'Alice',
+    seatId: null, joinedAt: '2026-10-08T12:00:00.000Z',
     fleetGroupId: 'fleet-1', connectionGeneration: 4, assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander' };
   useSessionStore.setState({ session, me, connection: 'live', sessionSnapshotFreshness: 'server', identityHydrationRevision: 1 });
   mock.memberReply = { type: 'current-member-session', sessionId: 's1', actorUid: 'alice',
