@@ -1607,3 +1607,50 @@ Prior observations retain their exact source binding; these planning updates
 alone add no implementation, native evidence, fixed catalog closure or release
 acceptance. The fixed 48 PC10 rows and all 751 statuses remain unchanged. Other
 source disputes outside the five approved scopes remain unresolved.
+
+## October 9 connected K source qualification
+
+The reconciled functional source at `2d5f5c708076782a2bf2937eda114626be441792`
+connects **Prepare participant missions** in the existing GM mission panel to
+the existing protected maintenance callable. The current authenticated GM
+explicitly starts hold, canonical repair, verification and finalization. An
+empty fresh namespace follows that same server path. No initialization or
+load-time action fabricates READY. First dealing waits for the actual current
+session READY projection and an unblocked preparation operation.
+
+Saved request identities support lost-acknowledgement retry and remount. A
+stale verification pauses for explicit Continue; a newer epoch requires
+Restart. Current Auth, GM, connection and owned-instance authority is checked
+around each awaited step, while the unchanged server checks current live
+authority before receipt replay. An older finalization receipt cannot unlock
+a newer session epoch. These are source-qualified behaviors, not native
+privacy or gameplay acceptance.
+
+| Check | Exact source result | Remaining acceptance |
+| --- | --- | --- |
+| Connected preparation and first-deal readiness | 54 controlled mounted/factory checks pass on the reconciled source; independent bounded Sol review passes without material findings. | Actual normal Auth, ordinary admission and live server projection delivery. |
+| Canonical sanitation and retry authority | Existing protected loader, all-participant repair, CAS and receipt checks are reused unchanged; no optimistic client READY write. | Thirteen permanent real rules cases and actual entitled/peer SDK get/list checks. |
+| SDK memory and document boundary | Existing own-player/member, epoch and new-document barriers are unchanged. | A genuine browser document reload, replacement default-memory provider and fresh own-player/member proof; previously downloaded snapshots cannot be recalled. |
+| Compilation and chunk budget | Final Functions compilation and frontend build pass. The existing 512,000-byte check passes: runtime 503,402 bytes, 8,598 bytes of headroom. Critical Firebase, store, session-authority and privacy-barrier modules each have one emitted copy. | Actual startup, focused pending/recovery rendering and typography on the served candidate, then final main/CI/deployment verification. |
+
+The seven connected-preparation commits preserve meaningful UI RED before
+implementation. Initial provider/import and incomplete-fixture failures are
+retained as setup failures with no RED credit; later unchanged denial/recovery
+controls are not relabeled as prior RED. Eleven observed compiler diagnostics
+were repaired only through erased annotations/type references, with strict
+emitted-JavaScript equality. The bundle split followed the actual existing
+emitted-bundle guard RED and retained its original limit.
+
+Exact source, build, test and independent review receipts remain in
+`/tmp/dow-pc10-evidence`, including
+`OWNER_PC10_2D5F5C70_RECONCILED_CONNECTED_K_BUNDLE_BUILD_SOURCE_BINDING_20261009.json`
+and
+`OWNER_PC10_2D5F5C70_CONNECTED_K_BUNDLE_ERASED_TYPES_RECONCILED_SOURCE_REVIEW_20261009.json`.
+Root retains integration, native acceptance and release ownership; the
+canonical parent schedules heavy runtime and coordinates final main
+reconciliation. A bounded native qualification artifact is being prepared
+without starting resources. This source qualification adds zero fixed
+closures, native outcomes or release credit: all 48 rows remain open,
+703/751 overall and 245/293 campaign. The fresh two-browser game through an
+ending, every role/function, recovery/privacy and required usability gates
+remain incomplete. Post-PC10, PC11 and PC12 remain deferred.
