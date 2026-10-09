@@ -1,0 +1,34 @@
+{
+  "candidateCommit": "097bc6f08b499d77075c10544b5039f208b4c401",
+  "reviewedSourceCommit": "ac87d84b49a380f6fd48e6242b729f74a0e55d0b",
+  "bindingIntactAfterRun": true,
+  "firstAttemptAt": "2026-10-09T00:40:07.398Z",
+  "usableRuntimeStartedAt": "2026-10-09T00:41:28.166Z",
+  "cleanHandbackVerifiedAt": "2026-10-09T00:51:45Z",
+  "ownedSlot": 5,
+  "project": "demo-dow-casting-097bc6f0",
+  "runtimeGroupsPassed": 9,
+  "rulesEngineGroupsPassed": 3,
+  "businessBrowser": "passed required validation/submission/template/instance/assignment/signedout bearer/sameUID authority heartbeat clear",
+  "layoutPassed": "phone desktop short landscape;200%builder/form/settings;headingglyph Menlo-Bold matches recorded-main DoW baseline",
+  "motionPassed": "all7flags dense+continuous footage;automatic firstH1;automaticreplay/Skip/Escape Replay control;no observed strobe",
+  "blockingFailures": [
+    "Vite clean /casting route serves main DoW entry;explicit /casting/index.html required for actual companion captures;production Hosting rewrite not engine-qualified",
+    "200% reduced-motion gallery rows overlap flag artwork/captions"
+  ],
+  "productionRelease": "held",
+  "bundleBudget": "failed unchanged baseline534040/candidate534058 limit512000",
+  "unqualified": [
+    "real production Auth/AppCheck",
+    "production Hosting rewrite/headers",
+    "retention/cascade/abuse/capacity release proof",
+    "browser duplicate3/stale conflict/concurrent submission scenarios beyond native tests"
+  ],
+  "setupFailures": [
+    "sandbox loopback listener EPERM;approved escalation",
+    "Firebase CLI config relative source;corrected local harness",
+    "unsupported fake Admin credential;emulator REST fixture used",
+    "accessible-label harness expected requiredasterisk;corrected to actual name"
+  ],
+  "automaticReviewRejection": "mistyped PID57824 termination rejected;correct owned PID57823 from runtime.json was accepted;no unrelated process terminated"
+}

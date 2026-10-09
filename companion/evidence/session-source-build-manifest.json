@@ -1,0 +1,24 @@
+{
+  "sourceCommit": "1f39edea",
+  "visualQualification": false,
+  "production": false,
+  "sourceSHA256": {
+    "companion/boot.mjs": "73626fde50a9e74fea276777154c52728e862c96eb2d358a63accd5f10d6911a",
+    "companion/ui.mjs": "903147b43e2d15b7c190ee9ea4c5f23d5845f0b92b1c21d5452f801ecf73f6c8",
+    "companion/casting.css": "f2131d89d6a5f060a708a24006ede3670ae3218145a481181557cb7c8be4e56c",
+    "companion/demo-adapter.mjs": "e10a2698738a4ca7d9339f790c60e7393455ae7e0598c31cfee9203072c87190",
+    "companion/session-contract.mjs": "e4433df65f251f4029041685276da41d261df2b68c58a05add86bbbbda56c911"
+  },
+  "buildSHA256": {
+    "companion-dist/index.html": "9aa62476fef4373ea2281e3bba3c6ff57c596f528da9604fe6eb06396b713ebb",
+    "companion-dist/assets/gliese-CG8MxJxr.png": "96efba0ec6cafbe77925a744dc990425aede27310991d9435d1d03c24a5fab37",
+    "companion-dist/assets/icn-HfTULyDp.png": "dfe15ec43ff1758b811a7fa595ada498b4ec6e4b71a081a95518cf418aa9e638",
+    "companion-dist/assets/san-EshyV2rd.png": "22e32ad6c5d3f055b1a985b524785619a17a2807dc6ef8f491887aa68195b94e",
+    "companion-dist/assets/cpa-QolPv2WB.png": "7c3c613f96de8c578d5bab9902080003f3793f247c6e524387c4b1fe927253b7",
+    "companion-dist/assets/index-VpO9ubY7.js": "5412b99cd48ad6918a37f7a1ec11b43348901b7086d5e0db4206f5e61314be21",
+    "companion-dist/assets/index-CN2gfeeC.css": "cbf08e4ab72a292c4a22f75ce2dbfd92c9153b551a82beda63268ad904530b4d",
+    "companion-dist/assets/rosal-H6Il1Bl3.png": "449427e27c472b73b2a280544d9c2c7fd6df61e8dbbd43e753ac13e166d69c2f",
+    "companion-dist/assets/fas-C-jvmpdx.png": "994ea023117a027fe8544db9f6e84a70041c6d1e0c46ec5cb4ddbc35886c34e5",
+    "companion-dist/assets/proxima-CNSlN6VE.png": "6cce4ef516ab5d0cc310d0576f8da527e6514ac85ae7bdf7a429cbb79b3e1fa0"
+  }
+}

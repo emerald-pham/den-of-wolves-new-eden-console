@@ -200,6 +200,10 @@ jobs:
           name: functions-lib
           path: functions/lib
 
+      - name: Verify Functions runtime artifact
+        if: contains(needs.determine-targets.outputs.targets, 'functions')
+        run: node scripts/verify-functions-artifact.mjs functions
+
       - name: Authenticate to Google Cloud (Workload Identity Federation)
         uses: google-github-actions/auth@v3
         with:

@@ -1,0 +1,20 @@
+{
+  "checkedAt": "2026-10-08T23:44:40.229Z",
+  "checks": [
+    {
+      "port": 5178,
+      "listening": false
+    },
+    {
+      "port": 8130,
+      "listening": false
+    },
+    {
+      "port": 9350,
+      "listening": false
+    }
+  ],
+  "dependencySymlinkRemoved": true,
+  "ownRuntimeAndConfigurationReservationsReleased": true,
+  "otherTasksUntouched": true
+}

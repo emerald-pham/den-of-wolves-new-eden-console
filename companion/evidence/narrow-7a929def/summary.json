@@ -1,0 +1,36 @@
+{
+  "sourceCandidate": "7a929def7e1f29078b9b25b254c68fd0f8fae33b",
+  "cleanHandbackVerifiedAt": "2026-10-09T01:28:25Z",
+  "ownedPorts": [
+    5178,
+    5179
+  ],
+  "ownedPidsAbsent": [
+    70596,
+    70630,
+    70631
+  ],
+  "ownedReservationAbsent": "70596-1791509245300-145822fa-9cc0-491e-b0e2-93519b054f50",
+  "independentMotion": "accepted tested gallery/focus scope",
+  "independentTypography": "accepted enlarged gallery scope",
+  "staleGaitTab": "untouched; no cleanup claim",
+  "backendEvidence": "unchanged source; reused c785021b",
+  "budgetGate": "failed 534058 > 512000",
+  "hashes": {
+    "browser.json": "d0a20dd4b1a7392208e589a8aa95b979e73f412a54d3a1b8a8525f2c8b9beaf5",
+    "runtime.json": "bd1ea30e5ccc54ff2ba3e421369bc49656d69b667578a21b941978125c1f416b",
+    "cleanup.json": "5da0c878dd8c4f2b1034d92d1cf376ee6a5c07fb8f7185dcfd71af813c850a5e",
+    "phone-200-geometry.json": "435fae55f510b2a8da2032217cdfb08dceeb5bdba3e63bbae281555559f05a3d",
+    "phone-200-media-geometry.json": "435fae55f510b2a8da2032217cdfb08dceeb5bdba3e63bbae281555559f05a3d",
+    "phone-geometry.json": "418ae1fc6fc73b40127d8f708e497cd4594921d4097ea25756ad9cec84d867c7",
+    "landscape-geometry.json": "500e13324b49a8c3514ee1a1950ccd43cca021a26c8c1923ceaf61157643c9a5",
+    "phone-200-top.png": "b7a88317d622f564d1f96195249044ec4e2f0ccf295cbf39ff8957c882230440",
+    "phone-200-middle.png": "98e412cf383def3659a394678681128c25acbf5c71b0e738d43cacedb6434128",
+    "phone-200-bottom.png": "10be303795bc3dc78080873b21f6170bcb49e5156694a2d3c9c0fffbda62861a",
+    "phone-200-media-top.png": "8dc07d32296636c8c57a3ffceb4f4dc05fa95907544a16e61e81cd3313d3d132",
+    "phone-200-media-middle.png": "97d677e9dbd881e1565747bedede77488e9c82c8fb344b82ad76a99902bad68d",
+    "phone-200-media-bottom.png": "00b4026dcf014bc4643bb2a5548ea261065802ffe16baf6da8ef831c6c3e1f3b",
+    "phone-top.png": "52c77c4e6f8aa4b4670ac969ffc895611908363e3882572644c92f6ca68bab72",
+    "landscape-top.png": "99852d8b2945db316abc269e33a8324642b24c3a066ea59b5b002fdb413d336a"
+  }
+}

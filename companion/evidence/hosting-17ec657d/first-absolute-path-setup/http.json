@@ -1,0 +1,44 @@
+{
+  "startedAt": "2026-10-09T01:35:26.158Z",
+  "origin": "http://127.0.0.1:5050",
+  "cases": [
+    {
+      "path": "/casting",
+      "method": "GET",
+      "status": 404,
+      "headers": {
+        "cache-control": "no-store",
+        "connection": "keep-alive",
+        "content-length": "146",
+        "content-security-policy": "default-src 'none'",
+        "content-type": "text/html; charset=utf-8",
+        "date": "Fri, 09 Oct 2026 01:35:26 GMT",
+        "keep-alive": "timeout=5",
+        "referrer-policy": "no-referrer",
+        "x-content-type-options": "nosniff",
+        "x-robots-tag": "noindex, nofollow, noarchive"
+      },
+      "hops": [
+        {
+          "url": "http://127.0.0.1:5050/casting",
+          "status": 404,
+          "headers": {
+            "cache-control": "no-store",
+            "connection": "keep-alive",
+            "content-length": "146",
+            "content-security-policy": "default-src 'none'",
+            "content-type": "text/html; charset=utf-8",
+            "date": "Fri, 09 Oct 2026 01:35:26 GMT",
+            "keep-alive": "timeout=5",
+            "referrer-policy": "no-referrer",
+            "x-content-type-options": "nosniff",
+            "x-robots-tag": "noindex, nofollow, noarchive"
+          }
+        }
+      ]
+    }
+  ],
+  "passed": false,
+  "failure": "Expected values to be strictly equal:\n\n404 !== 200\n",
+  "finishedAt": "2026-10-09T01:35:26.187Z"
+}

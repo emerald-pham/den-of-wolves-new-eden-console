@@ -1,0 +1,67 @@
+{
+  "sourceCommit": "46f63dde52ea0a98b1158e265298fbcae8cdd9dd",
+  "builder": "Vite 6.4.3; existing read-only PC09 dependency runtime",
+  "syntheticOnly": true,
+  "rendered": false,
+  "files": [
+    {
+      "path": "assets/cpa-QolPv2WB.png",
+      "bytes": 15830,
+      "sha256": "7c3c613f96de8c578d5bab9902080003f3793f247c6e524387c4b1fe927253b7"
+    },
+    {
+      "path": "assets/fas-C-jvmpdx.png",
+      "bytes": 37918,
+      "sha256": "994ea023117a027fe8544db9f6e84a70041c6d1e0c46ec5cb4ddbc35886c34e5"
+    },
+    {
+      "path": "assets/gliese-CG8MxJxr.png",
+      "bytes": 15370,
+      "sha256": "96efba0ec6cafbe77925a744dc990425aede27310991d9435d1d03c24a5fab37"
+    },
+    {
+      "path": "assets/icn-HfTULyDp.png",
+      "bytes": 28967,
+      "sha256": "dfe15ec43ff1758b811a7fa595ada498b4ec6e4b71a081a95518cf418aa9e638"
+    },
+    {
+      "path": "assets/index-CHE0CIJa.js",
+      "bytes": 20308,
+      "sha256": "e6013e5b4d36c182241c42987519642147f931462ca539bc046be188d18aaa61"
+    },
+    {
+      "path": "assets/index-DR5o1I4z.css",
+      "bytes": 7473,
+      "sha256": "7b57380a873f135165dc90b5cab1a8559ae57417283f3424fa2a7fd99476d847"
+    },
+    {
+      "path": "assets/proxima-CNSlN6VE.png",
+      "bytes": 15956,
+      "sha256": "6cce4ef516ab5d0cc310d0576f8da527e6514ac85ae7bdf7a429cbb79b3e1fa0"
+    },
+    {
+      "path": "assets/rosal-H6Il1Bl3.png",
+      "bytes": 14075,
+      "sha256": "449427e27c472b73b2a280544d9c2c7fd6df61e8dbbd43e753ac13e166d69c2f"
+    },
+    {
+      "path": "assets/san-EshyV2rd.png",
+      "bytes": 8536,
+      "sha256": "22e32ad6c5d3f055b1a985b524785619a17a2807dc6ef8f491887aa68195b94e"
+    },
+    {
+      "path": "index.html",
+      "bytes": 754,
+      "sha256": "117cf8c2a9429e4287859af2f312e6bf272b7ef5a3229047cb57d61f5ef659c8"
+    }
+  ],
+  "approvedFlagByteIdentity": [
+    "cpa",
+    "fas",
+    "gliese",
+    "icn",
+    "proxima",
+    "rosal",
+    "san"
+  ]
+}

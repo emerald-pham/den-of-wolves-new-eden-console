@@ -1,0 +1,30 @@
+{
+  "startedAt": "2026-10-09T01:36:00.459Z",
+  "pid": 72747,
+  "childPid": 72791,
+  "ports": [
+    5050,
+    4450,
+    4650
+  ],
+  "project": "demo-dow-casting-hosting-17ec657d",
+  "reservation": {
+    "id": "72747-1791509760454-6067392c-8247-48ab-9225-77a88a5d1e59",
+    "slot": 5,
+    "worktree": "/Users/emeraldpham/Documents/Codex/2026-10-08/task-14/casting-companion",
+    "kind": "emulators",
+    "command": "Granted Hosting-only HTTP qualification",
+    "pid": 72747,
+    "claimedAt": "2026-10-09T01:36:00.454Z",
+    "ports": [
+      5050,
+      4450,
+      4650
+    ]
+  },
+  "hashes": {
+    "firebase.json": "0a964d2fecf4479225157cca4df8c1d3ead7061cdc0e86a7adf16f043e91fee2",
+    "dist/index.html": "857029fce741bf2c49b6208397048a8a915cddba1d81fd5d22dda1eb5059a773",
+    "dist/casting/index.html": "b5ce12f976fe990cc5c69f63d9f8d5ef73b68afcdecec964561a35c27df873fc"
+  }
+}

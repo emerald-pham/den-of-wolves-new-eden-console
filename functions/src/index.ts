@@ -1,3 +1,6 @@
+import { createCastingCommands } from './castingCompanionCallable';
+import { getAuth as castingAdminAuth } from 'firebase-admin/auth';
+import { castingCallableTransport as auditedOnCall } from './castingCallableTransport';
 import { holdTurnAdvancePhase } from './turnInterstitial';
 import { parsedMemberSessionDetails } from './memberSession';
 import { createCurrentMemberSessionReader } from './memberSessionCallable';
@@ -6314,6 +6317,22 @@ async function requireFacilitatorInstance(
   }
   return { session, player, instance };
 }
+
+// Additive companion endpoint. Existing shared GM checks remain unchanged.
+const castingCompanionCommands = createCastingCommands({
+  db,
+  requireGm: requireFacilitatorInstance,
+  emulator: process.env.FUNCTIONS_EMULATOR === 'true',
+  verifyIdentity: async request => {
+    const uid = requireUid(request.auth);
+    const raw = request as typeof request & { rawRequest?: { headers?: { authorization?: string } } };
+    const authorization = raw.rawRequest?.headers?.authorization;
+    if (!authorization?.startsWith('Bearer ')) throw new HttpsError('unauthenticated', 'unauthenticated');
+    try { const verified = await castingAdminAuth().verifyIdToken(authorization.slice(7), true); if (verified.uid !== uid) throw new Error('identity mismatch'); return uid; }
+    catch { throw new HttpsError('unauthenticated', 'unauthenticated'); }
+  },
+});
+export const castingCompanionCommand = auditedOnCall(request => castingCompanionCommands.handle(request));
 
 /** Record which of the two physical facilitator responsibilities an instance owns. */
 type FacilitatorResponsibility = 'main' | 'assistant';

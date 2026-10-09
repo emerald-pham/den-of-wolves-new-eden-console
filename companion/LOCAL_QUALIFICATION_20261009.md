@@ -1,0 +1,27 @@
+# Actual synthetic qualification — 2026-10-09
+
+Exact candidate097bc6f0 / reviewed sourceac87d84b:53source and4artifact hashes verified before launch and again after cleanup; unchanged. Parent allocation00:40–00:57UTC, checks stop00:54. First attempt00:40:07 denied sandbox loopback listening; approved escalation and corrected local CLI source config led to usable runtime00:41:28. Clean handback verified00:51:45: owned supervisor/process groups stopped, all allocated listeners absent, two slot5 reservations released, unrelated reservations preserved. Dependency symlinks removed afterward. No provisioning/deployment or PC10 source edits. Temporary Vite optimization reused the PC09 dependency cache; future harness must set TICKER_SMOKE_CACHE_DIR to a task-owned directory to avoid shared-cache writes.
+
+Projectdemo-dow-casting-097bc6f0; Auth9149, Functions5051, Firestore8130, websocket9350, hub4450, logging4650, Vite5178. Native hostNode23 fallback despite node22Functions target; not a Node22 production-runtime proof. Browser requests were restricted to loopback and reports show no attempted external browser requests. Native Admin emitted a metadata-lookup warning; later fixture seeding used direct emulator REST instead of credential lookup. No real users, participant data or credentials created.
+
+## Actual observed passes
+
+Nine real callable groups passed: create lobby turn0/player without GM grant; explicit GM claim and scoped prerequisite; immutable session binding/form publication/private boundaries; authenticated-anonymous submission required validation and repeated receipt; three distinct instances/fourth denied; explicit assignment/bearer snapshot/draft isolation/update; revoke; owner CSV/unpublish; stale instance/revoked GM denied. These exercised actual Functions/Admin transactions and local Auth-issued tokens, not fake transactions.
+
+Three Firestore engine groups passed: existing game GM positive control; authenticated/anonymous direct reads/lists denied across all four private roots; client writes/deletes denied. Browser then created separate synthetic fixtures through real SDK/callables.
+
+Actual browser passed create/claim/select, first durable-save lock, builder short text and single choice, required validation, submission, template/instance creation, assignment, view-only signed-out bearer, same-UID GM-revocation heartbeat clearing. Public link never presented owner editing navigation. The first dossier PNG captured its loading state; signedout-bearer PNG is the loaded snapshot evidence.
+
+Phone390×844, desktop1440×900, landscape844×390 and200%builder/publicform/settings captures have no horizontal overflow. Independent typography reviewer inspected actual PNGs/metrics. Approved DoW PC01 baseline captured on same platform; CIC/PC01CSS hashes match recordedmain1aab9503. Baseline and candidate headings both resolve to actual Menlo-Bold; reviewer confirms glyph match. Baseline controls/overlines resolve Menlo-Regular; candidate body/control forms visually consistent, but candidate platform-font metrics establish headings only.
+
+Independent motion review inspected continuous video via8fps contact sheet plus dense actual screenshots: CPA,FAS,GLIESE,ICN,PROXIMA,ROSAL,SAN each reached opacity1, paced fades/stableplacement/no observed strobe. Exact automaticfirst dismissal focuses H1Choose a DoW session; automatic replay/Skip/Escape return to Replay flag intro. Reduced motion allanimationsnone, focusablegallery scrolls to bottom. Full raw evidence/video/harnesses retained at `/tmp/dow-casting-local-20261009` and `/tmp/dow-casting-*-20261009.mjs`; committed representative artifacts under evidence/local-20261009.
+
+## Failed gates — do not accept
+
+1. Vite clean `/casting` serves main DoW HTML, not casting entry. Actual owner heading timed out. Explicit `/casting/index.html` was used for all companion renders and business-browser checks. This workaround does not close the clean-route failure; proposed Firebase Hosting rewrite/headers were not emulator-engine tested.
+2.200%reduced-motion gallery images/captions overlap vertically. Actual viewport and scrolled-bottom screenshots demonstrate collapsed rows despite successful scrolling. Independent motion and typography reviewers both mark it blocking. First-visit/static normal-sized captures do not override this failed enlarged-text gate.
+3.Existing shared512000byteJS budget remains failed/unmodified: PC10baseline534040, candidate534058bytes. Parent routed shared-runtime dependency to main; local results are not production release acceptance.
+
+Setup-only failures retained separately: missing local CLI source path, unsupported fake Admin credential and wrong accessible-name selector (`Player name *` instead of actual `Player name`). Corrected harnesses passed without source edits; no behavioral RED falsely claimed. Automatic approval review rejected a mistyped PID57824 stop request as unrelated-process risk; verified owned PID57823 was subsequently accepted. No unrelated process was terminated.
+
+No browser duplicate3/concurrency/stale-conflict scenario is claimed beyond native/real-callable checks. Production Auth/AppCheck, Hosting route/header engine, retention/cascade, abuse/capacity and actual owner form/participant-publishing choices remain open. Production held. Fix enlarged gallery and local clean route in isolated source, review new exact candidate, then request bounded recapture; no new runtime allocation assumed.

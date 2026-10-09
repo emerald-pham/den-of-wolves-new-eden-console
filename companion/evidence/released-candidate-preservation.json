@@ -1,0 +1,32 @@
+{
+  "verifiedRemoteMain": "1aab9503cd89fb69117dfe91d843c848ec18b98d",
+  "releasedIndexExceptAdditiveEndpointExact": true,
+  "releasedRulesExceptFourDeniesExact": true,
+  "protectedReleasedHashes": {
+    "src/lib/firebase.ts": "22f0822c549e2a7493e4f992b073d92ce18d42ece5333ec7c374a3cb5a338e1a",
+    "functions/src/gmAccess.ts": "da1959e13f0d6749e52af6ae21739180f350f6306ec381f7efd318bc3b472adf",
+    "functions/src/runtimeOptions.ts": "b029c69fad51aee33d4c2294dad4da23cd30093cc1ec10cbf2bf626c90adeded",
+    "functions/src/sessionLifecycle.ts": "e0dc5d28f2dcf0c4860399f0f6598afa89a86e7ed8f0c0a5ad5b7afc8bbd739e",
+    "functions/src/gameSetup.ts": "bc305eb57521e0c195ebb4b091d5c1b8eca71c51df9a730fdeb14c46e42a8fc3",
+    "functions/src/requestGuards.ts": "6299facaa4f9e1b1bb633d36ae46bba524b055fa1b1c3c1606638996327b7b76",
+    "functions/src/awayMissionCards.ts": "bf1e7003f5e416081bd8aa025ad88d5f981c52ca97deb71d02c5f828dc99c45c",
+    "functions/src/fleetGroupOperations.ts": "54db10b260fbcb2620825fe366788d01fb421cef420d6db84423bb96311551c5",
+    "functions/src/missionLifecycle.ts": "c382ea653c7931fbefe1a6148f6abfb8b07310615fbc2e3e2127502d9217319a",
+    "src/components/ArrestPosseCalculator.tsx": "abc1bb4e5253cd2572f662830dcdb279d8060e99488298e0eafacedd6d9bc165",
+    "src/lib/awayMissionLifecycleService.test.ts": "4b59dee85c0e199278987098ffef602394ddadc6145dfd676ecdd04d572211ca",
+    "src/lib/fleetGroupService.test.ts": "df5f258df834b76f63d326e7eef4ef82d18972f9f10edb3b09ac489ef86e4af8",
+    "src/lib/fleetGroupService.ts": "9cd032ba720432442e85636b06264af132d9e77d459eb830c3e4e41381629df6",
+    "src/routes/GmConsole.test.tsx": "26818a1671c666dc7639a85c642037e9c0f085cee804ea126eb911f8f4421641"
+  },
+  "inheritedModelAndUiHashes": {
+    "companion/casting.mjs": "3081544efb02d3831c5c751a1c1dd4dbc0517aebe039ae67239545a09fe30f7d",
+    "companion/csv.mjs": "5f95ba93de934f8c821ea98d67a9eec55ab92f991ba48f2a097ffb1c17646256",
+    "companion/session-contract.mjs": "e4433df65f251f4029041685276da41d261df2b68c58a05add86bbbbda56c911",
+    "companion/ui.mjs": "06ffe8c8421990d6e61c18078706de364de3a0e99bd294b8f8e096b99030f0f6",
+    "companion/casting.css": "2e3c402446e6d26673f3783f832134dcb530763c34f14ee7488406bf391fdd6c",
+    "src/casting/adapter.ts": "68961819f644be41158316184ad37228a674f82d434c5c520cc76ad67091c3d7",
+    "src/casting/main.ts": "14c978d26b0f753388ad1d8137dc60b1e72b39b1e69c78bb2958aa2e11acca36",
+    "casting/index.html": "278c059ebc511b3f1026a2861ea44e21134f7c236ba63acc9e68209a41428dbc"
+  },
+  "inheritanceExact": true
+}

@@ -297,3 +297,7 @@ describe('risk-based CI gates', () => {
     });
   });
 });
+
+describe('casting server bundle consumers',()=>{
+ for(const file of ['companion/casting.mjs','companion/csv.mjs','companion/session-contract.mjs','scripts/build-casting-companion-core.mjs'])it(`builds and tests backend changes from ${file}`,()=>{const gates=classifyRiskGates([file]);expect(gates.functions).toBe(true);expect(gates.functionsInstall).toBe(true);expect(gates.webBuild).toBe(true);});
+});

@@ -1,0 +1,23 @@
+{
+  "startedAt": "2026-10-09T01:27:25.305Z",
+  "pid": 70596,
+  "pids": [
+    70630,
+    70631
+  ],
+  "reservations": [
+    {
+      "id": "70596-1791509245300-145822fa-9cc0-491e-b0e2-93519b054f50",
+      "slot": 5,
+      "worktree": "/Users/emeraldpham/Documents/Codex/2026-10-08/task-14/casting-companion",
+      "kind": "vite",
+      "command": "Granted narrow casting dev and preview",
+      "pid": 70596,
+      "claimedAt": "2026-10-09T01:27:25.300Z",
+      "ports": [
+        5178,
+        5179
+      ]
+    }
+  ]
+}

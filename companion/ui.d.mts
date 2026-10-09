@@ -1,0 +1,1 @@
+export function mountCasting(root: HTMLElement, options: { adapter: object; route?: {name:string;handle?:string}; motionReduced?:boolean;introSeen?:boolean;rememberIntro?:()=>void;download?:(csv:string)=>void }): {invalidateSession():void;dispose():void};

@@ -1,0 +1,1 @@
+Actual independent typography and motion reviews found static intro images collapsed on desktop/phone, landscape collisions and enlarged-text overflow. Capture before fix: reduced-motion-red.png. Existing overflow-width/target-height checks did not detect vertical collisions. This is observed visual RED; prior render GREEN has narrower scope.

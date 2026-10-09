@@ -15,6 +15,14 @@ export async function verifyFunctionsArtifact(artifactDirectory) {
   } catch (error) {
     throw new Error(`Functions artifact package.json is unavailable: ${root}`, { cause: error });
   }
+  const corePath = resolve(root, 'lib/casting-companion-core.cjs');
+  try { await access(corePath); } catch (error) { throw new Error('Missing casting companion core bundle', { cause: error }); }
+  const coreRequire = createRequire(resolve(root, 'package.json'));
+  delete coreRequire.cache[coreRequire.resolve(corePath)];
+  const core = coreRequire(corePath);
+  if (typeof core.CastingService !== 'function' || typeof core.createSessionCastingGateway !== 'function') {
+    throw new Error('Invalid casting companion core exports');
+  }
   const dependencies = Object.keys(packageJson?.dependencies ?? {}).sort();
   const requireFromArtifact = createRequire(resolve(root, 'package.json'));
   for (const dependency of dependencies) {

@@ -22,6 +22,14 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationProgress: { completed: 703, total: 751, percentage: '93.61%', done: 703, partial: 6, active: 0, missing: 42, blocked: 0 },
+    changes: [
+      'Casting supports customizable forms, private GM response review, and view-only personalized dossiers with up to three distinct instances of a character.',
+      'The seven-nation flag intro supports Skip, reduced motion and replay in casting Settings.',
+    ],
+  },
+  {
+    version: '0.5.72',
     implementationProgress: {
       completed: 703, total: 751, percentage: '93.61%',
       done: 703, partial: 6, active: 0, missing: 42, blocked: 0,

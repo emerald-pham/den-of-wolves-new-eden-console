@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { localGmAccessConfiguration, localGmAccessPlugin } from './scripts/local-gm-access.mjs';
+import { castingCompanionRoutePlugin } from './scripts/casting-companion-route.mjs';
 import { createHash } from 'node:crypto';
 import { dirname, join, resolve as resolvePath } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -115,7 +116,7 @@ export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
 
   return {
-    plugins: [localGmAccessPlugin(localGmAccessConfiguration(command, env)), react(), changelogDisplayDevAsset, changelogDisplayBuildAsset, buildVersionMetadata, serviceWorkerPrecache],
+    plugins: [castingCompanionRoutePlugin(), localGmAccessPlugin(localGmAccessConfiguration(command, env)), react(), changelogDisplayDevAsset, changelogDisplayBuildAsset, buildVersionMetadata, serviceWorkerPrecache],
     ...(process.env.TICKER_SMOKE_CACHE_DIR
       ? { cacheDir: resolvePath(process.env.TICKER_SMOKE_CACHE_DIR) }
       : {}),
@@ -129,6 +130,7 @@ export default defineConfig(({ mode, command }) => {
       rollupOptions: {
         input: {
           index: resolvePath(projectRoot, 'index.html'),
+          casting: resolvePath(projectRoot, 'casting/index.html'),
           'pc01-review': resolvePath(projectRoot, 'pc01-review.html'),
           'pc02-review': resolvePath(projectRoot, 'pc02-review.html'),
           'pc03-review': resolvePath(projectRoot, 'pc03-review.html'),

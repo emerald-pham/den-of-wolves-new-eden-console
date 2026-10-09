@@ -1,0 +1,64 @@
+[
+  {
+    "path": "/",
+    "status": 404,
+    "headers": {
+      "connection": "keep-alive",
+      "content-length": "139",
+      "content-security-policy": "default-src 'none'",
+      "content-type": "text/html; charset=utf-8",
+      "date": "Fri, 09 Oct 2026 01:35:42 GMT",
+      "keep-alive": "timeout=5",
+      "x-content-type-options": "nosniff"
+    },
+    "body": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot GET /</pre>\n</body>\n</html>\n"
+  },
+  {
+    "path": "/casting/",
+    "status": 404,
+    "headers": {
+      "cache-control": "no-store",
+      "connection": "keep-alive",
+      "content-length": "147",
+      "content-security-policy": "default-src 'none'",
+      "content-type": "text/html; charset=utf-8",
+      "date": "Fri, 09 Oct 2026 01:35:42 GMT",
+      "keep-alive": "timeout=5",
+      "referrer-policy": "no-referrer",
+      "x-content-type-options": "nosniff",
+      "x-robots-tag": "noindex, nofollow, noarchive"
+    },
+    "body": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot GET /casting/</pre>\n</body>\n</html>\n"
+  },
+  {
+    "path": "/casting/index.html",
+    "status": 404,
+    "headers": {
+      "cache-control": "no-store",
+      "connection": "keep-alive",
+      "content-length": "157",
+      "content-security-policy": "default-src 'none'",
+      "content-type": "text/html; charset=utf-8",
+      "date": "Fri, 09 Oct 2026 01:35:42 GMT",
+      "keep-alive": "timeout=5",
+      "referrer-policy": "no-referrer",
+      "x-content-type-options": "nosniff",
+      "x-robots-tag": "noindex, nofollow, noarchive"
+    },
+    "body": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot GET /casting/index.html</pre>\n</body>\n</html>\n"
+  },
+  {
+    "path": "/casting-other",
+    "status": 404,
+    "headers": {
+      "connection": "keep-alive",
+      "content-length": "152",
+      "content-security-policy": "default-src 'none'",
+      "content-type": "text/html; charset=utf-8",
+      "date": "Fri, 09 Oct 2026 01:35:42 GMT",
+      "keep-alive": "timeout=5",
+      "x-content-type-options": "nosniff"
+    },
+    "body": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot GET /casting-other</pre>\n</body>\n</html>\n"
+  }
+]

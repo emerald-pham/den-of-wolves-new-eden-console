@@ -1,0 +1,137 @@
+{
+  "candidate": "7a929def",
+  "startedAt": "2026-10-09T01:27:33.079Z",
+  "cases": [
+    {
+      "name": "5178/casting",
+      "headers": {
+        "cache-control": "no-store",
+        "connection": "keep-alive",
+        "content-length": "635",
+        "content-type": "text/html",
+        "date": "Fri, 09 Oct 2026 01:27:33 GMT",
+        "etag": "W/\"27b-q3MZll0sp/i+wNUQn8pLFi2F6uA\"",
+        "keep-alive": "timeout=5",
+        "referrer-policy": "no-referrer",
+        "vary": "Origin",
+        "x-robots-tag": "noindex, nofollow, noarchive"
+      }
+    },
+    {
+      "name": "5178/casting/",
+      "headers": {
+        "cache-control": "no-store",
+        "connection": "keep-alive",
+        "content-length": "635",
+        "content-type": "text/html",
+        "date": "Fri, 09 Oct 2026 01:27:34 GMT",
+        "etag": "W/\"27b-q3MZll0sp/i+wNUQn8pLFi2F6uA\"",
+        "keep-alive": "timeout=5",
+        "referrer-policy": "no-referrer",
+        "vary": "Origin",
+        "x-robots-tag": "noindex, nofollow, noarchive"
+      }
+    },
+    {
+      "name": "5178/casting?source=direct",
+      "headers": {
+        "cache-control": "no-store",
+        "connection": "keep-alive",
+        "content-length": "635",
+        "content-type": "text/html",
+        "date": "Fri, 09 Oct 2026 01:27:34 GMT",
+        "etag": "W/\"27b-q3MZll0sp/i+wNUQn8pLFi2F6uA\"",
+        "keep-alive": "timeout=5",
+        "referrer-policy": "no-referrer",
+        "vary": "Origin",
+        "x-robots-tag": "noindex, nofollow, noarchive"
+      }
+    },
+    {
+      "name": "5178-direct-reload-history",
+      "url": "http://127.0.0.1:5178/casting#form/next"
+    },
+    {
+      "name": "5179/casting",
+      "headers": {
+        "cache-control": "no-store",
+        "connection": "keep-alive",
+        "content-encoding": "gzip",
+        "content-type": "text/html;charset=utf-8",
+        "date": "Fri, 09 Oct 2026 01:27:37 GMT",
+        "etag": "W/\"1160-1791507538625\"",
+        "keep-alive": "timeout=5",
+        "last-modified": "Fri, 09 Oct 2026 00:58:58 GMT",
+        "referrer-policy": "no-referrer",
+        "transfer-encoding": "chunked",
+        "vary": "Origin",
+        "x-robots-tag": "noindex, nofollow, noarchive"
+      }
+    },
+    {
+      "name": "5179/casting/",
+      "headers": {
+        "cache-control": "no-store",
+        "connection": "keep-alive",
+        "content-encoding": "gzip",
+        "content-type": "text/html;charset=utf-8",
+        "date": "Fri, 09 Oct 2026 01:27:37 GMT",
+        "etag": "W/\"1160-1791507538625\"",
+        "keep-alive": "timeout=5",
+        "last-modified": "Fri, 09 Oct 2026 00:58:58 GMT",
+        "referrer-policy": "no-referrer",
+        "transfer-encoding": "chunked",
+        "vary": "Origin",
+        "x-robots-tag": "noindex, nofollow, noarchive"
+      }
+    },
+    {
+      "name": "5179/casting?source=direct",
+      "headers": {
+        "cache-control": "no-store",
+        "connection": "keep-alive",
+        "content-encoding": "gzip",
+        "content-type": "text/html;charset=utf-8",
+        "date": "Fri, 09 Oct 2026 01:27:38 GMT",
+        "etag": "W/\"1160-1791507538625\"",
+        "keep-alive": "timeout=5",
+        "last-modified": "Fri, 09 Oct 2026 00:58:58 GMT",
+        "referrer-policy": "no-referrer",
+        "transfer-encoding": "chunked",
+        "vary": "Origin",
+        "x-robots-tag": "noindex, nofollow, noarchive"
+      }
+    },
+    {
+      "name": "5179-direct-reload-history",
+      "url": "http://127.0.0.1:5179/casting#form/next"
+    },
+    {
+      "name": "phone-200",
+      "geometry": "passed",
+      "skipEscapeFocus": "Replay flag intro"
+    },
+    {
+      "name": "phone-200-media",
+      "geometry": "passed",
+      "skipEscapeFocus": "Replay flag intro"
+    },
+    {
+      "name": "phone",
+      "geometry": "passed",
+      "skipEscapeFocus": "Replay flag intro"
+    },
+    {
+      "name": "landscape",
+      "geometry": "passed",
+      "skipEscapeFocus": "Replay flag intro"
+    },
+    {
+      "name": "normal-first-visit-focus",
+      "focus": "H1"
+    }
+  ],
+  "errors": [],
+  "externalRequests": [],
+  "finishedAt": "2026-10-09T01:27:50.064Z"
+}

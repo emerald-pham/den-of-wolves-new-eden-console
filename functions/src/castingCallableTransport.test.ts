@@ -1,15 +1,22 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { HttpsError, type CallableRequest } from 'firebase-functions/v2/https';
+import type * as HttpsModule from 'firebase-functions/v2/https';
 import { castingCallableTransport } from './castingCallableTransport';
 const telemetry = vi.hoisted(() => ({ warn: vi.fn() }));
+const sdk = vi.hoisted(() => ({ onCall: vi.fn() }));
 vi.mock('firebase-functions/logger', () => ({ warn: telemetry.warn }));
-beforeEach(() => telemetry.warn.mockClear());
+vi.mock('firebase-functions/v2/https', async importOriginal => {
+  const original = await importOriginal<typeof HttpsModule>();
+  return { ...original, onCall: (...args: Parameters<typeof original.onCall>) => { sdk.onCall(...args); return original.onCall(...args); } };
+});
+beforeEach(() => { telemetry.warn.mockClear(); sdk.onCall.mockClear(); });
 describe('casting-only released callable transport consumer', () => {
   it('declares production AppCheck and canonical runtime at the SDK endpoint', () => {
     const callable = castingCallableTransport(async () => ({ ok: true }));
     expect(callable.__endpoint.region).toEqual(['us-central1']);
     expect(callable.__endpoint.maxInstances).toBe(10);
-    expect(callable.__endpoint.callableTrigger?.enforceAppCheck).toBe(true);
+    // The SDK consumes enforcement in its HTTP closure, not endpoint metadata.
+    expect(sdk.onCall.mock.calls[0][0].enforceAppCheck).toBe(true);
   });
   it('records safe denial metadata and retains exact error identity', async () => {
     const error = new HttpsError('permission-denied', 'PRIVATE ERROR', { details: 'PRIVATE DOSSIER' });

@@ -1,0 +1,1245 @@
+{
+  "startedAt": "2026-10-09T00:47:54.022Z",
+  "cases": [
+    {
+      "name": "dense-frame-0",
+      "elapsedMs": 40,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 1,
+          "transform": "matrix(1, 0, 0, 1, 0, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-1",
+      "elapsedMs": 323,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0.77946,
+          "transform": "matrix(1, 0, 0, 1, 5.50468, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-2",
+      "elapsedMs": 609,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0.873374,
+          "transform": "matrix(1, 0, 0, 1, -3.16059, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-3",
+      "elapsedMs": 892,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 1,
+          "transform": "matrix(1, 0, 0, 1, 0, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-4",
+      "elapsedMs": 1174,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 1,
+          "transform": "matrix(1, 0, 0, 1, 0, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-5",
+      "elapsedMs": 1439,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0.0396781,
+          "transform": "matrix(1, 0, 0, 1, 23.9696, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-6",
+      "elapsedMs": 1706,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 1,
+          "transform": "matrix(1, 0, 0, 1, 0, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-7",
+      "elapsedMs": 1972,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 1,
+          "transform": "matrix(1, 0, 0, 1, 0, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-8",
+      "elapsedMs": 2239,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 1,
+          "transform": "matrix(1, 0, 0, 1, 0, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-9",
+      "elapsedMs": 2501,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 8.32331e-8,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-10",
+      "elapsedMs": 2771,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 1,
+          "transform": "matrix(1, 0, 0, 1, 0, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-11",
+      "elapsedMs": 3038,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 1,
+          "transform": "matrix(1, 0, 0, 1, 0, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-12",
+      "elapsedMs": 3305,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0.929726,
+          "transform": "matrix(1, 0, 0, 1, 1.75403, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-13",
+      "elapsedMs": 3571,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0.704627,
+          "transform": "matrix(1, 0, 0, 1, -7.37252, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-14",
+      "elapsedMs": 3839,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 1,
+          "transform": "matrix(1, 0, 0, 1, 0, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-15",
+      "elapsedMs": 4104,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 1,
+          "transform": "matrix(1, 0, 0, 1, 0, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-16",
+      "elapsedMs": 4372,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0.295818,
+          "transform": "matrix(1, 0, 0, 1, 17.5764, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-17",
+      "elapsedMs": 4639,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0.960089,
+          "transform": "matrix(1, 0, 0, 1, -0.996187, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-18",
+      "elapsedMs": 4906,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 1,
+          "transform": "matrix(1, 0, 0, 1, 0, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-19",
+      "elapsedMs": 5171,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 1,
+          "transform": "matrix(1, 0, 0, 1, 0, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-20",
+      "elapsedMs": 5437,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0.0399114,
+          "transform": "matrix(1, 0, 0, 1, 23.9638, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, -24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-21",
+      "elapsedMs": 5706,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 1,
+          "transform": "matrix(1, 0, 0, 1, 0, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-22",
+      "elapsedMs": 5973,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 1,
+          "transform": "matrix(1, 0, 0, 1, 0, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-23",
+      "elapsedMs": 6240,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 1,
+          "transform": "matrix(1, 0, 0, 1, 0, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-24",
+      "elapsedMs": 6502,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0.00000103875,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-25",
+      "elapsedMs": 6766,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "dense-frame-26",
+      "elapsedMs": 7034,
+      "flags": [
+        {
+          "flag": "cpa",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "fas",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "gliese",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "icn",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "proxima",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "rosal",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        },
+        {
+          "flag": "san",
+          "opacity": 0,
+          "transform": "matrix(1, 0, 0, 1, 24.96, 0)"
+        }
+      ]
+    },
+    {
+      "name": "automatic-first-focus",
+      "focus": {
+        "tag": "H1",
+        "text": "Choose a DoW session"
+      }
+    },
+    {
+      "name": "automatic-replay-focus",
+      "focus": {
+        "tag": "BUTTON",
+        "text": "Replay flag intro"
+      }
+    },
+    {
+      "name": "escape-focus",
+      "focus": "Replay flag intro"
+    },
+    {
+      "name": "skip-focus",
+      "focus": "Replay flag intro"
+    },
+    {
+      "name": "enlarged-gallery",
+      "metrics": {
+        "clientHeight": 348,
+        "scrollHeight": 511,
+        "scrollTop": 163,
+        "focus": "casting-intro__flags",
+        "flags": 7,
+        "animation": [
+          "none",
+          "none",
+          "none",
+          "none",
+          "none",
+          "none",
+          "none"
+        ]
+      }
+    },
+    {
+      "name": "motion-phone-200-settings-after-gallery",
+      "metrics": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "focus": "BUTTON",
+        "items": [
+          {
+            "tag": "BUTTON",
+            "text": "Workspace",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "32px",
+            "lineHeight": "51.2px",
+            "width": 326,
+            "height": 94.78125,
+            "x": 32,
+            "y": -707.671875
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Form builder",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "32px",
+            "lineHeight": "51.2px",
+            "width": 326,
+            "height": 94.78125,
+            "x": 32,
+            "y": -596.890625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Responses",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "32px",
+            "lineHeight": "51.2px",
+            "width": 326,
+            "height": 94.78125,
+            "x": 32,
+            "y": -486.109375
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Characters",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "32px",
+            "lineHeight": "51.2px",
+            "width": 326,
+            "height": 94.78125,
+            "x": 32,
+            "y": -375.328125
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Settings",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "32px",
+            "lineHeight": "51.2px",
+            "width": 326,
+            "height": 94.78125,
+            "x": 32,
+            "y": -264.546875
+          },
+          {
+            "tag": "H1",
+            "text": "Settings",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "44.8px",
+            "lineHeight": "58.24px",
+            "width": 326,
+            "height": 58.234375,
+            "x": 32,
+            "y": -137.765625
+          },
+          {
+            "tag": "BUTTON",
+            "text": "Replay flag intro",
+            "font": "Menlo, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+            "size": "32px",
+            "lineHeight": "51.2px",
+            "width": 310,
+            "height": 145.96875,
+            "x": 32,
+            "y": 657.90625
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [],
+  "requests": [],
+  "video": "/tmp/dow-casting-local-20261009/motion-video/page@5da65301e8244a1e956122f1f3a4b44a.webm",
+  "finishedAt": "2026-10-09T00:48:11.777Z"
+}

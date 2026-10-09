@@ -1,0 +1,26 @@
+{
+  "sourceCommit": "d49956ba",
+  "sourceFiles": {
+    "companion/casting.css": "dcc47e6cfb14ea83fba48824f5deb962384af118dc2ac275e605e38c0bae19d3",
+    "companion/ui.mjs": "9eecfc715748eb884c7c7ea5b79b9445ac635a193acff53e6a8f213346a522de",
+    "companion/boot.mjs": "87476cb81b2e63d04a89f56b7c4e0de4d6144738018355e11b6efd299644ec5a"
+  },
+  "buildFiles": {
+    "companion-dist/index.html": "a678ffca26ab92d47eb29f8d2bf731f27aba8094e4299827a954025ebfb88713",
+    "companion-dist/assets/gliese-CG8MxJxr.png": "96efba0ec6cafbe77925a744dc990425aede27310991d9435d1d03c24a5fab37",
+    "companion-dist/assets/icn-HfTULyDp.png": "dfe15ec43ff1758b811a7fa595ada498b4ec6e4b71a081a95518cf418aa9e638",
+    "companion-dist/assets/san-EshyV2rd.png": "22e32ad6c5d3f055b1a985b524785619a17a2807dc6ef8f491887aa68195b94e",
+    "companion-dist/assets/index-BSl-bPR7.js": "e6013e5b4d36c182241c42987519642147f931462ca539bc046be188d18aaa61",
+    "companion-dist/assets/cpa-QolPv2WB.png": "7c3c613f96de8c578d5bab9902080003f3793f247c6e524387c4b1fe927253b7",
+    "companion-dist/assets/index-CHE0CIJa.js": "e6013e5b4d36c182241c42987519642147f931462ca539bc046be188d18aaa61",
+    "companion-dist/assets/index-Dkugtke2.js": "e6013e5b4d36c182241c42987519642147f931462ca539bc046be188d18aaa61",
+    "companion-dist/assets/index-DhqAXygn.css": "23332abc9918aa4d1b26a9c1efa4b5c75d5d14683039daa899824e7ced975209",
+    "companion-dist/assets/rosal-H6Il1Bl3.png": "449427e27c472b73b2a280544d9c2c7fd6df61e8dbbd43e753ac13e166d69c2f",
+    "companion-dist/assets/index-DR5o1I4z.css": "7b57380a873f135165dc90b5cab1a8559ae57417283f3424fa2a7fd99476d847",
+    "companion-dist/assets/index-CzUXXD82.css": "2d47bbc467049fc74d005fbd576c8cfa1e437fdb8d4a041da783afcb876559fb",
+    "companion-dist/assets/fas-C-jvmpdx.png": "994ea023117a027fe8544db9f6e84a70041c6d1e0c46ec5cb4ddbc35886c34e5",
+    "companion-dist/assets/proxima-CNSlN6VE.png": "6cce4ef516ab5d0cc310d0576f8da527e6514ac85ae7bdf7a429cbb79b3e1fa0"
+  },
+  "runtimeArtifacts": "/tmp/dow-casting-qualification-20261008",
+  "production": false
+}
