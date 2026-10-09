@@ -1,0 +1,15 @@
+<anonymous_script>:1
+Function us-central1-createSession does not exist, valid functions are: 
+^
+
+SyntaxError: Unexpected token 'F', "Function u"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at parseJSONFromBytes (node:internal/deps/undici/undici:5738:19)
+    at successSteps (node:internal/deps/undici/undici:5719:27)
+    at fullyReadBody (node:internal/deps/undici/undici:4609:9)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async consumeBody (node:internal/deps/undici/undici:5728:7)
+    at async rpc (file:///private/tmp/dow-casting-release-runtime-20261009/integration.mjs:4:327)
+    at async file:///private/tmp/dow-casting-release-runtime-20261009/integration.mjs:6:19
+
+Node.js v23.10.0
