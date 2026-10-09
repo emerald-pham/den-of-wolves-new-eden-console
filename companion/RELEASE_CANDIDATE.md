@@ -36,10 +36,10 @@ source with3600-second token TTL. No new credential, domain or GM grant created.
 
 Inherited actual synthetic model/backend evidence, seven-flag motion and gallery
 typography/Hosting engine evidence remain labeled by their original revisions.
-The changed released base, transport and client wiring still need focused fresh
-actual Auth/Functions/Firestore integration plus final real-entry pixels under a
-parent-allocated bounded runtime. Exact source/security/typography/FAQ review is
-required on the frozen reconciled candidate. No new runtime/deployment yet.
+That reconciliation milestone initially required fresh integration and renders.
+Those local gates and independent reviews are now accepted as recorded below and
+in FINAL_LOCAL_QUALIFICATION.md. CI, deployment and separately allocated live
+verification remain the next release steps; no live success is claimed here.
 
 No production questions, responses, dossiers or local paper kit are populated.
 Owner authors/publishes real content later. Dossiers are explicit view-only bearer
@@ -69,8 +69,8 @@ Full Functions suite passed282 files/4693 tests on the8-test capacity fixture;
 the subsequent9-test handler fixture also passed, including interrupted commit,
 retry, stable acknowledgement, conflict, retained answers/templates and revoked
 GM replay. Scoped lint and Functions build passed. Independent code review found
-no actionable defect in e37d878d or5b24afa8. Fresh actual Firebase qualification
-and final real-entry typography remain required under a parent runtime allocation.
+no actionable defect in e37d878d or5b24afa8. At that capacity-repair milestone, fresh Firebase qualification and final
+typography were still pending; the final accepted evidence is recorded below.
 
 ## Final independent local acceptance
 

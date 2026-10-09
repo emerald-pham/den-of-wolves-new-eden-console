@@ -3,7 +3,7 @@
 # Casting companion — synthetic implementation milestone
 
 
-> Latest source milestone: [SESSION_MILESTONE.md](SESSION_MILESTONE.md). Session GM and bearer contracts now have synthetic source/tests; production integration and fresh renders remain pending.
+> Latest local qualification: [FINAL_LOCAL_QUALIFICATION.md](FINAL_LOCAL_QUALIFICATION.md). Independent backend/security and final typography/motion reviews accepted the additive published-base source; CI, deployment and separate live verification remain release steps.
 
 > Current decisions and qualification supersede older proposals below: [DECISIONS_20261008.md](DECISIONS_20261008.md). GM/session authority and bearer links are approved directions, not implemented production contracts.
 Independent branch `feat/casting-companion`. Active PC10 data remains untouched.
