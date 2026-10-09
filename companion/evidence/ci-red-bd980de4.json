@@ -1,0 +1,15 @@
+{
+  "candidate": "bd980de487e0233196ba5b4e23258316ea4d332e",
+  "run": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37875962795",
+  "observed_red": true,
+  "gate": "Unit tests",
+  "result": {
+    "files_failed": 1,
+    "files_passed": 323,
+    "tests_failed": 1,
+    "tests_passed": 3381
+  },
+  "failure": "AppHeader.test.tsx:751 newest release notes must include the unchanged703/751 catalog snapshot sentence. New casting entry has implementationProgress metadata but omitted the user-visible sentence.",
+  "before_functional_repair": true,
+  "test_assertions_will_remain_unchanged": true
+}
