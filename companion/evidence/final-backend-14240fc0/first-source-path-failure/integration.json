@@ -1,0 +1,9 @@
+{
+  "startedAt": "2026-10-09T02:25:15.988Z",
+  "cases": [],
+  "project": "demo-dow-casting-release-20261009",
+  "failure": {
+    "message": "Unexpected token 'F', \"Function u\"... is not valid JSON"
+  },
+  "finishedAt": "2026-10-09T02:25:16.307Z"
+}

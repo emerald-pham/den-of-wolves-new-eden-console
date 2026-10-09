@@ -1,0 +1,17 @@
+{
+  "rendered_candidate": "682dd67c5240c5021643ff7002331792107f8d59",
+  "red_commit": "044cdec7",
+  "typography": "Accepted actual landscape200%326px gallery, captions, title/Skip bounds, SAN reach, portrait and media-only.",
+  "motion": "Accepted affected rendered repair, static gallery containment/nonoverlap/focus; continuous142motion inherits unchanged animated branch.",
+  "reviewers": [
+    "casting_typography",
+    "casting_motion"
+  ],
+  "source_adapter": "Actual UI/CSS/CIC/fonts/flags with synthetic layout adapter; no new backend claim.",
+  "qualified_files_sha256": {
+    "companion/casting.css": "cad6995840ce5ae0aac1d28d752fb4581cea44ce2f7fee3c9716b3741908252a",
+    "companion/ui.mjs": "06ffe8c8421990d6e61c18078706de364de3a0e99bd294b8f8e096b99030f0f6",
+    "scripts/casting-gallery-render-probe.mjs": "af670354e3efb8f430c12845b40207a2f6dddd9b846abb1a0d3ad876c0ac680b"
+  },
+  "clean_handback": "2026-10-09T02:40:08.565Z"
+}

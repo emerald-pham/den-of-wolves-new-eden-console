@@ -1,0 +1,52 @@
+{
+  "startedAt": "2026-10-09T00:41:53.812Z",
+  "cases": [
+    {
+      "name": "real createSession lobby turn0 does not grant GM",
+      "passed": true,
+      "at": "2026-10-09T00:41:58.050Z"
+    },
+    {
+      "name": "real explicit GM claim and scoped prerequisite",
+      "passed": true,
+      "at": "2026-10-09T00:41:59.763Z"
+    },
+    {
+      "name": "durable builder publication and private response boundary",
+      "passed": true,
+      "at": "2026-10-09T00:41:59.890Z"
+    },
+    {
+      "name": "anonymous-auth submission required validation and repeat receipt",
+      "passed": true,
+      "at": "2026-10-09T00:41:59.960Z"
+    },
+    {
+      "name": "three independent identities and fourth limit",
+      "passed": true,
+      "at": "2026-10-09T00:42:00.079Z"
+    },
+    {
+      "name": "bearer view-only snapshot and explicit update without duplicate overwrite",
+      "passed": true,
+      "at": "2026-10-09T00:42:00.234Z"
+    },
+    {
+      "name": "revoke bearer fails closed",
+      "passed": true,
+      "at": "2026-10-09T00:42:00.269Z"
+    },
+    {
+      "name": "private CSV and unpublish",
+      "passed": true,
+      "at": "2026-10-09T00:42:00.322Z"
+    },
+    {
+      "name": "stale instance and revoked GM denied",
+      "passed": true,
+      "at": "2026-10-09T00:42:00.365Z"
+    }
+  ],
+  "project": "demo-dow-casting-097bc6f0",
+  "finishedAt": "2026-10-09T00:42:00.369Z"
+}

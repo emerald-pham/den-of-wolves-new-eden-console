@@ -214,6 +214,8 @@ jobs:
 
       - name: Build web
         if: steps.change_scope.outputs.web_build == 'true'
+        env:
+          VITE_CASTING_ENABLED: '1'
         run: npm run build
 
       - name: Console font consistency
@@ -289,6 +291,10 @@ jobs:
           path: dist
           if-no-files-found: error
           retention-days: 1
+
+      - name: Verify Functions runtime artifact
+        if: steps.change_scope.outputs.functions == 'true'
+        run: node scripts/verify-functions-artifact.mjs functions
 
       - name: Upload Functions build artifact
         if: steps.change_scope.outputs.functions == 'true'

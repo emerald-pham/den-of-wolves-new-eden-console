@@ -1,0 +1,22 @@
+{
+  "gmAccess.ts": {
+    "matchesActivePC10": true,
+    "activeSHA256": "da1959e13f0d6749e52af6ae21739180f350f6306ec381f7efd318bc3b472adf"
+  },
+  "sessionLifecycle.ts": {
+    "matchesActivePC10": true,
+    "activeSHA256": "e0dc5d28f2dcf0c4860399f0f6598afa89a86e7ed8f0c0a5ad5b7afc8bbd739e"
+  },
+  "requireFacilitatorInstance": {
+    "matchesActivePC10": true,
+    "activeSHA256": "015033726b12bdd0b0de3d1086ac0bedcfe16b4e4051675e8d92f74d545e1137"
+  },
+  "isActivePlayer": {
+    "matchesActivePC10": true,
+    "activeSHA256": "63648129a4843e6aa1cc80c0be0cb371584ce6ad562ce11a81e1a99c85a140ee"
+  },
+  "isConnectedPlayer": {
+    "matchesActivePC10": true,
+    "activeSHA256": "ba0252b80ffc3e778ac47ed32372c31fa1dd04ace76439900b79604fdef67293"
+  }
+}

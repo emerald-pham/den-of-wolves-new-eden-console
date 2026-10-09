@@ -1,0 +1,472 @@
+{
+  "startedAt": "2026-10-09T02:25:11.423Z",
+  "origin": "http://127.0.0.1:5050",
+  "cases": [
+    {
+      "path": "/casting",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "cache-control": "no-store",
+        "connection": "keep-alive",
+        "content-encoding": "gzip",
+        "content-type": "text/html; charset=utf-8",
+        "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+        "etag": "9c4ad1636e65bb22ca717e0f2f584db4",
+        "keep-alive": "timeout=5",
+        "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+        "referrer-policy": "no-referrer",
+        "transfer-encoding": "chunked",
+        "vary": "Accept-Encoding",
+        "x-robots-tag": "noindex, nofollow, noarchive"
+      },
+      "hops": [
+        {
+          "url": "http://127.0.0.1:5050/casting",
+          "status": 200,
+          "headers": {
+            "cache-control": "no-store",
+            "connection": "keep-alive",
+            "content-encoding": "gzip",
+            "content-type": "text/html; charset=utf-8",
+            "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+            "etag": "9c4ad1636e65bb22ca717e0f2f584db4",
+            "keep-alive": "timeout=5",
+            "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+            "referrer-policy": "no-referrer",
+            "transfer-encoding": "chunked",
+            "vary": "Accept-Encoding",
+            "x-robots-tag": "noindex, nofollow, noarchive"
+          }
+        }
+      ]
+    },
+    {
+      "path": "/casting/",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "cache-control": "no-store",
+        "connection": "keep-alive",
+        "content-encoding": "gzip",
+        "content-type": "text/html; charset=utf-8",
+        "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+        "etag": "9c4ad1636e65bb22ca717e0f2f584db4",
+        "keep-alive": "timeout=5",
+        "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+        "referrer-policy": "no-referrer",
+        "transfer-encoding": "chunked",
+        "vary": "Accept-Encoding",
+        "x-robots-tag": "noindex, nofollow, noarchive"
+      },
+      "hops": [
+        {
+          "url": "http://127.0.0.1:5050/casting/",
+          "status": 200,
+          "headers": {
+            "cache-control": "no-store",
+            "connection": "keep-alive",
+            "content-encoding": "gzip",
+            "content-type": "text/html; charset=utf-8",
+            "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+            "etag": "9c4ad1636e65bb22ca717e0f2f584db4",
+            "keep-alive": "timeout=5",
+            "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+            "referrer-policy": "no-referrer",
+            "transfer-encoding": "chunked",
+            "vary": "Accept-Encoding",
+            "x-robots-tag": "noindex, nofollow, noarchive"
+          }
+        }
+      ]
+    },
+    {
+      "path": "/casting?source=direct",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "cache-control": "no-store",
+        "connection": "keep-alive",
+        "content-encoding": "gzip",
+        "content-type": "text/html; charset=utf-8",
+        "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+        "etag": "9c4ad1636e65bb22ca717e0f2f584db4",
+        "keep-alive": "timeout=5",
+        "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+        "referrer-policy": "no-referrer",
+        "transfer-encoding": "chunked",
+        "vary": "Accept-Encoding",
+        "x-robots-tag": "noindex, nofollow, noarchive"
+      },
+      "hops": [
+        {
+          "url": "http://127.0.0.1:5050/casting?source=direct",
+          "status": 200,
+          "headers": {
+            "cache-control": "no-store",
+            "connection": "keep-alive",
+            "content-encoding": "gzip",
+            "content-type": "text/html; charset=utf-8",
+            "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+            "etag": "9c4ad1636e65bb22ca717e0f2f584db4",
+            "keep-alive": "timeout=5",
+            "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+            "referrer-policy": "no-referrer",
+            "transfer-encoding": "chunked",
+            "vary": "Accept-Encoding",
+            "x-robots-tag": "noindex, nofollow, noarchive"
+          }
+        }
+      ]
+    },
+    {
+      "path": "/casting/index.html",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "cache-control": "no-store",
+        "connection": "keep-alive",
+        "content-encoding": "gzip",
+        "content-type": "text/html; charset=utf-8",
+        "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+        "etag": "9c4ad1636e65bb22ca717e0f2f584db4",
+        "keep-alive": "timeout=5",
+        "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+        "referrer-policy": "no-referrer",
+        "transfer-encoding": "chunked",
+        "vary": "Accept-Encoding",
+        "x-robots-tag": "noindex, nofollow, noarchive"
+      },
+      "hops": [
+        {
+          "url": "http://127.0.0.1:5050/casting/index.html",
+          "status": 301,
+          "headers": {
+            "cache-control": "no-store",
+            "connection": "keep-alive",
+            "content-length": "23",
+            "content-type": "text/html; charset=utf-8",
+            "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+            "keep-alive": "timeout=5",
+            "location": "/casting",
+            "referrer-policy": "no-referrer",
+            "x-robots-tag": "noindex, nofollow, noarchive"
+          }
+        },
+        {
+          "url": "http://127.0.0.1:5050/casting",
+          "status": 200,
+          "headers": {
+            "cache-control": "no-store",
+            "connection": "keep-alive",
+            "content-encoding": "gzip",
+            "content-type": "text/html; charset=utf-8",
+            "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+            "etag": "9c4ad1636e65bb22ca717e0f2f584db4",
+            "keep-alive": "timeout=5",
+            "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+            "referrer-policy": "no-referrer",
+            "transfer-encoding": "chunked",
+            "vary": "Accept-Encoding",
+            "x-robots-tag": "noindex, nofollow, noarchive"
+          }
+        }
+      ]
+    },
+    {
+      "path": "/casting/deep",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "cache-control": "no-store",
+        "connection": "keep-alive",
+        "content-encoding": "gzip",
+        "content-type": "text/html; charset=utf-8",
+        "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+        "etag": "9c4ad1636e65bb22ca717e0f2f584db4",
+        "keep-alive": "timeout=5",
+        "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+        "referrer-policy": "no-referrer",
+        "transfer-encoding": "chunked",
+        "vary": "Accept-Encoding",
+        "x-robots-tag": "noindex, nofollow, noarchive"
+      },
+      "hops": [
+        {
+          "url": "http://127.0.0.1:5050/casting/deep",
+          "status": 200,
+          "headers": {
+            "cache-control": "no-store",
+            "connection": "keep-alive",
+            "content-encoding": "gzip",
+            "content-type": "text/html; charset=utf-8",
+            "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+            "etag": "9c4ad1636e65bb22ca717e0f2f584db4",
+            "keep-alive": "timeout=5",
+            "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+            "referrer-policy": "no-referrer",
+            "transfer-encoding": "chunked",
+            "vary": "Accept-Encoding",
+            "x-robots-tag": "noindex, nofollow, noarchive"
+          }
+        }
+      ]
+    },
+    {
+      "path": "/casting",
+      "method": "HEAD",
+      "status": 200,
+      "headers": {
+        "cache-control": "no-store",
+        "connection": "close",
+        "content-length": "1160",
+        "content-type": "text/html; charset=utf-8",
+        "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+        "etag": "9c4ad1636e65bb22ca717e0f2f584db4",
+        "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+        "referrer-policy": "no-referrer",
+        "vary": "Accept-Encoding",
+        "x-robots-tag": "noindex, nofollow, noarchive"
+      },
+      "hops": [
+        {
+          "url": "http://127.0.0.1:5050/casting",
+          "status": 200,
+          "headers": {
+            "cache-control": "no-store",
+            "connection": "close",
+            "content-length": "1160",
+            "content-type": "text/html; charset=utf-8",
+            "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+            "etag": "9c4ad1636e65bb22ca717e0f2f584db4",
+            "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+            "referrer-policy": "no-referrer",
+            "vary": "Accept-Encoding",
+            "x-robots-tag": "noindex, nofollow, noarchive"
+          }
+        }
+      ]
+    },
+    {
+      "path": "/casting/",
+      "method": "HEAD",
+      "status": 200,
+      "headers": {
+        "cache-control": "no-store",
+        "connection": "close",
+        "content-length": "1160",
+        "content-type": "text/html; charset=utf-8",
+        "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+        "etag": "9c4ad1636e65bb22ca717e0f2f584db4",
+        "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+        "referrer-policy": "no-referrer",
+        "vary": "Accept-Encoding",
+        "x-robots-tag": "noindex, nofollow, noarchive"
+      },
+      "hops": [
+        {
+          "url": "http://127.0.0.1:5050/casting/",
+          "status": 200,
+          "headers": {
+            "cache-control": "no-store",
+            "connection": "close",
+            "content-length": "1160",
+            "content-type": "text/html; charset=utf-8",
+            "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+            "etag": "9c4ad1636e65bb22ca717e0f2f584db4",
+            "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+            "referrer-policy": "no-referrer",
+            "vary": "Accept-Encoding",
+            "x-robots-tag": "noindex, nofollow, noarchive"
+          }
+        }
+      ]
+    },
+    {
+      "path": "/casting?source=direct",
+      "method": "HEAD",
+      "status": 200,
+      "headers": {
+        "cache-control": "no-store",
+        "connection": "close",
+        "content-length": "1160",
+        "content-type": "text/html; charset=utf-8",
+        "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+        "etag": "9c4ad1636e65bb22ca717e0f2f584db4",
+        "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+        "referrer-policy": "no-referrer",
+        "vary": "Accept-Encoding",
+        "x-robots-tag": "noindex, nofollow, noarchive"
+      },
+      "hops": [
+        {
+          "url": "http://127.0.0.1:5050/casting?source=direct",
+          "status": 200,
+          "headers": {
+            "cache-control": "no-store",
+            "connection": "close",
+            "content-length": "1160",
+            "content-type": "text/html; charset=utf-8",
+            "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+            "etag": "9c4ad1636e65bb22ca717e0f2f584db4",
+            "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+            "referrer-policy": "no-referrer",
+            "vary": "Accept-Encoding",
+            "x-robots-tag": "noindex, nofollow, noarchive"
+          }
+        }
+      ]
+    },
+    {
+      "path": "/casting/index.html",
+      "method": "HEAD",
+      "status": 200,
+      "headers": {
+        "cache-control": "no-store",
+        "connection": "close",
+        "content-length": "1160",
+        "content-type": "text/html; charset=utf-8",
+        "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+        "etag": "9c4ad1636e65bb22ca717e0f2f584db4",
+        "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+        "referrer-policy": "no-referrer",
+        "vary": "Accept-Encoding",
+        "x-robots-tag": "noindex, nofollow, noarchive"
+      },
+      "hops": [
+        {
+          "url": "http://127.0.0.1:5050/casting/index.html",
+          "status": 301,
+          "headers": {
+            "cache-control": "no-store",
+            "connection": "close",
+            "content-type": "text/html; charset=utf-8",
+            "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+            "location": "/casting",
+            "referrer-policy": "no-referrer",
+            "x-robots-tag": "noindex, nofollow, noarchive"
+          }
+        },
+        {
+          "url": "http://127.0.0.1:5050/casting",
+          "status": 200,
+          "headers": {
+            "cache-control": "no-store",
+            "connection": "close",
+            "content-length": "1160",
+            "content-type": "text/html; charset=utf-8",
+            "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+            "etag": "9c4ad1636e65bb22ca717e0f2f584db4",
+            "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+            "referrer-policy": "no-referrer",
+            "vary": "Accept-Encoding",
+            "x-robots-tag": "noindex, nofollow, noarchive"
+          }
+        }
+      ]
+    },
+    {
+      "path": "/casting/deep",
+      "method": "HEAD",
+      "status": 200,
+      "headers": {
+        "cache-control": "no-store",
+        "connection": "close",
+        "content-length": "1160",
+        "content-type": "text/html; charset=utf-8",
+        "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+        "etag": "9c4ad1636e65bb22ca717e0f2f584db4",
+        "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+        "referrer-policy": "no-referrer",
+        "vary": "Accept-Encoding",
+        "x-robots-tag": "noindex, nofollow, noarchive"
+      },
+      "hops": [
+        {
+          "url": "http://127.0.0.1:5050/casting/deep",
+          "status": 200,
+          "headers": {
+            "cache-control": "no-store",
+            "connection": "close",
+            "content-length": "1160",
+            "content-type": "text/html; charset=utf-8",
+            "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+            "etag": "9c4ad1636e65bb22ca717e0f2f584db4",
+            "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+            "referrer-policy": "no-referrer",
+            "vary": "Accept-Encoding",
+            "x-robots-tag": "noindex, nofollow, noarchive"
+          }
+        }
+      ]
+    },
+    {
+      "path": "/",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "connection": "keep-alive",
+        "content-encoding": "gzip",
+        "content-type": "text/html; charset=utf-8",
+        "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+        "etag": "4c744df80afd72ae5a87130d0b69d96e",
+        "keep-alive": "timeout=5",
+        "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+        "transfer-encoding": "chunked",
+        "vary": "Accept-Encoding"
+      },
+      "hops": [
+        {
+          "url": "http://127.0.0.1:5050/",
+          "status": 200,
+          "headers": {
+            "connection": "keep-alive",
+            "content-encoding": "gzip",
+            "content-type": "text/html; charset=utf-8",
+            "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+            "etag": "4c744df80afd72ae5a87130d0b69d96e",
+            "keep-alive": "timeout=5",
+            "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+            "transfer-encoding": "chunked",
+            "vary": "Accept-Encoding"
+          }
+        }
+      ]
+    },
+    {
+      "path": "/casting-other",
+      "method": "GET",
+      "status": 200,
+      "headers": {
+        "connection": "keep-alive",
+        "content-encoding": "gzip",
+        "content-type": "text/html; charset=utf-8",
+        "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+        "etag": "4c744df80afd72ae5a87130d0b69d96e",
+        "keep-alive": "timeout=5",
+        "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+        "transfer-encoding": "chunked",
+        "vary": "Accept-Encoding"
+      },
+      "hops": [
+        {
+          "url": "http://127.0.0.1:5050/casting-other",
+          "status": 200,
+          "headers": {
+            "connection": "keep-alive",
+            "content-encoding": "gzip",
+            "content-type": "text/html; charset=utf-8",
+            "date": "Fri, 09 Oct 2026 02:25:11 GMT",
+            "etag": "4c744df80afd72ae5a87130d0b69d96e",
+            "keep-alive": "timeout=5",
+            "last-modified": "Fri, 09 Oct 2026 01:52:36 GMT",
+            "transfer-encoding": "chunked",
+            "vary": "Accept-Encoding"
+          }
+        }
+      ]
+    }
+  ],
+  "passed": true,
+  "finishedAt": "2026-10-09T02:25:11.509Z"
+}

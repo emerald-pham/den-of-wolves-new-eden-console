@@ -1,0 +1,16 @@
+[
+  {
+    "path": "src/styles/cic.css",
+    "recordedMainCommit": "1aab9503cd89fb69117dfe91d843c848ec18b98d",
+    "currentSHA256": "047f83e4192c801b00445397d1a780db05414df08f1d515af6fd1005f90f894c",
+    "recordedMainSHA256": "047f83e4192c801b00445397d1a780db05414df08f1d515af6fd1005f90f894c",
+    "identical": true
+  },
+  {
+    "path": "src/PC01ReviewScene.css",
+    "recordedMainCommit": "1aab9503cd89fb69117dfe91d843c848ec18b98d",
+    "currentSHA256": "eb23a2ed427da1801e14f7766747c1850c779d0ef80d615557c554ab275a979b",
+    "recordedMainSHA256": "eb23a2ed427da1801e14f7766747c1850c779d0ef80d615557c554ab275a979b",
+    "identical": true
+  }
+]

@@ -1,0 +1,24 @@
+PASS real createSession lobby turn0 does not grant GM
+PASS real explicit GM claim and scoped prerequisite
+PASS durable builder publication and private response boundary
+PASS anonymous-auth submission required validation and repeat receipt
+PASS three independent identities and fourth limit
+PASS bearer view-only snapshot and explicit update without duplicate overwrite
+PASS capacity revoke durable replay conflict and retained data
+PASS revoke bearer fails closed
+PASS private CSV and unpublish
+PASS stale instance and revoked GM denied
+/private/tmp/dow-pc09-execution-20261004/functions/node_modules/firebase-admin/lib/app/lifecycle.js:85
+            throw new error_1.FirebaseAppError({ code: error_1.AppErrorCode.NO_APP, message: errorMessage });
+                  ^
+
+FirebaseAppError: The default Firebase app does not exist. Make sure you call initializeApp() before using any of the Firebase services.
+    at AppStore.getApp (/private/tmp/dow-pc09-execution-20261004/functions/node_modules/firebase-admin/lib/app/lifecycle.js:85:19)
+    at getApp (/private/tmp/dow-pc09-execution-20261004/functions/node_modules/firebase-admin/lib/app/lifecycle.js:243:36)
+    at getAuth (/private/tmp/dow-pc09-execution-20261004/functions/node_modules/firebase-admin/lib/auth/index.js:51:34)
+    at file:///private/tmp/dow-casting-release-runtime-20261009/integration.mjs:13:693 {
+  code: 'app/no-app',
+  codePrefix: 'app'
+}
+
+Node.js v23.10.0

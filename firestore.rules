@@ -1614,6 +1614,12 @@ service cloud.firestore {
       }
     }
 
+    // Casting companion is callable-only, outside every game member-readable path.
+    match /castingWorkspaces/{document=**} { allow read, write: if false; }
+    match /castingSessionWorkspaces/{document=**} { allow read, write: if false; }
+    match /castingPublishedHandles/{document=**} { allow read, write: if false; }
+    match /castingIngressCounters/{document=**} { allow read, write: if false; }
+
     // Nothing else is reachable.
     match /{document=**} {
       allow read, write: if false;

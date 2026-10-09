@@ -414,7 +414,7 @@ function isToolingOnly(file) {
   return TOOLING_ONLY_FILES.has(file) ||
     file.startsWith('.githooks/') ||
     file.startsWith('.github/') ||
-    file.startsWith('scripts/') ||
+    (file.startsWith('scripts/') && file !== 'scripts/build-casting-companion-core.mjs') ||
     /(?:^|\/)(?:eslint\.config\.|\.eslintrc|vitest\.config\.)/.test(file);
 }
 
@@ -450,6 +450,11 @@ export function classifyChangedFiles(files, {
       addAllTargets(targets);
     } else if (FIRESTORE_FILES.has(file)) {
       targets.add('firestore');
+    } else if (/^companion\/(?:casting|csv|session-contract)\.mjs$/.test(file) || file === 'scripts/build-casting-companion-core.mjs') {
+      targets.add('functions');
+      targets.add('hosting');
+    } else if (file.startsWith('companion/') || file.startsWith('casting/')) {
+      targets.add('hosting');
     } else if (file.startsWith('functions/')) {
       targets.add('functions');
     } else if (
@@ -1416,11 +1421,21 @@ function airspaceClosureTaskHandlerImpacts(before, after, cwd, sourceAtRevision)
   return ['parkShuttlesAtAirspaceClosure'];
 }
 
+const CASTING_CALLABLE_SOURCES = new Set([
+  'companion/casting.mjs', 'companion/csv.mjs', 'companion/session-contract.mjs',
+  'functions/src/castingCompanionCallable.ts', 'functions/src/castingCallableTransport.ts',
+  'functions/casting-companion-entry.mjs', 'scripts/build-casting-companion-core.mjs',
+]);
 function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }) {
   const runtimeFiles = files.map(normalizeFile).filter((file) =>
-    file.startsWith('functions/src/') && !isTestFile(file) && /\.(?:ts|js|mjs|cjs)$/.test(file));
+    CASTING_CALLABLE_SOURCES.has(file) || (file.startsWith('functions/src/') && !isTestFile(file) && /\.(?:ts|js|mjs|cjs)$/.test(file)));
   const selected = new Set();
   for (const file of runtimeFiles) {
+    if (CASTING_CALLABLE_SOURCES.has(file)) {
+      if (!callableIsExportedAtRevision('castingCompanionCommand', after, cwd, sourceAtRevision)) throw new Error('Casting companion callable export is absent; refusing core-only deployment.');
+      selected.add('castingCompanionCommand');
+      continue;
+    }
     if (file !== 'functions/src/index.ts' && mobileGmHotfixDeploymentConsumers.modules[file]) {
       const readAt = revision => {
         if (sourceAtRevision) return sourceAtRevision(revision, file);

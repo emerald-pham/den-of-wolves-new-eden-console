@@ -302,3 +302,9 @@ describe('validation profiles', () => {
     expect(profile.reviewReceiptKind).toBe('exact-head-independent-security-review');
   });
 });
+
+describe('casting companion server bundle classification',()=>{
+ for(const path of ['companion/casting.mjs','companion/session-contract.mjs','companion/csv.mjs','scripts/build-casting-companion-core.mjs','src/casting/adapter.ts','casting/index.html'])it(`requires backend build and independent review for ${path}`,()=>{
+ const profile=deriveValidationProfile({changedFiles:[path]});expect(profile.requiresReview).toBe(true);expect(profile.commands).toContain('npm run build --prefix functions');
+ });
+});

@@ -1,0 +1,236 @@
+{
+  "startedAt": "2026-10-09T00:50:37.097Z",
+  "cases": [
+    {
+      "name": "dow-approved-desktop",
+      "width": 1440,
+      "height": 900,
+      "roles": [
+        {
+          "selector": "h1",
+          "text": "PC01 // Shepherd science station",
+          "font": "SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+          "size": "37.6px",
+          "weight": "700",
+          "lineHeight": "43.24px",
+          "color": "rgb(228, 236, 238)",
+          "background": "rgba(0, 0, 0, 0)",
+          "platformFonts": [
+            {
+              "familyName": "Menlo",
+              "postScriptName": "Menlo-Bold",
+              "isCustomFont": false,
+              "glyphCount": 32
+            }
+          ]
+        },
+        {
+          "selector": "h2",
+          "text": "Endeavour research",
+          "font": "SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+          "size": "28.8px",
+          "weight": "700",
+          "lineHeight": "34.56px",
+          "color": "rgb(228, 236, 238)",
+          "background": "rgba(0, 0, 0, 0)",
+          "platformFonts": [
+            {
+              "familyName": "Menlo",
+              "postScriptName": "Menlo-Bold",
+              "isCustomFont": false,
+              "glyphCount": 18
+            }
+          ]
+        },
+        {
+          "selector": ".cic-overline",
+          "text": "Prepared playtest // PC01",
+          "font": "SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+          "size": "10.4px",
+          "weight": "400",
+          "lineHeight": "16.64px",
+          "color": "rgb(232, 137, 43)",
+          "background": "rgba(0, 0, 0, 0)",
+          "platformFonts": [
+            {
+              "familyName": "Menlo",
+              "postScriptName": "Menlo-Regular",
+              "isCustomFont": false,
+              "glyphCount": 25
+            }
+          ]
+        },
+        {
+          "selector": "button",
+          "text": "Team research",
+          "font": "SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+          "size": "11.52px",
+          "weight": "400",
+          "lineHeight": "13.824px",
+          "color": "rgb(140, 234, 248)",
+          "background": "color(srgb 0.27451 0.784314 0.870588 / 0.09)",
+          "platformFonts": [
+            {
+              "familyName": "Menlo",
+              "postScriptName": "Menlo-Regular",
+              "isCustomFont": false,
+              "glyphCount": 13
+            }
+          ]
+        },
+        {
+          "selector": "label",
+          "text": "Review perspectiveScientist // EndeavourFacilitator // GMSecond ship // AEGIS",
+          "font": "SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+          "size": "16px",
+          "weight": "400",
+          "lineHeight": "normal",
+          "color": "rgb(228, 236, 238)",
+          "background": "rgba(0, 0, 0, 0)",
+          "platformFonts": [
+            {
+              "familyName": "Menlo",
+              "postScriptName": "Menlo-Bold",
+              "isCustomFont": false,
+              "glyphCount": 18
+            }
+          ]
+        },
+        {
+          "selector": "select",
+          "text": "Scientist // EndeavourFacilitator // GMSecond ship // AEGIS",
+          "font": "SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+          "size": "13.3333px",
+          "weight": "400",
+          "lineHeight": "normal",
+          "color": "rgb(228, 236, 238)",
+          "background": "rgb(8, 15, 20)",
+          "platformFonts": [
+            {
+              "familyName": "Menlo",
+              "postScriptName": "Menlo-Regular",
+              "isCustomFont": false,
+              "glyphCount": 22
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "dow-approved-phone",
+      "width": 390,
+      "height": 844,
+      "roles": [
+        {
+          "selector": "h1",
+          "text": "PC01 // Shepherd science station",
+          "font": "SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+          "size": "23.2px",
+          "weight": "700",
+          "lineHeight": "26.68px",
+          "color": "rgb(228, 236, 238)",
+          "background": "rgba(0, 0, 0, 0)",
+          "platformFonts": [
+            {
+              "familyName": "Menlo",
+              "postScriptName": "Menlo-Bold",
+              "isCustomFont": false,
+              "glyphCount": 31
+            }
+          ]
+        },
+        {
+          "selector": "h2",
+          "text": "Endeavour research",
+          "font": "SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+          "size": "19.2px",
+          "weight": "700",
+          "lineHeight": "23.04px",
+          "color": "rgb(228, 236, 238)",
+          "background": "rgba(0, 0, 0, 0)",
+          "platformFonts": [
+            {
+              "familyName": "Menlo",
+              "postScriptName": "Menlo-Bold",
+              "isCustomFont": false,
+              "glyphCount": 18
+            }
+          ]
+        },
+        {
+          "selector": ".cic-overline",
+          "text": "Prepared playtest // PC01",
+          "font": "SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+          "size": "10.4px",
+          "weight": "400",
+          "lineHeight": "16.64px",
+          "color": "rgb(232, 137, 43)",
+          "background": "rgba(0, 0, 0, 0)",
+          "platformFonts": [
+            {
+              "familyName": "Menlo",
+              "postScriptName": "Menlo-Regular",
+              "isCustomFont": false,
+              "glyphCount": 25
+            }
+          ]
+        },
+        {
+          "selector": "button",
+          "text": "Team research",
+          "font": "SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+          "size": "11.52px",
+          "weight": "400",
+          "lineHeight": "13.824px",
+          "color": "rgb(140, 234, 248)",
+          "background": "color(srgb 0.27451 0.784314 0.870588 / 0.09)",
+          "platformFonts": [
+            {
+              "familyName": "Menlo",
+              "postScriptName": "Menlo-Regular",
+              "isCustomFont": false,
+              "glyphCount": 13
+            }
+          ]
+        },
+        {
+          "selector": "label",
+          "text": "Review perspectiveScientist // EndeavourFacilitator // GMSecond ship // AEGIS",
+          "font": "SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+          "size": "16px",
+          "weight": "400",
+          "lineHeight": "normal",
+          "color": "rgb(228, 236, 238)",
+          "background": "rgba(0, 0, 0, 0)",
+          "platformFonts": [
+            {
+              "familyName": "Menlo",
+              "postScriptName": "Menlo-Bold",
+              "isCustomFont": false,
+              "glyphCount": 18
+            }
+          ]
+        },
+        {
+          "selector": "select",
+          "text": "Scientist // EndeavourFacilitator // GMSecond ship // AEGIS",
+          "font": "SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+          "size": "13.3333px",
+          "weight": "400",
+          "lineHeight": "normal",
+          "color": "rgb(228, 236, 238)",
+          "background": "rgb(8, 15, 20)",
+          "platformFonts": [
+            {
+              "familyName": "Menlo",
+              "postScriptName": "Menlo-Regular",
+              "isCustomFont": false,
+              "glyphCount": 22
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "finishedAt": "2026-10-09T00:50:38.177Z"
+}

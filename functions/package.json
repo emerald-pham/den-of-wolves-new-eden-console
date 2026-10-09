@@ -7,7 +7,7 @@
     "node": "22"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node ../scripts/build-casting-companion-core.mjs",
     "watch": "tsc --watch",
     "serve": "npm run build && node ../scripts/run-emulator-command.mjs functions",
     "deploy": "firebase deploy --only functions"

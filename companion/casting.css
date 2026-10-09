@@ -1,0 +1,84 @@
+/* Standalone companion shell: shared CIC variables remain authoritative. */
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--cic-void); color: var(--cic-ink); font: 1rem/1.6 var(--cic-mono); }
+button, input, select, textarea { font: inherit; border-radius: var(--cic-radius); }
+button, a { color: var(--cic-cyan); }
+button { min-height: 44px; border: 1px solid var(--cic-amber-dim); background: transparent; padding: .65rem 1rem; cursor: pointer; }
+button:disabled { opacity: .55; cursor: default; }
+button:hover:not(:disabled) { border-color: var(--cic-amber); }
+:focus-visible { outline: 2px solid var(--cic-amber); outline-offset: 3px; }
+.casting-fixture-banner { padding: .75rem max(1rem, env(safe-area-inset-left)); border-bottom: 1px solid var(--cic-rule); color: var(--cic-amber-glow); font-size: .8rem; }
+.casting-shell { max-width: 70rem; margin: auto; padding: var(--cic-space); padding-bottom: max(2rem, env(safe-area-inset-bottom)); }
+.casting-shell h1 { font: 600 clamp(1.4rem, 4vw, 2.2rem)/1.3 var(--cic-display); color: var(--cic-amber-glow); }
+.casting-shell h2 { font: 600 1.15rem/1.5 var(--cic-mono); }
+.casting-shell nav { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+.casting-shell > button { margin: .25rem .5rem .25rem 0; }
+.casting-shell label { overflow-wrap: anywhere; display: block; margin: 1rem 0; color: var(--cic-amber-glow); }
+.casting-shell input:not([type='checkbox']):not([type='radio']), .casting-shell textarea, .casting-shell select { display: block; width: 100%; min-width: 0; min-height: 44px; padding: .65rem; margin-top: .4rem; background: var(--cic-panel); color: var(--cic-ink); border: 1px solid var(--cic-rule); }
+.casting-shell input[type='checkbox'], .casting-shell input[type='radio'] { width: 1.2rem; height: 1.2rem; accent-color: var(--cic-cyan); margin-right: .7rem; }
+.casting-shell textarea { min-height: 7rem; resize: vertical; }
+.casting-shell fieldset, .casting-shell section:not(.casting-intro) { border: 1px solid var(--cic-rule); margin: 1.25rem 0; padding: 1rem; min-width: 0; }
+.casting-shell legend { max-width: 100%; overflow-wrap: anywhere; color: var(--cic-amber); padding: 0 .4rem; }
+.casting-shell pre, .casting-prose { white-space: pre-wrap; overflow-wrap: anywhere; }
+.casting-shell p, .casting-shell a, .casting-shell h1, .casting-shell h2 { overflow-wrap: anywhere; }
+.casting-shell a { display: inline-block; padding: .7rem 0; }
+.casting-shell [role='alert'] { color: var(--cic-amber-glow); border-left: 2px solid var(--cic-amber); padding-left: 1rem; }
+.casting-intro { position: fixed; inset: 0; z-index: 20; background: var(--cic-void); padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom)); display: grid; grid-template-rows: auto minmax(0,1fr) auto auto; place-items: center; overflow: auto; }
+.casting-intro h2 { color: var(--cic-amber-glow); margin: .5rem 0; text-align: center; }
+.casting-intro p { margin: .5rem 0; font-size: .85rem; text-align: center; }
+.casting-intro__flags { position: relative; width: min(100%, 52rem); height: min(55vh, 34rem); }
+.casting-intro__flag { position: absolute; inset: 0; margin: 0; display: grid; grid-template-rows: minmax(0,1fr) auto; justify-items: center; opacity: 0; animation: casting-flag-arrival 1s calc(var(--flag-index) * 1s) 1 both; }
+.casting-intro__flag img { width: 100%; height: 100%; object-fit: contain; }
+.casting-intro__flag figcaption { color: var(--cic-amber-glow); letter-spacing: .14em; padding: .5rem; }
+@keyframes casting-flag-arrival { 0% { opacity: 0; transform: translateX(-3%); } 20%,80% { opacity: 1; transform: translateX(0); } 100% { opacity: 0; transform: translateX(3%); } }
+.casting-intro--static .casting-intro__flags { display: grid; grid-template-columns: repeat(auto-fit,minmax(6rem,1fr)); gap: 1rem; height: auto; }
+.casting-intro--static .casting-intro__flag { position: static; animation: none; opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .casting-intro__flag { animation: none; opacity: 1; position: static; } .casting-intro__flags { display: grid; grid-template-columns: repeat(auto-fit,minmax(6rem,1fr)); height: auto; gap: 1rem; } }
+@media (max-width: 28rem) { .casting-shell { padding: 1rem; } .casting-shell nav button { flex: 1 1 8rem; } .casting-shell fieldset { padding: .75rem; } }
+@media (max-height: 28rem) and (orientation: landscape) { .casting-intro { grid-template-columns: minmax(0,1fr) auto; grid-template-rows: auto minmax(0,1fr) auto; } .casting-intro__flags { height: 50vh; } .casting-intro h2 { grid-column: 1/-1; } }
+
+.casting-shell label:has(> input[type='checkbox']), .casting-shell label:has(> input[type='radio']) { min-height: 44px; display: flex; align-items: center; }
+
+.casting-intro__flag { min-width: 0; min-height: 0; width: 100%; }
+.casting-intro__flag img { min-width: 0; min-height: 0; }
+.casting-intro--static { display: block; }
+.casting-intro--static .casting-intro__flags { width: 100%; margin: 1rem auto; }
+.casting-intro--static .casting-intro__flag img { height: auto; aspect-ratio: 3 / 2; max-height: 8rem; }
+.casting-intro--static > button { display: block; position: sticky; bottom: 0; margin: 1rem auto; background: var(--cic-void); }
+@media (prefers-reduced-motion: reduce) {
+  .casting-intro { display: block; }
+  .casting-intro__flags { width: 100%; margin: 1rem auto; }
+  .casting-intro__flag img { height: auto; aspect-ratio: 3 / 2; max-height: 8rem; }
+  .casting-intro > button { display: block; position: sticky; bottom: 0; margin: 1rem auto; background: var(--cic-void); }
+}
+
+/* Pin the same installed Mac monospace face observed on DoW owner screens. */
+body { --cic-mono: Menlo, 'SFMono-Regular', Consolas, 'Liberation Mono', monospace; --cic-display: var(--cic-mono); }
+/* Reserve a separate row for Skip so it cannot cover enlarged flag artwork. */
+.casting-intro--static { display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: auto minmax(0,1fr) auto auto; overflow: hidden; }
+.casting-intro--static .casting-intro__flags { height: 100%; overflow-y: auto; align-content: start; grid-auto-rows: max-content; margin: 0; padding: .5rem; }
+.casting-intro--static .casting-intro__flag { grid-template-rows: auto auto; align-self: start; }
+.casting-intro--static > button { position: static; margin: .5rem auto; }
+@media (prefers-reduced-motion: reduce) {
+  .casting-intro { display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: auto minmax(0,1fr) auto auto; overflow: hidden; }
+  .casting-intro__flags { height: 100%; overflow-y: auto; align-content: start; grid-auto-rows: max-content; margin: 0; padding: .5rem; }
+  .casting-intro__flag { grid-template-rows: auto auto; align-self: start; }
+  .casting-intro > button { position: static; margin: .5rem auto; }
+}
+
+/* In short landscape, put the gallery beside the title and Skip rather than
+   letting enlarged footer text consume its vertical reading space. */
+@media (max-height: 28rem) and (orientation: landscape) {
+  .casting-intro--static { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); grid-template-rows: minmax(0, 1fr) auto; column-gap: .5rem; }
+  .casting-intro--static h2 { grid-column: 1; grid-row: 1; }
+  .casting-intro--static .casting-intro__flags { grid-column: 2; grid-row: 1 / -1; }
+  .casting-intro--static > button { grid-column: 1; grid-row: 2; max-width: 100%; padding: .4rem .25rem; }
+  .casting-intro--static > p { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+@media (prefers-reduced-motion: reduce) and (max-height: 28rem) and (orientation: landscape) {
+  .casting-intro { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); grid-template-rows: minmax(0, 1fr) auto; column-gap: .5rem; }
+  .casting-intro h2 { grid-column: 1; grid-row: 1; }
+  .casting-intro .casting-intro__flags { grid-column: 2; grid-row: 1 / -1; }
+  .casting-intro > button { grid-column: 1; grid-row: 2; max-width: 100%; padding: .4rem .25rem; }
+  .casting-intro > p { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}

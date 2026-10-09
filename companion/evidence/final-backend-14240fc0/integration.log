@@ -1,0 +1,13 @@
+(node:91196) MetadataLookupWarning: received unexpected error = All promises were rejected code = UNKNOWN
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS real createSession lobby turn0 does not grant GM
+PASS real explicit GM claim and scoped prerequisite
+PASS durable builder publication and private response boundary
+PASS anonymous-auth submission required validation and repeat receipt
+PASS three independent identities and fourth limit
+PASS bearer view-only snapshot and explicit update without duplicate overwrite
+PASS capacity revoke durable replay conflict and retained data
+PASS revoke bearer fails closed
+PASS private CSV and unpublish
+PASS stale instance and revoked GM denied
+PASS real Auth revoked ID token denies casting

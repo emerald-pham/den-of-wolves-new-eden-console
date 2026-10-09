@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { Timestamp } from 'firebase-admin/firestore';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
 type StoredDocument = Record<string, unknown>;
@@ -130,6 +131,7 @@ const mock = vi.hoisted(() => {
 
   return {
     documents,
+    authRevoked: false,
     directUpdate,
     get,
     update,
@@ -140,11 +142,12 @@ const mock = vi.hoisted(() => {
       collection,
       collectionGroup,
       runTransaction: (callback: (tx: unknown) => unknown) =>
-        callback({ get, update, set, delete: remove }),
+        callback({ get, update, set, create: set, delete: remove }),
     },
   };
 });
 
+vi.mock('firebase-admin/auth', () => ({ getAuth: () => ({ verifyIdToken: async () => { if (mock.authRevoked) throw new Error('revoked'); return { uid: 'u1' }; } }) }));
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => mock.db,
@@ -159,6 +162,7 @@ vi.mock('firebase-admin/firestore', () => ({
     static fromMillis(value: number) { return new MockTimestamp(value); }
     static fromDate(value: Date) { return new MockTimestamp(value.getTime()); }
     toMillis() { return this.milliseconds; }
+    toDate() { return new Date(this.milliseconds); }
   },
 }));
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
@@ -168,13 +172,14 @@ vi.mock('firebase-functions/v2/https', () => ({
       super(message);
     }
   },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, handler?: (request: unknown) => unknown) => ({ run: typeof optionsOrHandler === 'function' ? optionsOrHandler : handler }),
 }));
 vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
 }));
 
 import {
+  castingCompanionCommand,
   claimGmInstance,
   setGmShipConsoleWriteGrant,
   elevateToGm,
@@ -249,6 +254,7 @@ function request<T extends Record<string, unknown>>(data: T, uid = 'u1') {
 }
 
 beforeEach(() => {
+  mock.authRevoked = false;
   mock.documents.clear();
   mock.directUpdate.mockClear();
   mock.get.mockClear();
@@ -1385,5 +1391,33 @@ describe('natural GM presence recovery', () => {
     await expect(listGmInstances.run(request({ sessionId: 's1' }))).resolves.toEqual({ instances: [] });
     await expect(setGmControlsLocked.run(request({ sessionId: 's1', instanceId: 'bridge', locked: true })))
       .rejects.toMatchObject({ code: 'permission-denied' });
+  });
+});
+
+
+describe('casting consumer on released GM renewal and revocation', () => {
+  const castingRequest = (operation: string, payload: Record<string, unknown>) => ({
+    ...request({ operation, payload, instanceId: 'casting-tab' }),
+    app: { appId: 'synthetic-local' }, rawRequest: { headers: { authorization: 'Bearer synthetic-token' } },
+  }) as unknown as CallableRequest;
+  it('uses an initial released claim, renews only this tab, and rejects revoked GM despite renewed presence', async () => {
+    session({ phase: 'lobby', currentTurn: 0 }); player('u1'); await login();
+    await claimGmInstance.run(request({ sessionId: 's1', instanceId: 'casting-tab', name: 'Casting', deviceLabel: 'Synthetic browser' }));
+    // Resolve the harness's server-timestamp markers as Firestore does.
+    put('sessions/s1/players/u1', { ...read('sessions/s1/players/u1'), lastSeenAt: Timestamp.fromDate(new Date()) });
+    await refreshPresence.run(request({ sessionId: 's1', instanceId: 'casting-tab' }));
+    put('sessions/s1/players/u1', { ...read('sessions/s1/players/u1'), lastSeenAt: Timestamp.fromDate(new Date()) });
+    const workspace = 'w'.repeat(32);
+    await expect(castingCompanionCommand.run(castingRequest('bindWorkspace', { workspace, sessionId: 's1', attempt: 'bind' }))).resolves.toMatchObject({ workspace });
+    await expect(castingCompanionCommand.run(castingRequest('workspace', { workspace }))).resolves.toMatchObject({ forms: [] });
+    mock.documents.delete('gmAccess/u1');
+    await refreshPresence.run(request({ sessionId: 's1', instanceId: 'casting-tab' }));
+    await expect(castingCompanionCommand.run(castingRequest('workspace', { workspace }))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(read('sessions/s1')?.currentTurn).toBe(0);
+  });
+  it('revocation-checked ID token rejects the endpoint before any Firestore read', async () => {
+    mock.authRevoked = true; const before = mock.get.mock.calls.length;
+    await expect(castingCompanionCommand.run(castingRequest('workspace', { workspace: 'w'.repeat(32) }))).rejects.toMatchObject({ code: 'unauthenticated' });
+    expect(mock.get.mock.calls.length).toBe(before);
   });
 });
