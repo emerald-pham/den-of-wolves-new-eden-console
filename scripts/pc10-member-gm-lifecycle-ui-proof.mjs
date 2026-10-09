@@ -159,7 +159,7 @@ export async function observeLifecycleActor(surface, expectedSessionId, { sdkAut
       pursuitEmergency: Boolean(session?.pursuitEmergencyWindowAuthority ?? session?.pursuitEmergencyWindow),
       // Buttons remain the actual source guard. Absence of this hint never grants authority.
       attackLocked: null,
-      ...(sdk ? { sdkHasServerAuthority: authority?.hasServerSessionAuthority === true,
+      ...(sdk ? { meSessionId: s.me?.sessionId ?? null, sdkHasServerAuthority: authority?.hasServerSessionAuthority === true,
         sdkResumePending: authority ? sdk.memberSessionResumeBlocksFreshness(authority) : true,
         recoveryPending: s.gmRecoveryPending, connected: s.me?.connected === true,
         currentOwnPlayerConfirmed: s.me?.connected === true, kicked: s.me?.kickedAt != null,

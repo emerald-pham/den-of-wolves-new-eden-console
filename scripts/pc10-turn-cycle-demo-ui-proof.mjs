@@ -49,6 +49,7 @@ export async function completeOfferedCyclePresentation(surface, expected, {
   };
   let committed;
   if (sdkAuthority) {
+    assert.equal(expected.meSessionId, expected.sessionId, 'Original own-player session must match the actual session.');
     assertOriginalActor(expected, expected, { gm: expected.gmInstanceOwned });
     assert.ok(Number.isSafeInteger(expected.hydrationRevision) && expected.hydrationRevision >= 1);
     for (const key of identityKeys) assert.ok(Object.hasOwn(expected, key), `Actual original ${key} must be sampled.`);
@@ -96,6 +97,7 @@ export async function completeOfferedCyclePresentation(surface, expected, {
     if (!sdkAuthority) { assertOriginalActor(expected, current, { gm: expected.gmInstanceOwned }); return { current, ready: true }; }
     assert.equal(current.hasAuth, true); assert.equal(current.sameActor, true);
     assert.equal(current.uidHash, expected.uidHash); assert.equal(current.sessionId, expected.sessionId);
+    assert.equal(current.meSessionId, expected.sessionId, 'Current own-player session must retain the original session.');
     assert.equal(current.generation, expected.generation);
     for (const key of identityKeys) assert.deepEqual(current[key], expected[key], `Original presentation ${key} changed.`);
     assert.equal(current.privateAudienceMatches, true); assert.equal(current.foreignPendingCount, 0);
