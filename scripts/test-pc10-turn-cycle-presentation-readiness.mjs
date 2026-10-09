@@ -1,0 +1,59 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import {webcrypto,createHash} from 'node:crypto';
+import {readFile} from 'node:fs/promises';
+import ts from 'typescript';
+import {assertOriginalActor} from './pc10-member-gm-lifecycle-contracts.mjs';
+import {captureLifecycleUiAction,recoverLifecycleUiAction,publicLifecycleReceipt} from './pc10-member-gm-lifecycle-ui-proof.mjs';
+const observerSource=await readFile(new URL('./pc10-member-gm-lifecycle-ui-proof.mjs',import.meta.url),'utf8');
+const presentationSource=await readFile(new URL('./pc10-turn-cycle-demo-ui-proof.mjs',import.meta.url),'utf8');
+const sdkSource=await readFile(new URL('../src/lib/sessionService.ts',import.meta.url),'utf8');
+const serverSource=await readFile(new URL('../functions/src/index.ts',import.meta.url),'utf8');
+const observerCode=observerSource.slice(observerSource.indexOf('export async function observeLifecycleActor('),observerSource.indexOf('\nexport async function untilLifecycle('));
+const presentationCode=presentationSource.slice(presentationSource.indexOf('async function offered('),presentationSource.indexOf('/** Additive hooks'));
+const sdkAst=ts.createSourceFile('sessionService.ts',sdkSource,ts.ScriptTarget.Latest,true);
+const connectCode=['connect','connectWithRetryPolicy'].map(name=>sdkAst.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text===name).getText(sdkAst)).join('\n');
+const serverAst=ts.createSourceFile('index.ts',serverSource,ts.ScriptTarget.Latest,true);
+let startNode;function findStart(n){if(ts.isVariableDeclaration(n)&&n.name.getText(serverAst)==='startGame')startNode=n;ts.forEachChild(n,findStart);}findStart(serverAst);
+const replies=[];function findReply(n){if(ts.isVariableDeclaration(n)&&n.name.getText(serverAst)==='result'&&n.initializer&&ts.isObjectLiteralExpression(n.initializer)&&n.initializer.properties.some(p=>p.name?.getText(serverAst)==='setupReceipt'))replies.push(n.initializer);ts.forEachChild(n,findReply);}findReply(startNode);
+assert.equal(replies.length,1,'Use the actual committed startGame result expression.');
+const startReplyCode=ts.transpileModule('globalThis.reply = '+replies[0].getText(serverAst),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
+const hash=s=>createHash('sha256').update(s).digest('hex').slice(0,16);
+function fixture(){
+ const uid='original-setup-member';let user={uid},clock=1000,onDigest=null,onObserve=null,onPaint=null,resumeResolve;
+ let state={session:{id:'original-session',phase:'casting',currentTurn:0,setupRevision:13,fullGameDemo:{status:'preparing',progression:'manual'}},me:{uid,role:'player',connected:true,connectionGeneration:1,assignedRoleId:'wing-commander',activeConsoleRoleId:'wing-commander',seatId:'wing-commander',fleetGroupId:'fleet-1'},connection:'live',sessionSnapshotFreshness:'server',identityHydrationRevision:1,gmInstance:null,gmRecoveryPending:false,gmAccessAuthenticatedAt:null,pendingCommands:[],gmAwayMissionHandPointers:[],gmLoyaltyCensusStatus:'loading',roleBrief:null};
+ let transmission=false,briefing=false,observerCalls=0,clicks=0;
+ const events=[];state.setConnection=value=>{state={...state,connection:value};events.push(['connection',value]);};state.setSessionSnapshotFreshness=value=>{state={...state,sessionSnapshotFreshness:value};events.push(['freshness',value]);};state.setGmRecoveryPending=value=>{state={...state,gmRecoveryPending:value};};state.setCommunicationError=()=>{};
+ const store={getState:()=>state};
+ const sdk={sessionSnapshotAuthorityFor:()=>({hasServerSessionAuthority:state.sdkServer!==false&&state.sessionSnapshotFreshness==='server'}),memberSessionResumeBlocksFreshness:()=>state.resumePending===true};
+ const vmContext=vm.createContext({TextEncoder,crypto:{subtle:{digest:async(...args)=>{if(onDigest){const effect=onDigest;onDigest=null;await effect();}return webcrypto.subtle.digest(...args);}}},document:{querySelector:selector=>selector.includes('briefing')?(briefing?{}:null):(transmission?{}:null)},Date:{now:()=>clock},assert,assertOriginalActor,delay:async()=>{clock+=100;},captureLifecycleUiAction,recoverLifecycleUiAction,publicLifecycleReceipt});
+ const modules={'/src/lib/firebase.ts':{auth:()=>({currentUser:user})},'/src/lib/demoActorContext.ts':{activeDemoActorProfile:null},'/src/store/useSessionStore.ts':{useSessionStore:store},'/src/lib/sessionSnapshotAuthority.ts':sdk};
+ const surface={storeModuleUrl:()=>'/src/store/useSessionStore.ts',sessionAuthorityModuleUrl:()=>'/src/lib/sessionSnapshotAuthority.ts',page:{evaluate:async(callback,input)=>{observerCalls++;if(onObserve)await onObserve(observerCalls);const script=new vm.Script(`(${callback.toString()})`,{importModuleDynamically:async name=>{const entries=Object.entries(modules[name]);const module=new vm.SyntheticModule(entries.map(([k])=>k),function(){for(const[k,v]of entries)this.setExport(k,v);},{context:vmContext});await module.link(()=>{throw new Error('No extra fixture imports.');});await module.evaluate();return module;}});return script.runInContext(vmContext)(input);},getByRole:()=>({getByRole:()=>({count:async()=>1,isVisible:async()=>true,isEnabled:async()=>true,click:async()=>{clicks++;}})})},paintTwoFrames:async()=>{if(onPaint)await onPaint();}};
+ const load=async(code)=>{const module=new vm.SourceTextModule(code,{context:vmContext});await module.link(()=>{throw new Error('No extra top-level imports.');});await module.evaluate();return module.namespace;};
+ const startContext={start:{sessionId:state.session.id,requestId:'real-captured-request',fullGameDemo:true},transition:{currentTurn:1,turnStartAnnouncement:{turn:1,revision:0},turnPhase:{turn:1,phase:'team',phaseRevision:1,progression:'manual',airspace:{state:'restricted'},timerPause:null,teamPhaseEndsAt:'2026-10-09T02:13:00.000Z',openAirspaceEndsAt:'2026-10-09T02:28:00.000Z'}},committedSetupRevision:14,setupReceipt:{}};
+ vm.runInNewContext(startReplyCode,startContext);const result=startContext.reply;
+ const startCapture={endpoint:'startGame',httpStatus:200,data:{sessionId:result.sessionId,requestId:result.requestId,expectedSetupRevision:13},result};
+ return{surface,state:()=>state,set:delta=>{state={...state,...delta};},user:()=>user,setUser:v=>{user=v;},setDigest:f=>{onDigest=f;},setObserve:f=>{onObserve=f;},setPaint:f=>{onPaint=f;},clock:()=>clock,setClock:v=>{clock=v;},events,clicks:()=>clicks,startCapture,
+  observe:async()=>{const{observeLifecycleActor}=await load(observerCode);return observeLifecycleActor(surface,state.session.id,{sdkAuthority:true});},
+  present:async(expected,extra={})=>{vmContext.observeLifecycleActor=(...args)=>load(observerCode).then(({observeLifecycleActor})=>observeLifecycleActor(...args));const{completeOfferedCyclePresentation}=await load(presentationCode);return completeOfferedCyclePresentation(surface,expected,{clearBriefing:true,deadlineAt:2000,setupStart:startCapture,sdkAuthority:true,...extra});},
+  publish:()=>{state={...state,session:{...state.session,phase:'active',currentTurn:result.currentTurn,setupRevision:result.setupRevision,fullGameDemo:result.fullGameDemo,turnPhase:result.turnPhase,turnStartAnnouncement:result.turnStartAnnouncement}};transmission=false;},
+  connect:async()=>{const context=vm.createContext({window:{navigator:{onLine:true}},useSessionStore:store,auth:()=>({currentUser:user}),latestConnectAttemptGeneration:0,resumeRateLimitHold:null,ensureSignedIn:async()=>{},resumeSession:async()=>{await new Promise(resolve=>{resumeResolve=resolve;});state.setSessionSnapshotFreshness('server');return true;},clearConnectRateLimitAfterAuthority:()=>{},flushPendingCommands:async()=>true,reconcileGmAuthority:async()=>{},TERMINAL_RESUME_ERRORS:new Set(),errorCode:()=>null,isRateLimitedCommandError:()=>false});const module=new vm.SourceTextModule(ts.transpileModule(connectCode,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText,{context});await module.link(()=>{throw new Error('Connect uses controlled existing ports.');});await module.evaluate();const pending=module.namespace.connect();while(!resumeResolve)await Promise.resolve();return pending;},
+  resume:()=>resumeResolve(),hash:()=>hash(uid),};
+}
+test('actual lifecycle observer rejects original Auth changed inside awaited digest',async()=>{const f=fixture();f.setDigest(()=>f.setUser({uid:'foreign'}));await assert.rejects(f.observe(),/Auth UID changed/i);});
+test('actual lifecycle observer samples current store after digest instead of qualifying obsolete live state',async()=>{const f=fixture();f.setDigest(()=>f.set({connection:'connecting',sessionSnapshotFreshness:'cache'}));const current=await f.observe();assert.equal(current.connection,'connecting');assert.equal(current.freshness,'cache');});
+test('actual setup connect producer→observer→presentation waits for stable live authority before returning to next action',async()=>{
+ const f=fixture(),anchor=await f.observe();f.publish();let connected;
+ // Do not await the producer: the presentation consumer must observe its real pending transition.
+ const pending=f.connect();await Promise.resolve();await Promise.resolve();
+ f.setObserve(async count=>{if(count>=3){f.resume();connected=await pending;}});
+ const ready=await f.present(anchor);assert.equal(ready.actualPaintReady,true);assert.equal(f.state().connection,'live');assert.equal(f.state().sessionSnapshotFreshness,'server');assert.equal(f.clicks(),0);assert.equal(f.hash(),anchor.uidHash);assert.deepEqual(f.events.slice(0,2),[['connection','connecting'],['freshness','cache']]);void connected;
+});
+test('same original receipt publication may remain passive at its exact precommit tuple before committed Cycle1 arrives',async()=>{const f=fixture(),anchor=await f.observe();f.setObserve(count=>{if(count>=3)f.publish();});const ready=await f.present(anchor);assert.equal(ready.actualPaintReady,true);assert.equal(f.state().session.currentTurn,1);});
+for(const[name,delta]of[['hydration',{identityHydrationRevision:2}],['SDK revoked',{sdkServer:false}],['resume pending',{resumePending:true}],['recovery pending',{gmRecoveryPending:true}],['replaced station',{me:{uid:'original-setup-member',role:'player',connected:true,connectionGeneration:1,assignedRoleId:'executive-officer',activeConsoleRoleId:'executive-officer',seatId:'executive-officer',fleetGroupId:'fleet-1'}}]]){
+ test(`current ${name} after real committed start cannot qualify presentation or next action`,async()=>{const f=fixture(),anchor=await f.observe();f.publish();f.set(delta);f.setObserve(count=>{if(count>4)f.setClock(100000);});await assert.rejects(f.present(anchor));assert.equal(f.clicks(),0);});
+}
+test('expired original caller deadline after a slow actual observer cannot qualify return',async()=>{const f=fixture(),anchor=await f.observe();f.publish();f.setDigest(()=>f.setClock(2001));await assert.rejects(f.present(anchor),/deadline|budget/i);assert.equal(f.clicks(),0);});
+test('fresh actor source recheck after paint rejects hydration mutation with zero subsequent action',async()=>{const f=fixture(),anchor=await f.observe();f.publish();f.setPaint(()=>f.set({identityHydrationRevision:2}));await assert.rejects(f.present(anchor));assert.equal(f.clicks(),0);});
+test('unknown committed source phase/cycle is never treated as ordinary readiness latency',async()=>{const f=fixture(),anchor=await f.observe();f.publish();f.set({session:{...f.state().session,currentTurn:2}});await assert.rejects(f.present(anchor));assert.equal(f.clicks(),0);});
