@@ -545,6 +545,33 @@ it('lets the joined Settings GM password field shrink within its grid column', a
   expect(inputRule).toMatch(/max-width:\s*100%/);
 });
 
+it('lets joined Settings join-card copy shrink and wrap inside its frame', async () => {
+  const user = userEvent.setup();
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...session, currentTurn: 1 });
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /^Settings$/ }));
+  const settings = screen.getByRole('dialog', { name: 'Session settings' });
+  expect(within(settings).getByRole('heading', { name: 'Join this session' })).toBeVisible();
+  expect(within(settings).getByText('Scan to open the ordinary join screen.')).toBeVisible();
+  expect(within(settings).getByRole('link', { name: 'Open join screen for session 4821' }))
+    .toBeVisible();
+
+  // The enlarged capture shows join-card text over the cyan frame. JSDOM cannot
+  // measure that geometry, so assert shrinkable copy in the real Settings consumer.
+  const stylesheet = readFileSync('src/index.css', 'utf8');
+  const cardRule = stylesheet.match(/\.session-join-qr\s*\{([^}]*)\}/)?.[1] ?? '';
+  const copyRule = stylesheet.match(
+    /\.session-join-qr h3,\s*\.session-join-qr p,\s*\.session-join-qr__link\s*\{([^}]*)\}/,
+  )?.[1] ?? '';
+  expect(cardRule).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+  expect(copyRule).toMatch(/min-width:\s*0/);
+  expect(copyRule).toMatch(/max-width:\s*100%/);
+  expect(copyRule).toMatch(/overflow-wrap:\s*anywhere/);
+});
+
 it('keeps joined Settings text inside the narrow enlarged-text viewport', async () => {
   const user = userEvent.setup();
   const session = useSessionStore.getState().session!;
