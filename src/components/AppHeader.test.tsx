@@ -497,6 +497,37 @@ it('shows the ordinary join QR and accessible link in joined session Settings', 
   expect(within(settings).getByLabelText('Session code 4821')).toBeVisible();
 });
 
+it('keeps joined Settings text inside the narrow enlarged-text viewport', async () => {
+  const user = userEvent.setup();
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...session, currentTurn: 1 });
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /^Settings$/ }));
+  const settings = screen.getByRole('dialog', { name: 'Session settings' });
+  expect(within(settings).getByLabelText('Session code 4821')).toBeVisible();
+  expect(within(settings).getByRole('heading', { name: 'Join this session' })).toBeVisible();
+  expect(within(settings).getByRole('link', { name: 'Open join screen for session 4821' }))
+    .toBeVisible();
+
+  // The rendered 320px/200%-text capture showed these consumer elements outside
+  // the viewport. JSDOM cannot measure that geometry, so guard the responsive
+  // CSS contract here and retain browser review for the painted layout.
+  const stylesheet = readFileSync('src/index.css', 'utf8');
+  const compactRules = stylesheet.match(
+    /@media \(max-width: 42rem\), \(max-height: 42rem\)\s*\{([\s\S]*?)\n\}/,
+  )?.[1] ?? '';
+  expect(compactRules).toMatch(
+    /\.settings-backdrop\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)[^}]*place-items:\s*start center/s,
+  );
+  expect(compactRules).toMatch(/\.settings-dialog\s*\{[^}]*min-width:\s*0/s);
+  expect(compactRules).toMatch(/\.settings-dialog__header h2\s*\{[^}]*min-width:\s*0/s);
+  expect(compactRules).toMatch(
+    /\.settings-dialog > \.session-readouts\s*\{[^}]*flex-direction:\s*column/s,
+  );
+});
+
 it('offers the single-player demo only to the sole Turn Zero player and closes settings when started', async () => {
   const user = userEvent.setup();
   const session = useSessionStore.getState().session!;
