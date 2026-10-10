@@ -703,6 +703,7 @@ html:has(.ship-plot[data-aboard='true'][data-expanded='false'])
 
 .session-join-qr {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   justify-items: center;
   gap: 0.45rem;
   margin-top: 1rem;
@@ -743,9 +744,16 @@ html:has(.ship-plot[data-aboard='true'][data-expanded='false'])
   justify-content: center;
   color: var(--cic-cyan);
   font: 0.68rem/1.45 var(--cic-mono);
-  overflow-wrap: anywhere;
   text-decoration-color: var(--cic-amber-dim);
   text-underline-offset: 0.15em;
+}
+
+.session-join-qr h3,
+.session-join-qr p,
+.session-join-qr__link {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .session-join-qr__link:focus-visible {
