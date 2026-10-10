@@ -639,8 +639,10 @@ it('keeps measured compact Settings contact and changelog controls reachable', a
   )?.[1] ?? '';
   // The saved fixed-modal census records the email at327.5px and the
   // changelog toggle ending atx476.875. These differ from the roster402px cause.
-  expect.soft(compact).toMatch(/\.settings-dialog__gm-access a\s*\{[^}]*display:\s*block[^}]*max-width:\s*100%[^}]*overflow-wrap:\s*anywhere/s);
-  expect.soft(compact).toMatch(/\.settings-changelog__header\s*\{[^}]*flex-direction:\s*column[^}]*align-items:\s*stretch/s);
+  // These base rules occur later in the stylesheet: the compact consumer
+  // selectors must outrank them, rather than merely appear in an earlier block.
+  expect.soft(compact).toMatch(/\.settings-dialog \.settings-dialog__gm-access a\s*\{[^}]*display:\s*block[^}]*max-width:\s*100%[^}]*overflow-wrap:\s*anywhere/s);
+  expect.soft(compact).toMatch(/\.settings-dialog \.settings-changelog__header\s*\{[^}]*flex-direction:\s*column[^}]*align-items:\s*stretch/s);
   expect.soft(compact).toMatch(/\.settings-dialog button:not\(\.settings-dialog__close\)\s*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%[^}]*white-space:\s*normal/s);
   expect.soft(compact).not.toMatch(/overflow(?:-x)?:\s*(?:hidden|clip)|font(?:-size)?:/);
 });
