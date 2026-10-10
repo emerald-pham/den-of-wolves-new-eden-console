@@ -497,6 +497,54 @@ it('shows the ordinary join QR and accessible link in joined session Settings', 
   expect(within(settings).getByLabelText('Session code 4821')).toBeVisible();
 });
 
+it('contains the responsive QR inside the joined Settings card content', async () => {
+  const user = userEvent.setup();
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...session, currentTurn: 1 });
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /^Settings$/ }));
+  const settings = screen.getByRole('dialog', { name: 'Session settings' });
+  const qr = within(settings).getByRole('img', { name: 'QR code for session 4821' });
+  expect(qr).toBeVisible();
+  expect(within(settings).getByRole('heading', { name: 'Join this session' })).toBeVisible();
+  expect(within(settings).getByRole('link', { name: 'Open join screen for session 4821' }))
+    .toBeVisible();
+
+  // The 320px/200% capture measures a 166.39px QR within a 256px outer dialog,
+  // yet visibly shows it overhanging the inner cyan join frame. JSDOM cannot
+  // measure the inner frame, so guard the real consumer's image sizing contract.
+  const stylesheet = readFileSync('src/index.css', 'utf8');
+  const qrRule = stylesheet.match(/\.session-join-qr__image\s*\{([^}]*)\}/)?.[1] ?? '';
+  expect(qrRule).toMatch(/max-width:\s*100%/);
+});
+
+it('lets the joined Settings GM password field shrink within its grid column', async () => {
+  const user = userEvent.setup();
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...session, currentTurn: 1 });
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /^Settings$/ }));
+  const settings = screen.getByRole('dialog', { name: 'Session settings' });
+  const password = within(settings).getByLabelText('GM access password');
+  expect(password).toBeVisible();
+
+  // The 320px/200% native row records document/body width 402 with a fitted
+  // outer dialog. The default grid track and password input min size are a
+  // source-level candidate only; no native overflow descendant was identified.
+  const stylesheet = readFileSync('src/index.css', 'utf8');
+  const formRule = stylesheet.match(/\.settings-dialog__gm-access-form\s*\{([^}]*)\}/)?.[1] ?? '';
+  const inputRule = stylesheet.match(
+    /\.settings-dialog__gm-access-form input\s*\{([^}]*)\}/,
+  )?.[1] ?? '';
+  expect(formRule).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+  expect(inputRule).toMatch(/min-width:\s*0/);
+  expect(inputRule).toMatch(/max-width:\s*100%/);
+});
+
 it('keeps joined Settings text inside the narrow enlarged-text viewport', async () => {
   const user = userEvent.setup();
   const session = useSessionStore.getState().session!;
