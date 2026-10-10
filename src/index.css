@@ -844,6 +844,31 @@ html:has(.ship-plot[data-aboard='true'][data-expanded='false'])
 @media (max-width: 42rem), (max-height: 42rem) {
   .focus-dialog-backdrop { place-items: start center; }
   .focus-dialog { margin-block: 0; }
+
+  .settings-backdrop {
+    grid-template-columns: minmax(0, 1fr);
+    place-items: start center;
+  }
+
+  .settings-dialog {
+    margin-block: 0;
+    min-width: 0;
+  }
+
+  .settings-dialog__header h2 {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .settings-dialog > .session-readouts {
+    flex-direction: column;
+  }
+
+  .settings-dialog > .session-readouts > * {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
+  }
 }
 
 
