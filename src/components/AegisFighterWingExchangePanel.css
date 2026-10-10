@@ -38,7 +38,7 @@
   min-height: 2.75rem;
   padding: 0.45rem 0.7rem;
   border: 1px solid var(--cic-amber-dim);
-  border-radius: 0.35rem;
+  border-radius: var(--cic-radius);
   color: var(--cic-cyan);
   background: var(--cic-panel);
 }
