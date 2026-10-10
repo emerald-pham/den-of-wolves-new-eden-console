@@ -10,14 +10,16 @@ function declarationsFor(selector: string): Record<string, string> {
   const matchingRules = rules.filter(([, header]) =>
     (header ?? '').split(',').some((part) => part.trim() === selector),
   );
-  // The final matching rule accounts for later component-state overrides.
-  const rule = matchingRules[matchingRules.length - 1];
-  if (!rule) throw new Error('Missing CSS rule for ' + selector);
+  if (matchingRules.length === 0) throw new Error('Missing CSS rule for ' + selector);
 
-  return Object.fromEntries(
-    [...(rule[2] ?? '').matchAll(/([\w-]+)\s*:\s*([^;]+)\s*;/g)]
-      .map(([, property, value]) => [property, (value ?? '').trim()]),
-  );
+  // Merge declarations in source order, as the browser cascade does per property.
+  const declarations: Record<string, string> = {};
+  for (const rule of matchingRules) {
+    for (const [, property, value] of (rule[2] ?? '').matchAll(/([\w-]+)\s*:\s*([^;]+)\s*;/g)) {
+      if (property) declarations[property] = (value ?? '').trim();
+    }
+  }
+  return declarations;
 }
 
 describe('Aegis Fighter Wing exchange palette', () => {
