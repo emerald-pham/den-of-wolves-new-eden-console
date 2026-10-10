@@ -1140,7 +1140,8 @@ it('keeps the long settings changelog independently scrollable', () => {
 it('gives the existing GM access email a 44px target without changing its link or copy', async () => {
   const stylesheet = readFileSync('src/index.css', 'utf8');
   const style = document.createElement('style');
-  style.textContent = stylesheet.match(/\.settings-dialog__gm-access a\s*\{[^}]*\}/)?.[0] ?? '';
+  // Select the exact base rule, not the suffix of a qualified compact override.
+  style.textContent = stylesheet.match(/^\.settings-dialog__gm-access a\s*\{[^}]*\}/m)?.[0] ?? '';
   document.head.append(style);
   try {
     render(<MemoryRouter><AppHeader /></MemoryRouter>);
