@@ -20,7 +20,7 @@
 
 .aegis-wing-exchange__cycle,
 .aegis-wing-exchange__strength {
-  color: var(--cic-text-secondary, #becbd7);
+  color: var(--cic-cyan);
 }
 
 .aegis-wing-exchange__strength {
@@ -31,16 +31,16 @@
   display: grid;
   gap: 0.35rem;
   min-width: 10rem;
-  color: var(--cic-text-secondary, #becbd7);
+  color: var(--cic-amber);
 }
 
 .aegis-wing-exchange__form select {
   min-height: 2.75rem;
   padding: 0.45rem 0.7rem;
-  border: 1px solid var(--cic-border, #556472);
+  border: 1px solid var(--cic-amber-dim);
   border-radius: 0.35rem;
-  color: var(--cic-text-primary, #edf2f6);
-  background: var(--cic-panel, #17212a);
+  color: var(--cic-cyan);
+  background: var(--cic-panel);
 }
 
 .aegis-wing-exchange__form .cic-action-button {
@@ -50,11 +50,11 @@
 .aegis-wing-exchange__notice,
 .aegis-wing-exchange__error {
   margin: 0;
-  color: var(--cic-text-secondary, #becbd7);
+  color: var(--cic-ink);
 }
 
 .aegis-wing-exchange__error {
-  color: var(--cic-danger, #ffaca6);
+  color: var(--cic-danger);
 }
 
 @media (max-width: 38rem) {
