@@ -7,9 +7,11 @@ const CSS = readFileSync(CSS_PATH, 'utf8');
 
 function declarationsFor(selector: string): Record<string, string> {
   const rules = [...CSS.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
-  const rule = rules.find(([, header]) =>
+  const matchingRules = rules.filter(([, header]) =>
     (header ?? '').split(',').some((part) => part.trim() === selector),
   );
+  // The final matching rule accounts for later component-state overrides.
+  const rule = matchingRules[matchingRules.length - 1];
   if (!rule) throw new Error('Missing CSS rule for ' + selector);
 
   return Object.fromEntries(
