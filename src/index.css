@@ -857,15 +857,58 @@ html:has(.ship-plot[data-aboard='true'][data-expanded='false'])
   .settings-backdrop {
     grid-template-columns: minmax(0, 1fr);
     place-items: start center;
+    padding: max(env(safe-area-inset-top), min(1rem, 2.5vw))
+      max(env(safe-area-inset-right), min(1rem, 2.5vw))
+      max(env(safe-area-inset-bottom), min(1rem, 2.5vw))
+      max(env(safe-area-inset-left), min(1rem, 2.5vw));
   }
 
   .settings-dialog {
     margin-block: 0;
     min-width: 0;
+    padding: min(1.25rem, 4vw);
+  }
+
+  .settings-dialog__header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
   }
 
   .settings-dialog__header h2 {
     min-width: 0;
+    grid-row: 2;
+    overflow-wrap: normal;
+  }
+
+  .settings-dialog__close {
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .session-join-qr {
+    padding: min(0.9rem, 3vw);
+  }
+
+  .session-join-qr h3 {
+    overflow-wrap: normal;
+  }
+
+  .settings-dialog .settings-dialog__gm-access a {
+    display: block;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .settings-dialog .settings-changelog__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .settings-dialog button:not(.settings-dialog__close) {
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
     overflow-wrap: anywhere;
   }
 
@@ -3071,8 +3114,13 @@ html:has(.ship-plot[data-aboard='true'][data-expanded='false'])
   margin-bottom: clamp(2rem, 5vw, 4rem);
 }
 
+.fleet-roster__header .role-select__title {
+  overflow-wrap: anywhere;
+}
+
 .fleet-roster__filter {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.45rem;
   max-width: 28rem;
   margin-top: 1.5rem;
@@ -3083,6 +3131,9 @@ html:has(.ship-plot[data-aboard='true'][data-expanded='false'])
 }
 
 .fleet-roster__filter input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 44px;
   padding: 0.65rem 0.8rem;
   border: 1px solid var(--cic-rule);
