@@ -603,6 +603,48 @@ it('keeps joined Settings text inside the narrow enlarged-text viewport', async 
   );
 });
 
+it('gives compact Settings headings whole-word full-width rows without shrinking enlarged type', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+  await user.click(screen.getByRole('button', { name: /^Settings$/ }));
+  const dialog = screen.getByRole('dialog', { name: 'Session settings' });
+  expect(within(dialog).getByRole('heading', { name: 'Session settings' })).toHaveAttribute('id', 'settings-title');
+  expect(within(dialog).getByRole('heading', { name: 'Join this session' })).toBeVisible();
+  expect(within(dialog).getByRole('button', { name: 'Close settings' })).toBeVisible();
+  const css = readFileSync('src/index.css', 'utf8');
+  const compact = css.match(/@media \(max-width: 42rem\), \(max-height: 42rem\)\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+  // Saved200% title was98px wide and join-copy content113.4px wide. Move
+  // Close to its own row and reclaim padding, rather than reducing font size.
+  expect.soft(compact).toMatch(/\.settings-backdrop\s*\{[^}]*padding:[^;]*min\(1rem,\s*2\.5vw\)/s);
+  expect.soft(compact).toMatch(/\.settings-dialog\s*\{[^}]*padding:\s*min\(1\.25rem,\s*4vw\)/s);
+  expect.soft(compact).toMatch(/\.settings-dialog__header\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
+  expect.soft(compact).toMatch(/\.settings-dialog__header h2\s*\{[^}]*grid-row:\s*2[^}]*overflow-wrap:\s*normal/s);
+  expect.soft(compact).toMatch(/\.settings-dialog__close\s*\{[^}]*grid-row:\s*1[^}]*justify-self:\s*end/s);
+  expect.soft(compact).toMatch(/\.session-join-qr\s*\{[^}]*padding:\s*min\(0\.9rem,\s*3vw\)/s);
+  expect.soft(compact).toMatch(/\.session-join-qr h3\s*\{[^}]*overflow-wrap:\s*normal/s);
+  expect.soft(compact).not.toMatch(/font(?:-size)?:|overflow(?:-x)?:\s*(?:hidden|clip)/);
+});
+
+it('keeps measured compact Settings contact and changelog controls reachable', async () => {
+  const user = userEvent.setup();
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+  await user.click(screen.getByRole('button', { name: /^Settings$/ }));
+  const dialog = screen.getByRole('dialog', { name: 'Session settings' });
+  expect(within(dialog).getByRole('link', { name: 'emerald.pham@hey.com' })).toHaveAttribute('href', 'mailto:emerald.pham@hey.com');
+  expect(within(dialog).getByRole('button', { name: 'View changelog' })).toBeVisible();
+  expect(within(dialog).getByRole('button', { name: 'Authorize GM access' })).toBeDisabled();
+  const compact = readFileSync('src/index.css', 'utf8').match(
+    /@media \(max-width: 42rem\), \(max-height: 42rem\)\s*\{([\s\S]*?)\n\}/,
+  )?.[1] ?? '';
+  // The saved fixed-modal census records the email at327.5px and the
+  // changelog toggle ending atx476.875. These differ from the roster402px cause.
+  expect.soft(compact).toMatch(/\.settings-dialog__gm-access a\s*\{[^}]*display:\s*block[^}]*max-width:\s*100%[^}]*overflow-wrap:\s*anywhere/s);
+  expect.soft(compact).toMatch(/\.settings-changelog__header\s*\{[^}]*flex-direction:\s*column[^}]*align-items:\s*stretch/s);
+  expect.soft(compact).toMatch(/\.settings-dialog button:not\(\.settings-dialog__close\)\s*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%[^}]*white-space:\s*normal/s);
+  expect.soft(compact).not.toMatch(/overflow(?:-x)?:\s*(?:hidden|clip)|font(?:-size)?:/);
+});
+
 it('offers the single-player demo only to the sole Turn Zero player and closes settings when started', async () => {
   const user = userEvent.setup();
   const session = useSessionStore.getState().session!;

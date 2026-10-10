@@ -1,6 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { recommendedRoleIds } from '@/data/rolePresets';
@@ -20,6 +21,27 @@ vi.mock('@/lib/firestore', async (importOriginal) => ({
   subscribeShipConfetti: vi.fn(() => vi.fn()),
 }));
 const { httpsCallable } = await import('firebase/functions');
+
+it('lets the actual roster search shrink without hiding enlarged input or heading text', () => {
+  render(<MemoryRouter><SessionMode mode="console" /></MemoryRouter>);
+  const search = screen.getByRole('searchbox', { name: 'Filter consoles' });
+  expect(search.closest('label')).toHaveClass('fleet-roster__filter');
+  expect(screen.getByRole('heading', { name: 'Stations and consoles' })).toHaveClass('role-select__title');
+
+  // Native c950 recorded this input at x32..402.1875 inside a256px label,
+  // and the roster heading had316px scrollWidth. JSDOM is not a pixel renderer:
+  // guard the real consumer's intrinsic-size constraints; native proof stays open.
+  const css = readFileSync('src/index.css', 'utf8');
+  const filter = css.match(/\.fleet-roster__filter\s*\{([^}]*)\}/)?.[1] ?? '';
+  const input = css.match(/\.fleet-roster__filter input\s*\{([^}]*)\}/)?.[1] ?? '';
+  const heading = css.match(/\.fleet-roster__header \.role-select__title\s*\{([^}]*)\}/)?.[1] ?? '';
+  expect.soft(filter).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+  expect.soft(input).toMatch(/width:\s*100%/);
+  expect.soft(input).toMatch(/min-width:\s*0/);
+  expect.soft(input).toMatch(/max-width:\s*100%/);
+  expect.soft(heading).toMatch(/overflow-wrap:\s*anywhere/);
+  expect(filter + input + heading).not.toMatch(/overflow(?:-x)?:\s*(?:hidden|clip)|font-size:/);
+});
 
 function callableReturning(value: unknown) {
   return Object.assign(vi.fn().mockResolvedValue(value), { stream: vi.fn() });
