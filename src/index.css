@@ -722,6 +722,7 @@ html:has(.ship-plot[data-aboard='true'][data-expanded='false'])
 .session-join-qr__image {
   display: block;
   width: min(9rem, 52vw);
+  max-width: 100%;
   height: auto;
   aspect-ratio: 1;
   padding: 0.4rem;
@@ -2901,6 +2902,7 @@ html:has(.ship-plot[data-aboard='true'][data-expanded='false'])
 
 .settings-dialog__gm-access-form {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.55rem;
   margin-top: 1rem;
 }
@@ -2914,6 +2916,8 @@ html:has(.ship-plot[data-aboard='true'][data-expanded='false'])
 
 .settings-dialog__gm-access-form input {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 44px;
   border: 1px solid var(--cic-rule);
   border-radius: var(--cic-radius);
