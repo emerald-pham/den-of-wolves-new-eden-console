@@ -707,8 +707,9 @@ export async function observeP181StarlightSource(surface, deadlineAt) {
     };
 
     deadlineTimer = setTimeout(() => fail(timeoutError()), deadlineAt - Date.now());
-    const captureProjection = (auth, useSessionStore, captureStage, allowUnready = false) => {
-      const state = useSessionStore.getState(), user = auth().currentUser, session = state.session, me = state.me;
+    const captureProjection = (auth, useSessionStore, captureStage, allowUnready = false, deliveredState) => {
+      const state = deliveredState ?? useSessionStore.getState();
+      const user = auth().currentUser, session = state.session, me = state.me;
       const authPresent = Boolean(user), sessionPresent = Boolean(session);
       const actorMatches = Boolean(user && user.uid === me?.uid);
       const memberSessionMatches = Boolean(session && me?.sessionId === session.id);
@@ -818,12 +819,19 @@ export async function observeP181StarlightSource(surface, deadlineAt) {
       }).catch(fail);
     };
 
-    const inspectCurrentStore = () => {
+    const inspectCurrentStore = (deliveredState, previousState) => {
       if (settled || finalizing) return;
+      if (Date.now() >= deadlineAt) { fail(timeoutError()); return; }
       try {
-        const current = captureProjection(auth, useSessionStore, 'departure-callback', true);
-        if (!sameMemberEpoch(original.identity, current.identity)) {
-          throw new Error('Original authenticated Wing Commander identity epoch changed during flight observation.');
+        // Zustand may synchronously notify a nested update before the outer
+        // listener receives its event; inspect both delivered tuples as well
+        // as getState so a restored current value cannot hide a retired epoch.
+        for (const sourceState of [deliveredState, previousState, useSessionStore.getState()]) {
+          if (!sourceState || typeof sourceState !== 'object') continue;
+          const current = captureProjection(auth, useSessionStore, 'departure-callback', true, sourceState);
+          if (!sameMemberEpoch(original.identity, current.identity)) {
+            throw new Error('Original authenticated Wing Commander identity epoch changed during flight observation.');
+          }
         }
         queueMovementObservation();
       } catch (error) { fail(error); }
