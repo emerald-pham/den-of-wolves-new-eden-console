@@ -2005,7 +2005,8 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
     surface.uid = user?.uid ?? null;
     for (const next of [...authListeners]) next(user);
   };
-  surface.observers = { stores: storeListeners, movements: movementListeners, auth: authListeners, attachments: 0, detachments: 0 };
+  surface.observers = { stores: storeListeners, movements: movementListeners, auth: authListeners,
+    attachments: 0, detachments: 0, storeAttachments: 0, storeDetachments: 0 };
   const modules = path => {
     if (path === '/src/lib/firebase.ts') return { auth: () => ({
       get currentUser() { return surface.uid ? { uid: surface.uid } : null; },
@@ -2014,7 +2015,8 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
     }) };
     if (path === '/src/lib/demoActorContext.ts') return { activeDemoActorProfile: null };
     if (path.includes('useSessionStore')) return { useSessionStore: { getState: () => state,
-      subscribe: listener => { storeListeners.add(listener); return () => storeListeners.delete(listener); } } };
+      subscribe: listener => { surface.observers.storeAttachments++; storeListeners.add(listener);
+        return () => { if (storeListeners.delete(listener)) surface.observers.storeDetachments++; }; } } };
     if (path.includes('sessionSnapshotAuthority')) return surface.authorityRuntime ?? {
       sessionSnapshotAuthorityFor: () => ({ hasServerSessionAuthority: state.sdkHasServerAuthority }),
       memberSessionResumeBlocksFreshness: () => state.sdkResumePending };
@@ -2039,7 +2041,8 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
   };
   page.evaluate = async (callback, args) => {
     const executable = String(callback).replace(/\bimport\s*\(/g, '__load(');
-    const result = await runInNewContext(`(${executable})(__args)`, { __args: args, __load: async path => modules(path),
+    const result = await runInNewContext(`(${executable})(__args)`, { __args: args,
+      __load: async path => { await surface.beforeModule?.(path); return modules(path); },
       crypto: { subtle: { digest: async (...values) => {
         const digest = await webcrypto.subtle.digest(...values); await surface.onDigest?.(String(callback)); return digest;
       } } }, TextEncoder, performance: { timeOrigin: surface.documentTimeOrigin ?? 1000 },
@@ -4441,6 +4444,137 @@ for (const kind of ['full', 'gm']) {
     assert.equal(reads, 2, 'Changed identity or lease must stop at its first observed sample.');
   });
 }
+
+// Residual arming regressions execute the real core/retained observer and
+// BrowserIo wait. Module and callable ports are inert; SDK authority and its
+// lifecycle/turn-phase producers are the actual source, as in the R4 fixture.
+for (const retire of [true, false]) {
+  test(`reconciled arming original airspace wait retains membership retirement=${retire}`, async t => {
+    const wing = mountedP181Surface('wing-uid'), gm = mountedP181Surface('original-gm', { gm: true });
+    await attachActualScoutResultService(wing, async () => assert.fail('No product service call belongs to the airspace arming case.'));
+    wing.state.session.turnPhase.airspace.state = 'restricted';
+    const browser = completeReadinessIo(wing, gm), { io, trace } = makeConsumer();
+    const counts = [];
+    let timer, detachments = 0, cleanups = 0;
+    wing.onProtectedAttach = () => {
+      if (timer) return;
+      timer = setTimeout(() => {
+        counts.push({ stores: wing.observers.stores.size, movements: wing.observers.movements.size });
+        if (retire) {
+          wing.publish(s => { s.me.fleetGroupId = 'fleet-retired'; });
+          wing.publish(s => { s.me.fleetGroupId = 'fleet-1'; });
+        } else {
+          wing.publish({ connection: 'offline', sessionSnapshotFreshness: 'cache' });
+          wing.publish({ connection: 'live', sessionSnapshotFreshness: 'server' });
+        }
+        wing.publish(s => { s.session.turnPhase.airspace.state = 'lifted'; });
+      }, 30);
+    };
+    t.after(() => clearTimeout(timer));
+    for (const method of ['waitForLiftedAirspace', 'beginPathAuthority', 'checkPathAuthority'])
+      io[method] = (...args) => browser[method](...args);
+    io.finishPathAuthority = async () => { detachments++; await browser.finishPathAuthority(); };
+    io.cleanupOwnedResources = async () => { cleanups++; return { status: 'owned-cleanup-complete' }; };
+    const input = completeProofInput(io);
+    input.absoluteDeadlineMs = Date.now() + 2_000;
+    input.cleanupDeadlineMs = input.absoluteDeadlineMs + 300;
+    if (retire) {
+      await assert.rejects(runP181StarlightMovementScoutUiProof(input), /authority|identity|epoch|original/i);
+      assert.equal(trace.length, 0, 'Retirement in the original airspace wait precedes all movement/scout/UI commands.');
+    } else {
+      const result = await runP181StarlightMovementScoutUiProof(input);
+      assert.equal(result.status, 'SOURCE_RUNNER_FLOW_COMPLETE');
+    }
+    assert.equal(counts.length, 1);
+    assert.ok(counts[0].stores > 0, 'The original Store is observed throughout the airspace polling pause.');
+    assert.equal(counts[0].movements, 0, 'The injection follows the completed individual flight read.');
+    assert.equal(detachments, 1); assert.equal(cleanups, 1);
+    assert.equal(wing.observers.stores.size, 0); assert.equal(wing.observers.auth.size, 0);
+    assert.ok(Date.now() < input.absoluteDeadlineMs, 'Neither recovery nor failure extends the original cutoff.');
+  });
+}
+
+async function reconciledSdkImportGate(wing) {
+  await attachActualScoutResultService(wing, async () => assert.fail('Observer installation grants no product service operation.'));
+  let entered, release;
+  const atSdk = new Promise(done => { entered = done; });
+  const gate = new Promise(done => { release = done; });
+  wing.beforeModule = async path => {
+    if (path.includes('sessionSnapshotAuthority')) { entered(); await gate; }
+  };
+  return { atSdk, release };
+}
+
+for (const mode of ['station', 'navigation']) {
+  for (const retire of [true, false]) {
+    test(`reconciled arming ${mode} observes available Store during SDK import retirement=${retire}`, async t => {
+      const wing = mountedP181Surface('wing-uid'), gate = await reconciledSdkImportGate(wing);
+      const { retainP181MemberAuthority } = await import('./pc10-starlight-movement-scout-ui-proof.mjs');
+      const cutoff = Date.now() + 1_000;
+      let observer;
+      if (mode === 'navigation') observer = await retainP181MemberAuthority(wing, cutoff,
+        { mode: 'auth-only', expected: { sessionId: 'normal-session', uidHash: original.uidHash } });
+      t.after(async () => { gate.release(); await observer?.close().catch(() => {}); });
+      const pending = mode === 'station'
+        ? retainP181MemberAuthority(wing, cutoff, { mode, expected: original, pinControl: true })
+            .then(value => { observer = value; return value; })
+        : observer.pin({ mode, expected: original, pinControl: true, pinDocking: true });
+      pending.catch(() => {});
+      await gate.atSdk;
+      const count = wing.observers.stores.size;
+      if (retire) {
+        wing.publish(s => { s.me.fleetGroupId = 'fleet-retired'; });
+        wing.publish(s => { s.me.fleetGroupId = 'fleet-1'; });
+      } else {
+        wing.publish({ connection: 'offline', sessionSnapshotFreshness: 'cache' });
+        wing.publish({ connection: 'live', sessionSnapshotFreshness: 'server' });
+      }
+      gate.release();
+      if (retire) await assert.rejects(pending, /authority|identity|epoch|original/i);
+      else { await pending; await observer.check(); }
+      assert.ok(count > 0, 'The available Store is subscribed before the delayed SDK module returns.');
+      assert.equal(wing.choices.length, 0); assert.equal(wing.observedBodies.length, 0);
+      await observer?.close().catch(() => {});
+      assert.equal(wing.observers.stores.size, 0); assert.equal(wing.observers.auth.size, 0);
+      assert.equal(wing.observers.storeAttachments, 1); assert.equal(wing.observers.storeDetachments, 1);
+      assert.ok(Date.now() < cutoff);
+    });
+  }
+}
+
+test('reconciled arming SDK import cutoff cannot resurrect a retired station observer', async t => {
+  const wing = mountedP181Surface('wing-uid'), gate = await reconciledSdkImportGate(wing);
+  const { retainP181MemberAuthority } = await import('./pc10-starlight-movement-scout-ui-proof.mjs');
+  const cutoff = Date.now() + 60;
+  const pending = retainP181MemberAuthority(wing, cutoff, { mode: 'station', expected: original, pinControl: true });
+  pending.catch(() => {});
+  t.after(gate.release);
+  await gate.atSdk;
+  await new Promise(done => setTimeout(done, 80));
+  gate.release();
+  await assert.rejects(pending, /deadline|finite/i);
+  assert.equal(wing.observers.stores.size, 0); assert.equal(wing.observers.auth.size, 0);
+  assert.equal(wing.observers.storeAttachments, 1); assert.equal(wing.observers.storeDetachments, 1);
+  assert.equal(wing.window.__p181OriginalMemberObservation, undefined);
+});
+
+test('reconciled arming close during new-document SDK import cannot resubscribe or authorize', async t => {
+  const wing = mountedP181Surface('wing-uid'), gate = await reconciledSdkImportGate(wing);
+  const { retainP181MemberAuthority } = await import('./pc10-starlight-movement-scout-ui-proof.mjs');
+  const observer = await retainP181MemberAuthority(wing, Date.now() + 1_000,
+    { mode: 'auth-only', expected: { sessionId: 'normal-session', uidHash: original.uidHash } });
+  t.after(gate.release);
+  const pending = observer.pin({ mode: 'navigation', expected: original, pinControl: true, pinDocking: true });
+  pending.catch(() => {});
+  await gate.atSdk;
+  await observer.close();
+  gate.release();
+  await assert.rejects(pending, /ended|authority|original/i);
+  assert.equal(wing.observers.stores.size, 0); assert.equal(wing.observers.auth.size, 0);
+  assert.equal(wing.observers.storeAttachments, 1); assert.equal(wing.observers.storeDetachments, 1);
+  assert.equal(wing.window.__p181OriginalMemberObservation, undefined);
+  assert.equal(wing.choices.length, 0);
+});
 
 test('complete boundary readiness GM recovery cannot reveal another request at the same coordinate', async () => {
   const clock = remainingLifecycleClock(), module = remainingActualModule(clock);
