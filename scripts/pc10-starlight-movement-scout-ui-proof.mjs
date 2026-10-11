@@ -711,6 +711,7 @@ export async function observeP181StarlightSource(surface, deadlineAt) {
         uid: user.uid, meUid: me.uid, sessionId: session.id, meSessionId: me.sessionId,
         role: me.role, assignedRoleId: me.assignedRoleId, activeConsoleRoleId: me.activeConsoleRoleId,
         seatId: me.seatId, replacementRoleId: me.replacementRoleId, replacementStatus: me.replacementStatus,
+        fleetGroupId: me.fleetGroupId,
         connectionGeneration: me.connectionGeneration, hydrationRevision: state.identityHydrationRevision,
         connection: state.connection, freshness: state.sessionSnapshotFreshness,
         currentOwnPlayerConfirmed: state.currentOwnPlayerConfirmed,
@@ -791,9 +792,14 @@ export async function observeP181StarlightSource(surface, deadlineAt) {
     (async () => {
       try {
         auth = (await import('/src/lib/firebase.ts')).auth;
+        if (settled) return;
+        if (Date.now() >= deadlineAt) throw timeoutError();
         useSessionStore = (await import(moduleUrl)).useSessionStore;
+        if (settled) return;
+        if (Date.now() >= deadlineAt) throw timeoutError();
         const { subscribeShuttleDeparture } = await import('/src/lib/firestore.ts');
         if (settled) return;
+        if (Date.now() >= deadlineAt) throw timeoutError();
         original = captureProjection(auth, useSessionStore);
         if (Date.now() >= deadlineAt) throw timeoutError();
         const stop = subscribeShuttleDeparture(original.session.id, 'starlight', onDeparture,
