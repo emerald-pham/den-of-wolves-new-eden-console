@@ -611,7 +611,7 @@ async function runP181StarlightMovementScoutCore({
       }
       if (attempt === 2) assert.notEqual(selectedOffer.coordinate, scouting.privateReports[0].targetCoordinate,
         'The fuelled same-cycle scan must select a distinct printed system.');
-      const { actor, flight } = await currentFlight();
+      const { flight } = await currentFlight();
       assert.equal(flight.cycle, originalCycle);
       assert.equal(flight.docking?.shuttleId, P181_NORMAL_SETUP.shuttleId);
       assert.equal(flight.transit ?? null, null, 'Request scouting only from the original parked Starlight host.');
@@ -621,9 +621,18 @@ async function runP181StarlightMovementScoutCore({
           result?.cycle === originalCycle, { receivingShipId: flight.docking.shipId });
       const bundle = await step('resolveScoutNormally', capture.result);
       assert.ok(bundle, 'Wait for the original automatic result or use the visible normal GM recovery control if it remains pending.');
-      assert.equal(uidHash(bundle.result.requesterUid), actor.uidHash,
+      // The private callable can finish after its original authority retires.
+      // Requalify the original mounted member and parked flight before credit.
+      const settledScout = await currentFlight();
+      assert.equal(settledScout.flight.cycle, originalCycle);
+      assert.deepEqual(settledScout.flight.control, flight.control,
+        'Private scout acceptance must preserve the original parked custody.');
+      assert.deepEqual(settledScout.flight.docking, flight.docking,
+        'Private scout acceptance must preserve the original source docking.');
+      assert.equal(settledScout.flight.transit ?? null, null);
+      assert.equal(uidHash(bundle.result.requesterUid), settledScout.actor.uidHash,
         'The original private requester UID must hash to the current normally admitted Wing Commander.');
-      validateScoutBundle(bundle, { actor: { ...actor, uid: bundle.result.requesterUid }, reply: capture.result });
+      validateScoutBundle(bundle, { actor: { ...settledScout.actor, uid: bundle.result.requesterUid }, reply: capture.result });
       const row = safeScoutRow(capture.result, bundle);
       scouting.privateReports.push({ ...row, targetCoordinate: capture.result.targetCoordinate });
       mark(attempt === 1 ? 'first-scout' : 'second-scout', 'observed');
@@ -1241,7 +1250,8 @@ export function createP181StarlightBrowserIo({ gm, wingCommander, gameplay, dire
           acceptedActor = accepted;
           resumeEvidence = { status: 'accepted', source: 'normal-resumeSession', uidHash: accepted.uidHash,
             sessionId: accepted.sessionId, connectionGeneration: accepted.connectionGeneration,
-            identityHydrationRevision: accepted.identityHydrationRevision, sdkHasServerAuthority: accepted.sdkHasServerAuthority };
+            identityHydrationRevision: accepted.identityHydrationRevision, sdkHasServerAuthority: accepted.sdkHasServerAuthority,
+            documentTimeOrigin: accepted.documentTimeOrigin, sdkResumePending: accepted.sdkResumePending };
           break;
         }
         assert.ok(acceptedActor, 'Original reload recovery must keep its initial finite deadline.');

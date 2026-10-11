@@ -176,13 +176,19 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
       // no authority is accepted until the receipt and hydration checks below.
       // HTTP200 body parsing can also begin during the await above.
       if (current.connectionGeneration === original.connectionGeneration + 1 &&
-          current.identityHydrationRevision === original.identityHydrationRevision &&
+          current.identityHydrationRevision === (documentReload ? 0 : original.identityHydrationRevision) &&
           current.hasAuth === true && current.sameActor === true &&
           stableObservationFields.every(key => (documentReload && key === 'documentTimeOrigin') ||
             current[key] === original[key]) &&
           originalRequests.some(row => row.respondedAt === undefined || row === receipt ||
             row.httpStatus === 200 && row.bodyStatus === 'reading')) return false;
-      assert.ok(receipt && current.identityHydrationRevision === original.identityHydrationRevision + 1,
+      // A new document initializes its local Zustand hydration counter to0;
+      // only the server lease spans documents. Bind positive local hydration
+      // to this captured ordinary receipt and the settled SDK fence below.
+      const hydrated = documentReload ? Number.isSafeInteger(current.identityHydrationRevision) &&
+        current.identityHydrationRevision >= 1 :
+        current.identityHydrationRevision === original.identityHydrationRevision + 1;
+      assert.ok(receipt && hydrated,
         'Original role navigation epoch changed without its matching normal resume receipt and accepted hydration.');
       // The actual normal DTO omits connected. Current own-player confirmation
       // below supplies that authority; explicit false/malformed reply flags fail.
@@ -209,7 +215,8 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
         `Original resumed ${key} changed during client acceptance observation.`);
       assert.equal(settled.hasAuth, true); assert.equal(settled.sameActor, true);
       assert.equal(settled.connectionGeneration, receipt.reply.connectionGeneration);
-      assert.equal(settled.identityHydrationRevision, original.identityHydrationRevision + 1);
+      assert.equal(settled.identityHydrationRevision, current.identityHydrationRevision,
+        'Original resumed local hydration changed during client acceptance observation.');
       assert.ok(stableMemberFields.every(key => receipt.reply.player[key] === settled[observationField[key] ?? key]),
         'Original resumed member scope changed during client acceptance observation.');
       const settledReady = memberContract === 'pc11-live-base' ? cleanReady(settled, original) :
