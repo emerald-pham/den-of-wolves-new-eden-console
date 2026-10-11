@@ -22,7 +22,7 @@ const observerSource = sourceRegion(proof,
   '\n}\n\n/** Bind the bounded Starlight flow', 'P181 mounted source observer').trim()
   .replace(/^export /, '').replace(/\bimport\s*\(/g, 'load(') + '\n}';
 const browserIoStart = proof.indexOf('export function createP181StarlightBrowserIo(');
-const snapshotStart = proof.indexOf('  const snapshot = deadlineAt => work(', browserIoStart);
+const snapshotStart = proof.indexOf('  const snapshot = deadlineAt =>', browserIoStart);
 const snapshotEnd = proof.indexOf('\n  const callable = async', snapshotStart);
 assert.ok(browserIoStart >= 0 && snapshotStart > browserIoStart && snapshotEnd > snapshotStart,
   'Bind the actual browser I/O source-observation call site.');
