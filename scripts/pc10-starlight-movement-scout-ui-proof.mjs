@@ -2454,7 +2454,8 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
         deadlineAt);
         station = await waitForFullActor(wingCommander, 'Original Wing Commander Cycle 1 station authority', value =>
           pc11MemberReadiness(value, { sessionId, uidHash: admittedAuth.uidHash,
-            roleId: P181_NORMAL_SETUP.wingCommanderRoleId, stage: 'station' }) && value.memberScopeMatches === true,
+            roleId: P181_NORMAL_SETUP.wingCommanderRoleId, stage: 'station' }) && value.memberScopeMatches === true &&
+            value.phase === 'active' && value.cycle === 1 && value.sdkResumePending === false,
         deadlineAt);
         const gmReady = await waitForGm(deadlineAt, { active: true });
         const roster = [{ roleId: P181_NORMAL_SETUP.wingCommanderRoleId,
