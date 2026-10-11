@@ -106,6 +106,7 @@ function actualP181ReadinessConsumer(kind, late) {
     // This clock-only adapter controls the retained observer port. The
     // contemporary R5 cases below use the actual mounted Auth/store observer.
     retainP181MemberAuthority: async () => ({ check: async () => {}, close: async () => {}, failed: new Promise(() => {}) }),
+    bounded: async (_label, action) => action(),
     delay: async amount => { now += Math.max(1, amount); } };
   const body = kind === 'full' ? p181FullActorWaitBody : p181GmWaitBody;
   const method = kind === 'full' ? 'waitForFullActor' : 'waitForGm';
