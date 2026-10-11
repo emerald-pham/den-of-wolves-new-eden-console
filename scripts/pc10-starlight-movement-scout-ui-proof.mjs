@@ -669,17 +669,23 @@ export async function observeP181StarlightSource(surface, deadlineAt) {
       return;
     }
 
-    let settled = false, finalizing = false, unsubscribe, deadlineTimer;
-    let original, auth, useSessionStore;
+    let settled = false, finalizing = false, attemptQueued = false;
+    let unsubscribe, unsubscribeStore, deadlineTimer;
+    let original, auth, useSessionStore, pendingMovement, hasPendingMovement = false;
     const clearDeadline = () => {
       if (deadlineTimer !== undefined) clearTimeout(deadlineTimer);
       deadlineTimer = undefined;
     };
     const detach = () => {
-      if (typeof unsubscribe !== 'function') return;
-      const stop = unsubscribe;
+      const stops = [unsubscribe, unsubscribeStore];
       unsubscribe = undefined;
-      stop();
+      unsubscribeStore = undefined;
+      let firstError;
+      for (const stop of stops) {
+        if (typeof stop !== 'function') continue;
+        try { stop(); } catch (error) { firstError ??= error; }
+      }
+      if (firstError) throw firstError;
     };
     const fail = error => {
       if (settled) return;
@@ -701,15 +707,16 @@ export async function observeP181StarlightSource(surface, deadlineAt) {
     };
 
     deadlineTimer = setTimeout(() => fail(timeoutError()), deadlineAt - Date.now());
-    const captureProjection = (auth, useSessionStore, captureStage) => {
+    const captureProjection = (auth, useSessionStore, captureStage, allowUnready = false) => {
       const state = useSessionStore.getState(), user = auth().currentUser, session = state.session, me = state.me;
       const authPresent = Boolean(user), sessionPresent = Boolean(session);
       const actorMatches = Boolean(user && user.uid === me?.uid);
       const memberSessionMatches = Boolean(session && me?.sessionId === session.id);
       const connectionLive = state.connection === 'live';
       const snapshotServer = state.sessionSnapshotFreshness === 'server';
-      if (!user || !session || user.uid !== me?.uid || me?.sessionId !== session.id ||
-          state.connection !== 'live' || state.sessionSnapshotFreshness !== 'server') {
+      const identityReady = Boolean(user && session && user.uid === me?.uid && me?.sessionId === session.id);
+      const sourceReady = state.connection === 'live' && state.sessionSnapshotFreshness === 'server';
+      if (!identityReady || (!allowUnready && !sourceReady)) {
         const connection = ['idle', 'connecting', 'live', 'offline'].includes(state.connection)
           ? state.connection : 'other';
         const freshness = ['unknown', 'cache', 'server'].includes(state.sessionSnapshotFreshness)
@@ -736,17 +743,28 @@ export async function observeP181StarlightSource(surface, deadlineAt) {
     };
     const sameIdentity = (first, second) => Object.keys(first).every(key => first[key] === second[key]);
 
-    const observeMovement = async (movement, original, auth, useSessionStore) => {
-      if (settled || finalizing) return;
-      finalizing = true;
+    // App freshness may be withdrawn while the same member's protected document
+    // callback is pending. Only connection/freshness can vary during that wait.
+    const sameMemberEpoch = (first, second) => Object.keys(first).every(key =>
+      key === 'connection' || key === 'freshness' || first[key] === second[key]);
+
+    const observeMovement = async () => {
+      if (settled || finalizing || !hasPendingMovement) return;
+      if (Date.now() >= deadlineAt) { fail(timeoutError()); return; }
       try {
-        const current = captureProjection(auth, useSessionStore, 'departure-callback');
+        const current = captureProjection(auth, useSessionStore, 'departure-callback', true);
+        if (!sameMemberEpoch(original.identity, current.identity)) {
+          throw new Error('Original authenticated Wing Commander identity epoch changed during flight observation.');
+        }
+        if (current.identity.connection !== 'live' || current.identity.freshness !== 'server') return;
         if (!sameIdentity(original.identity, current.identity)) {
           throw new Error('Original authenticated Wing Commander identity epoch changed during flight observation.');
         }
         if (Date.now() >= deadlineAt) throw timeoutError();
+        finalizing = true;
         detach();
         const { state, user, session, me } = current;
+        const movement = pendingMovement;
         const digest = async value => value ? Array.from(new Uint8Array(await crypto.subtle.digest(
           'SHA-256', new TextEncoder().encode(value)))).map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) : null;
         const dockings = session.shuttleDockings?.filter(item => item.shuttleId === 'starlight') ?? [];
@@ -791,6 +809,26 @@ export async function observeP181StarlightSource(surface, deadlineAt) {
       } catch (error) { fail(error); }
     };
 
+    const queueMovementObservation = () => {
+      if (settled || finalizing || attemptQueued || !hasPendingMovement) return;
+      attemptQueued = true;
+      Promise.resolve().then(() => {
+        attemptQueued = false;
+        return observeMovement();
+      }).catch(fail);
+    };
+
+    const inspectCurrentStore = () => {
+      if (settled || finalizing) return;
+      try {
+        const current = captureProjection(auth, useSessionStore, 'departure-callback', true);
+        if (!sameMemberEpoch(original.identity, current.identity)) {
+          throw new Error('Original authenticated Wing Commander identity epoch changed during flight observation.');
+        }
+        queueMovementObservation();
+      } catch (error) { fail(error); }
+    };
+
     let attachmentResetSeen = false;
     const onDeparture = movement => {
       if (!attachmentResetSeen && movement === null) {
@@ -801,8 +839,9 @@ export async function observeP181StarlightSource(surface, deadlineAt) {
       if (settled || finalizing) return;
       // The normal reader reports null before its error callback. Let that
       // callback win over the queued reset/absence-shaped notification.
-      Promise.resolve().then(() => observeMovement(movement, original, auth, useSessionStore))
-        .catch(fail);
+      pendingMovement = movement;
+      hasPendingMovement = true;
+      queueMovementObservation();
     };
 
     (async () => {
@@ -817,6 +856,13 @@ export async function observeP181StarlightSource(surface, deadlineAt) {
         if (settled) return;
         if (Date.now() >= deadlineAt) throw timeoutError();
         original = captureProjection(auth, useSessionStore, 'initial');
+        if (Date.now() >= deadlineAt) throw timeoutError();
+        const storeStop = useSessionStore.subscribe(inspectCurrentStore);
+        unsubscribeStore = storeStop;
+        if (settled) { detach(); return; }
+        if (typeof storeStop !== 'function') {
+          throw new Error('Original member source-store observation could not be detached safely.');
+        }
         if (Date.now() >= deadlineAt) throw timeoutError();
         const stop = subscribeShuttleDeparture(original.session.id, 'starlight', onDeparture,
           () => fail(new Error('Original normal Starlight flight-plan document read failed.')));
