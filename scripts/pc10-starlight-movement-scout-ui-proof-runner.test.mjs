@@ -4350,3 +4350,56 @@ test('complete boundary readiness one exact-entry sequential replay covers initi
   assert.equal(wing.observers.stores.size, 0); assert.equal(wing.observers.movements.size, 0);
   assert.equal(wing.observers.attachments, wing.observers.detachments);
 });
+
+for (const kind of ['full', 'gm']) {
+  test(`complete boundary readiness native ${kind} startup rejects changed original identity before a later restore`, async () => {
+    let now = 10, reads = 0;
+    const uid = 'startup-original', hash = value => createHash('sha256').update(value).digest('hex').slice(0, 16);
+    const surface = { label: 'normal-gm' }, originalActor = {
+      ...original, uidHash: hash(uid), sessionId: 'startup-session', meSessionId: 'startup-session',
+      playerRole: 'gm', instanceId: 'original-instance', gmInstanceOwned: true, recoveryPending: false,
+      connection: 'offline', freshness: 'cache', documentTimeOrigin: 1000,
+    };
+    const snapshots = [originalActor, { ...originalActor,
+      ...(kind === 'full' ? { uidHash: hash('foreign-uid') } : { connectionGeneration: 3 }) },
+      { ...originalActor, connection: 'live', freshness: 'server' }];
+    const body = kind === 'full' ? p181FullActorWaitBody : p181GmWaitBody;
+    const name = kind === 'full' ? 'waitForFullActor' : 'waitForGm';
+    const wait = runInNewContext(`(() => { ${body}; return ${name}; })()`, {
+      assert, Date: { now: () => now }, P181_NATIVE_TIMING, pc11GmReadiness, pc11SameActorEpoch,
+      gm: surface, wingCommander: {}, sessionId: 'startup-session', gmInstanceId: 'original-instance',
+      ownedAuthUids: new Map([['gm', uid]]), hashShort: hash,
+      readFullActor: async () => snapshots[Math.min(reads++, snapshots.length - 1)],
+      readGmRecoveryPending: async () => false, bounded: async (_label, action) => action(),
+      delay: async amount => { now += amount; },
+    });
+    await assert.rejects(kind === 'full' ? wait(surface, 'Original startup', value => value.connection === 'live', 1000)
+      : wait(1000, { active: true }), /identity|epoch|original|authority/i);
+    assert.equal(reads, 2, 'Changed identity or lease must stop at its first observed sample.');
+  });
+}
+
+test('complete boundary readiness GM recovery cannot reveal another request at the same coordinate', async () => {
+  const clock = remainingLifecycleClock(), module = remainingActualModule(clock);
+  const wing = mountedP181Surface('wing-uid'), gm = mountedP181Surface('original-gm', { gm: true });
+  wing.state.session.shuttleDockings = [{ shuttleId: 'starlight', shipId: 'shepherd' }];
+  const { io: ordinary, state } = makeConsumer(); state.session.docking.shipId = 'shepherd';
+  const reply = (await ordinary.requestScout('1100', state.session)).result;
+  const bundle = await ordinary.resolveScoutNormally(reply);
+  let revealed = false;
+  wing.callable = async name => ({ status: 'committed', result: name === 'listMyScoutReports'
+    ? revealed ? [bundle.report] : [] : name === 'readPrivateScoutResult' ? bundle.result : bundle.note });
+  gm.callable = async () => ({ status: 'committed', result: [{ requestId: 'another-request', cycle: 1,
+    entitlementId: 'starlight', targetCoordinate: reply.targetCoordinate, anchorShipId: 'aegis' }] });
+  const gmActor = await observeFullGameDemoPresentationMember(gm, { knownRoleIds: originalRoleIds });
+  const browser = module.createP181StarlightBrowserIo({ gm, wingCommander: wing,
+    gameplay: { select: async roleId => roleId === 'gm' ? gm : wing }, directory: '/tmp/in-memory-scout-recovery-request',
+    initial: { sessionId: 'normal-session' }, expectedWingCommander: original,
+    started: { ...gmActor, claimedAt: gm.state.gmInstance.claimedAt } });
+  gm.onChoice = async () => {
+    revealed = true; gm.deliver('resolvePendingScoutRequest', { sessionId: 'normal-session',
+      requestId: 'another-request', instanceId: gm.state.gmInstance.id }, { status: 'resolved', result: bundle.result });
+  };
+  await assert.rejects(browser.resolveScoutNormally(reply, 2500, clock.now() + 2500), /request|queue|original|authority/i);
+  assert.equal(revealed, false); assert.equal(gm.choices.length, 0);
+});
