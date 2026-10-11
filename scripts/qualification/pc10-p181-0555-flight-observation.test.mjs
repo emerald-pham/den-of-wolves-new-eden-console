@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { webcrypto } from 'node:crypto';
+import { createHash, webcrypto } from 'node:crypto';
 import { runInNewContext } from 'node:vm';
 import test from 'node:test';
 
@@ -17,6 +17,11 @@ const appPath = fileURLToPath(new URL('../../src/App.tsx', import.meta.url));
 const appSource = await readFile(appPath, 'utf8');
 const sessionAuthorityPath = fileURLToPath(new URL('../../src/lib/sessionSnapshotAuthority.ts', import.meta.url));
 const sessionAuthoritySource = await readFile(sessionAuthorityPath, 'utf8');
+const zustandPath = fileURLToPath(new URL('../../node_modules/zustand/vanilla.js', import.meta.url));
+const zustandSource = await readFile(zustandPath, 'utf8');
+const zustandSourceHash = createHash('sha256').update(zustandSource).digest('hex');
+assert.equal(zustandSourceHash, '11b4ba22fadad3a5fe89438615c2099d4a839f64691c9435e46e0b2e793b9b08',
+  'Bind the installed Zustand setter/listener behavior used by these reentrant cases.');
 
 function sourceRegion(source, startText, endText, description) {
   const start = source.indexOf(startText);
@@ -76,6 +81,21 @@ const makeProductionReader = deps => new Function('deps',
   'const { onSnapshot, doc, db, shuttleDeparture } = deps; return function subscribeShuttleDeparture(' +
   'sessionId, shuttleId, onDeparture, onError = () => undefined) {' +
   movementReaderBody.slice(movementReaderStart) + '\n};')(deps);
+
+const zustandSetterStart = zustandSource.indexOf('var createStoreImpl =');
+const zustandSetterEnd = zustandSource.indexOf('\nvar createStore =', zustandSetterStart);
+assert.ok(zustandSetterStart >= 0 && zustandSetterEnd > zustandSetterStart,
+  'Bind the installed Zustand createStoreImpl setter/listener source.');
+const zustandSetterSource = zustandSource.slice(zustandSetterStart, zustandSetterEnd);
+const installedZustandCreateStore = runInNewContext('(() => {' + zustandSetterSource +
+  '\nreturn createStoreImpl;})()', { Set, Object });
+function actualInstalledZustandStore(initialState) {
+  const store = installedZustandCreateStore(() => initialState);
+  // The existing focused harness reads this test-only alias; observer calls use
+  // the actual installed Zustand getState/subscribe/setState methods above.
+  store.state = store.getState;
+  return store;
+}
 
 // Whitelisted from the saved native 0555 normal-member DTO at
 // /tmp/dow-pc10-evidence/p181-74e32ca3-sequenced-immediate-dispatch-next-20261011/member-navigation/fcf74766-f716-4290-b536-78b0ab2adc4f.json
@@ -716,6 +736,59 @@ function savedMemberFreshnessRace({ deadlineAt = 10_000 } = {}) {
   const onSessionFreshness = makeProductionAppFreshnessHandler(store, authorityRuntime);
   const h = harness({ store, deadlineAt, authUser: { uid: SAVED_MEMBER_UID_ALIAS } });
   return { saved, store, authorityRuntime, onSessionFreshness, h };
+}
+
+for (const { field, retiredValue } of [
+  { field: 'fleetGroupId', retiredValue: 'retired-fixture-fleet' },
+  { field: 'connectionGeneration', retiredValue: 99 },
+]) {
+  test(`P181 retires a pending callback when installed Zustand reentrantly delivers retired ${field}`, async () => {
+    const store = actualInstalledZustandStore(rawSessionStateFromSavedMemberDto());
+    const expectedValue = store.getState().me[field];
+    let unreadyOriginal;
+    const delivered = [];
+
+    // This earlier real Zustand listener synchronously restores the exact
+    // same offline/cache object when the nested identity mutation is delivered.
+    store.subscribe(state => {
+      if (state.me[field] === retiredValue) store.setState(unreadyOriginal, true);
+    });
+    const actualSubscribe = store.subscribe;
+    store.subscribe = listener => actualSubscribe((state, previousState) => {
+      delivered.push({
+        stateChanged: state.me[field] !== expectedValue,
+        previousChanged: previousState.me[field] !== expectedValue,
+        getStateChanged: store.getState().me[field] !== expectedValue,
+      });
+      return listener(state, previousState);
+    });
+
+    const h = harness({ store, authUser: { uid: SAVED_MEMBER_UID_ALIAS } });
+    assert.equal(await waitForSubscriptionOrCompletion(h), true,
+      'The actual observer and protected reader subscribe before the reentrant state case.');
+    store.setState({ connection: 'offline', sessionSnapshotFreshness: 'cache' });
+    unreadyOriginal = store.getState();
+    h.emitSnapshot(requestedMovement({ holderUid: SAVED_MEMBER_UID_ALIAS }));
+    await allowSettledWork();
+    assert.equal(h.isSettled(), false,
+      'A same-member protected document callback remains pending while readiness is withdrawn.');
+
+    const retiredMember = { ...store.getState().me, [field]: retiredValue };
+    store.setState({ me: retiredMember });
+    const nestedRetirementWasDelivered = delivered.some(item =>
+      !item.stateChanged && item.previousChanged && !item.getStateChanged);
+    assert.equal(nestedRetirementWasDelivered, true,
+      'Installed Zustand delivered previousState with the retired identity while getState had already been restored.');
+    store.setState({ connection: 'live', sessionSnapshotFreshness: 'server' });
+
+    const outcome = await h.result;
+    assert.equal(outcome.value, undefined,
+      'The observer must not accept the original movement after any delivered audience/generation retirement.');
+    assert.match(outcome.error?.message ?? '', /identity epoch changed/);
+    assert.equal(h.observation.unsubscribeCount, 1);
+    assert.equal(h.observation.storeUnsubscribeCount, 1);
+    assert.equal(h.timers.size, 0);
+  });
 }
 
 test('the exact normal resume setters move a saved sanitized member from cache rejection to a protected server read', async () => {
