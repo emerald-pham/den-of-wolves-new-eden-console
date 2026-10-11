@@ -321,7 +321,7 @@ function baseState() {
       shuttleDockings: [], shuttleControl: { starlight: { shuttleId: 'starlight', revision: 0 } } },
     me: { uid: 'wing-uid-a', sessionId: 'normal-session-a', role: 'player',
       assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander', seatId: 'wing-commander',
-      connectionGeneration: 3, fleetGroupId: 'fleet-1' },
+      connectionGeneration: 3, fleetGroupId: 'fleet-1', connected: true },
     identityHydrationRevision: 3,
     connection: 'live', sessionSnapshotFreshness: 'server',
     currentOwnPlayerConfirmed: true, sdkHasServerAuthority: true,
@@ -350,7 +350,7 @@ function transitMovement(overrides = {}) {
 }
 
 function harness({ deadlineAt = 10_000, initialState = baseState(), store: suppliedStore,
-  onModuleLoad, authUser = { uid: 'wing-uid-a' }, afterDigest } = {}) {
+  onModuleLoad, authUser = { uid: 'wing-uid-a' }, afterDigest, authorityRuntime: suppliedAuthority } = {}) {
   const clock = { now: 1_000 };
   const timers = new Map();
   let nextTimerId = 0;
@@ -393,10 +393,14 @@ function harness({ deadlineAt = 10_000, initialState = baseState(), store: suppl
       return () => { observation.storeUnsubscribeCount++; stop(); };
     },
   };
+  const authorityRuntime = suppliedAuthority ?? makeProductionSessionAuthorityRuntime();
+  const authority = authorityRuntime.sessionSnapshotAuthorityFor(initialState.session?.id, authUser?.uid);
+  if (!suppliedAuthority) authority.hasServerSessionAuthority = true;
   const modules = {
     '/src/lib/firebase.ts': { auth: () => ({ currentUser: authUser }) },
     '/src/lib/firestore.ts': { subscribeShuttleDeparture: reader },
     'controlled-store-module': { useSessionStore: observerStore },
+    'http://127.0.0.1/src/lib/sessionSnapshotAuthority.ts': authorityRuntime,
   };
   let resultSettled = false;
   const load = async specifier => {
@@ -409,10 +413,10 @@ function harness({ deadlineAt = 10_000, initialState = baseState(), store: suppl
     '; return observeP181StarlightSource; })()', {
       load, crypto: { subtle: { digest: async (...args) => {
         const value = await webcrypto.subtle.digest(...args);
-        afterDigest?.();
+        await afterDigest?.();
         return value;
       } } }, TextEncoder, Uint8Array, Promise, Error,
-      Date: { now: () => clock.now, parse: Date.parse },
+      Date: { now: () => clock.now, parse: Date.parse }, performance: { timeOrigin: 1_000 }, URL,
       setTimeout: (callback, delay) => {
         const timer = { id: ++nextTimerId, callback, delay };
         timers.set(timer.id, timer);
@@ -422,6 +426,7 @@ function harness({ deadlineAt = 10_000, initialState = baseState(), store: suppl
     });
   const surface = {
     storeModuleUrl: () => 'controlled-store-module',
+    sessionAuthorityModuleUrl: () => 'http://127.0.0.1/src/lib/sessionSnapshotAuthority.ts',
     page: { evaluate: async (callback, argument) => {
       observation.evaluateArgs = [argument];
       return callback(argument);
@@ -431,7 +436,7 @@ function harness({ deadlineAt = 10_000, initialState = baseState(), store: suppl
     value => { resultSettled = true; return { value }; },
     error => { resultSettled = true; return { error }; });
   return {
-    clock, timers, observation, subscribed, result,
+    clock, timers, observation, subscribed, result, authorityRuntime, authority,
     isSettled: () => resultSettled,
     setState: state => {
       if (suppliedStore) suppliedStore.setState(state);
@@ -1034,4 +1039,97 @@ test('P181 labels a member projection failure at post-fingerprint verification',
   assertProjectionDiagnostic(outcome, { stage: 'post-fingerprint-verification', authPresent: true,
     sessionPresent: true, actorMatches: true, memberSessionMatches: true,
     connectionLive: true, snapshotServer: false });
+});
+
+// Contemporary complete-path repair cases. The published SDK lookup and App
+// freshness transition run in memory; no Auth actor, provider or runtime starts.
+test('complete movement readiness initial cache uses the existing bounded protected callback path', async () => {
+  const initialState = savedMemberInitialState();
+  initialState.connection = 'offline'; initialState.sessionSnapshotFreshness = 'cache';
+  const store = actualSessionStore(initialState), authorityRuntime = makeProductionSessionAuthorityRuntime();
+  authorityRuntime.sessionSnapshotAuthorityFor(SAVED_MEMBER_SESSION_ALIAS, SAVED_MEMBER_UID_ALIAS).hasServerSessionAuthority = true;
+  const onSessionFreshness = makeProductionAppFreshnessHandler(store, authorityRuntime);
+  const h = harness({ initialState, store, authorityRuntime, authUser: { uid: SAVED_MEMBER_UID_ALIAS } });
+  if (await waitForSubscriptionOrCompletion(h)) {
+    h.emitSnapshot(requestedMovement({ holderUid: SAVED_MEMBER_UID_ALIAS }), { fromCache: true });
+    await allowSettledWork(); assert.equal(h.isSettled(), false);
+    h.emitSnapshot(requestedMovement({ holderUid: SAVED_MEMBER_UID_ALIAS }));
+    await allowSettledWork(); assert.equal(h.isSettled(), false, 'No cached actor or cached document earns credit.');
+    onSessionFreshness(true);
+  }
+  const outcome = await h.result;
+  assert.equal(outcome.error, undefined, 'Initial matching-identity cache must reach the same bounded readiness path as departure callbacks.');
+  assert.equal(outcome.value.actor.connection, 'live'); assert.equal(outcome.value.sourceFreshness, 'server');
+  assert.equal(outcome.value.actor.sdkHasServerAuthority, true, 'Read the actual authority module, never a nonexistent raw store flag.');
+  assert.equal(outcome.value.actor.currentOwnPlayerConfirmed, true);
+  assert.equal(h.observation.unsubscribeCount, 1); assert.equal(h.observation.storeUnsubscribeCount, 1);
+  assert.equal(h.timers.size, 0);
+});
+
+test('complete movement readiness digest freshness withdrawal discards the tentative value and settles current source', async () => {
+  let h, digests = 0;
+  h = harness({ afterDigest: async () => {
+    if (++digests !== 1) return;
+    const stale = structuredClone(h.getState()); stale.connection = 'offline'; stale.sessionSnapshotFreshness = 'cache';
+    h.setState(stale);
+    const ready = structuredClone(stale); ready.connection = 'live'; ready.sessionSnapshotFreshness = 'server';
+    ready.session.turnPhase = { airspace: { state: 'lifted' } };
+    h.setState(ready);
+  } });
+  if (await waitForSubscriptionOrCompletion(h)) h.emitSnapshot(requestedMovement());
+  const outcome = await h.result;
+  assert.equal(outcome.error, undefined);
+  assert.equal(outcome.value.airspace, 'lifted', 'Return the current post-await source, not the tentative pre-digest source.');
+  assert.equal(h.observation.unsubscribeCount, 1); assert.equal(h.observation.storeUnsubscribeCount, 1);
+});
+
+for (const [name, retire] of [
+  ['disconnected own player', state => { state.me.connected = false; }],
+  ['kicked own player', state => { state.me.kickedAt = '2026-10-11T15:23:19.000Z'; }],
+  ['escaped own player', state => { state.me.escapeState = { status: 'escaped' }; }],
+  ['changed phase', state => { state.session.phase = 'debrief'; }],
+  ['changed source cycle', state => { state.session.currentTurn = 2; }],
+  ['changed custody', state => { state.session.shuttleControl.starlight.revision++; }],
+]) {
+  test(`complete movement readiness rejects ${name} retired and restored during digest`, async () => {
+    let h, digests = 0;
+    h = harness({ afterDigest: () => {
+      if (++digests !== 1) return;
+      const original = structuredClone(h.getState()), retired = structuredClone(original);
+      retire(retired); h.setState(retired); h.setState(original);
+    } });
+    if (await waitForSubscriptionOrCompletion(h)) h.emitSnapshot(requestedMovement());
+    const outcome = await h.result;
+    assert.equal(outcome.value, undefined, 'Restoration cannot hide an observed authority retirement.');
+    assert.match(outcome.error?.message ?? '', /authority|identity epoch|source context/i);
+    assert.equal(h.observation.unsubscribeCount, 1); assert.equal(h.observation.storeUnsubscribeCount, 1);
+  });
+}
+
+test('complete movement readiness rejects an actual SDK resume fence before a protected read', async () => {
+  const initialState = savedMemberInitialState(), authorityRuntime = makeProductionSessionAuthorityRuntime();
+  const authority = authorityRuntime.sessionSnapshotAuthorityFor(SAVED_MEMBER_SESSION_ALIAS, SAVED_MEMBER_UID_ALIAS);
+  authority.hasServerSessionAuthority = true; authorityRuntime.beginMemberSessionResume(authority);
+  const h = harness({ initialState, authorityRuntime, authUser: { uid: SAVED_MEMBER_UID_ALIAS } });
+  if (await waitForSubscriptionOrCompletion(h)) h.emitSnapshot(requestedMovement({ holderUid: SAVED_MEMBER_UID_ALIAS }));
+  const outcome = await h.result;
+  assert.equal(outcome.value, undefined);
+  assert.match(outcome.error?.message ?? '', /authority|resume/i);
+  assert.equal(h.observation.subscriptions, 0);
+});
+
+test('complete movement readiness persistent initial cache expires once at its original deadline', async () => {
+  const initialState = savedMemberInitialState(); initialState.connection = 'offline'; initialState.sessionSnapshotFreshness = 'cache';
+  const h = harness({ initialState, authUser: { uid: SAVED_MEMBER_UID_ALIAS }, deadlineAt: 2_000 });
+  if (await waitForSubscriptionOrCompletion(h)) {
+    h.emitSnapshot(requestedMovement({ holderUid: SAVED_MEMBER_UID_ALIAS }));
+    await allowSettledWork(); assert.equal(h.isSettled(), false);
+    h.advanceToDeadline();
+  }
+  const outcome = await h.result;
+  assert.equal(outcome.error?.name, 'TimeoutError');
+  assert.equal(outcome.value, undefined); assert.equal(h.observation.unsubscribeCount, 1);
+  const ready = structuredClone(initialState); ready.connection = 'live'; ready.sessionSnapshotFreshness = 'server';
+  h.setState(ready); await allowSettledWork();
+  assert.equal(h.observation.unsubscribeCount, 1); assert.equal(h.timers.size, 0);
 });
