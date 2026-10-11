@@ -396,8 +396,12 @@ function harness({ deadlineAt = 10_000, initialState = baseState(), store: suppl
   const authorityRuntime = suppliedAuthority ?? makeProductionSessionAuthorityRuntime();
   const authority = authorityRuntime.sessionSnapshotAuthorityFor(useSessionStore.getState().session?.id, authUser?.uid);
   if (!suppliedAuthority) authority.hasServerSessionAuthority = true;
+  let currentAuthUser = authUser;
+  const authListeners = new Set();
+  const authClient = { get currentUser() { return currentAuthUser; },
+    onAuthStateChanged: next => { authListeners.add(next); return () => authListeners.delete(next); } };
   const modules = {
-    '/src/lib/firebase.ts': { auth: () => ({ currentUser: authUser }) },
+    '/src/lib/firebase.ts': { auth: () => authClient },
     '/src/lib/firestore.ts': { subscribeShuttleDeparture: reader },
     'controlled-store-module': { useSessionStore: observerStore },
     'http://127.0.0.1/src/lib/sessionSnapshotAuthority.ts': authorityRuntime,
@@ -436,7 +440,8 @@ function harness({ deadlineAt = 10_000, initialState = baseState(), store: suppl
     value => { resultSettled = true; return { value }; },
     error => { resultSettled = true; return { error }; });
   return {
-    clock, timers, observation, subscribed, result, authorityRuntime, authority,
+    clock, timers, observation, subscribed, result, authorityRuntime, authority, authListeners,
+    emitAuth: user => { currentAuthUser = user; for (const listener of [...authListeners]) listener(user); },
     isSettled: () => resultSettled,
     setState: state => {
       if (suppliedStore) suppliedStore.setState(state);
@@ -1148,4 +1153,17 @@ test('complete movement readiness persistent initial cache expires once at its o
   const ready = structuredClone(initialState); ready.connection = 'live'; ready.sessionSnapshotFreshness = 'server';
   h.setState(ready); await allowSettledWork();
   assert.equal(h.observation.unsubscribeCount, 1); assert.equal(h.timers.size, 0);
+});
+
+test('complete movement readiness observes Auth retirement and restoration during digest without a store event', async () => {
+  let h, digests = 0;
+  h = harness({ afterDigest: () => {
+    if (++digests !== 1) return;
+    h.emitAuth(null); h.emitAuth({ uid: 'wing-uid-a' });
+  } });
+  if (await waitForSubscriptionOrCompletion(h)) h.emitSnapshot(requestedMovement());
+  const outcome = await h.result;
+  assert.equal(outcome.value, undefined);
+  assert.match(outcome.error?.message ?? '', /Auth|authority|epoch/i);
+  assert.equal(h.authListeners.size, 0);
 });
