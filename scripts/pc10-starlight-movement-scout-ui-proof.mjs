@@ -436,17 +436,22 @@ async function runP181StarlightMovementScoutCore({
     'Begin only from the original matched departure and its observed source berth.');
   const transitCapture = await operation('beginShuttleTransit',
     (budget, actor, deadlineAt) => io.beginTransit(beforeBegin.departure, beforeBegin, actor, budget, deadlineAt),
-    result => result?.status === 'in-transit' && identifier(result?.transitRequestId) &&
+    result => result?.status === 'in-transit' && result?.sessionId === initial.sessionId &&
+      identifier(result?.transitRequestId) &&
       Number.isSafeInteger(result?.revision));
   assert.equal(transitCapture.request.expectedDepartureRequestId, departure.result.requestId);
   assert.equal(transitCapture.request.expectedControlRevision, beforeBegin.control.revision);
   assert.equal(transitCapture.request.expectedCycle, beforeBegin.cycle);
+  assert.equal(transitCapture.result.requestId, departure.result.requestId,
+    'The public transit reply retains the original departure request identity.');
   assert.equal(transitCapture.result?.originShipId, undefined,
     'The Begin reply is the same member-readable projection and omits the server-only origin.');
   assert.equal(transitCapture.result?.destinationShipId, destination);
   const transit = await step('waitForTransit', transitCapture.result);
   assert.equal(transit.transit?.transitRequestId, transitCapture.result.transitRequestId,
     'The current in-transit projection must match the original Begin receipt.');
+  assert.equal(transit.transit?.requestId, departure.result.requestId,
+    'The public current-leg projection retains the original departure request identity.');
   assert.equal(transit.transit?.originShipId, undefined,
     'The member-readable transit projection intentionally omits its server-only origin.');
   assert.equal(transit.transit?.destinationShipId, destination);
@@ -462,15 +467,24 @@ async function runP181StarlightMovementScoutCore({
     const retargetCapture = await operation('retargetShuttleTransit',
       (budget, actor, deadlineAt) => io.retargetTransit(beforeRetarget.transit, retargetDestination, beforeRetarget, actor, budget, deadlineAt),
       result => result?.status === 'in-transit' && result?.transitRequestId === transit.transit.transitRequestId &&
-        result?.destinationShipId === retargetDestination && Number.isSafeInteger(result?.revision));
+        result?.sessionId === initial.sessionId && result?.requestId === transit.transit.requestId &&
+        result?.destinationShipId === retargetDestination &&
+        result?.revision === beforeRetarget.transit.revision + 1);
     assert.equal(retargetCapture.request.transitRequestId, transit.transit.transitRequestId);
     assert.equal(retargetCapture.request.destinationShipId, retargetDestination);
     assert.equal(retargetCapture.request.expectedControlRevision, beforeRetarget.control.revision);
     assert.equal(retargetCapture.request.expectedCycle, beforeRetarget.cycle);
+    assert.equal(retargetCapture.result.requestId, transit.transit.requestId,
+      'The public retarget reply retains the original departure request identity; the command identity stays in its captured receipt.');
     const retargeted = await step('waitForTransit', retargetCapture.result);
     assert.equal(retargeted.transit?.transitRequestId, transit.transit.transitRequestId);
     assert.equal(retargeted.transit?.destinationShipId, retargetDestination);
-    assert.equal(retargeted.transit?.retargetRequestId, retargetCapture.request.requestId);
+    assert.equal(retargeted.transit?.revision, retargetCapture.result.revision,
+      'The current public transit projection must match the exact canonical retarget receipt revision.');
+    assert.equal(retargeted.transit?.requestId, transit.transit.requestId,
+      'A public current-leg projection preserves the original departure request identity after retarget.');
+    assert.equal(retargeted.transit?.originShipId, undefined,
+      'The member-readable current transit projection continues to omit its server-only origin.');
     mark('retarget', 'observed');
 
     const arrivalWindow = await step('waitForArrivalWindow', retargeted.transit);
@@ -482,14 +496,21 @@ async function runP181StarlightMovementScoutCore({
     assert.equal(beforeArrival.sessionId, initial.sessionId);
     assert.equal(beforeArrival.transit?.transitRequestId, transit.transit.transitRequestId);
     assert.equal(beforeArrival.transit?.destinationShipId, retargetDestination);
+    assert.equal(beforeArrival.transit?.revision, retargeted.transit.revision,
+      'The automatic-arrival observation must retain the exact current retarget revision.');
+    assert.equal(beforeArrival.transit?.requestId, transit.transit.requestId,
+      'The arrival observation retains the original public departure identity.');
     verifySourceReceipt(arrival, 'completeShuttleArrival', { sessionId: initial.sessionId,
       actor: arrivalWindow.actor, cycle: beforeArrival.cycle, shuttleId: P181_NORMAL_SETUP.shuttleId,
-      requiredResult: result => result?.hostShipId === retargetDestination &&
+      requiredResult: result => ['arrived', 'replayed'].includes(result?.status) &&
+        result?.sessionId === initial.sessionId && result?.requestId === `arrival-${transit.transit.transitRequestId}` &&
+        result?.transitRequestId === transit.transit.transitRequestId &&
+        result?.shuttleId === P181_NORMAL_SETUP.shuttleId &&
+        result?.hostShipId === retargetDestination && result?.transitRevision === beforeArrival.transit.revision &&
         typeof result.arrivedAt === 'string' && Number.isFinite(Date.parse(result.arrivedAt)) &&
         Date.parse(result.arrivedAt) >= Date.parse(beforeArrival.transit.arrivesAt) });
     assert.equal(arrival.request.transitRequestId, beforeArrival.transit.transitRequestId);
     assert.equal(arrival.request.expectedControlRevision, beforeArrival.control.revision);
-    assert.equal(arrival.request.expectedCycle ?? beforeArrival.cycle, beforeArrival.cycle);
     requireActor(arrivalWindow.actor, io.expectedWingCommander,
       'Original Wing Commander after automatic source arrival');
     const finalFlight = await step('waitForDocking', arrival.result);

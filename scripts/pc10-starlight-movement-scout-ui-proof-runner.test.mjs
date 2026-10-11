@@ -289,7 +289,7 @@ const original = Object.freeze({
   groupId: 'fleet-1', shipId: 'aegis',
 });
 
-function makeConsumer({ departureOriginOverride } = {}) {
+function makeConsumer({ departureOriginOverride, retargetProjectionRevisionOverride } = {}) {
   const trace = [];
   const state = {
     actor: { ...original },
@@ -309,7 +309,7 @@ function makeConsumer({ departureOriginOverride } = {}) {
       privateResult: null, privateNote: null,
     },
   };
-  let commandCount = 0, scoutCount = 0;
+  let commandCount = 0, scoutCount = 0, transitWaitCount = 0;
   const page = new EventEmitter();
   page.url = () => 'http://127.0.0.1:5174/#/shuttles/starlight';
   const result = async (endpoint, request, value) => {
@@ -361,17 +361,24 @@ function makeConsumer({ departureOriginOverride } = {}) {
         velocity: { x: 1, y: 1, z: 1 }, departedAt,
         arrivesAt: new Date(Date.parse(departedAt) + 60_000).toISOString() };
       state.session.departure = null;
-      return result('beginShuttleTransit', request, { ...state.session.transit });
+      return result('beginShuttleTransit', request, { ...state.session.transit, sessionId: request.sessionId });
     },
-    async waitForTransit() { return structuredClone(state.session); },
+    async waitForTransit() {
+      transitWaitCount++;
+      const current = structuredClone(state.session);
+      if (transitWaitCount === 2 && retargetProjectionRevisionOverride !== undefined && current.transit)
+        current.transit.revision = retargetProjectionRevisionOverride;
+      return current;
+    },
     async retargetTransit(transit, destination, before) {
       const request = { sessionId: 'normal-session', requestId: 'retarget-1', shuttleId: 'starlight',
         transitRequestId: transit.transitRequestId, destinationShipId: destination,
         expectedControlRevision: before.control.revision, expectedCycle: before.cycle };
+      const departedAt = new Date().toISOString();
       state.session.transit = { ...state.session.transit, destinationShipId: destination,
-        retargetRequestId: request.requestId, departedAt: new Date().toISOString(),
-        arrivesAt: new Date(Date.now() + 60_000).toISOString() };
-      return result('retargetShuttleTransit', request, { ...state.session.transit, requestId: request.requestId });
+        revision: state.session.transit.revision + 1, departedAt,
+        arrivesAt: new Date(Date.parse(departedAt) + 60_000).toISOString() };
+      return result('retargetShuttleTransit', request, { ...state.session.transit, sessionId: request.sessionId });
     },
     async waitForArrivalWindow(transit, timeout) {
       assert.equal(timeout, 60_000);
@@ -388,8 +395,11 @@ function makeConsumer({ departureOriginOverride } = {}) {
       state.session.docking = { shuttleId: 'starlight', shipId: transit.destinationShipId };
       state.session.transit = null;
       state.session.control = { ...state.session.control, revision: 5 };
-      return result('completeShuttleArrival', request, { hostShipId: transit.destinationShipId,
-        arrivedAt: new Date(Math.max(Date.now(), Date.parse(transit.arrivesAt) + 1)).toISOString() });
+      return result('completeShuttleArrival', request, { status: 'arrived', sessionId: request.sessionId,
+        requestId: `arrival-${transit.transitRequestId}`, transitRequestId: transit.transitRequestId,
+        shuttleId: request.shuttleId, hostShipId: transit.destinationShipId,
+        arrivedAt: new Date(Math.max(Date.now(), Date.parse(transit.arrivesAt) + 1)).toISOString(),
+        transitRevision: transit.revision });
     },
     async waitForDocking() { return structuredClone(state.session); },
     async currentScoutOffer() { return structuredClone(state.session.scoutOffer); },
@@ -1443,6 +1453,15 @@ test('actual movement consumer refuses a departure from a different origin befor
     /original observed Starlight berth/i);
   assert.deepEqual(trace.filter(item => item.endpoint).map(item => item.endpoint), ['requestShuttleDeparture'],
     'A changed departure origin cannot reach the one-shot Begin action.');
+});
+
+test('actual movement consumer rejects a stale public transit projection after the canonical retarget receipt', async () => {
+  const { io, trace } = makeConsumer({ retargetProjectionRevisionOverride: 1 });
+  await assert.rejects(runP181StarlightMovementScoutUiProof(completeProofInput(io)),
+    /current public transit projection must match the exact canonical retarget receipt revision/i);
+  assert.deepEqual(trace.filter(item => item.endpoint).map(item => item.endpoint), [
+    'requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
+  ], 'A stale current-leg revision cannot proceed to the automatic arrival observation.');
 });
 
 test('actual movement consumer rejects a different safe Starlight holder hash before mutation', async () => {
