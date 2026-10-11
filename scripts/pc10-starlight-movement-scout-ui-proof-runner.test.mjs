@@ -4961,3 +4961,48 @@ test('R4 actual GM queue cursor rejection is discarded until a five-second guard
   assert.equal(wing.observers.stores.size, 0);
 });
 
+test('reconciled retained observer installation keeps the exact core cutoff and one cleanup', async () => {
+  const { io } = makeConsumer();
+  let detached = 0, cleaned = 0;
+  io.beginPathAuthority = async () => new Promise(() => {});
+  io.finishPathAuthority = async () => { detached++; };
+  const cleanup = io.cleanupOwnedResources;
+  io.cleanupOwnedResources = async (...args) => { cleaned++; return cleanup(...args); };
+  const input = completeProofInput(io);
+  input.absoluteDeadlineMs = Date.now() + 40; input.cleanupDeadlineMs = Date.now() + 300;
+  const proof = runP181StarlightMovementScoutUiProof(input).then(
+    value => ({ value }), error => ({ error }));
+  const result = await Promise.race([proof, new Promise(resolve => setTimeout(() => resolve({ stalled: true }), 120))]);
+  assert.equal(result.stalled, undefined, 'Stalled observer installation must stop at the existing core cutoff.');
+  assert.match(result.error?.message ?? '', /deadline|finite/i);
+  assert.equal(detached, 1); assert.equal(cleaned, 1);
+});
+
+for (const kind of ['full', 'gm']) {
+  test(`reconciled retained ${kind} startup observer installation keeps the original readiness cutoff`, async () => {
+    const body = kind === 'full' ? p181FullActorWaitBody : p181GmWaitBody;
+    const name = kind === 'full' ? 'waitForFullActor' : 'waitForGm';
+    const gm = {}, uid = 'original-gm', timers = new Set();
+    const wait = runInNewContext(`(() => { ${body}; return ${name}; })()`, {
+      assert, Date, P181_NATIVE_TIMING, gm, sessionId: 'normal-session', gmInstanceId: 'gm-original-instance',
+      ownedAuthUids: new Map([['gm', uid]]),
+      hashShort: value => createHash('sha256').update(value).digest('hex').slice(0, 16),
+      retainP181MemberAuthority: async () => new Promise(() => {}),
+      bounded: async (label, action, deadlineAt) => {
+        let timer;
+        try { return await Promise.race([Promise.resolve().then(action), new Promise((_, reject) => {
+          timer = setTimeout(() => reject(Object.assign(new Error(label + ': original deadline expired.'),
+            { name: 'TimeoutError' })), Math.max(0, deadlineAt - Date.now())); timers.add(timer);
+        })]); } finally { clearTimeout(timer); timers.delete(timer); }
+      },
+    });
+    const deadlineAt = Date.now() + 40;
+    const operation = (kind === 'full' ? wait(gm, 'Original startup', () => true, deadlineAt)
+      : wait(deadlineAt, { active: true })).then(value => ({ value }), error => ({ error }));
+    const result = await Promise.race([operation, new Promise(resolve => setTimeout(() => resolve({ stalled: true }), 120))]);
+    for (const timer of timers) clearTimeout(timer);
+    assert.equal(result.stalled, undefined, 'The native consumer must bound its observer installation.');
+    assert.equal(result.error?.name, 'TimeoutError');
+  });
+}
+
