@@ -227,11 +227,12 @@ export async function observeFullGameDemoPresentationMember(surface, { knownRole
     // retain their original single-read contract. No recovery action is issued.
     if (deadlineAt === undefined) { uidHash = await digestUid(); return captureMember(); }
     return new Promise((resolve, reject) => {
-      let settled = false, stop, stopAuth, timer, originalFence, queueStarted = false, queueComplete = false, pendingScoutRequests;
+      let settled = false, stop, stopAuth, timer, queueRetryTimer, originalFence, queueStarted = false, queueComplete = false, pendingScoutRequests;
+      let queueRetryAt = 0;
       const timeout = () => Object.assign(new Error('Original mounted member readiness deadline expired.'), { name: 'TimeoutError' });
       const finish = (error, value) => {
         if (settled) return;
-        settled = true; clearTimeout(timer);
+        settled = true; clearTimeout(timer); clearTimeout(queueRetryTimer);
         for (const unsubscribe of [stop, stopAuth]) {
           try { unsubscribe?.(); } catch (cleanupError) { error ??= cleanupError; }
         }
@@ -281,7 +282,7 @@ export async function observeFullGameDemoPresentationMember(surface, { knownRole
           }
           if (value.connection !== 'live' || value.freshness !== 'server') return;
           if (readPendingScoutRequests && !queueComplete) {
-            if (queueStarted) return;
+            if (queueStarted || Date.now() < queueRetryAt) return;
             queueStarted = true;
             (async () => {
               const { listPendingScoutRequests } = await import('/src/lib/scoutResultService.ts');
@@ -290,7 +291,19 @@ export async function observeFullGameDemoPresentationMember(surface, { knownRole
               if (fence(useSessionStore.getState()) !== originalFence) throw new Error('Original GM queue authority epoch changed.');
               const current = captureMember();
               if (current.connection !== 'live' || current.freshness !== 'server') { queueStarted = false; inspect(); return; }
-              pendingScoutRequests = await listPendingScoutRequests();
+              try {
+                pendingScoutRequests = await listPendingScoutRequests();
+              } catch (error) {
+                if (settled) return;
+                if (fence(useSessionStore.getState()) !== originalFence) throw new Error('Original GM queue authority epoch changed.');
+                if (error?.message !== 'Scouting authority changed. Reconnect and refresh the station.') throw error;
+                // Match the existing GM controller's five-second reload.
+                // Its rejected queue can never select or reveal a request.
+                pendingScoutRequests = undefined; queueStarted = false; queueRetryAt = Date.now() + 5_000;
+                queueRetryTimer = setTimeout(() => { queueRetryTimer = undefined; inspect(); },
+                  Math.min(5_000, Math.max(0, deadlineAt - Date.now())));
+                return;
+              }
               if (settled) return;
               queueComplete = true; inspect();
             })().catch(error => finish(error));

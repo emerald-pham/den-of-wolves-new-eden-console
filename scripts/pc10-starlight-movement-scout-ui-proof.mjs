@@ -321,16 +321,22 @@ function assertCurrentFlight(actor, flight, expected, { requireAegisDocking = fa
 async function runP181StarlightMovementScoutCore({
   initial, started, roster, gm, expectedWingCommander, io,
   absoluteDeadlineMs, requiredBranches = ['movement', 'first-scout'],
-  evidenceDirectory,
+  evidenceDirectory, cleanupDeadlineMs,
 }) {
   const held = { operationStage: 'normal startup', observations: {}, receipts: [] };
+  let retainedPath = false, pathError;
   const work = async (stage, operation, deadlineAt = Math.min(absoluteDeadlineMs, Date.now() + 60_000), maximum = 60_000) => {
     held.operationStage = stage;
-    return p181BoundedWork(stage, operation, deadlineAt, value => { held.observations[stage] = value; }, maximum);
+    await io?.checkPathAuthority?.();
+    const value = await p181BoundedWork(stage, operation, deadlineAt, value => { held.observations[stage] = value; }, maximum);
+    await io?.checkPathAuthority?.();
+    return value;
   };
   const step = (method, ...args) => {
     const deadlineAt = Math.min(absoluteDeadlineMs, Date.now() + (method === 'openStarlightFromWingWorkspace' ? 35_000 : 60_000));
-    return work(method, () => io[method](...args, p181Remaining(deadlineAt), deadlineAt), deadlineAt);
+    return work(method, () => method === 'waitForTransit'
+      ? io[method](args[0], p181Remaining(deadlineAt), deadlineAt, args[1])
+      : io[method](...args, p181Remaining(deadlineAt), deadlineAt), deadlineAt);
   };
   try {
   assert.ok(io && (typeof io.prepareNormalSession === 'function' ||
@@ -413,6 +419,10 @@ async function runP181StarlightMovementScoutCore({
     return capture;
   };
 
+  if (typeof io.beginPathAuthority === 'function') {
+    retainedPath = true;
+    await work('Retain original movement authority', () => io.beginPathAuthority(absoluteDeadlineMs));
+  }
   await currentFlight({ requireAegisDocking: true });
   await step('openStarlightFromWingWorkspace');
   await currentFlight({ requireAegisDocking: true });
@@ -488,7 +498,7 @@ async function runP181StarlightMovementScoutCore({
     assert.equal(retargetCapture.request.expectedCycle, beforeRetarget.cycle);
     assert.equal(retargetCapture.result.requestId, transit.transit.requestId,
       'The public retarget reply retains the original departure request identity; the command identity stays in its captured receipt.');
-    const retargeted = await step('waitForTransit', retargetCapture.result);
+    const retargeted = await step('waitForTransit', retargetCapture.result, beforeRetarget);
     assert.equal(retargeted.transit?.transitRequestId, transit.transit.transitRequestId);
     assert.equal(retargeted.transit?.destinationShipId, retargetDestination);
     assert.equal(retargeted.transit?.revision, retargetCapture.result.revision,
@@ -677,8 +687,15 @@ async function runP181StarlightMovementScoutCore({
   }
   return result;
   } catch (error) {
+    pathError = error;
     rememberProofFailure(error, { operation: 'P181 movement/scout core', ...held });
     throw error;
+  } finally {
+    if (retainedPath) {
+      try { await p181BoundedWork('Detach original P181 path authority observation', () => io.finishPathAuthority(),
+        Math.min(cleanupDeadlineMs ?? absoluteDeadlineMs, Date.now() + 5_000)); }
+      catch (error) { if (pathError) rememberProofFailure(pathError, { retainedAuthorityCleanupError: error }); else throw error; }
+    }
   }
 }
 
@@ -721,6 +738,241 @@ export async function runP181StarlightMovementScoutUiProof(input) {
 
 /** Read the mounted normal App's original actor and Starlight source projection.
  * The result is held in memory; callers persist only safe fingerprints. */
+let p181MemberObservationOrdinal = 0;
+
+/** One P181 operation owns this read-only App observation until teardown.
+ * Its terminal failure survives intervening browser/SDK/UI awaits. The single
+ * page-local record contains no receipt, mutation capability or persisted data. */
+export async function retainP181MemberAuthority(surface, deadlineAt, options = {}) {
+  const id = `p181-${Date.now()}-${++p181MemberObservationOrdinal}`;
+  const moduleUrl = surface.storeModuleUrl?.();
+  const authorityModuleUrl = surface.sessionAuthorityModuleUrl?.();
+  const command = (action, change) => surface.page.evaluate(async ({ id, action, moduleUrl,
+    authorityModuleUrl, deadlineAt, options, change }) => {
+    const key = '__p181OriginalMemberObservation';
+    const timeout = () => new Error(options.mode === 'auth-only'
+      ? 'Original P181 Auth restoration observation deadline expired.' : 'Original P181 retained authority deadline expired.');
+    if (action !== 'open') {
+      const held = window[key];
+      if (!held || held.id !== id) throw new Error('Original P181 authority observation or document changed.');
+      if (performance.timeOrigin !== held.timeOrigin) {
+        held.failure ??= 'Original P181 observation documentTimeOrigin changed.';
+        held.stop(); held.complete(held.failure);
+        if (action === 'close') delete window[key];
+        throw new Error(held.failure);
+      }
+      if (action === 'wait') return held.completed;
+      if (action === 'close') {
+        held.stop(); delete window[key];
+        held.complete(held.failure);
+        if (held.failure) throw new Error(held.failure);
+        return;
+      }
+      if (action === 'pin') await held.pin({ ...change, authorityModuleUrl });
+      await held.check();
+      return { fresh: held.fresh };
+    }
+    if (!Number.isFinite(deadlineAt) || Date.now() >= deadlineAt) throw timeout();
+    if (window[key]) throw new Error('Another P181 observation already owns this original document.');
+    const { auth } = await import('/src/lib/firebase.ts');
+    const client = auth();
+    const held = { id, options, failure: null, fresh: false, stops: [], timer: null,
+      rawUid: client.currentUser?.uid ?? null, timeOrigin: performance.timeOrigin,
+      store: null, authority: null, resumePending: null, signature: null, connectedSeen: false,
+      serverSeen: false, sdkCompleted: false, latestGeneration: 0, latestHydration: 0 };
+    window[key] = held;
+    held.completed = new Promise(resolve => { held.complete = resolve; });
+    held.stop = () => {
+      clearTimeout(held.timer);
+      for (const stop of held.stops.splice(0)) { try { stop(); } catch (error) { held.failure ??= String(error?.message ?? error); } }
+    };
+    const fail = error => { held.failure ??= String(error?.message ?? error); held.stop(); held.complete(held.failure); };
+    const inspect = (state, historical = false) => {
+      if (held.failure) return;
+      const user = client.currentUser;
+      if (performance.timeOrigin !== held.timeOrigin || (held.rawUid && user?.uid !== held.rawUid))
+        throw new Error('Original P181 Auth authority or document retired.');
+      if (user?.uid) held.rawUid ??= user.uid;
+      if (held.options.mode === 'auth-only') return;
+      const me = state?.me, session = state?.session;
+      const startup = held.options.mode === 'startup', navigation = held.options.mode === 'navigation';
+      if (!user || !session || !me) {
+        if ((startup || navigation) && !held.signature && user) return;
+        throw new Error('Original P181 member authority retired.');
+      }
+      if (me.uid !== user.uid || me.sessionId !== session.id || session.id !== held.options.expected?.sessionId ||
+          me.kickedAt != null || me.escapeState != null || me.replacementRoleId != null || me.replacementStatus != null)
+        throw new Error('Original P181 member identity or authority changed.');
+      if (me.connected === true) held.connectedSeen = true;
+      if ((held.connectedSeen || !startup) && me.connected !== true)
+        throw new Error('Original P181 connected member authority retired.');
+      const sdk = held.authority(session.id, user.uid), pending = held.resumePending(sdk);
+      if (sdk?.hasServerSessionAuthority === true) held.serverSeen = true;
+      if (sdk?.hasServerSessionAuthority === true && pending === false) held.sdkCompleted = true;
+      if ((!startup && !navigation || startup && held.sdkCompleted && !held.options.navigationFrom) &&
+          (sdk?.hasServerSessionAuthority !== true || pending))
+        throw new Error('Original P181 SDK authority retired.');
+      if (held.options.requireGm && (me.role !== 'gm' || state.gmInstance?.uid !== user.uid ||
+          state.gmInstance.sessionId !== session.id || state.gmRecoveryPending === true))
+        throw new Error('Original P181 GM role or instance authority retired.');
+      if (held.options.expected?.instanceId && state.gmInstance?.id !== held.options.expected.instanceId)
+        throw new Error('Original P181 GM instance changed.');
+      if (!['live', 'offline', 'connecting'].includes(state.connection) ||
+          !['server', 'cache', ...(startup || navigation ? ['unknown'] : [])].includes(state.sessionSnapshotFreshness))
+        throw new Error('Original P181 freshness is not an eligible readiness transition.');
+      const navigationFrom = held.options.navigationFrom;
+      if (navigationFrom) {
+        if (![navigationFrom.connectionGeneration, navigationFrom.connectionGeneration + 1].includes(me.connectionGeneration) ||
+            !historical && me.connectionGeneration < held.latestGeneration || !Number.isSafeInteger(state.identityHydrationRevision) ||
+            !historical && state.identityHydrationRevision < held.latestHydration)
+          throw new Error('Original P181 navigation epoch left its one normal resume.');
+      }
+      const expected = held.options.expected;
+      for (const [key, value] of Object.entries({ documentTimeOrigin: performance.timeOrigin,
+        playerRole: me.role, fleetGroupId: me.fleetGroupId ?? null,
+        phase: session.phase, cycle: session.currentTurn,
+        ...(!startup ? { assignedRoleId: me.assignedRoleId ?? null } : {}),
+        ...(!startup && !navigationFrom ? { activeConsoleRoleId: me.activeConsoleRoleId ?? null,
+          seatId: me.seatId ?? null } : {}),
+        ...(!navigation && !navigationFrom ? { connectionGeneration: me.connectionGeneration,
+          identityHydrationRevision: state.identityHydrationRevision } : {}) })) {
+        if (expected && Object.hasOwn(expected, key) && expected[key] !== value)
+          throw new Error('Original expected P181 ' + key + ' authority changed.');
+      }
+      const member = { uid: user.uid, document: held.timeOrigin, sessionId: session.id,
+        memberUid: me.uid, memberSession: me.sessionId, role: me.role, group: me.fleetGroupId ?? null,
+        phase: session.phase, cycle: session.currentTurn, fullGameDemo: session.fullGameDemo ?? null,
+        assigned: me.assignedRoleId ?? null, active: me.activeConsoleRoleId ?? null, seat: me.seatId ?? null,
+        scope: session.memberSessionScope ?? null, berth: session.currentActorBerthAuthority ?? null,
+        ownSeat: state.seats?.filter(seat => seat.id === me.assignedRoleId) ?? [],
+        instance: state.gmInstance ?? null,
+        ...(held.options.pinControl ? { custody: session.shuttleControl?.starlight ?? null } : {}),
+        ...(held.options.pinDocking ? { docking: session.shuttleDockings?.filter(row => row.shuttleId === 'starlight') ?? [] } : {}),
+        ...(!navigation && !navigationFrom ? { generation: me.connectionGeneration, hydration: state.identityHydrationRevision } : {}) };
+      // The observed ordinary resume is the sole navigation exception. Its
+      // new document owns its hydration counter; station authority is pinned
+      // only after navigation.accept validates the actual captured receipt.
+      if (navigation || navigationFrom) {
+        if (member.berth) member.berth = { ...member.berth, connectionGeneration: null };
+        if (navigationFrom) { delete member.active; delete member.seat; delete member.ownSeat;
+          if (member.berth) member.berth = { ...member.berth, activeConsoleRoleId: null }; }
+      }
+      if (startup) {
+        // Startup readers are invoked only after their original UI receipt.
+        // They may hydrate the one normal casting role before the station
+        // predicate succeeds, but an observed owned role/UID cannot retire.
+        // Only the P181 casting/chooser fields may still publish after their
+        // captured normal UI action. Retain any observed non-null value and
+        // reject another role rather than allowing arbitrary reassignment.
+        for (const key of ['assignedRoleId', 'activeConsoleRoleId', 'seatId']) {
+          const role = me[key] ?? null;
+          if (role !== null && role !== 'wing-commander') throw new Error('Original startup station role changed.');
+          held.startupRoles ??= {};
+          if (held.startupRoles[key] && role !== held.startupRoles[key]) throw new Error('Original startup station authority retired.');
+          if (role) held.startupRoles[key] = role;
+        }
+        const ownSeat = state.seats?.find(seat => seat.id === 'wing-commander');
+        const ownsSeat = ownSeat?.holderUid === user.uid && ownSeat.status === 'claimed';
+        if (held.startupOwnedSeat && !ownsSeat) throw new Error('Original startup own seat authority retired.');
+        if (ownsSeat) held.startupOwnedSeat = true;
+        const berth = session.currentActorBerthAuthority;
+        if (held.startupOwnedBerth && (!berth || berth.actorUid !== user.uid || berth.groupId !== me.fleetGroupId ||
+            berth.shipId !== held.startupOwnedBerth.shipId || berth.role !== 'player'))
+          throw new Error('Original startup own berth authority retired.');
+        if (berth?.actorUid === user.uid) held.startupOwnedBerth ??= { shipId: berth.shipId };
+        delete member.assigned; delete member.active; delete member.seat; delete member.ownSeat; delete member.berth;
+        if (held.options.startCycleOne && session.phase === 'casting' && session.currentTurn === 0) {
+          member.phase = 'active'; member.cycle = 1;
+        }
+      }
+      const signature = JSON.stringify(member);
+      if (held.signature !== null && signature !== held.signature)
+        throw new Error('Original P181 member epoch, phase or source custody authority retired.');
+      held.signature ??= signature;
+      held.fresh = state.connection === 'live' && state.sessionSnapshotFreshness === 'server' &&
+        sdk?.hasServerSessionAuthority === true && !pending && me.connected === true;
+    };
+    const observe = (delivered, previous) => {
+      if (held.failure) return;
+      try {
+        if (Date.now() >= deadlineAt) throw timeout();
+        if (previous) inspect(previous, true);
+        for (const state of [delivered, held.store?.getState()]) if (state) inspect(state);
+        const current = held.store?.getState();
+        if (current && held.options.navigationFrom) {
+          held.latestGeneration = current.me?.connectionGeneration ?? held.latestGeneration;
+          held.latestHydration = current.identityHydrationRevision ?? held.latestHydration;
+        }
+      } catch (error) { fail(error); }
+    };
+    held.check = async () => { try {
+      if (held.failure) throw new Error(held.failure);
+      if (Date.now() >= deadlineAt) throw timeout();
+      inspect(held.store?.getState());
+      const uid = client.currentUser?.uid;
+      // The Auth-only reload stage pins a restored SDK UID continuously but
+      // grants no member authority. Its following Node comparison binds the
+      // actual fingerprint before that same observer enters member mode.
+      if (uid && held.options.mode !== 'auth-only' && held.options.expected?.uidHash) {
+        const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(uid))))
+          .map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16);
+        if (hash !== held.options.expected.uidHash) throw new Error('Original P181 owned Auth account UID changed.');
+      }
+      if (held.failure) throw new Error(held.failure);
+      inspect(held.store?.getState());
+    } catch (error) { fail(error); throw error; } };
+    held.pin = async next => {
+      await held.check();
+      const enteringMember = held.options.mode === 'auth-only';
+      if (enteringMember) {
+        const observedUrl = next.authorityModuleUrl;
+        if (!observedUrl) throw new Error('Observe the actual new-document SDK module before member qualification.');
+        const storeUrl = new URL(moduleUrl, 'http://127.0.0.1');
+        const sdkUrl = new URL(observedUrl, storeUrl);
+        if (sdkUrl.origin !== storeUrl.origin || sdkUrl.pathname !== '/src/lib/sessionSnapshotAuthority.ts')
+          throw new Error('Only the actual observed same-origin SDK module can qualify the new document.');
+        const { useSessionStore } = await import(moduleUrl);
+        const sdk = await import(observedUrl);
+        held.store = useSessionStore; held.authority = sdk.sessionSnapshotAuthorityFor;
+        held.resumePending = sdk.memberSessionResumeBlocksFreshness;
+        held.stops.push(useSessionStore.subscribe(observe));
+      }
+      held.options = { ...held.options, ...next };
+      if (next.expected) {
+        const state = held.store?.getState();
+        for (const [key, value] of Object.entries({ documentTimeOrigin: performance.timeOrigin,
+          connectionGeneration: state?.me?.connectionGeneration, identityHydrationRevision: state?.identityHydrationRevision }))
+          if (Object.hasOwn(next.expected, key) && next.expected[key] !== value)
+            throw new Error('Original accepted P181 navigation epoch changed before pinning.');
+      }
+      // Changing observation shape never erases a terminal event. A completed
+      // captured resume is the only transition into a new station epoch.
+      held.signature = null; observe(); await held.check();
+    };
+    try {
+      held.stops.push(client.onAuthStateChanged(user => {
+        if (held.rawUid && user?.uid !== held.rawUid) fail(new Error('Original P181 Auth authority retired.'));
+        else if (user?.uid) held.rawUid ??= user.uid;
+      }, fail));
+      held.timer = setTimeout(() => fail(timeout()), deadlineAt - Date.now());
+      if (options.mode !== 'auth-only') {
+        if (!authorityModuleUrl) throw new Error('Original observed App SDK authority module is required.');
+        const { useSessionStore } = await import(moduleUrl), sdk = await import(authorityModuleUrl);
+        held.store = useSessionStore; held.authority = sdk.sessionSnapshotAuthorityFor;
+        held.resumePending = sdk.memberSessionResumeBlocksFreshness;
+        held.stops.push(useSessionStore.subscribe(observe));
+      }
+      observe(); await held.check();
+      return { fresh: held.fresh };
+    } catch (error) { fail(error); held.stop(); delete window[key]; throw error; }
+  }, { id, action, moduleUrl, authorityModuleUrl: surface.sessionAuthorityModuleUrl?.() ?? authorityModuleUrl,
+    deadlineAt, options, change });
+  await command('open');
+  const failed = command('wait').then(message => message ? Promise.reject(new Error(message)) : new Promise(() => {}));
+  failed.catch(() => {});
+  return { check: () => command('check'), pin: next => command('pin', next), close: () => command('close'), failed };
+}
+
 export async function observeP181StarlightSource(surface, deadlineAt, { scoutRead } = {}) {
   const authorityModuleUrl = surface.sessionAuthorityModuleUrl?.();
   const storeUrl = new URL(surface.storeModuleUrl(), 'http://127.0.0.1');
@@ -737,12 +989,15 @@ export async function observeP181StarlightSource(surface, deadlineAt, { scoutRea
     }
 
     let settled = false, finalizing = false, attemptQueued = false;
-    let unsubscribe, unsubscribeStore, unsubscribeAuth, deadlineTimer;
+    let unsubscribe, unsubscribeStore, unsubscribeAuth, deadlineTimer, scoutRetryTimer;
     let original, auth, useSessionStore, sessionSnapshotAuthorityFor, memberSessionResumeBlocksFreshness;
     let pendingMovement, hasPendingMovement = false, sourceVersion = 0, scoutValue, scoutReadCompleted = false;
+    let scoutAuthorityRetries = 0, scoutRetryAt = 0;
     const clearDeadline = () => {
       if (deadlineTimer !== undefined) clearTimeout(deadlineTimer);
+      if (scoutRetryTimer !== undefined) clearTimeout(scoutRetryTimer);
       deadlineTimer = undefined;
+      scoutRetryTimer = undefined;
     };
     const detach = () => {
       const stops = [unsubscribe, unsubscribeStore, unsubscribeAuth];
@@ -842,6 +1097,7 @@ export async function observeP181StarlightSource(surface, deadlineAt, { scoutRea
           throw new Error('Original authenticated Wing Commander identity epoch changed during flight observation.');
         }
         if (current.identity.connection !== 'live' || current.identity.freshness !== 'server') return;
+        if (scoutRead && Date.now() < scoutRetryAt) return;
         if (Date.now() >= deadlineAt) throw timeoutError();
         finalizing = true;
         const version = sourceVersion;
@@ -862,7 +1118,23 @@ export async function observeP181StarlightSource(surface, deadlineAt, { scoutRea
           if (fresh.identity.connection !== 'live' || fresh.identity.freshness !== 'server') {
             finalizing = false; queueMovementObservation(); return;
           }
-          scoutValue = await service[scoutRead.name](...(scoutRead.args ?? []));
+          try {
+            scoutValue = await service[scoutRead.name](...(scoutRead.args ?? []));
+          } catch (error) {
+            if (settled) return;
+            // The actual service rejects a reply whose captured SDK cursor
+            // has changed. Discard it; the published player controller allows
+            // two guarded rereads at one-second intervals, never mutations.
+            const latest = captureProjection(auth, useSessionStore, 'scout-reader-rejection', true);
+            if (!sameMemberEpoch(original.identity, latest.identity)) throw new Error('Original scout authority epoch changed.');
+            if (error?.message !== 'Scouting authority changed. Reconnect and refresh the station.' ||
+                scoutAuthorityRetries >= 2) throw error;
+            scoutValue = undefined; scoutAuthorityRetries++; scoutRetryAt = Date.now() + 1_000;
+            finalizing = false;
+            scoutRetryTimer = setTimeout(() => { scoutRetryTimer = undefined; queueMovementObservation(); },
+              Math.min(1_000, Math.max(0, deadlineAt - Date.now())));
+            return;
+          }
           scoutReadCompleted = true;
           if (settled) return;
         }
@@ -1008,7 +1280,51 @@ export function createP181StarlightBrowserIo({ gm, wingCommander, gameplay, dire
   assert.ok(gm?.page && wingCommander?.page && gameplay?.select && directory);
   const endFor = (timeout = 60_000, deadlineAt) => Math.min(io.absoluteDeadlineAt ?? Infinity,
     deadlineAt ?? Date.now() + Math.min(60_000, timeout));
-  const work = (label, action, deadlineAt, hold, maximum) => p181BoundedWork(label, action, deadlineAt, hold, maximum);
+  let wingObservation, gmObservation, pathHeld = false, operationDepth = 0, observationEnd;
+  const checkAuthority = async () => {
+    for (const observer of [wingObservation, gmObservation]) await observer?.check();
+  };
+  const work = async (label, action, deadlineAt, hold, maximum) => {
+    await checkAuthority();
+    const value = await Promise.race([p181BoundedWork(label, action, deadlineAt, hold, maximum),
+      ...[wingObservation, gmObservation].filter(Boolean).map(observer => observer.failed)]);
+    await checkAuthority(); return value;
+  };
+  const ensureWingObservation = async deadlineAt => {
+    observationEnd ??= deadlineAt;
+    wingObservation ??= await work('Retain original Wing Commander authority', () =>
+      retainP181MemberAuthority(wingCommander, observationEnd,
+        { expected: io.expectedWingCommander, mode: 'station', pinControl: true }), observationEnd);
+    await wingObservation.check();
+  };
+  const ensureGmObservation = async deadlineAt => {
+    observationEnd ??= deadlineAt;
+    gmObservation ??= await work('Retain original GM authority', () => retainP181MemberAuthority(gm, observationEnd,
+      { expected: io.originalGmEpoch ?? io.originalGmRegistration, mode: 'station', requireGm: true }), observationEnd);
+    await gmObservation.check();
+  };
+  const detachObservations = async () => {
+    const observers = [wingObservation, gmObservation]; wingObservation = undefined; gmObservation = undefined;
+    observationEnd = undefined;
+    let first;
+    for (const observer of observers) { try { await observer?.close(); } catch (error) { first ??= error; } }
+    if (first) throw first;
+  };
+  const withMemberObservation = async (deadlineAt, operation) => {
+    operationDepth++;
+    let primary;
+    try {
+      await ensureWingObservation(deadlineAt);
+      return await Promise.race([operation(), wingObservation.failed]);
+    } catch (error) { primary = error; throw error; }
+    finally {
+      operationDepth--;
+      if (!pathHeld && operationDepth === 0) {
+        try { await detachObservations(); }
+        catch (error) { if (primary) rememberProofFailure(primary, { authorityDetachError: error }); else throw error; }
+      }
+    }
+  };
   const member = (deadlineAt, expected = io.expectedWingCommander) => work('Read original mounted member DTO', () =>
     observeFullGameDemoPresentationMember(wingCommander, { knownRoleIds: P181_NORMAL_SETUP.roleIds,
       deadlineAt, expected }),
@@ -1050,6 +1366,7 @@ export function createP181StarlightBrowserIo({ gm, wingCommander, gameplay, dire
     const registered = io.originalGmRegistration;
     assert.ok(registered?.uidHash && registered.instanceId && typeof registered.claimedAt === 'string',
       'Original registered GM UID, instance and held claim receipt are required for recovery.');
+    await ensureGmObservation(deadlineAt);
     const current = await work('Read original GM safe SDK tuple', () =>
       observeFullGameDemoPresentationMember(gm, { knownRoleIds: P181_NORMAL_SETUP.roleIds,
         deadlineAt, expected: io.originalGmEpoch ?? registered }), deadlineAt);
@@ -1143,6 +1460,14 @@ export function createP181StarlightBrowserIo({ gm, wingCommander, gameplay, dire
     sessionId: initial.sessionId, expectedWingCommander,
     originalGmRegistration: started ? { ...started, sessionId: initial.sessionId } : undefined,
     now: () => Date.now(), onReceipt,
+    async beginPathAuthority(deadlineAt) {
+      pathHeld = true;
+      try { await ensureWingObservation(deadlineAt); }
+      catch (error) { pathHeld = false; await detachObservations().catch(cleanup =>
+        rememberProofFailure(error, { authorityDetachError: cleanup })); throw error; }
+    },
+    checkPathAuthority: checkAuthority,
+    async finishPathAuthority() { pathHeld = false; await detachObservations(); },
     ...(typeof normalStart?.prepare === 'function' ? { prepareNormalSession: args =>
       work('Original normal session setup/start', () => normalStart.prepare(args), args.deadlineAt) } : {}),
     ...(typeof cleanupOwnedResources === 'function' ? { cleanupOwnedResources } : {}),
@@ -1211,7 +1536,7 @@ export function createP181StarlightBrowserIo({ gm, wingCommander, gameplay, dire
       return runAction(wingCommander, 'beginShuttleTransit', () => work('Choose original Begin transit', () =>
         wingCommander.page.getByRole('button', { name: 'Begin transit', exact: true }).click({ timeout: p181Remaining(choiceEnd) }), choiceEnd), deadlineAt, before);
     },
-    async waitForTransit(receipt, timeout, deadlineAt) {
+    async waitForTransit(receipt, timeout, deadlineAt, retainedBefore) {
       return pollFlight('Original transit receipt did not publish before its finite deadline.',
         value => {
           assert.equal(value.cycle, receipt.cycle, 'Retain the original transit publication cycle.');
@@ -1225,7 +1550,12 @@ export function createP181StarlightBrowserIo({ gm, wingCommander, gameplay, dire
           }
           for (const key of ['requestId', 'transitRequestId', 'shuttleId', 'cycle', 'controlRevision'])
             assert.equal(transit[key], receipt[key], 'Reject a foreign transit publication leg or context.');
-          if (transit.revision === receipt.revision - 1) return false;
+          if (transit.revision === receipt.revision - 1) {
+            assert.ok(retainedBefore?.transit, 'Only the exact retained retarget predecessor may wait.');
+            assert.deepEqual(transit, retainedBefore.transit, 'Reject a foreign retained retarget predecessor leg.');
+            assert.deepEqual(value.control, retainedBefore.control, 'Retain the original predecessor custody.');
+            assert.equal(value.cycle, retainedBefore.cycle); return false;
+          }
           assert.equal(transit.revision, receipt.revision, 'Reject an unexpected transit publication revision.');
           for (const key of ['destinationShipId', 'departedAt', 'arrivesAt'])
             assert.equal(transit[key], receipt[key], 'Retain the exact captured transit publication successor.');
@@ -1267,6 +1597,7 @@ export function createP181StarlightBrowserIo({ gm, wingCommander, gameplay, dire
           waitForResponse: () => wingCommander.page.waitForResponse(matches, { timeout: p181Remaining(deadlineAt, Infinity) }),
           choose: async () => {} });
         responsePending.catch(() => {});
+        return await withMemberObservation(deadlineAt, async () => {
         const actorBefore = await work('Read held original arrival member', () => io.observeMember(deadlineAt), deadlineAt); held.actorBefore = actorBefore;
         requireActor(actorBefore, io.expectedWingCommander);
         const beforeFlight = retainedBeforeFlight ?? await work('Read held original arrival flight', () => io.observeFlight(deadlineAt), deadlineAt);
@@ -1318,6 +1649,7 @@ export function createP181StarlightBrowserIo({ gm, wingCommander, gameplay, dire
         assert.deepEqual(afterFlight.docking, { shuttleId: expected.shuttleId, shipId: transit.destinationShipId });
         assert.equal(afterFlight.transit ?? null, null);
         return { beforeFlight, afterFlight, actor: actorAfter, capture };
+        });
       } catch (error) {
         // Keep the actual response, but inspect the plain transition facts
         // before its opaque Playwright object graph can exhaust inspect output.
@@ -1359,28 +1691,45 @@ export function createP181StarlightBrowserIo({ gm, wingCommander, gameplay, dire
       let failed, acceptedActor, resumeEvidence, recovered;
       try {
         await work('Prepare original navigation observer', () => navigation.prepare(before), deadlineAt);
+        // This intentional document replacement ends only the old document's
+        // observer. Arm the new Auth listener before any restored-UID digest;
+        // the ordinary resume receipt remains the sole member-epoch exception.
+        await checkAuthority();
+        const oldDocumentObservation = wingObservation; wingObservation = undefined;
+        await oldDocumentObservation.close();
         await work('Reload original member document', () => wingCommander.page.reload({ waitUntil: 'domcontentloaded',
           timeout: p181Remaining(deadlineAt, 35_000) }), Math.min(deadlineAt, Date.now() + 35_000));
+        wingObservation = await work('Retain original restored Auth document', () =>
+          retainP181MemberAuthority(wingCommander, observationEnd,
+            { mode: 'auth-only', expected: { uidHash: before.uidHash, sessionId: before.sessionId } }), observationEnd);
         await work('Wait for original member Auth restoration', () => wingCommander.page.evaluate(async () => {
           const { auth } = await import('/src/lib/firebase.ts');
           await auth().authStateReady();
         }), deadlineAt);
         let newDocumentTimeOrigin;
         do {
-          const restored = await work('Observe original restored Auth document', () => wingCommander.page.evaluate(async () => {
+          const restored = await work('Observe original restored Auth document', () => wingCommander.page.evaluate(async moduleUrl => {
             const { auth } = await import('/src/lib/firebase.ts');
+            const { useSessionStore } = await import(moduleUrl);
             const uid = auth().currentUser?.uid;
             const uidHash = uid ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
               new TextEncoder().encode(uid)))).map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) : null;
-            return { uidHash, documentTimeOrigin: performance.timeOrigin };
-          }), deadlineAt);
+            return { uidHash, documentTimeOrigin: performance.timeOrigin, sessionId: useSessionStore.getState().session?.id ?? null };
+          }, wingCommander.storeModuleUrl()), deadlineAt);
           assert.equal(restored.uidHash, io.expectedWingCommander.uidHash, 'Keep the original restored Auth identity.');
           assert.ok(restored.documentTimeOrigin > before.documentTimeOrigin, 'Reload requires its actual newer document.');
           newDocumentTimeOrigin ??= restored.documentTimeOrigin;
           assert.equal(restored.documentTimeOrigin, newDocumentTimeOrigin, 'Retain the one original reload document.');
-          if (wingCommander.sessionAuthorityModuleUrl?.()) break;
+          if (restored.sessionId != null) assert.equal(restored.sessionId, initial.sessionId, 'Keep the original restored session.');
+          if (wingCommander.sessionAuthorityModuleUrl?.() && restored.sessionId === initial.sessionId) break;
           await pause(100, deadlineAt);
         } while (Date.now() < deadlineAt);
+        await wingObservation.pin({ mode: 'navigation', pinControl: true, pinDocking: true,
+          expected: { uidHash: before.uidHash, sessionId: before.sessionId,
+            documentTimeOrigin: newDocumentTimeOrigin, playerRole: before.playerRole,
+            fleetGroupId: before.fleetGroupId, assignedRoleId: before.assignedRoleId,
+            activeConsoleRoleId: before.activeConsoleRoleId, seatId: before.seatId,
+            phase: before.phase, cycle: before.cycle } });
         while (Date.now() < deadlineAt) {
           const current = await navigationMember();
           assert.equal(current.sessionId, initial.sessionId); assert.equal(current.uidHash, io.expectedWingCommander.uidHash);
@@ -1398,6 +1747,7 @@ export function createP181StarlightBrowserIo({ gm, wingCommander, gameplay, dire
           break;
         }
         assert.ok(acceptedActor, 'Original reload recovery must keep its initial finite deadline.');
+        await wingObservation.pin({ mode: 'station', expected: acceptedActor, pinControl: true, pinDocking: true });
         await member(deadlineAt, acceptedActor);
         await selectWing(deadlineAt);
         await member(deadlineAt, acceptedActor);
@@ -1556,6 +1906,15 @@ export function createP181StarlightBrowserIo({ gm, wingCommander, gameplay, dire
       } catch (error) { rememberProofFailure(error, { operation: 'P181 original scout result/recovery', ...held }); throw error; }
     },
   };
+  // Hold both original actors through the complete read/navigation/recovery
+  // operations, including awaits between their individual SDK reads. The
+  // core keeps the same Wing observation for the whole movement path.
+  for (const name of ['reloadAndReselectWingCommander', 'currentScoutOffer', 'resolveScoutNormally']) {
+    const operation = io[name];
+    const timeoutIndex = name === 'resolveScoutNormally' ? 1 : 0;
+    io[name] = (...args) => withMemberObservation(endFor(args[timeoutIndex], args[timeoutIndex + 1]),
+      () => operation(...args));
+  }
   return io;
 }
 
@@ -2436,8 +2795,15 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
   const waitForFullActor = async (surface, description, predicate, deadlineAt, normalNavigationFrom) => {
     const readDeadlineAt = Math.min(deadlineAt, Date.now() + P181_NATIVE_TIMING.operationTimeoutMs);
     let current, original, latestGeneration = 0, latestHydration = 0;
+    const ownedUid = ownedAuthUids.get(surface === gm ? 'gm' : 'wing-commander');
+    const authority = await bounded('Retain original startup authority', () => retainP181MemberAuthority(surface, readDeadlineAt, {
+      mode: 'startup', expected: { sessionId, ...(ownedUid ? { uidHash: hashShort(ownedUid) } : {}) },
+      navigationFrom: normalNavigationFrom, startCycleOne: true }), readDeadlineAt);
+    let failure;
+    try {
     while (Date.now() < readDeadlineAt) {
-      current = await readFullActor(surface, readDeadlineAt);
+      current = await Promise.race([readFullActor(surface, readDeadlineAt), authority.failed]);
+      await authority.check();
       assert.ok(Date.now() < readDeadlineAt, `${description}: readiness tuple arrived after its original deadline.`);
       const owned = ownedAuthUids.get(surface === gm ? 'gm' : 'wing-commander');
       assert.equal(current.hasAuth, true, 'Keep the original startup Auth authority.');
@@ -2469,9 +2835,11 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
       }
       if (predicate(current)) return current;
       await bounded(`${description}: readiness retry interval`,
-        () => delay(Math.min(200, readDeadlineAt - Date.now())), readDeadlineAt);
+        () => Promise.race([delay(Math.min(200, readDeadlineAt - Date.now())), authority.failed]), readDeadlineAt);
     }
     throw new Error(`${description}: ${JSON.stringify(current)}`);
+    } catch (error) { failure = error; throw error; }
+    finally { try { await authority.close(); } catch (error) { if (!failure) throw error; } }
   };
   const readGmRecoveryPending = (surface, deadlineAt = operationDeadline()) => bounded(
     'Read original GM recovery state', () => surface.page.evaluate(async moduleUrl => {
@@ -2481,8 +2849,14 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
   const waitForGm = async (deadlineAt, { active = false, instanceId = gmInstanceId } = {}) => {
     const readDeadlineAt = Math.min(deadlineAt, Date.now() + P181_NATIVE_TIMING.operationTimeoutMs);
     let member, recoveryPending, original;
+    const authority = await bounded('Retain original GM startup authority', () =>
+      retainP181MemberAuthority(gm, readDeadlineAt, { mode: 'startup', requireGm: true,
+        expected: { sessionId, uidHash: hashShort(ownedAuthUids.get('gm')), instanceId }, startCycleOne: active }), readDeadlineAt);
+    let failure;
+    try {
     while (Date.now() < readDeadlineAt) {
-      member = await readFullActor(gm, readDeadlineAt);
+      member = await Promise.race([readFullActor(gm, readDeadlineAt), authority.failed]);
+      await authority.check();
       assert.ok(Date.now() < readDeadlineAt, 'Original GM readiness tuple arrived after its deadline.');
       const owner = ownedAuthUids.get('gm');
       assert.equal(member.hasAuth, true); assert.equal(member.uidHash, hashShort(owner), 'Keep the original GM Auth identity.');
@@ -2495,16 +2869,27 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
       if (original.playerRole === 'gm') assert.equal(member.playerRole, 'gm', 'Original GM authority retired.');
       if (original.sdkHasServerAuthority) assert.equal(member.sdkHasServerAuthority, true);
       if (original.sdkResumePending === false) assert.equal(member.sdkResumePending, false);
-      recoveryPending = await readGmRecoveryPending(gm, readDeadlineAt);
+      recoveryPending = await Promise.race([readGmRecoveryPending(gm, readDeadlineAt), authority.failed]);
+      await authority.check();
+      // Re-read after the awaited recovery flag. Never return the earlier DTO
+      // if current GM/instance/SDK authority changed at that boundary.
+      member = await Promise.race([readFullActor(gm, readDeadlineAt), authority.failed]);
+      await authority.check();
+      for (const key of ['uidHash', 'sessionId', 'meSessionId', 'documentTimeOrigin',
+        'connectionGeneration', 'identityHydrationRevision'])
+        assert.equal(member[key], original[key], 'Original GM authority changed during recovery read.');
+      if (original.playerRole === 'gm') assert.equal(member.playerRole, 'gm', 'Original GM authority retired during recovery read.');
       assert.ok(Date.now() < readDeadlineAt, 'Original GM recovery read arrived after its deadline.');
       const expected = { uidHash: ownedAuthUids.get('gm') && hashShort(ownedAuthUids.get('gm')),
         sessionId, instanceId };
       if (pc11GmReadiness({ ...member, recoveryPending }, expected) &&
           member.sdkResumePending === false && (!active || member.phase === 'active' && member.cycle === 1)) return { ...member, recoveryPending };
       await bounded('Original GM readiness retry interval',
-        () => delay(Math.min(200, readDeadlineAt - Date.now())), readDeadlineAt);
+        () => Promise.race([delay(Math.min(200, readDeadlineAt - Date.now())), authority.failed]), readDeadlineAt);
     }
     throw new Error(`Original live normal GM authority did not become ready: ${JSON.stringify(member)}`);
+    } catch (error) { failure = error; throw error; }
+    finally { try { await authority.close(); } catch (error) { if (!failure) throw error; } }
   };
   async function captureAction(surface, endpoint, choose, deadlineAt) {
     const choiceDeadlineAt = Math.min(deadlineAt, Date.now() + 35_000);
