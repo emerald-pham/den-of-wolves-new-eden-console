@@ -375,6 +375,10 @@ async function runP181StarlightMovementScoutCore({
   io.expectedWingCommander = { ...admittedMember, ...expectedWingCommander };
   io.originalGmRegistration = { ...gm, uidHash: started.uidHash, sessionId: initial.sessionId,
     instanceId: started.instanceId, claimedAt: started.claimedAt };
+  if (typeof io.beginPathAuthority === 'function') {
+    retainedPath = true;
+    await work('Retain original movement authority', () => io.beginPathAuthority(absoluteDeadlineMs));
+  }
   if (typeof io.waitForLiftedAirspace === 'function') {
     const deadlineAt = absoluteDeadlineMs;
     const flight = await work('waitForLiftedAirspace', () => io.waitForLiftedAirspace(deadlineAt), deadlineAt, Infinity);
@@ -419,10 +423,6 @@ async function runP181StarlightMovementScoutCore({
     return capture;
   };
 
-  if (typeof io.beginPathAuthority === 'function') {
-    retainedPath = true;
-    await work('Retain original movement authority', () => io.beginPathAuthority(absoluteDeadlineMs));
-  }
   await currentFlight({ requireAegisDocking: true });
   await step('openStarlightFromWingWorkspace');
   await currentFlight({ requireAegisDocking: true });
@@ -806,10 +806,13 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       if (me.connected === true) held.connectedSeen = true;
       if ((held.connectedSeen || !startup) && me.connected !== true)
         throw new Error('Original P181 connected member authority retired.');
-      const sdk = held.authority(session.id, user.uid), pending = held.resumePending(sdk);
+      // The available Store is observed before the asynchronous SDK module
+      // import. Raw ownership is already pinned in that interval; incomplete
+      // SDK installation supplies no fresh authority or action qualification.
+      const sdk = held.authority?.(session.id, user.uid), pending = held.resumePending?.(sdk) ?? true;
       if (sdk?.hasServerSessionAuthority === true) held.serverSeen = true;
       if (sdk?.hasServerSessionAuthority === true && pending === false) held.sdkCompleted = true;
-      if ((!startup && !navigation || startup && held.sdkCompleted && !held.options.navigationFrom) &&
+      if (held.authority && (!startup && !navigation || startup && held.sdkCompleted && !held.options.navigationFrom) &&
           (sdk?.hasServerSessionAuthority !== true || pending))
         throw new Error('Original P181 SDK authority retired.');
       if (held.options.requireGm && (me.role !== 'gm' || state.gmInstance?.uid !== user.uid ||
@@ -905,6 +908,26 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
         }
       } catch (error) { fail(error); }
     };
+    const requireOpen = () => {
+      if (held.closed) throw new Error('Original P181 retained authority scope already ended.');
+      if (held.failure) throw new Error(held.failure);
+      if (Date.now() >= deadlineAt) throw timeout();
+    };
+    const attachStore = useSessionStore => {
+      requireOpen();
+      held.store = useSessionStore;
+      const stop = useSessionStore.subscribe(observe);
+      held.stops.push(stop);
+      // Subscribe and pin the current original member before another module
+      // await. Any retirement remains terminal when SDK readiness arrives.
+      observe(); requireOpen();
+    };
+    const attachSdk = sdk => {
+      requireOpen();
+      held.authority = sdk.sessionSnapshotAuthorityFor;
+      held.resumePending = sdk.memberSessionResumeBlocksFreshness;
+      observe(); requireOpen();
+    };
     held.check = async () => { try {
       if (held.closed) throw new Error('Original P181 retained authority scope already ended.');
       if (held.failure) throw new Error(held.failure);
@@ -933,13 +956,17 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
         const sdkUrl = new URL(observedUrl, storeUrl);
         if (sdkUrl.origin !== storeUrl.origin || sdkUrl.pathname !== '/src/lib/sessionSnapshotAuthority.ts')
           throw new Error('Only the actual observed same-origin SDK module can qualify the new document.');
+        held.options = { ...held.options, ...next };
         const { useSessionStore } = await import(moduleUrl);
+        attachStore(useSessionStore);
         const sdk = await import(observedUrl);
-        held.store = useSessionStore; held.authority = sdk.sessionSnapshotAuthorityFor;
-        held.resumePending = sdk.memberSessionResumeBlocksFreshness;
-        held.stops.push(useSessionStore.subscribe(observe));
+        attachSdk(sdk);
+      } else {
+        held.options = { ...held.options, ...next };
+        // Only the already-checked captured resume may change observation
+        // shape into its accepted station epoch. Import never resets it.
+        held.signature = null;
       }
-      held.options = { ...held.options, ...next };
       if (next.expected) {
         const state = held.store?.getState();
         for (const [key, value] of Object.entries({ documentTimeOrigin: performance.timeOrigin,
@@ -949,7 +976,7 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       }
       // Changing observation shape never erases a terminal event. A completed
       // captured resume is the only transition into a new station epoch.
-      held.signature = null; observe(); await held.check();
+      observe(); await held.check();
     };
     try {
       held.stops.push(client.onAuthStateChanged(user => {
@@ -959,10 +986,10 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       held.timer = setTimeout(() => fail(timeout()), deadlineAt - Date.now());
       if (options.mode !== 'auth-only') {
         if (!authorityModuleUrl) throw new Error('Original observed App SDK authority module is required.');
-        const { useSessionStore } = await import(moduleUrl), sdk = await import(authorityModuleUrl);
-        held.store = useSessionStore; held.authority = sdk.sessionSnapshotAuthorityFor;
-        held.resumePending = sdk.memberSessionResumeBlocksFreshness;
-        held.stops.push(useSessionStore.subscribe(observe));
+        const { useSessionStore } = await import(moduleUrl);
+        attachStore(useSessionStore);
+        const sdk = await import(authorityModuleUrl);
+        attachSdk(sdk);
       }
       observe(); await held.check();
       return { fresh: held.fresh };
