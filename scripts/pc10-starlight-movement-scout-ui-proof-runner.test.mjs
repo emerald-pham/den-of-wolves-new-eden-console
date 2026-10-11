@@ -1982,7 +1982,7 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
   let route = gm ? '#/gm' : '#/roles/wing-commander', pending;
   const choices = [], observedBodies = [], waits = [];
   const storeListeners = new Set(), movementListeners = new Set(), authListeners = new Set();
-  const surface = { page, state, uid, choices, observedBodies, waits,
+  const surface = { page, state, uid, choices, observedBodies, waits, window: {},
     storeModuleUrl: () => 'http://127.0.0.1:5173/src/store/useSessionStore.ts',
     sessionAuthorityModuleUrl: () => 'http://127.0.0.1:5173/src/lib/sessionSnapshotAuthority.ts',
     callable: async () => ({ status: 'committed', result: [] }),
@@ -2000,7 +2000,7 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
     surface.uid = user?.uid ?? null;
     for (const next of [...authListeners]) next(user);
   };
-  surface.observers = { stores: storeListeners, movements: movementListeners, attachments: 0, detachments: 0 };
+  surface.observers = { stores: storeListeners, movements: movementListeners, auth: authListeners, attachments: 0, detachments: 0 };
   const modules = path => {
     if (path === '/src/lib/firebase.ts') return { auth: () => ({
       currentUser: surface.uid ? { uid: surface.uid } : null,
@@ -2020,6 +2020,7 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
       } });
       return () => { surface.observers.detachments++; movementListeners.delete(next); };
     } };
+    if (path === '/src/lib/scoutResultService.ts' && surface.scoutRuntime) return surface.scoutRuntime;
     if (path === '/src/lib/scoutResultService.ts') return Object.fromEntries([
       'listMyScoutReports', 'readPrivateScoutResult', 'readMyScoutDiscoveryNote', 'listPendingScoutRequests',
     ].map(name => [name, async value => {
@@ -2037,7 +2038,7 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
       crypto: { subtle: { digest: async (...values) => {
         const digest = await webcrypto.subtle.digest(...values); await surface.onDigest?.(String(callback)); return digest;
       } } }, TextEncoder, performance: { timeOrigin: surface.documentTimeOrigin ?? 1000 },
-      Date, setTimeout, clearTimeout,
+      Date, setTimeout, clearTimeout, window: surface.window,
       document: { querySelector: () => null, querySelectorAll: () => [] } });
     return result === undefined ? undefined : JSON.parse(JSON.stringify(result));
   };
@@ -4455,3 +4456,200 @@ test('complete boundary readiness GM authority retired and restored during queue
   await assert.rejects(browser.resolveScoutNormally(reply, 2500, clock.now() + 2500), /authority|epoch|original/i);
   assert.equal(queueReads, 1); assert.equal(revealed, false); assert.equal(gm.choices.length, 0);
 });
+
+// The reconciled review's counterexamples exercise the existing browser and
+// native entry consumers. A retained source sample is passed as data, never as
+// a fabricated success receipt. All identities and service ports are inert.
+for (const [name, change] of [
+  ['destination', leg => { leg.destinationShipId = 'quellon'; }],
+  ['departure timestamp', leg => { leg.departedAt = '2026-10-10T00:00:00.000Z'; }],
+  ['arrival timestamp', leg => { leg.arrivesAt = '2026-10-10T00:01:00.000Z'; }],
+]) {
+  test(`reconciled R1 exact retarget predecessor rejects changed ${name} before another read`, async () => {
+    const { io: ordinary, state } = makeConsumer();
+    await ordinary.requestDeparture('icebreaker', state.session);
+    await ordinary.beginTransit(state.session.departure, state.session);
+    const before = structuredClone(state.session);
+    const receipt = (await ordinary.retargetTransit(before.transit, 'shepherd', before)).result;
+    const foreign = structuredClone(before); change(foreign.transit);
+    const browser = completeReadinessIo(mountedP181Surface('wing-uid'), mountedP181Surface('original-gm', { gm: true }));
+    let reads = 0;
+    browser.observeMember = async () => ({ ...original });
+    browser.observeFlight = async () => ++reads === 1 ? foreign : structuredClone(state.session);
+    await assert.rejects(browser.waitForTransit(receipt, 1000, Date.now() + 1000, before), /predecessor|retained|original|transit/i);
+    assert.equal(reads, 1, 'A foreign predecessor cannot wait for restoration or another source sample.');
+  });
+}
+
+async function reconciledRecoveryFixture() {
+  const wing = mountedP181Surface('wing-uid'), gm = mountedP181Surface('original-gm', { gm: true });
+  await completeReadinessAuthority(wing); await completeReadinessAuthority(gm);
+  const { io: ordinary, state } = makeConsumer();
+  const reply = (await ordinary.requestScout('1100', state.session)).result;
+  const bundle = await ordinary.resolveScoutNormally(reply);
+  const events = { revealed: false, privateReads: 0, queueReads: 0, observerCounts: [] };
+  wing.callable = async name => {
+    if (name !== 'listMyScoutReports') events.privateReads++;
+    return { status: 'committed', result: name === 'listMyScoutReports' ? events.revealed ? [bundle.report] : []
+      : name === 'readPrivateScoutResult' ? bundle.result : bundle.note };
+  };
+  gm.callable = async () => {
+    events.queueReads++;
+    return { status: 'committed', result: [{ requestId: reply.requestId, cycle: reply.cycle,
+      entitlementId: reply.entitlementId, targetCoordinate: reply.targetCoordinate, anchorShipId: reply.anchorShipId }] };
+  };
+  const gmActor = await observeFullGameDemoPresentationMember(gm, { knownRoleIds: originalRoleIds });
+  const browser = createP181StarlightBrowserIo({ gm, wingCommander: wing,
+    gameplay: { select: async roleId => roleId === 'gm' ? gm : wing }, directory: '/tmp/in-memory-reconciled-recovery',
+    initial: { sessionId: 'normal-session' }, expectedWingCommander: original,
+    started: { ...gmActor, claimedAt: gm.state.gmInstance.claimedAt } });
+  gm.onChoice = async () => {
+    events.revealed = true;
+    gm.deliver('resolvePendingScoutRequest', { sessionId: 'normal-session', requestId: reply.requestId,
+      instanceId: gm.state.gmInstance.id }, { status: 'resolved', result: bundle.result });
+  };
+  return { wing, gm, browser, reply, bundle, events };
+}
+
+test('reconciled R2 Wing retirement and restoration during GM queue blocks reveal and private follow-on', async () => {
+  const f = await reconciledRecoveryFixture(), queue = f.gm.callable;
+  f.gm.callable = async (...args) => {
+    f.events.observerCounts.push(f.wing.observers.stores.size);
+    f.wing.publish(s => { s.me.fleetGroupId = 'fleet-retired'; });
+    f.wing.publish(s => { s.me.fleetGroupId = 'fleet-1'; });
+    return queue(...args);
+  };
+  await assert.rejects(f.browser.resolveScoutNormally(f.reply, 2500, Date.now() + 2500), /authority|epoch|original|member/i);
+  assert.equal(f.events.revealed, false); assert.equal(f.events.privateReads, 0);
+  assert.equal(f.gm.choices.length, 0); assert.equal(f.events.queueReads, 1);
+  assert.ok(f.events.observerCounts.every(count => count > 0));
+  assert.equal(f.wing.observers.stores.size, 0); assert.equal(f.gm.observers.stores.size, 0);
+});
+
+for (const boundary of ['recovery state', 'lifecycle claim']) {
+  test(`reconciled R2 GM retirement and restoration during ${boundary} blocks reveal`, async () => {
+    const f = await reconciledRecoveryFixture(), evaluate = f.gm.page.evaluate;
+    let retired = false;
+    f.gm.page.evaluate = async (callback, args) => {
+      const atBoundary = boundary === 'recovery state' ? typeof args === 'string' && String(callback).includes('gmRecoveryPending')
+        : args?.sessionId === 'normal-session' && !Object.hasOwn(args, 'knownRoleIds');
+      if (atBoundary && !retired) {
+        retired = true; f.events.observerCounts.push(f.gm.observers.stores.size);
+        f.gm.publish(s => { s.me.role = 'player'; }); f.gm.publish(s => { s.me.role = 'gm'; });
+      }
+      return evaluate(callback, args);
+    };
+    await assert.rejects(f.browser.resolveScoutNormally(f.reply, 2500, Date.now() + 2500), /authority|epoch|original|member|role/i);
+    assert.equal(retired, true); assert.equal(f.events.revealed, false); assert.equal(f.events.privateReads, 0);
+    assert.equal(f.gm.choices.length, 0); assert.ok(f.events.observerCounts.every(count => count > 0));
+  });
+}
+
+for (const boundary of ['response wait', 'response body']) {
+  test(`reconciled R2 arrival ${boundary} preserves terminal custody retirement after restoration`, async t => {
+    const { io: ordinary, state } = makeConsumer();
+    await ordinary.requestDeparture('icebreaker', state.session);
+    await ordinary.beginTransit(state.session.departure, state.session);
+    const before = structuredClone(state.session), transit = before.transit;
+    const capture = await ordinary.completeArrival(transit, before);
+    const wing = mountedP181Surface('wing-uid'), browser = completeReadinessIo(wing, mountedP181Surface('original-gm', { gm: true }));
+    const counts = [], retire = () => {
+      counts.push(wing.observers.stores.size);
+      wing.publish(s => { s.session.shuttleControl.starlight.revision++; });
+      wing.publish(s => { s.session.shuttleControl.starlight.revision--; });
+    };
+    browser.observeMember = async () => ({ ...original });
+    browser.observeFlight = async () => structuredClone(state.session);
+    const wait = wing.page.waitForResponse;
+    let delivered = 0, timer;
+    wing.page.waitForResponse = (...args) => {
+      const pending = wait(...args);
+      timer = setTimeout(() => {
+        delivered++;
+        if (boundary === 'response wait') retire();
+        wing.deliver('completeShuttleArrival', capture.request, capture.result,
+          { bodyWait: boundary === 'response body' ? async () => retire() : undefined });
+      }, 30);
+      return pending;
+    };
+    t.after(() => clearTimeout(timer));
+    await assert.rejects(browser.waitForArrivalWindow(transit, 1000, Date.now() + 1000, before), /authority|custody|epoch|original/i);
+    assert.equal(delivered, 1); assert.ok(counts.every(count => count > 0));
+    assert.equal(wing.choices.length, 0); assert.equal(wing.observers.stores.size, 0);
+  });
+}
+
+test('reconciled R3 Auth retirement and restoration during new-document UID digest stops reselection', async t => {
+  const f = await reloadAuthReadinessFixture(t, { resetDocumentHydration: true, oldHydrationRevision: 2 });
+  f.wing.state.session.shuttleDockings = [{ shuttleId: 'starlight', shipId: 'shepherd' }];
+  let retired = false;
+  f.wing.onDigest = callback => {
+    if (retired || !callback.includes('return { uidHash, documentTimeOrigin:')) return;
+    retired = true; f.wing.publishAuth(null); f.wing.publishAuth({ uid: 'wing-uid' });
+  };
+  await assert.rejects(f.io.reloadAndReselectWingCommander(2000, Date.now() + 2000), /auth|identity|authority|original/i);
+  assert.equal(retired, true); assert.equal(f.selections.length, 0);
+});
+
+for (const [name, retire, restore] of [
+  ['fleet group', s => { s.me.fleetGroupId = 'fleet-retired'; }, s => { s.me.fleetGroupId = 'fleet-1'; }],
+  ['own seat', s => { s.seats[0].holderUid = 'foreign-uid'; }, s => { s.seats[0].holderUid = 'wing-uid'; }],
+  ['custody', s => { s.session.shuttleControl.starlight.revision++; }, s => { s.session.shuttleControl.starlight.revision--; }],
+]) {
+  test(`reconciled R3 accepted document ${name} retirement during console reopen blocks recovery`, async t => {
+    const f = await reloadAuthReadinessFixture(t, { resetDocumentHydration: true, oldHydrationRevision: 2 });
+    f.wing.state.session.shuttleDockings = [{ shuttleId: 'starlight', shipId: 'shepherd' }];
+    const getByRole = f.wing.page.getByRole, counts = [];
+    f.wing.page.getByRole = (role, options) => {
+      const locator = getByRole(role, options);
+      if (role === 'link' && options?.name === 'Open Starlight shuttle console') {
+        const click = locator.click;
+        locator.click = async (...args) => { counts.push(f.wing.observers.stores.size);
+          f.wing.publish(retire); f.wing.publish(restore); return click(...args); };
+      }
+      return locator;
+    };
+    await assert.rejects(f.io.reloadAndReselectWingCommander(2000, Date.now() + 2000), /authority|custody|identity|epoch|original/i);
+    assert.equal(counts.length, 1); assert.ok(counts[0] > 0);
+    assert.equal(f.wing.observers.stores.size, 0);
+  });
+}
+
+async function reconciledNativeWait(surface, kind, readRecovery) {
+  const sourceModule = await import('./pc10-starlight-movement-scout-ui-proof.mjs');
+  const name = kind === 'full' ? 'waitForFullActor' : 'waitForGm';
+  const body = kind === 'full' ? p181FullActorWaitBody : p181GmWaitBody;
+  const context = { assert, Date, P181_NATIVE_TIMING, pc11GmReadiness, pc11SameActorEpoch,
+    gm: surface, wingCommander: {}, sessionId: 'normal-session', gmInstanceId: 'gm-original-instance',
+    ownedAuthUids: new Map([['gm', 'original-gm']]),
+    hashShort: value => createHash('sha256').update(value).digest('hex').slice(0, 16),
+    readFullActor: async () => observeFullGameDemoPresentationMember(surface, { knownRoleIds: originalRoleIds }),
+    readGmRecoveryPending: readRecovery ?? (async () => false),
+    bounded: async (_label, action) => action(), delay: async amount => new Promise(done => setTimeout(done, amount)),
+    retainP181MemberAuthority: sourceModule.retainP181MemberAuthority };
+  return runInNewContext(`(() => { ${body}; return ${name}; })()`, context);
+}
+
+test('reconciled R5 exact native startup detects Auth retirement and restoration during member digest', async () => {
+  const gm = mountedP181Surface('original-gm', { gm: true });
+  let retired = false;
+  gm.onDigest = () => { if (retired) return; retired = true; gm.publishAuth(null); gm.publishAuth({ uid: 'original-gm' }); };
+  const wait = await reconciledNativeWait(gm, 'full');
+  await assert.rejects(wait(gm, 'Original startup', () => true, Date.now() + 1000), /auth|identity|authority|original/i);
+  assert.equal(retired, true); assert.equal(gm.observers.auth.size, 0);
+});
+
+for (const restore of [false, true]) {
+  test(`reconciled R5 exact GM recovery read cannot return earlier authority after role loss restore=${restore}`, async () => {
+    const gm = mountedP181Surface('original-gm', { gm: true });
+    const counts = [], wait = await reconciledNativeWait(gm, 'gm', async () => {
+      counts.push(gm.observers.stores.size);
+      gm.publish(s => { s.me.role = 'player'; });
+      if (restore) gm.publish(s => { s.me.role = 'gm'; });
+      return false;
+    });
+    await assert.rejects(wait(Date.now() + 1000, { active: true }), /auth|identity|authority|original|role/i);
+    assert.equal(counts.length, 1); assert.ok(counts[0] > 0);
+    assert.equal(gm.observers.stores.size, 0);
+  });
+}
