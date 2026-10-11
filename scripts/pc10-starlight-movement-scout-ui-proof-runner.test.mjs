@@ -289,7 +289,7 @@ const original = Object.freeze({
   groupId: 'fleet-1', shipId: 'aegis',
 });
 
-function makeConsumer({ departureOriginOverride, retargetProjectionRevisionOverride } = {}) {
+function makeConsumer({ departureOriginOverride, retargetProjectionRevisionOverride, date = Date } = {}) {
   const trace = [];
   const state = {
     actor: { ...original },
@@ -352,14 +352,14 @@ function makeConsumer({ departureOriginOverride, retargetProjectionRevisionOverr
       const request = { sessionId: 'normal-session', requestId: 'begin-1', shuttleId: 'starlight',
         expectedDepartureRequestId: departure.requestId, expectedControlRevision: before.control.revision,
         expectedCycle: before.cycle };
-      const departedAt = new Date().toISOString();
+      const departedAt = new date().toISOString();
       state.session.transit = { status: 'in-transit', requestId: departure.requestId,
         transitRequestId: 'transit-1', shuttleId: 'starlight', holderUid: 'wing-uid', fleetGroupId: 'fleet-1',
         destinationShipId: departure.destinationShipId, cycle: before.cycle, controlRevision: before.control.revision,
-        requestedAt: new Date(Date.now() - 1_000).toISOString(), revision: 1,
+        requestedAt: new date(date.now() - 1_000).toISOString(), revision: 1,
         currentPosition: { x: 0, y: 0, z: 0 }, destinationPosition: { x: 1, y: 1, z: 1 },
         velocity: { x: 1, y: 1, z: 1 }, departedAt,
-        arrivesAt: new Date(Date.parse(departedAt) + 60_000).toISOString() };
+        arrivesAt: new date(date.parse(departedAt) + 60_000).toISOString() };
       state.session.departure = null;
       return result('beginShuttleTransit', request, { ...state.session.transit, sessionId: request.sessionId });
     },
@@ -374,14 +374,16 @@ function makeConsumer({ departureOriginOverride, retargetProjectionRevisionOverr
       const request = { sessionId: 'normal-session', requestId: 'retarget-1', shuttleId: 'starlight',
         transitRequestId: transit.transitRequestId, destinationShipId: destination,
         expectedControlRevision: before.control.revision, expectedCycle: before.cycle };
-      const departedAt = new Date().toISOString();
+      const departedAt = new date().toISOString();
       state.session.transit = { ...state.session.transit, destinationShipId: destination,
         revision: state.session.transit.revision + 1, departedAt,
-        arrivesAt: new Date(Date.parse(departedAt) + 60_000).toISOString() };
+        arrivesAt: new date(date.parse(departedAt) + 60_000).toISOString() };
       return result('retargetShuttleTransit', request, { ...state.session.transit, sessionId: request.sessionId });
     },
-    async waitForArrivalWindow(transit, timeout) {
-      assert.equal(timeout, 60_000);
+    async waitForArrivalWindow(transit, timeout, deadlineAt) {
+      assert.equal(deadlineAt, Math.min(this.absoluteDeadlineAt, date.parse(transit.arrivesAt) + 60_000),
+        'The source due time and original proof cutoff fix one arrival response deadline.');
+      assert.ok(timeout > 0 && timeout <= deadlineAt - date.parse(transit.departedAt));
       assert.equal(Date.parse(transit.arrivesAt) - Date.parse(transit.departedAt), 60_000,
         'Controlled source timer models the native Starlight 60-second duration without sleeping or making actors.');
       const beforeFlight = structuredClone(state.session);
@@ -398,7 +400,7 @@ function makeConsumer({ departureOriginOverride, retargetProjectionRevisionOverr
       return result('completeShuttleArrival', request, { status: 'arrived', sessionId: request.sessionId,
         requestId: `arrival-${transit.transitRequestId}`, transitRequestId: transit.transitRequestId,
         shuttleId: request.shuttleId, hostShipId: transit.destinationShipId,
-        arrivedAt: new Date(Math.max(Date.now(), Date.parse(transit.arrivesAt) + 1)).toISOString(),
+        arrivedAt: new date(Math.max(date.now(), date.parse(transit.arrivesAt) + 1)).toISOString(),
         transitRevision: transit.revision });
     },
     async waitForDocking() { return structuredClone(state.session); },
@@ -2761,7 +2763,7 @@ async function remainingNaturalTimerConsumer({ proofRemainingMs = 15 * 60_000, l
   wing.state.session.turnPhase = phase;
   wing.state.turnState = producer.turnStateForPhase(phase, 6, 1, new clock.Date(phaseStart).toISOString());
   const actor = await observeFullGameDemoPresentationMember(wing, { knownRoleIds: originalRoleIds });
-  const { io, state, trace } = makeConsumer();
+  const { io, state, trace } = makeConsumer({ date: clock.Date });
   state.session.airspace = 'restricted'; state.session.turnStatePhase = 'team';
   const pollBudgets = [], projectionStates = [];
   const originalEvaluate = wing.page.evaluate;
@@ -3426,4 +3428,96 @@ test('pre-native actual CLI preserves primary binding rejection when its origina
   assert.equal(JSON.parse(fixture.stderr).error.classification, 'assertion-failure');
   assert.equal(fixture.counters.writer, 0); assert.deepEqual(await readdir(fixture.directory), []);
   assert.equal(fixture.stderr.includes('PRIVATE-p181-source-binding-canary'), false);
+});
+
+// The actual core and browser adapter share the existing source-only clock.
+// A controlled automatic SDK response is delivered after the unchanged
+// 60-second transit, without changing any product or system clock.
+async function arrivalDueResponseConsumer({ proofRemainingMs = 300_000, stalled = false, rejected = false } = {}) {
+  const clock = remainingLifecycleClock(), consumer = remainingActualModule(clock);
+  const { io, state, trace } = makeConsumer({ date: clock.Date });
+  const wing = mountedP181Surface('wing-uid'), gm = mountedP181Surface('original-gm', { gm: true });
+  const browserIo = consumer.createP181StarlightBrowserIo({ gm, wingCommander: wing,
+    gameplay: { select: async () => wing }, directory: '/tmp/in-memory-p181-arrival-deadline',
+    initial: { sessionId: 'normal-session' }, expectedWingCommander: original });
+  browserIo.observeMember = io.observeMember;
+  browserIo.observeFlight = io.observeFlight;
+  const ordinaryWait = wing.page.waitForResponse, deliveries = [];
+  let dueAt, issuedDeadlineAt, responseTimeout, automaticResponses = 0;
+  wing.page.waitForResponse = (predicate, options) => {
+    responseTimeout = options.timeout; issuedDeadlineAt = clock.now() + options.timeout;
+    const pending = ordinaryWait(predicate, options);
+    deliveries.push(Promise.resolve().then(async () => {
+      clock.advanceTo(dueAt + (stalled ? 60_001 : 80));
+      if (stalled) return;
+      const transit = structuredClone(state.session.transit);
+      const request = { sessionId: 'normal-session', shuttleId: 'starlight',
+        transitRequestId: transit.transitRequestId, expectedControlRevision: state.session.control.revision };
+      automaticResponses++;
+      if (rejected) {
+        wing.deliver('completeShuttleArrival', request, undefined,
+          { status: 400, error: { status: 'FAILED_PRECONDITION', message: 'Controlled current arrival rejection.' } });
+      } else {
+        const capture = await io.completeArrival(transit, structuredClone(state.session), state.actor);
+        wing.deliver('completeShuttleArrival', capture.request, capture.result);
+      }
+    }));
+    return pending;
+  };
+  io.waitForArrivalWindow = (transit, timeout, deadlineAt) => {
+    dueAt = clock.Date.parse(transit.arrivesAt);
+    browserIo.absoluteDeadlineAt = io.absoluteDeadlineAt;
+    return browserIo.waitForArrivalWindow(transit, timeout, deadlineAt);
+  };
+  const proofEnd = clock.now() + proofRemainingMs;
+  let result, error;
+  try { result = await consumer.runP181StarlightMovementScoutUiProof({ ...completeProofInput(io),
+    absoluteDeadlineMs: proofEnd }); } catch (failure) { error = failure; }
+  await Promise.all(deliveries);
+  return { result, error, trace, dueAt, proofEnd, issuedDeadlineAt, responseTimeout, automaticResponses, clock };
+}
+
+test('arrival due deadline actual core and browser retain the reply after a full source transit', async () => {
+  const observed = await arrivalDueResponseConsumer();
+  assert.equal(observed.error, undefined);
+  assert.equal(observed.result.status, 'SOURCE_RUNNER_FLOW_COMPLETE');
+  assert.equal(observed.issuedDeadlineAt, observed.dueAt + 60_000);
+  assert.ok(observed.responseTimeout > 60_000, 'The normal flight must not consume the response window.');
+  assert.equal(observed.automaticResponses, 1);
+  assert.equal(observed.trace.filter(row => row.endpoint === 'completeShuttleArrival').length, 1);
+  assert.ok(observed.trace.some(row => row.ui === 'reload-and-reselect-wing-commander'));
+  assert.equal(observed.trace.filter(row => row.endpoint === 'requestScout').length, 2,
+    'The unchanged controlled offer includes the first scout and its fuelled second request.');
+  assert.equal(observed.result.actualAcceptance, false);
+});
+
+test('arrival due deadline actual core and browser preserve the original absolute proof cutoff', async () => {
+  const observed = await arrivalDueResponseConsumer({ proofRemainingMs: 60_010 });
+  assert.equal(observed.result, undefined);
+  assert.match(observed.error?.message ?? '', /deadline/i);
+  assert.equal(observed.issuedDeadlineAt, observed.proofEnd);
+  assert.equal(observed.trace.some(row => row.ui === 'reload-and-reselect-wing-commander'), false);
+  assert.equal(observed.trace.some(row => row.endpoint === 'requestScout'), false);
+});
+
+test('arrival due deadline actual core and browser stop at the fixed source due plus response cutoff', async () => {
+  const observed = await arrivalDueResponseConsumer({ stalled: true });
+  assert.equal(observed.result, undefined);
+  assert.match(observed.error?.message ?? '', /deadline/i);
+  assert.equal(observed.issuedDeadlineAt, observed.dueAt + 60_000);
+  assert.ok(observed.issuedDeadlineAt < observed.proofEnd);
+  assert.equal(observed.automaticResponses, 0);
+  assert.equal(observed.trace.some(row => row.ui === 'reload-and-reselect-wing-commander'), false);
+  assert.equal(observed.trace.some(row => row.endpoint === 'requestScout'), false);
+});
+
+test('arrival due deadline actual browser retains rejection rather than granting arrival or choosing an unoffered retry', async () => {
+  const observed = await arrivalDueResponseConsumer({ rejected: true });
+  assert.equal(observed.result, undefined);
+  assert.match(observed.error?.message ?? '', /Retry only/);
+  assert.equal(observed.automaticResponses, 1);
+  assert.equal(observed.trace.some(row => row.endpoint === 'completeShuttleArrival'), false);
+  assert.equal(observed.trace.some(row => row.ui === 'reload-and-reselect-wing-commander'), false);
+  assert.equal(observed.trace.some(row => row.endpoint === 'requestScout'), false);
+  assert.match(originalProofError(observed.error).heldObservationsInspect, /Controlled current arrival rejection/);
 });

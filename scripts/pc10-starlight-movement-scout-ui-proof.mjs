@@ -487,7 +487,14 @@ async function runP181StarlightMovementScoutCore({
       'The member-readable current transit projection continues to omit its server-only origin.');
     mark('retarget', 'observed');
 
-    const arrivalWindow = await step('waitForArrivalWindow', retargeted.transit);
+    // This receipt is emitted by the mounted UI only when the published trip
+    // becomes due. Keep the existing response window after that source time,
+    // rather than spending it on the real flight; never renew the proof cutoff.
+    const arrivalDueAt = Date.parse(retargeted.transit.arrivesAt);
+    assert.ok(Number.isFinite(arrivalDueAt), 'The original published arrival time must be valid.');
+    const arrivalDeadlineAt = Math.min(absoluteDeadlineMs, arrivalDueAt + 60_000);
+    const arrivalWindow = await work('waitForArrivalWindow', () => io.waitForArrivalWindow(
+      retargeted.transit, p181Remaining(arrivalDeadlineAt, Infinity), arrivalDeadlineAt), arrivalDeadlineAt, Infinity);
     const beforeArrival = arrivalWindow?.beforeFlight;
     const arrival = arrivalWindow?.capture;
     assert.ok(beforeArrival && arrival,
@@ -1125,8 +1132,8 @@ export function createP181StarlightBrowserIo({ gm, wingCommander, gameplay, dire
         };
         const response = await work('Observe original automatic arrival receipt', () => observeUiReceipt({ page: wingCommander.page,
           consumed: { phase: 'original automatic Starlight arrival timer', endpoint: 'completeShuttleArrival', ...expected, deadlineAt },
-          waitForResponse: () => wingCommander.page.waitForResponse(matches, { timeout: p181Remaining(deadlineAt) }),
-          choose: async () => {} }), deadlineAt, value => { held.response = value; });
+          waitForResponse: () => wingCommander.page.waitForResponse(matches, { timeout: p181Remaining(deadlineAt, Infinity) }),
+          choose: async () => {} }), deadlineAt, value => { held.response = value; }, Infinity);
         body = await work('Read original automatic arrival body', () => response.json(), deadlineAt, value => { held.body = value; });
         capture = { endpoint: 'completeShuttleArrival', data: response.request().postDataJSON()?.data,
           request: response.request().postDataJSON()?.data, before: {
