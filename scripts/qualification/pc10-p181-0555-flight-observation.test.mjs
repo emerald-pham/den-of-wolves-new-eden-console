@@ -9,11 +9,22 @@ const proofPath = fileURLToPath(new URL('../pc10-starlight-movement-scout-ui-pro
 const proof = await readFile(proofPath, 'utf8');
 const firestorePath = fileURLToPath(new URL('../../src/lib/firestore.ts', import.meta.url));
 const firestore = await readFile(firestorePath, 'utf8');
+const storePath = fileURLToPath(new URL('../../src/store/useSessionStore.ts', import.meta.url));
+const storeSource = await readFile(storePath, 'utf8');
+const sessionServicePath = fileURLToPath(new URL('../../src/lib/sessionService.ts', import.meta.url));
+const sessionServiceSource = await readFile(sessionServicePath, 'utf8');
 
 function sourceRegion(source, startText, endText, description) {
   const start = source.indexOf(startText);
   const end = source.indexOf(endText, start);
   assert.ok(start >= 0 && end > start, 'Bind actual ' + description + ' source.');
+  return source.slice(start, end);
+}
+
+function sourceRegionAt(source, startText, endText, from, description) {
+  const start = source.indexOf(startText, from);
+  const end = source.indexOf(endText, start);
+  assert.ok(start >= from && end > start, 'Bind actual ' + description + ' source.');
   return source.slice(start, end);
 }
 
@@ -62,6 +73,141 @@ const makeProductionReader = deps => new Function('deps',
   'sessionId, shuttleId, onDeparture, onError = () => undefined) {' +
   movementReaderBody.slice(movementReaderStart) + '\n};')(deps);
 
+// Whitelisted from the saved native 0555 normal-member DTO at
+// /tmp/dow-pc10-evidence/p181-74e32ca3-sequenced-immediate-dispatch-next-20261011/member-navigation/fcf74766-f716-4290-b536-78b0ab2adc4f.json
+// (4,580 bytes, SHA-256 8bccd4e02b5cfc5cfaa674e536e5dd54b13a4d0093c9e6d636c1bf936fbd5bd4,
+// currentBinding). Raw UID/session ID are not copied: both are replaced by
+// test-only aliases. The record is an original normal-member DTO, not a full
+// raw GameSession, canonical-seat proof, phase/cycle snapshot, or SDK authority
+// tuple; unknown values stay absent. currentOwnPlayerConfirmed maps only to
+// the supported Player.connected field, never a root SessionState flag.
+const SAVED_0555_MEMBER_DTO = Object.freeze({
+  provenanceStatus: 'selected-current-original-member',
+  hasAuth: true,
+  sameActor: true,
+  playerRole: 'player',
+  assignedRoleId: 'wing-commander',
+  activeConsoleRoleId: null,
+  seatId: null,
+  fleetGroupId: 'fleet-1',
+  connected: true,
+  connectionGeneration: 2,
+  identityHydrationRevision: 2,
+  connection: 'live',
+  freshness: 'server',
+  sdkHasServerAuthority: undefined,
+  sdkResumePending: undefined,
+});
+
+const SAVED_MEMBER_SESSION_ALIAS = 'saved-native-session-alias';
+const SAVED_MEMBER_UID_ALIAS = 'saved-native-original-uid-alias';
+
+function rawSessionStateFromSavedMemberDto(dto = SAVED_0555_MEMBER_DTO) {
+  return {
+    session: { id: SAVED_MEMBER_SESSION_ALIAS },
+    me: {
+      uid: SAVED_MEMBER_UID_ALIAS,
+      sessionId: SAVED_MEMBER_SESSION_ALIAS,
+      role: dto.playerRole,
+      assignedRoleId: dto.assignedRoleId,
+      activeConsoleRoleId: dto.activeConsoleRoleId,
+      seatId: dto.seatId,
+      fleetGroupId: dto.fleetGroupId,
+      connected: dto.connected,
+      connectionGeneration: dto.connectionGeneration,
+    },
+    identityHydrationRevision: dto.identityHydrationRevision,
+    connection: dto.connection,
+    sessionSnapshotFreshness: dto.freshness,
+  };
+}
+
+// Execute the actual store setter bodies plus the accepted normal-resume call
+// sites from sessionService. Only the Zustand merge and irrelevant helper
+// behavior are represented locally; no app/provider module is imported.
+const setIdentitySource = sourceRegion(storeSource,
+  '      setIdentity: (session, me) =>', '      setSeats:', 'SessionState.setIdentity setter');
+const setConnectionSource = sourceRegion(storeSource,
+  '      setConnection: (connection) => {', '      setSessionSnapshotFreshness:', 'SessionState.setConnection setter');
+const setFreshnessSource = sourceRegion(storeSource,
+  '      setSessionSnapshotFreshness: (sessionSnapshotFreshness) => {',
+  '      setVoyage33MovementProjectionFresh:', 'SessionState.setSessionSnapshotFreshness setter');
+const clearMovementHelperSource = sourceRegion(storeSource,
+  'function clearVoyageMovement(session: GameSession | null): GameSession | null {',
+  'function normalizePersistedSession', 'clearVoyageMovement helper')
+  .replace('function clearVoyageMovement(session: GameSession | null): GameSession | null {',
+    'function clearVoyageMovement(session) {');
+const sameAssignmentHelperSource = sourceRegion(storeSource,
+  'function samePrivateAssignment(previous: Player | null, next: Player | null): boolean {',
+  'export const useSessionStore', 'samePrivateAssignment helper')
+  .replace('function samePrivateAssignment(previous: Player | null, next: Player | null): boolean {',
+    'function samePrivateAssignment(previous, next) {');
+const clearVoyageMovement = new Function(`${clearMovementHelperSource}; return clearVoyageMovement;`)();
+const samePrivateAssignment = new Function(`${sameAssignmentHelperSource}; return samePrivateAssignment;`)();
+const connectWithRetryStart = sessionServiceSource.indexOf('async function connectWithRetryPolicy(');
+const markConnectingSource = sourceRegionAt(sessionServiceSource,
+  "    store.setConnection('connecting');", '    const rememberedSession = store.session;',
+  connectWithRetryStart, 'normal connect connecting transition');
+const markCacheSource = sourceRegionAt(sessionServiceSource,
+  "      store.setSessionSnapshotFreshness('cache');", '      try {',
+  connectWithRetryStart, 'normal reconnect cache transition');
+const applySessionStart = sessionServiceSource.indexOf('function applySession(');
+const acceptedResumeCallsSource = sourceRegionAt(sessionServiceSource,
+  '    store.setIdentity(acceptedSession, reply.player);',
+  '    if (reply.stationSelectionRequired === true)',
+  applySessionStart, 'accepted normal resume identity/freshness setters');
+const promoteLiveSource = sourceRegionAt(sessionServiceSource,
+  '    const latest = useSessionStore.getState();', '\n  } catch (cause) {',
+  connectWithRetryStart, 'accepted normal resume live-promotion branch');
+
+function actualSessionStore(initialState) {
+  let state = initialState;
+  const set = update => {
+    const patch = typeof update === 'function' ? update(state) : update;
+    state = { ...state, ...patch };
+  };
+  const get = () => state;
+  const compile = (body, name) => new Function('set', 'get', 'clearVoyageMovement', 'samePrivateAssignment',
+    `return ({${body}\n})[${JSON.stringify(name)}];`)(set, get, clearVoyageMovement, samePrivateAssignment);
+  const actions = {
+    setIdentity: compile(setIdentitySource, 'setIdentity'),
+    setConnection: compile(setConnectionSource, 'setConnection'),
+    setSessionSnapshotFreshness: compile(setFreshnessSource, 'setSessionSnapshotFreshness'),
+  };
+  return {
+    get session() { return state.session; },
+    ...actions,
+    getState: () => ({ ...state, ...actions }),
+    state: () => state,
+  };
+}
+
+function applyAcceptedNormalResume(store, acceptedSession, reply) {
+  const acceptedBlock = `if (acceptedByAuthority) {\n${acceptedResumeCallsSource}\n}`;
+  new Function('store', 'acceptedSession', 'reply', 'acceptedByAuthority', acceptedBlock)(
+    store, acceptedSession, reply, true);
+  const useSessionStore = { getState: () => store.getState() };
+  new Function('useSessionStore', promoteLiveSource)(useSessionStore);
+  return store.state();
+}
+
+function beginNormalResume(store) {
+  new Function('store', markConnectingSource)(store);
+  new Function('store', markCacheSource)(store);
+  return store.state();
+}
+
+function normalResumeDataFromSavedMemberDto() {
+  const state = rawSessionStateFromSavedMemberDto();
+  return {
+    acceptedSession: state.session,
+    reply: {
+      player: state.me,
+      stationSelectionRequired: false,
+    },
+  };
+}
+
 function baseState() {
   return {
     session: { id: 'normal-session-a', phase: 'active', currentTurn: 1,
@@ -96,12 +242,12 @@ function transitMovement(overrides = {}) {
   };
 }
 
-function harness({ deadlineAt = 10_000, initialState = baseState(), onModuleLoad } = {}) {
+function harness({ deadlineAt = 10_000, initialState = baseState(), onModuleLoad,
+  authUser = { uid: 'wing-uid-a' }, afterDigest } = {}) {
   const clock = { now: 1_000 };
   const timers = new Map();
   let nextTimerId = 0;
   let currentState = initialState;
-  const authUser = { uid: 'wing-uid-a' };
   let nextSnapshot, snapshotError, onNext, onError;
   let subscribedResolve;
   const subscribed = new Promise(resolve => { subscribedResolve = resolve; });
@@ -136,7 +282,11 @@ function harness({ deadlineAt = 10_000, initialState = baseState(), onModuleLoad
   };
   const observer = runInNewContext('(() => {' + observerSource +
     '; return observeP181StarlightSource; })()', {
-      load, crypto: webcrypto, TextEncoder, Uint8Array, Promise, Error,
+      load, crypto: { subtle: { digest: async (...args) => {
+        const value = await webcrypto.subtle.digest(...args);
+        afterDigest?.();
+        return value;
+      } } }, TextEncoder, Uint8Array, Promise, Error,
       Date: { now: () => clock.now, parse: Date.parse },
       setTimeout: (callback, delay) => {
         const timer = { id: ++nextTimerId, callback, delay };
@@ -431,4 +581,161 @@ test('P181 retires a delayed movement callback when the current member fleet aud
   assert.equal(outcome.value?.departure, undefined);
   assert.equal(h.observation.subscriptions, 1);
   assert.equal(h.observation.unsubscribeCount, 1);
+});
+
+function savedMemberInitialState() {
+  return rawSessionStateFromSavedMemberDto();
+}
+
+function assertProjectionDiagnostic(outcome, { stage, ...expected }) {
+  const message = outcome.error?.message ?? '';
+  assert.match(message, new RegExp(`stage=${stage}`));
+  for (const [predicate, value] of Object.entries(expected)) {
+    assert.match(message, new RegExp(`${predicate}=${value}`),
+      `The diagnostic must report the bounded ${predicate} predicate outcome.`);
+  }
+  assert.match(message, /generation=2; hydrationRevision=2/,
+    'The diagnostic includes supported, bounded source revisions.');
+  assert.doesNotMatch(message, /saved-native-(?:session|original-uid)-alias/,
+    'The diagnostic does not reveal raw or test-alias identifiers.');
+}
+
+test('the exact normal resume setters move a saved sanitized member from cache rejection to a protected server read', async () => {
+  const initial = savedMemberInitialState();
+  assert.equal(initial.connection, 'live');
+  assert.equal(initial.sessionSnapshotFreshness, 'server');
+  assert.equal(Object.hasOwn(initial, 'currentOwnPlayerConfirmed'), false);
+  assert.equal(Object.hasOwn(initial, 'sdkHasServerAuthority'), false);
+  assert.equal(Object.hasOwn(initial, 'sdkResumePending'), false);
+  const store = actualSessionStore(initial);
+  const { acceptedSession, reply } = normalResumeDataFromSavedMemberDto();
+
+  const intermediate = beginNormalResume(store);
+  assert.equal(intermediate.connection, 'connecting');
+  assert.equal(intermediate.sessionSnapshotFreshness, 'cache');
+  const beforeResume = harness({ initialState: intermediate, authUser: { uid: SAVED_MEMBER_UID_ALIAS } });
+  const blockedIntermediate = await beforeResume.result;
+  assert.match(blockedIntermediate.error?.message ?? '', /live and server fresh/);
+  assert.equal(beforeResume.observation.subscriptions, 0,
+    'The actual observer does not start a protected document read from an intermediate cache state.');
+
+  const ready = applyAcceptedNormalResume(store, acceptedSession, reply);
+  assert.equal(ready.connection, 'live');
+  assert.equal(ready.sessionSnapshotFreshness, 'server');
+  assert.equal(ready.identityHydrationRevision, initial.identityHydrationRevision + 1);
+  assert.equal(ready.me.uid, SAVED_MEMBER_UID_ALIAS);
+  assert.equal(ready.me.sessionId, SAVED_MEMBER_SESSION_ALIAS);
+  assert.equal(Object.hasOwn(ready, 'currentOwnPlayerConfirmed'), false);
+  assert.equal(Object.hasOwn(ready, 'sdkHasServerAuthority'), false);
+  assert.equal(Object.hasOwn(ready, 'sdkResumePending'), false);
+
+  const h = harness({ initialState: ready, authUser: { uid: SAVED_MEMBER_UID_ALIAS } });
+  if (await waitForSubscriptionOrCompletion(h)) {
+    await allowSettledWork();
+    assert.equal(h.observation.path,
+      `sessions/${SAVED_MEMBER_SESSION_ALIAS}/shuttleDepartures/starlight`);
+    assert.equal(h.isSettled(), false,
+      'The reader reset is not treated as a protected server document snapshot.');
+    h.emitSnapshot(requestedMovement({ holderUid: SAVED_MEMBER_UID_ALIAS }));
+  }
+  const observed = await h.result;
+  assert.equal(observed.error, undefined);
+  assert.equal(observed.value?.departure?.requestId, 'request-original-1');
+  assert.equal(observed.value?.actor?.assignedRoleId, 'wing-commander');
+  assert.equal(observed.value?.actor?.connection, 'live');
+  assert.equal(observed.value?.actor?.freshness, 'server');
+  assert.equal(h.observation.subscriptions, 1);
+  assert.equal(h.observation.unsubscribeCount, 1);
+});
+
+const projectionFailureCases = [
+  {
+    name: 'missing authenticated user',
+    expected: { authPresent: false, sessionPresent: true, actorMatches: false,
+      memberSessionMatches: true, connectionLive: true, snapshotServer: true },
+    options: { authUser: null },
+  },
+  {
+    name: 'missing session',
+    expected: { authPresent: true, sessionPresent: false, actorMatches: true,
+      memberSessionMatches: false, connectionLive: true, snapshotServer: true },
+    mutate: state => { state.session = null; },
+  },
+  {
+    name: 'authenticated UID does not match member',
+    expected: { authPresent: true, sessionPresent: true, actorMatches: false,
+      memberSessionMatches: true, connectionLive: true, snapshotServer: true },
+    mutate: state => { state.me.uid = 'other-test-actor-alias'; },
+  },
+  {
+    name: 'member session does not match session projection',
+    expected: { authPresent: true, sessionPresent: true, actorMatches: true,
+      memberSessionMatches: false, connectionLive: true, snapshotServer: true },
+    mutate: state => { state.me.sessionId = 'other-test-session-alias'; },
+  },
+  {
+    name: 'member connection is intermediate',
+    expected: { authPresent: true, sessionPresent: true, actorMatches: true,
+      memberSessionMatches: true, connectionLive: false, snapshotServer: true },
+    mutate: state => { state.connection = 'connecting'; },
+  },
+  {
+    name: 'member snapshot is cached',
+    expected: { authPresent: true, sessionPresent: true, actorMatches: true,
+      memberSessionMatches: true, connectionLive: true, snapshotServer: false },
+    mutate: state => { state.sessionSnapshotFreshness = 'cache'; },
+  },
+];
+
+for (const failure of projectionFailureCases) {
+  test(`P181 reports the actual initial source guard for ${failure.name}`, async () => {
+    const initialState = savedMemberInitialState();
+    failure.mutate?.(initialState);
+    const authUser = failure.options && Object.hasOwn(failure.options, 'authUser')
+      ? failure.options.authUser : { uid: SAVED_MEMBER_UID_ALIAS };
+    const h = harness({ initialState, authUser });
+    const outcome = await h.result;
+    assert.ok(outcome.error, 'The existing source authority guard continues to reject this projection.');
+    assert.equal(h.observation.subscriptions, 0,
+      'The unchanged authority guard prevents a protected read when any actual source predicate fails.');
+    assertProjectionDiagnostic(outcome, { stage: 'initial', ...failure.expected });
+  });
+}
+
+test('P181 labels a member projection failure at the departure callback capture', async () => {
+  const h = harness({ initialState: savedMemberInitialState(),
+    authUser: { uid: SAVED_MEMBER_UID_ALIAS } });
+  if (await waitForSubscriptionOrCompletion(h)) {
+    const stale = structuredClone(h.getState());
+    stale.connection = 'connecting';
+    h.setState(stale);
+    h.emitSnapshot(requestedMovement({ holderUid: SAVED_MEMBER_UID_ALIAS }));
+  }
+  const outcome = await h.result;
+  assert.ok(outcome.error);
+  assert.equal(h.observation.subscriptions, 1);
+  assert.equal(h.observation.unsubscribeCount, 1);
+  assertProjectionDiagnostic(outcome, { stage: 'departure-callback', authPresent: true,
+    sessionPresent: true, actorMatches: true, memberSessionMatches: true,
+    connectionLive: false, snapshotServer: true });
+});
+
+test('P181 labels a member projection failure at post-fingerprint verification', async () => {
+  let h;
+  h = harness({ initialState: savedMemberInitialState(),
+    authUser: { uid: SAVED_MEMBER_UID_ALIAS }, afterDigest: () => {
+      const stale = structuredClone(h.getState());
+      stale.sessionSnapshotFreshness = 'cache';
+      h.setState(stale);
+    } });
+  if (await waitForSubscriptionOrCompletion(h)) {
+    h.emitSnapshot(requestedMovement({ holderUid: SAVED_MEMBER_UID_ALIAS }));
+  }
+  const outcome = await h.result;
+  assert.ok(outcome.error);
+  assert.equal(h.observation.subscriptions, 1);
+  assert.equal(h.observation.unsubscribeCount, 1);
+  assertProjectionDiagnostic(outcome, { stage: 'post-fingerprint-verification', authPresent: true,
+    sessionPresent: true, actorMatches: true, memberSessionMatches: true,
+    connectionLive: true, snapshotServer: false });
 });
