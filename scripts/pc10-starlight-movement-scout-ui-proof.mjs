@@ -1731,16 +1731,30 @@ async function p181SourceOnlyPreflight(options) {
   assert.equal(sourceHash(JSON.stringify(buildRecord.trackedFiles)), buildRecord.trackedSourceManifestSha256);
   assert.deepEqual(retainedBindings.trackedFiles, buildRecord.trackedFiles,
     'Every retained tracked build input must match its original source receipt.');
-  assert.deepEqual(sourceBindings.trackedFiles.map(value => value.path), buildRecord.trackedFiles.map(value => value.path));
+  const additionalProofTestPaths = new Set([
+    'scripts/pc10-p181-role-navigation-baseline.test.mjs',
+    'scripts/qualification/pc10-p181-0449-phase-observation.test.mjs',
+    'scripts/qualification/pc10-p181-0555-flight-observation.test.mjs',
+  ]);
   const proofOnlyPaths = new Set([
     'scripts/pc10-starlight-movement-scout-ui-proof.mjs',
     'scripts/pc10-starlight-movement-scout-ui-proof-runner.test.mjs',
     'scripts/pc10-member-gm-lifecycle-ui-proof.mjs',
+    'scripts/pc10-member-navigation-resume.mjs',
+    'scripts/qualification/pc11-normal-start-adapter.mjs',
+    'scripts/qualification/pc11-normal-start-adapter.test.mjs',
     'scripts/qualification/pc11-live-base-contract.test.mjs',
     'scripts/qualification/pc11-three-actor-trade-philia.test.mjs',
+    ...additionalProofTestPaths,
   ]);
   const originalInputs = new Map(buildRecord.trackedFiles.map(value => [value.path, value.sha256]));
+  // Every original build input remains present. Only these later proof tests
+  // may be added; proof helpers do not change the App or Functions build.
+  assert.deepEqual(sourceBindings.trackedFiles.filter(value => originalInputs.has(value.path)).map(value => value.path),
+    buildRecord.trackedFiles.map(value => value.path), 'Reused build requires every original tracked input.');
   for (const { path, sha256 } of sourceBindings.trackedFiles) {
+    assert.ok(originalInputs.has(path) || additionalProofTestPaths.has(path),
+      `Reused build only permits scoped additional proof tests; unexpected tracked input ${path}.`);
     if (!proofOnlyPaths.has(path)) assert.equal(sha256, originalInputs.get(path),
       `Reused build requires the exact original tracked input ${path}.`);
   }

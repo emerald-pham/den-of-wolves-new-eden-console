@@ -3051,7 +3051,7 @@ async function actualPreNativeConsumer({ cli = false, sourceOnly = false, source
       // its new test is staged; the final source-only command uses real status.
       if (args[0] === 'status') return '';
       const output = execFileSync(command, args, options);
-      if (args[0] === 'ls-files' && resolve(options.cwd) === repositoryRoot && changeCandidateTrackedPaths) {
+      if (args[0] === 'ls-files' && resolve(options.cwd) === resolve(repositoryRoot) && changeCandidateTrackedPaths) {
         return `${changeCandidateTrackedPaths(output.split('\0').filter(Boolean)).sort().join('\0')}\0`;
       }
       return output;
