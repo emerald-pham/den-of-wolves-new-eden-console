@@ -947,10 +947,10 @@ test('setup transition proof-only lifecycle observer changes retain the complete
       ? Buffer.concat([Buffer.from(bytes), Buffer.from('\n// controlled proof-only observer revision\n')]) : undefined });
   assertPreflightInert(fixture);
   assert.equal(fixture.error, undefined, `Explicit proof-only observer input must preserve complete build provenance: ${fixture.error?.message}`);
-  assert.equal(fixture.result.buildProvenance.compiledFileCount, 434);
-  assert.equal(fixture.result.buildProvenance.frontendFileCount, 272);
-  assert.equal(fixture.result.sourceBindings.functionsSourceFiles.length, 528);
-  assert.equal(fixture.result.sourceBindings.trackedFiles.length, 2048);
+  assert.equal(fixture.result.buildProvenance.compiledFileCount, 450);
+  assert.equal(fixture.result.buildProvenance.frontendFileCount, 277);
+  assert.equal(fixture.result.sourceBindings.functionsSourceFiles.length, 542);
+  assert.equal(fixture.result.sourceBindings.trackedFiles.length, 2082);
 });
 
 async function actualCompiledFunctionsGuard({ staleIndex = false, staleDependency = false,
@@ -2911,8 +2911,8 @@ test('remaining F9-R2 full native rejects a final writer delivered at the origin
 // unchanged private writer. External acquisition functions are counted and
 // forbidden. A binding rejection is an actual assertion, never an injected
 // exception. Virtual time affects this isolated source fixture only.
-const preflightBuildBindingPath = '/tmp/dow-pc10-evidence/OWNER_PC10_P181_74911DA2_EXACT_COMPLETE_BUILD_BINDING_20261008.json';
-const preflightBuildBindingSha256 = '0c89e1504d14a369469af8b02cdcea3fe7864cc08d662dae7ce53bd936cc1523';
+const preflightBuildBindingPath = '/tmp/dow-pc10-evidence/OWNER_PC10_P181_CCE72456_EXACT_COMPLETE_BUILD_BINDING_20261010.json';
+const preflightBuildBindingSha256 = '73387acf1548ee9f41269afa0ec79401678c0de7f95ced7c0834f874273b3779';
 function p181CommittedPublicFirebaseEnvironment() {
   const source = readFileSync(resolve(repositoryRoot, 'src/lib/firebaseConfig.ts'), 'utf8');
   const committed = source.match(/const committed = \{([\s\S]+?)\} satisfies FirebaseOptions;/)[1];
@@ -3055,12 +3055,12 @@ test('pre-native existing API completes the actual canonical and complete retain
   assert.equal(fixture.result.status, 'P181_SOURCE_ONLY_PREFLIGHT_PASS');
   assert.equal(fixture.result.runtimeProof, false); assert.equal(fixture.result.sourceCommit, fixture.currentCommit);
   assert.equal(fixture.result.sourceContractPreflight.status, 'PC11_SOURCE_CONTRACT_PREFLIGHT_PASS');
-  assert.equal(fixture.result.buildProvenance.sourceCommit, '74911da2f2ec6d7382bb10acfb5a531bacf35823');
+  assert.equal(fixture.result.buildProvenance.sourceCommit, 'cce724564cb3652d2182cce9d16aaac4af2e7a30');
   assert.equal(fixture.result.buildProvenance.builtHere, false);
-  assert.equal(fixture.result.buildProvenance.compiledFileCount, 434);
-  assert.equal(fixture.result.buildProvenance.frontendFileCount, 272);
-  assert.equal(fixture.result.sourceBindings.functionsSourceFiles.length, 528);
-  assert.equal(fixture.result.sourceBindings.trackedFiles.length, 2048);
+  assert.equal(fixture.result.buildProvenance.compiledFileCount, 450);
+  assert.equal(fixture.result.buildProvenance.frontendFileCount, 277);
+  assert.equal(fixture.result.sourceBindings.functionsSourceFiles.length, 542);
+  assert.equal(fixture.result.sourceBindings.trackedFiles.length, 2082);
   assert.ok(fixture.result.sourceBindings.sourceFiles['scripts/qualification/pc11-live-base-contract.test.mjs']);
   assert.ok(fixture.now < fixture.sourceOnlyDeadlineMs);
 });
