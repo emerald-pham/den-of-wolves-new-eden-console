@@ -18,7 +18,7 @@ function sourceRegion(source, startText, endText, description) {
 }
 
 const observerSource = sourceRegion(proof,
-  'export async function observeP181StarlightSource(surface) {',
+  'export async function observeP181StarlightSource(',
   '\n}\n\n/** Bind the bounded Starlight flow', 'P181 mounted source observer').trim()
   .replace(/^export /, '').replace(/\bimport\s*\(/g, 'load(') + '\n}';
 const browserIoStart = proof.indexOf('export function createP181StarlightBrowserIo(');
@@ -143,9 +143,9 @@ function harness({ deadlineAt = 10_000, initialState = baseState() } = {}) {
     });
   const surface = {
     storeModuleUrl: () => 'controlled-store-module',
-    page: { evaluate: async (callback, ...args) => {
-      observation.evaluateArgs = args;
-      return callback(...args);
+    page: { evaluate: async (callback, argument) => {
+      observation.evaluateArgs = [argument];
+      return callback(argument);
     } },
   };
   let resultSettled = false;
@@ -296,8 +296,8 @@ test('P181 flight observation uses the original caller deadline and disposes at 
   const deadlineAt = 2_000;
   const h = harness({ deadlineAt });
   if (await waitForSubscriptionOrCompletion(h)) {
-    assert.equal(h.observation.evaluateArgs[1], deadlineAt,
-      'The exact original cutoff is passed into the mounted source observation.');
+    assert.equal(h.observation.evaluateArgs[0]?.deadlineAt, deadlineAt,
+      'The exact original cutoff is passed in Playwright’s single serialized argument.');
     assert.ok([...h.timers.values()].some(timer => timer.delay === deadlineAt - h.clock.now),
       'The observer may use only the remaining portion of the original deadline.');
     h.advanceToDeadline();
