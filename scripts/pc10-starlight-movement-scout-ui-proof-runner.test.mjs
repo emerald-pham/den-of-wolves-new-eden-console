@@ -1411,7 +1411,8 @@ test('native browser adapter captures one automatic arrival receipt before trans
       arrivedAt: new Date(now + 60_001).toISOString() } }),
   };
   let observerArms = 0, automaticRequests = 0;
-  const page = new EventEmitter();
+  const wing = mountedP181Surface('wing-uid');
+  const page = wing.page;
   page.waitForResponse = (predicate, { timeout }) => new Promise((resolve, reject) => {
     observerArms++;
     const deadline = setTimeout(() => reject(new Error('original arrival receipt deadline expired')), timeout);
@@ -1424,13 +1425,13 @@ test('native browser adapter captures one automatic arrival receipt before trans
     }, 5);
     void automaticTimer;
   });
-  const io = createP181StarlightBrowserIo({ gm: { page: new EventEmitter() }, wingCommander: { page },
+  const io = createP181StarlightBrowserIo({ gm: mountedP181Surface('original-gm', { gm: true }), wingCommander: wing,
     gameplay: { async select() {} }, directory: '/tmp/p181-controlled-arrival-adapter',
     initial: { sessionId: 'normal-session' }, expectedWingCommander: original });
   io.observeMember = async () => structuredClone(original);
   io.observeFlight = async () => structuredClone(flight);
 
-  const arrival = await io.waitForArrivalWindow(transit, 1_000);
+  const arrival = await io.waitForArrivalWindow(transit, 1_000, Date.now() + 1_000, structuredClone(flight));
   assert.equal(observerArms, 1, 'Arm the original automatic SDK receipt observer exactly once.');
   assert.equal(automaticRequests, 1, 'Consume the Starlight timer transition rather than issuing a second arrival command.');
   assert.equal(arrival.capture.endpoint, 'completeShuttleArrival');
@@ -2041,7 +2042,7 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
       crypto: { subtle: { digest: async (...values) => {
         const digest = await webcrypto.subtle.digest(...values); await surface.onDigest?.(String(callback)); return digest;
       } } }, TextEncoder, performance: { timeOrigin: surface.documentTimeOrigin ?? 1000 },
-      Date, setTimeout, clearTimeout, window: surface.window,
+      Date, URL, setTimeout, clearTimeout, window: surface.window,
       document: { querySelector: () => null, querySelectorAll: () => [] } });
     return result === undefined ? undefined : JSON.parse(JSON.stringify(result));
   };
@@ -3637,7 +3638,8 @@ function sourceArrivalAdapter({ custodyAdvance = false, publicationLag = false,
   const response = { url: () => 'http://127.0.0.1:5013/demo-local/us-central1/completeShuttleArrival',
     status: () => 200, request: () => ({ method: () => 'POST', postDataJSON: () => ({ data: request }) }),
     json: async () => ({ result: structuredClone(reply) }), opaqueBrowserReference: { marker: 'opaque-browser-reference' } };
-  const page = new EventEmitter();
+  const wing = mountedP181Surface('wing-uid');
+  const page = wing.page;
   page.waitForResponse = (predicate, { timeout }) => new Promise((resolve, reject) => {
     observerArms++;
     const deadline = setTimeout(() => reject(new Error('original source arrival deadline expired')), timeout);
@@ -3651,7 +3653,7 @@ function sourceArrivalAdapter({ custodyAdvance = false, publicationLag = false,
       if (predicate(response)) resolve(response); else reject(new Error('source arrival request mismatch'));
     }, 5);
   });
-  const io = createP181StarlightBrowserIo({ gm: { page: new EventEmitter() }, wingCommander: { page },
+  const io = createP181StarlightBrowserIo({ gm: mountedP181Surface('original-gm', { gm: true }), wingCommander: wing,
     gameplay: { async select() {} }, directory: '/tmp/p181-source-arrival-semantics',
     initial: { sessionId: 'normal-session' }, expectedWingCommander: original });
   io.observeMember = async () => structuredClone(original);
