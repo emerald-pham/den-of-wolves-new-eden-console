@@ -68,7 +68,7 @@ function baseState() {
       shuttleDockings: [], shuttleControl: { starlight: { shuttleId: 'starlight', revision: 0 } } },
     me: { uid: 'wing-uid-a', sessionId: 'normal-session-a', role: 'player',
       assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander', seatId: 'wing-commander',
-      connectionGeneration: 3 },
+      connectionGeneration: 3, fleetGroupId: 'fleet-1' },
     identityHydrationRevision: 3,
     connection: 'live', sessionSnapshotFreshness: 'server',
     currentOwnPlayerConfirmed: true, sdkHasServerAuthority: true,
@@ -96,7 +96,7 @@ function transitMovement(overrides = {}) {
   };
 }
 
-function harness({ deadlineAt = 10_000, initialState = baseState() } = {}) {
+function harness({ deadlineAt = 10_000, initialState = baseState(), onModuleLoad } = {}) {
   const clock = { now: 1_000 };
   const timers = new Map();
   let nextTimerId = 0;
@@ -105,7 +105,8 @@ function harness({ deadlineAt = 10_000, initialState = baseState() } = {}) {
   let nextSnapshot, snapshotError, onNext, onError;
   let subscribedResolve;
   const subscribed = new Promise(resolve => { subscribedResolve = resolve; });
-  const observation = { subscriptions: 0, unsubscribeCount: 0, path: null, options: null, evaluateArgs: null };
+  const observation = { subscriptions: 0, unsubscribeCount: 0, path: null, options: null,
+    evaluateArgs: null, moduleLoads: [] };
   const onSnapshot = (ref, options, next, error) => {
     observation.subscriptions++;
     observation.path = ref.path;
@@ -126,8 +127,11 @@ function harness({ deadlineAt = 10_000, initialState = baseState() } = {}) {
     '/src/lib/firestore.ts': { subscribeShuttleDeparture: reader },
     'controlled-store-module': { useSessionStore: { getState: () => currentState } },
   };
+  let resultSettled = false;
   const load = async specifier => {
+    observation.moduleLoads.push({ specifier, clock: clock.now, afterFailure: resultSettled });
     assert.ok(Object.hasOwn(modules, specifier), 'Unexpected source import: ' + specifier);
+    if (onModuleLoad) return onModuleLoad(specifier, modules[specifier], { clock, observation });
     return modules[specifier];
   };
   const observer = runInNewContext('(() => {' + observerSource +
@@ -148,7 +152,6 @@ function harness({ deadlineAt = 10_000, initialState = baseState() } = {}) {
       return callback(argument);
     } },
   };
-  let resultSettled = false;
   const result = Promise.resolve().then(() => observer(surface, deadlineAt)).then(
     value => { resultSettled = true; return { value }; },
     error => { resultSettled = true; return { error }; });
@@ -179,6 +182,37 @@ async function waitForSubscriptionOrCompletion(h) {
 async function allowSettledWork() {
   await Promise.resolve();
   await new Promise(resolve => setImmediate(resolve));
+}
+
+function deferred() {
+  let resolve;
+  const promise = new Promise(done => { resolve = done; });
+  return { promise, resolve };
+}
+
+async function resumeDelayedImport({ heldSpecifier, settleBeforeResume }) {
+  const deadlineAt = 2_000;
+  const importReached = deferred(), releaseImport = deferred();
+  const h = harness({ deadlineAt, onModuleLoad: async (specifier, module) => {
+    if (specifier === heldSpecifier) {
+      importReached.resolve();
+      await releaseImport.promise;
+    }
+    return module;
+  } });
+  await importReached.promise;
+  let outcome;
+  if (settleBeforeResume) {
+    h.advanceToDeadline();
+    outcome = await h.result;
+  } else h.clock.now = deadlineAt;
+  releaseImport.resolve();
+  await allowSettledWork();
+  if (!h.isSettled()) h.advanceToDeadline();
+  outcome ??= await h.result;
+  await allowSettledWork();
+  return { h, outcome, lateLoads: h.observation.moduleLoads.filter(load =>
+    load.clock >= deadlineAt || load.afterFailure) };
 }
 
 test('the unchanged production member reader resets on attach, filters cache, parses server state and disposes', () => {
@@ -354,4 +388,47 @@ test('P181 browser I/O passes the same effective 60-second cutoff to the observe
   assert.equal(observerArgs[1], effectiveDeadlineAt,
     'The observer receives the exact cutoff already imposed by its bounded work wrapper.');
   assert.equal(workDeadline, effectiveDeadlineAt);
+});
+
+test('P181 does not continue loading modules when the first import resumes after timeout settles', async () => {
+  const { h, outcome, lateLoads } = await resumeDelayedImport({
+    heldSpecifier: '/src/lib/firebase.ts', settleBeforeResume: true,
+  });
+  assert.equal(outcome.error?.name, 'TimeoutError', 'The original timeout remains authoritative.');
+  assert.deepEqual(lateLoads, [], 'No later source module load begins after the timeout settles.');
+  assert.equal(h.observation.subscriptions, 0);
+});
+
+test('P181 does not load Firestore when the store import resumes after timeout settles', async () => {
+  const { h, outcome, lateLoads } = await resumeDelayedImport({
+    heldSpecifier: 'controlled-store-module', settleBeforeResume: true,
+  });
+  assert.equal(outcome.error?.name, 'TimeoutError', 'The original timeout remains authoritative.');
+  assert.deepEqual(lateLoads, [], 'No later source module load begins after the timeout settles.');
+  assert.equal(h.observation.subscriptions, 0);
+});
+
+test('P181 does not start later module loads when the first import resumes at cutoff before the timer callback', async () => {
+  const { h, outcome, lateLoads } = await resumeDelayedImport({
+    heldSpecifier: '/src/lib/firebase.ts', settleBeforeResume: false,
+  });
+  assert.equal(outcome.error?.name, 'TimeoutError', 'The original cutoff is authoritative even before its timer callback.');
+  assert.deepEqual(lateLoads, [], 'No module-load port starts at or after the original cutoff.');
+  assert.equal(h.observation.subscriptions, 0);
+});
+
+test('P181 retires a delayed movement callback when the current member fleet audience changes', async () => {
+  const h = harness();
+  if (await waitForSubscriptionOrCompletion(h)) {
+    const state = structuredClone(h.getState());
+    state.me.fleetGroupId = 'fleet-2';
+    h.setState(state);
+    h.emitSnapshot(requestedMovement({ fleetGroupId: 'fleet-1' }));
+  }
+  const outcome = await h.result;
+  assert.equal(h.getState().me.fleetGroupId, 'fleet-2');
+  assert.ok(outcome.error, 'An old-fleet listener callback cannot be accepted after the member audience changes.');
+  assert.equal(outcome.value?.departure, undefined);
+  assert.equal(h.observation.subscriptions, 1);
+  assert.equal(h.observation.unsubscribeCount, 1);
 });
