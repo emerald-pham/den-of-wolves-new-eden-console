@@ -13,6 +13,10 @@ const storePath = fileURLToPath(new URL('../../src/store/useSessionStore.ts', im
 const storeSource = await readFile(storePath, 'utf8');
 const sessionServicePath = fileURLToPath(new URL('../../src/lib/sessionService.ts', import.meta.url));
 const sessionServiceSource = await readFile(sessionServicePath, 'utf8');
+const appPath = fileURLToPath(new URL('../../src/App.tsx', import.meta.url));
+const appSource = await readFile(appPath, 'utf8');
+const sessionAuthorityPath = fileURLToPath(new URL('../../src/lib/sessionSnapshotAuthority.ts', import.meta.url));
+const sessionAuthoritySource = await readFile(sessionAuthorityPath, 'utf8');
 
 function sourceRegion(source, startText, endText, description) {
   const start = source.indexOf(startText);
@@ -161,11 +165,90 @@ const promoteLiveSource = sourceRegionAt(sessionServiceSource,
   '    const latest = useSessionStore.getState();', '\n  } catch (cause) {',
   connectWithRetryStart, 'accepted normal resume live-promotion branch');
 
+// Bind the actual current App listener predicate and its freshness transition.
+// The callback is deliberately cut at its two store authority setters; unrelated
+// App projections are outside this observer test.
+const appCurrentStart = appSource.indexOf('    const callbackCurrent = () =>');
+const appCurrentEnd = appSource.indexOf('\n    let pendingRoleBrief', appCurrentStart);
+assert.ok(appCurrentStart >= 0 && appCurrentEnd > appCurrentStart,
+  'Bind the production App listener-current predicate.');
+const appCurrentSource = appSource.slice(appCurrentStart, appCurrentEnd).trim();
+const appFreshnessStart = appSource.indexOf('        onSessionFreshness: (fresh) => {');
+const appFreshnessSetter = "          store.setSessionSnapshotFreshness(fresh ? 'server' : 'cache');";
+const appFreshnessSetterEnd = appSource.indexOf(appFreshnessSetter, appFreshnessStart);
+assert.ok(appFreshnessStart >= 0 && appFreshnessSetterEnd > appFreshnessStart,
+  'Bind the production App session-freshness authority transition.');
+const appFreshnessOpen = appSource.indexOf('{', appFreshnessStart);
+const appFreshnessBody = appSource.slice(appFreshnessOpen + 1,
+  appFreshnessSetterEnd + appFreshnessSetter.length);
+
+const authorityMapSource = sourceRegion(sessionAuthoritySource,
+  'const sessionSnapshotAuthorities = new Map<string, SessionSnapshotAuthority>();',
+  '\n\n// A member feed can confirm current content before the normal resume SDK',
+  'session authority lookup map')
+  .replace('const sessionSnapshotAuthorities = new Map<string, SessionSnapshotAuthority>();',
+    'const sessionSnapshotAuthorities = new Map();');
+const createSessionAuthoritySource = sourceRegion(sessionAuthoritySource,
+  'export function createSessionSnapshotAuthority()', '\n}\n\nexport function sessionSnapshotAuthorityVersion',
+  'production session authority constructor')
+  .replace(/^export function createSessionSnapshotAuthority\(\): SessionSnapshotAuthority \{/,
+    'function createSessionSnapshotAuthority() {') + '\n}';
+const sessionAuthorityForSource = sourceRegion(sessionAuthoritySource,
+  'export function sessionSnapshotAuthorityFor(', '\n}\n\nfunction cursorFromMillis',
+  'production session authority lookup')
+  .replace(/export function sessionSnapshotAuthorityFor\(\s*sessionId: string,\s*uid: string,\s*\): SessionSnapshotAuthority \{/,
+    'function sessionSnapshotAuthorityFor(sessionId, uid) {') + '\n}';
+const memberResumeTokensSource = sourceRegion(sessionAuthoritySource,
+  'const memberResumeTokens = new WeakMap<SessionSnapshotAuthority, symbol>();',
+  '\nexport function beginMemberSessionResume', 'production member-resume token state')
+  .replace('const memberResumeTokens = new WeakMap<SessionSnapshotAuthority, symbol>();',
+    'const memberResumeTokens = new WeakMap();');
+const beginMemberResumeSource = sourceRegion(sessionAuthoritySource,
+  'export function beginMemberSessionResume(', '\n}\n\nexport function isCurrentMemberSessionResume',
+  'production member-resume barrier').replace(
+    /export function beginMemberSessionResume\(authority: SessionSnapshotAuthority\): symbol \{/,
+    'function beginMemberSessionResume(authority) {') + '\n}';
+const memberResumeBlocksSource = sourceRegion(sessionAuthoritySource,
+  'export function memberSessionResumeBlocksFreshness(', '\n}\n\n/** One authority object',
+  'production member-resume freshness barrier').replace(
+    /export function memberSessionResumeBlocksFreshness\(authority: SessionSnapshotAuthority\): boolean \{/,
+    'function memberSessionResumeBlocksFreshness(authority) {') + '\n}';
+
+function makeProductionSessionAuthorityRuntime() {
+  return new Function(`${authorityMapSource}; ${memberResumeTokensSource}; ${createSessionAuthoritySource}; ` +
+    `${sessionAuthorityForSource}; ${beginMemberResumeSource}; ${memberResumeBlocksSource}; ` +
+    'return { sessionSnapshotAuthorityFor, beginMemberSessionResume, memberSessionResumeBlocksFreshness };')();
+}
+
+function makeProductionAppFreshnessHandler(useSessionStore, authorityRuntime, {
+  current = true, sessionId = SAVED_MEMBER_SESSION_ALIAS, uid = SAVED_MEMBER_UID_ALIAS,
+  playerRole = 'player',
+} = {}) {
+  const appRoutesMounted = { current };
+  const playerListenerGeneration = { current: 7 };
+  const listenerGeneration = 7;
+  const active = true;
+  const gmInstanceId = 'gm-instance-test-alias';
+  const callbackCurrent = new Function('active', 'appRoutesMounted', 'playerListenerGeneration',
+    'listenerGeneration', 'useSessionStore', 'gmInstanceId',
+    `${appCurrentSource}; return callbackCurrent;`)(active, appRoutesMounted,
+      playerListenerGeneration, listenerGeneration, useSessionStore, gmInstanceId);
+  return new Function('callbackCurrent', 'pendingStationMemberRefresh', 'useSessionStore',
+    'playerRole', 'memberSessionResumeBlocksFreshness', 'sessionSnapshotAuthorityFor',
+    'sessionId', 'playerUid', `return function onSessionFreshness(fresh) {${appFreshnessBody}\n};`)(
+      callbackCurrent, undefined, useSessionStore, playerRole,
+      authorityRuntime.memberSessionResumeBlocksFreshness,
+      authorityRuntime.sessionSnapshotAuthorityFor, sessionId, uid);
+}
+
 function actualSessionStore(initialState) {
   let state = initialState;
+  const listeners = new Set();
   const set = update => {
+    const previous = state;
     const patch = typeof update === 'function' ? update(state) : update;
     state = { ...state, ...patch };
+    for (const listener of [...listeners]) listener(state, previous);
   };
   const get = () => state;
   const compile = (body, name) => new Function('set', 'get', 'clearVoyageMovement', 'samePrivateAssignment',
@@ -180,6 +263,9 @@ function actualSessionStore(initialState) {
     ...actions,
     getState: () => ({ ...state, ...actions }),
     state: () => state,
+    setState: set,
+    subscribe: listener => { listeners.add(listener); return () => listeners.delete(listener); },
+    subscriberCount: () => listeners.size,
   };
 }
 
@@ -243,17 +329,18 @@ function transitMovement(overrides = {}) {
   };
 }
 
-function harness({ deadlineAt = 10_000, initialState = baseState(), onModuleLoad,
-  authUser = { uid: 'wing-uid-a' }, afterDigest } = {}) {
+function harness({ deadlineAt = 10_000, initialState = baseState(), store: suppliedStore,
+  onModuleLoad, authUser = { uid: 'wing-uid-a' }, afterDigest } = {}) {
   const clock = { now: 1_000 };
   const timers = new Map();
   let nextTimerId = 0;
   let currentState = initialState;
+  const storeListeners = new Set();
   let nextSnapshot, snapshotError, onNext, onError;
   let subscribedResolve;
   const subscribed = new Promise(resolve => { subscribedResolve = resolve; });
   const observation = { subscriptions: 0, unsubscribeCount: 0, path: null, options: null,
-    evaluateArgs: null, moduleLoads: [] };
+    evaluateArgs: null, moduleLoads: [], storeSubscriptions: 0, storeUnsubscribeCount: 0 };
   const onSnapshot = (ref, options, next, error) => {
     observation.subscriptions++;
     observation.path = ref.path;
@@ -269,10 +356,27 @@ function harness({ deadlineAt = 10_000, initialState = baseState(), onModuleLoad
     db: () => ({ controlled: true }),
     shuttleDeparture,
   });
+  const useSessionStore = suppliedStore ?? {
+    getState: () => currentState,
+    subscribe: listener => { storeListeners.add(listener); return () => storeListeners.delete(listener); },
+    setState: state => {
+      const previous = currentState;
+      currentState = state;
+      for (const listener of [...storeListeners]) listener(currentState, previous);
+    },
+  };
+  const observerStore = {
+    getState: () => useSessionStore.getState(),
+    subscribe: listener => {
+      observation.storeSubscriptions++;
+      const stop = useSessionStore.subscribe(listener);
+      return () => { observation.storeUnsubscribeCount++; stop(); };
+    },
+  };
   const modules = {
     '/src/lib/firebase.ts': { auth: () => ({ currentUser: authUser }) },
     '/src/lib/firestore.ts': { subscribeShuttleDeparture: reader },
-    'controlled-store-module': { useSessionStore: { getState: () => currentState } },
+    'controlled-store-module': { useSessionStore: observerStore },
   };
   let resultSettled = false;
   const load = async specifier => {
@@ -309,8 +413,11 @@ function harness({ deadlineAt = 10_000, initialState = baseState(), onModuleLoad
   return {
     clock, timers, observation, subscribed, result,
     isSettled: () => resultSettled,
-    setState: state => { currentState = state; },
-    getState: () => currentState,
+    setState: state => {
+      if (suppliedStore) suppliedStore.setState(state);
+      else useSessionStore.setState(state);
+    },
+    getState: () => suppliedStore ? suppliedStore.state() : currentState,
     emitSnapshot(data, { fromCache = false, exists = data !== null } = {}) {
       assert.equal(typeof onNext, 'function', 'The actual production subscriber must be installed before emitting a snapshot.');
       onNext({ metadata: { fromCache }, exists: () => exists, data: () => data });
@@ -601,6 +708,16 @@ function assertProjectionDiagnostic(outcome, { stage, ...expected }) {
     'The diagnostic does not reveal raw or test-alias identifiers.');
 }
 
+function savedMemberFreshnessRace({ deadlineAt = 10_000 } = {}) {
+  const saved = savedMemberInitialState();
+  // This synthetic gmInstance ID is only the App callbackCurrent route guard.
+  const store = actualSessionStore({ ...saved, gmInstance: { id: 'gm-instance-test-alias' } });
+  const authorityRuntime = makeProductionSessionAuthorityRuntime();
+  const onSessionFreshness = makeProductionAppFreshnessHandler(store, authorityRuntime);
+  const h = harness({ store, deadlineAt, authUser: { uid: SAVED_MEMBER_UID_ALIAS } });
+  return { saved, store, authorityRuntime, onSessionFreshness, h };
+}
+
 test('the exact normal resume setters move a saved sanitized member from cache rejection to a protected server read', async () => {
   const initial = savedMemberInitialState();
   assert.equal(initial.connection, 'live');
@@ -703,22 +820,127 @@ for (const failure of projectionFailureCases) {
   });
 }
 
-test('P181 labels a member projection failure at the departure callback capture', async () => {
-  const h = harness({ initialState: savedMemberInitialState(),
-    authUser: { uid: SAVED_MEMBER_UID_ALIAS } });
+test('P181 retains a protected departure callback across same-member freshness recovery', async () => {
+  const { saved, store, onSessionFreshness, h } = savedMemberFreshnessRace();
   if (await waitForSubscriptionOrCompletion(h)) {
-    const stale = structuredClone(h.getState());
-    stale.connection = 'connecting';
-    h.setState(stale);
+    assert.equal(store.state().identityHydrationRevision, saved.identityHydrationRevision);
+    onSessionFreshness(false);
+    assert.equal(store.state().connection, 'offline');
+    assert.equal(store.state().sessionSnapshotFreshness, 'cache');
     h.emitSnapshot(requestedMovement({ holderUid: SAVED_MEMBER_UID_ALIAS }));
+    await allowSettledWork();
+    onSessionFreshness(true);
+    assert.equal(store.state().connection, 'live');
+    assert.equal(store.state().sessionSnapshotFreshness, 'server');
+    assert.equal(store.state().identityHydrationRevision, saved.identityHydrationRevision,
+      'The App freshness recovery does not replace the original member identity.');
   }
   const outcome = await h.result;
-  assert.ok(outcome.error);
+  assert.equal(outcome.error, undefined,
+    'The observer must retain a protected server document callback while the same member freshness is withdrawn, then accept it after the production App callback restores live/server.');
+  assert.equal(outcome.value?.departure?.requestId, 'request-original-1');
+  assert.equal(outcome.value?.actor?.connection, 'live');
+  assert.equal(outcome.value?.actor?.freshness, 'server');
   assert.equal(h.observation.subscriptions, 1);
   assert.equal(h.observation.unsubscribeCount, 1);
-  assertProjectionDiagnostic(outcome, { stage: 'departure-callback', authPresent: true,
-    sessionPresent: true, actorMatches: true, memberSessionMatches: true,
-    connectionLive: false, snapshotServer: true });
+  assert.equal(h.observation.storeSubscriptions, 1);
+  assert.equal(h.observation.storeUnsubscribeCount, 1);
+});
+
+test('a pending P181 document callback times out at the original deadline while the same member remains offline/cache', async () => {
+  const { onSessionFreshness, h } = savedMemberFreshnessRace({ deadlineAt: 2_000 });
+  if (await waitForSubscriptionOrCompletion(h)) {
+    onSessionFreshness(false);
+    h.emitSnapshot(requestedMovement({ holderUid: SAVED_MEMBER_UID_ALIAS }));
+    await allowSettledWork();
+    assert.equal(h.isSettled(), false,
+      'A same-member non-ready transition must wait for its original cutoff, not fail early or renew the deadline.');
+    assert.ok([...h.timers.values()].some(timer => timer.delay === 1_000),
+      'The observer keeps only the remaining original deadline.');
+    h.advanceToDeadline();
+  }
+  const outcome = await h.result;
+  assert.equal(outcome.error?.name, 'TimeoutError');
+  assert.equal(h.observation.unsubscribeCount, 1);
+  assert.equal(h.observation.storeUnsubscribeCount, 1);
+  h.emitSnapshot(transitMovement({ holderUid: SAVED_MEMBER_UID_ALIAS }));
+  await allowSettledWork();
+  assert.equal((await h.result).error?.name, 'TimeoutError',
+    'A late protected-reader callback cannot revive an expired observation.');
+  assert.equal(h.observation.unsubscribeCount, 1);
+  assert.equal(h.observation.storeUnsubscribeCount, 1);
+});
+
+test('a pending P181 callback is retired when the original generation and hydration identity changes', async () => {
+  const { store, onSessionFreshness, h } = savedMemberFreshnessRace();
+  if (await waitForSubscriptionOrCompletion(h)) {
+    onSessionFreshness(false);
+    h.emitSnapshot(requestedMovement({ holderUid: SAVED_MEMBER_UID_ALIAS }));
+    await allowSettledWork();
+    assert.equal(h.isSettled(), false,
+      'The original server document value remains pending while the member is non-ready.');
+    const current = store.state();
+    store.setState({ ...current, identityHydrationRevision: current.identityHydrationRevision + 1,
+      me: { ...current.me, connectionGeneration: current.me.connectionGeneration + 1 } });
+  }
+  const outcome = await h.result;
+  assert.match(outcome.error?.message ?? '', /identity epoch changed/);
+  assert.equal(h.observation.unsubscribeCount, 1);
+  assert.equal(h.observation.storeUnsubscribeCount, 1);
+});
+
+test('a protected reader error remains terminal while a P181 document callback is pending', async () => {
+  const { onSessionFreshness, h } = savedMemberFreshnessRace();
+  if (await waitForSubscriptionOrCompletion(h)) {
+    onSessionFreshness(false);
+    h.emitSnapshot(requestedMovement({ holderUid: SAVED_MEMBER_UID_ALIAS }));
+    await allowSettledWork();
+    assert.equal(h.isSettled(), false,
+      'A protected server value can wait for same-member readiness until the reader reports an error.');
+    h.emitError(new Error('controlled protected document read failed'));
+  }
+  const outcome = await h.result;
+  assert.match(outcome.error?.message ?? '', /flight-plan document read failed/);
+  assert.equal(h.observation.unsubscribeCount, 1);
+  assert.equal(h.observation.storeUnsubscribeCount, 1);
+  onSessionFreshness(true);
+  assert.equal((await h.result).error?.message, outcome.error?.message,
+    'Later freshness cannot replace the first protected-reader failure.');
+});
+
+test('the production App freshness callback moves the saved same-member DTO from offline/cache to live/server without changing identity', () => {
+  const saved = savedMemberInitialState();
+  const store = actualSessionStore({ ...saved, gmInstance: { id: 'gm-instance-test-alias' } });
+  const authorityRuntime = makeProductionSessionAuthorityRuntime();
+  const onSessionFreshness = makeProductionAppFreshnessHandler(store, authorityRuntime);
+  onSessionFreshness(false);
+  assert.equal(store.state().connection, 'offline');
+  assert.equal(store.state().sessionSnapshotFreshness, 'cache');
+  onSessionFreshness(true);
+  assert.equal(store.state().connection, 'live');
+  assert.equal(store.state().sessionSnapshotFreshness, 'server');
+  assert.equal(store.state().session.id, saved.session.id);
+  assert.equal(store.state().me.uid, saved.me.uid);
+  assert.equal(store.state().me.sessionId, saved.me.sessionId);
+  assert.equal(store.state().identityHydrationRevision, saved.identityHydrationRevision);
+  assert.equal(store.state().me.connectionGeneration, saved.me.connectionGeneration);
+  assert.equal(store.state().me.assignedRoleId, saved.me.assignedRoleId);
+  assert.equal(Object.hasOwn(store.state(), 'currentOwnPlayerConfirmed'), false);
+  assert.equal(Object.hasOwn(store.state(), 'sdkHasServerAuthority'), false);
+  assert.equal(Object.hasOwn(store.state(), 'sdkResumePending'), false);
+});
+
+test('the production App freshness callback keeps the same member stale while a normal resume barrier is pending', () => {
+  const saved = savedMemberInitialState();
+  const store = actualSessionStore({ ...saved, gmInstance: { id: 'gm-instance-test-alias' } });
+  const authorityRuntime = makeProductionSessionAuthorityRuntime();
+  const authority = authorityRuntime.sessionSnapshotAuthorityFor(SAVED_MEMBER_SESSION_ALIAS, SAVED_MEMBER_UID_ALIAS);
+  authorityRuntime.beginMemberSessionResume(authority);
+  const onSessionFreshness = makeProductionAppFreshnessHandler(store, authorityRuntime);
+  onSessionFreshness(true);
+  assert.equal(store.state().connection, 'connecting');
+  assert.equal(store.state().sessionSnapshotFreshness, 'cache');
+  assert.equal(store.state().identityHydrationRevision, saved.identityHydrationRevision);
 });
 
 test('P181 labels a member projection failure at post-fingerprint verification', async () => {
