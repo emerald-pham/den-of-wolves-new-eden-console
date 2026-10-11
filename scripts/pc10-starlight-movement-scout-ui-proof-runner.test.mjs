@@ -2083,6 +2083,70 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
   return surface;
 }
 
+async function actualP181CastingAssignmentFixture(t, { assignmentTarget, assignmentRole,
+  resumeGeneration = 3, resumeHydration = 4, resumeStatus = 200, resumeSessionId = 'normal-session',
+  resumeUid = 'wing-uid', resumeAssignedRoleId = 'wing-commander' } = {}) {
+  const wing = mountedP181Surface('wing-uid', { casting: true });
+  wing.state.session.phase = 'lobby'; wing.state.session.setupConfirmed = true; wing.state.session.setupRevision = 1;
+  wing.state.me.assignedRoleId = null; wing.state.me.activeConsoleRoleId = null; wing.state.me.seatId = null;
+  wing.state.seats = [{ id: 'wing-commander', roleId: 'wing-commander', status: 'available', holderUid: null }];
+  wing.state.session.currentActorBerthAuthority = { ...wing.state.session.currentActorBerthAuthority,
+    assignedRoleId: null, activeConsoleRoleId: null };
+  const before = await observeFullGameDemoPresentationMember(wing, { knownRoleIds: originalRoleIds });
+  const directory = await mkdtemp('/tmp/p181-casting-assignment-resume-');
+  const observer = createMemberNavigationResumeObserver(wing.page, { directory, roleId: 'wing-commander',
+    deadlineAt: Date.now() + 4_000, memberContract: 'pc11-live-base', transition: 'casting-assignment' });
+  await observer.prepare(before);
+  t.after(async () => { await observer.finish().catch(() => {}); });
+
+  const gm = mountedP181Surface('original-gm', { gm: true, casting: true });
+  gm.state.session.phase = 'lobby'; gm.state.session.setupConfirmed = true; gm.state.session.setupRevision = 1;
+  const gmBefore = await observeLifecycleActor(gm, 'normal-session');
+  const data = { sessionId: 'normal-session', instanceId: gm.state.gmInstance.id,
+    requestId: 'assign-original', expectedSetupRevision: gm.state.session.setupRevision,
+    targetUid: assignmentTarget ?? wing.uid, roleId: assignmentRole ?? 'wing-commander' };
+  const assignment = await captureLifecycleUiAction(gm, 'assignRole', async () => {
+    gm.state.session.phase = 'casting'; gm.state.session.setupRevision++;
+    gm.deliver('assignRole', data, { status: 'committed', sessionId: 'normal-session',
+      requestId: data.requestId, setupRevision: gm.state.session.setupRevision });
+  }, { original: gmBefore, gm: true, normalSetup: true, sdkAuthority: true, deadlineAt: Date.now() + 3_000 });
+
+  wing.state.session.phase = 'casting'; wing.state.session.setupRevision = 2;
+  wing.state.me.assignedRoleId = 'wing-commander';
+  wing.state.connection = 'connecting'; wing.state.sessionSnapshotFreshness = 'cache';
+  wing.state.sdkResumePending = true;
+  wing.state.session.currentActorBerthAuthority = { ...wing.state.session.currentActorBerthAuthority,
+    assignedRoleId: 'wing-commander' };
+  wing.publish(() => {});
+  wing.state.me.connectionGeneration = resumeGeneration;
+  wing.state.identityHydrationRevision = resumeHydration;
+  wing.state.session.currentActorBerthAuthority = { ...wing.state.session.currentActorBerthAuthority,
+    connectionGeneration: resumeGeneration };
+  wing.publish(() => {});
+  wing.deliver('resumeSession', { sessionId: resumeSessionId }, { session: { id: resumeSessionId },
+    player: { ...wing.state.me, uid: resumeUid, sessionId: resumeSessionId,
+      assignedRoleId: resumeAssignedRoleId, connectionGeneration: resumeGeneration } }, { status: resumeStatus });
+  wing.state.sdkResumePending = false; wing.state.connection = 'live'; wing.state.sessionSnapshotFreshness = 'server';
+  wing.publish(() => {});
+  const current = await observeFullGameDemoPresentationMember(wing, { knownRoleIds: originalRoleIds });
+  return { wing, gm, observer, before, current, assignment, directory };
+}
+
+test('P181 casting assignment accepts only the original GM receipt and the member’s captured normal resume', async t => {
+  const f = await actualP181CastingAssignmentFixture(t);
+  const accepted = await f.observer.accept(f.before, f.current,
+    () => observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds }), f.assignment);
+  assert.ok(accepted, 'The real casting assignment and ordinary resume must reach fresh member readiness.');
+  assert.equal(accepted.assignedRoleId, 'wing-commander');
+  assert.equal(accepted.connectionGeneration, f.before.connectionGeneration + 1);
+  assert.equal(accepted.identityHydrationRevision, f.before.identityHydrationRevision + 1);
+  assert.equal(accepted.sdkResumePending, false);
+  assert.equal(f.assignment.data.targetUid, f.wing.uid);
+  assert.equal(f.assignment.data.roleId, 'wing-commander');
+  assert.equal(f.assignment.result.sessionId, f.before.sessionId);
+  assert.equal(f.wing.observers.stores.size, 0, 'The mounted readiness consumer leaves no Store observers attached.');
+});
+
 async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate = false, lateCommit = false,
   scopeStall = false, launchStall = false, foreignState = false, clock, coreInput,
   directory, closeOwned, terminateOwned, writeOutcome, configureSurfaces, afterGmClaim,
