@@ -330,3 +330,28 @@ test('P181 browser I/O forwards its original operation cutoff into the mounted o
     'The observer receives the existing caller cutoff; the source observation cannot start a fresh wait.');
   assert.equal(workDeadline, deadlineAt);
 });
+
+test('P181 browser I/O passes the same effective 60-second cutoff to the observer and wrapper', async () => {
+  const wingCommander = { controlled: true };
+  const laterDeadlineAt = 120_000;
+  const effectiveDeadlineAt = 61_000;
+  let workDeadline, observerArgs;
+  const snapshot = runInNewContext('(() => {' + snapshotConsumerSource +
+    '; return snapshot; })()', {
+      wingCommander,
+      Date: { now: () => 1_000 },
+      observeP181StarlightSource: (...args) => {
+        observerArgs = args;
+        return Promise.resolve({ controlled: true });
+      },
+      work: async (_label, operation, cutoff) => {
+        workDeadline = cutoff;
+        return operation();
+      },
+    });
+  await snapshot(laterDeadlineAt);
+  assert.equal(observerArgs[0], wingCommander);
+  assert.equal(observerArgs[1], effectiveDeadlineAt,
+    'The observer receives the exact cutoff already imposed by its bounded work wrapper.');
+  assert.equal(workDeadline, effectiveDeadlineAt);
+});
