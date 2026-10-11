@@ -763,7 +763,7 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       }
       if (action === 'wait') return held.completed;
       if (action === 'close') {
-        held.stop(); delete window[key];
+        held.closed = true; held.stop(); delete window[key];
         held.complete(held.failure);
         if (held.failure) throw new Error(held.failure);
         return;
@@ -906,6 +906,7 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       } catch (error) { fail(error); }
     };
     held.check = async () => { try {
+      if (held.closed) throw new Error('Original P181 retained authority scope already ended.');
       if (held.failure) throw new Error(held.failure);
       if (Date.now() >= deadlineAt) throw timeout();
       inspect(held.store?.getState());
@@ -919,6 +920,7 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
         if (hash !== held.options.expected.uidHash) throw new Error('Original P181 owned Auth account UID changed.');
       }
       if (held.failure) throw new Error(held.failure);
+      if (held.closed) throw new Error('Original P181 retained authority scope ended during verification.');
       inspect(held.store?.getState());
     } catch (error) { fail(error); throw error; } };
     held.pin = async next => {
@@ -1315,7 +1317,15 @@ export function createP181StarlightBrowserIo({ gm, wingCommander, gameplay, dire
     let primary;
     try {
       await ensureWingObservation(deadlineAt);
-      return await Promise.race([operation(), wingObservation.failed]);
+      const observation = wingObservation;
+      assert.ok(observation, 'Original P181 observation scope ended before the operation.');
+      // Parent cutoff/cleanup can complete during an awaited observer read.
+      // Keep this exact handle and verify it before dispatch; a cleared global
+      // handle must neither create an unhandled promise nor resume SDK work.
+      return await Promise.race([Promise.resolve().then(async () => {
+        await observation.check(); p181Remaining(deadlineAt, Infinity);
+        return operation();
+      }), observation.failed]);
     } catch (error) { primary = error; throw error; }
     finally {
       operationDepth--;
