@@ -103,6 +103,9 @@ function actualP181ReadinessConsumer(kind, late) {
     hashShort: value => createHash('sha256').update(value).digest('hex').slice(0, 16),
     readFullActor: async () => { if (late && kind === 'full') now = 101; return member; },
     readGmRecoveryPending: async () => { if (late) now = 101; return false; },
+    // This clock-only adapter controls the retained observer port. The
+    // contemporary R5 cases below use the actual mounted Auth/store observer.
+    retainP181MemberAuthority: async () => ({ check: async () => {}, close: async () => {}, failed: new Promise(() => {}) }),
     delay: async amount => { now += Math.max(1, amount); } };
   const body = kind === 'full' ? p181FullActorWaitBody : p181GmWaitBody;
   const method = kind === 'full' ? 'waitForFullActor' : 'waitForGm';
@@ -2003,7 +2006,7 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
   surface.observers = { stores: storeListeners, movements: movementListeners, auth: authListeners, attachments: 0, detachments: 0 };
   const modules = path => {
     if (path === '/src/lib/firebase.ts') return { auth: () => ({
-      currentUser: surface.uid ? { uid: surface.uid } : null,
+      get currentUser() { return surface.uid ? { uid: surface.uid } : null; },
       onAuthStateChanged: next => { authListeners.add(next); return () => authListeners.delete(next); },
       authStateReady: async () => { surface.authReadinessCalls = (surface.authReadinessCalls ?? 0) + 1; await surface.authReady; },
     }) };
@@ -3765,7 +3768,8 @@ async function reloadAuthReadinessFixture(t, { restoredUid = 'wing-uid', pending
   const evaluateMounted = wing.page.evaluate;
   let memberReads = 0;
   wing.page.evaluate = async (callback, args) => {
-    if (args && Object.hasOwn(args, 'moduleUrl') && Object.hasOwn(args, 'deadlineAt') && !Object.hasOwn(args, 'knownRoleIds')) {
+    if (args && Object.hasOwn(args, 'moduleUrl') && Object.hasOwn(args, 'deadlineAt') &&
+        !Object.hasOwn(args, 'knownRoleIds') && String(callback).includes('captureProjection')) {
       return { sessionId: 'normal-session', phase: 'active', cycle: 1, airspace: 'lifted',
         sourceFreshness: 'server', actor: { uidHash: original.uidHash, sessionId: wing.state.session.id,
           documentTimeOrigin: wing.documentTimeOrigin ?? 1000,
@@ -4118,7 +4122,7 @@ test('complete boundary readiness actual transit publication waits for exact ret
   let reads = 0;
   browser.observeMember = async () => ({ ...original });
   browser.observeFlight = async () => ++reads === 1 ? before : successor;
-  const observed = await browser.waitForTransit(receipt, 1000, clock.now() + 1000);
+  const observed = await browser.waitForTransit(receipt, 1000, clock.now() + 1000, before);
   assert.equal(observed.transit.revision, receipt.revision);
   assert.equal(observed.transit.destinationShipId, receipt.destinationShipId);
   assert.equal(reads, 2, 'The same transit ID at the old revision cannot satisfy exact publication.');
@@ -4295,6 +4299,9 @@ test('complete boundary readiness one exact-entry sequential replay covers initi
   const directory = await mkdtemp('/tmp/p181-complete-sequential-readiness-');
   const { io, state, trace } = makeConsumer(); state.actor = actor;
   const browser = completeReadinessIo(wing, gm, directory); browser.expectedWingCommander = actor;
+  io.beginPathAuthority = (...args) => browser.beginPathAuthority(...args);
+  io.checkPathAuthority = (...args) => browser.checkPathAuthority(...args);
+  io.finishPathAuthority = (...args) => browser.finishPathAuthority(...args);
   const events = [], timers = [];
   t.after(() => { for (const timer of timers) clearTimeout(timer); });
   const sync = () => {
@@ -4420,6 +4427,7 @@ for (const kind of ['full', 'gm']) {
       ownedAuthUids: new Map([['gm', uid]]), hashShort: hash,
       readFullActor: async () => snapshots[Math.min(reads++, snapshots.length - 1)],
       readGmRecoveryPending: async () => false, bounded: async (_label, action) => action(),
+      retainP181MemberAuthority: async () => ({ check: async () => {}, close: async () => {}, failed: new Promise(() => {}) }),
       delay: async amount => { now += amount; },
     });
     await assert.rejects(kind === 'full' ? wait(surface, 'Original startup', value => value.connection === 'live', 1000)
@@ -4555,7 +4563,7 @@ for (const boundary of ['recovery state', 'lifecycle claim']) {
     let retired = false;
     f.gm.page.evaluate = async (callback, args) => {
       const atBoundary = boundary === 'recovery state' ? typeof args === 'string' && String(callback).includes('gmRecoveryPending')
-        : args?.sessionId === 'normal-session' && !Object.hasOwn(args, 'knownRoleIds');
+        : args?.expectedSessionId === 'normal-session' && !Object.hasOwn(args, 'knownRoleIds');
       if (atBoundary && !retired) {
         retired = true; f.events.observerCounts.push(f.gm.observers.stores.size);
         f.gm.publish(s => { s.me.role = 'player'; }); f.gm.publish(s => { s.me.role = 'gm'; });
