@@ -289,7 +289,7 @@ const original = Object.freeze({
   groupId: 'fleet-1', shipId: 'aegis',
 });
 
-function makeConsumer() {
+function makeConsumer({ departureOriginOverride } = {}) {
   const trace = [];
   const state = {
     actor: { ...original },
@@ -338,11 +338,13 @@ function makeConsumer() {
     async observeFlight() { return structuredClone(state.session); },
     async openStarlightFromWingWorkspace() { trace.push({ ui: 'open-starlight' }); },
     async departureOptions() { return ['icebreaker', 'shepherd']; },
-    async retargetOptions() { return ['shepherd', 'quellon']; },
+    async retargetOptions() { return ['aegis', 'shepherd', 'quellon']; },
     async requestDeparture(destination, before) {
       const request = { sessionId: 'normal-session', requestId: 'departure-1', shuttleId: 'starlight',
         destinationShipId: destination, expectedControlRevision: before.control.revision, expectedCycle: before.cycle };
-      state.session.departure = { requestId: request.requestId, destinationShipId: destination, cycle: before.cycle };
+      state.session.departure = { requestId: request.requestId,
+        originShipId: departureOriginOverride ?? state.session.docking.shipId,
+        destinationShipId: destination, cycle: before.cycle };
       return result('requestShuttleDeparture', request, { status: 'requested', requestId: request.requestId });
     },
     async waitForDeparture() { return structuredClone(state.session); },
@@ -350,11 +352,16 @@ function makeConsumer() {
       const request = { sessionId: 'normal-session', requestId: 'begin-1', shuttleId: 'starlight',
         expectedDepartureRequestId: departure.requestId, expectedControlRevision: before.control.revision,
         expectedCycle: before.cycle };
-      state.session.transit = { transitRequestId: 'transit-1', revision: 1, status: 'in-transit',
-        originShipId: 'aegis', destinationShipId: departure.destinationShipId,
-        departedAt: new Date().toISOString(), arrivesAt: new Date(Date.now() + 60_000).toISOString(), cycle: before.cycle };
+      const departedAt = new Date().toISOString();
+      state.session.transit = { status: 'in-transit', requestId: departure.requestId,
+        transitRequestId: 'transit-1', shuttleId: 'starlight', holderUid: 'wing-uid', fleetGroupId: 'fleet-1',
+        destinationShipId: departure.destinationShipId, cycle: before.cycle, controlRevision: before.control.revision,
+        requestedAt: new Date(Date.now() - 1_000).toISOString(), revision: 1,
+        currentPosition: { x: 0, y: 0, z: 0 }, destinationPosition: { x: 1, y: 1, z: 1 },
+        velocity: { x: 1, y: 1, z: 1 }, departedAt,
+        arrivesAt: new Date(Date.parse(departedAt) + 60_000).toISOString() };
       state.session.departure = null;
-      return result('beginShuttleTransit', request, { ...state.session.transit, requestId: request.requestId });
+      return result('beginShuttleTransit', request, { ...state.session.transit });
     },
     async waitForTransit() { return structuredClone(state.session); },
     async retargetTransit(transit, destination, before) {
@@ -1430,6 +1437,14 @@ test('actual movement consumer accepts the shared safe member DTO and hash-bound
     'The original hash-matched current Starlight holder must be admitted by the executable consumer.');
 });
 
+test('actual movement consumer refuses a departure from a different origin before Begin', async () => {
+  const { io, trace } = makeConsumer({ departureOriginOverride: 'icebreaker' });
+  await assert.rejects(runP181StarlightMovementScoutUiProof(completeProofInput(io)),
+    /original observed Starlight berth/i);
+  assert.deepEqual(trace.filter(item => item.endpoint).map(item => item.endpoint), ['requestShuttleDeparture'],
+    'A changed departure origin cannot reach the one-shot Begin action.');
+});
+
 test('actual movement consumer rejects a different safe Starlight holder hash before mutation', async () => {
   const { io, trace, state } = makeConsumer();
   const actor = { ...original };
@@ -1490,6 +1505,9 @@ test('controlled shared-receipt IO consumes one original Starlight movement and 
     'The automatic timer receipt is the one arrival command; no duplicate Complete arrival is issued.');
   assert.equal(trace.filter(item => item.endpoint === 'beginShuttleTransit').length, 1,
     'An uncertain Begin must never be repeated with a new command identity.');
+  const retargetRequest = trace.find(item => item.endpoint === 'retargetShuttleTransit')?.request;
+  assert.equal(retargetRequest?.destinationShipId, 'shepherd',
+    'Retarget keeps the original AEGIS origin excluded even though the public transit has no origin field.');
   const scoutTargets = trace.filter(item => item.endpoint === 'requestScout').map(item => item.request.targetCoordinate);
   assert.deepEqual(scoutTargets, ['1100', '1101'],
     'A second same-cycle scan selects another currently printed coordinate when the normal form retains the first selection.');

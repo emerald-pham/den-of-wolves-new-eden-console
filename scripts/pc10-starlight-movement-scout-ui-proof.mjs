@@ -407,6 +407,7 @@ async function runP181StarlightMovementScoutCore({
 
   // Capture the actual source offers before selecting either destination.
   const start = (await currentFlight({ requireAegisDocking: true })).flight;
+  const originalOriginShipId = start.docking.shipId;
   const destinations = await step('departureOptions');
   assert.ok(Array.isArray(destinations) && destinations.length > 0,
     'Use an actually offered source destination; never manufacture a destination.');
@@ -424,11 +425,15 @@ async function runP181StarlightMovementScoutCore({
   const departureState = await step('waitForDeparture', departure.result);
   assert.equal(departureState.departure?.requestId, departure.result.requestId,
     'A current source departure projection must match the real UI receipt.');
+  assert.equal(departureState.departure?.originShipId, originalOriginShipId,
+    'The matched departure must retain the original observed Starlight berth.');
   assert.equal(departureState.departure?.destinationShipId, destination);
   mark('departure', 'observed');
 
   const beforeBegin = (await currentFlight()).flight;
   assert.equal(beforeBegin.departure?.requestId, departure.result.requestId);
+  assert.equal(beforeBegin.departure?.originShipId, originalOriginShipId,
+    'Begin only from the original matched departure and its observed source berth.');
   const transitCapture = await operation('beginShuttleTransit',
     (budget, actor, deadlineAt) => io.beginTransit(beforeBegin.departure, beforeBegin, actor, budget, deadlineAt),
     result => result?.status === 'in-transit' && identifier(result?.transitRequestId) &&
@@ -436,17 +441,21 @@ async function runP181StarlightMovementScoutCore({
   assert.equal(transitCapture.request.expectedDepartureRequestId, departure.result.requestId);
   assert.equal(transitCapture.request.expectedControlRevision, beforeBegin.control.revision);
   assert.equal(transitCapture.request.expectedCycle, beforeBegin.cycle);
+  assert.equal(transitCapture.result?.originShipId, undefined,
+    'The Begin reply is the same member-readable projection and omits the server-only origin.');
+  assert.equal(transitCapture.result?.destinationShipId, destination);
   const transit = await step('waitForTransit', transitCapture.result);
   assert.equal(transit.transit?.transitRequestId, transitCapture.result.transitRequestId,
     'The current in-transit projection must match the original Begin receipt.');
-  assert.equal(transit.transit?.originShipId, start.docking.shipId);
+  assert.equal(transit.transit?.originShipId, undefined,
+    'The member-readable transit projection intentionally omits its server-only origin.');
   assert.equal(transit.transit?.destinationShipId, destination);
   assert.equal(transit.transit?.status, 'in-transit');
   mark('begin-transit', 'observed');
 
   const retargetOptions = await step('retargetOptions', transit.transit);
   assert.ok(Array.isArray(retargetOptions));
-  const retargetDestination = retargetOptions.find(value => value !== transit.transit.originShipId &&
+  const retargetDestination = retargetOptions.find(value => value !== originalOriginShipId &&
     value !== transit.transit.destinationShipId);
   if (retargetDestination) {
     const beforeRetarget = (await currentFlight()).flight;
