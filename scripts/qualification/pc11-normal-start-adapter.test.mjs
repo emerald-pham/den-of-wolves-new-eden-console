@@ -151,6 +151,36 @@ test('member identity epoch cannot drift or regress without exact normal resume 
   }
 });
 
+test('reload document hydration epoch allows a reset only in an exact newer document resume binding', () => {
+  const before = { uidHash: 'original-member-hash', sessionId: 'fresh-normal-session',
+    documentTimeOrigin: 1000, connectionGeneration: 2, identityHydrationRevision: 2 };
+  const after = { ...before, documentTimeOrigin: 2000, connectionGeneration: 3, identityHydrationRevision: 1 };
+  const evidence = { status: 'accepted', source: 'normal-resumeSession', uidHash: after.uidHash,
+    sessionId: after.sessionId, documentTimeOrigin: 2000, connectionGeneration: 3,
+    identityHydrationRevision: 1, sdkHasServerAuthority: true, sdkResumePending: false };
+  assert.equal(sameActorEpoch(before, after, evidence), true);
+  assert.equal(sameActorEpoch(before, after), false);
+  for (const change of [{ documentTimeOrigin: 3000 }, { sdkResumePending: true },
+    { sdkResumePending: undefined }, { sdkHasServerAuthority: false }, { uidHash: 'foreign-member' },
+    { identityHydrationRevision: 2 }, { connectionGeneration: 4 }]) {
+    assert.equal(sameActorEpoch(before, after, { ...evidence, ...change }), false);
+  }
+});
+
+test('reload document hydration epoch still rejects same-document counter regression and stale documents', () => {
+  const before = { uidHash: 'original-member-hash', sessionId: 'fresh-normal-session',
+    documentTimeOrigin: 1000, connectionGeneration: 2, identityHydrationRevision: 2 };
+  const evidence = after => ({ status: 'accepted', source: 'normal-resumeSession', uidHash: after.uidHash,
+    sessionId: after.sessionId, documentTimeOrigin: after.documentTimeOrigin,
+    connectionGeneration: after.connectionGeneration, identityHydrationRevision: after.identityHydrationRevision,
+    sdkHasServerAuthority: true, sdkResumePending: false });
+  for (const change of [{ documentTimeOrigin: 1000 }, { documentTimeOrigin: 900 },
+    { connectionGeneration: 2 }, { connectionGeneration: 4 }, { identityHydrationRevision: 0 }]) {
+    const after = { ...before, documentTimeOrigin: 2000, connectionGeneration: 3, identityHydrationRevision: 1, ...change };
+    assert.equal(sameActorEpoch(before, after, evidence(after)), false);
+  }
+});
+
 const malformedEpochIdentifiers = [
   ['whitespace-only uidHash', { uidHash: '   ' }],
   ['whitespace-only sessionId', { sessionId: '\t ' }],

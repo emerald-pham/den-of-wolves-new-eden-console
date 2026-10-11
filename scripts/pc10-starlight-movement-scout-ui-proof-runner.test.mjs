@@ -1764,7 +1764,8 @@ test('original actor consumer accepts reload only after the shared normal-resume
     const resumeEvidence = { status: 'accepted', source: 'normal-resumeSession',
       uidHash: state.actor.uidHash, sessionId: state.actor.sessionId,
       connectionGeneration: state.actor.connectionGeneration,
-      identityHydrationRevision: state.actor.identityHydrationRevision, sdkHasServerAuthority: true };
+      identityHydrationRevision: state.actor.identityHydrationRevision, sdkHasServerAuthority: true,
+      documentTimeOrigin: state.actor.documentTimeOrigin, sdkResumePending: false };
     assert.equal(pc11SameActorEpoch(before, state.actor, resumeEvidence), true,
       'The shared helper accepts only this same-actor server resume tuple.');
     return { actor: structuredClone(state.actor), flight: structuredClone(state.session), resumeEvidence };
@@ -3667,8 +3668,11 @@ test('source arrival core semantics stop on changed custody after reload before 
 // Auth provider, emulator, store setter, or gameplay command runs in this test.
 async function reloadAuthReadinessFixture(t, { restoredUid = 'wing-uid', pending = false,
   resume = true, foreignSession = false, authorityChange, documentTimeOrigin = 2000,
-  settledDocumentTimeOrigin, hydrationDelay = 0, unchangedEpoch = false } = {}) {
+  settledDocumentTimeOrigin, hydrationDelay = 0, unchangedEpoch = false,
+  resetDocumentHydration = false, oldHydrationRevision = 3, newHydrationRevision = 1,
+  settledHydrationRevision } = {}) {
   const wing = mountedP181Surface('wing-uid'), gm = mountedP181Surface('original-gm', { gm: true });
+  wing.state.identityHydrationRevision = oldHydrationRevision;
   const original = await observeFullGameDemoPresentationMember(wing, { knownRoleIds: originalRoleIds });
   const directory = await mkdtemp('/tmp/p181-reload-auth-readiness-');
   let settleAuth, restorationTimer, hydrationTimer;
@@ -3685,20 +3689,24 @@ async function reloadAuthReadinessFixture(t, { restoredUid = 'wing-uid', pending
           ownerUidHash: original.uidHash, revision: 4 },
         docking: { shuttleId: 'starlight', shipId: 'shepherd' }, departure: null, transit: null };
     }
-    if (args && Object.hasOwn(args, 'knownRoleIds') && ++memberReads === 3 && settledDocumentTimeOrigin !== undefined)
-      wing.documentTimeOrigin = settledDocumentTimeOrigin;
+    if (args && Object.hasOwn(args, 'knownRoleIds') && ++memberReads === 3) {
+      if (settledDocumentTimeOrigin !== undefined) wing.documentTimeOrigin = settledDocumentTimeOrigin;
+      if (settledHydrationRevision !== undefined) wing.state.identityHydrationRevision = settledHydrationRevision;
+    }
     return evaluateMounted(callback, args);
   };
   wing.page.reload = async options => {
     wing.reloadOptions = options;
     wing.documentTimeOrigin = documentTimeOrigin;
     wing.uid = null;
+    if (resetDocumentHydration) wing.state.identityHydrationRevision = 0;
     wing.state.connection = 'connecting'; wing.state.sessionSnapshotFreshness = 'cache';
     wing.state.sdkHasServerAuthority = false; wing.state.sdkResumePending = true;
     if (!pending) restorationTimer = setTimeout(() => {
       wing.uid = restoredUid;
       wing.state.me.connectionGeneration = unchangedEpoch ? 2 : 3;
-      wing.state.identityHydrationRevision = unchangedEpoch || hydrationDelay ? 3 : 4;
+      wing.state.identityHydrationRevision = resetDocumentHydration
+        ? hydrationDelay ? 0 : newHydrationRevision : unchangedEpoch || hydrationDelay ? 3 : 4;
       wing.state.session.currentActorBerthAuthority.connectionGeneration = wing.state.me.connectionGeneration;
       wing.state.connection = 'live'; wing.state.sessionSnapshotFreshness = 'server';
       wing.state.sdkHasServerAuthority = !hydrationDelay; wing.state.sdkResumePending = !!hydrationDelay;
@@ -3710,7 +3718,7 @@ async function reloadAuthReadinessFixture(t, { restoredUid = 'wing-uid', pending
       if (resume) wing.deliver('resumeSession', { sessionId: 'normal-session' }, {
         session: { id: 'normal-session' }, player: { ...wing.state.me } });
       if (hydrationDelay) hydrationTimer = setTimeout(() => {
-        wing.state.identityHydrationRevision = 4;
+        wing.state.identityHydrationRevision = resetDocumentHydration ? newHydrationRevision : 4;
         wing.state.sdkHasServerAuthority = true; wing.state.sdkResumePending = false;
       }, hydrationDelay);
       settleAuth();
@@ -3844,4 +3852,86 @@ test('reload Auth readiness actual adapter rejects an unchanged document and epo
     documentTimeOrigin: 1000, unchangedEpoch: true, resume: false });
   await assert.rejects(io.reloadAndReselectWingCommander(2000, Date.now() + 2000), /new document/i);
   assert.deepEqual(selections, []);
+});
+
+// The October 11 native trace observed old document hydration2 -> new0 -> new1.
+// Zustand initializes this counter to0 and does not restore it from persistence.
+// These source-shaped transitions exercise the actual adapter/observer/core;
+// they are controlled SDK ports, not native gameplay or historical captures.
+test('reload document hydration actual contract accepts observed new-document counter1 after old counter2', async t => {
+  const { io, original, wing, selections } = await reloadAuthReadinessFixture(t, {
+    resetDocumentHydration: true, oldHydrationRevision: 2 });
+  const deadlineAt = Date.now() + 2000;
+  const recovered = await io.reloadAndReselectWingCommander(2000, deadlineAt);
+  assert.equal(original.identityHydrationRevision, 2);
+  assert.equal(recovered.actor.identityHydrationRevision, 1);
+  assert.equal(recovered.actor.connectionGeneration, 3);
+  assert.equal(recovered.actor.uidHash, original.uidHash);
+  assert.equal(recovered.actor.documentTimeOrigin, 2000);
+  assert.equal(recovered.actor.sdkHasServerAuthority, true);
+  assert.equal(recovered.actor.sdkResumePending, false);
+  assert.equal(recovered.resumeEvidence.documentTimeOrigin, 2000);
+  assert.equal(recovered.resumeEvidence.sdkResumePending, false);
+  assert.equal(pc11SameActorEpoch(original, recovered.actor, recovered.resumeEvidence), true);
+  assert.equal(wing.authReadinessCalls, 1);
+  assert.deepEqual(selections, [{ roleId: 'wing-commander', enter: true, deadlineAt }]);
+});
+
+test('reload document hydration actual contract waits within initial deadline for new counter0 to1', async t => {
+  const { io, directory } = await reloadAuthReadinessFixture(t, {
+    resetDocumentHydration: true, oldHydrationRevision: 2, hydrationDelay: 60 });
+  const deadlineAt = Date.now() + 2000;
+  const recovered = await io.reloadAndReselectWingCommander(2000, deadlineAt);
+  assert.equal(recovered.actor.identityHydrationRevision, 1);
+  assert.equal(recovered.actor.sdkResumePending, false);
+  const [name] = await readdir(resolve(directory, 'member-navigation'));
+  const evidence = JSON.parse(await readFile(resolve(directory, 'member-navigation', name), 'utf8'));
+  assert.equal(evidence.deadlineAt, deadlineAt);
+  assert.ok(evidence.samples.some(row => row.current.connectionGeneration === 3 && row.current.identityHydrationRevision === 0));
+  assert.equal(evidence.transitions.length, 1);
+});
+
+test('reload document hydration actual contract never selects without positive hydration and completed SDK authority', async t => {
+  for (const options of [{ newHydrationRevision: 0 }, { authorityChange: 'pending-sdk' },
+    { authorityChange: 'revoked-berth' }, { authorityChange: 'foreign-berth' }, { authorityChange: 'revoked-seat' }]) {
+    const { io, selections } = await reloadAuthReadinessFixture(t, {
+      resetDocumentHydration: true, oldHydrationRevision: 2, ...options });
+    const deadlineAt = Date.now() + 180;
+    await assert.rejects(io.reloadAndReselectWingCommander(2000, deadlineAt), /original.*deadline/i);
+    assert.deepEqual(selections, [], JSON.stringify(options));
+  }
+});
+
+test('reload document hydration actual contract rejects a different hydrated epoch during settled SDK read', async t => {
+  const { io, selections } = await reloadAuthReadinessFixture(t, {
+    resetDocumentHydration: true, oldHydrationRevision: 2, settledHydrationRevision: 2 });
+  await assert.rejects(io.reloadAndReselectWingCommander(2000, Date.now() + 2000), /hydration|strictly equal/i);
+  assert.deepEqual(selections, []);
+});
+
+test('reload document hydration actual contract rejects missing normal receipt with a valid reset counter', async t => {
+  const { io, selections } = await reloadAuthReadinessFixture(t, {
+    resetDocumentHydration: true, oldHydrationRevision: 2, resume: false });
+  await assert.rejects(io.reloadAndReselectWingCommander(2000, Date.now() + 2000), /matching normal resume receipt/i);
+  assert.deepEqual(selections, []);
+});
+
+test('original actor core reload counter accepts new document hydration1 before actual first scout consumer', async () => {
+  const { io, state, trace } = makeConsumer();
+  state.actor.identityHydrationRevision = 2;
+  state.actor.hydrationRevision = 2;
+  const expectedWingCommander = { ...state.actor };
+  io.reloadAndReselectWingCommander = async () => {
+    state.actor = { ...state.actor, documentTimeOrigin: 2000, connectionGeneration: 3,
+      generation: 3, identityHydrationRevision: 1, hydrationRevision: 1 };
+    return { actor: structuredClone(state.actor), flight: structuredClone(state.session),
+      resumeEvidence: { status: 'accepted', source: 'normal-resumeSession', uidHash: state.actor.uidHash,
+        sessionId: state.actor.sessionId, connectionGeneration: 3, identityHydrationRevision: 1,
+        documentTimeOrigin: 2000, sdkHasServerAuthority: true, sdkResumePending: false } };
+  };
+  const result = await runP181StarlightMovementScoutUiProof(completeProofInput(io, expectedWingCommander));
+  assert.equal(result.movement.finalDocking.shipId, 'shepherd');
+  assert.equal(result.scouting.privateReports.length, 2);
+  assert.equal(trace.filter(row => row.endpoint === 'requestScout').length, 2);
+  assert.equal(io.expectedWingCommander.identityHydrationRevision, 1);
 });
