@@ -2382,13 +2382,14 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
         const assignment = await captureAction(gm, 'assignRole', () =>
           casting.getByRole('button', { name: `Assign role to ${displayName}`, exact: true })
             .click({ timeout: Math.min(35_000, deadlineAt - Date.now()) }), deadlineAt);
-        await waitForFullActor(wingCommander, 'Original normal Wing Commander role assignment', value =>
-          value.assignedRoleId === P181_NORMAL_SETUP.wingCommanderRoleId && value.activeConsoleRoleId == null &&
-          value.phase === 'casting' && value.cycle === 0,
+        const navigationStart = await waitForFullActor(wingCommander,
+          'Original normal Wing Commander assignment readiness before station navigation', value =>
+          pc11MemberReadiness(value, { sessionId, uidHash: admittedAuth.uidHash,
+            roleId: P181_NORMAL_SETUP.wingCommanderRoleId, stage: 'casting' }) &&
+          value.phase === 'casting' && value.cycle === 0 && value.sdkResumePending === false,
         deadlineAt);
         trace.push('wing-commander-normal-join-and-consent', 'assignRole');
 
-        const navigationStart = await readFullActor(wingCommander, deadlineAt);
         const navigation = createMemberNavigationResumeObserver(wingCommander.page, { directory,
           roleId: P181_NORMAL_SETUP.wingCommanderRoleId, deadlineAt, memberContract: 'pc11-live-base' });
         let station, navigationError;
