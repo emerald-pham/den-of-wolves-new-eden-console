@@ -1235,16 +1235,13 @@ export function createP181StarlightBrowserIo({ gm, wingCommander, gameplay, dire
           assert.equal(current.sessionId, initial.sessionId); assert.equal(current.uidHash, io.expectedWingCommander.uidHash);
           navigation.sample(current);
           if (current.connection !== 'live' || current.freshness !== 'server') { await pause(200, deadlineAt); continue; }
-          if (current.connectionGeneration !== before.connectionGeneration || current.identityHydrationRevision !== before.identityHydrationRevision ||
-              current.documentTimeOrigin !== before.documentTimeOrigin) {
-            const accepted = await work('Accept exact original navigation SDK receipt', () =>
-              navigation.accept(before, current, navigationMember), deadlineAt);
-            if (!accepted) { await pause(150, deadlineAt); continue; }
-            acceptedActor = accepted;
-            resumeEvidence = { status: 'accepted', source: 'normal-resumeSession', uidHash: accepted.uidHash,
-              sessionId: accepted.sessionId, connectionGeneration: accepted.connectionGeneration,
-              identityHydrationRevision: accepted.identityHydrationRevision, sdkHasServerAuthority: accepted.sdkHasServerAuthority };
-          } else acceptedActor = current;
+          const accepted = await work('Accept exact original navigation SDK receipt', () =>
+            navigation.accept(before, current, navigationMember), deadlineAt);
+          if (!accepted) { await pause(150, deadlineAt); continue; }
+          acceptedActor = accepted;
+          resumeEvidence = { status: 'accepted', source: 'normal-resumeSession', uidHash: accepted.uidHash,
+            sessionId: accepted.sessionId, connectionGeneration: accepted.connectionGeneration,
+            identityHydrationRevision: accepted.identityHydrationRevision, sdkHasServerAuthority: accepted.sdkHasServerAuthority };
           break;
         }
         assert.ok(acceptedActor, 'Original reload recovery must keep its initial finite deadline.');

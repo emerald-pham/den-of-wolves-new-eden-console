@@ -3667,7 +3667,7 @@ test('source arrival core semantics stop on changed custody after reload before 
 // Auth provider, emulator, store setter, or gameplay command runs in this test.
 async function reloadAuthReadinessFixture(t, { restoredUid = 'wing-uid', pending = false,
   resume = true, foreignSession = false, authorityChange, documentTimeOrigin = 2000,
-  settledDocumentTimeOrigin, hydrationDelay = 0 } = {}) {
+  settledDocumentTimeOrigin, hydrationDelay = 0, unchangedEpoch = false } = {}) {
   const wing = mountedP181Surface('wing-uid'), gm = mountedP181Surface('original-gm', { gm: true });
   const original = await observeFullGameDemoPresentationMember(wing, { knownRoleIds: originalRoleIds });
   const directory = await mkdtemp('/tmp/p181-reload-auth-readiness-');
@@ -3697,8 +3697,9 @@ async function reloadAuthReadinessFixture(t, { restoredUid = 'wing-uid', pending
     wing.state.sdkHasServerAuthority = false; wing.state.sdkResumePending = true;
     if (!pending) restorationTimer = setTimeout(() => {
       wing.uid = restoredUid;
-      wing.state.me.connectionGeneration = 3; wing.state.identityHydrationRevision = hydrationDelay ? 3 : 4;
-      wing.state.session.currentActorBerthAuthority.connectionGeneration = 3;
+      wing.state.me.connectionGeneration = unchangedEpoch ? 2 : 3;
+      wing.state.identityHydrationRevision = unchangedEpoch || hydrationDelay ? 3 : 4;
+      wing.state.session.currentActorBerthAuthority.connectionGeneration = wing.state.me.connectionGeneration;
       wing.state.connection = 'live'; wing.state.sessionSnapshotFreshness = 'server';
       wing.state.sdkHasServerAuthority = !hydrationDelay; wing.state.sdkResumePending = !!hydrationDelay;
       if (foreignSession) wing.state.session.id = 'foreign-session';
@@ -3836,4 +3837,11 @@ test('reload Auth readiness actual adapter retains the ordinary observer documen
       currentOwnBerthConfirmed: true };
     await assert.rejects(observer.accept(before, current, async () => current), /documentTimeOrigin changed/i);
   } finally { await observer.finish(); }
+});
+
+test('reload Auth readiness actual adapter rejects an unchanged document and epoch without a resume receipt', async t => {
+  const { io, selections } = await reloadAuthReadinessFixture(t, {
+    documentTimeOrigin: 1000, unchangedEpoch: true, resume: false });
+  await assert.rejects(io.reloadAndReselectWingCommander(2000, Date.now() + 2000), /new document/i);
+  assert.deepEqual(selections, []);
 });
