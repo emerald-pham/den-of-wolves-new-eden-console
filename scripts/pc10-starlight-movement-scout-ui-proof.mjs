@@ -1211,23 +1211,34 @@ export function createP181StarlightBrowserIo({ gm, wingCommander, gameplay, dire
     },
     async reloadAndReselectWingCommander(timeout, deadlineAt) {
       deadlineAt = endFor(timeout, deadlineAt);
-      const before = await member(deadlineAt);
+      const navigationMember = async () => {
+        const actor = await member(deadlineAt);
+        // This mounted reader validates the projected own berth under these
+        // field names; keep that witness on every observer acceptance read.
+        return { ...actor, currentOwnBerthConfirmed: actor.currentMemberBerthPresent === true &&
+          actor.currentMemberBerthMatches === true };
+      };
+      const before = await navigationMember();
       const navigation = createMemberNavigationResumeObserver(wingCommander.page, {
-        directory, roleId: P181_NORMAL_SETUP.wingCommanderRoleId, deadlineAt, memberContract: 'pc11-live-base' });
+        directory, roleId: P181_NORMAL_SETUP.wingCommanderRoleId, deadlineAt, memberContract: 'pc11-live-base', documentReload: true });
       let failed, acceptedActor, resumeEvidence, recovered;
       try {
         await work('Prepare original navigation observer', () => navigation.prepare(before), deadlineAt);
         await work('Reload original member document', () => wingCommander.page.reload({ waitUntil: 'domcontentloaded',
           timeout: p181Remaining(deadlineAt, 35_000) }), Math.min(deadlineAt, Date.now() + 35_000));
+        await work('Wait for original member Auth restoration', () => wingCommander.page.evaluate(async () => {
+          const { auth } = await import('/src/lib/firebase.ts');
+          await auth().authStateReady();
+        }), deadlineAt);
         while (Date.now() < deadlineAt) {
-          const current = await member(deadlineAt);
+          const current = await navigationMember();
           assert.equal(current.sessionId, initial.sessionId); assert.equal(current.uidHash, io.expectedWingCommander.uidHash);
           navigation.sample(current);
           if (current.connection !== 'live' || current.freshness !== 'server') { await pause(200, deadlineAt); continue; }
           if (current.connectionGeneration !== before.connectionGeneration || current.identityHydrationRevision !== before.identityHydrationRevision ||
               current.documentTimeOrigin !== before.documentTimeOrigin) {
             const accepted = await work('Accept exact original navigation SDK receipt', () =>
-              navigation.accept(before, current, () => member(deadlineAt)), deadlineAt);
+              navigation.accept(before, current, navigationMember), deadlineAt);
             if (!accepted) { await pause(150, deadlineAt); continue; }
             acceptedActor = accepted;
             resumeEvidence = { status: 'accepted', source: 'normal-resumeSession', uidHash: accepted.uidHash,

@@ -74,12 +74,14 @@ function resumeReply(body) {
 
 /** Passive, operation-local evidence from the ordinary route's real SDK.
  * No forced resume, command, store setter, interception, or deadline extension. */
-export function createMemberNavigationResumeObserver(page, { directory, roleId, deadlineAt, memberContract = 'current-berth' }) {
+export function createMemberNavigationResumeObserver(page, { directory, roleId, deadlineAt,
+  memberContract = 'current-berth', documentReload = false }) {
   assert.ok(['current-berth', 'pc11-live-base'].includes(memberContract), 'Use an explicit supported member contract.');
+  assert.equal(typeof documentReload, 'boolean', 'Use an explicit document reload contract.');
   if (typeof page?.on !== 'function' || typeof page?.off !== 'function') return null;
   const id = randomUUID(), folder = resolve(directory, 'member-navigation'), path = resolve(folder, `${id}.json`);
   const record = { schemaVersion: 1, operationId: id, roleId, deadlineAt,
-    createdAt: new Date().toISOString(), status: 'observer-armed', initialRoute: safeRoute(page.url()),
+    createdAt: new Date().toISOString(), status: 'observer-armed', initialRoute: safeRoute(page.url()), documentReload,
     samples: [], events: [], transitions: [], noSdkOrGameplayActionIssued: true };
   const requests = new Map(), listeners = [];
   let baseline, closed = false, writes = Promise.resolve();
@@ -152,6 +154,9 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
     },
     async accept(original, current, readAcceptedCurrent) {
       assert.ok(Date.now() < deadlineAt, 'Original role navigation deadline expired.');
+      if (documentReload) assert.ok(Number.isFinite(current.documentTimeOrigin) &&
+        current.documentTimeOrigin > original.documentTimeOrigin,
+        'Original reload must publish a new document before accepting its SDK resume.');
       const candidates = [...requests.values()].filter(row => row.baseline.documentTimeOrigin === original.documentTimeOrigin &&
         row.baseline.uidHash === original.uidHash && row.baseline.sessionId === original.sessionId &&
         row.baseline.connectionGeneration === original.connectionGeneration &&
@@ -173,7 +178,8 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
       if (current.connectionGeneration === original.connectionGeneration + 1 &&
           current.identityHydrationRevision === original.identityHydrationRevision &&
           current.hasAuth === true && current.sameActor === true &&
-          stableObservationFields.every(key => current[key] === original[key]) &&
+          stableObservationFields.every(key => (documentReload && key === 'documentTimeOrigin') ||
+            current[key] === original[key]) &&
           originalRequests.some(row => row.respondedAt === undefined || row === receipt ||
             row.httpStatus === 200 && row.bodyStatus === 'reading')) return false;
       assert.ok(receipt && current.identityHydrationRevision === original.identityHydrationRevision + 1,
@@ -198,7 +204,8 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
       };
       const settled = { ...observed, clientAcceptance: accepted };
       assert.ok(Date.now() < deadlineAt, 'Original role navigation deadline expired.');
-      for (const key of stableObservationFields) assert.equal(settled[key], original[key],
+      for (const key of stableObservationFields) assert.equal(settled[key],
+        documentReload && key === 'documentTimeOrigin' ? current[key] : original[key],
         `Original resumed ${key} changed during client acceptance observation.`);
       assert.equal(settled.hasAuth, true); assert.equal(settled.sameActor, true);
       assert.equal(settled.connectionGeneration, receipt.reply.connectionGeneration);
