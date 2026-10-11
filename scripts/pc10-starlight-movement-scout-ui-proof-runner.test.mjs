@@ -27,7 +27,7 @@ import { loadEnv } from 'vite';
 import { validateScoutBundle } from './pc10-navigation-scout-proof-contracts.mjs';
 import { runPc11ContractPreflight } from './qualification/pc11-contract-preflight.mjs';
 import { createP181StarlightBrowserIo, createP181StarlightNativeSurfaceFactory,
-  captureP181SourceBindings, runP181StarlightMovementScoutUiProof,
+  captureP181SourceBindings, observeP181StarlightSource, runP181StarlightMovementScoutUiProof,
   runP181StarlightMovementScoutNative, P181_NATIVE_TIMING } from './pc10-starlight-movement-scout-ui-proof.mjs';
 
 // Keep the pre-implementation RED behavioral: the test invokes the expected
@@ -1982,7 +1982,7 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
   let route = gm ? '#/gm' : '#/roles/wing-commander', pending;
   const choices = [], observedBodies = [], waits = [];
   const storeListeners = new Set(), movementListeners = new Set(), authListeners = new Set();
-  const surface = { page, state, uid, choices, observedBodies, waits, window: {},
+  const surface = { page, state, uid, choices, observedBodies, waits, window: { navigator: { onLine: true } },
     storeModuleUrl: () => 'http://127.0.0.1:5173/src/store/useSessionStore.ts',
     sessionAuthorityModuleUrl: () => 'http://127.0.0.1:5173/src/lib/sessionSnapshotAuthority.ts',
     callable: async () => ({ status: 'committed', result: [] }),
@@ -4266,7 +4266,28 @@ async function completeReadinessAppFreshness(wing) {
 
 test('complete boundary readiness one exact-entry sequential replay covers initial callback digest departure arrival reload and first scout', async t => {
   const wing = mountedP181Surface('wing-uid'), gm = mountedP181Surface('original-gm', { gm: true });
-  const authority = await completeReadinessAuthority(wing);
+  let replayBundle, freshnessRaceIssued = false;
+  const playerServiceCalls = [];
+  const wingScoutPort = await attachActualScoutResultService(wing, async (name, payload) => {
+    playerServiceCalls.push({ name, payload });
+    if (name === 'listMyScoutReports') {
+      if (!freshnessRaceIssued) {
+        freshnessRaceIssued = true;
+        wing.publish({ connection: 'offline', sessionSnapshotFreshness: 'cache' });
+        timers.push(setTimeout(() => wing.publish({ connection: 'live', sessionSnapshotFreshness: 'server' }), 20));
+        return [actualP181Report('discarded-cache-response')];
+      }
+      return replayBundle ? [replayBundle.report] : [];
+    }
+    if (name === 'readPrivateScoutResult') return replayBundle.result;
+    if (name === 'readMyScoutDiscoveryNote') return replayBundle.note;
+    throw new Error('Unexpected player scout callable ' + name);
+  });
+  await attachActualScoutResultService(gm, async name => {
+    if (name === 'listPendingScoutRequests') return [];
+    throw new Error('Unexpected GM scout callable ' + name);
+  });
+  const authority = wingScoutPort.authority;
   const freshness = await completeReadinessAppFreshness(wing);
   wing.state.identityHydrationRevision = 2;
   const actor = { ...original, ...await observeFullGameDemoPresentationMember(wing, { knownRoleIds: originalRoleIds }),
@@ -4359,14 +4380,16 @@ test('complete boundary readiness one exact-entry sequential replay covers initi
   io.currentScoutOffer = async (...args) => ({ ...await ordinaryOffer(...args), fuelledSecondRequestAvailable: false });
   const ordinaryResolution = io.resolveScoutNormally;
   io.resolveScoutNormally = async reply => {
-    const bundle = await ordinaryResolution(reply);
-    wing.callable = async name => ({ status: 'committed', result: name === 'listMyScoutReports' ? [bundle.report]
-      : name === 'readPrivateScoutResult' ? bundle.result : bundle.note });
+    replayBundle = await ordinaryResolution(reply);
     return browser.resolveScoutNormally(reply, 2000, Date.now() + 2000);
   };
   const result = await runP181StarlightMovementScoutUiProof(completeProofInput(io, actor));
   assert.equal(result.status, 'SOURCE_RUNNER_FLOW_COMPLETE'); assert.equal(result.actualAcceptance, false);
   assert.equal(result.movement.finalDocking.shipId, 'shepherd'); assert.equal(result.scouting.privateReports.length, 1);
+  assert.equal(result.checkpointOrReleaseCredit, 0); assert.equal(result.fixedCatalogClosures, 0);
+  assert.ok(playerServiceCalls.filter(row => row.name === 'listMyScoutReports').length >= 2);
+  assert.equal(playerServiceCalls.find(row => row.name === 'readPrivateScoutResult').payload.requestId, replayBundle.report.requestId);
+  assert.equal(playerServiceCalls.find(row => row.name === 'readMyScoutDiscoveryNote').payload.noteId, replayBundle.report.noteId);
   for (const endpoint of ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit', 'completeShuttleArrival', 'requestScout'])
     assert.equal(trace.filter(row => row.endpoint === endpoint).length, 1, `Exactly one original ${endpoint}.`);
   assert.ok(events.includes('initial-cache-sample')); assert.ok(events.includes('digest-cache-withdrawal'));
@@ -4653,3 +4676,278 @@ for (const restore of [false, true]) {
     assert.equal(gm.observers.stores.size, 0);
   });
 }
+
+// Append below the existing mountedP181Surface / VM fixture definitions in
+// scripts/pc10-starlight-movement-scout-ui-proof-runner.test.mjs. Requires ROOT's
+// surface.scoutRuntime module-loader preference and persistent surface.window hook.
+async function attachActualScoutResultService(surface, provider) {
+  const ts = createRequire(import.meta.url)('typescript');
+  assert.ok(surface.window?.navigator, 'Use the mounted surface persistent window port.');
+  const compile = async (relative, dependencies = {}) => {
+    const source = await readFile(resolve(repositoryRoot, relative), 'utf8');
+    const output = ts.transpileModule(source, { compilerOptions: {
+      module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
+    } }).outputText;
+    const module = { exports: {} };
+    runInNewContext(output, { module, exports: module.exports, window: surface.window,
+      require(name) {
+        assert.ok(Object.hasOwn(dependencies, name),
+          'Only an explicitly inert module port is allowed for ' + name + ' from ' + relative + '.');
+        return dependencies[name];
+      },
+    }, { filename: relative });
+    return module.exports;
+  };
+  const turnPhase = await compile('src/lib/turnPhase.ts');
+  const lifecycle = await compile('functions/src/lifecycle.ts');
+  const authorityRuntime = await compile('src/lib/sessionSnapshotAuthority.ts', {
+    './turnPhase': turnPhase,
+    '../../functions/src/lifecycle': lifecycle,
+  });
+  surface.authorityRuntime = authorityRuntime;
+  const authority = authorityRuntime.sessionSnapshotAuthorityFor(surface.state.session.id, surface.uid);
+  assert.equal(authorityRuntime.acceptServerSessionAuthority(authority, surface.state.session,
+    { seconds: 1, nanoseconds: 0 }), true);
+  delete surface.state.sdkHasServerAuthority;
+  delete surface.state.sdkResumePending;
+
+  const store = { useSessionStore: { getState: () => surface.state } };
+  const mutationAuthority = await compile('src/lib/sessionMutationAuthority.ts', {
+    '@/store/useSessionStore': store,
+    './sessionSnapshotAuthority': authorityRuntime,
+  });
+  const requestAuthority = await compile('src/lib/scoutRequestAuthority.ts', {
+    './turnPhase': turnPhase,
+  });
+  const service = await compile('src/lib/scoutResultService.ts', {
+    'firebase/functions': {
+      httpsCallable: (_functions, name) => async payload => ({
+        data: await provider(name, payload, { authorityRuntime, authority }),
+      }),
+    },
+    '@/store/useSessionStore': store,
+    './firebase': { functions: () => ({ inertControlledCallablePort: true }) },
+    './scoutRequestAuthority': requestAuthority,
+    './sessionMutationAuthority': mutationAuthority,
+  });
+  surface.scoutRuntime = service;
+  return { service, authorityRuntime, authority };
+}
+
+function actualP181PlayerScoutRead(surface, deadlineAt) {
+  return observeP181StarlightSource(surface, deadlineAt, { scoutRead: {
+    name: 'listMyScoutReports', args: [], cycle: 1, hostShipId: 'aegis',
+  } });
+}
+
+function actualP181Report(requestId, status = 'pending', noteId = null) {
+  return { requestId, cycle: 1, entitlementId: 'starlight', targetCoordinate: '1100',
+    status, noteId };
+}
+
+function actualP181QueueRow(requestId) {
+  return { requestId, cycle: 1, entitlementId: 'starlight',
+    anchorShipId: 'aegis', targetCoordinate: '1100' };
+}
+
+function advanceActualP181Cursor(surface, port, seconds) {
+  surface.publish(state => {
+    state.session = { ...state.session, p181R4GuardedReadWitness: 'same member and phase' };
+  });
+  assert.equal(port.authorityRuntime.acceptServerSessionAuthority(port.authority,
+    surface.state.session, { seconds, nanoseconds: 0 }), true);
+}
+
+test('R4 actual scout service discards a player reply made cache-stale and rereads under the same member', async () => {
+  const wing = mountedP181Surface('wing-uid');
+  let calls = 0, firstAt, secondAt, restore;
+  const actual = await attachActualScoutResultService(wing, async name => {
+    assert.equal(name, 'listMyScoutReports');
+    calls++;
+    if (calls === 1) {
+      firstAt = Date.now();
+      wing.publish({ connection: 'offline', sessionSnapshotFreshness: 'cache' });
+      restore = setTimeout(() => wing.publish({ connection: 'live', sessionSnapshotFreshness: 'server' }), 20);
+      return [actualP181Report('stale-cache-reply')];
+    }
+    secondAt = Date.now();
+    return [actualP181Report('current-live-reply')];
+  });
+  try {
+    const value = await actualP181PlayerScoutRead(wing, Date.now() + 4_000);
+    assert.equal(value.scoutValue[0].requestId, 'current-live-reply',
+      'Discard the valid but stale asynchronous response and return only the fresh guarded read.');
+    assert.equal(calls, 2, 'One exact authority error permits one new service read.');
+    assert.ok(secondAt - firstAt >= 900, 'Use the published one-second player recovery interval.');
+    assert.equal(wing.state.me.uid, 'wing-uid');
+    assert.equal(wing.state.me.role, 'player');
+    assert.equal(wing.state.session.currentTurn, 1);
+    assert.equal(actual.authority.hasServerSessionAuthority, true);
+    assert.equal(wing.observers.stores.size, 0);
+    assert.equal(wing.observers.movements.size, 0);
+    assert.equal(wing.observers.attachments, wing.observers.detachments);
+  } finally { if (restore) clearTimeout(restore); }
+});
+
+test('R4 actual scout service discards a player reply after a newer server cursor and rereads within the original cutoff', async () => {
+  const wing = mountedP181Surface('wing-uid');
+  let calls = 0, firstAt, secondAt;
+  const actual = await attachActualScoutResultService(wing, async name => {
+    assert.equal(name, 'listMyScoutReports');
+    calls++;
+    if (calls === 1) {
+      firstAt = Date.now();
+      advanceActualP181Cursor(wing, actual, 2);
+      return [actualP181Report('cursor-stale-reply')];
+    }
+    secondAt = Date.now();
+    return [actualP181Report('cursor-current-reply')];
+  });
+  const originalCutoff = Date.now() + 4_000;
+  const value = await actualP181PlayerScoutRead(wing, originalCutoff);
+  assert.equal(value.scoutValue[0].requestId, 'cursor-current-reply');
+  assert.equal(calls, 2);
+  assert.ok(secondAt - firstAt >= 900, 'Restart the guarded report read on the existing one-second interval.');
+  assert.ok(Date.now() < originalCutoff, 'A retry retains the operation original cutoff.');
+  assert.equal(wing.state.session.phase, 'active');
+  assert.equal(wing.state.session.currentTurn, 1);
+  assert.equal(wing.state.me.uid, 'wing-uid');
+  assert.equal(wing.state.me.role, 'player');
+  assert.equal(wing.observers.stores.size, 0);
+  assert.equal(wing.observers.movements.size, 0);
+});
+
+for (const terminal of ['member-retirement', 'access-denial', 'malformed-data']) {
+  test('R4 actual scout service never retries terminal ' + terminal, async () => {
+    const wing = mountedP181Surface('wing-uid');
+    let calls = 0;
+    await attachActualScoutResultService(wing, async name => {
+      assert.equal(name, 'listMyScoutReports');
+      calls++;
+      if (terminal === 'member-retirement') {
+        wing.publish(state => { state.me.role = 'gm'; });
+        wing.publish(state => { state.me.role = 'player'; });
+        return [actualP181Report('must-not-be-used')];
+      }
+      if (terminal === 'access-denial') {
+        throw Object.assign(new Error('controlled access denial'), { code: 'permission-denied' });
+      }
+      return [{ requestId: 47, invalid: true }];
+    });
+    const cutoff = Date.now() + 2_000;
+    await assert.rejects(actualP181PlayerScoutRead(wing, cutoff),
+      terminal === 'member-retirement' ? /authority|identity|retired/i
+        : terminal === 'access-denial' ? /controlled access denial|permission/i
+          : /invalid report index/i);
+    await new Promise(done => setTimeout(done, 15));
+    assert.equal(calls, 1, 'Only the exact known authority-change error may retry.');
+    assert.equal(Date.now() < cutoff, true);
+    assert.equal(wing.observers.stores.size, 0);
+    assert.equal(wing.observers.movements.size, 0);
+  });
+}
+
+test('R4 actual player cursor churn stops at two exact-error retries and keeps the original cutoff', async () => {
+  const wing = mountedP181Surface('wing-uid');
+  let calls = 0, firstAt, lastAt;
+  const actual = await attachActualScoutResultService(wing, async name => {
+    assert.equal(name, 'listMyScoutReports');
+    calls++;
+    if (calls === 1) firstAt = Date.now();
+    lastAt = Date.now();
+    advanceActualP181Cursor(wing, actual, calls + 1);
+    return [actualP181Report('churned-stale-' + calls)];
+  });
+  const cutoff = Date.now() + 4_500;
+  await assert.rejects(actualP181PlayerScoutRead(wing, cutoff), /authority|retry|deadline/i);
+  assert.equal(calls, 3, 'Allow the original read plus at most two published retries.');
+  assert.ok(lastAt - firstAt >= 1_800, 'Each retry uses the existing one-second restart interval.');
+  assert.ok(Date.now() < cutoff, 'Retry-cap exhaustion does not renew or consume a fresh operation cutoff.');
+  assert.equal(wing.observers.stores.size, 0);
+  assert.equal(wing.observers.movements.size, 0);
+});
+
+test('R4 actual player retry expires at its original cutoff while the guarded service reply is pending', async () => {
+  const wing = mountedP181Surface('wing-uid');
+  let calls = 0;
+  const actual = await attachActualScoutResultService(wing, async name => {
+    assert.equal(name, 'listMyScoutReports');
+    calls++;
+    await new Promise(done => setTimeout(done, 150));
+    advanceActualP181Cursor(wing, actual, 2);
+    return [actualP181Report('late-stale-reply')];
+  });
+  await assert.rejects(actualP181PlayerScoutRead(wing, Date.now() + 70), /deadline|expired|timeout/i);
+  await new Promise(done => setTimeout(done, 180));
+  assert.equal(calls, 1, 'A late response cannot start a retry after the original operation cutoff.');
+  assert.equal(wing.observers.stores.size, 0);
+  assert.equal(wing.observers.movements.size, 0);
+});
+
+test('R4 actual GM queue cursor rejection is discarded until a five-second guarded reread binds the original request', async () => {
+  const { io: producer, state } = makeConsumer();
+  const reply = (await producer.requestScout('1100', state.session)).result;
+  const bundle = await producer.resolveScoutNormally(reply);
+  const wing = mountedP181Surface('wing-uid');
+  const gm = mountedP181Surface('original-gm', { gm: true });
+  let revealed = false, playerReads = 0, queueReads = 0;
+  const queueTimes = [], revealChoices = [];
+  const pendingReport = actualP181Report(reply.requestId, 'pending', null);
+  const expectedQueue = actualP181QueueRow(reply.requestId);
+  const rejectedQueue = actualP181QueueRow('newer-but-not-original-request');
+  await attachActualScoutResultService(wing, async name => {
+    if (name === 'listMyScoutReports') {
+      playerReads++;
+      return [revealed ? bundle.report : pendingReport];
+    }
+    if (name === 'readPrivateScoutResult') return bundle.result;
+    if (name === 'readMyScoutDiscoveryNote') return bundle.note;
+    throw new Error('Unexpected player scout callable ' + name);
+  });
+  const gmPort = await attachActualScoutResultService(gm, async name => {
+    assert.equal(name, 'listPendingScoutRequests');
+    queueReads++;
+    queueTimes.push(Date.now());
+    if (queueReads === 1) {
+      advanceActualP181Cursor(gm, gmPort, 2);
+      return [rejectedQueue];
+    }
+    return [expectedQueue];
+  });
+  const expectedWing = await observeFullGameDemoPresentationMember(wing, { knownRoleIds: originalRoleIds });
+  const observedGm = await observeFullGameDemoPresentationMember(gm, { knownRoleIds: originalRoleIds });
+  const started = { ...observedGm, claimedAt: gm.state.gmInstance.claimedAt };
+  const browser = createP181StarlightBrowserIo({ gm, wingCommander: wing,
+    gameplay: { select: async role => role === 'gm' ? gm : wing },
+    directory: '/tmp/in-memory-r4-gm-queue-recovery',
+    initial: { sessionId: 'normal-session' }, started, expectedWingCommander: expectedWing });
+  gm.onChoice = async name => {
+    if (name !== 'Reveal Starlight scout at 1100') return;
+    revealChoices.push(name);
+    revealed = true;
+    gm.deliver('resolvePendingScoutRequest', {
+      sessionId: 'normal-session', requestId: reply.requestId, instanceId: gm.state.gmInstance.id,
+    }, { status: 'resolved', result: bundle.result });
+  };
+  const cutoff = Date.now() + 12_000;
+  const value = await browser.resolveScoutNormally(reply, 12_000, cutoff);
+  assert.equal(value.report.requestId, reply.requestId);
+  assert.equal(value.result.requestId, reply.requestId);
+  assert.equal(value.note.id, bundle.note.id);
+  assert.equal(playerReads >= 2, true);
+  assert.equal(queueReads, 2, 'The rejected old queue is discarded and a fresh service queue is obtained.');
+  assert.ok(queueTimes[1] - queueTimes[0] >= 4_900,
+    'The next GM queue read follows the published five-second reload interval.');
+  assert.deepEqual(revealChoices, ['Reveal Starlight scout at 1100']);
+  assert.equal(gm.observedBodies.filter(row => row.endpoint === 'resolvePendingScoutRequest').length, 1);
+  assert.deepEqual(gm.observedBodies.find(row => row.endpoint === 'resolvePendingScoutRequest').data, {
+    sessionId: 'normal-session', requestId: reply.requestId, instanceId: 'gm-original-instance',
+  });
+  assert.equal(gm.state.me.uid, 'original-gm');
+  assert.equal(gm.state.me.role, 'gm');
+  assert.equal(gm.state.gmInstance.id, 'gm-original-instance');
+  assert.equal(gm.state.session.currentTurn, 1);
+  assert.equal(gm.observers.stores.size, 0);
+  assert.equal(wing.observers.stores.size, 0);
+});
+
