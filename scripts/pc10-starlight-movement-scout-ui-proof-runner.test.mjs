@@ -3935,3 +3935,35 @@ test('original actor core reload counter accepts new document hydration1 before 
   assert.equal(trace.filter(row => row.endpoint === 'requestScout').length, 2);
   assert.equal(io.expectedWingCommander.identityHydrationRevision, 1);
 });
+
+for (const [name, change] of [
+  ['pending SDK resume', state => { state.actor.sdkResumePending = true; }],
+  ['retired SDK authority', state => { state.actor.sdkHasServerAuthority = false; }],
+  ['offline member', state => { state.actor.connection = 'offline'; }],
+  ['cached member', state => { state.actor.freshness = 'cache'; }],
+  ['foreign UID', state => { state.actor.uidHash = 'c'.repeat(16); }],
+  ['changed lease', state => { state.actor.connectionGeneration++; }],
+  ['changed local hydration', state => { state.actor.identityHydrationRevision++; }],
+  ['foreign fleet audience', state => { state.actor.fleetGroupId = 'fleet-2'; }],
+  ['revoked berth', state => { state.actor.currentMemberBerthMatches = false; }],
+  ['changed custody revision', state => { state.session.control.revision++; }],
+  ['changed docking', state => { state.session.docking.shipId = 'icebreaker'; }],
+]) {
+  test(`delayed private scout actual consumer denies first-scan credit after ${name}`, async () => {
+    const { io, state, trace } = makeConsumer();
+    const resolveNormally = io.resolveScoutNormally;
+    io.resolveScoutNormally = async (...args) => {
+      const bundle = await resolveNormally(...args);
+      await Promise.resolve();
+      change(state);
+      // Native normal setup has no fuelled second scan. Do not let a later
+      // optional second action accidentally catch a stale first acceptance.
+      state.session.scoutOffer.firstRequestAvailable = false;
+      state.session.scoutOffer.fuelledSecondRequestAvailable = false;
+      return bundle;
+    };
+    await assert.rejects(runP181StarlightMovementScoutUiProof(completeProofInput(io)),
+      /authority|custody|docking|Wing Commander|strictly equal/i);
+    assert.equal(trace.filter(row => row.endpoint === 'requestScout').length, 1);
+  });
+}
