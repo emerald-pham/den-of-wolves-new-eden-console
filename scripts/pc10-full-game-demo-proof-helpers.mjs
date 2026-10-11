@@ -126,9 +126,10 @@ export function captureFullGameDemoPresentationActor(current, options) {
   });
 }
 
-/** Read only the current post-digest member/SDK tuple. Private source objects,
- * raw UIDs, credentials and private documents never leave the browser. */
-export async function observeFullGameDemoPresentationMember(surface, { knownRoleIds = [] } = {}) {
+/** Read the current post-digest member/SDK tuple. The optional P181 GM queue
+ * stays in the private proof caller; raw UIDs and credentials are not returned. */
+export async function observeFullGameDemoPresentationMember(surface, { knownRoleIds = [], deadlineAt, expected,
+  readPendingScoutRequests = false } = {}) {
   const authorityModuleUrl = surface.sessionAuthorityModuleUrl?.();
   assert.ok(typeof authorityModuleUrl === 'string' && authorityModuleUrl.length > 0,
     'The mounted App SDK authority module must be observed before presentation.');
@@ -136,90 +137,186 @@ export async function observeFullGameDemoPresentationMember(surface, { knownRole
   const authorityUrl = new URL(authorityModuleUrl, storeUrl);
   assert.equal(authorityUrl.origin, storeUrl.origin, 'Authority must come from the mounted App origin.');
   assert.equal(authorityUrl.pathname, '/src/lib/sessionSnapshotAuthority.ts');
-  return surface.page.evaluate(async ({ moduleUrl, knownRoleIds, authorityModuleUrl }) => {
+  return surface.page.evaluate(async ({ moduleUrl, knownRoleIds, authorityModuleUrl, deadlineAt, expected, readPendingScoutRequests }) => {
     const { auth } = await import('/src/lib/firebase.ts');
     const { activeDemoActorProfile } = await import('/src/lib/demoActorContext.ts');
     const { useSessionStore } = await import(moduleUrl);
     const { sessionSnapshotAuthorityFor, memberSessionResumeBlocksFreshness } =
       await import(authorityModuleUrl);
     const originalUid = auth().currentUser?.uid;
-    const uidHash = originalUid ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
+    const digestUid = async () => originalUid ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
       new TextEncoder().encode(originalUid)))).map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) : null;
-    const state = useSessionStore.getState(), user = auth().currentUser, session = state.session, me = state.me;
-    if (user?.uid !== originalUid) throw new Error('Original Auth UID changed during presentation readiness observation.');
-    const scope = session?.memberSessionScope, berth = session?.currentActorBerthAuthority;
-    const authority = originalUid && session?.id ? sessionSnapshotAuthorityFor(session.id, originalUid) : null;
-    const marker = session?.fullGameDemo;
-    const currentMemberBerthPresent = !!session && Object.hasOwn(session, 'currentActorBerthAuthority');
-    const wireId = value => typeof value === 'string' && value.length > 0 && value.length <= 1_500 && !value.includes('/');
-    const nullableRole = value => value === null || wireId(value);
-    const keys = ['sessionId', 'actorUid', 'groupId', 'role', 'connectionGeneration',
-      'assignedRoleId', 'activeConsoleRoleId', 'replacementRoleId', 'replacementStatus', 'shipId'];
-    const memberScopeMatches = Boolean(scope && typeof scope.groupId === 'string' && /^fleet-[1-9][0-9]*$/.test(scope.groupId) &&
-      scope.groupId === me?.fleetGroupId && Array.isArray(scope.vesselIds) && Array.isArray(scope.craftIds));
-    const currentMemberBerthMatches = Boolean(session && berth && typeof berth === 'object' && !Array.isArray(berth) &&
-      Object.keys(berth).length === keys.length && Object.keys(berth).every(key => keys.includes(key)) &&
-      wireId(berth.sessionId) && wireId(berth.actorUid) && wireId(berth.shipId) &&
-      berth.role === 'player' && Number.isSafeInteger(berth.connectionGeneration) && berth.connectionGeneration >= 1 &&
-      nullableRole(berth.assignedRoleId) && nullableRole(berth.activeConsoleRoleId) && nullableRole(berth.replacementRoleId) &&
-      berth.replacementStatus === null && me?.role === 'player' && me.connected === true && me.replacementStatus == null &&
-      berth.sessionId === session.id && me.sessionId === session.id && berth.actorUid === me.uid &&
-      memberScopeMatches && berth.groupId === scope.groupId && scope.vesselIds.includes(berth.shipId) &&
-      berth.connectionGeneration === (me.connectionGeneration ?? 1) && berth.assignedRoleId === (me.assignedRoleId ?? null) &&
-      berth.activeConsoleRoleId === (me.activeConsoleRoleId ?? null) && berth.replacementRoleId === (me.replacementRoleId ?? null));
-    const snn = session?.shuttleControl?.['snn-press-shuttle'];
-    const controlKeys = ['shuttleId', 'ownerRoleId', 'ownerUid', 'holderUid', 'revision'];
-    const pressCraftScopeMatches = Boolean(memberScopeMatches && (scope.craftIds.length === 0 ||
-      scope.craftIds.length === 1 && scope.craftIds[0] === 'snn-press-shuttle' && snn &&
-      Object.keys(snn).length === controlKeys.length && Object.keys(snn).every(key => controlKeys.includes(key)) &&
-      snn.shuttleId === 'snn-press-shuttle' && snn.ownerRoleId === 'press-officer' &&
-      snn.ownerUid === originalUid && snn.holderUid === originalUid && Number.isSafeInteger(snn.revision) && snn.revision >= 0));
-    const safeCode = code => ['permission-denied', 'unauthenticated', 'unavailable', 'failed-precondition',
-      'not-found', 'resource-exhausted', 'deadline-exceeded'].includes(code) ? code : 'other';
-    const safeKind = kind => ['station-selection-required', 'rate-limited', 'unavailable-service',
-      'malformed-input', 'stale-revision'].includes(kind) ? kind : 'other';
-    const invalidFields = [], roles = new Set(knownRoleIds);
-    const typed = (key, value, valid) => valid(value) ? value : (invalidFields.push(key), null);
-    const roleId = (key, value) => typed(key, value ?? null, id => id === null || typeof id === 'string' && roles.has(id));
-    const sessionId = (key, value) => typed(key, value ?? null, id => id === null || typeof id === 'string' && /^[\w-]{1,128}$/.test(id));
-    const number = (key, value) => typed(key, value ?? null, n => n === null || Number.isSafeInteger(n) && n >= 0);
-    const enumeration = (key, value, values) => typed(key, value ?? null, v => v === null || values.includes(v));
-    return { hasAuth: !!user, sameActor: !!user && user.uid === me?.uid, uidHash,
-      documentTimeOrigin: typed('documentTimeOrigin', performance.timeOrigin, n => Number.isFinite(n) && n > 0),
-      sessionId: sessionId('sessionId', session?.id), meSessionId: sessionId('meSessionId', me?.sessionId),
-      profileRoleId: roleId('profileRoleId', activeDemoActorProfile?.roleId),
-      profileSessionId: sessionId('profileSessionId', activeDemoActorProfile?.sessionId),
-      playerRole: enumeration('playerRole', me?.role, ['player', 'gm']), assignedRoleId: roleId('assignedRoleId', me?.assignedRoleId),
-      activeConsoleRoleId: roleId('activeConsoleRoleId', me?.activeConsoleRoleId), seatId: roleId('seatId', me?.seatId),
-      fleetGroupId: typed('fleetGroupId', me?.fleetGroupId ?? null, id => id === null || typeof id === 'string' && /^fleet-[1-9][0-9]*$/.test(id)),
-      replacementRoleId: roleId('replacementRoleId', me?.replacementRoleId),
-      replacementStatus: enumeration('replacementStatus', me?.replacementStatus, ['pending', 'assigned']),
-      escapeLocked: me?.escapeState != null, kicked: me?.kickedAt != null, connected: me?.connected !== false,
-      currentOwnPlayerConfirmed: me?.connected === true, connectionGeneration: number('connectionGeneration', me?.connectionGeneration),
-      identityHydrationRevision: number('identityHydrationRevision', state.identityHydrationRevision),
-      connection: enumeration('connection', state.connection, ['live', 'offline', 'connecting', 'disconnected']),
-      freshness: enumeration('freshness', state.sessionSnapshotFreshness, ['server', 'cache']),
-      cycle: number('cycle', session?.currentTurn), phase: enumeration('phase', session?.phase, ['lobby', 'casting', 'briefing', 'active', 'debrief', 'closed']),
-      setupConfirmed: session?.setupConfirmed === true,
-      fullGameDemo: marker ? { status: enumeration('demoStatus', marker.status, ['preparing', 'active', 'complete']),
-        progression: enumeration('demoProgression', marker.progression, ['manual']) } : null,
-      fullGameDemoExact: !!marker && typeof marker === 'object' && !Array.isArray(marker) &&
-        Object.keys(marker).length === 2 && Object.hasOwn(marker, 'status') && Object.hasOwn(marker, 'progression'),
-      pressEnabled: session?.pressEnabled !== false,
-      instanceId: sessionId('instanceId', state.gmInstance?.id),
-      gmInstanceOwned: !!state.gmInstance && state.gmInstance.uid === user?.uid && state.gmInstance.sessionId === session?.id,
-      currentMemberBerthPresent, currentMemberBerthNull: currentMemberBerthPresent && berth === null,
-      currentMemberBerthMatches, memberScopeMatches,
-      memberVesselCount: Array.isArray(scope?.vesselIds) ? scope.vesselIds.length : null,
-      memberCraftCount: Array.isArray(scope?.craftIds) ? scope.craftIds.length : null,
-      pressCraftScopeMatches,
-      currentCanonicalSeatOwned: state.seats.some(seat => seat.id === me?.assignedRoleId &&
-        (seat.roleId ?? seat.id) === me.assignedRoleId && seat.status === 'claimed' && seat.holderUid === me.uid),
-      sdkHasServerAuthority: authority?.hasServerSessionAuthority === true,
-      sdkResumePending: authority ? memberSessionResumeBlocksFreshness(authority) : true,
-      communicationError: state.communicationError ? { code: safeCode(state.communicationError.code),
-        kind: safeKind(state.communicationError.kind) } : null, invalidFields };
-  }, { moduleUrl: surface.storeModuleUrl(), knownRoleIds, authorityModuleUrl });
+    let uidHash;
+    const captureMember = () => {
+      const state = useSessionStore.getState(), user = auth().currentUser, session = state.session, me = state.me;
+      if (user?.uid !== originalUid) throw new Error('Original Auth UID changed during presentation readiness observation.');
+      const scope = session?.memberSessionScope, berth = session?.currentActorBerthAuthority;
+      const authority = originalUid && session?.id ? sessionSnapshotAuthorityFor(session.id, originalUid) : null;
+      const marker = session?.fullGameDemo;
+      const currentMemberBerthPresent = !!session && Object.hasOwn(session, 'currentActorBerthAuthority');
+      const wireId = value => typeof value === 'string' && value.length > 0 && value.length <= 1_500 && !value.includes('/');
+      const nullableRole = value => value === null || wireId(value);
+      const keys = ['sessionId', 'actorUid', 'groupId', 'role', 'connectionGeneration',
+        'assignedRoleId', 'activeConsoleRoleId', 'replacementRoleId', 'replacementStatus', 'shipId'];
+      const memberScopeMatches = Boolean(scope && typeof scope.groupId === 'string' && /^fleet-[1-9][0-9]*$/.test(scope.groupId) &&
+        scope.groupId === me?.fleetGroupId && Array.isArray(scope.vesselIds) && Array.isArray(scope.craftIds));
+      const currentMemberBerthMatches = Boolean(session && berth && typeof berth === 'object' && !Array.isArray(berth) &&
+        Object.keys(berth).length === keys.length && Object.keys(berth).every(key => keys.includes(key)) &&
+        wireId(berth.sessionId) && wireId(berth.actorUid) && wireId(berth.shipId) &&
+        berth.role === 'player' && Number.isSafeInteger(berth.connectionGeneration) && berth.connectionGeneration >= 1 &&
+        nullableRole(berth.assignedRoleId) && nullableRole(berth.activeConsoleRoleId) && nullableRole(berth.replacementRoleId) &&
+        berth.replacementStatus === null && me?.role === 'player' && me.connected === true && me.replacementStatus == null &&
+        berth.sessionId === session.id && me.sessionId === session.id && berth.actorUid === me.uid &&
+        memberScopeMatches && berth.groupId === scope.groupId && scope.vesselIds.includes(berth.shipId) &&
+        berth.connectionGeneration === (me.connectionGeneration ?? 1) && berth.assignedRoleId === (me.assignedRoleId ?? null) &&
+        berth.activeConsoleRoleId === (me.activeConsoleRoleId ?? null) && berth.replacementRoleId === (me.replacementRoleId ?? null));
+      const snn = session?.shuttleControl?.['snn-press-shuttle'];
+      const controlKeys = ['shuttleId', 'ownerRoleId', 'ownerUid', 'holderUid', 'revision'];
+      const pressCraftScopeMatches = Boolean(memberScopeMatches && (scope.craftIds.length === 0 ||
+        scope.craftIds.length === 1 && scope.craftIds[0] === 'snn-press-shuttle' && snn &&
+        Object.keys(snn).length === controlKeys.length && Object.keys(snn).every(key => controlKeys.includes(key)) &&
+        snn.shuttleId === 'snn-press-shuttle' && snn.ownerRoleId === 'press-officer' &&
+        snn.ownerUid === originalUid && snn.holderUid === originalUid && Number.isSafeInteger(snn.revision) && snn.revision >= 0));
+      const safeCode = code => ['permission-denied', 'unauthenticated', 'unavailable', 'failed-precondition',
+        'not-found', 'resource-exhausted', 'deadline-exceeded'].includes(code) ? code : 'other';
+      const safeKind = kind => ['station-selection-required', 'rate-limited', 'unavailable-service',
+        'malformed-input', 'stale-revision'].includes(kind) ? kind : 'other';
+      const invalidFields = [], roles = new Set(knownRoleIds);
+      const typed = (key, value, valid) => valid(value) ? value : (invalidFields.push(key), null);
+      const roleId = (key, value) => typed(key, value ?? null, id => id === null || typeof id === 'string' && roles.has(id));
+      const sessionId = (key, value) => typed(key, value ?? null, id => id === null || typeof id === 'string' && /^[\w-]{1,128}$/.test(id));
+      const number = (key, value) => typed(key, value ?? null, n => n === null || Number.isSafeInteger(n) && n >= 0);
+      const enumeration = (key, value, values) => typed(key, value ?? null, v => v === null || values.includes(v));
+      return { hasAuth: !!user, sameActor: !!user && user.uid === me?.uid, uidHash,
+        documentTimeOrigin: typed('documentTimeOrigin', performance.timeOrigin, n => Number.isFinite(n) && n > 0),
+        sessionId: sessionId('sessionId', session?.id), meSessionId: sessionId('meSessionId', me?.sessionId),
+        profileRoleId: roleId('profileRoleId', activeDemoActorProfile?.roleId),
+        profileSessionId: sessionId('profileSessionId', activeDemoActorProfile?.sessionId),
+        playerRole: enumeration('playerRole', me?.role, ['player', 'gm']), assignedRoleId: roleId('assignedRoleId', me?.assignedRoleId),
+        activeConsoleRoleId: roleId('activeConsoleRoleId', me?.activeConsoleRoleId), seatId: roleId('seatId', me?.seatId),
+        fleetGroupId: typed('fleetGroupId', me?.fleetGroupId ?? null, id => id === null || typeof id === 'string' && /^fleet-[1-9][0-9]*$/.test(id)),
+        replacementRoleId: roleId('replacementRoleId', me?.replacementRoleId),
+        replacementStatus: enumeration('replacementStatus', me?.replacementStatus, ['pending', 'assigned']),
+        escapeLocked: me?.escapeState != null, kicked: me?.kickedAt != null, connected: me?.connected !== false,
+        currentOwnPlayerConfirmed: me?.connected === true, connectionGeneration: number('connectionGeneration', me?.connectionGeneration),
+        identityHydrationRevision: number('identityHydrationRevision', state.identityHydrationRevision),
+        connection: enumeration('connection', state.connection, ['live', 'offline', 'connecting', 'disconnected']),
+        freshness: enumeration('freshness', state.sessionSnapshotFreshness, ['server', 'cache']),
+        cycle: number('cycle', session?.currentTurn), phase: enumeration('phase', session?.phase, ['lobby', 'casting', 'briefing', 'active', 'debrief', 'closed']),
+        setupConfirmed: session?.setupConfirmed === true,
+        fullGameDemo: marker ? { status: enumeration('demoStatus', marker.status, ['preparing', 'active', 'complete']),
+          progression: enumeration('demoProgression', marker.progression, ['manual']) } : null,
+        fullGameDemoExact: !!marker && typeof marker === 'object' && !Array.isArray(marker) &&
+          Object.keys(marker).length === 2 && Object.hasOwn(marker, 'status') && Object.hasOwn(marker, 'progression'),
+        pressEnabled: session?.pressEnabled !== false,
+        instanceId: sessionId('instanceId', state.gmInstance?.id),
+        gmInstanceOwned: !!state.gmInstance && state.gmInstance.uid === user?.uid && state.gmInstance.sessionId === session?.id,
+        currentMemberBerthPresent, currentMemberBerthNull: currentMemberBerthPresent && berth === null,
+        currentMemberBerthMatches, memberScopeMatches,
+        memberVesselCount: Array.isArray(scope?.vesselIds) ? scope.vesselIds.length : null,
+        memberCraftCount: Array.isArray(scope?.craftIds) ? scope.craftIds.length : null,
+        pressCraftScopeMatches,
+        currentCanonicalSeatOwned: state.seats.some(seat => seat.id === me?.assignedRoleId &&
+          (seat.roleId ?? seat.id) === me.assignedRoleId && seat.status === 'claimed' && seat.holderUid === me.uid),
+        sdkHasServerAuthority: authority?.hasServerSessionAuthority === true,
+        sdkResumePending: authority ? memberSessionResumeBlocksFreshness(authority) : true,
+        communicationError: state.communicationError ? { code: safeCode(state.communicationError.code),
+          kind: safeKind(state.communicationError.kind) } : null, invalidFields };
+    };
+    // P181 requests this operation-local observer. Other presentation callers
+    // retain their original single-read contract. No recovery action is issued.
+    if (deadlineAt === undefined) { uidHash = await digestUid(); return captureMember(); }
+    return new Promise((resolve, reject) => {
+      let settled = false, stop, stopAuth, timer, originalFence, queueStarted = false, queueComplete = false, pendingScoutRequests;
+      const timeout = () => Object.assign(new Error('Original mounted member readiness deadline expired.'), { name: 'TimeoutError' });
+      const finish = (error, value) => {
+        if (settled) return;
+        settled = true; clearTimeout(timer);
+        for (const unsubscribe of [stop, stopAuth]) {
+          try { unsubscribe?.(); } catch (cleanupError) { error ??= cleanupError; }
+        }
+        if (error) reject(error); else resolve(value);
+      };
+      const fence = state => {
+        const user = auth().currentUser, me = state.me, session = state.session;
+        const authority = user?.uid && session?.id ? sessionSnapshotAuthorityFor(session.id, user.uid) : null;
+        if (!user || !session || me?.uid !== user.uid || me?.sessionId !== session.id ||
+            me.connected !== true || me.kickedAt != null || me.escapeState != null ||
+            me.replacementStatus != null || me.replacementRoleId != null ||
+            authority?.hasServerSessionAuthority !== true || memberSessionResumeBlocksFreshness(authority) ||
+            !['live', 'offline', 'connecting'].includes(state.connection) ||
+            !['server', 'cache'].includes(state.sessionSnapshotFreshness)) {
+          throw new Error('Original mounted member authority is no longer eligible for freshness readiness.');
+        }
+        if (readPendingScoutRequests && (me.role !== 'gm' || state.gmInstance?.uid !== user.uid ||
+            state.gmInstance.sessionId !== session.id)) throw new Error('Original GM scout queue authority changed.');
+        return JSON.stringify({ uid: user.uid, documentTimeOrigin: performance.timeOrigin,
+          sessionId: session.id, phase: session.phase, cycle: session.currentTurn,
+          fullGameDemo: session.fullGameDemo ?? null, profile: activeDemoActorProfile ?? null,
+          uidMember: me.uid, sessionMember: me.sessionId, role: me.role,
+          assignedRoleId: me.assignedRoleId ?? null, activeConsoleRoleId: me.activeConsoleRoleId ?? null,
+          seatId: me.seatId ?? null, fleetGroupId: me.fleetGroupId ?? null,
+          connectionGeneration: me.connectionGeneration, hydrationRevision: state.identityHydrationRevision,
+          connected: me.connected, kickedAt: me.kickedAt ?? null, escapeState: me.escapeState ?? null,
+          replacementRoleId: me.replacementRoleId ?? null, replacementStatus: me.replacementStatus ?? null,
+          scope: session.memberSessionScope ?? null, berth: session.currentActorBerthAuthority ?? null,
+          ownSeat: state.seats.filter(seat => seat.id === me.assignedRoleId),
+          gmInstance: state.gmInstance ?? null });
+      };
+      const inspect = (delivered, previous) => {
+        if (settled) return;
+        try {
+          if (Date.now() >= deadlineAt) throw timeout();
+          for (const state of [delivered, previous, useSessionStore.getState()]) {
+            if (state && fence(state) !== originalFence)
+              throw new Error('Original mounted member identity epoch or authority changed during readiness observation.');
+          }
+          if (uidHash === undefined) return;
+          const value = captureMember();
+          for (const key of ['uidHash', 'sessionId', 'meSessionId', 'documentTimeOrigin', 'connectionGeneration',
+            'identityHydrationRevision', 'playerRole', 'assignedRoleId', 'activeConsoleRoleId', 'seatId',
+            'fleetGroupId', 'replacementRoleId', 'replacementStatus', 'phase', 'cycle']) {
+            if (expected && Object.hasOwn(expected, key) && expected[key] !== value[key])
+              throw new Error('Original mounted member ' + key + ' changed during readiness observation.');
+          }
+          if (value.connection !== 'live' || value.freshness !== 'server') return;
+          if (readPendingScoutRequests && !queueComplete) {
+            if (queueStarted) return;
+            queueStarted = true;
+            (async () => {
+              const { listPendingScoutRequests } = await import('/src/lib/scoutResultService.ts');
+              if (settled) return;
+              if (Date.now() >= deadlineAt) throw timeout();
+              if (fence(useSessionStore.getState()) !== originalFence) throw new Error('Original GM queue authority epoch changed.');
+              const current = captureMember();
+              if (current.connection !== 'live' || current.freshness !== 'server') { queueStarted = false; inspect(); return; }
+              pendingScoutRequests = await listPendingScoutRequests();
+              if (settled) return;
+              queueComplete = true; inspect();
+            })().catch(error => finish(error));
+            return;
+          }
+          finish(null, readPendingScoutRequests ? { ...value, pendingScoutRequests } : value);
+        } catch (error) { finish(error); }
+      };
+      try {
+        if (!Number.isFinite(deadlineAt) || Date.now() >= deadlineAt) throw timeout();
+        originalFence = fence(useSessionStore.getState());
+        if (typeof auth().onAuthStateChanged !== 'function') throw new Error('Original mounted Auth SDK observer is unavailable.');
+        stopAuth = auth().onAuthStateChanged(user => {
+          if (user?.uid !== originalUid) finish(new Error('Original Auth authority retired during member readiness observation.'));
+        }, error => finish(error));
+        if (settled) { stopAuth?.(); return; }
+        if (typeof stopAuth !== 'function') throw new Error('Original mounted Auth SDK observer cannot detach safely.');
+        stop = useSessionStore.subscribe(inspect);
+        if (typeof stop !== 'function') throw new Error('Original mounted member observer cannot detach safely.');
+        if (settled) { stop(); return; }
+        timer = setTimeout(() => finish(timeout()), deadlineAt - Date.now());
+        digestUid().then(value => { if (!settled) { uidHash = value; inspect(); } }).catch(error => finish(error));
+      } catch (error) { finish(error); }
+    });
+  }, { moduleUrl: surface.storeModuleUrl(), knownRoleIds, authorityModuleUrl,
+    ...(deadlineAt === undefined ? {} : { deadlineAt, expected, readPendingScoutRequests }) });
 }
 
 /** Await the existing App recovery before freezing presentation identity. This

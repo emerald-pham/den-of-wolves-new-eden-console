@@ -971,7 +971,7 @@ test('setup transition proof-only lifecycle observer changes retain the complete
   assert.equal(fixture.result.buildProvenance.compiledFileCount, 450);
   assert.equal(fixture.result.buildProvenance.frontendFileCount, 277);
   assert.equal(fixture.result.sourceBindings.functionsSourceFiles.length, 542);
-  assert.equal(fixture.result.sourceBindings.trackedFiles.length, 2082);
+  assert.equal(fixture.result.sourceBindings.trackedFiles.length, 2082 + 3);
 });
 
 async function actualCompiledFunctionsGuard({ staleIndex = false, staleDependency = false,
@@ -1981,7 +1981,7 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
   const page = new EventEmitter();
   let route = gm ? '#/gm' : '#/roles/wing-commander', pending;
   const choices = [], observedBodies = [], waits = [];
-  const storeListeners = new Set(), movementListeners = new Set();
+  const storeListeners = new Set(), movementListeners = new Set(), authListeners = new Set();
   const surface = { page, state, uid, choices, observedBodies, waits,
     storeModuleUrl: () => 'http://127.0.0.1:5173/src/store/useSessionStore.ts',
     sessionAuthorityModuleUrl: () => 'http://127.0.0.1:5173/src/lib/sessionSnapshotAuthority.ts',
@@ -1996,10 +1996,15 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
     surface.movement = movement;
     if (!fromCache) for (const listener of [...movementListeners]) listener(movement);
   };
+  surface.publishAuth = user => {
+    surface.uid = user?.uid ?? null;
+    for (const next of [...authListeners]) next(user);
+  };
   surface.observers = { stores: storeListeners, movements: movementListeners, attachments: 0, detachments: 0 };
   const modules = path => {
     if (path === '/src/lib/firebase.ts') return { auth: () => ({
       currentUser: surface.uid ? { uid: surface.uid } : null,
+      onAuthStateChanged: next => { authListeners.add(next); return () => authListeners.delete(next); },
       authStateReady: async () => { surface.authReadinessCalls = (surface.authReadinessCalls ?? 0) + 1; await surface.authReady; },
     }) };
     if (path === '/src/lib/demoActorContext.ts') return { activeDemoActorProfile: null };
@@ -2487,7 +2492,7 @@ test('remaining F8-R3 actual browser recovery rejects a foreign GM before reveal
   const actor = await observeFullGameDemoPresentationMember(wing, { knownRoleIds: originalRoleIds });
   let issued = false;
   wing.callable = async name => ({ status: 'committed', result: name === 'listMyScoutReports'
-    ? issued ? [{ requestId: 'scout-original', status: 'resolved', noteId: 'note-original' }] : [] : {} });
+    ? issued ? [{ requestId: 'scout-original', cycle: 1, entitlementId: 'starlight', targetCoordinate: '1100', status: 'resolved', noteId: '1'.repeat(64) }] : [] : {} });
   gm.onChoice = async () => { issued = true; gm.deliver('resolvePendingScoutRequest',
     { sessionId: 'normal-session', instanceId: 'gm-original-instance', requestId: 'scout-original' }, { status: 'resolved' }); };
   const io = createP181StarlightBrowserIo({ gm, wingCommander: wing, gameplay: { select: async () => gm },
@@ -2495,8 +2500,8 @@ test('remaining F8-R3 actual browser recovery rejects a foreign GM before reveal
     started: { uidHash: createHash('sha256').update('original-gm').digest('hex').slice(0, 16),
       sessionId: 'normal-session', instanceId: 'gm-original-instance', claimedAt: gm.state.gmInstance.claimedAt },
     expectedWingCommander: actor });
-  await assert.rejects(io.resolveScoutNormally({ requestId: 'scout-original', targetCoordinate: '1100' }, 1600),
-    /original.*GM|registered.*GM|Auth account/i);
+  await assert.rejects(io.resolveScoutNormally({ sessionId: 'normal-session', requestId: 'scout-original', targetCoordinate: '1100', cycle: 1, entitlementId: 'starlight', anchorShipId: 'aegis', receivingShipId: 'aegis' }, 1600),
+    /original.*GM|registered.*GM|Auth account|original mounted member uidHash/i);
   assert.deepEqual(gm.choices, [], 'A self-consistent foreign live GM cannot substitute for the original registration.');
 });
 
@@ -2592,8 +2597,9 @@ async function remainingArrivalBrowser({ stalledBody = false, invalidBody = fals
   const actor = await observeFullGameDemoPresentationMember(wing, { knownRoleIds: originalRoleIds });
   const transit = { transitRequestId: 'transit-original', status: 'in-transit', originShipId: 'aegis',
     destinationShipId: 'shepherd', departedAt: new Date(Date.now() - 60_001).toISOString(),
-    arrivesAt: new Date(Date.now() - 1).toISOString(), cycle: 1 };
-  wing.state.shuttleDepartures.starlight = transit;
+    arrivesAt: new Date(Date.now() - 1).toISOString(), cycle: 1, requestId: 'departure-original',
+    shuttleId: 'starlight', controlRevision: 4, revision: 2 };
+  wing.publishMovement(transit);
   const responseWait = wing.page.waitForResponse;
   wing.page.waitForResponse = (predicate, options) => {
     const response = responseWait(predicate, options);
@@ -2606,12 +2612,13 @@ async function remainingArrivalBrowser({ stalledBody = false, invalidBody = fals
   };
   const io = createP181StarlightBrowserIo({ gm, wingCommander: wing, gameplay: { select: async () => wing },
     directory: '/tmp/in-memory-arrival-body', initial: { sessionId: 'normal-session' }, expectedWingCommander: actor });
-  return { wing, io, transit };
+  const beforeFlight = await io.observeFlight(Date.now() + 1000);
+  return { wing, io, transit, beforeFlight };
 }
 
 test('remaining F6-R1 actual browser bounds the original automatic arrival response body', async () => {
-  const { io, transit, wing } = await remainingArrivalBrowser({ stalledBody: true });
-  const status = await Promise.race([io.waitForArrivalWindow(transit, 30).then(() => 'accepted', () => 'rejected'),
+  const { io, transit, wing, beforeFlight } = await remainingArrivalBrowser({ stalledBody: true });
+  const status = await Promise.race([io.waitForArrivalWindow(transit, 30, Date.now() + 30, beforeFlight).then(() => 'accepted', () => 'rejected'),
     new Promise(done => setTimeout(() => done('pending'), 85))]);
   assert.equal(status, 'rejected'); assert.deepEqual(wing.choices, []);
 });
@@ -2627,8 +2634,8 @@ test('remaining F6-R1 actual core rejects a late member tuple before the next aw
 });
 
 test('remaining F9-R1 actual automatic arrival assertion retains the already-read response body privately', async () => {
-  const { io, transit } = await remainingArrivalBrowser({ invalidBody: true });
-  let error; try { await io.waitForArrivalWindow(transit, 1000); } catch (failure) { error = failure; }
+  const { io, transit, beforeFlight } = await remainingArrivalBrowser({ invalidBody: true });
+  let error; try { await io.waitForArrivalWindow(transit, 1000, Date.now() + 1000, beforeFlight); } catch (failure) { error = failure; }
   assert.match(error?.message ?? '', /Retry only/);
   assert.match(originalProofError(error).heldObservationsInspect, /private-held-arrival-body-canary/);
   const directory = await mkdtemp('/tmp/p181-held-arrival-body-');
@@ -2685,14 +2692,16 @@ test('remaining F8-R3 exact original GM recovery with fresh SDK keeps one reveal
   const actor = await observeFullGameDemoPresentationMember(wing, { knownRoleIds: originalRoleIds });
   let issued = 0;
   wing.callable = async name => ({ status: 'committed', result: name === 'listMyScoutReports'
-    ? issued ? [{ requestId: 'scout-original', status: 'resolved', noteId: 'owned-note' }] : [] : { held: name } });
+    ? issued ? [{ requestId: 'scout-original', cycle: 1, entitlementId: 'starlight', targetCoordinate: '1100', status: 'resolved', noteId: '1'.repeat(64) }] : [] : { held: name } });
   gm.onChoice = async () => { issued++; gm.deliver('resolvePendingScoutRequest',
     { sessionId: 'normal-session', instanceId: 'gm-original-instance', requestId: 'scout-original' }, { status: 'resolved' }); };
+  gm.callable = async () => ({ status: 'committed', result: [{ requestId: 'scout-original', cycle: 1,
+    entitlementId: 'starlight', targetCoordinate: '1100', anchorShipId: 'aegis' }] });
   const io = createP181StarlightBrowserIo({ gm, wingCommander: wing, gameplay: { select: async () => gm },
     directory: '/tmp/in-memory-original-recovery', initial: { sessionId: 'normal-session' },
     started: { uidHash: createHash('sha256').update(gm.uid).digest('hex').slice(0, 16),
       instanceId: gm.state.gmInstance.id, claimedAt: gm.state.gmInstance.claimedAt }, expectedWingCommander: actor });
-  const bundle = await io.resolveScoutNormally({ requestId: 'scout-original', targetCoordinate: '1100' }, 2000);
+  const bundle = await io.resolveScoutNormally({ sessionId: 'normal-session', requestId: 'scout-original', targetCoordinate: '1100', cycle: 1, entitlementId: 'starlight', anchorShipId: 'aegis', receivingShipId: 'aegis' }, 2000);
   assert.equal(issued, 1); assert.equal(bundle.result.held, 'readPrivateScoutResult');
   assert.equal(bundle.note.held, 'readMyScoutDiscoveryNote');
 });
@@ -3523,6 +3532,10 @@ async function arrivalDueResponseConsumer({ proofRemainingMs = 300_000, stalled 
     responseTimeout = options.timeout; issuedDeadlineAt = clock.now() + options.timeout;
     const pending = ordinaryWait(predicate, options);
     deliveries.push(Promise.resolve().then(async () => {
+      // Drain the immediate original member read before advancing the existing
+      // deterministic clock through a minute of flight. The separate early
+      // response case keeps an explicitly delayed pre-read pending.
+      await new Promise(done => setImmediate(done));
       clock.advanceTo(dueAt + (stalled ? 60_001 : 80));
       if (stalled) return;
       const transit = structuredClone(state.session.transit);
@@ -3645,12 +3658,15 @@ function sourceArrivalAdapter({ custodyAdvance = false, publicationLag = false,
     if (sourceReads === 1 && missingBaseline) value.transit = null;
     return value;
   };
-  return { io, transit, counts: () => ({ observerArms, requests, sourceReads }) };
+  const beforeFlight = structuredClone(flight);
+  if (staleBaseline) beforeFlight.transit.revision = 1;
+  if (missingBaseline) beforeFlight.transit = null;
+  return { io, transit, beforeFlight, counts: () => ({ observerArms, requests, sourceReads }) };
 }
 
 test('source arrival custody semantics accept unchanged custody and one committed docking', async () => {
   const f = sourceArrivalAdapter();
-  const result = await f.io.waitForArrivalWindow(f.transit, 1_000);
+  const result = await f.io.waitForArrivalWindow(f.transit, 1_000, Date.now() + 1_000, f.beforeFlight);
   assert.deepEqual(result.afterFlight.control, result.beforeFlight.control);
   assert.equal(result.capture.result.status, 'arrived');
   assert.equal(result.capture.result.transitRevision, 2);
@@ -3661,22 +3677,22 @@ test('source arrival custody semantics accept unchanged custody and one committe
 
 test('source arrival custody semantics reject a fabricated custody advance with otherwise valid effects', async () => {
   const f = sourceArrivalAdapter({ custodyAdvance: true });
-  await assert.rejects(f.io.waitForArrivalWindow(f.transit, 1_000), /custody/i);
+  await assert.rejects(f.io.waitForArrivalWindow(f.transit, 1_000, Date.now() + 1_000, f.beforeFlight), /custody/i);
   assert.equal(f.counts().requests, 1);
 });
 
 test('source arrival custody semantics wait for the matching published docking within the original deadline', async () => {
   const f = sourceArrivalAdapter({ publicationLag: true });
-  const result = await f.io.waitForArrivalWindow(f.transit, 1_000);
+  const result = await f.io.waitForArrivalWindow(f.transit, 1_000, Date.now() + 1_000, f.beforeFlight);
   assert.deepEqual(result.afterFlight.control, result.beforeFlight.control);
   assert.equal(result.afterFlight.docking.shipId, 'shepherd');
-  assert.ok(f.counts().sourceReads >= 3, 'A lagging original source snapshot needs another read, not another action.');
+  assert.ok(f.counts().sourceReads >= 2, 'A lagging original source snapshot needs another read, not another action.');
   assert.equal(f.counts().requests, 1);
 });
 
 test('source arrival custody semantics accept exact already-applied receipt without changing custody', async () => {
   const f = sourceArrivalAdapter({ replayed: true });
-  const result = await f.io.waitForArrivalWindow(f.transit, 1_000);
+  const result = await f.io.waitForArrivalWindow(f.transit, 1_000, Date.now() + 1_000, f.beforeFlight);
   assert.equal(result.capture.result.status, 'replayed');
   assert.deepEqual(result.afterFlight.control, result.beforeFlight.control);
   assert.equal(f.counts().requests, 1);
@@ -3685,15 +3701,15 @@ test('source arrival custody semantics accept exact already-applied receipt with
 test('source arrival custody semantics reject stale and already-deleted baselines before observing a request', async () => {
   for (const options of [{ staleBaseline: true }, { missingBaseline: true }]) {
     const f = sourceArrivalAdapter(options);
-    await assert.rejects(f.io.waitForArrivalWindow(f.transit, 1_000));
-    assert.deepEqual(f.counts(), { observerArms: 0, requests: 0, sourceReads: 1 });
+    await assert.rejects(f.io.waitForArrivalWindow(f.transit, 1_000, Date.now() + 1_000, f.beforeFlight));
+    assert.deepEqual(f.counts(), { observerArms: 0, requests: 0, sourceReads: 0 });
   }
 });
 
 test('source arrival custody semantics retain the actual reply when its completed-leg revision is wrong', async () => {
   const f = sourceArrivalAdapter({ wrongReplyRevision: true });
   let failed;
-  try { await f.io.waitForArrivalWindow(f.transit, 1_000); } catch (error) { failed = error; }
+  try { await f.io.waitForArrivalWindow(f.transit, 1_000, Date.now() + 1_000, f.beforeFlight); } catch (error) { failed = error; }
   assert.ok(failed, 'A receipt for another completed leg must fail.');
   assert.match(originalProofError(failed).heldObservationsInspect, /transitRevision: 3/);
   assert.equal(f.counts().requests, 1);
@@ -3878,7 +3894,7 @@ test('reload Auth readiness actual adapter preserves current berth seat and SDK 
 test('reload Auth readiness actual adapter requires a new document and retains it during SDK acceptance', async t => {
   for (const documentTimeOrigin of [1000, 900]) {
     const { io, selections } = await reloadAuthReadinessFixture(t, { documentTimeOrigin });
-    await assert.rejects(io.reloadAndReselectWingCommander(2000, Date.now() + 2000), /new document/i);
+    await assert.rejects(io.reloadAndReselectWingCommander(2000, Date.now() + 2000), /new(?:er)? document/i);
     assert.deepEqual(selections, []);
   }
   const { io, selections } = await reloadAuthReadinessFixture(t, { settledDocumentTimeOrigin: 3000 });
@@ -3920,7 +3936,7 @@ test('reload Auth readiness actual adapter retains the ordinary observer documen
 test('reload Auth readiness actual adapter rejects an unchanged document and epoch without a resume receipt', async t => {
   const { io, selections } = await reloadAuthReadinessFixture(t, {
     documentTimeOrigin: 1000, unchangedEpoch: true, resume: false });
-  await assert.rejects(io.reloadAndReselectWingCommander(2000, Date.now() + 2000), /new document/i);
+  await assert.rejects(io.reloadAndReselectWingCommander(2000, Date.now() + 2000), /new(?:er)? document/i);
   assert.deepEqual(selections, []);
 });
 

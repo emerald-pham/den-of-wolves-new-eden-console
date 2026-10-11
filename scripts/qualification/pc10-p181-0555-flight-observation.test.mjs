@@ -43,7 +43,7 @@ const observerSource = sourceRegion(proof,
   .replace(/^export /, '').replace(/\bimport\s*\(/g, 'load(') + '\n}';
 const browserIoStart = proof.indexOf('export function createP181StarlightBrowserIo(');
 const snapshotStart = proof.indexOf('  const snapshot = deadlineAt =>', browserIoStart);
-const snapshotEnd = proof.indexOf('\n  const callable = async', snapshotStart);
+const snapshotEnd = proof.indexOf('\n  async function selectWing', snapshotStart);
 assert.ok(browserIoStart >= 0 && snapshotStart > browserIoStart && snapshotEnd > snapshotStart,
   'Bind the actual browser I/O source-observation call site.');
 const snapshotConsumerSource = proof.slice(snapshotStart, snapshotEnd);
