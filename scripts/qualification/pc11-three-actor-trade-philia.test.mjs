@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { PC11_NORMAL_START } from './pc11-normal-start-adapter.mjs';
+import { PC11_NORMAL_START, pc11SameActorEpoch } from './pc11-normal-start-adapter.mjs';
 
 const runnerUrl = new URL('./pc11-three-actor-trade-philia.mjs', import.meta.url);
 const runnerSource = await readFile(runnerUrl, 'utf8');
@@ -127,9 +127,32 @@ test('normal readiness binds only to the clean client server-authority contract'
     assert.doesNotMatch(memberObserver, /memberSessionResumeBlocksFreshness/);
   }
   assert.doesNotMatch(gmObserver, /memberSessionResumeBlocksFreshness/);
-  assert.doesNotMatch(adapterSource, /sdkResumePending/);
+  // Baseline readiness uses the clean mounted authority tuple. The separate
+  // document-change witness also consumes the published SDK resume fence.
+  const baselineReadiness = namedRegion(adapterSource,
+    'function commonLiveMember', '/** Preserve the same Auth/session epoch');
+  assert.doesNotMatch(baselineReadiness, /sdkResumePending/);
   assert.match(memberObserver, /sdkHasServerAuthority: authority\?\.hasServerSessionAuthority === true/);
   assert.match(adapterSource, /value\.sdkHasServerAuthority === true/);
   assert.match(adapterSource, /value\.connection === 'live'/);
   assert.match(adapterSource, /value\.freshness === 'server'/);
+});
+
+test('published resume fence must be cleared for an exact newer-document epoch witness', () => {
+  const before = { uidHash: 'original-member', sessionId: 'normal-proof',
+    profileRoleId: null, profileSessionId: null, documentTimeOrigin: 100,
+    connectionGeneration: 2, identityHydrationRevision: 3 };
+  const after = { ...before, documentTimeOrigin: 200, connectionGeneration: 3,
+    identityHydrationRevision: 1 };
+  const receipt = { status: 'accepted', source: 'normal-resumeSession',
+    uidHash: after.uidHash, sessionId: after.sessionId,
+    documentTimeOrigin: after.documentTimeOrigin,
+    connectionGeneration: after.connectionGeneration,
+    identityHydrationRevision: after.identityHydrationRevision,
+    sdkHasServerAuthority: true, sdkResumePending: false };
+  assert.equal(pc11SameActorEpoch(before, after, receipt), true);
+  for (const change of [{ sdkResumePending: true }, { sdkResumePending: undefined },
+    { sdkHasServerAuthority: false }, { documentTimeOrigin: 100 }, { uidHash: 'foreign-member' }]) {
+    assert.equal(pc11SameActorEpoch(before, after, { ...receipt, ...change }), false);
+  }
 });

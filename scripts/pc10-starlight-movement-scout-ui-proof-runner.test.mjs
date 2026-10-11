@@ -3007,7 +3007,8 @@ function p181ReferencePlannedLaunch(sourceCommit, evidenceDirectory = '/tmp/p181
 }
 async function actualPreNativeConsumer({ cli = false, sourceOnly = false, sourceCommit,
   deadlineOffset = 60_000, alterRead, missingRead, exhaustAfterRead, exhaustOnBindingFailure = false,
-  evidenceDirectory, plannedLaunchChange, omitPlannedLaunch = false, inheritedEnvironment = {} } = {}) {
+  evidenceDirectory, plannedLaunchChange, omitPlannedLaunch = false, inheritedEnvironment = {},
+  changeCandidateTrackedPaths, virtualInputs = {} } = {}) {
   const issuedAt = Date.now(); let now = issuedAt, firstAssertion;
   const sourceOnlyDeadlineMs = issuedAt + deadlineOffset;
   const directory = evidenceDirectory ?? await mkdtemp('/tmp/p181-pre-native-');
@@ -3049,13 +3050,19 @@ async function actualPreNativeConsumer({ cli = false, sourceOnly = false, source
       // The controlled API fixture represents the committed checkpoint while
       // its new test is staged; the final source-only command uses real status.
       if (args[0] === 'status') return '';
-      return execFileSync(command, args, options);
+      const output = execFileSync(command, args, options);
+      if (args[0] === 'ls-files' && resolve(options.cwd) === repositoryRoot && changeCandidateTrackedPaths) {
+        return `${changeCandidateTrackedPaths(output.split('\0').filter(Boolean)).sort().join('\0')}\0`;
+      }
+      return output;
     },
     Date: class extends Date { static now() { return now; } }, setTimeout, clearTimeout,
     mkdir, readdir, writeFile,
     readFile: async (path, encoding) => {
       const name = String(path);
-      const value = await readFile(missingRead?.(name) ? '/tmp/p181-missing-source-input-does-not-exist' : path, encoding);
+      const value = Object.hasOwn(virtualInputs, name) && !missingRead?.(name)
+        ? encoding ? String(virtualInputs[name]) : Buffer.from(virtualInputs[name])
+        : await readFile(missingRead?.(name) ? '/tmp/p181-missing-source-input-does-not-exist' : path, encoding);
       if (exhaustAfterRead?.(name)) now = sourceOnlyDeadlineMs;
       return alterRead?.(name, value) ?? value;
     },
@@ -3107,9 +3114,37 @@ test('pre-native existing API completes the actual canonical and complete retain
   assert.equal(fixture.result.buildProvenance.compiledFileCount, 450);
   assert.equal(fixture.result.buildProvenance.frontendFileCount, 277);
   assert.equal(fixture.result.sourceBindings.functionsSourceFiles.length, 542);
-  assert.equal(fixture.result.sourceBindings.trackedFiles.length, 2082);
+  assert.equal(fixture.result.sourceBindings.trackedFiles.length, 2082 + 3);
+  for (const path of ['scripts/pc10-p181-role-navigation-baseline.test.mjs',
+    'scripts/qualification/pc10-p181-0449-phase-observation.test.mjs',
+    'scripts/qualification/pc10-p181-0555-flight-observation.test.mjs']) {
+    assert.ok(fixture.result.sourceBindings.trackedFiles.some(value => value.path === path));
+  }
   assert.ok(fixture.result.sourceBindings.sourceFiles['scripts/qualification/pc11-live-base-contract.test.mjs']);
   assert.ok(fixture.now < fixture.sourceOnlyDeadlineMs);
+});
+
+test('pre-native source-only proof-test additions cannot admit new client or Functions inputs', async () => {
+  for (const path of ['src/pc10-unreviewed-input.ts', 'functions/src/pc10-unreviewed-input.ts']) {
+    const fixture = await actualPreNativeConsumer({ sourceOnly: true,
+      changeCandidateTrackedPaths: paths => [...paths, path],
+      virtualInputs: { [resolve(repositoryRoot, path)]: 'export const unreviewed = true;\n' } });
+    assertPreflightInert(fixture); assert.ok(fixture.error);
+    assert.equal(fixture.error.code, 'ERR_ASSERTION',
+      `Product-input denial must come from the source preflight guard: ${fixture.error.message}`);
+    assert.equal(fixture.counters.contract, 0);
+  }
+});
+
+test('pre-native source-only proof-test additions cannot remove an original product or proof input', async () => {
+  for (const path of ['src/lib/sessionService.ts', 'scripts/qualification/pc11-normal-start-adapter.mjs']) {
+    const fixture = await actualPreNativeConsumer({ sourceOnly: true,
+      changeCandidateTrackedPaths: paths => paths.filter(value => value !== path) });
+    assertPreflightInert(fixture); assert.ok(fixture.error);
+    assert.ok(fixture.error.message.includes(path) || fixture.error.expected?.includes(path),
+      'The missing original input must be identified in the actual failure.');
+    assert.equal(fixture.counters.contract, 0);
+  }
 });
 
 test('pre-native source-only wrong candidate commit is denied without allocation or external acquisition', async () => {
