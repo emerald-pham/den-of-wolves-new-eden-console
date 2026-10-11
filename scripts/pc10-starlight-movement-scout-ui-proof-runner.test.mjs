@@ -3532,6 +3532,9 @@ async function arrivalDueResponseConsumer({ proofRemainingMs = 300_000, stalled 
     initial: { sessionId: 'normal-session' }, expectedWingCommander: original });
   browserIo.observeMember = io.observeMember;
   browserIo.observeFlight = io.observeFlight;
+  io.beginPathAuthority = (...args) => browserIo.beginPathAuthority(...args);
+  io.checkPathAuthority = (...args) => browserIo.checkPathAuthority(...args);
+  io.finishPathAuthority = (...args) => browserIo.finishPathAuthority(...args);
   const ordinaryWait = wing.page.waitForResponse, deliveries = [];
   let dueAt, issuedDeadlineAt, responseTimeout, automaticResponses = 0;
   wing.page.waitForResponse = (predicate, options) => {
@@ -3566,7 +3569,7 @@ async function arrivalDueResponseConsumer({ proofRemainingMs = 300_000, stalled 
   const proofEnd = clock.now() + proofRemainingMs;
   let result, error;
   try { result = await consumer.runP181StarlightMovementScoutUiProof({ ...completeProofInput(io),
-    absoluteDeadlineMs: proofEnd }); } catch (failure) { error = failure; }
+    absoluteDeadlineMs: proofEnd, cleanupDeadlineMs: proofEnd + 5_000 }); } catch (failure) { error = failure; }
   await Promise.all(deliveries);
   return { result, error, trace, dueAt, proofEnd, issuedDeadlineAt, responseTimeout, automaticResponses, clock };
 }
