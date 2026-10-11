@@ -95,7 +95,7 @@ function actualP181ReadinessConsumer(kind, late) {
     profileSessionId: null, fullGameDemo: null, connectionGeneration: 2,
     identityHydrationRevision: 2, connection: 'live', freshness: 'server',
     connected: true, kicked: false, recoveryPending: false, invalidFields: [],
-    currentOwnPlayerConfirmed: true, sdkHasServerAuthority: true,
+      currentOwnPlayerConfirmed: true, sdkHasServerAuthority: true, sdkResumePending: false,
     gmInstanceOwned: true, instanceId: 'controlled-gm-instance', phase: 'active', cycle: 1 };
   const context = { assert, Date: { now: () => now }, JSON, P181_NATIVE_TIMING, pc11GmReadiness,
     gm: { controlled: true }, gmInstanceId: member.instanceId, sessionId: member.sessionId,
@@ -129,6 +129,7 @@ function actualP181StationWaitDiagnosticConsumer() {
     },
     pc11MemberReadiness: () => false,
     sessionId: 'controlled-session', admittedAuth: { uidHash: 'controlled-uid-hash' },
+    navigationStart: {},
     P181_NORMAL_SETUP: { wingCommanderRoleId: 'wing-commander' },
   });
   return { diagnostic, reachedWait, run };
@@ -2408,7 +2409,7 @@ async function actualP181WingNavigation(initialRoute) {
         // Reuse the existing source-qualified prepared-core fixture to isolate
         // navigation. The complete native-owned selector and real browser IO
         // run over mounted routes; this does not claim an end-to-end start.
-        const { io } = makeConsumer();
+        const { io } = makeConsumer({ date: clock.Date });
         const open = io.openStarlightFromWingWorkspace;
         io.openStarlightFromWingWorkspace = async (timeout, end) => {
           await input.io.openStarlightFromWingWorkspace(timeout, end);
@@ -3538,10 +3539,10 @@ async function arrivalDueResponseConsumer({ proofRemainingMs = 300_000, stalled 
     }));
     return pending;
   };
-  io.waitForArrivalWindow = (transit, timeout, deadlineAt) => {
+  io.waitForArrivalWindow = (transit, timeout, deadlineAt, beforeFlight) => {
     dueAt = clock.Date.parse(transit.arrivesAt);
     browserIo.absoluteDeadlineAt = io.absoluteDeadlineAt;
-    return browserIo.waitForArrivalWindow(transit, timeout, deadlineAt);
+    return browserIo.waitForArrivalWindow(transit, timeout, deadlineAt, beforeFlight);
   };
   const proofEnd = clock.now() + proofRemainingMs;
   let result, error;
@@ -3747,9 +3748,12 @@ async function reloadAuthReadinessFixture(t, { restoredUid = 'wing-uid', pending
   const evaluateMounted = wing.page.evaluate;
   let memberReads = 0;
   wing.page.evaluate = async (callback, args) => {
-    if (args && Object.hasOwn(args, 'moduleUrl') && Object.hasOwn(args, 'deadlineAt')) {
+    if (args && Object.hasOwn(args, 'moduleUrl') && Object.hasOwn(args, 'deadlineAt') && !Object.hasOwn(args, 'knownRoleIds')) {
       return { sessionId: 'normal-session', phase: 'active', cycle: 1, airspace: 'lifted',
-        sourceFreshness: 'server', actor: { uidHash: original.uidHash },
+        sourceFreshness: 'server', actor: { uidHash: original.uidHash, sessionId: wing.state.session.id,
+          documentTimeOrigin: wing.documentTimeOrigin ?? 1000,
+          connectionGeneration: wing.state.me.connectionGeneration,
+          identityHydrationRevision: wing.state.identityHydrationRevision },
         activeRoleIds: [...originalRoleIds], activeVesselIds: ['aegis', 'icebreaker', 'shepherd'],
         control: { shuttleId: 'starlight', holderUidHash: original.uidHash,
           ownerUidHash: original.uidHash, revision: 4 },
@@ -4218,6 +4222,11 @@ test('complete boundary readiness cached member retains its original finite cuto
   const wing = mountedP181Surface('wing-uid'), gm = mountedP181Surface('original-gm', { gm: true });
   await completeReadinessAuthority(wing); wing.publish({ connection: 'offline', sessionSnapshotFreshness: 'cache' });
   await assert.rejects(completeReadinessIo(wing, gm).observeMember(Date.now() + 60), /deadline/i);
+  // Host and page timers share the cutoff but can be delivered in either
+  // order. Late freshness cannot authorize the already-failed operation;
+  // allow only its deadline cleanup callback to drain before counting stops.
+  wing.publish({ connection: 'live', sessionSnapshotFreshness: 'server' });
+  await new Promise(done => setTimeout(done, 10));
   assert.equal(wing.observers.stores.size, 0); assert.equal(wing.choices.length, 0);
 });
 
@@ -4402,4 +4411,31 @@ test('complete boundary readiness GM recovery cannot reveal another request at t
   };
   await assert.rejects(browser.resolveScoutNormally(reply, 2500, clock.now() + 2500), /request|queue|original|authority/i);
   assert.equal(revealed, false); assert.equal(gm.choices.length, 0);
+});
+
+test('complete boundary readiness GM authority retired and restored during queue read stops reveal', async () => {
+  const clock = remainingLifecycleClock(), module = remainingActualModule(clock);
+  const wing = mountedP181Surface('wing-uid'), gm = mountedP181Surface('original-gm', { gm: true });
+  const { io: ordinary, state } = makeConsumer();
+  const reply = (await ordinary.requestScout('1100', state.session)).result, bundle = await ordinary.resolveScoutNormally(reply);
+  let revealed = false, queueReads = 0;
+  wing.callable = async name => ({ status: 'committed', result: name === 'listMyScoutReports'
+    ? revealed ? [bundle.report] : [] : name === 'readPrivateScoutResult' ? bundle.result : bundle.note });
+  gm.callable = async () => {
+    queueReads++;
+    gm.publish(s => { s.me.role = 'player'; }); gm.publish(s => { s.me.role = 'gm'; });
+    return { status: 'committed', result: [{ requestId: reply.requestId, cycle: reply.cycle,
+      entitlementId: reply.entitlementId, targetCoordinate: reply.targetCoordinate, anchorShipId: reply.anchorShipId }] };
+  };
+  const gmActor = await observeFullGameDemoPresentationMember(gm, { knownRoleIds: originalRoleIds });
+  const browser = module.createP181StarlightBrowserIo({ gm, wingCommander: wing,
+    gameplay: { select: async roleId => roleId === 'gm' ? gm : wing }, directory: '/tmp/in-memory-scout-queue-authority',
+    initial: { sessionId: 'normal-session' }, expectedWingCommander: original,
+    started: { ...gmActor, claimedAt: gm.state.gmInstance.claimedAt } });
+  gm.onChoice = async () => {
+    revealed = true; gm.deliver('resolvePendingScoutRequest', { sessionId: 'normal-session',
+      requestId: reply.requestId, instanceId: gm.state.gmInstance.id }, { status: 'resolved', result: bundle.result });
+  };
+  await assert.rejects(browser.resolveScoutNormally(reply, 2500, clock.now() + 2500), /authority|epoch|original/i);
+  assert.equal(queueReads, 1); assert.equal(revealed, false); assert.equal(gm.choices.length, 0);
 });

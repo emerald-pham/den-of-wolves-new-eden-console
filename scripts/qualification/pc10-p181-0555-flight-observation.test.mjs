@@ -248,7 +248,7 @@ function makeProductionAppFreshnessHandler(useSessionStore, authorityRuntime, {
   const playerListenerGeneration = { current: 7 };
   const listenerGeneration = 7;
   const active = true;
-  const gmInstanceId = 'gm-instance-test-alias';
+  const gmInstanceId = useSessionStore.getState().gmInstance?.id;
   const callbackCurrent = new Function('active', 'appRoutesMounted', 'playerListenerGeneration',
     'listenerGeneration', 'useSessionStore', 'gmInstanceId',
     `${appCurrentSource}; return callbackCurrent;`)(active, appRoutesMounted,
@@ -394,7 +394,7 @@ function harness({ deadlineAt = 10_000, initialState = baseState(), store: suppl
     },
   };
   const authorityRuntime = suppliedAuthority ?? makeProductionSessionAuthorityRuntime();
-  const authority = authorityRuntime.sessionSnapshotAuthorityFor(initialState.session?.id, authUser?.uid);
+  const authority = authorityRuntime.sessionSnapshotAuthorityFor(useSessionStore.getState().session?.id, authUser?.uid);
   if (!suppliedAuthority) authority.hasServerSessionAuthority = true;
   const modules = {
     '/src/lib/firebase.ts': { auth: () => ({ currentUser: authUser }) },
@@ -411,7 +411,7 @@ function harness({ deadlineAt = 10_000, initialState = baseState(), store: suppl
   };
   const observer = runInNewContext('(() => {' + observerSource +
     '; return observeP181StarlightSource; })()', {
-      load, crypto: { subtle: { digest: async (...args) => {
+      load, assert, crypto: { subtle: { digest: async (...args) => {
         const value = await webcrypto.subtle.digest(...args);
         await afterDigest?.();
         return value;
@@ -738,8 +738,9 @@ function savedMemberFreshnessRace({ deadlineAt = 10_000 } = {}) {
   // This synthetic gmInstance ID is only the App callbackCurrent route guard.
   const store = actualSessionStore({ ...saved, gmInstance: { id: 'gm-instance-test-alias' } });
   const authorityRuntime = makeProductionSessionAuthorityRuntime();
+  authorityRuntime.sessionSnapshotAuthorityFor(saved.session.id, SAVED_MEMBER_UID_ALIAS).hasServerSessionAuthority = true;
   const onSessionFreshness = makeProductionAppFreshnessHandler(store, authorityRuntime);
-  const h = harness({ store, deadlineAt, authUser: { uid: SAVED_MEMBER_UID_ALIAS } });
+  const h = harness({ store, deadlineAt, authorityRuntime, authUser: { uid: SAVED_MEMBER_UID_ALIAS } });
   return { saved, store, authorityRuntime, onSessionFreshness, h };
 }
 
@@ -809,9 +810,13 @@ test('the exact normal resume setters move a saved sanitized member from cache r
   const intermediate = beginNormalResume(store);
   assert.equal(intermediate.connection, 'connecting');
   assert.equal(intermediate.sessionSnapshotFreshness, 'cache');
-  const beforeResume = harness({ initialState: intermediate, authUser: { uid: SAVED_MEMBER_UID_ALIAS } });
+  const pendingRuntime = makeProductionSessionAuthorityRuntime();
+  const pendingAuthority = pendingRuntime.sessionSnapshotAuthorityFor(intermediate.session.id, SAVED_MEMBER_UID_ALIAS);
+  pendingAuthority.hasServerSessionAuthority = true;
+  pendingRuntime.beginMemberSessionResume(pendingAuthority);
+  const beforeResume = harness({ initialState: intermediate, authorityRuntime: pendingRuntime, authUser: { uid: SAVED_MEMBER_UID_ALIAS } });
   const blockedIntermediate = await beforeResume.result;
-  assert.match(blockedIntermediate.error?.message ?? '', /live and server fresh/);
+  assert.match(blockedIntermediate.error?.message ?? '', /authority|resume/);
   assert.equal(beforeResume.observation.subscriptions, 0,
     'The actual observer does not start a protected document read from an intermediate cache state.');
 
@@ -890,6 +895,16 @@ for (const failure of projectionFailureCases) {
     const authUser = failure.options && Object.hasOwn(failure.options, 'authUser')
       ? failure.options.authUser : { uid: SAVED_MEMBER_UID_ALIAS };
     const h = harness({ initialState, authUser });
+    if (['member connection is intermediate', 'member snapshot is cached'].includes(failure.name)) {
+      if (await waitForSubscriptionOrCompletion(h)) {
+        h.emitSnapshot(requestedMovement({ holderUid: SAVED_MEMBER_UID_ALIAS }));
+        await allowSettledWork(); assert.equal(h.isSettled(), false); h.advanceToDeadline();
+      }
+      const outcome = await h.result;
+      assert.equal(outcome.error?.name, 'TimeoutError'); assert.equal(outcome.value, undefined);
+      assert.equal(h.observation.subscriptions, 1); assert.equal(h.observation.unsubscribeCount, 1);
+      return;
+    }
     const outcome = await h.result;
     assert.ok(outcome.error, 'The existing source authority guard continues to reject this projection.');
     assert.equal(h.observation.subscriptions, 0,
@@ -1021,7 +1036,7 @@ test('the production App freshness callback keeps the same member stale while a 
   assert.equal(store.state().identityHydrationRevision, saved.identityHydrationRevision);
 });
 
-test('P181 labels a member projection failure at post-fingerprint verification', async () => {
+test('P181 retains its original deadline for a persistent post-fingerprint cache projection', async () => {
   let h;
   h = harness({ initialState: savedMemberInitialState(),
     authUser: { uid: SAVED_MEMBER_UID_ALIAS }, afterDigest: () => {
@@ -1031,14 +1046,15 @@ test('P181 labels a member projection failure at post-fingerprint verification',
     } });
   if (await waitForSubscriptionOrCompletion(h)) {
     h.emitSnapshot(requestedMovement({ holderUid: SAVED_MEMBER_UID_ALIAS }));
+    await allowSettledWork();
+    assert.equal(h.isSettled(), false);
+    h.advanceToDeadline();
   }
   const outcome = await h.result;
   assert.ok(outcome.error);
   assert.equal(h.observation.subscriptions, 1);
   assert.equal(h.observation.unsubscribeCount, 1);
-  assertProjectionDiagnostic(outcome, { stage: 'post-fingerprint-verification', authPresent: true,
-    sessionPresent: true, actorMatches: true, memberSessionMatches: true,
-    connectionLive: true, snapshotServer: false });
+  assert.equal(outcome.error.name, 'TimeoutError');
 });
 
 // Contemporary complete-path repair cases. The published SDK lookup and App
