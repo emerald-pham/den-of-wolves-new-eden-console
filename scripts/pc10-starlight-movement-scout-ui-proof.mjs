@@ -660,53 +660,149 @@ export async function runP181StarlightMovementScoutUiProof(input) {
 
 /** Read the mounted normal App's original actor and Starlight source projection.
  * The result is held in memory; callers persist only safe fingerprints. */
-export async function observeP181StarlightSource(surface) {
-  return surface.page.evaluate(async moduleUrl => {
-    const { auth } = await import('/src/lib/firebase.ts');
-    const { useSessionStore } = await import(moduleUrl);
-    const state = useSessionStore.getState(), user = auth().currentUser, session = state.session;
-    if (!user || !session || user.uid !== state.me?.uid || state.me?.sessionId !== session.id ||
-        state.connection !== 'live' || state.sessionSnapshotFreshness !== 'server') {
-      throw new Error('Original authenticated Wing Commander source projection is not live and server fresh.');
+export async function observeP181StarlightSource(surface, deadlineAt) {
+  return surface.page.evaluate(async ({ moduleUrl, deadlineAt }) => new Promise((resolve, reject) => {
+    const timeoutError = () => Object.assign(
+      new Error('Original finite P181 flight-observation deadline expired.'), { name: 'TimeoutError' });
+    if (!Number.isFinite(deadlineAt) || deadlineAt <= Date.now()) {
+      reject(timeoutError());
+      return;
     }
-    const digest = async value => value ? Array.from(new Uint8Array(await crypto.subtle.digest(
-      'SHA-256', new TextEncoder().encode(value)))).map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) : null;
-    const me = state.me;
-    const movement = state.shuttleDepartures?.starlight ?? null;
-    const dockings = session.shuttleDockings?.filter(item => item.shuttleId === 'starlight') ?? [];
-    const control = session.shuttleControl?.starlight ?? null;
-    return {
-      actor: { uidHash: await digest(user.uid), sessionId: me.sessionId,
-        meSessionId: me.sessionId, hasAuth: true, sameActor: true, playerRole: me.role,
-        profileRoleId: null, profileSessionId: null, assignedRoleId: me.assignedRoleId ?? null,
-        activeConsoleRoleId: me.activeConsoleRoleId ?? null, seatId: me.seatId ?? null,
-        replacementRoleId: me.replacementRoleId ?? null, replacementStatus: me.replacementStatus ?? null,
-        generation: me.connectionGeneration, connectionGeneration: me.connectionGeneration,
-        hydrationRevision: state.identityHydrationRevision,
-        identityHydrationRevision: state.identityHydrationRevision,
-        connection: state.connection, freshness: state.sessionSnapshotFreshness,
-        currentOwnPlayerConfirmed: state.currentOwnPlayerConfirmed === true,
-        sdkHasServerAuthority: state.sdkHasServerAuthority === true },
-      sessionId: session.id, phase: session.phase, cycle: session.currentTurn,
-      airspace: session.turnPhase?.airspace?.state ?? null,
-      turnStatePhase: state.turnState?.phase ?? null,
-      fullGameDemo: session.fullGameDemo ?? null,
-      activeRoleIds: [...(session.activeRoleIds ?? [])],
-      activeVesselIds: [...(session.activeVesselIds ?? [])],
-      control: control ? { shuttleId: control.shuttleId,
-        holderUidHash: await digest(control.holderUid), ownerUidHash: await digest(control.ownerUid),
-        revision: control.revision } : null,
-      docking: dockings.length === 1 ? { shuttleId: dockings[0].shuttleId, shipId: dockings[0].shipId } : null,
-      departure: movement?.status === 'requested' ? movement : null,
-      transit: movement?.status === 'in-transit' ? movement : null,
-      shipGalacticCoordinates: session.shipGalacticCoordinates ?? {},
-      shuttleFuelled: session.shuttleFuelled ?? {},
-      maintenanceCycles: session.maintenanceCycles ?? {},
-      scoutCadence: session.scoutCadence ?? null,
-      currentOwnPlayerConfirmed: state.currentOwnPlayerConfirmed === true,
-      sourceFreshness: state.sessionSnapshotFreshness,
+
+    let settled = false, finalizing = false, unsubscribe, deadlineTimer;
+    let original, auth, useSessionStore;
+    const clearDeadline = () => {
+      if (deadlineTimer !== undefined) clearTimeout(deadlineTimer);
+      deadlineTimer = undefined;
     };
-  }, surface.storeModuleUrl());
+    const detach = () => {
+      if (typeof unsubscribe !== 'function') return;
+      const stop = unsubscribe;
+      unsubscribe = undefined;
+      stop();
+    };
+    const fail = error => {
+      if (settled) return;
+      settled = true;
+      clearDeadline();
+      const primary = error instanceof Error ? error : new Error(String(error));
+      try { detach(); } catch (cleanupError) {
+        try { Object.defineProperty(primary, 'cleanupError', { value: cleanupError, configurable: true }); }
+        catch { /* Preserve the original observation failure. */ }
+      }
+      reject(primary);
+    };
+    const finish = value => {
+      if (settled) return;
+      try { detach(); } catch (error) { fail(error); return; }
+      settled = true;
+      clearDeadline();
+      resolve(value);
+    };
+
+    deadlineTimer = setTimeout(() => fail(timeoutError()), deadlineAt - Date.now());
+    const captureProjection = (auth, useSessionStore) => {
+      const state = useSessionStore.getState(), user = auth().currentUser, session = state.session, me = state.me;
+      if (!user || !session || user.uid !== me?.uid || me?.sessionId !== session.id ||
+          state.connection !== 'live' || state.sessionSnapshotFreshness !== 'server') {
+        throw new Error('Original authenticated Wing Commander source projection is not live and server fresh.');
+      }
+      return { state, user, session, me, identity: {
+        uid: user.uid, meUid: me.uid, sessionId: session.id, meSessionId: me.sessionId,
+        role: me.role, assignedRoleId: me.assignedRoleId, activeConsoleRoleId: me.activeConsoleRoleId,
+        seatId: me.seatId, replacementRoleId: me.replacementRoleId, replacementStatus: me.replacementStatus,
+        connectionGeneration: me.connectionGeneration, hydrationRevision: state.identityHydrationRevision,
+        connection: state.connection, freshness: state.sessionSnapshotFreshness,
+        currentOwnPlayerConfirmed: state.currentOwnPlayerConfirmed,
+        sdkHasServerAuthority: state.sdkHasServerAuthority, sdkResumePending: state.sdkResumePending,
+      } };
+    };
+    const sameIdentity = (first, second) => Object.keys(first).every(key => first[key] === second[key]);
+
+    const observeMovement = async (movement, original, auth, useSessionStore) => {
+      if (settled || finalizing) return;
+      finalizing = true;
+      try {
+        const current = captureProjection(auth, useSessionStore);
+        if (!sameIdentity(original.identity, current.identity)) {
+          throw new Error('Original authenticated Wing Commander identity epoch changed during flight observation.');
+        }
+        if (Date.now() >= deadlineAt) throw timeoutError();
+        detach();
+        const { state, user, session, me } = current;
+        const digest = async value => value ? Array.from(new Uint8Array(await crypto.subtle.digest(
+          'SHA-256', new TextEncoder().encode(value)))).map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) : null;
+        const dockings = session.shuttleDockings?.filter(item => item.shuttleId === 'starlight') ?? [];
+        const control = session.shuttleControl?.starlight ?? null;
+        const value = {
+          actor: { uidHash: await digest(user.uid), sessionId: me.sessionId,
+            meSessionId: me.sessionId, hasAuth: true, sameActor: true, playerRole: me.role,
+            profileRoleId: null, profileSessionId: null, assignedRoleId: me.assignedRoleId ?? null,
+            activeConsoleRoleId: me.activeConsoleRoleId ?? null, seatId: me.seatId ?? null,
+            replacementRoleId: me.replacementRoleId ?? null, replacementStatus: me.replacementStatus ?? null,
+            generation: me.connectionGeneration, connectionGeneration: me.connectionGeneration,
+            hydrationRevision: state.identityHydrationRevision,
+            identityHydrationRevision: state.identityHydrationRevision,
+            connection: state.connection, freshness: state.sessionSnapshotFreshness,
+            currentOwnPlayerConfirmed: state.currentOwnPlayerConfirmed === true,
+            sdkHasServerAuthority: state.sdkHasServerAuthority === true },
+          sessionId: session.id, phase: session.phase, cycle: session.currentTurn,
+          airspace: session.turnPhase?.airspace?.state ?? null,
+          turnStatePhase: state.turnState?.phase ?? null,
+          fullGameDemo: session.fullGameDemo ?? null,
+          activeRoleIds: [...(session.activeRoleIds ?? [])],
+          activeVesselIds: [...(session.activeVesselIds ?? [])],
+          control: control ? { shuttleId: control.shuttleId,
+            holderUidHash: await digest(control.holderUid), ownerUidHash: await digest(control.ownerUid),
+            revision: control.revision } : null,
+          docking: dockings.length === 1 ? { shuttleId: dockings[0].shuttleId, shipId: dockings[0].shipId } : null,
+          departure: movement?.status === 'requested' ? movement : null,
+          transit: movement?.status === 'in-transit' ? movement : null,
+          shipGalacticCoordinates: session.shipGalacticCoordinates ?? {},
+          shuttleFuelled: session.shuttleFuelled ?? {},
+          maintenanceCycles: session.maintenanceCycles ?? {},
+          scoutCadence: session.scoutCadence ?? null,
+          currentOwnPlayerConfirmed: state.currentOwnPlayerConfirmed === true,
+          sourceFreshness: state.sessionSnapshotFreshness,
+        };
+        if (Date.now() >= deadlineAt) throw timeoutError();
+        const latest = captureProjection(auth, useSessionStore);
+        if (!sameIdentity(original.identity, latest.identity)) {
+          throw new Error('Original authenticated Wing Commander identity epoch changed during flight observation.');
+        }
+        finish(value);
+      } catch (error) { fail(error); }
+    };
+
+    let attachmentResetSeen = false;
+    const onDeparture = movement => {
+      if (!attachmentResetSeen && movement === null) {
+        attachmentResetSeen = true;
+        return;
+      }
+      attachmentResetSeen = true;
+      if (settled || finalizing) return;
+      // The normal reader reports null before its error callback. Let that
+      // callback win over the queued reset/absence-shaped notification.
+      Promise.resolve().then(() => observeMovement(movement, original, auth, useSessionStore))
+        .catch(fail);
+    };
+
+    (async () => {
+      try {
+        auth = (await import('/src/lib/firebase.ts')).auth;
+        useSessionStore = (await import(moduleUrl)).useSessionStore;
+        const { subscribeShuttleDeparture } = await import('/src/lib/firestore.ts');
+        if (settled) return;
+        original = captureProjection(auth, useSessionStore);
+        if (Date.now() >= deadlineAt) throw timeoutError();
+        const stop = subscribeShuttleDeparture(original.session.id, 'starlight', onDeparture,
+          () => fail(new Error('Original normal Starlight flight-plan document read failed.')));
+        unsubscribe = stop;
+        if (settled || finalizing) detach();
+      } catch (error) { fail(error); }
+    })();
+  }), { moduleUrl: surface.storeModuleUrl(), deadlineAt });
 }
 
 /** Bind the bounded Starlight flow to the original mounted Playwright surfaces.
@@ -720,8 +816,11 @@ export function createP181StarlightBrowserIo({ gm, wingCommander, gameplay, dire
   const member = deadlineAt => work('Read original mounted member DTO', () =>
     observeFullGameDemoPresentationMember(wingCommander, { knownRoleIds: P181_NORMAL_SETUP.roleIds }),
     Math.min(deadlineAt, Date.now() + 60_000));
-  const snapshot = deadlineAt => work('Read original mounted Starlight source', () =>
-    observeP181StarlightSource(wingCommander), Math.min(deadlineAt, Date.now() + 60_000));
+  const snapshot = deadlineAt => {
+    const operationDeadline = Math.min(deadlineAt, Date.now() + 60_000);
+    return work('Read original mounted Starlight source', () =>
+      observeP181StarlightSource(wingCommander, operationDeadline), operationDeadline);
+  };
   const callable = async (surface, name, data, deadlineAt) => {
     const reply = await work(`Original SDK ${name}`, () => surface.callable(name, data), deadlineAt);
     assert.equal(reply?.status, 'committed', `Original normal SDK callable ${name} must be authorized and current.`);
