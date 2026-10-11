@@ -56,6 +56,11 @@ function p181NativeRegion(startText, endText, after = p181NativeEntry) {
 const p181TimingBody = p181NativeRegion('  const totalEnd = options.allocationDeadlineMs', '  const sourceEntry =');
 const p181BoundedBody = p181NativeRegion('  const bounded = async', '\n  let adminRequire');
 const p181FullActorWaitBody = p181NativeRegion('  const waitForFullActor = async', '\n  const readGmRecoveryPending');
+const p181StationWaitBody = p181NativeRegion(
+  "          const navigationUiEnd = Math.min(deadlineAt, Date.now() + 35_000);",
+  '          if (station.connectionGeneration !== navigationStart.connectionGeneration');
+const p181FirstFailureRetentionBody = p181NativeRegion(
+  '  const retainFirstFailure = async', '\n  const previousFirestoreEmulatorHost');
 const p181GmWaitBody = p181NativeRegion('  const waitForGm = async', '\n  async function captureAction');
 const p181CleanupDeadlineBody = p181NativeRegion('    if (!cleanupPromise) {', '\n    const outcome =',
   p181DeadlineSource.indexOf('    proofResult = await runP181StarlightMovementScoutUiProof', p181NativeEntry));
@@ -104,6 +109,63 @@ function actualP181ReadinessConsumer(kind, late) {
   return { member, execute: () => kind === 'full'
     ? wait({}, 'Actual actor readiness', value => value.currentOwnPlayerConfirmed, 100)
     : wait(100, { active: true }) };
+}
+
+function actualP181StationWaitDiagnosticConsumer() {
+  let entered;
+  const reachedWait = new Promise(resolve => { entered = resolve; });
+  const diagnostic = { activeAwaitedOperation: null };
+  const roleLink = { first() { return this; }, waitFor: async () => {}, click: async () => {} };
+  const run = runInNewContext(`(async () => { ${p181StationWaitBody} })()`, {
+    Date, Math, normalPreparationDiagnostic: diagnostic, roleLink,
+    deadlineAt: Date.now() + 60_000,
+    wingCommander: { page: { locator: () => roleLink } },
+    bounded: async (_label, action) => action(),
+    p181Remaining: () => 1_000,
+    waitForFullActor: async (_surface, description) => {
+      entered(description);
+      return new Promise(() => {});
+    },
+    pc11MemberReadiness: () => false,
+    sessionId: 'controlled-session', admittedAuth: { uidHash: 'controlled-uid-hash' },
+    P181_NORMAL_SETUP: { wingCommanderRoleId: 'wing-commander' },
+  });
+  return { diagnostic, reachedWait, run };
+}
+
+function actualP181FirstFailureRetentionConsumer({ screenshotFails = false } = {}) {
+  const error = Object.assign(new Error('original finite prepareNormalSession timeout'), { name: 'TimeoutError' });
+  const diagnostic = { activeAwaitedOperation: 'Original Wing Commander normal role chooser/seat claim' };
+  const screenshotBytes = Buffer.from('controlled-private-screenshot');
+  const screenshots = [], writes = [], retained = [], bounds = [];
+  const context = {
+    assert, createHash, resolve, Date: { now: () => 1_000 }, error,
+    normalPreparationDiagnostic: diagnostic,
+    wingCommander: { page: { screenshot: async options => {
+      screenshots.push(options);
+      if (screenshotFails) throw new Error('controlled screenshot capture failure');
+      return screenshotBytes;
+    } } },
+    directory: '/tmp/p181-controlled-normal-preparation-diagnostic',
+    privateFailureArtifact: null, sourceCommit: 'controlled-source-commit',
+    sourceBindingsBefore: { sourceFiles: { controlled: 'source-hash' } },
+    trace: [], remoteRequests: [], pageErrors: [], originalCreate: {},
+    cleanupDeadlineAt: 5_000,
+    rememberProofFailure,
+    bounded: async (label, operation, deadlineAt) => {
+      bounds.push({ label, deadlineAt });
+      assert.ok(deadlineAt <= 5_000, 'Diagnostic retention keeps the original cleanup cutoff.');
+      return operation();
+    },
+    writeFile: async (path, body, options) => writes.push({ path, body, options }),
+    retainProofFailure: async (_directory, label, originalError, detail) => {
+      retained.push({ label, error: originalError, detail });
+      return { path: '/tmp/p181-controlled-original-failure.json', evidenceWriteFailed: false };
+    },
+  };
+  const retain = runInNewContext(`(() => { ${p181FirstFailureRetentionBody}; return retainFirstFailure; })()`, context);
+  return { error, diagnostic, screenshotBytes, screenshots, writes, retained, bounds,
+    execute: () => retain(error, { deadlineAt: 5_000 }) };
 }
 
 
@@ -1713,6 +1775,46 @@ test('F6 rejects a late actual full actor ready tuple', async () => {
 
 test('F6 rejects actual GM readiness when the recovery read crosses the deadline', async () => {
   await assert.rejects(actualP181ReadinessConsumer('gm', true).execute(), /deadline|expired|late|ready/i);
+});
+
+test('actual Wing Commander station wait exposes its active semantic awaited operation', async () => {
+  const consumer = actualP181StationWaitDiagnosticConsumer();
+  const reached = await consumer.reachedWait;
+  assert.equal(reached, 'Original Wing Commander normal role chooser/seat claim');
+  assert.equal(consumer.diagnostic.activeAwaitedOperation,
+    'Original Wing Commander normal role chooser/seat claim',
+  'The exact source wait must name the station/seat readiness operation while it is pending.');
+});
+
+test('actual native first-failure retention saves the bounded private readiness screenshot and original timeout', async () => {
+  const consumer = actualP181FirstFailureRetentionConsumer();
+  const artifact = await consumer.execute();
+  assert.equal(consumer.retained.length, 1);
+  assert.equal(consumer.retained[0].error, consumer.error,
+    'Capturing diagnostics must preserve the original finite prepare timeout object.');
+  assert.equal(consumer.screenshots.length, 1,
+    'Capture the first-failure screenshot before owned browser teardown.');
+  assert.equal(consumer.retained[0].detail.normalPreparationDiagnostic.activeAwaitedOperation,
+    'Original Wing Commander normal role chooser/seat claim');
+  assert.equal(consumer.writes.length, 1);
+  assert.equal(consumer.writes[0].options.mode, 0o600);
+  assert.equal(consumer.writes[0].options.flag, 'wx');
+  assert.deepEqual(consumer.writes[0].body, consumer.screenshotBytes);
+  assert.equal(consumer.retained[0].detail.normalPreparationDiagnostic.screenshot.sha256,
+    createHash('sha256').update(consumer.screenshotBytes).digest('hex'));
+  assert.equal(artifact.evidenceWriteFailed, false);
+  assert.ok(consumer.bounds.every(value => value.deadlineAt <= 5_000));
+});
+
+test('actual native first-failure retention records screenshot errors without replacing the original timeout', async () => {
+  const consumer = actualP181FirstFailureRetentionConsumer({ screenshotFails: true });
+  await consumer.execute();
+  assert.equal(consumer.retained.length, 1);
+  assert.equal(consumer.retained[0].error, consumer.error);
+  const diagnostic = consumer.retained[0].detail.normalPreparationDiagnostic ?? {};
+  assert.equal(diagnostic.screenshotError?.message,
+    'controlled screenshot capture failure');
+  assert.equal(consumer.writes.length, 0);
 });
 
 test('F6 preserves the original cleanup deadline after it expires', async () => {
