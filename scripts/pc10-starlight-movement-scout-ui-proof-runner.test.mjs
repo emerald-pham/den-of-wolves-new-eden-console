@@ -1980,27 +1980,58 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
   const page = new EventEmitter();
   let route = gm ? '#/gm' : '#/roles/wing-commander', pending;
   const choices = [], observedBodies = [], waits = [];
+  const storeListeners = new Set(), movementListeners = new Set();
   const surface = { page, state, uid, choices, observedBodies, waits,
     storeModuleUrl: () => 'http://127.0.0.1:5173/src/store/useSessionStore.ts',
     sessionAuthorityModuleUrl: () => 'http://127.0.0.1:5173/src/lib/sessionSnapshotAuthority.ts',
     callable: async () => ({ status: 'committed', result: [] }),
     reducedMotion: async () => {}, consent: async () => {} };
+  surface.publish = change => {
+    const previous = structuredClone(state);
+    if (typeof change === 'function') change(state); else Object.assign(state, change);
+    for (const listener of [...storeListeners]) listener(state, previous);
+  };
+  surface.publishMovement = (movement, { fromCache = false } = {}) => {
+    surface.movement = movement;
+    if (!fromCache) for (const listener of [...movementListeners]) listener(movement);
+  };
+  surface.observers = { stores: storeListeners, movements: movementListeners, attachments: 0, detachments: 0 };
   const modules = path => {
     if (path === '/src/lib/firebase.ts') return { auth: () => ({
       currentUser: surface.uid ? { uid: surface.uid } : null,
       authStateReady: async () => { surface.authReadinessCalls = (surface.authReadinessCalls ?? 0) + 1; await surface.authReady; },
     }) };
     if (path === '/src/lib/demoActorContext.ts') return { activeDemoActorProfile: null };
-    if (path.includes('useSessionStore')) return { useSessionStore: { getState: () => state } };
-    if (path.includes('sessionSnapshotAuthority')) return {
+    if (path.includes('useSessionStore')) return { useSessionStore: { getState: () => state,
+      subscribe: listener => { storeListeners.add(listener); return () => storeListeners.delete(listener); } } };
+    if (path.includes('sessionSnapshotAuthority')) return surface.authorityRuntime ?? {
       sessionSnapshotAuthorityFor: () => ({ hasServerSessionAuthority: state.sdkHasServerAuthority }),
       memberSessionResumeBlocksFreshness: () => state.sdkResumePending };
+    if (path === '/src/lib/firestore.ts') return { subscribeShuttleDeparture: (_sessionId, _shuttleId, next) => {
+      surface.observers.attachments++; movementListeners.add(next); next(null);
+      queueMicrotask(() => { if (movementListeners.has(next)) {
+        surface.onProtectedAttach?.(); next(surface.movement ?? null);
+      } });
+      return () => { surface.observers.detachments++; movementListeners.delete(next); };
+    } };
+    if (path === '/src/lib/scoutResultService.ts') return Object.fromEntries([
+      'listMyScoutReports', 'readPrivateScoutResult', 'readMyScoutDiscoveryNote', 'listPendingScoutRequests',
+    ].map(name => [name, async value => {
+      const payload = { sessionId: state.session.id,
+        ...(name === 'readPrivateScoutResult' ? { requestId: value } : {}),
+        ...(name === 'readMyScoutDiscoveryNote' ? { noteId: value } : {}),
+        ...(name === 'listPendingScoutRequests' ? { instanceId: state.gmInstance.id } : {}) };
+      return (await surface.callable(name, payload)).result;
+    }]));
     throw new Error(`Unexpected controlled mounted module ${path}`);
   };
   page.evaluate = async (callback, args) => {
     const executable = String(callback).replace(/\bimport\s*\(/g, '__load(');
     const result = await runInNewContext(`(${executable})(__args)`, { __args: args, __load: async path => modules(path),
-      crypto: webcrypto, TextEncoder, performance: { timeOrigin: surface.documentTimeOrigin ?? 1000 },
+      crypto: { subtle: { digest: async (...values) => {
+        const digest = await webcrypto.subtle.digest(...values); await surface.onDigest?.(String(callback)); return digest;
+      } } }, TextEncoder, performance: { timeOrigin: surface.documentTimeOrigin ?? 1000 },
+      Date, setTimeout, clearTimeout,
       document: { querySelector: () => null, querySelectorAll: () => [] } });
     return result === undefined ? undefined : JSON.parse(JSON.stringify(result));
   };
@@ -4002,3 +4033,320 @@ for (const [name, change] of [
     assert.equal(trace.filter(row => row.endpoint === 'requestScout').length, 1);
   });
 }
+
+// Contemporary complete-path cases reuse the mounted surface, controlled
+// receipt producer and exact proof entry. No browser, provider, build or
+// resource operation occurs; all private facts remain synthetic test values.
+async function completeReadinessAuthority(surface) {
+  const ts = createRequire(import.meta.url)('typescript');
+  const source = await readFile(resolve(repositoryRoot, 'src/lib/sessionSnapshotAuthority.ts'), 'utf8');
+  const output = ts.transpileModule(source, { compilerOptions: {
+    module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
+  } }).outputText;
+  const module = { exports: {} };
+  runInNewContext(output, { module, exports: module.exports, require: () => ({}) });
+  surface.authorityRuntime = module.exports;
+  const authority = module.exports.sessionSnapshotAuthorityFor(surface.state.session.id, surface.uid);
+  authority.hasServerSessionAuthority = true;
+  delete surface.state.sdkHasServerAuthority; delete surface.state.sdkResumePending;
+  return authority;
+}
+function completeReadinessIo(wing, gm, directory = '/tmp/in-memory-complete-readiness') {
+  return createP181StarlightBrowserIo({ gm, wingCommander: wing,
+    gameplay: { select: async () => wing }, directory,
+    initial: { sessionId: 'normal-session' }, expectedWingCommander: original });
+}
+
+test('complete boundary readiness independent member read waits for matching-epoch App freshness', async t => {
+  const wing = mountedP181Surface('wing-uid'), gm = mountedP181Surface('original-gm', { gm: true });
+  await completeReadinessAuthority(wing);
+  wing.publish({ connection: 'offline', sessionSnapshotFreshness: 'cache' });
+  const pending = completeReadinessIo(wing, gm).observeMember(Date.now() + 1000);
+  const timer = setTimeout(() => wing.publish({ connection: 'live', sessionSnapshotFreshness: 'server' }), 100);
+  t.after(() => clearTimeout(timer));
+  const member = await pending;
+  assert.equal(member.connection, 'live'); assert.equal(member.freshness, 'server');
+  assert.equal(member.sdkHasServerAuthority, true); assert.equal(member.sdkResumePending, false);
+  assert.equal(wing.observers.stores.size, 0);
+});
+
+test('complete boundary readiness member digest observes role retirement even when immediately restored', async () => {
+  const wing = mountedP181Surface('wing-uid'), gm = mountedP181Surface('original-gm', { gm: true });
+  await completeReadinessAuthority(wing);
+  let first = true;
+  wing.onDigest = () => {
+    if (!first) return; first = false;
+    wing.publish(state => { state.me.role = 'gm'; });
+    wing.publish(state => { state.me.role = 'player'; });
+  };
+  await assert.rejects(completeReadinessIo(wing, gm).observeMember(Date.now() + 1000), /authority|identity|epoch/i);
+  assert.equal(wing.observers.stores.size, 0);
+});
+
+test('complete boundary readiness actual transit publication waits for exact retarget revision and destination', async () => {
+  const clock = remainingLifecycleClock(), module = remainingActualModule(clock);
+  const { io: ordinary, state } = makeConsumer({ date: clock.Date });
+  await ordinary.requestDeparture('icebreaker', state.session);
+  await ordinary.beginTransit(state.session.departure, state.session);
+  const before = structuredClone(state.session);
+  const receipt = (await ordinary.retargetTransit(before.transit, 'shepherd', before)).result;
+  const successor = structuredClone(state.session);
+  const browser = module.createP181StarlightBrowserIo({ gm: { page: {} }, wingCommander: { page: {} },
+    gameplay: { select: async () => {} }, directory: '/tmp/in-memory-retarget-publication',
+    initial: { sessionId: 'normal-session' }, expectedWingCommander: original });
+  let reads = 0;
+  browser.observeMember = async () => ({ ...original });
+  browser.observeFlight = async () => ++reads === 1 ? before : successor;
+  const observed = await browser.waitForTransit(receipt, 1000, clock.now() + 1000);
+  assert.equal(observed.transit.revision, receipt.revision);
+  assert.equal(observed.transit.destinationShipId, receipt.destinationShipId);
+  assert.equal(reads, 2, 'The same transit ID at the old revision cannot satisfy exact publication.');
+});
+
+for (const [name, change] of [
+  ['unexpected revision', flight => { flight.transit.revision += 2; }],
+  ['foreign leg', flight => { flight.transit.transitRequestId = 'foreign-leg'; }],
+  ['changed cycle', flight => { flight.cycle++; }],
+]) {
+  test(`complete boundary readiness transit publication immediately rejects ${name}`, async () => {
+    const clock = remainingLifecycleClock(), module = remainingActualModule(clock);
+    const { io: ordinary, state } = makeConsumer({ date: clock.Date });
+    await ordinary.requestDeparture('icebreaker', state.session);
+    await ordinary.beginTransit(state.session.departure, state.session);
+    const receipt = structuredClone(state.session.transit), changed = structuredClone(state.session); change(changed);
+    const browser = module.createP181StarlightBrowserIo({ gm: { page: {} }, wingCommander: { page: {} },
+      gameplay: { select: async () => {} }, directory: '/tmp/in-memory-rejected-publication',
+      initial: { sessionId: 'normal-session' }, expectedWingCommander: original });
+    browser.observeMember = async () => ({ ...original });
+    let reads = 0; browser.observeFlight = async () => { reads++; return changed; };
+    await assert.rejects(browser.waitForTransit(receipt, 1000, clock.now() + 1000), /context|revision|leg|cycle|publication/i);
+    assert.equal(reads, 1, 'A terminal changed publication cannot be polled until restoration.');
+  });
+}
+
+test('complete boundary readiness automatic arrival receipt is armed before delayed member and public leg deletion', async () => {
+  const { io: ordinary, state } = makeConsumer();
+  await ordinary.requestDeparture('icebreaker', state.session);
+  await ordinary.beginTransit(state.session.departure, state.session);
+  await ordinary.retargetTransit(state.session.transit, 'shepherd', state.session);
+  const before = structuredClone(state.session), transit = before.transit;
+  const wing = mountedP181Surface('wing-uid'), browser = completeReadinessIo(wing, mountedP181Surface('original-gm', { gm: true }));
+  let armed = false, responses = 0;
+  const originalWait = wing.page.waitForResponse;
+  wing.page.waitForResponse = (...args) => { armed = true; return originalWait(...args); };
+  browser.observeMember = async () => {
+    if (!responses) {
+      const capture = await ordinary.completeArrival(transit, before);
+      responses++;
+      wing.deliver('completeShuttleArrival', capture.request, capture.result);
+    }
+    assert.equal(armed, true, 'The independent automatic response can precede the awaited member read.');
+    return { ...original };
+  };
+  browser.observeFlight = async () => structuredClone(state.session);
+  const arrived = await browser.waitForArrivalWindow(transit, 1000, Date.now() + 1000, before);
+  assert.equal(arrived.beforeFlight.transit.revision, transit.revision);
+  assert.equal(arrived.afterFlight.transit, null); assert.equal(arrived.afterFlight.docking.shipId, 'shepherd');
+  assert.equal(responses, 1); assert.equal(wing.choices.length, 0);
+});
+
+test('complete boundary readiness reload waits for observed new-document authority module after Auth', async t => {
+  const fixture = await reloadAuthReadinessFixture(t, { resetDocumentHydration: true, oldHydrationRevision: 2 });
+  const authorityUrl = fixture.wing.sessionAuthorityModuleUrl, reload = fixture.wing.page.reload;
+  let observed = true, timer;
+  fixture.wing.sessionAuthorityModuleUrl = () => observed ? authorityUrl() : null;
+  fixture.wing.page.reload = async (...args) => {
+    observed = false; await reload(...args); timer = setTimeout(() => { observed = true; }, 90);
+  };
+  t.after(() => clearTimeout(timer));
+  const recovered = await fixture.io.reloadAndReselectWingCommander(1000, Date.now() + 1000);
+  assert.equal(recovered.actor.documentTimeOrigin, 2000); assert.equal(recovered.actor.identityHydrationRevision, 1);
+  assert.equal(fixture.selections.length, 1);
+});
+
+test('complete boundary readiness reload rejects a second document during role selection before scout', async t => {
+  const fixture = await reloadAuthReadinessFixture(t, { resetDocumentHydration: true, oldHydrationRevision: 2 });
+  const select = fixture.io; // The existing fixture records the actual chooser boundary.
+  fixture.wing.page.getByRole = (_role, options) => ({
+    isVisible: async () => options.name === 'Open Starlight shuttle console',
+    click: async () => { fixture.wing.documentTimeOrigin = 3000; }, waitFor: async () => {},
+  });
+  await assert.rejects(select.reloadAndReselectWingCommander(1000, Date.now() + 1000), /document|epoch|authority/i);
+});
+
+for (const boundary of ['listMyScoutReports', 'readPrivateScoutResult', 'readMyScoutDiscoveryNote']) {
+  test(`complete boundary readiness scout ${boundary} retirement stops private follow-on and reveal`, async () => {
+    const wing = mountedP181Surface('wing-uid'), gm = mountedP181Surface('original-gm', { gm: true });
+    await completeReadinessAuthority(wing);
+    wing.state.session.shuttleDockings = [{ shuttleId: 'starlight', shipId: 'shepherd' }];
+    const { io: ordinary, state } = makeConsumer(); state.session.docking.shipId = 'shepherd';
+    const reply = (await ordinary.requestScout('1100', state.session)).result;
+    const bundle = await ordinary.resolveScoutNormally(reply), calls = [];
+    wing.callable = async name => {
+      calls.push(name);
+      if (name === boundary) {
+        wing.publish(s => { s.me.fleetGroupId = 'fleet-2'; });
+        wing.publish(s => { s.me.fleetGroupId = 'fleet-1'; });
+      }
+      return { status: 'committed', result: name === 'listMyScoutReports' ? [bundle.report]
+        : name === 'readPrivateScoutResult' ? bundle.result : bundle.note };
+    };
+    const browser = completeReadinessIo(wing, gm);
+    await assert.rejects(browser.resolveScoutNormally(reply, 1000, Date.now() + 1000), /authority|epoch|context/i);
+    assert.equal(calls[0], 'listMyScoutReports');
+    if (boundary === 'listMyScoutReports') assert.equal(calls.length, 1);
+    if (boundary === 'readPrivateScoutResult') assert.equal(calls.includes('readMyScoutDiscoveryNote'), false);
+    assert.equal(gm.choices.length, 0); assert.equal(wing.observers.stores.size, 0);
+  });
+}
+
+for (const [name, change] of [
+  ['retired SDK authority', (wing, authority) => { authority.hasServerSessionAuthority = false; }],
+  ['pending SDK resume', (wing, authority) => { wing.authorityRuntime.beginMemberSessionResume(authority); }],
+  ['disconnected player', wing => { wing.state.me.connected = false; }],
+]) {
+  test(`complete boundary readiness cached member immediately rejects ${name}`, async () => {
+    const wing = mountedP181Surface('wing-uid'), gm = mountedP181Surface('original-gm', { gm: true });
+    const authority = await completeReadinessAuthority(wing);
+    wing.publish({ connection: 'offline', sessionSnapshotFreshness: 'cache' }); change(wing, authority);
+    await assert.rejects(completeReadinessIo(wing, gm).observeMember(Date.now() + 1000), /authority|original|epoch/i);
+    assert.equal(wing.choices.length, 0); assert.equal(wing.observers.stores.size, 0);
+  });
+}
+
+test('complete boundary readiness cached member retains its original finite cutoff', async () => {
+  const wing = mountedP181Surface('wing-uid'), gm = mountedP181Surface('original-gm', { gm: true });
+  await completeReadinessAuthority(wing); wing.publish({ connection: 'offline', sessionSnapshotFreshness: 'cache' });
+  await assert.rejects(completeReadinessIo(wing, gm).observeMember(Date.now() + 60), /deadline/i);
+  assert.equal(wing.observers.stores.size, 0); assert.equal(wing.choices.length, 0);
+});
+
+async function completeReadinessAppFreshness(wing) {
+  const source = await readFile(resolve(repositoryRoot, 'src/App.tsx'), 'utf8');
+  const start = source.indexOf('        onSessionFreshness: (fresh) => {');
+  const endText = "          store.setSessionSnapshotFreshness(fresh ? 'server' : 'cache');";
+  const end = source.indexOf(endText, start);
+  assert.ok(start >= 0 && end > start);
+  const body = source.slice(source.indexOf('{', start) + 1, end + endText.length);
+  const store = { getState: () => ({ ...wing.state,
+    setConnection: connection => wing.publish({ connection }),
+    setSessionSnapshotFreshness: sessionSnapshotFreshness => wing.publish({ sessionSnapshotFreshness }) }) };
+  return new Function('callbackCurrent', 'pendingStationMemberRefresh', 'useSessionStore', 'playerRole',
+    'memberSessionResumeBlocksFreshness', 'sessionSnapshotAuthorityFor', 'sessionId', 'playerUid',
+    `return function onSessionFreshness(fresh) {${body}\n};`)(() => true, undefined, store, 'player',
+    wing.authorityRuntime.memberSessionResumeBlocksFreshness, wing.authorityRuntime.sessionSnapshotAuthorityFor,
+    wing.state.session.id, wing.uid);
+}
+
+test('complete boundary readiness one exact-entry sequential replay covers initial callback digest departure arrival reload and first scout', async t => {
+  const wing = mountedP181Surface('wing-uid'), gm = mountedP181Surface('original-gm', { gm: true });
+  const authority = await completeReadinessAuthority(wing);
+  const freshness = await completeReadinessAppFreshness(wing);
+  wing.state.identityHydrationRevision = 2;
+  const actor = { ...original, ...await observeFullGameDemoPresentationMember(wing, { knownRoleIds: originalRoleIds }),
+    roleId: 'wing-commander', hydrationRevision: 2 };
+  const directory = await mkdtemp('/tmp/p181-complete-sequential-readiness-');
+  const { io, state, trace } = makeConsumer(); state.actor = actor;
+  const browser = completeReadinessIo(wing, gm, directory); browser.expectedWingCommander = actor;
+  const events = [], timers = [];
+  t.after(() => { for (const timer of timers) clearTimeout(timer); });
+  const sync = () => {
+    wing.publish(s => {
+      s.session.activeVesselIds = [...state.session.activeVesselIds];
+      s.session.shuttleDockings = state.session.docking ? [structuredClone(state.session.docking)] : [];
+    });
+    const movement = state.session.transit ?? (state.session.departure ? {
+      ...state.session.departure, status: 'requested', shuttleId: 'starlight', holderUid: 'wing-uid',
+      fleetGroupId: 'fleet-1', controlRevision: 4, requestedAt: new Date().toISOString(),
+    } : null);
+    wing.publishMovement(movement);
+  };
+  sync();
+  let firstFlight = true, digestDip = false, callbackDip = false;
+  wing.onDigest = async source => {
+    if (digestDip || !source.includes('captureProjection')) return;
+    digestDip = true; events.push('digest-cache-withdrawal'); freshness(false);
+    await new Promise(done => setImmediate(done)); freshness(true);
+  };
+  wing.onProtectedAttach = () => {
+    if (firstFlight || callbackDip) return;
+    callbackDip = true; events.push('protected-callback-cache-withdrawal'); freshness(false);
+    timers.push(setTimeout(() => freshness(true), 5));
+  };
+  io.observeMember = async deadlineAt => {
+    browser.expectedWingCommander = io.expectedWingCommander ?? actor;
+    const value = await browser.observeMember(deadlineAt);
+    state.actor = { ...state.actor, ...value, generation: value.connectionGeneration, hydrationRevision: value.identityHydrationRevision };
+    return value;
+  };
+  io.observeFlight = async deadlineAt => {
+    browser.expectedWingCommander = io.expectedWingCommander ?? actor;
+    if (firstFlight) {
+      firstFlight = false; events.push('initial-cache-sample'); freshness(false);
+      timers.push(setTimeout(() => freshness(true), 5));
+    }
+    return browser.observeFlight(deadlineAt);
+  };
+  for (const method of ['requestDeparture', 'beginTransit', 'retargetTransit']) {
+    const action = io[method]; io[method] = async (...args) => { const value = await action(...args); sync(); return value; };
+  }
+  const ordinaryRequest = io.requestDeparture;
+  io.requestDeparture = async (...args) => {
+    const value = await ordinaryRequest(...args);
+    freshness(false); events.push('departure-member-cache'); timers.push(setTimeout(() => freshness(true), 5)); return value;
+  };
+  io.waitForDeparture = (...args) => browser.waitForDeparture(...args);
+  io.waitForTransit = (...args) => browser.waitForTransit(...args);
+  browser.observeMember = (...args) => createP181StarlightBrowserIo({ gm, wingCommander: wing,
+    gameplay: { select: async () => wing }, directory, initial: { sessionId: 'normal-session' },
+    expectedWingCommander: browser.expectedWingCommander }).observeMember(...args);
+  let automaticArrival = false;
+  const responseWait = wing.page.waitForResponse;
+  wing.page.waitForResponse = (...args) => {
+    const pending = responseWait(...args);
+    if (!automaticArrival) queueMicrotask(async () => {
+      automaticArrival = true; const transit = structuredClone(state.session.transit);
+      const capture = await io.completeArrival(transit, state.session); sync();
+      events.push('arrival-response-before-pre-read'); wing.deliver('completeShuttleArrival', capture.request, capture.result);
+    });
+    return pending;
+  };
+  io.waitForArrivalWindow = (...args) => browser.waitForArrivalWindow(...args);
+  io.waitForDocking = (...args) => browser.waitForDocking(...args);
+  wing.page.reload = async () => {
+    events.push('new-document-reload'); wing.documentTimeOrigin = 2000;
+    wing.publish(s => {
+      s.identityHydrationRevision = 0; s.me.connectionGeneration = 3;
+      s.session.currentActorBerthAuthority.connectionGeneration = 3;
+    });
+    const token = wing.authorityRuntime.beginMemberSessionResume(authority);
+    wing.deliver('resumeSession', { sessionId: 'normal-session' }, {
+      session: { id: 'normal-session' }, player: { ...wing.state.me } });
+    wing.authReady = Promise.resolve();
+    timers.push(setTimeout(() => {
+      wing.authorityRuntime.finishMemberSessionResume(authority, token, true);
+      wing.publish({ identityHydrationRevision: 1 }); freshness(true); events.push('new-document-hydration-one');
+    }, 5));
+  };
+  io.reloadAndReselectWingCommander = (...args) => browser.reloadAndReselectWingCommander(...args);
+  const ordinaryOffer = io.currentScoutOffer;
+  io.currentScoutOffer = async (...args) => ({ ...await ordinaryOffer(...args), fuelledSecondRequestAvailable: false });
+  const ordinaryResolution = io.resolveScoutNormally;
+  io.resolveScoutNormally = async reply => {
+    const bundle = await ordinaryResolution(reply);
+    wing.callable = async name => ({ status: 'committed', result: name === 'listMyScoutReports' ? [bundle.report]
+      : name === 'readPrivateScoutResult' ? bundle.result : bundle.note });
+    return browser.resolveScoutNormally(reply, 2000, Date.now() + 2000);
+  };
+  const result = await runP181StarlightMovementScoutUiProof(completeProofInput(io, actor));
+  assert.equal(result.status, 'SOURCE_RUNNER_FLOW_COMPLETE'); assert.equal(result.actualAcceptance, false);
+  assert.equal(result.movement.finalDocking.shipId, 'shepherd'); assert.equal(result.scouting.privateReports.length, 1);
+  for (const endpoint of ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit', 'completeShuttleArrival', 'requestScout'])
+    assert.equal(trace.filter(row => row.endpoint === endpoint).length, 1, `Exactly one original ${endpoint}.`);
+  assert.ok(events.includes('initial-cache-sample')); assert.ok(events.includes('digest-cache-withdrawal'));
+  assert.ok(events.includes('protected-callback-cache-withdrawal')); assert.ok(events.includes('departure-member-cache'));
+  assert.ok(events.includes('arrival-response-before-pre-read')); assert.ok(events.includes('new-document-hydration-one'));
+  assert.equal(io.expectedWingCommander.identityHydrationRevision, 1); assert.equal(io.expectedWingCommander.documentTimeOrigin, 2000);
+  assert.equal(wing.observers.stores.size, 0); assert.equal(wing.observers.movements.size, 0);
+  assert.equal(wing.observers.attachments, wing.observers.detachments);
+});
