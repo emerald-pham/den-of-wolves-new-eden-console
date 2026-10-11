@@ -1656,19 +1656,38 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
     } finally { clearTimeout(timer); }
   };
   let adminRequire, db, authAdmin, adminApp, factory;
+  const normalPreparationDiagnostic = { activeAwaitedOperation: null };
   const retainFirstFailure = async (error, { deadlineAt = cleanupDeadlineAt } = {}) => {
     if (privateFailureArtifact) return privateFailureArtifact;
+    const normalPreparation = { activeAwaitedOperation: normalPreparationDiagnostic.activeAwaitedOperation };
+    if (normalPreparation.activeAwaitedOperation ===
+        'Original Wing Commander normal role chooser/seat claim' &&
+        typeof wingCommander?.page?.screenshot === 'function') {
+      const diagnosticDeadlineAt = Math.min(deadlineAt, cleanupDeadlineAt, Date.now() + 5_000);
+      try {
+        const screenshot = await bounded('Capture original Wing Commander station readiness screenshot',
+          () => wingCommander.page.screenshot({
+            timeout: Math.max(1, Math.min(5_000, diagnosticDeadlineAt - Date.now())),
+          }), diagnosticDeadlineAt);
+        const path = resolve(directory, 'p181-normal-preparation-failure.png');
+        await bounded('Save original Wing Commander station readiness screenshot',
+          () => writeFile(path, screenshot, { flag: 'wx', mode: 0o600 }), diagnosticDeadlineAt);
+        normalPreparation.screenshot = { path, sha256: createHash('sha256').update(screenshot).digest('hex') };
+      } catch (screenshotError) {
+        normalPreparation.screenshotError = screenshotError;
+      }
+    }
     // These are already-held facts. Freeze the original private disk record
     // before any owned teardown, including teardown begun by the UI wrapper.
     rememberProofFailure(error, { sourceCommit,
       sourceBindingsBefore: sourceBindingsBefore?.sourceFiles ?? null,
       heldReceipts: trace, heldRemoteRequests: remoteRequests, heldPageErrors: pageErrors,
-      heldOriginalCreate: { ...originalCreate } });
+      heldOriginalCreate: { ...originalCreate }, normalPreparationDiagnostic: normalPreparation });
     try {
       privateFailureArtifact = await bounded('Retain original native failure before owned teardown',
         () => retainProofFailure(directory, 'p181-native-primary', error, {
           sourceCommit, sourceBindingsBefore, receipts: trace, remoteRequests, pageErrors,
-          heldOriginalCreate: { ...originalCreate },
+          heldOriginalCreate: { ...originalCreate }, normalPreparationDiagnostic: normalPreparation,
         }), Math.min(deadlineAt, cleanupDeadlineAt, Date.now() + 60_000));
     } catch (retentionError) {
       privateFailureArtifact = { evidenceWriteFailed: true };
@@ -2379,10 +2398,13 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
           const navigationUiEnd = Math.min(deadlineAt, Date.now() + 35_000);
           await bounded('Wait for original station chooser', () => roleLink.waitFor({ state: 'visible', timeout: p181Remaining(navigationUiEnd) }), navigationUiEnd);
           await bounded('Choose original station berth', () => roleLink.click({ timeout: p181Remaining(navigationUiEnd) }), navigationUiEnd);
+          normalPreparationDiagnostic.activeAwaitedOperation =
+            'Original Wing Commander normal role chooser/seat claim';
           station = await waitForFullActor(wingCommander, 'Original Wing Commander normal role chooser/seat claim', value =>
             pc11MemberReadiness(value, { sessionId, uidHash: admittedAuth.uidHash,
               roleId: P181_NORMAL_SETUP.wingCommanderRoleId, stage: 'station' }) && value.memberScopeMatches === true,
           deadlineAt);
+          normalPreparationDiagnostic.activeAwaitedOperation = null;
           if (station.connectionGeneration !== navigationStart.connectionGeneration ||
               station.identityHydrationRevision !== navigationStart.identityHydrationRevision) {
             const accepted = await bounded('Accept original actor-bound role navigation receipt',
