@@ -79,8 +79,9 @@ const makeProductionReader = deps => new Function('deps',
 // currentBinding). Raw UID/session ID are not copied: both are replaced by
 // test-only aliases. The record is an original normal-member DTO, not a full
 // raw GameSession, canonical-seat proof, phase/cycle snapshot, or SDK authority
-// tuple; unknown values stay absent. currentOwnPlayerConfirmed maps only to
-// the supported Player.connected field, never a root SessionState flag.
+// tuple; unknown values stay absent. currentOwnPlayerConfirmed is a separate
+// derived DTO output and is not copied into SessionState. The saved
+// currentBinding.connected value is copied only to the supported Player.connected field.
 const SAVED_0555_MEMBER_DTO = Object.freeze({
   provenanceStatus: 'selected-current-original-member',
   hasAuth: true,
