@@ -396,7 +396,7 @@ function makeConsumer({ departureOriginOverride, retargetProjectionRevisionOverr
         transitRequestId: transit.transitRequestId, expectedControlRevision: before.control.revision };
       state.session.docking = { shuttleId: 'starlight', shipId: transit.destinationShipId };
       state.session.transit = null;
-      state.session.control = { ...state.session.control, revision: 5 };
+      // Arrival changes docking/history, not the custody CAS revision.
       return result('completeShuttleArrival', request, { status: 'arrived', sessionId: request.sessionId,
         requestId: `arrival-${transit.transitRequestId}`, transitRequestId: transit.transitRequestId,
         shuttleId: request.shuttleId, hostShipId: transit.destinationShipId,
@@ -417,7 +417,7 @@ function makeConsumer({ departureOriginOverride, retargetProjectionRevisionOverr
         entitlementId: 'starlight', targetCoordinate: coordinate };
       const response = { status: 'requested', resolution: 'pending', requestId: request.requestId,
         sessionId: request.sessionId, cycle: before.cycle, entitlementId: 'starlight', source: 'craft',
-        ownerRoleId: 'wing-commander', anchorShipId: 'aegis', receivingShipId: 'aegis',
+        ownerRoleId: 'wing-commander', anchorShipId: 'aegis', receivingShipId: state.session.docking.shipId,
         targetCoordinate: coordinate };
       state.session.scoutOffer = { ...state.session.scoutOffer, firstRequestAvailable: false,
         fuelledSecondRequestAvailable: true };
@@ -1383,7 +1383,8 @@ test('exact nested native capture consumer stays source-bound during controlled 
 
 test('native browser adapter captures one automatic arrival receipt before transit deletion', async () => {
   const now = Date.now();
-  const transit = { transitRequestId: 'trip-1', status: 'in-transit', originShipId: 'aegis',
+  const transit = { requestId: 'departure-1', transitRequestId: 'trip-1', status: 'in-transit',
+    controlRevision: 4, revision: 2,
     destinationShipId: 'shepherd', departedAt: new Date(now).toISOString(),
     arrivesAt: new Date(now + 60_000).toISOString(), cycle: 1 };
   let flight = { sessionId: 'normal-session', phase: 'active', cycle: 1, airspace: 'lifted',
@@ -1399,7 +1400,9 @@ test('native browser adapter captures one automatic arrival receipt before trans
     status: () => 200,
     request: () => ({ url: () => responseUrl, method: () => 'POST',
       postDataJSON: () => ({ data: structuredClone(requestData) }) }),
-    json: async () => ({ result: { hostShipId: 'shepherd',
+    json: async () => ({ result: { status: 'arrived', sessionId: 'normal-session',
+      requestId: 'arrival-trip-1', transitRequestId: 'trip-1', shuttleId: 'starlight',
+      hostShipId: 'shepherd', transitRevision: 2,
       arrivedAt: new Date(now + 60_001).toISOString() } }),
   };
   let observerArms = 0, automaticRequests = 0;
@@ -1409,7 +1412,7 @@ test('native browser adapter captures one automatic arrival receipt before trans
     const deadline = setTimeout(() => reject(new Error('original arrival receipt deadline expired')), timeout);
     const automaticTimer = setTimeout(() => {
       automaticRequests++;
-      flight = { ...flight, control: { ...flight.control, revision: 5 },
+      flight = { ...flight,
         docking: { shuttleId: 'starlight', shipId: 'shepherd' }, transit: null };
       if (predicate(response)) { clearTimeout(deadline); resolve(response); }
       else { clearTimeout(deadline); reject(new Error('automatic arrival request did not match the original trip')); }
@@ -1431,7 +1434,7 @@ test('native browser adapter captures one automatic arrival receipt before trans
   assert.equal(arrival.capture.request.expectedControlRevision, 4);
   assert.equal(arrival.afterFlight.docking.shipId, 'shepherd');
   assert.equal(arrival.afterFlight.transit, null);
-  assert.equal(arrival.afterFlight.control.revision, 5);
+  assert.equal(arrival.afterFlight.control.revision, 4);
 });
 
 test('actual movement consumer accepts the shared safe member DTO and hash-bound Starlight custody', async () => {
@@ -3520,4 +3523,137 @@ test('arrival due deadline actual browser retains rejection rather than granting
   assert.equal(observed.trace.some(row => row.ui === 'reload-and-reselect-wing-commander'), false);
   assert.equal(observed.trace.some(row => row.endpoint === 'requestScout'), false);
   assert.match(originalProofError(observed.error).heldObservationsInspect, /Controlled current arrival rejection/);
+});
+
+// Source-shaped arrival effects: the reducer leaves custody unchanged, consumes
+// the current leg, and publishes docking. No emulator, SDK actor or browser runs.
+function sourceArrivalAdapter({ custodyAdvance = false, publicationLag = false,
+  replayed = false, staleBaseline = false, missingBaseline = false,
+  wrongReplyRevision = false } = {}) {
+  const now = Date.now();
+  const transit = { requestId: 'source-departure', transitRequestId: 'source-trip', shuttleId: 'starlight',
+    destinationShipId: 'shepherd', status: 'in-transit', cycle: 1, controlRevision: 4, revision: 2,
+    departedAt: new Date(now - 60_001).toISOString(), arrivesAt: new Date(now - 1).toISOString() };
+  let flight = { sessionId: 'normal-session', phase: 'active', cycle: 1, airspace: 'lifted',
+    activeRoleIds: ['wing-commander'], activeVesselIds: ['aegis', 'shepherd'],
+    control: { shuttleId: 'starlight', holderUidHash: original.uidHash, ownerUidHash: original.uidHash, revision: 4 },
+    docking: null, departure: null, transit: structuredClone(transit) };
+  let observerArms = 0, requests = 0, sourceReads = 0;
+  const request = { sessionId: 'normal-session', shuttleId: 'starlight',
+    transitRequestId: transit.transitRequestId, expectedControlRevision: 4 };
+  const reply = { status: replayed ? 'replayed' : 'arrived', sessionId: 'normal-session',
+    requestId: 'arrival-source-trip', transitRequestId: transit.transitRequestId,
+    shuttleId: 'starlight', hostShipId: 'shepherd', arrivedAt: new Date(now + 5).toISOString(),
+    transitRevision: wrongReplyRevision ? 3 : 2 };
+  const response = { url: () => 'http://127.0.0.1:5013/demo-local/us-central1/completeShuttleArrival',
+    status: () => 200, request: () => ({ method: () => 'POST', postDataJSON: () => ({ data: request }) }),
+    json: async () => ({ result: structuredClone(reply) }), opaqueBrowserReference: { marker: 'opaque-browser-reference' } };
+  const page = new EventEmitter();
+  page.waitForResponse = (predicate, { timeout }) => new Promise((resolve, reject) => {
+    observerArms++;
+    const deadline = setTimeout(() => reject(new Error('original source arrival deadline expired')), timeout);
+    setTimeout(() => {
+      requests++;
+      const committed = { ...flight, control: { ...flight.control, revision: custodyAdvance ? 5 : 4 },
+        docking: { shuttleId: 'starlight', shipId: 'shepherd' }, transit: null };
+      flight = publicationLag ? { ...committed, docking: { shuttleId: 'starlight', shipId: 'aegis' } } : committed;
+      if (publicationLag) setTimeout(() => { flight = committed; }, 10);
+      clearTimeout(deadline);
+      if (predicate(response)) resolve(response); else reject(new Error('source arrival request mismatch'));
+    }, 5);
+  });
+  const io = createP181StarlightBrowserIo({ gm: { page: new EventEmitter() }, wingCommander: { page },
+    gameplay: { async select() {} }, directory: '/tmp/p181-source-arrival-semantics',
+    initial: { sessionId: 'normal-session' }, expectedWingCommander: original });
+  io.observeMember = async () => structuredClone(original);
+  io.observeFlight = async () => {
+    sourceReads++;
+    const value = structuredClone(flight);
+    if (sourceReads === 1 && staleBaseline) value.transit.revision = 1;
+    if (sourceReads === 1 && missingBaseline) value.transit = null;
+    return value;
+  };
+  return { io, transit, counts: () => ({ observerArms, requests, sourceReads }) };
+}
+
+test('source arrival custody semantics accept unchanged custody and one committed docking', async () => {
+  const f = sourceArrivalAdapter();
+  const result = await f.io.waitForArrivalWindow(f.transit, 1_000);
+  assert.deepEqual(result.afterFlight.control, result.beforeFlight.control);
+  assert.equal(result.capture.result.status, 'arrived');
+  assert.equal(result.capture.result.transitRevision, 2);
+  assert.deepEqual(result.afterFlight.docking, { shuttleId: 'starlight', shipId: 'shepherd' });
+  assert.equal(result.afterFlight.transit, null);
+  assert.equal(f.counts().requests, 1);
+});
+
+test('source arrival custody semantics reject a fabricated custody advance with otherwise valid effects', async () => {
+  const f = sourceArrivalAdapter({ custodyAdvance: true });
+  await assert.rejects(f.io.waitForArrivalWindow(f.transit, 1_000), /custody/i);
+  assert.equal(f.counts().requests, 1);
+});
+
+test('source arrival custody semantics wait for the matching published docking within the original deadline', async () => {
+  const f = sourceArrivalAdapter({ publicationLag: true });
+  const result = await f.io.waitForArrivalWindow(f.transit, 1_000);
+  assert.deepEqual(result.afterFlight.control, result.beforeFlight.control);
+  assert.equal(result.afterFlight.docking.shipId, 'shepherd');
+  assert.ok(f.counts().sourceReads >= 3, 'A lagging original source snapshot needs another read, not another action.');
+  assert.equal(f.counts().requests, 1);
+});
+
+test('source arrival custody semantics accept exact already-applied receipt without changing custody', async () => {
+  const f = sourceArrivalAdapter({ replayed: true });
+  const result = await f.io.waitForArrivalWindow(f.transit, 1_000);
+  assert.equal(result.capture.result.status, 'replayed');
+  assert.deepEqual(result.afterFlight.control, result.beforeFlight.control);
+  assert.equal(f.counts().requests, 1);
+});
+
+test('source arrival custody semantics reject stale and already-deleted baselines before observing a request', async () => {
+  for (const options of [{ staleBaseline: true }, { missingBaseline: true }]) {
+    const f = sourceArrivalAdapter(options);
+    await assert.rejects(f.io.waitForArrivalWindow(f.transit, 1_000));
+    assert.deepEqual(f.counts(), { observerArms: 0, requests: 0, sourceReads: 1 });
+  }
+});
+
+test('source arrival custody semantics retain the actual reply when its completed-leg revision is wrong', async () => {
+  const f = sourceArrivalAdapter({ wrongReplyRevision: true });
+  let failed;
+  try { await f.io.waitForArrivalWindow(f.transit, 1_000); } catch (error) { failed = error; }
+  assert.ok(failed, 'A receipt for another completed leg must fail.');
+  assert.match(originalProofError(failed).heldObservationsInspect, /transitRevision: 3/);
+  assert.equal(f.counts().requests, 1);
+});
+
+test('source arrival core semantics preserve custody through reload and scout to the actual parked host', async () => {
+  const { io, trace } = makeConsumer();
+  const result = await runP181StarlightMovementScoutUiProof(completeProofInput(io));
+  assert.equal(result.movement.finalControl.revision, 4);
+  assert.equal(result.movement.finalDocking.shipId, 'shepherd');
+  assert.equal(result.scouting.privateReports.length, 2);
+  assert.equal(trace.filter(row => row.endpoint === 'completeShuttleArrival').length, 1);
+});
+
+test('source arrival core semantics reject an AEGIS scout receiver after a Shepherd docking', async () => {
+  const { io } = makeConsumer();
+  const request = io.requestScout;
+  io.requestScout = async (...args) => {
+    const capture = await request(...args);
+    return { ...capture, result: { ...capture.result, receivingShipId: 'aegis' } };
+  };
+  await assert.rejects(runP181StarlightMovementScoutUiProof(completeProofInput(io)), /receiving|parked host/i);
+});
+
+test('source arrival core semantics stop on changed custody after reload before any scout request', async () => {
+  const { io, trace } = makeConsumer();
+  const reload = io.reloadAndReselectWingCommander;
+  io.reloadAndReselectWingCommander = async (...args) => {
+    const recovered = await reload(...args);
+    recovered.flight.control.holderUidHash = 'c'.repeat(16);
+    return recovered;
+  };
+  await assert.rejects(runP181StarlightMovementScoutUiProof(completeProofInput(io)), /holder|custody/i);
+  assert.equal(trace.filter(row => row.endpoint === 'requestScout').length, 0);
 });

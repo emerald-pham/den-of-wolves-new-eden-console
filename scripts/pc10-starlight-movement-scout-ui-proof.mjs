@@ -234,7 +234,16 @@ function requireStartedContext({ initial, started, roster, gm, expectedWingComma
   return expectedWingCommander;
 }
 
-function verifySourceReceipt(capture, endpoint, { sessionId, actor, cycle, shuttleId, requiredResult }) {
+function matchesSourceArrival(result, transit, sessionId) {
+  return ['arrived', 'replayed'].includes(result?.status) &&
+    result.sessionId === sessionId && result.requestId === `arrival-${transit.transitRequestId}` &&
+    result.transitRequestId === transit.transitRequestId && result.shuttleId === P181_NORMAL_SETUP.shuttleId &&
+    result.hostShipId === transit.destinationShipId && result.transitRevision === transit.revision &&
+    typeof result.arrivedAt === 'string' && Number.isFinite(Date.parse(result.arrivedAt)) &&
+    Date.parse(result.arrivedAt) >= Date.parse(transit.arrivesAt);
+}
+
+function verifySourceReceipt(capture, endpoint, { sessionId, actor, cycle, shuttleId, requiredResult, receivingShipId }) {
   assert.equal(capture?.httpStatus, 200, `${endpoint} must retain the original successful UI response.`);
   assert.equal(capture.request?.sessionId, sessionId);
   if (capture.request?.requestId !== undefined) assert.ok(identifier(capture.request.requestId));
@@ -252,7 +261,9 @@ function verifySourceReceipt(capture, endpoint, { sessionId, actor, cycle, shutt
     assert.equal(capture.result.ownerRoleId, P181_NORMAL_SETUP.wingCommanderRoleId);
     assert.equal(capture.result.anchorShipId, P181_NORMAL_SETUP.hostShipId);
     assert.equal(capture.result.targetCoordinate, capture.request.targetCoordinate);
-    assert.equal(capture.result.receivingShipId, 'aegis');
+    assert.ok(identifier(receivingShipId), 'Retain the original parked host before requesting scouting.');
+    assert.equal(capture.result.receivingShipId, receivingShipId,
+      'The scout receiving ship must match the original parked host; its range anchor remains AEGIS.');
   }
 }
 
@@ -385,7 +396,7 @@ async function runP181StarlightMovementScoutCore({
     assertCurrentFlight(actor, flight, io.expectedWingCommander, options);
     return { actor, flight };
   };
-  const operation = async (endpoint, callback, check) => {
+  const operation = async (endpoint, callback, check, { receivingShipId } = {}) => {
     const deadlineAt = Math.min(absoluteDeadlineMs, Date.now() + 60_000);
     const before = await currentMember(deadlineAt);
     const capture = await work(endpoint, () => callback(p181Remaining(deadlineAt), before, deadlineAt), deadlineAt);
@@ -393,7 +404,7 @@ async function runP181StarlightMovementScoutCore({
     const flight = await work('receipt source flight', () => io.observeFlight(deadlineAt), deadlineAt);
     held.flight = flight;
     verifySourceReceipt(capture, endpoint, { sessionId: initial.sessionId, actor: before,
-      cycle: flight.cycle, shuttleId: P181_NORMAL_SETUP.shuttleId, requiredResult: check });
+      cycle: flight.cycle, shuttleId: P181_NORMAL_SETUP.shuttleId, requiredResult: check, receivingShipId });
     requireActor(await currentMember(deadlineAt), io.expectedWingCommander,
       'Original actor after the actual source response');
     pushReceipt(receipts, endpoint, capture);
@@ -507,22 +518,19 @@ async function runP181StarlightMovementScoutCore({
       'The automatic-arrival observation must retain the exact current retarget revision.');
     assert.equal(beforeArrival.transit?.requestId, transit.transit.requestId,
       'The arrival observation retains the original public departure identity.');
+    assert.equal(beforeArrival.transit.controlRevision, beforeArrival.control.revision,
+      'The current leg retains the original custody CAS revision.');
     verifySourceReceipt(arrival, 'completeShuttleArrival', { sessionId: initial.sessionId,
       actor: arrivalWindow.actor, cycle: beforeArrival.cycle, shuttleId: P181_NORMAL_SETUP.shuttleId,
-      requiredResult: result => ['arrived', 'replayed'].includes(result?.status) &&
-        result?.sessionId === initial.sessionId && result?.requestId === `arrival-${transit.transit.transitRequestId}` &&
-        result?.transitRequestId === transit.transit.transitRequestId &&
-        result?.shuttleId === P181_NORMAL_SETUP.shuttleId &&
-        result?.hostShipId === retargetDestination && result?.transitRevision === beforeArrival.transit.revision &&
-        typeof result.arrivedAt === 'string' && Number.isFinite(Date.parse(result.arrivedAt)) &&
-        Date.parse(result.arrivedAt) >= Date.parse(beforeArrival.transit.arrivesAt) });
+      requiredResult: result => matchesSourceArrival(result, beforeArrival.transit, initial.sessionId) });
     assert.equal(arrival.request.transitRequestId, beforeArrival.transit.transitRequestId);
     assert.equal(arrival.request.expectedControlRevision, beforeArrival.control.revision);
     requireActor(arrivalWindow.actor, io.expectedWingCommander,
       'Original Wing Commander after automatic source arrival');
     const finalFlight = await step('waitForDocking', arrival.result);
-    assert.equal(finalFlight.control?.revision > beforeArrival.control.revision, true,
-      'Automatic source arrival must advance current Starlight custody revision.');
+    assert.deepEqual(finalFlight.control, beforeArrival.control,
+      'Arrival preserves the current custody entry; the completed leg has its own receipt revision.');
+    assert.equal(finalFlight.cycle, beforeArrival.cycle);
     assertCurrentFlight(arrivalWindow.actor, finalFlight, io.expectedWingCommander);
     assert.deepEqual(finalFlight.docking, { shuttleId: P181_NORMAL_SETUP.shuttleId, shipId: retargetDestination },
       'Committed UI arrival must match the current source docking, with no duplicate arrival action.');
@@ -531,6 +539,7 @@ async function runP181StarlightMovementScoutCore({
     io.onReceipt?.(receipts.at(-1));
     movement.status = 'observed';
     movement.finalDocking = finalFlight.docking;
+    movement.finalControl = { ...finalFlight.control };
     movement.transitRequestFingerprint = fingerprint({ sessionId: initial.sessionId,
       transitRequestId: transit.transit.transitRequestId, destinationShipId: retargetDestination });
     mark('arrival', 'observed');
@@ -553,6 +562,9 @@ async function runP181StarlightMovementScoutCore({
       documentTimeOrigin: recovered.actor.documentTimeOrigin };
   }
   requireActor(recovered.actor, io.expectedWingCommander, 'Wing Commander after normal reload/reselection');
+  assertCurrentFlight(recovered.actor, recovered.flight, io.expectedWingCommander);
+  assert.deepEqual(recovered.flight.control, movement.finalControl,
+    'A normal reload preserves the original committed Starlight custody.');
   assert.deepEqual(recovered.flight.docking, movement.finalDocking,
     'Current source docking after reload must match the original committed arrival.');
   assert.equal(recovered.flight.transit ?? null, null);
@@ -601,10 +613,12 @@ async function runP181StarlightMovementScoutCore({
         'The fuelled same-cycle scan must select a distinct printed system.');
       const { actor, flight } = await currentFlight();
       assert.equal(flight.cycle, originalCycle);
+      assert.equal(flight.docking?.shuttleId, P181_NORMAL_SETUP.shuttleId);
+      assert.equal(flight.transit ?? null, null, 'Request scouting only from the original parked Starlight host.');
       const capture = await operation('requestScout',
         (budget, current, deadlineAt) => io.requestScout(selectedOffer.coordinate, flight, current, budget, deadlineAt),
         result => ['requested', 'replayed'].includes(result?.status) && result?.resolution === 'pending' &&
-          result?.cycle === originalCycle);
+          result?.cycle === originalCycle, { receivingShipId: flight.docking.shipId });
       const bundle = await step('resolveScoutNormally', capture.result);
       assert.ok(bundle, 'Wait for the original automatic result or use the visible normal GM recovery control if it remains pending.');
       assert.equal(uidHash(bundle.result.requesterUid), actor.uidHash,
@@ -1024,7 +1038,7 @@ export function createP181StarlightBrowserIo({ gm, wingCommander, gameplay, dire
   async function pollFlight(description, predicate, deadlineAt) {
     let flight;
     while (Date.now() < deadlineAt) {
-      flight = await observeFlight(deadlineAt);
+      flight = await io.observeFlight(deadlineAt);
       if (predicate(flight)) return flight;
       await pause(200, deadlineAt);
     }
@@ -1121,6 +1135,9 @@ export function createP181StarlightBrowserIo({ gm, wingCommander, gameplay, dire
         assertCurrentFlight(actorBefore, beforeFlight, io.expectedWingCommander);
         assert.equal(beforeFlight.transit?.transitRequestId, transit.transitRequestId);
         assert.equal(beforeFlight.transit?.destinationShipId, transit.destinationShipId);
+        assert.equal(beforeFlight.transit?.requestId, transit.requestId);
+        assert.equal(beforeFlight.transit?.revision, transit.revision);
+        assert.equal(beforeFlight.transit?.controlRevision, beforeFlight.control.revision);
         const expected = { sessionId: initial.sessionId, shuttleId: P181_NORMAL_SETUP.shuttleId,
           transitRequestId: transit.transitRequestId, expectedControlRevision: beforeFlight.control.revision };
         const matches = response => {
@@ -1154,16 +1171,30 @@ export function createP181StarlightBrowserIo({ gm, wingCommander, gameplay, dire
           held.retryCapture = capture;
         }
         for (const [key, value] of Object.entries(expected)) assert.equal(capture.request?.[key], value);
+        verifySourceReceipt(capture, 'completeShuttleArrival', { sessionId: initial.sessionId,
+          actor: actorBefore, cycle: beforeFlight.cycle, shuttleId: expected.shuttleId,
+          requiredResult: result => matchesSourceArrival(result, beforeFlight.transit, initial.sessionId) });
+        const afterFlight = await work('Read held original arrival flight', () => pollFlight(
+          'Original committed arrival docking did not publish before its finite deadline.',
+          value => value.docking?.shipId === transit.destinationShipId && !value.transit, deadlineAt),
+        deadlineAt, value => { held.afterFlight = value; });
         const actorAfter = await work('Read held original arrival member', () => io.observeMember(deadlineAt), deadlineAt); held.actorAfter = actorAfter;
         requireActor(actorAfter, io.expectedWingCommander);
-        const afterFlight = await work('Read held original arrival flight', () => io.observeFlight(deadlineAt), deadlineAt); held.afterFlight = afterFlight;
         assert.equal(afterFlight.sessionId, expected.sessionId); assert.equal(afterFlight.phase, 'active');
-        assert.equal(afterFlight.control?.shuttleId, expected.shuttleId);
-        assert.ok(afterFlight.control.revision > beforeFlight.control.revision);
+        assertCurrentFlight(actorAfter, afterFlight, io.expectedWingCommander);
+        assert.deepEqual(afterFlight.control, beforeFlight.control,
+          'Arrival preserves the original custody entry; it consumes the completed transit leg.');
+        assert.equal(afterFlight.cycle, beforeFlight.cycle);
         assert.deepEqual(afterFlight.docking, { shuttleId: expected.shuttleId, shipId: transit.destinationShipId });
         assert.equal(afterFlight.transit ?? null, null);
         return { beforeFlight, afterFlight, actor: actorAfter, capture };
-      } catch (error) { rememberProofFailure(error, { operation: 'P181 automatic arrival', ...held, body, capture }); throw error; }
+      } catch (error) {
+        // Keep the actual response, but inspect the plain transition facts
+        // before its opaque Playwright object graph can exhaust inspect output.
+        const { response, ...transition } = held;
+        rememberProofFailure(error, { operation: 'P181 automatic arrival', ...transition, body, capture, response });
+        throw error;
+      }
     },
     async completeArrival(transit, before, actor, timeout, deadlineAt) {
       deadlineAt = endFor(timeout, deadlineAt); const choiceEnd = Math.min(deadlineAt, Date.now() + 35_000);
