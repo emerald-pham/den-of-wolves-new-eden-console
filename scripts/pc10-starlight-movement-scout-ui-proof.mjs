@@ -701,11 +701,27 @@ export async function observeP181StarlightSource(surface, deadlineAt) {
     };
 
     deadlineTimer = setTimeout(() => fail(timeoutError()), deadlineAt - Date.now());
-    const captureProjection = (auth, useSessionStore) => {
+    const captureProjection = (auth, useSessionStore, captureStage) => {
       const state = useSessionStore.getState(), user = auth().currentUser, session = state.session, me = state.me;
+      const authPresent = Boolean(user), sessionPresent = Boolean(session);
+      const actorMatches = Boolean(user && user.uid === me?.uid);
+      const memberSessionMatches = Boolean(session && me?.sessionId === session.id);
+      const connectionLive = state.connection === 'live';
+      const snapshotServer = state.sessionSnapshotFreshness === 'server';
       if (!user || !session || user.uid !== me?.uid || me?.sessionId !== session.id ||
           state.connection !== 'live' || state.sessionSnapshotFreshness !== 'server') {
-        throw new Error('Original authenticated Wing Commander source projection is not live and server fresh.');
+        const connection = ['idle', 'connecting', 'live', 'offline'].includes(state.connection)
+          ? state.connection : 'other';
+        const freshness = ['unknown', 'cache', 'server'].includes(state.sessionSnapshotFreshness)
+          ? state.sessionSnapshotFreshness : 'other';
+        const revision = value => Number.isSafeInteger(value) && value >= 0 ? value : 'unavailable';
+        throw new Error('Original authenticated Wing Commander source projection is not live and server fresh.' +
+          ` stage=${captureStage}; authPresent=${authPresent}; sessionPresent=${sessionPresent};` +
+          ` actorMatches=${actorMatches}; memberSessionMatches=${memberSessionMatches};` +
+          ` connectionLive=${connectionLive}; snapshotServer=${snapshotServer};` +
+          ` connection=${connection}; freshness=${freshness};` +
+          ` generation=${revision(me?.connectionGeneration)};` +
+          ` hydrationRevision=${revision(state.identityHydrationRevision)}.`);
       }
       return { state, user, session, me, identity: {
         uid: user.uid, meUid: me.uid, sessionId: session.id, meSessionId: me.sessionId,
@@ -724,7 +740,7 @@ export async function observeP181StarlightSource(surface, deadlineAt) {
       if (settled || finalizing) return;
       finalizing = true;
       try {
-        const current = captureProjection(auth, useSessionStore);
+        const current = captureProjection(auth, useSessionStore, 'departure-callback');
         if (!sameIdentity(original.identity, current.identity)) {
           throw new Error('Original authenticated Wing Commander identity epoch changed during flight observation.');
         }
@@ -767,7 +783,7 @@ export async function observeP181StarlightSource(surface, deadlineAt) {
           sourceFreshness: state.sessionSnapshotFreshness,
         };
         if (Date.now() >= deadlineAt) throw timeoutError();
-        const latest = captureProjection(auth, useSessionStore);
+        const latest = captureProjection(auth, useSessionStore, 'post-fingerprint-verification');
         if (!sameIdentity(original.identity, latest.identity)) {
           throw new Error('Original authenticated Wing Commander identity epoch changed during flight observation.');
         }
@@ -800,7 +816,7 @@ export async function observeP181StarlightSource(surface, deadlineAt) {
         const { subscribeShuttleDeparture } = await import('/src/lib/firestore.ts');
         if (settled) return;
         if (Date.now() >= deadlineAt) throw timeoutError();
-        original = captureProjection(auth, useSessionStore);
+        original = captureProjection(auth, useSessionStore, 'initial');
         if (Date.now() >= deadlineAt) throw timeoutError();
         const stop = subscribeShuttleDeparture(original.session.id, 'starlight', onDeparture,
           () => fail(new Error('Original normal Starlight flight-plan document read failed.')));
