@@ -16,6 +16,7 @@ import type * as ScoutRequestServiceModule from '@/lib/scoutRequestService';
 import type * as ShuttleEvacuationServiceModule from '@/lib/shuttleEvacuationService';
 import type * as BlacksmithRepairServiceModule from '@/lib/blacksmithRepairService';
 import type * as ServiceShuttleRechargeServiceModule from '@/lib/serviceShuttleRechargeService';
+import type { EndeavourEcmDeviceWorkspace } from '@/lib/endeavourEcmDeviceService';
 import ShuttleConsole from './ShuttleConsole';
 
 const endeavourResearchMocks = vi.hoisted(() => ({ read: vi.fn(), advance: vi.fn() }));
@@ -1396,6 +1397,120 @@ it('keeps survivor destinations inside the projected fleet group and closes inva
   expect(screen.getByText('Survivor transfers open during Coordination Phase.')).toBeVisible();
   expect(screen.getByText("Resolve this ship's survivor alert before another transfer.")).toBeVisible();
   expect(evacuateShuttleSurvivors).not.toHaveBeenCalled();
+});
+
+function seedEndeavourScientistRoute(): void {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', currentTurn: 3,
+    activeRoleIds: ['shepherd-scientist'], activeVesselIds: ['shepherd', 'aegis'],
+    playerDiscovery: {
+      groupId: 'fleet-1', fleetGroupVesselIds: ['shepherd', 'aegis'],
+      knownCoordinates: [], knownSystems: {}, pursuitDistance: 0, navigationLogs: [], revision: 1,
+    },
+    turnPhase: {
+      turn: 3, teamPhaseEndsAt: '2099-09-23T12:00:00.000Z',
+      openAirspaceEndsAt: '2099-09-23T12:15:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+    shuttleDockings: [{ shuttleId: 'endeavour', shipId: 'shepherd', dockedAt: 'SESSION START' }],
+    shuttleControl: { endeavour: {
+      shuttleId: 'endeavour', ownerRoleId: 'shepherd-scientist', ownerUid: 'u1',
+      holderUid: 'u1', revision: 4,
+    } },
+  });
+  state.setMe({ ...state.me!, assignedRoleId: 'shepherd-scientist',
+    activeConsoleRoleId: 'shepherd-scientist', fleetGroupId: 'fleet-1' });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+}
+
+const endeavourRouteEcmReady: EndeavourEcmDeviceWorkspace = {
+  status: 'ready', sessionId: 's1', cycle: 3, controlRevision: 4,
+  researchComplete: true, built: true, device: { status: 'ready', revision: 0 },
+  pursuit: { groupId: 'fleet-1', current: 8 },
+};
+
+function renderEndeavourRoute() {
+  return render(<MemoryRouter initialEntries={['/shuttles/endeavour']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+}
+
+it.each([false, true])(
+  'Endeavour route ECM contract keeps an unbuilt device unavailable with researchComplete=%s',
+  async (researchComplete) => {
+    seedEndeavourScientistRoute();
+    endeavourEcmMocks.read.mockResolvedValue({
+      ...endeavourRouteEcmReady, researchComplete, built: false,
+    } satisfies EndeavourEcmDeviceWorkspace);
+    renderEndeavourRoute();
+
+    expect(await screen.findByText('Status: Unavailable')).toBeVisible();
+    const ecm = screen.getByRole('region', { name: 'Endeavour ECM Device controls' });
+    expect(within(ecm).getByText('Build the ECM Device before use.')).toBeVisible();
+    expect(within(ecm).getByRole('button', { name: 'Use ECM Device' })).toBeDisabled();
+    expect(endeavourEcmMocks.activate).not.toHaveBeenCalled();
+  },
+);
+
+it('Endeavour route ECM contract enables only the built ready device for the live Scientist holder', async () => {
+  seedEndeavourScientistRoute();
+  endeavourEcmMocks.read.mockResolvedValue(endeavourRouteEcmReady);
+  renderEndeavourRoute();
+
+  expect(await screen.findByText('Status: Ready')).toBeVisible();
+  const ecm = screen.getByRole('region', { name: 'Endeavour ECM Device controls' });
+  expect(within(ecm).getByText('Shepherd group pursuit: 8.')).toBeVisible();
+  expect(within(ecm).getByRole('button', { name: 'Use ECM Device' })).toBeEnabled();
+  expect(endeavourEcmMocks.activate).not.toHaveBeenCalled();
+});
+
+it.each(['offline connection', 'cache snapshot'] as const)(
+  'Endeavour route ECM contract blocks a built ready device with %s', async (condition) => {
+    seedEndeavourScientistRoute();
+    endeavourEcmMocks.read.mockResolvedValue(endeavourRouteEcmReady);
+    renderEndeavourRoute();
+    expect(await screen.findByText('Status: Ready')).toBeVisible();
+    await act(async () => {
+      if (condition === 'offline connection') useSessionStore.getState().setConnection('offline');
+      else useSessionStore.getState().setSessionSnapshotFreshness('cache');
+    });
+    const ecm = screen.getByRole('region', { name: 'Endeavour ECM Device controls' });
+    expect(within(ecm).getByText('Status: Ready')).toBeVisible();
+    expect(within(ecm).getByRole('button', { name: 'Use ECM Device' })).toBeDisabled();
+    expect(endeavourEcmMocks.activate).not.toHaveBeenCalled();
+  },
+);
+
+it('Endeavour route ECM contract restores the persisted spent result without offering another use', async () => {
+  seedEndeavourScientistRoute();
+  endeavourEcmMocks.read.mockResolvedValue({
+    ...endeavourRouteEcmReady, device: {
+      status: 'used', revision: 1, ownerGroupId: 'fleet-1', pursuitBefore: 8, pursuitAfter: 5,
+    }, pursuit: { groupId: 'fleet-1', current: 5 },
+  } satisfies EndeavourEcmDeviceWorkspace);
+  renderEndeavourRoute();
+
+  expect(await screen.findByText('Status: Spent')).toBeVisible();
+  const ecm = screen.getByRole('region', { name: 'Endeavour ECM Device controls' });
+  expect(within(ecm).getByText('ECM Device spent; Shepherd group pursuit changed from 8 to 5.'))
+    .toBeVisible();
+  expect(within(ecm).queryByRole('button', { name: 'Use ECM Device' })).not.toBeInTheDocument();
+  expect(endeavourEcmMocks.activate).not.toHaveBeenCalled();
+});
+
+it('Endeavour route ECM contract withholds the device read after current shuttle custody is revoked', () => {
+  seedEndeavourScientistRoute();
+  const state = useSessionStore.getState();
+  state.setSession({ ...state.session!, shuttleControl: { endeavour: {
+    ...state.session!.shuttleControl!.endeavour!, holderUid: 'other-current-holder', revision: 5,
+  } } });
+  renderEndeavourRoute();
+
+  expect(screen.queryByRole('region', { name: 'Endeavour ECM Device controls' })).not.toBeInTheDocument();
+  expect(endeavourEcmMocks.read).not.toHaveBeenCalled();
+  expect(endeavourEcmMocks.activate).not.toHaveBeenCalled();
 });
 
 it('opens Endeavour for the Shepherd Scientist with every printed registration fact', async () => {
