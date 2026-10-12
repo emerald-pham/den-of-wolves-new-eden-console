@@ -85,7 +85,9 @@ function resumeReply(body) {
  * No forced resume, command, store setter, interception, or deadline extension. */
 export function createMemberNavigationResumeObserver(page, { directory, roleId, deadlineAt,
   memberContract = 'current-berth', documentReload = false, transition = 'station-navigation',
-  expectedGmUidHash, expectedGmInstanceId, onCastingResumeRequest }) {
+  expectedGmUidHash, expectedGmInstanceId, onCastingResumeRequest, proofProfile = 'starlight' }) {
+  assert.ok(proofProfile === 'starlight' || proofProfile === 'wing-bays',
+    'Use an explicitly supported ordinary-actor proof profile.');
   assert.ok(['current-berth', 'pc11-live-base'].includes(memberContract), 'Use an explicit supported member contract.');
   assert.equal(typeof documentReload, 'boolean', 'Use an explicit document reload contract.');
   assert.ok(['station-navigation', 'casting-assignment'].includes(transition), 'Use an explicit member navigation transition.');
@@ -196,7 +198,8 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
       Number.isSafeInteger(original.connectionGeneration) && original.connectionGeneration >= 1 &&
       Number.isSafeInteger(original.identityHydrationRevision) && original.identityHydrationRevision >= 1,
     'Casting assignment requires the original fresh, unseated member in lobby/casting Cycle 0.');
-    assert.equal(roleId, 'wing-commander', 'P181 accepts only its original Wing Commander casting assignment.');
+    assert.ok(roleId === 'wing-commander' || proofProfile === 'wing-bays' && roleId === 'admiral',
+      'P181 accepts only the original station role declared by its casting profile.');
     assert.ok(assignment && assignment.endpoint === 'assignRole' && assignment.httpStatus === 200 &&
       assignment.before?.sessionId === original.sessionId && assignment.before?.playerRole === 'gm' &&
       assignment.before?.uidHash === expectedGmUidHash && assignment.before?.gmInstanceOwned === true &&

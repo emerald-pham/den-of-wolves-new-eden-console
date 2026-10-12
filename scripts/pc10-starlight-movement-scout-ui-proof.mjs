@@ -745,6 +745,13 @@ let p181MemberObservationOrdinal = 0;
  * Its terminal failure survives intervening browser/SDK/UI awaits. The single
  * page-local record contains no receipt, mutation capability or persisted data. */
 export async function retainP181MemberAuthority(surface, deadlineAt, options = {}) {
+  const proofProfile = options.proofProfile ?? 'starlight';
+  assert.ok(proofProfile === 'starlight' || proofProfile === 'wing-bays',
+    'Use an explicitly supported ordinary-actor proof profile.');
+  const memberRoleId = options.memberRoleId ?? options.castingRoleId ?? 'wing-commander';
+  assert.ok(memberRoleId === 'wing-commander' || proofProfile === 'wing-bays' && memberRoleId === 'admiral',
+    'The declared proof profile must own its original station role.');
+  options = { ...options, proofProfile, memberRoleId };
   const id = `p181-${Date.now()}-${++p181MemberObservationOrdinal}`;
   const moduleUrl = surface.storeModuleUrl?.();
   const authorityModuleUrl = surface.sessionAuthorityModuleUrl?.();
@@ -823,7 +830,7 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       const startup = held.options.mode === 'startup', navigation = held.options.mode === 'navigation';
       const castingAssignment = held.options.mode === 'casting-assignment';
       const castingRoleId = held.options.castingRoleId ?? 'wing-commander';
-      if (castingAssignment && castingRoleId !== 'wing-commander')
+      if (castingAssignment && castingRoleId !== held.options.memberRoleId)
         throw new Error('Original P181 casting assignment role changed.');
       if (!user || !session || !me) {
         if ((startup || navigation) && !held.signature && user) return;
@@ -996,12 +1003,12 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
         // reject another role rather than allowing arbitrary reassignment.
         for (const key of ['assignedRoleId', 'activeConsoleRoleId', 'seatId']) {
           const role = me[key] ?? null;
-          if (role !== null && role !== 'wing-commander') throw new Error('Original startup station role changed.');
+          if (role !== null && role !== held.options.memberRoleId) throw new Error('Original startup station role changed.');
           held.startupRoles ??= {};
           if (held.startupRoles[key] && role !== held.startupRoles[key]) throw new Error('Original startup station authority retired.');
           if (role) held.startupRoles[key] = role;
         }
-        const ownSeat = state.seats?.find(seat => seat.id === 'wing-commander');
+        const ownSeat = state.seats?.find(seat => seat.id === held.options.memberRoleId);
         const ownsSeat = ownSeat?.holderUid === user.uid && ownSeat.status === 'claimed';
         if (held.startupOwnedSeat && !ownsSeat) throw new Error('Original startup own seat authority retired.');
         if (ownsSeat) held.startupOwnedSeat = true;
@@ -2611,6 +2618,7 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
   const sourceHash = value => createHash('sha256').update(value).digest('hex');
   const hashShort = value => uidHash(value);
   const remoteRequests = [], pageErrors = [], calls = [], requests = [], browsers = [], surfaces = [];
+  const nativeActorCount = P181_NATIVE_TIMING.nativeBrowserProcesses;
   const sourceRuntimeText = await preflight('Read original served Firebase runtime source', async () => (await fetch(`${baseUrl}/src/lib/firebaseConfig.ts`,
     { signal: AbortSignal.timeout(Math.min(5_000, p181Remaining(preflightDeadlineAt))) })).text());
   const runtime = validateProofRuntime(proofRuntimeFromViteSource(sourceRuntimeText), { baseUrl, projectId, ports });
@@ -2860,10 +2868,11 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
               creationRequestId, startRequestId, instanceId: gmInstanceId });
           });
         }
-        if (cleanup.sessionAbsent && lifecycleRootsRemoved) await step('remove only the two captured original actor memberships', async end => {
+        if (cleanup.sessionAbsent && lifecycleRootsRemoved) await step('remove only the captured original actor memberships', async end => {
           const memberships = await db.collection('activeMemberships').where('sessionId', '==', sessionId).get();
           const owned = new Set(ownedAuthUids.values());
-          assert.ok(memberships.docs.length <= 2 && memberships.docs.every(doc => owned.has(doc.id)),
+          assert.ok(owned.size <= nativeActorCount && memberships.docs.length <= owned.size &&
+            memberships.docs.every(doc => owned.has(doc.id)),
             'Refuse membership cleanup for any actor not captured at ordinary Auth admission.');
           await db.runTransaction(async tx => {
             const current = await Promise.all(memberships.docs.map(doc => tx.get(doc.ref)));
