@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import test from 'node:test';
 import { createP181StarlightNativeSurfaceFactory, P181_NORMAL_SETUP,
@@ -111,8 +112,9 @@ function controlledWingBayProcedure({ rejectedAction, retireWingBeforeDelivery =
     currentCanonicalSeatOwned: true, currentMemberBerthPresent: true, currentMemberBerthNull: false,
     currentMemberBerthMatches: true, memberScopeMatches: true, fleetGroupId: 'fleet-1', shipId: 'aegis',
   });
-  const wing = member('wing-commander', 'a'.repeat(16)), admiral = member('admiral', 'c'.repeat(16));
-  const gm = { ...member(null, 'b'.repeat(16)), playerRole: 'gm', roleId: 'gm',
+  const short = value => createHash('sha256').update(value).digest('hex').slice(0, 16);
+  const wing = member('wing-commander', short('ordinary-wing')), admiral = member('admiral', short('ordinary-admiral'));
+  const gm = { ...member(null, short('ordinary-gm')), playerRole: 'gm', roleId: 'gm',
     instanceId: 'original-gm-instance', gmInstanceOwned: true, recoveryPending: false };
   const initial = { sessionId: 'normal-session', phase: 'lobby', cycle: 0, setupConfirmed: true,
     playerCount: 8, chartId: 'A', activeRoleIds: [...P181_NORMAL_SETUP.roleIds], fullGameDemo: null };
@@ -138,7 +140,10 @@ function controlledWingBayProcedure({ rejectedAction, retireWingBeforeDelivery =
       return { initial, started, gm, expectedWingCommander: wing, expectedAdmiral: admiral,
         roster: [wing, admiral].map(actor => ({ roleId: actor.roleId, uidHash: actor.uidHash, sessionId: initial.sessionId })),
         receipts: ['confirmSetup', 'assignRole', 'assignRole', 'startGame', 'clearTurnAdvanceInterstitial']
-          .map(endpoint => capture(endpoint, gm, { instanceId: gm.instanceId })),
+          .map((endpoint, index) => capture(endpoint, gm, { instanceId: gm.instanceId,
+            ...(endpoint === 'assignRole' ? { roleId: index === 1 ? 'wing-commander' : 'admiral',
+              targetUid: index === 1 ? 'ordinary-wing' : 'ordinary-admiral' } : {}),
+          })),
       };
     },
     async observeWingBayActors() { return structuredClone({ gm, wing, admiral }); },
