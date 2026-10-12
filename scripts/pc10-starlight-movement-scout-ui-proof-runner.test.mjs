@@ -3136,7 +3136,9 @@ test('Wing bay actual native owner acquires and tears down its three declared su
   assert.deepEqual(held.deletedAuth, ['native-original-gm']);
   const outcome = JSON.parse(held.writes.find(item => item.path.endsWith('p181-starlight-movement-scout.json')).body);
   assert.equal(outcome.cleanup.browsersClosed, 3);
-  assert.equal(outcome.firstError.message, first.message);
+  assert.equal(outcome.firstError.fingerprint, createHash('sha256').update(JSON.stringify({
+    name: first.name, code: null, message: first.message,
+  })).digest('hex'), 'The safe public fingerprint must preserve the original failure without publishing its private text.');
 });
 
 test('Wing bay actual native entry refuses an unknown proof profile before acquiring any provider or browser', async () => {
