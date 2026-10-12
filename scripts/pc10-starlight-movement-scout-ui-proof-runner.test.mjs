@@ -248,6 +248,8 @@ function actualP181StationWaitDiagnosticConsumer() {
     Date, Math, normalPreparationDiagnostic: diagnostic, roleLink,
     deadlineAt: Date.now() + 60_000,
     wingCommander: { page: { locator: () => roleLink } },
+    memberName: 'Wing Commander', memberRoleId: 'wing-commander',
+    memberSurface: { page: { locator: () => roleLink } },
     bounded: async (_label, action) => action(),
     p181Remaining: () => 1_000,
     waitForFullActor: async (_surface, description) => {
@@ -334,7 +336,8 @@ function actualP181FinalizationConsumer({ remote = false, pageError = false, cha
     sourceBindingsBefore: before, runtime: { controlled: true }, servedSourceFiles: [],
     remoteRequests: remote ? ['https://controlled-foreign.invalid/blocked'] : [],
     pageErrors: pageError ? [{ surface: 'normal-wing-commander', name: 'TypeError' }] : [],
-    surfaces: [{}, {}], browsers: [{}, {}], ownedAuthUids: new Map(), trace: [], originalCreate: {},
+    surfaces: [{}, {}], browsers: [{}, {}], nativeActorCount: 2, proofProfile: 'starlight',
+    ownedAuthUids: new Map(), trace: [], originalCreate: {},
     startAt: Date.now(), proofStopAt: Date.now() + 60_000,
     totalEnd: Date.now() + 240_000, privateFailureArtifact: null,
     retainFirstFailure: async () => undefined,
@@ -1211,7 +1214,8 @@ async function actualNativeCleanupConsumer({ foreignMembership = false, provider
   const previousAuthEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST;
   const cleanupOwnedResources = await runInNewContext(`(async () => { ${body}; return cleanupOwnedResources; })()`, {
     assert, Date, process, db, authAdmin, adminApp,
-    ownedRequestTracker: undefined, wingAdmissionTracker: undefined, factory: undefined, browsers, remoteRequests,
+    ownedRequestTracker: undefined, wingAdmissionTracker: undefined, admiralAdmissionTracker: undefined,
+    nativeActorCount: 2, factory: undefined, browsers, remoteRequests,
     awaitOriginalIdentityCaptures: async () => {},
     ownedAuthUids: providerState === 'ready' ? new Map([['gm', 'original-gm'], ['wing-commander', 'original-wing']]) : new Map(),
     sessionId: providerState === 'ready' ? 'p181-cleanup-session' : null,
@@ -1328,8 +1332,8 @@ async function actualNativeAdminProviderAcquire() {
 async function actualNativeWingJoinConsumer() {
   const sourcePath = fileURLToPath(new URL('./pc10-starlight-movement-scout-ui-proof.mjs', import.meta.url));
   const source = await readFile(sourcePath, 'utf8');
-  const joinStart = source.indexOf("        await bounded('Open original Wing Commander admission page',");
-  const joinEnd = source.indexOf("        await bounded('Accept original Wing Commander consent'", joinStart);
+  const joinStart = source.indexOf('await bounded(`Open original ${memberName} admission page`,');
+  const joinEnd = source.indexOf('await bounded(`Accept original ${memberName} consent`,', joinStart);
   assert.ok(joinStart >= 0 && joinEnd > joinStart, 'Read the exact current normal Wing Commander join consumer.');
   const joinBody = source.slice(joinStart, joinEnd).trim();
   const ownedAuthUids = new Map();
@@ -1362,7 +1366,9 @@ async function actualNativeWingJoinConsumer() {
   }));
   const run = runInNewContext(`(async () => { ${joinBody}; return true; })()`, {
     assert, Date, Math, P181_NATIVE_TIMING, baseUrl: 'http://127.0.0.1:5173', joinCode: '345678',
-    wingCommander, observeUiReceipt, registerAuth, createPc11OwnedRequestTracker,
+    wingCommander, memberSurface: wingCommander, memberRoleId: 'wing-commander', memberName: 'Wing Commander',
+    observeUiReceipt, registerAuth, createPc11OwnedRequestTracker,
+    wingAdmissionTracker: undefined, admiralAdmissionTracker: undefined,
     bounded: async (_label, operation) => operation(),
     pendingOriginalIdentities: [], requestTrackerError: null,
     awaitOriginalIdentityCaptures: async () => {},
@@ -3046,8 +3052,8 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
           state.session.maintenanceCycles = { aegis: { turn: 1, revision: revision + 1, step: revision + 1,
             charges: action === 'reactor' ? [...consoles] : [], refuelled: [], results: {} } };
         });
-        admiral.deliver('runMaintenance', data, { revision: revision + 1, step: revision + 1 });
-        await onWingBayAction?.({ action, gm, wing, admiral });
+        const response = admiral.deliver('runMaintenance', data, { revision: revision + 1, step: revision + 1 });
+        await onWingBayAction?.({ action, gm, wing, admiral, response });
       };
     }
   }
@@ -3222,8 +3228,13 @@ async function actualFiniteWingBayConsumer({ transientWingRetirement = false } =
       wing.page.screenshot = async () => Buffer.from('SOURCE_ONLY_INERT_SCREENSHOT_PROVIDER');
     },
     onNormalStarted: ({ wing }) => mounted.mount(wing, '/ships/aegis/roles/wing-commander'),
-    onWingBayAction: async ({ action, wing }) => {
+    onWingBayAction: async ({ action, wing, response }) => {
       if (transientWingRetirement && action === 'storage') {
+        // The ordinary SDK has received this response. Keep its already
+        // delivered body before the fixture publishes the transient fence.
+        // Earlier evidence remains: the guard correctly stopped even sooner,
+        // before the harness itself consumed this second body.
+        await response.json();
         wing.publish(state => { state.sdkResumePending = true; });
         wing.publish(state => { state.sdkResumePending = false; });
       }
@@ -3250,7 +3261,7 @@ test('Wing bay actual finite native consumer drives ordinary maintenance and rea
   } finally { await mounted.close(); }
 });
 
-test('Wing bay actual finite native consumer retains transient SDK retirement before a successful maintenance reply', async () => {
+test('Wing bay actual finite native consumer retains transient SDK retirement while consuming a delivered successful maintenance reply', async () => {
   const { fixture, mounted } = await actualFiniteWingBayConsumer({ transientWingRetirement: true });
   try {
     const failure = await fixture.program;
@@ -4101,7 +4112,7 @@ async function actualPreNativeConsumer({ cli = false, sourceOnly = false, source
         throw error;
       }
     }, deepEqual: (a, b, ...args) => assert.deepEqual(JSON.parse(JSON.stringify(a)), JSON.parse(JSON.stringify(b)), ...args) },
-    createHash, existsSync, realpath, resolve, URL, pathToFileURL, process: processFixture,
+    createHash, existsSync, realpath, resolve, URL, fileURLToPath, pathToFileURL, process: processFixture,
     execFileSync: (command, args, options) => {
       if (command !== 'git') {
         counters.runtimeLaunch++;
@@ -4456,6 +4467,45 @@ test('launch readiness requires complete exact commands and disables both wrappe
     else assert.match(fixture.error.message, /Planned P181|planned launch|registry fallback|26-minute reference/i);
   }
   assert.deepEqual(accepted, [], `Accepted incomplete/wrong planned commands: ${accepted.join(', ')}`);
+});
+
+test('Wing bay planned launch binds the explicit three-actor profile without acquiring resources', async () => {
+  const directory = resolve('/tmp', `p181-uncreated-wing-profile-${process.pid}-${Date.now()}`);
+  const plan = p181ReferencePlannedLaunch('a'.repeat(40), directory);
+  plan.commands.proof.env.P181_PROOF_PROFILE = 'wing-bays';
+  const receipt = await actualP181PlannedLaunchQualifier(plan);
+  assert.equal(receipt.proofProfile, 'wing-bays');
+  assert.equal(receipt.configuration.commands.proof.env.P181_PROOF_PROFILE, 'wing-bays');
+  assert.equal(receipt.configuration.allocationDeadlineMs - receipt.configuration.allocationStartedAtMs,
+    P181_NATIVE_TIMING.totalAllocationMs, 'The named profile keeps the existing finite reference interval.');
+  assert.equal(receipt.allocationAuthority, false);
+  assert.equal(existsSync(directory), false);
+});
+
+for (const explicit of [false, true]) {
+  test(`Wing bay planned launch preserves the ${explicit ? 'explicit' : 'omitted'} default Starlight profile`, async () => {
+    const directory = resolve('/tmp', `p181-uncreated-default-profile-${process.pid}-${Date.now()}-${explicit}`);
+    const plan = p181ReferencePlannedLaunch('a'.repeat(40), directory);
+    if (explicit) plan.commands.proof.env.P181_PROOF_PROFILE = 'starlight';
+    const receipt = await actualP181PlannedLaunchQualifier(plan);
+    assert.equal(receipt.proofProfile, 'starlight');
+    assert.equal(Object.hasOwn(receipt.configuration.commands.proof.env, 'P181_PROOF_PROFILE'), explicit);
+    assert.equal(receipt.allocationAuthority, false);
+    assert.equal(existsSync(directory), false);
+  });
+}
+
+test('Wing bay planned launch denies unknown profiles and profile settings outside the proof command', async () => {
+  for (const profile of ['', 'wing', 'all-roles', 'gm-only']) {
+    const plan = p181ReferencePlannedLaunch('a'.repeat(40));
+    plan.commands.proof.env.P181_PROOF_PROFILE = profile;
+    await assert.rejects(actualP181PlannedLaunchQualifier(plan));
+  }
+  for (const stage of ['configure', 'emulators', 'vite']) {
+    const plan = p181ReferencePlannedLaunch('a'.repeat(40));
+    plan.commands[stage].env.P181_PROOF_PROFILE = 'wing-bays';
+    await assert.rejects(actualP181PlannedLaunchQualifier(plan), /full environment must contain only/);
+  }
 });
 
 test('planned launch qualification binds Firebase log production to the exact future evidence directory', async () => {
