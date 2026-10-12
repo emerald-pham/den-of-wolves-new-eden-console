@@ -94,6 +94,27 @@ meaningful RED, independent review and rendered/gameplay gates. See the
 | Gate 2 | Claim-based overlap/reconnect/retry/privacy with the smallest sufficient cohort; 21 accounts only for a justified scale claim | Partial local criteria accepted in the bounded families below. Conditional scale/capacity remains unclaimed and does not block unrelated local credit; record actual Auth actors, browser contexts and cohort reason. |
 | Gate 3 | Available actions, costs, blockers and next actor can be understood in app | pending; broader PC11 guidance is future work |
 
+### Owner-approved consolidation — October 12
+
+Use the minimum evidence that distinguishes the remaining behavior. Reuse an
+accepted observation only for its exact unchanged rule, authority and consumer;
+retain its source/runtime limits. Combine overlapping checks within the same
+fresh session. Actor counts and test totals do not complete gameplay claims.
+
+| Remaining requirement | Minimum discriminating evidence |
+|---|---|
+| P181 setup, roles, movement and scouting | One fresh two-player flow across two browsers: normal admission/consent, qualified GM setup/manual 0→1 where required, real role controls, movement/scouting and their entitled committed results. Record actual actors/contexts/actions; no full crew or 21-account prerequisite. |
+| Recovery, stale requests and authority/privacy | Attach the changed or uncovered reload/reconnect, exact retry, stale-action refusal and entitled/denied peer checks to that flow. Reuse exact unchanged accepted cases; add a peer or role only when the disputed boundary requires one. Preserve lease, server authority, private-state and cleanup assertions. |
+| Distinct rules, every-role/function and endings | Reconcile each row against accepted evidence and remaining rule-specific deltas. P181 movement does not prove N/O/P outcomes, Station liberation/reactor capacity/activation, full solo role/function coverage or a fresh-game ending. Keep those genuinely unverified claims explicit; combine compatible actions rather than replay an entire accepted prefix for each claim. |
+| Changed UI and in-app clarity | Representative actual mobile and desktop renderings with existing fonts, overflow, keyboard/touch controls, available action, cost, blocker and next actor. Combine layouts and controls on the same captures; no exhaustive duplicate viewport cohort. Broader cross-game manual-free guidance remains PC11. |
+| Release | Required affected checks, one reconciled independent review, exact candidate/main CI, exact deployment revision/health/IAM and a small live app verification. Keep Firebase primary; gameplay proof uses local emulators, with no production game-state mutations. |
+
+Dropping duplicate scenarios or an unjustified scale cohort is ordinary
+consolidation. Removing a distinct game rule, ordinary admission/privacy,
+authenticated GM/manual advancement, the promised full-game solo capability or
+an unverified ending would change the product requirement and needs an explicit
+owner decision. This consolidation grants no closure or acceptance by itself.
+
 Prepared presentation, native tests, normal authenticated emulator HTTP/UI/rules, automated concurrent browsers, human/device playtesting, CI and production deployment are separate evidence classes. No unavailable evidence earns closure credit.
 
 ## Current verification plan — October 7
