@@ -2211,11 +2211,12 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
 async function actualP181CastingAssignmentFixture(t, { assignmentTarget, assignmentRole, deferMemberTransition = false,
   resumeGeneration = 3, resumeHydration = 4, resumeStatus = 200, resumeSessionId = 'normal-session',
   resumeUid = 'wing-uid', resumeAssignedRoleId = 'wing-commander', deliverResume = true,
-  resumeBodyWait, observerDeadlineMs = 4_000, resumeBerthGap = false } = {}) {
+  resumeBodyWait, observerDeadlineMs = 4_000, resumeBerthGap = false,
+  memberRoleId = 'wing-commander', proofProfile = 'starlight' } = {}) {
   const wing = mountedP181Surface('wing-uid', { casting: true });
   wing.state.session.phase = 'lobby'; wing.state.session.setupConfirmed = true; wing.state.session.setupRevision = 1;
   wing.state.me.assignedRoleId = null; wing.state.me.activeConsoleRoleId = null; wing.state.me.seatId = null;
-  wing.state.seats = [{ id: 'wing-commander', roleId: 'wing-commander', status: 'available', holderUid: null }];
+  wing.state.seats = [{ id: memberRoleId, roleId: memberRoleId, status: 'available', holderUid: null }];
   wing.state.session.currentActorBerthAuthority = { ...wing.state.session.currentActorBerthAuthority,
     assignedRoleId: null, activeConsoleRoleId: null };
   const before = await observeFullGameDemoPresentationMember(wing, { knownRoleIds: originalRoleIds });
@@ -2223,7 +2224,7 @@ async function actualP181CastingAssignmentFixture(t, { assignmentTarget, assignm
   gm.state.session.phase = 'lobby'; gm.state.session.setupConfirmed = true; gm.state.session.setupRevision = 1;
   const gmBefore = await observeLifecycleActor(gm, 'normal-session');
   const directory = await mkdtemp('/tmp/p181-casting-assignment-resume-');
-  const observer = createMemberNavigationResumeObserver(wing.page, { directory, roleId: 'wing-commander',
+  const observer = createMemberNavigationResumeObserver(wing.page, { directory, roleId: memberRoleId, proofProfile,
     deadlineAt: Date.now() + observerDeadlineMs, memberContract: 'pc11-live-base', transition: 'casting-assignment',
     expectedGmUidHash: createHash('sha256').update(gm.uid).digest('hex').slice(0, 16),
     expectedGmInstanceId: gm.state.gmInstance.id,
@@ -2233,7 +2234,7 @@ async function actualP181CastingAssignmentFixture(t, { assignmentTarget, assignm
 
   const data = { sessionId: 'normal-session', instanceId: gm.state.gmInstance.id,
     requestId: 'assign-original', expectedSetupRevision: gm.state.session.setupRevision,
-    targetUid: assignmentTarget ?? wing.uid, roleId: assignmentRole ?? 'wing-commander' };
+    targetUid: assignmentTarget ?? wing.uid, roleId: assignmentRole ?? memberRoleId };
   const assignment = await captureLifecycleUiAction(gm, 'assignRole', async () => {
     gm.state.session.phase = 'casting'; gm.state.session.setupRevision++;
     gm.deliver('assignRole', data, { status: 'committed', sessionId: 'normal-session',
@@ -2243,11 +2244,11 @@ async function actualP181CastingAssignmentFixture(t, { assignmentTarget, assignm
   const applyAssignmentAndResume = async () => {
     wing.publish(state => {
       state.session.phase = 'casting'; state.session.setupRevision = 2;
-      state.me.assignedRoleId = 'wing-commander';
+      state.me.assignedRoleId = memberRoleId;
       state.connection = 'connecting'; state.sessionSnapshotFreshness = 'cache';
       state.sdkResumePending = true;
       state.session.currentActorBerthAuthority = { ...state.session.currentActorBerthAuthority,
-        assignedRoleId: 'wing-commander' };
+        assignedRoleId: memberRoleId };
     });
     if (resumeBerthGap) {
       const replySession = { id: 'normal-session', phase: 'casting', currentTurn: 0,
@@ -2310,6 +2311,149 @@ async function actualP181CastingAssignmentFixture(t, { assignmentTarget, assignm
   return { wing, gm, observer, before, current, assignment, applyAssignmentAndResume,
     restoreCurrentMemberBerth, restoreOwnPlayerConnected, restoreCurrentMemberBerthOnly, directory };
 }
+
+test('Wing bay profile accepts the ordinary Admiral assignment and its original captured resume', async t => {
+  const f = await actualP181CastingAssignmentFixture(t, { memberRoleId: 'admiral',
+    proofProfile: 'wing-bays', resumeAssignedRoleId: 'admiral' });
+  const accepted = await f.observer.accept(f.before, f.current,
+    () => observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds }), f.assignment);
+  assert.ok(accepted, 'The declared ordinary Admiral profile must consume its real assignment/resume receipts.');
+  assert.equal(accepted.assignedRoleId, 'admiral');
+  assert.equal(accepted.currentMemberBerthMatches, true);
+  assert.equal(accepted.connectionGeneration, f.before.connectionGeneration + 1);
+  assert.equal(f.assignment.data.targetUid, f.wing.uid);
+});
+
+test('Wing bay profile retains ordinary Admiral casting authority before its assignment', async t => {
+  const f = await actualP181CastingAssignmentFixture(t, { memberRoleId: 'admiral',
+    proofProfile: 'wing-bays', resumeAssignedRoleId: 'admiral', deferMemberTransition: true });
+  const { retainP181MemberAuthority } = await import('./pc10-starlight-movement-scout-ui-proof.mjs');
+  const authority = await retainP181MemberAuthority(f.wing, Date.now() + 3_000, {
+    mode: 'casting-assignment', castingRoleId: 'admiral', proofProfile: 'wing-bays',
+    expected: { sessionId: f.before.sessionId, uidHash: f.before.uidHash,
+      fleetGroupId: f.before.fleetGroupId, documentTimeOrigin: f.before.documentTimeOrigin,
+      connectionGeneration: f.before.connectionGeneration,
+      identityHydrationRevision: f.before.identityHydrationRevision },
+  });
+  try { await authority.check(); }
+  finally { await authority.close(); }
+  assert.equal(f.wing.observers.stores.size, 0);
+  assert.equal(f.wing.observers.auth.size, 0);
+});
+
+function ordinaryAdmiralSurface() {
+  const surface = mountedP181Surface('ordinary-admiral');
+  surface.state.me.assignedRoleId = surface.state.me.activeConsoleRoleId = surface.state.me.seatId = 'admiral';
+  surface.state.seats = [{ id: 'admiral', roleId: 'admiral', holderUid: surface.uid, status: 'claimed' }];
+  Object.assign(surface.state.session.currentActorBerthAuthority,
+    { assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral' });
+  surface.setRoute('#/roles/admiral');
+  return surface;
+}
+
+test('Wing bay profile observes the actual ordinary Admiral station without accepting later role retirement', async () => {
+  const surface = ordinaryAdmiralSurface();
+  const { retainP181MemberAuthority } = await import('./pc10-starlight-movement-scout-ui-proof.mjs');
+  const expected = await observeFullGameDemoPresentationMember(surface, { knownRoleIds: originalRoleIds });
+  assert.equal(pc11MemberReadiness(expected, { sessionId: expected.sessionId,
+    uidHash: expected.uidHash, roleId: 'admiral', stage: 'station' }), true);
+  const authority = await retainP181MemberAuthority(surface, Date.now() + 3_000, {
+    mode: 'startup', proofProfile: 'wing-bays', memberRoleId: 'admiral', expected,
+  });
+  try {
+    await authority.check();
+    surface.publish(state => { state.me.assignedRoleId = 'wing-commander'; });
+    await assert.rejects(authority.check(), /role|authority|retired/i);
+  } finally { await authority.close(); }
+  assert.equal(surface.observers.stores.size, 0);
+});
+
+test('ordinary authority rejects an unknown profile instead of silently adopting the Wing default', async () => {
+  const surface = mountedP181Surface('ordinary-wing');
+  const { retainP181MemberAuthority } = await import('./pc10-starlight-movement-scout-ui-proof.mjs');
+  await assert.rejects(async () => {
+    const authority = await retainP181MemberAuthority(surface, Date.now() + 3_000, {
+      mode: 'startup', proofProfile: 'unknown-cohort',
+      expected: { sessionId: surface.state.session.id,
+        uidHash: createHash('sha256').update(surface.uid).digest('hex').slice(0, 16) },
+    });
+    await authority.close();
+  }, /profile/i);
+  assert.equal(surface.observers.stores.size, 0);
+});
+
+test('ordinary casting navigation rejects an unknown profile instead of consuming its Wing receipts', async t => {
+  await assert.rejects(async () => {
+    const f = await actualP181CastingAssignmentFixture(t, { proofProfile: 'unknown-cohort' });
+    await f.observer.accept(f.before, f.current,
+      () => observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds }), f.assignment);
+  }, /profile/i);
+});
+
+test('the unchanged default observer refuses an Admiral station', async () => {
+  const surface = ordinaryAdmiralSurface();
+  const { retainP181MemberAuthority } = await import('./pc10-starlight-movement-scout-ui-proof.mjs');
+  await assert.rejects(retainP181MemberAuthority(surface, Date.now() + 3_000, {
+    mode: 'startup', memberRoleId: 'admiral',
+    expected: { sessionId: surface.state.session.id,
+      uidHash: createHash('sha256').update(surface.uid).digest('hex').slice(0, 16) },
+  }), /role|profile|station/i);
+});
+
+async function actualOwnedMembershipCleanup({ actorCount = 3, foreign = false, defaultProfile = false } = {}) {
+  const source = readFileSync(p181DeadlineSourcePath, 'utf8');
+  const start = source.indexOf('if (cleanup.sessionAbsent && lifecycleRootsRemoved) await step(');
+  const end = source.indexOf('\n      }\n      }\n      const sessionScopeReleased', start);
+  assert.ok(start >= 0 && end > start, 'Use the exact existing owned membership cleanup consumer.');
+  const ownedAuthUids = new Map(Array.from({ length: actorCount }, (_, i) => [`actor-${i}`, `owned-${i}`]));
+  const records = new Map([...ownedAuthUids.values()].map(uid => [uid, { sessionId: 'normal-session' }]));
+  if (foreign) records.set('foreign-uid', { sessionId: 'normal-session' });
+  const deletes = [];
+  const ref = id => ({ id });
+  const document = id => ({ id, ref: ref(id), exists: records.has(id), get: key => records.get(id)?.[key] });
+  const db = {
+    collection: name => { assert.equal(name, 'activeMemberships'); return {
+      where: (field, op, value) => { assert.deepEqual([field, op, value], ['sessionId', '==', 'normal-session']); return {
+        get: async () => ({ size: records.size, docs: [...records.keys()].map(document) }),
+      }; },
+    }; },
+    runTransaction: async callback => callback({ get: async held => document(held.id),
+      delete: held => { deletes.push(held.id); records.delete(held.id); } }),
+  };
+  const cleanup = { sessionAbsent: true };
+  let failure;
+  try {
+    await runInNewContext(`(async () => { ${source.slice(start, end)} })()`, {
+      assert, ownedAuthUids, db, cleanup, lifecycleRootsRemoved: true, sessionId: 'normal-session',
+      nativeActorCount: defaultProfile ? 2 : 3, Date,
+      step: async (_name, action) => action(Date.now() + 3_000),
+    });
+  } catch (error) { failure = error; }
+  return { failure, deletes, records, cleanup };
+}
+
+test('Wing bay cleanup removes exactly three captured original memberships', async () => {
+  const held = await actualOwnedMembershipCleanup();
+  assert.equal(held.failure, undefined, 'The declared three-actor profile must release all three exact original pointers.');
+  assert.deepEqual(held.deletes, ['owned-0', 'owned-1', 'owned-2']);
+  assert.equal(held.cleanup.ownedMembershipPointersAbsent, true);
+});
+
+test('Wing bay cleanup refuses a foreign membership before any deletion', async () => {
+  const held = await actualOwnedMembershipCleanup({ foreign: true });
+  assert.match(String(held.failure), /actor|membership|captured/i);
+  assert.deepEqual(held.deletes, []);
+  assert.equal(held.records.size, 4);
+});
+
+test('the original cleanup still removes two pointers and refuses a third captured actor in the default profile', async () => {
+  const ordinary = await actualOwnedMembershipCleanup({ actorCount: 2, defaultProfile: true });
+  assert.equal(ordinary.failure, undefined);
+  assert.deepEqual(ordinary.deletes, ['owned-0', 'owned-1']);
+  const extra = await actualOwnedMembershipCleanup({ defaultProfile: true });
+  assert.match(String(extra.failure), /actor|membership|captured/i);
+  assert.deepEqual(extra.deletes, []);
+});
 
 test('P181 casting assignment accepts only the original GM receipt and the member’s captured normal resume', async t => {
   const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true });
