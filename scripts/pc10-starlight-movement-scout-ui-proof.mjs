@@ -702,10 +702,140 @@ async function runP181StarlightMovementScoutCore({
 
 /** Preserve the first setup/authority/receipt failure while giving the owned
  * browser/Auth/session teardown one finite deadline on both success and error. */
+/** A bounded current-state/bay slice, using the ordinary Admiral's maintenance
+ * authority. It intentionally stops before launch, mission or a paid rebuild. */
+async function runP181WingBayCore({ initial, io, absoluteDeadlineMs }) {
+  assert.ok(Number.isFinite(absoluteDeadlineMs) && Date.now() < absoluteDeadlineMs,
+    'Retain the original finite Wing bay proof deadline.');
+  assert.ok(initial?.phase === 'lobby' && initial.cycle === 0 && initial.setupConfirmed === false,
+    'Wing bays must begin with the original fresh ordinary Cycle 0 session.');
+  assert.ok(io && ['prepareNormalSession', 'observeWingBayActors', 'observeWingBayState',
+    'performWingBayMaintenanceAction'].every(name => typeof io[name] === 'function'));
+  io.absoluteDeadlineAt = absoluteDeadlineMs;
+  const held = { stage: 'normal three-actor preparation', receipts: [], observations: {} };
+  const work = async (stage, action) => {
+    held.stage = stage;
+    return p181BoundedWork(stage, action, Math.min(absoluteDeadlineMs, Date.now() + 60_000),
+      value => { held.observations[stage] = value; });
+  };
+  try {
+    const prepared = await work('normal three-actor preparation', () => io.prepareNormalSession({
+      initial, setup: P181_NORMAL_SETUP, deadlineAt: absoluteDeadlineMs, requiredBranches: [],
+    }));
+    assert.deepEqual(prepared.receipts.map(value => value.endpoint),
+      ['confirmSetup', 'assignRole', 'assignRole', 'startGame', 'clearTurnAdvanceInterstitial']);
+    assert.deepEqual(prepared.roster.map(value => value.roleId), ['wing-commander', 'admiral']);
+    const expectedWing = { ...requireStartedContext({ ...prepared,
+      roster: prepared.roster.filter(value => value.roleId === 'wing-commander') }) };
+    const expectedAdmiral = { ...prepared.expectedAdmiral };
+    const expectedGm = { ...prepared.gm };
+    assert.equal(prepared.started.cycle, 1);
+    assert.equal(new Set([expectedWing.uidHash, expectedAdmiral.uidHash, expectedGm.uidHash]).size, 3,
+      'GM, Wing Commander and Admiral must be three independently admitted ordinary Auth identities.');
+    assert.equal(prepared.roster[1].uidHash, expectedAdmiral.uidHash);
+    assert.equal(prepared.roster[1].sessionId, initial.sessionId);
+    for (const [index, roleId] of [[1, 'wing-commander'], [2, 'admiral']]) {
+      const receipt = prepared.receipts[index];
+      assert.equal(receipt.data.roleId, roleId);
+      assert.equal(uidHash(receipt.data.targetUid), prepared.roster[index - 1].uidHash,
+        'Original assignment receipts must target their independently captured admission identities.');
+    }
+    for (const receipt of prepared.receipts) {
+      assert.equal(receipt.httpStatus, 200); assert.equal(receipt.data.sessionId, initial.sessionId);
+      held.receipts.push(publicLifecycleReceipt(receipt));
+    }
+    const requireAuthorities = async () => {
+      const actors = await work('current Wing bay authorities', () => io.observeWingBayActors());
+      requireActor(actors.wing, expectedWing);
+      assert.ok(pc11MemberReadiness(actors.admiral, { sessionId: initial.sessionId,
+        uidHash: expectedAdmiral.uidHash, roleId: 'admiral', stage: 'station',
+        connectionGeneration: expectedAdmiral.connectionGeneration,
+        identityHydrationRevision: expectedAdmiral.identityHydrationRevision }) &&
+        actors.admiral.sdkResumePending === false && actors.admiral.memberScopeMatches === true &&
+        actors.admiral.currentMemberBerthMatches === true &&
+        pc11SameActorEpoch(expectedAdmiral, actors.admiral),
+      'The original ordinary Admiral must retain current canonical station and SDK authority.');
+      assert.ok(pc11GmReadiness(actors.gm, { sessionId: initial.sessionId,
+        uidHash: expectedGm.uidHash, instanceId: expectedGm.instanceId }) &&
+        actors.gm.sdkResumePending === false && pc11SameActorEpoch(expectedGm, actors.gm),
+      'The original GM must retain its live owned instance authority.');
+    };
+    const observe = async stage => {
+      await requireAuthorities();
+      const value = await work(`Wing bay state ${stage}`, () => io.observeWingBayState({ stage,
+        deadlineAt: absoluteDeadlineMs }));
+      await requireAuthorities();
+      assert.equal(value.sessionId, initial.sessionId); assert.equal(value.phase, 'active');
+      assert.equal(value.cycle, 1); assert.equal(value.connection, 'live'); assert.equal(value.freshness, 'server');
+      assert.equal(value.airspace, 'restricted', 'Ordinary maintenance retains the real Team Phase.');
+      assert.deepEqual(value.wings.map(wing => wing.id), ['fighter-wing-alpha', 'fighter-wing-bravo']);
+      assert.ok(Number.isSafeInteger(value.materials) && value.materials >= 0);
+      for (const wing of value.wings) {
+        assert.ok(Number.isSafeInteger(wing.count) && Number.isSafeInteger(wing.revision) && wing.revision >= 0);
+        assert.ok(Number.isSafeInteger(wing.capacity) && wing.capacity > 0);
+        assert.equal(wing.count, wing.capacity, 'This fresh bay slice observes full wings; it does not invent a build slot.');
+      }
+      return value;
+    };
+    const before = await observe('before');
+    assert.notEqual(before.maintenance?.turn, 1, 'Do not replay an already completed maintenance prefix.');
+    let revision = before.maintenance?.revision ?? 0;
+    const requestIds = new Set();
+    for (const action of ['begin', 'storage', 'rations', 'unrest', 'riot', 'reactor']) {
+      await requireAuthorities();
+      const capture = await work(`ordinary maintenance ${action}`, () => io.performWingBayMaintenanceAction({
+        action, deadlineAt: absoluteDeadlineMs }));
+      await requireAuthorities();
+      assert.equal(capture.endpoint, 'runMaintenance');
+      assert.equal(capture.httpStatus, 200, `Stop at the original ordinary maintenance ${action} rejection.`);
+      assert.equal(capture.data.sessionId, initial.sessionId); assert.equal(capture.data.shipId, 'aegis');
+      assert.equal(capture.data.consoleRoleId, 'admiral'); assert.equal(capture.data.action, action);
+      assert.equal(capture.data.expectedRevision, revision++);
+      assert.ok(identifier(capture.data.requestId) && !requestIds.has(capture.data.requestId));
+      requestIds.add(capture.data.requestId);
+      assert.equal(capture.before.uidHash, expectedAdmiral.uidHash);
+      assert.equal(capture.before.playerRole, 'player'); assert.equal(capture.before.activeConsoleRoleId, 'admiral');
+      held.receipts.push(publicLifecycleReceipt(capture));
+    }
+    const after = await observe('charged');
+    assert.equal(after.maintenance?.turn, 1); assert.equal(after.maintenance.step, 6);
+    assert.equal(after.maintenance.revision, revision);
+    assert.deepEqual([...after.maintenance.charges].sort(),
+      ['construction-bay', 'fighter-bay-alpha', 'fighter-bay-bravo']);
+    assert.deepEqual(after.wings.map(wing => [wing.id, wing.count, wing.revision, wing.capacity]),
+      before.wings.map(wing => [wing.id, wing.count, wing.revision, wing.capacity]));
+    assert.deepEqual(after.cards.map(card => card.id), after.wings.map(wing => wing.id));
+    for (const [index, card] of after.cards.entries()) {
+      const wing = after.wings[index];
+      assert.equal(wing.damaged, false); assert.equal(wing.charged, true);
+      assert.equal(card.buildEnabled, false);
+      assert.equal(card.strength, `${wing.count} fighters // revision ${wing.revision}`);
+      assert.ok(card.capacity.startsWith(`${wing.capacity} fighters // Construction Bay `));
+      assert.equal(card.eligibility, 'Eligible // bay charged and operational');
+      assert.ok(card.guidance.includes(`wing at capacity (${wing.capacity} fighters)`));
+    }
+    return { status: 'P181_WING_BAY_FLOW_COMPLETE_ZERO_ACCEPTANCE', proofProfile: 'wing-bays',
+      actualAcceptance: false, fixedCatalogClosures: 0, checkpointOrReleaseCredit: 0,
+      actualAuthActorCount: 3, positiveFighterBuilds: 0, flightOperations: 0,
+      bayBefore: before, bayAfter: after, sourceUiReceipts: held.receipts,
+      limitations: ['Source-shaped IO is not native gameplay acceptance.',
+        'Only ordinary bay state, maintenance charge delivery and full-wing construction blockers are in this slice.',
+        'Launch, mission, fighter loss and positive paid rebuild remain unproved by this slice.'] };
+  } catch (error) {
+    rememberProofFailure(error, { wingBayStage: held.stage, heldWingBayObservations: held.observations,
+      heldWingBayReceipts: held.receipts });
+    throw error;
+  }
+}
+
 export async function runP181StarlightMovementScoutUiProof(input) {
   let value, firstError, cleanup;
   try {
-    value = await runP181StarlightMovementScoutCore(input);
+    const proofProfile = input?.proofProfile ?? 'starlight';
+    assert.ok(proofProfile === 'starlight' || proofProfile === 'wing-bays',
+      'Use an explicitly supported ordinary-actor proof profile.');
+    value = proofProfile === 'wing-bays' ? await runP181WingBayCore(input)
+      : await runP181StarlightMovementScoutCore(input);
   } catch (error) {
     firstError = error;
   }
@@ -2563,6 +2693,10 @@ async function p181SourceOnlyPreflight(options) {
  */
 export async function runP181StarlightMovementScoutNative(options = {}) {
   if (options.sourceOnly === true) return p181SourceOnlyPreflight(options);
+  const proofProfile = options.proofProfile ?? process.env.P181_PROOF_PROFILE ?? 'starlight';
+  assert.ok(proofProfile === 'starlight' || proofProfile === 'wing-bays',
+    'Use an explicitly supported ordinary-actor proof profile.');
+  const nativeActorCount = proofProfile === 'wing-bays' ? 3 : P181_NATIVE_TIMING.nativeBrowserProcesses;
   const sourceRoot = resolve(options.sourceRoot ?? process.env.P181_SOURCE_ROOT ?? process.cwd());
   const baseUrl = options.baseUrl ?? process.env.P181_UI_URL;
   const projectId = options.projectId ?? process.env.P181_PROJECT;
@@ -2618,7 +2752,6 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
   const sourceHash = value => createHash('sha256').update(value).digest('hex');
   const hashShort = value => uidHash(value);
   const remoteRequests = [], pageErrors = [], calls = [], requests = [], browsers = [], surfaces = [];
-  const nativeActorCount = P181_NATIVE_TIMING.nativeBrowserProcesses;
   const sourceRuntimeText = await preflight('Read original served Firebase runtime source', async () => (await fetch(`${baseUrl}/src/lib/firebaseConfig.ts`,
     { signal: AbortSignal.timeout(Math.min(5_000, p181Remaining(preflightDeadlineAt))) })).text());
   const runtime = validateProofRuntime(proofRuntimeFromViteSource(sourceRuntimeText), { baseUrl, projectId, ports });
@@ -2649,8 +2782,8 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
       `The mounted App must match the committed ${path} source.`);
   }
   p181NativePassedPreflight.add(options);
-  let gm, wingCommander, sessionId, joinCode, creationRequestId, startRequestId, gmInstanceId, gmClaimedAt;
-  let ownedRequestTracker, wingAdmissionTracker, requestTrackerError;
+  let gm, wingCommander, admiral, sessionId, joinCode, creationRequestId, startRequestId, gmInstanceId, gmClaimedAt;
+  let ownedRequestTracker, wingAdmissionTracker, admiralAdmissionTracker, requestTrackerError;
   const originalCreate = { dispatched: false, responseSettled: false, transportPending: false };
   const pendingOriginalIdentities = [];
   const ownedAuthUids = new Map();
@@ -2772,6 +2905,7 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
       await step('finish original create/start request ownership observer', async () => {
         ownedRequestTracker?.finish();
         wingAdmissionTracker?.finish();
+        admiralAdmissionTracker?.finish();
       });
       await step('settle original Auth admission ownership observers', async end => {
         await awaitOriginalIdentityCaptures(end);
@@ -2953,7 +3087,7 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
     const chromium = options.chromium ?? adminRequire('playwright').chromium;
     factory = createP181StarlightNativeSurfaceFactory({ chromium, baseUrl, ports,
       directory, browsers, surfaces, remoteRequests, pageErrors, calls, requests,
-      absoluteDeadlineAt: proofStopAt, cleanupDeadlineAt });
+      absoluteDeadlineAt: proofStopAt, cleanupDeadlineAt, actorProfile: proofProfile });
   } catch (error) {
     try {
       const cleanup = await cleanupOwnedResources({ firstError: error, deadlineAt: cleanupDeadlineAt });
@@ -3004,18 +3138,20 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
   const waitForFullActor = async (surface, description, predicate, deadlineAt, normalNavigationFrom, authorityOverride) => {
     const readDeadlineAt = Math.min(deadlineAt, Date.now() + P181_NATIVE_TIMING.operationTimeoutMs);
     let current, original, latestGeneration = 0, latestHydration = 0;
-    const ownedUid = ownedAuthUids.get(surface === gm ? 'gm' : 'wing-commander');
+    const actorLabel = surface === gm ? 'gm' : surface.label === 'normal-admiral' ? 'admiral' : 'wing-commander';
+    const ownedUid = ownedAuthUids.get(actorLabel);
     const authority = authorityOverride ?? await bounded('Retain original startup authority', () =>
       retainP181MemberAuthority(surface, readDeadlineAt, {
         mode: 'startup', expected: { sessionId, ...(ownedUid ? { uidHash: hashShort(ownedUid) } : {}) },
-        navigationFrom: normalNavigationFrom, startCycleOne: true }), readDeadlineAt);
+        navigationFrom: normalNavigationFrom, startCycleOne: true,
+        ...(actorLabel === 'admiral' ? { proofProfile: 'wing-bays', memberRoleId: 'admiral' } : {}) }), readDeadlineAt);
     let failure;
     try {
     while (Date.now() < readDeadlineAt) {
       current = await Promise.race([readFullActor(surface, readDeadlineAt), authority.failed]);
       await authority.check();
       assert.ok(Date.now() < readDeadlineAt, `${description}: readiness tuple arrived after its original deadline.`);
-      const owned = ownedAuthUids.get(surface === gm ? 'gm' : 'wing-commander');
+      const owned = ownedAuthUids.get(actorLabel);
       assert.equal(current.hasAuth, true, 'Keep the original startup Auth authority.');
       if (owned) assert.equal(current.uidHash, hashShort(owned), 'Keep the original startup Auth identity.');
       if (current.sessionId != null) assert.equal(current.sessionId, sessionId, 'Keep the original startup session.');
@@ -3320,8 +3456,10 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
     const launchDeadlineAt = Math.min(browserLaunchDeadlineAt, operationDeadline());
     gm = await bounded('Acquire original normal GM browser', () => factory.launch('normal-gm', launchDeadlineAt), launchDeadlineAt);
     wingCommander = await bounded('Acquire original Wing Commander browser', () => factory.launch('normal-wing-commander', launchDeadlineAt), launchDeadlineAt);
-    assert.equal(browsers.length, 2);
-    assert.equal(surfaces.length, 2);
+    if (proofProfile === 'wing-bays') admiral = await bounded('Acquire original ordinary Admiral browser',
+      () => factory.launch('normal-admiral', launchDeadlineAt), launchDeadlineAt);
+    assert.equal(browsers.length, nativeActorCount);
+    assert.equal(surfaces.length, nativeActorCount);
     ownedRequestTracker = createPc11OwnedRequestTracker(gm.page, receipt => {
       if (receipt.endpoint === 'createSession') {
         creationRequestId = receipt.requestId;
@@ -3431,151 +3569,164 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
         assert.equal(confirmedInitial.fullGameDemo, null);
         trace.push('confirmSetup');
 
-        await bounded('Open original Wing Commander admission page',
-          () => wingCommander.page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: P181_NATIVE_TIMING.pageTimeoutMs }), deadlineAt);
-        await bounded('Set original Wing Commander browser motion preference',
-          () => wingCommander.reducedMotion(), deadlineAt);
-        await bounded('Enter original normal session code', () =>
-          wingCommander.page.getByRole('textbox', { name: 'Session code', exact: true })
-            .fill(joinCode, { timeout: P181_NATIVE_TIMING.pageTimeoutMs }), deadlineAt);
-        wingAdmissionTracker = createPc11OwnedRequestTracker(wingCommander.page, receipt => {
-          if (receipt.endpoint !== 'joinSession') return;
-          pendingOriginalIdentities.push(registerAuth(wingCommander, 'wing-commander').then(() => ({ ok: true }))
-            .catch(error => { requestTrackerError ??= error; return { error }; }));
-        });
-        const joined = await bounded('Capture original Wing Commander join response', () => observeUiReceipt({ page: wingCommander.page,
-          consumed: { phase: 'original ordinary Wing Commander session-code join', credentialsRetained: false },
-          waitForResponse: () => wingCommander.page.waitForResponse(response =>
-            new URL(response.url()).pathname.endsWith('/us-central1/joinSession') && response.request().method() === 'POST',
-          { timeout: P181_NATIVE_TIMING.pageTimeoutMs }),
-          choose: () => bounded('Choose original Wing Commander admission', () => wingCommander.page.getByRole('button', { name: 'Join a session', exact: true })
-            .click({ timeout: Math.min(P181_NATIVE_TIMING.pageTimeoutMs, deadlineAt - Date.now()) }), deadlineAt) }), deadlineAt);
-        await awaitOriginalIdentityCaptures(deadlineAt);
-        assert.equal(joined.status(), 200);
-        assert.equal((await bounded('Read original Wing Commander join body',
-          () => joined.json(), deadlineAt)).error, undefined);
-        const admittedAuth = await registerAuth(wingCommander, 'wing-commander', deadlineAt);
-        await bounded('Accept original Wing Commander consent', () => wingCommander.consent(deadlineAt), deadlineAt);
-        const admitted = await waitForFullActor(wingCommander, 'Normal Wing Commander admission before assignment', value =>
-          value.hasAuth && value.sameActor && value.sessionId === sessionId && value.cycle === 0 &&
-          (value.phase === 'lobby' || value.phase === 'casting') && value.setupConfirmed &&
-          value.assignedRoleId == null && value.activeConsoleRoleId == null && value.seatId == null &&
-          value.connection === 'live' && value.freshness === 'server' && value.sdkHasServerAuthority === true,
-        deadlineAt);
-        assert.equal(admitted.uidHash, admittedAuth.uidHash);
-        assert.equal(pc11MemberReadiness(admitted, { sessionId, uidHash: admittedAuth.uidHash,
-          roleId: null, stage: 'casting' }), true,
-        'Capture original Auth identity during normal admission, before role assignment or berth claim.');
-        const displayName = (await bounded('Observe original admitted Wing Commander actor',
-          () => observeLifecycleActor(wingCommander, sessionId), deadlineAt)).displayName;
-        assert.ok(typeof displayName === 'string' && displayName.length > 0);
-        const casting = gm.page.getByRole('region', { name: 'Facilitator casting', exact: true });
-        const castingUiEnd = Math.min(deadlineAt, Date.now() + 35_000);
-        await bounded('Select original Wing Commander casting role', () => casting.getByLabel(`Role for ${displayName}`, { exact: true })
-          .selectOption(P181_NORMAL_SETUP.wingCommanderRoleId, { timeout: p181Remaining(castingUiEnd) }), castingUiEnd);
-        const castingDeadlineAt = Math.min(deadlineAt, Date.now() + P181_NATIVE_TIMING.operationTimeoutMs);
-        let castingAuthority, assignment, navigationStart, navigation, castingFailure;
-        let castingResumeNotice = Promise.resolve(), castingResumeNoticeError;
-        const noteCastingResumeRequest = resume => {
-          if (!castingAuthority) throw new Error('Original casting authority was not armed before ordinary resume.');
-          castingResumeNotice = castingAuthority.noteCastingResumeRequest(resume).catch(error => {
-            castingResumeNoticeError = error;
+        async function admitOriginalMember(memberSurface, memberRoleId) {
+          assert.ok(memberRoleId === 'wing-commander' || proofProfile === 'wing-bays' && memberRoleId === 'admiral');
+          const memberName = memberRoleId === 'admiral' ? 'Admiral' : 'Wing Commander';
+          await bounded(`Open original ${memberName} admission page`,
+            () => memberSurface.page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: P181_NATIVE_TIMING.pageTimeoutMs }), deadlineAt);
+          await bounded(`Set original ${memberName} browser motion preference`,
+            () => memberSurface.reducedMotion(), deadlineAt);
+          await bounded('Enter original normal session code', () =>
+            memberSurface.page.getByRole('textbox', { name: 'Session code', exact: true })
+              .fill(joinCode, { timeout: P181_NATIVE_TIMING.pageTimeoutMs }), deadlineAt);
+          const admissionTracker = createPc11OwnedRequestTracker(memberSurface.page, receipt => {
+            if (receipt.endpoint !== 'joinSession') return;
+            pendingOriginalIdentities.push(registerAuth(memberSurface, memberRoleId).then(() => ({ ok: true }))
+              .catch(error => { requestTrackerError ??= error; return { error }; }));
           });
-          return castingResumeNotice;
-        };
-        const castingResume = createMemberNavigationResumeObserver(wingCommander.page, { directory,
-          roleId: P181_NORMAL_SETUP.wingCommanderRoleId, deadlineAt: castingDeadlineAt,
-          memberContract: 'pc11-live-base', transition: 'casting-assignment',
-          expectedGmUidHash: hashShort(ownedAuthUids.get('gm')), expectedGmInstanceId: gmInstanceId,
-          onCastingResumeRequest: noteCastingResumeRequest });
-        assert.ok(castingResume, 'Observe the original member’s ordinary casting resume before assignment.');
-        try {
-          await bounded('Prepare original casting assignment resume observer',
-            () => castingResume.prepare(admitted), castingDeadlineAt);
-          castingAuthority = await bounded('Retain original casting assignment authority', () =>
-            retainP181MemberAuthority(wingCommander, castingDeadlineAt, { mode: 'casting-assignment',
-              castingRoleId: P181_NORMAL_SETUP.wingCommanderRoleId,
-              expected: { sessionId, uidHash: hashShort(admittedAuth.uid),
-                fleetGroupId: admitted.fleetGroupId, connectionGeneration: admitted.connectionGeneration,
-                identityHydrationRevision: admitted.identityHydrationRevision,
-                documentTimeOrigin: admitted.documentTimeOrigin } }), castingDeadlineAt);
-          assignment = await captureAction(gm, 'assignRole', () =>
-            casting.getByRole('button', { name: `Assign role to ${displayName}`, exact: true })
-              .click({ timeout: Math.min(35_000, castingDeadlineAt - Date.now()) }), castingDeadlineAt);
-          await castingResumeNotice;
-          if (castingResumeNoticeError) throw castingResumeNoticeError;
-          const castingReady = value => pc11MemberReadiness(value, { sessionId, uidHash: admittedAuth.uidHash,
-            roleId: P181_NORMAL_SETUP.wingCommanderRoleId, stage: 'casting' }) &&
-            value.phase === 'casting' && value.cycle === 0 && value.sdkResumePending === false &&
-            value.currentMemberBerthPresent === true && value.currentMemberBerthNull === false &&
-            value.currentMemberBerthMatches === true;
-          while (Date.now() < castingDeadlineAt) {
-            const current = await waitForFullActor(wingCommander,
-              'Original normal Wing Commander assignment readiness before station navigation', castingReady,
-              castingDeadlineAt, admitted, castingAuthority);
+          if (memberRoleId === 'admiral') admiralAdmissionTracker = admissionTracker;
+          else wingAdmissionTracker = admissionTracker;
+          const joined = await bounded(`Capture original ${memberName} join response`, () => observeUiReceipt({ page: memberSurface.page,
+            consumed: { phase: `original ordinary ${memberName} session-code join`, credentialsRetained: false },
+            waitForResponse: () => memberSurface.page.waitForResponse(response =>
+              new URL(response.url()).pathname.endsWith('/us-central1/joinSession') && response.request().method() === 'POST',
+            { timeout: P181_NATIVE_TIMING.pageTimeoutMs }),
+            choose: () => bounded(`Choose original ${memberName} admission`, () => memberSurface.page.getByRole('button', { name: 'Join a session', exact: true })
+              .click({ timeout: Math.min(P181_NATIVE_TIMING.pageTimeoutMs, deadlineAt - Date.now()) }), deadlineAt) }), deadlineAt);
+          await awaitOriginalIdentityCaptures(deadlineAt);
+          assert.equal(joined.status(), 200);
+          assert.equal((await bounded(`Read original ${memberName} join body`,
+            () => joined.json(), deadlineAt)).error, undefined);
+          const admittedAuth = await registerAuth(memberSurface, memberRoleId, deadlineAt);
+          await bounded(`Accept original ${memberName} consent`, () => memberSurface.consent(deadlineAt), deadlineAt);
+          const admitted = await waitForFullActor(memberSurface, `Normal ${memberName} admission before assignment`, value =>
+            value.hasAuth && value.sameActor && value.sessionId === sessionId && value.cycle === 0 &&
+            (value.phase === 'lobby' || value.phase === 'casting') && value.setupConfirmed &&
+            value.assignedRoleId == null && value.activeConsoleRoleId == null && value.seatId == null &&
+            value.connection === 'live' && value.freshness === 'server' && value.sdkHasServerAuthority === true,
+          deadlineAt);
+          assert.equal(admitted.uidHash, admittedAuth.uidHash);
+          assert.equal(pc11MemberReadiness(admitted, { sessionId, uidHash: admittedAuth.uidHash,
+            roleId: null, stage: 'casting' }), true,
+          'Capture original Auth identity during normal admission, before role assignment or berth claim.');
+          const displayName = (await bounded(`Observe original admitted ${memberName} actor`,
+            () => observeLifecycleActor(memberSurface, sessionId), deadlineAt)).displayName;
+          assert.ok(typeof displayName === 'string' && displayName.length > 0);
+          const casting = gm.page.getByRole('region', { name: 'Facilitator casting', exact: true });
+          const castingUiEnd = Math.min(deadlineAt, Date.now() + 35_000);
+          await bounded(`Select original ${memberName} casting role`, () => casting.getByLabel(`Role for ${displayName}`, { exact: true })
+            .selectOption(memberRoleId, { timeout: p181Remaining(castingUiEnd) }), castingUiEnd);
+          const castingDeadlineAt = Math.min(deadlineAt, Date.now() + P181_NATIVE_TIMING.operationTimeoutMs);
+          let castingAuthority, assignment, navigationStart, navigation, castingFailure;
+          let castingResumeNotice = Promise.resolve(), castingResumeNoticeError;
+          const noteCastingResumeRequest = resume => {
+            if (!castingAuthority) throw new Error('Original casting authority was not armed before ordinary resume.');
+            castingResumeNotice = castingAuthority.noteCastingResumeRequest(resume).catch(error => {
+              castingResumeNoticeError = error;
+            });
+            return castingResumeNotice;
+          };
+          const castingResume = createMemberNavigationResumeObserver(memberSurface.page, { directory,
+            roleId: memberRoleId, deadlineAt: castingDeadlineAt, proofProfile,
+            memberContract: 'pc11-live-base', transition: 'casting-assignment',
+            expectedGmUidHash: hashShort(ownedAuthUids.get('gm')), expectedGmInstanceId: gmInstanceId,
+            onCastingResumeRequest: noteCastingResumeRequest });
+          assert.ok(castingResume, 'Observe the original member’s ordinary casting resume before assignment.');
+          try {
+            await bounded('Prepare original casting assignment resume observer',
+              () => castingResume.prepare(admitted), castingDeadlineAt);
+            castingAuthority = await bounded('Retain original casting assignment authority', () =>
+              retainP181MemberAuthority(memberSurface, castingDeadlineAt, { mode: 'casting-assignment', proofProfile,
+                castingRoleId: memberRoleId,
+                expected: { sessionId, uidHash: hashShort(admittedAuth.uid),
+                  fleetGroupId: admitted.fleetGroupId, connectionGeneration: admitted.connectionGeneration,
+                  identityHydrationRevision: admitted.identityHydrationRevision,
+                  documentTimeOrigin: admitted.documentTimeOrigin } }), castingDeadlineAt);
+            assignment = await captureAction(gm, 'assignRole', () =>
+              casting.getByRole('button', { name: `Assign role to ${displayName}`, exact: true })
+                .click({ timeout: Math.min(35_000, castingDeadlineAt - Date.now()) }), castingDeadlineAt);
             await castingResumeNotice;
             if (castingResumeNoticeError) throw castingResumeNoticeError;
+            const castingReady = value => pc11MemberReadiness(value, { sessionId, uidHash: admittedAuth.uidHash,
+              roleId: memberRoleId, stage: 'casting' }) &&
+              value.phase === 'casting' && value.cycle === 0 && value.sdkResumePending === false &&
+              value.currentMemberBerthPresent === true && value.currentMemberBerthNull === false &&
+              value.currentMemberBerthMatches === true;
+            while (Date.now() < castingDeadlineAt) {
+              const current = await waitForFullActor(memberSurface,
+                `Original normal ${memberName} assignment readiness before station navigation`, castingReady,
+                castingDeadlineAt, admitted, castingAuthority);
+              await castingResumeNotice;
+              if (castingResumeNoticeError) throw castingResumeNoticeError;
+              await castingAuthority.check();
+              const accepted = await castingResume.accept(admitted, current,
+                () => readFullActor(memberSurface, castingDeadlineAt), assignment);
+              if (accepted) { navigationStart = accepted; break; }
+              await bounded('Wait for original casting resume acceptance', () =>
+                Promise.race([delay(Math.min(100, castingDeadlineAt - Date.now())), castingAuthority.failed]), castingDeadlineAt);
+            }
+            assert.ok(navigationStart, 'Original casting assignment did not reach captured normal resume acceptance.');
             await castingAuthority.check();
-            const accepted = await castingResume.accept(admitted, current,
-              () => readFullActor(wingCommander, castingDeadlineAt), assignment);
-            if (accepted) { navigationStart = accepted; break; }
-            await bounded('Wait for original casting resume acceptance', () =>
-              Promise.race([delay(Math.min(100, castingDeadlineAt - Date.now())), castingAuthority.failed]), castingDeadlineAt);
-          }
-          assert.ok(navigationStart, 'Original casting assignment did not reach captured normal resume acceptance.');
-          await castingAuthority.check();
-          navigation = createMemberNavigationResumeObserver(wingCommander.page, { directory,
-            roleId: P181_NORMAL_SETUP.wingCommanderRoleId, deadlineAt, memberContract: 'pc11-live-base' });
-          await bounded('Prepare original station navigation observer',
-            () => navigation.prepare(navigationStart), deadlineAt);
-        } catch (error) { castingFailure = error; }
-        finally {
-          if (castingAuthority) {
-            try { await bounded('Close original casting assignment authority', () => castingAuthority.close(),
-              Math.min(cleanupDeadlineAt, castingDeadlineAt + 5_000)); }
+            navigation = createMemberNavigationResumeObserver(memberSurface.page, { directory,
+              roleId: memberRoleId, deadlineAt, proofProfile, memberContract: 'pc11-live-base' });
+            await bounded('Prepare original station navigation observer',
+              () => navigation.prepare(navigationStart), deadlineAt);
+          } catch (error) { castingFailure = error; }
+          finally {
+            if (castingAuthority) {
+              try { await bounded('Close original casting assignment authority', () => castingAuthority.close(),
+                Math.min(cleanupDeadlineAt, castingDeadlineAt + 5_000)); }
+              catch (error) { castingFailure ??= error; }
+            }
+            try { await bounded('Close original casting assignment resume observer',
+              () => castingResume.finish(castingFailure), Math.min(cleanupDeadlineAt, castingDeadlineAt + 5_000)); }
             catch (error) { castingFailure ??= error; }
+            if (castingFailure && navigation) {
+              try { await bounded('Close original station navigation observer after casting failure',
+                () => navigation.finish(castingFailure), Math.min(cleanupDeadlineAt, deadlineAt + 5_000)); }
+              catch (error) { castingFailure ??= error; }
+            }
           }
-          try { await bounded('Close original casting assignment resume observer',
-            () => castingResume.finish(castingFailure), Math.min(cleanupDeadlineAt, castingDeadlineAt + 5_000)); }
-          catch (error) { castingFailure ??= error; }
-          if (castingFailure && navigation) {
-            try { await bounded('Close original station navigation observer after casting failure',
-              () => navigation.finish(castingFailure), Math.min(cleanupDeadlineAt, deadlineAt + 5_000)); }
-            catch (error) { castingFailure ??= error; }
-          }
-        }
-        if (castingFailure) throw castingFailure;
-        trace.push('wing-commander-normal-join-and-consent', 'assignRole', 'casting-assignment-resume-accepted');
+          if (castingFailure) throw castingFailure;
+          trace.push(`${memberRoleId}-normal-join-and-consent`, 'assignRole', 'casting-assignment-resume-accepted');
 
-        let station, navigationError;
-        try {
-          const roleLink = wingCommander.page.locator('a[href$="/roles/wing-commander"]').first();
-          const navigationUiEnd = Math.min(deadlineAt, Date.now() + 35_000);
-          await bounded('Wait for original station chooser', () => roleLink.waitFor({ state: 'visible', timeout: p181Remaining(navigationUiEnd) }), navigationUiEnd);
-          await bounded('Choose original station berth', () => roleLink.click({ timeout: p181Remaining(navigationUiEnd) }), navigationUiEnd);
-          normalPreparationDiagnostic.activeAwaitedOperation =
-            'Original Wing Commander normal role chooser/seat claim';
-          station = await waitForFullActor(wingCommander, 'Original Wing Commander normal role chooser/seat claim', value =>
-            pc11MemberReadiness(value, { sessionId, uidHash: admittedAuth.uidHash,
-              roleId: P181_NORMAL_SETUP.wingCommanderRoleId, stage: 'station' }) && value.memberScopeMatches === true &&
-              value.sdkResumePending === false,
-          deadlineAt, navigationStart);
-          normalPreparationDiagnostic.activeAwaitedOperation = null;
-          if (station.connectionGeneration !== navigationStart.connectionGeneration ||
-              station.identityHydrationRevision !== navigationStart.identityHydrationRevision) {
-            const accepted = await bounded('Accept original actor-bound role navigation receipt',
-              () => navigation.accept(navigationStart, station, () => readFullActor(wingCommander, deadlineAt)), deadlineAt);
-            assert.ok(accepted, 'Original role chooser must retain its actor-bound normal resume receipt.');
-            station = { ...station, ...accepted };
+          let station, navigationError;
+          try {
+            const roleLink = memberSurface.page.locator(`a[href$="/roles/${memberRoleId}"]`).first();
+            const navigationUiEnd = Math.min(deadlineAt, Date.now() + 35_000);
+            await bounded('Wait for original station chooser', () => roleLink.waitFor({ state: 'visible', timeout: p181Remaining(navigationUiEnd) }), navigationUiEnd);
+            await bounded('Choose original station berth', () => roleLink.click({ timeout: p181Remaining(navigationUiEnd) }), navigationUiEnd);
+            normalPreparationDiagnostic.activeAwaitedOperation =
+              `Original ${memberName} normal role chooser/seat claim`;
+            station = await waitForFullActor(memberSurface, `Original ${memberName} normal role chooser/seat claim`, value =>
+              pc11MemberReadiness(value, { sessionId, uidHash: admittedAuth.uidHash,
+                roleId: memberRoleId, stage: 'station' }) && value.memberScopeMatches === true &&
+                value.sdkResumePending === false,
+            deadlineAt, navigationStart);
+            normalPreparationDiagnostic.activeAwaitedOperation = null;
+            if (station.connectionGeneration !== navigationStart.connectionGeneration ||
+                station.identityHydrationRevision !== navigationStart.identityHydrationRevision) {
+              const accepted = await bounded('Accept original actor-bound role navigation receipt',
+                () => navigation.accept(navigationStart, station, () => readFullActor(memberSurface, deadlineAt)), deadlineAt);
+              assert.ok(accepted, 'Original role chooser must retain its actor-bound normal resume receipt.');
+              station = { ...station, ...accepted };
+            }
+          } catch (error) { navigationError = error; }
+          finally {
+            try { await bounded('P181 role chooser navigation observer teardown', () => navigation.finish(navigationError),
+              Math.min(cleanupDeadlineAt, deadlineAt + 5_000)); }
+            catch (error) { if (!navigationError) navigationError = error; }
           }
-        } catch (error) { navigationError = error; }
-        finally {
-          try { await bounded('P181 role chooser navigation observer teardown', () => navigation.finish(navigationError),
-            Math.min(cleanupDeadlineAt, deadlineAt + 5_000)); }
-          catch (error) { if (!navigationError) navigationError = error; }
+          if (navigationError) throw navigationError;
+          trace.push('normal-role-chooser');
+
+          return { station, admittedAuth, assignment };
         }
-        if (navigationError) throw navigationError;
-        trace.push('normal-role-chooser');
+        const wingPrepared = await admitOriginalMember(wingCommander, 'wing-commander');
+        const admiralPrepared = proofProfile === 'wing-bays'
+          ? await admitOriginalMember(admiral, 'admiral') : null;
+        const admittedAuth = wingPrepared.admittedAuth;
+        let station = wingPrepared.station;
 
         const production = gm.page.locator('fieldset[aria-label="Ordinary production start"]');
         const start = await captureAction(gm, 'startGame', async () => {
@@ -3612,14 +3763,22 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
             roleId: P181_NORMAL_SETUP.wingCommanderRoleId, stage: 'station' }) && value.memberScopeMatches === true &&
             value.phase === 'active' && value.cycle === 1 && value.sdkResumePending === false,
         deadlineAt);
+        const admiralStation = admiralPrepared ? await waitForFullActor(admiral,
+          'Original ordinary Admiral Cycle 1 station authority', value =>
+            pc11MemberReadiness(value, { sessionId, uidHash: admiralPrepared.admittedAuth.uidHash,
+              roleId: 'admiral', stage: 'station' }) && value.memberScopeMatches === true &&
+              value.phase === 'active' && value.cycle === 1 && value.sdkResumePending === false,
+          deadlineAt) : null;
         const gmReady = await waitForGm(deadlineAt, { active: true });
         const roster = [{ roleId: P181_NORMAL_SETUP.wingCommanderRoleId,
-          uidHash: admittedAuth.uidHash, sessionId }];
+          uidHash: admittedAuth.uidHash, sessionId }, ...(admiralPrepared ? [{ roleId: 'admiral',
+          uidHash: admiralPrepared.admittedAuth.uidHash, sessionId }] : [])];
         trace.push('startGame', 'clearTurnAdvanceInterstitial');
         return { initial: confirmedInitial, started, roster, gm: gmReady,
           expectedWingCommander: { ...station, sessionId, uidHash: admittedAuth.uidHash,
             roleId: P181_NORMAL_SETUP.wingCommanderRoleId },
-          receipts: [confirmSetup, assignment, start, clear] };
+          ...(admiralPrepared ? { expectedAdmiral: { ...admiralStation, roleId: 'admiral' } } : {}),
+          receipts: [confirmSetup, wingPrepared.assignment, ...(admiralPrepared ? [admiralPrepared.assignment] : []), start, clear] };
       },
     };
 
@@ -3640,8 +3799,8 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
       requiredBranches: ['movement', 'first-scout'] });
     assert.equal(remoteRequests.length, 0, 'The normal native browser flow must remain local-only.');
     assert.equal(pageErrors.length, 0, 'Do not accept a native scenario with mounted App errors.');
-    assert.equal(surfaces.length, P181_NATIVE_TIMING.nativeBrowserContexts);
-    assert.equal(browsers.length, P181_NATIVE_TIMING.nativeBrowserProcesses);
+    assert.equal(surfaces.length, nativeActorCount);
+    assert.equal(browsers.length, nativeActorCount);
     const sourceBindingsAfter = await bounded('Recheck original complete source manifest', () => captureP181SourceBindings(sourceRoot), operationDeadline());
     assert.deepEqual(sourceBindingsAfter, sourceBindingsBefore,
       'Preserve the exact committed source and complete Functions build manifest throughout the normal UI run.');
