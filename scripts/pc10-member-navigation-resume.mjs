@@ -15,7 +15,7 @@ const safeId = value => wireId(value) ? value : null;
 const safeBoolean = value => typeof value === 'boolean' ? value : null;
 const safeGeneration = value => Number.isSafeInteger(value) && value >= 0 ? value : null;
 const safeError = (error, category) => ({ category, name: ['Error', 'AssertionError', 'SyntaxError', 'TypeError'].includes(error?.name) ? error.name : 'Error' });
-function observation(current) {
+function observation(current, includeCasting = false) {
   const result = {};
   for (const key of ['profileRoleId', 'profileSessionId', 'sessionId', 'meSessionId', 'playerRole', 'assignedRoleId',
     'activeConsoleRoleId', 'fleetGroupId', 'seatId', 'replacementRoleId', 'replacementStatus']) result[key] = safeId(current?.[key]);
@@ -26,7 +26,16 @@ function observation(current) {
   for (const key of ['connectionGeneration', 'identityHydrationRevision']) result[key] = safeGeneration(current?.[key]);
   result.connection = ['live', 'offline', 'connecting', 'disconnected'].includes(current?.connection) ? current.connection : null;
   result.freshness = ['server', 'cache'].includes(current?.freshness) ? current.freshness : null;
-  if (current?.clientAcceptance) result.clientAcceptance = { hasServerAuthority: safeBoolean(current.clientAcceptance.hasServerAuthority), resumePending: safeBoolean(current.clientAcceptance.resumePending) };
+  if (includeCasting) {
+    result.phase = ['lobby', 'casting', 'briefing', 'active', 'debrief', 'closed'].includes(current?.phase) ? current.phase : null;
+    result.cycle = safeGeneration(current?.cycle);
+    for (const key of ['setupConfirmed', 'memberScopeMatches', 'currentMemberBerthNull', 'currentCanonicalSeatOwned'])
+      result[key] = safeBoolean(current?.[key]);
+  }
+  if (current?.clientAcceptance) result.clientAcceptance = {
+    hasServerAuthority: safeBoolean(current.clientAcceptance.hasServerAuthority),
+    resumePending: safeBoolean(current.clientAcceptance.resumePending),
+  };
   return result;
 }
 function stationPointersMatch(player, current, roleId) {
@@ -75,16 +84,26 @@ function resumeReply(body) {
 /** Passive, operation-local evidence from the ordinary route's real SDK.
  * No forced resume, command, store setter, interception, or deadline extension. */
 export function createMemberNavigationResumeObserver(page, { directory, roleId, deadlineAt,
-  memberContract = 'current-berth', documentReload = false }) {
+  memberContract = 'current-berth', documentReload = false, transition = 'station-navigation',
+  expectedGmUidHash, expectedGmInstanceId }) {
   assert.ok(['current-berth', 'pc11-live-base'].includes(memberContract), 'Use an explicit supported member contract.');
   assert.equal(typeof documentReload, 'boolean', 'Use an explicit document reload contract.');
+  assert.ok(['station-navigation', 'casting-assignment'].includes(transition), 'Use an explicit member navigation transition.');
+  assert.ok(!documentReload || transition === 'station-navigation', 'Casting assignment cannot change documents.');
+  if (transition === 'casting-assignment') {
+    assert.ok(typeof expectedGmUidHash === 'string' && /^[a-f0-9]{16}$/.test(expectedGmUidHash),
+      'Casting assignment requires the original GM Auth identity hash.');
+    assert.ok(wireId(expectedGmInstanceId), 'Casting assignment requires the original GM instance.');
+  }
   if (typeof page?.on !== 'function' || typeof page?.off !== 'function') return null;
   const id = randomUUID(), folder = resolve(directory, 'member-navigation'), path = resolve(folder, `${id}.json`);
   const record = { schemaVersion: 1, operationId: id, roleId, deadlineAt,
     createdAt: new Date().toISOString(), status: 'observer-armed', initialRoute: safeRoute(page.url()), documentReload,
-    samples: [], events: [], transitions: [], noSdkOrGameplayActionIssued: true };
+    samples: [], events: [], transitions: [], ...(transition === 'station-navigation' ? {} : { transition }),
+    noSdkOrGameplayActionIssued: true };
   const requests = new Map(), listeners = [];
   let baseline, closed = false, writes = Promise.resolve();
+  const safeObservation = current => observation(current, transition === 'casting-assignment');
   const cleanReady = (value, original) => pc11MemberReadiness(value, {
     sessionId: original.sessionId, uidHash: original.uidHash, roleId, stage: 'station',
   }) && value.memberScopeMatches === true && value.fleetGroupId === original.fleetGroupId &&
@@ -113,7 +132,7 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
         ...(name === 'refreshPresence' ? { activeConsoleRoleId: safeId(data?.activeConsoleRoleId) } : {}) };
       append(detail);
       if (name === 'resumeSession' && baseline && Date.now() < deadlineAt) {
-        requests.set(request, { requestedAt: new Date().toISOString(), baseline: observation(baseline),
+        requests.set(request, { requestedAt: new Date().toISOString(), baseline: safeObservation(baseline),
           requestSessionId: safeId(data?.sessionId),
           requestMatches: !!data && Object.keys(data).length === 1 && Object.hasOwn(data, 'sessionId') && wireId(data.sessionId),
           endpoint: name });
@@ -144,16 +163,128 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
   });
   on('framenavigated', frame => append({ kind: 'framenavigated', route: safeRoute(frame.url()),
     mainFrame: typeof page.mainFrame === 'function' ? frame === page.mainFrame() : null }));
+  async function acceptCastingAssignment(original, current, readAcceptedCurrent, assignment) {
+    assert.equal(documentReload, false, 'Casting assignment must remain in the original document.');
+    assert.equal(original.documentTimeOrigin, current.documentTimeOrigin,
+      'Original casting assignment documentTimeOrigin changed.');
+    assert.ok(original.hasAuth === true && original.sameActor === true &&
+      typeof original.uidHash === 'string' && typeof original.sessionId === 'string' &&
+      original.meSessionId === original.sessionId && original.profileRoleId == null &&
+      original.profileSessionId == null && original.playerRole === 'player' && original.assignedRoleId == null &&
+      original.activeConsoleRoleId == null && original.seatId == null && original.connected === true &&
+      original.kicked === false && original.escapeLocked === false && original.replacementRoleId == null &&
+      original.replacementStatus == null && original.connection === 'live' && original.freshness === 'server' &&
+      original.currentOwnPlayerConfirmed === true && original.sdkHasServerAuthority === true &&
+      original.sdkResumePending === false && original.currentCanonicalSeatOwned === false &&
+      original.memberScopeMatches === true &&
+      (original.currentMemberBerthPresent === false || original.currentMemberBerthNull === true ||
+        original.currentMemberBerthMatches === true) &&
+      ['lobby', 'casting'].includes(original.phase) && original.cycle === 0 && original.setupConfirmed === true &&
+      Number.isSafeInteger(original.connectionGeneration) && original.connectionGeneration >= 1 &&
+      Number.isSafeInteger(original.identityHydrationRevision) && original.identityHydrationRevision >= 1,
+    'Casting assignment requires the original fresh, unseated member in lobby/casting Cycle 0.');
+    assert.equal(roleId, 'wing-commander', 'P181 accepts only its original Wing Commander casting assignment.');
+    assert.ok(assignment && assignment.endpoint === 'assignRole' && assignment.httpStatus === 200 &&
+      assignment.before?.sessionId === original.sessionId && assignment.before?.playerRole === 'gm' &&
+      assignment.before?.uidHash === expectedGmUidHash && assignment.before?.gmInstanceOwned === true &&
+      assignment.before?.instanceId === expectedGmInstanceId && assignment.before?.instanceId === assignment.data?.instanceId &&
+      assignment.data?.sessionId === original.sessionId && typeof assignment.data?.targetUid === 'string' &&
+      createHash('sha256').update(assignment.data.targetUid).digest('hex').slice(0, 16) === original.uidHash &&
+      assignment.data?.roleId === roleId && Number.isSafeInteger(assignment.before?.setupRevision) &&
+      (assignment.data?.expectedSetupRevision === undefined ||
+        assignment.data.expectedSetupRevision === assignment.before.setupRevision) &&
+      (!Object.hasOwn(assignment.result ?? {}, 'status') || ['committed', 'applied'].includes(assignment.result.status)) &&
+      assignment.result?.sessionId === original.sessionId &&
+      assignment.result?.setupRevision === assignment.before.setupRevision + 1,
+    'Casting resume requires the successful original GM assignRole target/role receipt.');
+
+    const candidates = [...requests.values()].filter(row => row.baseline.documentTimeOrigin === original.documentTimeOrigin &&
+      row.baseline.uidHash === original.uidHash && row.baseline.sessionId === original.sessionId &&
+      row.baseline.connectionGeneration === original.connectionGeneration &&
+      row.baseline.identityHydrationRevision === original.identityHydrationRevision);
+    await beforeDeadline(Promise.all(candidates.map(row => row.parsed ?? Promise.resolve())), deadlineAt);
+    assert.ok(Date.now() < deadlineAt, 'Original casting assignment deadline expired.');
+    assert.ok(candidates.length <= 1, 'Original casting assignment observed multiple normal resume requests.');
+    const candidate = candidates[0];
+    if (candidate) {
+      assert.ok(!candidate.requestFailed && candidate.requestMatches && candidate.requestSessionId === original.sessionId,
+        'Original casting assignment observed a mismatched normal resume request.');
+      if (candidate.respondedAt === undefined || candidate.bodyStatus === 'reading') return false;
+      assert.equal(candidate.httpStatus, 200, 'Original casting assignment normal resume must return HTTP 200.');
+      assert.ok(candidate.reply && candidate.reply.sessionId === original.sessionId &&
+        candidate.reply.uidHash === original.uidHash && candidate.reply.connectionGeneration === original.connectionGeneration + 1 &&
+        (candidate.reply.connected === true || !candidate.reply.connectedFieldPresent && candidate.reply.connected === null) &&
+        candidate.reply.player.role === 'player' && candidate.reply.player.fleetGroupId === original.fleetGroupId &&
+        candidate.reply.player.assignedRoleId === roleId && candidate.reply.player.activeConsoleRoleId === null &&
+        candidate.reply.player.seatId === null && candidate.reply.player.replacementRoleId === null &&
+        candidate.reply.player.replacementStatus === null && !candidate.reply.escapeLocked,
+      'Original casting assignment normal resume receipt changed its actor, role, fleet, lease or seat scope.');
+    }
+    const epochChanged = current.connectionGeneration !== original.connectionGeneration ||
+      current.identityHydrationRevision !== original.identityHydrationRevision;
+    if (epochChanged) {
+      assert.equal(current.connectionGeneration, original.connectionGeneration + 1,
+        'Original casting assignment changed more than one normal member lease.');
+      assert.equal(current.identityHydrationRevision, original.identityHydrationRevision + 1,
+        'Original casting assignment changed more than one mounted hydration revision.');
+      assert.ok(candidate, 'Original casting assignment epoch changed without its captured normal resume receipt.');
+      assert.equal(candidate.reply.connectionGeneration, current.connectionGeneration,
+        'Original casting assignment lease does not match its normal resume receipt.');
+    } else {
+      assert.ok(current.connectionGeneration === original.connectionGeneration &&
+        current.identityHydrationRevision === original.identityHydrationRevision,
+      'Original casting assignment changed its member epoch unexpectedly.');
+      assert.equal(candidate, undefined,
+        'Original casting assignment observed a normal resume without its matching new member epoch.');
+    }
+    const ready = value => memberContract === 'pc11-live-base' && pc11MemberReadiness(value, {
+      sessionId: original.sessionId, uidHash: original.uidHash, roleId, stage: 'casting',
+    }) && value.phase === 'casting' && value.cycle === 0 && value.setupConfirmed === true &&
+      value.sdkResumePending === false && value.memberScopeMatches === true &&
+      value.currentCanonicalSeatOwned === false && value.seatId == null && value.activeConsoleRoleId == null &&
+      (value.currentMemberBerthPresent === false || value.currentMemberBerthNull === true ||
+        value.currentMemberBerthMatches === true);
+    assert.ok(ready(current), 'Original casting assignment must reach fresh, current, unseated casting readiness.');
+    if (candidate) assert.ok(stableMemberFields.every(key => candidate.reply.player[key] === current[observationField[key] ?? key]),
+      'Original casting assignment resume reply changed the current member scope.');
+    const settled = await beforeDeadline(readAcceptedCurrent(), deadlineAt);
+    assert.ok(Date.now() < deadlineAt, 'Original casting assignment SDK acceptance arrived after its deadline.');
+    for (const key of stableObservationFields.filter(key => key !== 'assignedRoleId'))
+      assert.equal(settled[key], original[key], `Original casting assignment ${key} changed during client acceptance.`);
+    assert.equal(settled.assignedRoleId, roleId, 'Original casting assignment must publish only its exact selected role.');
+    assert.equal(settled.connectionGeneration, current.connectionGeneration);
+    assert.equal(settled.identityHydrationRevision, current.identityHydrationRevision);
+    assert.ok(ready(settled) && settled.sdkResumePending === false,
+      'Original casting assignment SDK hydration or own-member readiness changed during acceptance.');
+    current = settled;
+    const finalCandidates = [...requests.values()].filter(row => row.baseline.documentTimeOrigin === original.documentTimeOrigin &&
+      row.baseline.uidHash === original.uidHash && row.baseline.sessionId === original.sessionId &&
+      row.baseline.connectionGeneration === original.connectionGeneration &&
+      row.baseline.identityHydrationRevision === original.identityHydrationRevision);
+    assert.equal(finalCandidates.length, candidates.length,
+      'Original casting assignment received a late normal resume outside the selected member epoch.');
+    record.transitions.push({ status: epochChanged ? 'accepted-casting-normal-resume-bound' : 'accepted-casting-same-epoch',
+      at: new Date().toISOString(), before: safeObservation(original), current: safeObservation(current),
+      assignment: { endpoint: assignment.endpoint, httpStatus: assignment.httpStatus,
+        sessionId: assignment.data.sessionId, targetUidHash: original.uidHash, roleId: assignment.data.roleId,
+        setupRevision: assignment.result.setupRevision },
+      ...(candidate ? { receipt: { requestedAt: candidate.requestedAt, respondedAt: candidate.respondedAt,
+        requestSessionId: candidate.requestSessionId, httpStatus: candidate.httpStatus, reply: candidate.reply } } : {}) });
+    baseline = safeObservation(current); record.currentBinding = baseline;
+    await beforeDeadline(persist(), deadlineAt); return current;
+  }
   return {
     path,
-    sample(current) { record.samples.push({ at: new Date().toISOString(), route: safeRoute(page.url()), current: observation(current) }); },
-    bind(current) { baseline = observation(current); record.currentBinding = baseline; },
+    sample(current) { record.samples.push({ at: new Date().toISOString(), route: safeRoute(page.url()), current: safeObservation(current) }); },
+    bind(current) { baseline = safeObservation(current); record.currentBinding = baseline; },
     async prepare(current) {
-      baseline = observation(current); record.originalBinding = baseline; record.currentBinding = baseline;
+      baseline = safeObservation(current); record.originalBinding = baseline; record.currentBinding = baseline;
       record.preparedAt = new Date().toISOString(); record.status = 'bound-before-navigation'; await persist();
     },
-    async accept(original, current, readAcceptedCurrent) {
+    async accept(original, current, readAcceptedCurrent, assignment) {
       assert.ok(Date.now() < deadlineAt, 'Original role navigation deadline expired.');
+      if (transition === 'casting-assignment')
+        return acceptCastingAssignment(original, current, readAcceptedCurrent, assignment);
       if (documentReload) assert.ok(Number.isFinite(current.documentTimeOrigin) &&
         current.documentTimeOrigin > original.documentTimeOrigin,
         'Original reload must publish a new document before accepting its SDK resume.');
@@ -229,10 +360,10 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
         'Original resumed station pointers require canonical current ownership.');
       current = settled;
       record.transitions.push({ status: 'accepted-normal-resume-bound', at: new Date().toISOString(),
-        before: observation(original), current: observation(current), receipt: {
+        before: safeObservation(original), current: safeObservation(current), receipt: {
           requestedAt: receipt.requestedAt, respondedAt: receipt.respondedAt, requestSessionId: receipt.requestSessionId,
-          httpStatus: receipt.httpStatus, reply: receipt.reply }, clientAcceptance: observation(current).clientAcceptance });
-      baseline = observation(current); record.currentBinding = baseline; await persist(); return current;
+          httpStatus: receipt.httpStatus, reply: receipt.reply }, clientAcceptance: safeObservation(current).clientAcceptance });
+      baseline = safeObservation(current); record.currentBinding = baseline; await persist(); return current;
     },
     async finish(error) {
       closed = true;

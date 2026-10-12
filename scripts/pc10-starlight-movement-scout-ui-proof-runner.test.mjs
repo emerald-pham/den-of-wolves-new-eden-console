@@ -2013,7 +2013,9 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
       onAuthStateChanged: next => { authListeners.add(next); return () => authListeners.delete(next); },
       authStateReady: async () => { surface.authReadinessCalls = (surface.authReadinessCalls ?? 0) + 1; await surface.authReady; },
     }) };
-    if (path === '/src/lib/demoActorContext.ts') return { activeDemoActorProfile: null };
+    if (path === '/src/lib/demoActorContext.ts') return { get activeDemoActorProfile() {
+      return surface.activeDemoActorProfile ?? null;
+    } };
     if (path.includes('useSessionStore')) return { useSessionStore: { getState: () => state,
       subscribe: listener => { surface.observers.storeAttachments++; storeListeners.add(listener);
         return () => { if (storeListeners.delete(listener)) surface.observers.storeDetachments++; }; } } };
@@ -2062,7 +2064,7 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
       method: () => 'POST', postDataJSON: () => ({ data }), isNavigationRequest: () => false };
     const response = { url: request.url, request: () => request, status: () => status,
       json: async () => { observedBodies.push({ endpoint, data, result, error });
-        if (bodyWait) await bodyWait();
+        if (bodyWait) await (typeof bodyWait === 'function' ? bodyWait() : bodyWait);
         return error ? { error } : { result }; } };
     page.emit('request', request); page.emit('response', response);
     if (pending?.predicate(response)) { const current = pending; pending = null; current.resolveResponse(response); }
@@ -2085,7 +2087,8 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
 
 async function actualP181CastingAssignmentFixture(t, { assignmentTarget, assignmentRole, deferMemberTransition = false,
   resumeGeneration = 3, resumeHydration = 4, resumeStatus = 200, resumeSessionId = 'normal-session',
-  resumeUid = 'wing-uid', resumeAssignedRoleId = 'wing-commander' } = {}) {
+  resumeUid = 'wing-uid', resumeAssignedRoleId = 'wing-commander', deliverResume = true,
+  resumeBodyWait, observerDeadlineMs = 4_000 } = {}) {
   const wing = mountedP181Surface('wing-uid', { casting: true });
   wing.state.session.phase = 'lobby'; wing.state.session.setupConfirmed = true; wing.state.session.setupRevision = 1;
   wing.state.me.assignedRoleId = null; wing.state.me.activeConsoleRoleId = null; wing.state.me.seatId = null;
@@ -2093,15 +2096,17 @@ async function actualP181CastingAssignmentFixture(t, { assignmentTarget, assignm
   wing.state.session.currentActorBerthAuthority = { ...wing.state.session.currentActorBerthAuthority,
     assignedRoleId: null, activeConsoleRoleId: null };
   const before = await observeFullGameDemoPresentationMember(wing, { knownRoleIds: originalRoleIds });
-  const directory = await mkdtemp('/tmp/p181-casting-assignment-resume-');
-  const observer = createMemberNavigationResumeObserver(wing.page, { directory, roleId: 'wing-commander',
-    deadlineAt: Date.now() + 4_000, memberContract: 'pc11-live-base' });
-  await observer.prepare(before);
-  t.after(async () => { await observer.finish().catch(() => {}); });
-
   const gm = mountedP181Surface('original-gm', { gm: true, casting: true });
   gm.state.session.phase = 'lobby'; gm.state.session.setupConfirmed = true; gm.state.session.setupRevision = 1;
   const gmBefore = await observeLifecycleActor(gm, 'normal-session');
+  const directory = await mkdtemp('/tmp/p181-casting-assignment-resume-');
+  const observer = createMemberNavigationResumeObserver(wing.page, { directory, roleId: 'wing-commander',
+    deadlineAt: Date.now() + observerDeadlineMs, memberContract: 'pc11-live-base', transition: 'casting-assignment',
+    expectedGmUidHash: createHash('sha256').update(gm.uid).digest('hex').slice(0, 16),
+    expectedGmInstanceId: gm.state.gmInstance.id });
+  await observer.prepare(before);
+  t.after(async () => { await observer.finish().catch(() => {}); });
+
   const data = { sessionId: 'normal-session', instanceId: gm.state.gmInstance.id,
     requestId: 'assign-original', expectedSetupRevision: gm.state.session.setupRevision,
     targetUid: assignmentTarget ?? wing.uid, roleId: assignmentRole ?? 'wing-commander' };
@@ -2112,23 +2117,27 @@ async function actualP181CastingAssignmentFixture(t, { assignmentTarget, assignm
   }, { original: gmBefore, gm: true, normalSetup: true, sdkAuthority: true, deadlineAt: Date.now() + 3_000 });
 
   const applyAssignmentAndResume = async () => {
-    wing.state.session.phase = 'casting'; wing.state.session.setupRevision = 2;
-    wing.state.me.assignedRoleId = 'wing-commander';
-    wing.state.connection = 'connecting'; wing.state.sessionSnapshotFreshness = 'cache';
-    wing.state.sdkResumePending = true;
-    wing.state.session.currentActorBerthAuthority = { ...wing.state.session.currentActorBerthAuthority,
-      assignedRoleId: 'wing-commander' };
-    wing.publish(() => {});
-    wing.state.me.connectionGeneration = resumeGeneration;
-    wing.state.identityHydrationRevision = resumeHydration;
-    wing.state.session.currentActorBerthAuthority = { ...wing.state.session.currentActorBerthAuthority,
-      connectionGeneration: resumeGeneration };
-    wing.publish(() => {});
-    wing.deliver('resumeSession', { sessionId: resumeSessionId }, { session: { id: resumeSessionId },
+    wing.publish(state => {
+      state.session.phase = 'casting'; state.session.setupRevision = 2;
+      state.me.assignedRoleId = 'wing-commander';
+      state.connection = 'connecting'; state.sessionSnapshotFreshness = 'cache';
+      state.sdkResumePending = true;
+      state.session.currentActorBerthAuthority = { ...state.session.currentActorBerthAuthority,
+        assignedRoleId: 'wing-commander' };
+    });
+    wing.publish(state => {
+      state.me.connectionGeneration = resumeGeneration;
+      state.identityHydrationRevision = resumeHydration;
+      state.session.currentActorBerthAuthority = { ...state.session.currentActorBerthAuthority,
+        connectionGeneration: resumeGeneration };
+    });
+    if (deliverResume) wing.deliver('resumeSession', { sessionId: resumeSessionId }, { session: { id: resumeSessionId },
       player: { ...wing.state.me, uid: resumeUid, sessionId: resumeSessionId,
-        assignedRoleId: resumeAssignedRoleId, connectionGeneration: resumeGeneration } }, { status: resumeStatus });
-    wing.state.sdkResumePending = false; wing.state.connection = 'live'; wing.state.sessionSnapshotFreshness = 'server';
-    wing.publish(() => {});
+        assignedRoleId: resumeAssignedRoleId, connectionGeneration: resumeGeneration } },
+    { status: resumeStatus, bodyWait: resumeBodyWait });
+    wing.publish(state => {
+      state.sdkResumePending = false; state.connection = 'live'; state.sessionSnapshotFreshness = 'server';
+    });
     return observeFullGameDemoPresentationMember(wing, { knownRoleIds: originalRoleIds });
   };
   const current = deferMemberTransition ? null : await applyAssignmentAndResume();
@@ -2137,6 +2146,13 @@ async function actualP181CastingAssignmentFixture(t, { assignmentTarget, assignm
 
 test('P181 casting assignment accepts only the original GM receipt and the member’s captured normal resume', async t => {
   const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true });
+  const sourceModule = await import('./pc10-starlight-movement-scout-ui-proof.mjs');
+  const assignmentAuthority = await sourceModule.retainP181MemberAuthority(f.wing, Date.now() + 3_000, {
+    mode: 'casting-assignment', castingRoleId: 'wing-commander',
+    expected: { sessionId: f.before.sessionId, uidHash: f.before.uidHash, fleetGroupId: f.before.fleetGroupId,
+      connectionGeneration: f.before.connectionGeneration,
+      identityHydrationRevision: f.before.identityHydrationRevision, documentTimeOrigin: f.before.documentTimeOrigin },
+  });
   const wait = await reconciledNativeWait(f.wing, 'full');
   let transitioned = false;
   f.wing.onDigest = async () => {
@@ -2147,7 +2163,7 @@ test('P181 casting assignment accepts only the original GM receipt and the membe
   const navigationStart = await wait(f.wing, 'Original Wing Commander assignment readiness', value =>
     pc11MemberReadiness(value, { sessionId: f.before.sessionId, uidHash: f.before.uidHash,
       roleId: 'wing-commander', stage: 'casting' }) && value.phase === 'casting' && value.cycle === 0 &&
-      value.sdkResumePending === false, Date.now() + 3_000, f.before);
+      value.sdkResumePending === false, Date.now() + 3_000, f.before, assignmentAuthority);
   assert.equal(transitioned, true, 'The mounted source consumer observed assignment and normal resume during its wait.');
   const accepted = await f.observer.accept(f.before, navigationStart,
     () => observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds }), f.assignment);
@@ -2159,7 +2175,142 @@ test('P181 casting assignment accepts only the original GM receipt and the membe
   assert.equal(f.assignment.data.targetUid, f.wing.uid);
   assert.equal(f.assignment.data.roleId, 'wing-commander');
   assert.equal(f.assignment.result.sessionId, f.before.sessionId);
+  await assignmentAuthority.close();
+  await f.observer.finish();
   assert.equal(f.wing.observers.stores.size, 0, 'The mounted readiness consumer leaves no Store observers attached.');
+  for (const event of ['request', 'response', 'requestfailed', 'framenavigated'])
+    assert.equal(f.wing.page.listenerCount(event), 0, `The passive resume observer removes its ${event} listener.`);
+});
+
+test('P181 casting assignment permits a same-epoch role receipt only with fully fresh unseated readiness', async t => {
+  const f = await actualP181CastingAssignmentFixture(t, {
+    resumeGeneration: 2, resumeHydration: 3, deliverResume: false,
+  });
+  const accepted = await f.observer.accept(f.before, f.current,
+    () => observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds }), f.assignment);
+  assert.ok(accepted);
+  assert.equal(accepted.connectionGeneration, f.before.connectionGeneration);
+  assert.equal(accepted.identityHydrationRevision, f.before.identityHydrationRevision);
+  assert.equal(accepted.sdkResumePending, false);
+  await f.observer.finish();
+});
+
+for (const [label, options, replacementReceipt, expected] of [
+  ['missing original GM receipt', {}, undefined, /receipt/i],
+  ['foreign GM target', { assignmentTarget: 'foreign-target' }, undefined, /receipt/i],
+  ['wrong selected role', { assignmentRole: 'admiral' }, undefined, /receipt|role/i],
+  ['missing ordinary resume', { deliverResume: false }, undefined, /receipt|resume/i],
+  ['foreign resume UID', { resumeUid: 'foreign-member' }, undefined, /receipt|scope|actor/i],
+  ['foreign resume session', { resumeSessionId: 'foreign-session' }, undefined, /receipt|request|session/i],
+  ['wrong resumed role', { resumeAssignedRoleId: 'admiral' }, undefined, /receipt|role|scope/i],
+  ['wrong resumed lease', { resumeGeneration: 4 }, undefined, /receipt|lease|epoch/i],
+  ['wrong resumed hydration', { resumeHydration: 5 }, undefined, /lease|hydration|epoch/i],
+  ['rejected resume response', { resumeStatus: 403 }, undefined, /HTTP 200|resume/i],
+  ['foreign original GM identity', {}, receipt => ({ ...receipt,
+    before: { ...receipt.before, uidHash: 'f'.repeat(16) } }), /receipt/i],
+  ['foreign original GM instance', {}, receipt => ({ ...receipt,
+    before: { ...receipt.before, instanceId: 'foreign-instance' } }), /receipt/i],
+  ['wrong committed setup revision', {}, receipt => ({ ...receipt,
+    result: { ...receipt.result, setupRevision: receipt.result.setupRevision + 1 } }), /receipt/i],
+]) {
+  test(`P181 casting assignment rejects ${label}`, async t => {
+    const f = await actualP181CastingAssignmentFixture(t, options);
+    const assignment = replacementReceipt ? replacementReceipt(f.assignment) : label === 'missing original GM receipt'
+      ? undefined : f.assignment;
+    await assert.rejects(f.observer.accept(f.before, f.current,
+      () => observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds }), assignment), expected);
+    await f.observer.finish();
+  });
+}
+
+test('P181 casting assignment times out on an ordinary resume body delivered after its original deadline', async t => {
+  let releaseBody;
+  const bodyWait = new Promise(resolveBody => { releaseBody = resolveBody; });
+  const f = await actualP181CastingAssignmentFixture(t, { resumeBodyWait: bodyWait, observerDeadlineMs: 70 });
+  try {
+    await assert.rejects(f.observer.accept(f.before, f.current,
+      () => observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds }), f.assignment), /deadline|expired/i);
+  } finally {
+    releaseBody();
+    await f.observer.finish();
+  }
+});
+
+async function castingAssignmentAuthorityFor(f) {
+  const sourceModule = await import('./pc10-starlight-movement-scout-ui-proof.mjs');
+  return sourceModule.retainP181MemberAuthority(f.wing, Date.now() + 2_000, {
+    mode: 'casting-assignment', castingRoleId: 'wing-commander',
+    expected: { sessionId: f.before.sessionId, uidHash: f.before.uidHash, fleetGroupId: f.before.fleetGroupId,
+      connectionGeneration: f.before.connectionGeneration,
+      identityHydrationRevision: f.before.identityHydrationRevision, documentTimeOrigin: f.before.documentTimeOrigin },
+  });
+}
+
+const transientCastingRetirements = [
+  ['Auth identity', async f => { f.wing.publishAuth(null); f.wing.publishAuth({ uid: 'wing-uid' }); }],
+  ['actor demotion', f => { f.wing.publish(state => { state.me.role = 'gm'; });
+    f.wing.publish(state => { state.me.role = 'player'; }); }],
+  ['fleet membership', f => { f.wing.publish(state => { state.me.fleetGroupId = 'fleet-2';
+    state.session.currentActorBerthAuthority = { ...state.session.currentActorBerthAuthority, groupId: 'fleet-2' }; });
+    f.wing.publish(state => { state.me.fleetGroupId = 'fleet-1';
+      state.session.currentActorBerthAuthority = { ...state.session.currentActorBerthAuthority, groupId: 'fleet-1' }; }); }],
+  ['kick', f => { f.wing.publish(state => { state.me.kickedAt = 'transient-kick'; });
+    f.wing.publish(state => { delete state.me.kickedAt; }); }],
+  ['escape lock', f => { f.wing.publish(state => { state.me.escapeState = { status: 'locked' }; });
+    f.wing.publish(state => { delete state.me.escapeState; }); }],
+  ['replacement', f => { f.wing.publish(state => { state.me.replacementRoleId = 'admiral';
+    state.me.replacementStatus = 'pending'; }); f.wing.publish(state => {
+    delete state.me.replacementRoleId; delete state.me.replacementStatus; }); }],
+  ['disconnect', f => { f.wing.publish(state => { state.connection = 'offline'; });
+    f.wing.publish(state => { state.connection = 'live'; }); }],
+  ['station claim before chooser', f => { f.wing.publish(state => {
+    state.me.activeConsoleRoleId = 'wing-commander'; state.me.seatId = 'wing-commander';
+    state.seats[0] = { ...state.seats[0], status: 'claimed', holderUid: 'wing-uid' };
+  }); }],
+  ['member lease', f => { f.wing.publish(state => { state.me.connectionGeneration += 2; });
+    f.wing.publish(state => { state.me.connectionGeneration -= 2; }); }],
+  ['mounted hydration', f => { f.wing.publish(state => { state.identityHydrationRevision += 2; });
+    f.wing.publish(state => { state.identityHydrationRevision -= 2; }); }],
+  ['SDK server fence', f => { f.wing.publish(state => { state.sdkHasServerAuthority = false; });
+    f.wing.publish(state => { state.sdkHasServerAuthority = true; }); }],
+  ['settled resume pending fence', f => { f.wing.publish(state => { state.sdkResumePending = true; });
+    f.wing.publish(state => { state.sdkResumePending = false; }); }],
+  ['actor profile', async (f, authority) => { f.wing.activeDemoActorProfile = { roleId: 'admiral', sessionId: 'normal-session' };
+    await authority.check(); }],
+];
+
+for (const [label, retire] of transientCastingRetirements) {
+  test(`P181 casting assignment keeps ${label} retirement terminal across restoration`, async t => {
+    const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true });
+    const authority = await castingAssignmentAuthorityFor(f);
+    const wait = await reconciledNativeWait(f.wing, 'full');
+    let injected = false;
+    f.wing.onDigest = async () => {
+      if (injected) return;
+      injected = true;
+      await f.applyAssignmentAndResume();
+      await retire(f, authority);
+    };
+    try {
+      await assert.rejects(wait(f.wing, 'Original casting assignment readiness', value =>
+        pc11MemberReadiness(value, { sessionId: f.before.sessionId, uidHash: f.before.uidHash,
+          roleId: 'wing-commander', stage: 'casting' }) && value.phase === 'casting' &&
+          value.sdkResumePending === false, Date.now() + 1_800, f.before, authority),
+      /retir|authority|identity|role|fleet|seat|berth|fence|document|profile|lease|hydration/i);
+      assert.equal(injected, true);
+    } finally {
+      await authority.close().catch(() => {});
+      await f.observer.finish();
+    }
+  });
+}
+
+test('P181 casting assignment authority retires on document replacement', async t => {
+  const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true });
+  const authority = await castingAssignmentAuthorityFor(f);
+  f.wing.documentTimeOrigin = 2000;
+  try { await assert.rejects(authority.check(), /documentTimeOrigin|document|observation/i); }
+  finally { await authority.close().catch(() => {}); await f.observer.finish(); }
 });
 
 async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate = false, lateCommit = false,

@@ -775,11 +775,16 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
     if (!Number.isFinite(deadlineAt) || Date.now() >= deadlineAt) throw timeout();
     if (window[key]) throw new Error('Another P181 observation already owns this original document.');
     const { auth } = await import('/src/lib/firebase.ts');
+    const profileContext = options.mode === 'casting-assignment'
+      ? await import('/src/lib/demoActorContext.ts') : null;
     const client = auth();
     const held = { id, options, failure: null, fresh: false, stops: [], timer: null,
       rawUid: client.currentUser?.uid ?? null, timeOrigin: performance.timeOrigin,
       store: null, authority: null, resumePending: null, signature: null, connectedSeen: false,
-      serverSeen: false, sdkCompleted: false, latestGeneration: 0, latestHydration: 0 };
+      serverSeen: false, sdkCompleted: false, latestGeneration: 0, latestHydration: 0,
+      castingEpoch: null, castingAssignedSeen: false, castingPhaseSeen: false,
+      castingResumeSettled: false, castingPendingSeen: false, castingBerthSeen: false,
+      castingBerthBinding: null };
     window[key] = held;
     held.completed = new Promise(resolve => { held.complete = resolve; });
     held.stop = () => {
@@ -796,6 +801,10 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       if (held.options.mode === 'auth-only') return;
       const me = state?.me, session = state?.session;
       const startup = held.options.mode === 'startup', navigation = held.options.mode === 'navigation';
+      const castingAssignment = held.options.mode === 'casting-assignment';
+      const castingRoleId = held.options.castingRoleId ?? 'wing-commander';
+      if (castingAssignment && castingRoleId !== 'wing-commander')
+        throw new Error('Original P181 casting assignment role changed.');
       if (!user || !session || !me) {
         if ((startup || navigation) && !held.signature && user) return;
         throw new Error('Original P181 member authority retired.');
@@ -812,15 +821,75 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       const sdk = held.authority?.(session.id, user.uid), pending = held.resumePending?.(sdk) ?? true;
       if (sdk?.hasServerSessionAuthority === true) held.serverSeen = true;
       if (sdk?.hasServerSessionAuthority === true && pending === false) held.sdkCompleted = true;
+      if (castingAssignment) {
+        const profile = profileContext?.activeDemoActorProfile ?? null;
+        if (profile?.roleId != null || profile?.sessionId != null)
+          throw new Error('Original P181 casting actor profile changed.');
+        if (me.role !== 'player' || me.assignedRoleId != null && me.assignedRoleId !== castingRoleId ||
+            me.activeConsoleRoleId != null || me.seatId != null || session.currentTurn !== 0 ||
+            !['lobby', 'casting'].includes(session.phase) || session.setupConfirmed !== true ||
+            !['live', 'connecting'].includes(state.connection) || me.connected !== true)
+          throw new Error('Original P181 casting actor, role, seat, phase or connection changed.');
+        if (held.castingAssignedSeen && me.assignedRoleId !== castingRoleId)
+          throw new Error('Original P181 casting assignment role was retired.');
+        if (me.assignedRoleId === castingRoleId) held.castingAssignedSeen = true;
+        if (held.castingPhaseSeen && session.phase !== 'casting')
+          throw new Error('Original P181 casting phase was retired.');
+        if (session.phase === 'casting') held.castingPhaseSeen = true;
+        if (held.serverSeen && sdk?.hasServerSessionAuthority !== true)
+          throw new Error('Original P181 casting SDK server authority retired.');
+        if (held.castingResumeSettled && pending !== false)
+          throw new Error('Original P181 casting SDK resume fence reopened.');
+        if (pending === true) held.castingPendingSeen = true;
+        if (held.castingPendingSeen && pending === false && held.castingEpoch &&
+            me.connectionGeneration === held.castingEpoch.connectionGeneration + 1)
+          held.castingResumeSettled = true;
+        const expected = held.options.expected ?? {};
+        const generation = expected.connectionGeneration ?? held.castingEpoch?.connectionGeneration ?? me.connectionGeneration;
+        const hydration = expected.identityHydrationRevision ?? held.castingEpoch?.identityHydrationRevision ?? state.identityHydrationRevision;
+        if (!Number.isSafeInteger(me.connectionGeneration) || !Number.isSafeInteger(state.identityHydrationRevision) ||
+            ![generation, generation + 1].includes(me.connectionGeneration) ||
+            ![hydration, hydration + 1].includes(state.identityHydrationRevision) ||
+            held.castingEpoch && (me.connectionGeneration < held.castingEpoch.latestGeneration ||
+              state.identityHydrationRevision < held.castingEpoch.latestHydration))
+          throw new Error('Original P181 casting member lease or hydration changed outside its one normal resume.');
+        held.castingEpoch ??= { connectionGeneration: generation, identityHydrationRevision: hydration,
+          latestGeneration: me.connectionGeneration, latestHydration: state.identityHydrationRevision };
+        held.castingEpoch.latestGeneration = me.connectionGeneration;
+        held.castingEpoch.latestHydration = state.identityHydrationRevision;
+        const targetSeats = state.seats?.filter(seat => seat.id === castingRoleId ||
+          (seat.roleId ?? seat.id) === castingRoleId) ?? [];
+        if (targetSeats.some(seat => seat.status === 'claimed' && seat.holderUid === user.uid))
+          throw new Error('Original P181 casting actor claimed its station before the chooser.');
+        const berth = session.currentActorBerthAuthority;
+        if (berth) {
+          if (berth.actorUid !== user.uid || berth.sessionId !== session.id ||
+              berth.groupId !== (me.fleetGroupId ?? null) || berth.role !== 'player' ||
+              !berth.shipId || berth.replacementRoleId != null || berth.replacementStatus != null ||
+              berth.assignedRoleId != null && berth.assignedRoleId !== castingRoleId ||
+              berth.activeConsoleRoleId != null ||
+              ![generation, generation + 1].includes(berth.connectionGeneration))
+            throw new Error('Original P181 casting member berth changed.');
+          const binding = { ...berth, assignedRoleId: null, activeConsoleRoleId: null, connectionGeneration: null };
+          if (held.castingBerthBinding && JSON.stringify(binding) !== JSON.stringify(held.castingBerthBinding))
+            throw new Error('Original P181 casting member berth identity or fleet changed.');
+          held.castingBerthBinding ??= binding;
+          held.castingBerthSeen = true;
+        } else if (held.castingBerthSeen) throw new Error('Original P181 casting member berth was retired.');
+        if (targetSeats.length && held.castingSeatBinding &&
+            JSON.stringify(targetSeats) !== JSON.stringify(held.castingSeatBinding))
+          throw new Error('Original P181 casting station seat changed before the chooser.');
+        held.castingSeatBinding ??= targetSeats;
+      }
       if (held.authority && (!startup && !navigation || startup && held.sdkCompleted && !held.options.navigationFrom) &&
-          (sdk?.hasServerSessionAuthority !== true || pending))
+          !castingAssignment && (sdk?.hasServerSessionAuthority !== true || pending))
         throw new Error('Original P181 SDK authority retired.');
       if (held.options.requireGm && (me.role !== 'gm' || state.gmInstance?.uid !== user.uid ||
           state.gmInstance.sessionId !== session.id || state.gmRecoveryPending === true))
         throw new Error('Original P181 GM role or instance authority retired.');
       if (held.options.expected?.instanceId && state.gmInstance?.id !== held.options.expected.instanceId)
         throw new Error('Original P181 GM instance changed.');
-      if (!['live', 'offline', 'connecting'].includes(state.connection) ||
+      if (!(castingAssignment ? ['live', 'connecting'] : ['live', 'offline', 'connecting']).includes(state.connection) ||
           !['server', 'cache', ...(startup || navigation ? ['unknown'] : [])].includes(state.sessionSnapshotFreshness))
         throw new Error('Original P181 freshness is not an eligible readiness transition.');
       const navigationFrom = held.options.navigationFrom;
@@ -834,10 +903,10 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       for (const [key, value] of Object.entries({ documentTimeOrigin: performance.timeOrigin,
         playerRole: me.role, fleetGroupId: me.fleetGroupId ?? null,
         phase: session.phase, cycle: session.currentTurn,
-        ...(!startup ? { assignedRoleId: me.assignedRoleId ?? null } : {}),
+        ...(!startup && !castingAssignment ? { assignedRoleId: me.assignedRoleId ?? null } : {}),
         ...(!startup && !navigationFrom ? { activeConsoleRoleId: me.activeConsoleRoleId ?? null,
           seatId: me.seatId ?? null } : {}),
-        ...(!navigation && !navigationFrom ? { connectionGeneration: me.connectionGeneration,
+        ...(!navigation && !navigationFrom && !castingAssignment ? { connectionGeneration: me.connectionGeneration,
           identityHydrationRevision: state.identityHydrationRevision } : {}) })) {
         if (expected && Object.hasOwn(expected, key) && expected[key] !== value)
           throw new Error('Original expected P181 ' + key + ' authority changed.');
@@ -851,7 +920,13 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
         instance: state.gmInstance ?? null,
         ...(held.options.pinControl ? { custody: session.shuttleControl?.starlight ?? null } : {}),
         ...(held.options.pinDocking ? { docking: session.shuttleDockings?.filter(row => row.shuttleId === 'starlight') ?? [] } : {}),
-        ...(!navigation && !navigationFrom ? { generation: me.connectionGeneration, hydration: state.identityHydrationRevision } : {}) };
+        ...(!navigation && !navigationFrom && !castingAssignment
+          ? { generation: me.connectionGeneration, hydration: state.identityHydrationRevision } : {}) };
+      if (castingAssignment) {
+        member.phase = 'casting'; member.cycle = 0; member.assigned = castingRoleId;
+        member.active = null; member.seat = null; member.ownSeat = held.castingSeatBinding;
+        member.berth = held.castingBerthBinding;
+      }
       // The observed ordinary resume is the sole navigation exception. Its
       // new document owns its hydration counter; station authority is pinned
       // only after navigation.accept validates the actual captured receipt.
@@ -2829,13 +2904,14 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
   const readFullActor = async (surface, deadlineAt = operationDeadline()) => bounded(
     'Read original Auth/session/SDK readiness tuple', () => observeFullGameDemoPresentationMember(surface,
       { knownRoleIds: P181_NORMAL_SETUP.roleIds }), deadlineAt);
-  const waitForFullActor = async (surface, description, predicate, deadlineAt, normalNavigationFrom) => {
+  const waitForFullActor = async (surface, description, predicate, deadlineAt, normalNavigationFrom, authorityOverride) => {
     const readDeadlineAt = Math.min(deadlineAt, Date.now() + P181_NATIVE_TIMING.operationTimeoutMs);
     let current, original, latestGeneration = 0, latestHydration = 0;
     const ownedUid = ownedAuthUids.get(surface === gm ? 'gm' : 'wing-commander');
-    const authority = await bounded('Retain original startup authority', () => retainP181MemberAuthority(surface, readDeadlineAt, {
-      mode: 'startup', expected: { sessionId, ...(ownedUid ? { uidHash: hashShort(ownedUid) } : {}) },
-      navigationFrom: normalNavigationFrom, startCycleOne: true }), readDeadlineAt);
+    const authority = authorityOverride ?? await bounded('Retain original startup authority', () =>
+      retainP181MemberAuthority(surface, readDeadlineAt, {
+        mode: 'startup', expected: { sessionId, ...(ownedUid ? { uidHash: hashShort(ownedUid) } : {}) },
+        navigationFrom: normalNavigationFrom, startCycleOne: true }), readDeadlineAt);
     let failure;
     try {
     while (Date.now() < readDeadlineAt) {
@@ -2876,7 +2952,11 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
     }
     throw new Error(`${description}: ${JSON.stringify(current)}`);
     } catch (error) { failure = error; throw error; }
-    finally { try { await authority.close(); } catch (error) { if (!failure) throw error; } }
+    finally {
+      if (!authorityOverride) {
+        try { await authority.close(); } catch (error) { if (!failure) throw error; }
+      }
+    }
   };
   const readGmRecoveryPending = (surface, deadlineAt = operationDeadline()) => bounded(
     'Read original GM recovery state', () => surface.page.evaluate(async moduleUrl => {
@@ -3296,22 +3376,67 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
         const castingUiEnd = Math.min(deadlineAt, Date.now() + 35_000);
         await bounded('Select original Wing Commander casting role', () => casting.getByLabel(`Role for ${displayName}`, { exact: true })
           .selectOption(P181_NORMAL_SETUP.wingCommanderRoleId, { timeout: p181Remaining(castingUiEnd) }), castingUiEnd);
-        const assignment = await captureAction(gm, 'assignRole', () =>
-          casting.getByRole('button', { name: `Assign role to ${displayName}`, exact: true })
-            .click({ timeout: Math.min(35_000, deadlineAt - Date.now()) }), deadlineAt);
-        const navigationStart = await waitForFullActor(wingCommander,
-          'Original normal Wing Commander assignment readiness before station navigation', value =>
-          pc11MemberReadiness(value, { sessionId, uidHash: admittedAuth.uidHash,
+        const castingDeadlineAt = Math.min(deadlineAt, Date.now() + P181_NATIVE_TIMING.operationTimeoutMs);
+        const castingResume = createMemberNavigationResumeObserver(wingCommander.page, { directory,
+          roleId: P181_NORMAL_SETUP.wingCommanderRoleId, deadlineAt: castingDeadlineAt,
+          memberContract: 'pc11-live-base', transition: 'casting-assignment',
+          expectedGmUidHash: hashShort(ownedAuthUids.get('gm')), expectedGmInstanceId: gmInstanceId });
+        assert.ok(castingResume, 'Observe the original member’s ordinary casting resume before assignment.');
+        let castingAuthority, assignment, navigationStart, navigation, castingFailure;
+        try {
+          await bounded('Prepare original casting assignment resume observer',
+            () => castingResume.prepare(admitted), castingDeadlineAt);
+          castingAuthority = await bounded('Retain original casting assignment authority', () =>
+            retainP181MemberAuthority(wingCommander, castingDeadlineAt, { mode: 'casting-assignment',
+              castingRoleId: P181_NORMAL_SETUP.wingCommanderRoleId,
+              expected: { sessionId, uidHash: hashShort(admittedAuth.uid),
+                fleetGroupId: admitted.fleetGroupId, connectionGeneration: admitted.connectionGeneration,
+                identityHydrationRevision: admitted.identityHydrationRevision,
+                documentTimeOrigin: admitted.documentTimeOrigin } }), castingDeadlineAt);
+          assignment = await captureAction(gm, 'assignRole', () =>
+            casting.getByRole('button', { name: `Assign role to ${displayName}`, exact: true })
+              .click({ timeout: Math.min(35_000, castingDeadlineAt - Date.now()) }), castingDeadlineAt);
+          const castingReady = value => pc11MemberReadiness(value, { sessionId, uidHash: admittedAuth.uidHash,
             roleId: P181_NORMAL_SETUP.wingCommanderRoleId, stage: 'casting' }) &&
-          value.phase === 'casting' && value.cycle === 0 && value.sdkResumePending === false,
-        deadlineAt);
-        trace.push('wing-commander-normal-join-and-consent', 'assignRole');
+            value.phase === 'casting' && value.cycle === 0 && value.sdkResumePending === false;
+          while (Date.now() < castingDeadlineAt) {
+            const current = await waitForFullActor(wingCommander,
+              'Original normal Wing Commander assignment readiness before station navigation', castingReady,
+              castingDeadlineAt, admitted, castingAuthority);
+            await castingAuthority.check();
+            const accepted = await castingResume.accept(admitted, current,
+              () => readFullActor(wingCommander, castingDeadlineAt), assignment);
+            if (accepted) { navigationStart = accepted; break; }
+            await bounded('Wait for original casting resume acceptance', () =>
+              Promise.race([delay(Math.min(100, castingDeadlineAt - Date.now())), castingAuthority.failed]), castingDeadlineAt);
+          }
+          assert.ok(navigationStart, 'Original casting assignment did not reach captured normal resume acceptance.');
+          await castingAuthority.check();
+          navigation = createMemberNavigationResumeObserver(wingCommander.page, { directory,
+            roleId: P181_NORMAL_SETUP.wingCommanderRoleId, deadlineAt, memberContract: 'pc11-live-base' });
+          await bounded('Prepare original station navigation observer',
+            () => navigation.prepare(navigationStart), deadlineAt);
+        } catch (error) { castingFailure = error; }
+        finally {
+          if (castingAuthority) {
+            try { await bounded('Close original casting assignment authority', () => castingAuthority.close(),
+              Math.min(cleanupDeadlineAt, castingDeadlineAt + 5_000)); }
+            catch (error) { castingFailure ??= error; }
+          }
+          try { await bounded('Close original casting assignment resume observer',
+            () => castingResume.finish(castingFailure), Math.min(cleanupDeadlineAt, castingDeadlineAt + 5_000)); }
+          catch (error) { castingFailure ??= error; }
+          if (castingFailure && navigation) {
+            try { await bounded('Close original station navigation observer after casting failure',
+              () => navigation.finish(castingFailure), Math.min(cleanupDeadlineAt, deadlineAt + 5_000)); }
+            catch (error) { castingFailure ??= error; }
+          }
+        }
+        if (castingFailure) throw castingFailure;
+        trace.push('wing-commander-normal-join-and-consent', 'assignRole', 'casting-assignment-resume-accepted');
 
-        const navigation = createMemberNavigationResumeObserver(wingCommander.page, { directory,
-          roleId: P181_NORMAL_SETUP.wingCommanderRoleId, deadlineAt, memberContract: 'pc11-live-base' });
         let station, navigationError;
         try {
-          await bounded('Prepare original station navigation observer', () => navigation.prepare(navigationStart), deadlineAt);
           const roleLink = wingCommander.page.locator('a[href$="/roles/wing-commander"]').first();
           const navigationUiEnd = Math.min(deadlineAt, Date.now() + 35_000);
           await bounded('Wait for original station chooser', () => roleLink.waitFor({ state: 'visible', timeout: p181Remaining(navigationUiEnd) }), navigationUiEnd);
