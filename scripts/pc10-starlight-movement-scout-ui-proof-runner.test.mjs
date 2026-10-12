@@ -2162,6 +2162,7 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
         ...(name === 'listPendingScoutRequests' ? { instanceId: state.gmInstance.id } : {}) };
       return (await surface.callable(name, payload)).result;
     }]));
+    if (surface.bayRuntimeModules && Object.hasOwn(surface.bayRuntimeModules, path)) return surface.bayRuntimeModules[path];
     throw new Error(`Unexpected controlled mounted module ${path}`);
   };
   page.evaluate = async (callback, args) => {
@@ -2172,7 +2173,7 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
         const digest = await webcrypto.subtle.digest(...values); await surface.onDigest?.(String(callback)); return digest;
       } } }, TextEncoder, performance: { timeOrigin: surface.documentTimeOrigin ?? 1000 },
       Date, URL, setTimeout, clearTimeout, window: surface.window,
-      document: { querySelector: () => null, querySelectorAll: () => [] } });
+      document: surface.document ?? { querySelector: () => null, querySelectorAll: () => [] } });
     return result === undefined ? undefined : JSON.parse(JSON.stringify(result));
   };
   page.url = () => `http://127.0.0.1:5173/${route}`;
@@ -2196,9 +2197,13 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
   const locator = name => ({
     getByRole: (_role, options) => locator(options?.name), getByLabel: label => locator(label),
     locator: () => locator(name), first() { return this; },
-    waitFor: async () => {}, count: async () => 1, all: async () => [], check: async () => {},
+    waitFor: async () => {}, count: async () => 1, all: async () => [],
+    check: async () => { await surface.onCheck?.(String(name)); },
+    scrollIntoViewIfNeeded: async () => {},
     isVisible: async () => name !== 'Retry arrival', isEnabled: async () => true,
-    fill: async value => { surface.input = value; }, selectOption: async value => { surface.input = value; },
+    fill: async value => { surface.input = value; }, selectOption: async value => {
+      surface.input = value; await surface.onSelection?.(String(name), value);
+    },
     inputValue: async () => surface.input ?? 'icebreaker', evaluateAll: async () => ['icebreaker', 'shepherd'],
     click: async () => { choices.push(String(name)); await surface.onChoice?.(String(name)); },
   });
@@ -2851,7 +2856,7 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
   scopeStall = false, launchStall = false, foreignState = false, clock, coreInput,
   directory, closeOwned, terminateOwned, writeOutcome, configureSurfaces, afterGmClaim,
   servedEnvironmentChange, unclaimedWingSeat = false, rejectedMessage = 'ordinary rejected create', proofProfile,
-  ordinaryPreparation = false } = {}) {
+  ordinaryPreparation = false, wingBayFlow = false, onNormalStarted, onWingBayAction } = {}) {
   let now = Date.now();
   if (clock) now = clock.now();
   const records = new Map(), deletedAuth = [], operations = [], writes = [], privateRecords = [], surfaces = [], browsers = [];
@@ -2986,6 +2991,7 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
           requestId: 'start-original', expectedSetupRevision },
         { status: 'committed', sessionId: 'normal-session', requestId: 'start-original', currentTurn: 1,
           setupRevision: expectedSetupRevision + 1, turnPhase });
+        await onNormalStarted?.({ gm, wing, admiral });
         return;
       }
       if (name === 'Clear cycle briefing // resume clock') {
@@ -3017,8 +3023,34 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
         });
       }
     };
+    if (wingBayFlow) {
+      const joinedOrSelected = admiral.onChoice;
+      const actions = { 'Check storage': 'storage', 'Proceed with rations': 'rations',
+        'Run unrest check': 'unrest', 'Run riot check': 'riot' };
+      const rations = {}, consoles = [];
+      let confirmation;
+      admiral.onSelection = (name, value) => { rations[name === 'Food ration level' ? 'foodLevel' : 'waterLevel'] = Number(value); };
+      admiral.onCheck = name => { consoles.push({ 'Fighter Bay Alpha': 'fighter-bay-alpha',
+        'Fighter Bay Bravo': 'fighter-bay-bravo', 'Construction Bay': 'construction-bay' }[name]); };
+      admiral.onChoice = async name => {
+        if (name === 'Begin Maintenance Cycle: Cycle 1') { confirmation = 'begin'; return; }
+        if (name === 'Power up reactor') { confirmation = 'reactor'; return; }
+        const action = name === 'ARE YOU SURE?' ? confirmation : actions[name];
+        if (!action) { await joinedOrSelected(name); return; }
+        const revision = admiral.state.session.maintenanceCycles?.aegis?.revision ?? 0;
+        const data = { sessionId: 'normal-session', shipId: 'aegis', action, consoleRoleId: 'admiral',
+          requestId: `maintenance-${action}`, expectedRevision: revision,
+          ...(action === 'rations' ? rations : {}), ...(action === 'reactor' ? { consoles } : {}) };
+        for (const surface of [gm, ...members]) surface.publish(state => {
+          state.session.maintenanceCycles = { aegis: { turn: 1, revision: revision + 1, step: revision + 1,
+            charges: action === 'reactor' ? [...consoles] : [], refuelled: [], results: {} } };
+        });
+        admiral.deliver('runMaintenance', data, { revision: revision + 1, step: revision + 1 });
+        await onWingBayAction?.({ action, gm, wing, admiral });
+      };
+    }
   }
-  await configureSurfaces?.({ gm, wing });
+  await configureSurfaces?.({ gm, wing, admiral });
   const originalGmWait = gm.page.waitForResponse;
   gm.page.waitForResponse = (predicate, options) => {
     const wait = originalGmWait(predicate, options);
@@ -3094,6 +3126,7 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
     } },
     __coreInput: coreInput,
     __ordinaryPreparation: ordinaryPreparation,
+    __wingBayFlow: wingBayFlow,
     __options: { runtimeAllocated: 'yes', chromium: {}, ...launch, evidenceDirectory: directory ?? '/tmp/in-memory-remaining-native',
       ...(proofProfile === undefined ? {} : { proofProfile }),
       allocationStartedAtMs: now - 1000, allocationDeadlineMs: now - 1000 + 26 * 60_000 } };
@@ -3113,7 +3146,7 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
       const originalCore = runP181StarlightMovementScoutCore;
       runP181StarlightMovementScoutCore = input => originalCore(__coreInput(input));
     }
-    if (__ordinaryPreparation) runP181StarlightMovementScoutUiProof = input =>
+    if (__ordinaryPreparation && !__wingBayFlow) runP181StarlightMovementScoutUiProof = input =>
       input.io.prepareNormalSession({ initial: input.initial, setup: P181_NORMAL_SETUP,
         deadlineAt: input.absoluteDeadlineMs, requiredBranches: [] });
     try { await runP181StarlightMovementScoutNative(__options); }
@@ -3164,6 +3197,68 @@ test('Wing bay actual normal-start consumer joins and casts both independent ord
   assert.equal(outcome.cleanup.deletedFreshAuthIdentities, 3);
   assert.equal(outcome.cleanup.ownedMembershipPointersAbsent, true);
   assert.deepEqual([...held.records.keys()], []);
+});
+
+async function actualFiniteWingBayConsumer({ transientWingRetirement = false } = {}) {
+  const mounted = actualP181NavigationMount();
+  const runtimeModules = Object.fromEntries(['src/lib/shipStateProjection.ts', 'src/data/aegisConsoles.ts',
+    'src/data/shipPopulation.ts'].map(path => [`/${path}`, mounted.sourceModule(resolve(repositoryRoot, path))]));
+  const fixture = await remainingNativeConsumer({ proofProfile: 'wing-bays', ordinaryPreparation: true,
+    wingBayFlow: true, clock: remainingLifecycleClock(),
+    configureSurfaces: ({ gm, wing, admiral }) => {
+      for (const surface of [gm, wing, admiral]) {
+        surface.bayRuntimeModules = runtimeModules;
+        Object.assign(surface.state.session, {
+          fighterWingCounts: { 'fighter-wing-alpha': { count: 4, revision: 0 },
+            'fighter-wing-bravo': { count: 4, revision: 0 } },
+          shipDamage: { aegis: { damagedSystemIds: [], destroyed: false } },
+          shipResources: { aegis: { materials: 5, food: 100, water: 100, fuel: 5 } },
+          shipUpgrades: { aegis: [] }, shipSurvivors: { aegis: 60 }, shipUnrest: { aegis: 0 },
+        });
+      }
+      wing.document = mounted.document;
+      // Inert provider fixture only; these bytes never become native image evidence.
+      wing.page.screenshot = async () => Buffer.from('SOURCE_ONLY_INERT_SCREENSHOT_PROVIDER');
+    },
+    onNormalStarted: ({ wing }) => mounted.mount(wing, '/ships/aegis/roles/wing-commander'),
+    onWingBayAction: async ({ action, wing }) => {
+      if (transientWingRetirement && action === 'storage') {
+        wing.publish(state => { state.sdkResumePending = true; });
+        wing.publish(state => { state.sdkResumePending = false; });
+      }
+      await mounted.mount(wing, '/ships/aegis/roles/wing-commander');
+    },
+  });
+  return { fixture, mounted };
+}
+
+test('Wing bay actual finite native consumer drives ordinary maintenance and reads the mounted current Wing cards', async () => {
+  const { fixture, mounted } = await actualFiniteWingBayConsumer();
+  try {
+    const failure = await fixture.program;
+    assert.equal(failure, undefined, 'The declared native branch must drive the actual finite bay IO through owned cleanup.');
+    const outcome = JSON.parse(fixture.writes.find(item => item.path.endsWith('p181-starlight-movement-scout.json')).body);
+    assert.equal(outcome.proofProfile, 'wing-bays');
+    assert.equal(outcome.actualAuthActors, 3);
+    assert.deepEqual(outcome.sourceUiReceipts.filter(receipt => receipt.endpoint === 'runMaintenance').length, 6);
+    assert.deepEqual(outcome.bayAfter.cards.map(card => [card.strength, card.buildEnabled]),
+      [['4 fighters // revision 0', false], ['4 fighters // revision 0', false]]);
+    assert.equal(fixture.wing.choices.some(choice => choice.includes('Starlight')), false);
+    assert.equal(outcome.cleanup.deletedFreshAuthIdentities, 3);
+    assert.deepEqual([...fixture.records.keys()], []);
+  } finally { await mounted.close(); }
+});
+
+test('Wing bay actual finite native consumer retains transient SDK retirement before a successful maintenance reply', async () => {
+  const { fixture, mounted } = await actualFiniteWingBayConsumer({ transientWingRetirement: true });
+  try {
+    const failure = await fixture.program;
+    assert.match(String(failure), /SDK authority|resume|authority retired/i);
+    assert.equal(fixture.admiral.observedBodies.filter(receipt => receipt.endpoint === 'runMaintenance').length, 2);
+    assert.equal(fixture.admiral.choices.includes('Run unrest check'), false);
+    assert.equal(fixture.browsers.every(browser => browser.closed), true);
+    assert.deepEqual([...fixture.records.keys()], []);
+  } finally { await mounted.close(); }
 });
 
 test('Wing bay preparation preserves the unchanged two-actor normal-start prefix for the default profile', async () => {
@@ -3290,7 +3385,8 @@ function actualP181NavigationMount() {
     surface.page.locator = selector => active && selector === 'a[href$="/roles/wing-commander"]'
       ? locator(() => container.querySelector(selector), selector) : originalLocator(selector);
   };
-  return { mount, attach, store, routes, clicks, blocked, serviceChoices, route: () => currentRoute,
+  return { mount, attach, store, sourceModule: load, document: dom.window.document,
+    routes, clicks, blocked, serviceChoices, route: () => currentRoute,
     navigate: async route => { await React.act(async () => { navigate(route); }); },
     close: async () => {
       await React.act(async () => { root.unmount(); }); dom.window.close();
