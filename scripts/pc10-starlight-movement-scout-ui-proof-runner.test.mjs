@@ -4029,8 +4029,13 @@ test('remaining F9-R2 full native rejects a final writer delivered at the origin
 // unchanged private writer. External acquisition functions are counted and
 // forbidden. A binding rejection is an actual assertion, never an injected
 // exception. Virtual time affects this isolated source fixture only.
-const preflightBuildBindingPath = '/tmp/dow-pc10-evidence/OWNER_PC10_P181_CCE72456_EXACT_COMPLETE_BUILD_BINDING_20261010.json';
-const preflightBuildBindingSha256 = '73387acf1548ee9f41269afa0ec79401678c0de7f95ced7c0834f874273b3779';
+// The default retains the historical lost-receipt dependency. An explicitly
+// supplied current verified binding exercises the same actual sourceOnly
+// assertions; it never recreates that receipt or changes its historical result.
+const preflightBuildBindingPath = process.env.P181_SOURCE_TEST_BUILD_BINDING_PATH ??
+  '/tmp/dow-pc10-evidence/OWNER_PC10_P181_CCE72456_EXACT_COMPLETE_BUILD_BINDING_20261010.json';
+const preflightBuildBindingSha256 = process.env.P181_SOURCE_TEST_BUILD_BINDING_SHA256 ??
+  '73387acf1548ee9f41269afa0ec79401678c0de7f95ced7c0834f874273b3779';
 function p181CommittedPublicFirebaseEnvironment() {
   const source = readFileSync(resolve(repositoryRoot, 'src/lib/firebaseConfig.ts'), 'utf8');
   const committed = source.match(/const committed = \{([\s\S]+?)\} satisfies FirebaseOptions;/)[1];
