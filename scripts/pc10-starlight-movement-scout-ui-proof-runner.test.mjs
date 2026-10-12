@@ -2552,6 +2552,7 @@ function actualP181CastingReadyPredicate(before) {
     sessionId: before.sessionId,
     admittedAuth: { uidHash: before.uidHash },
     P181_NORMAL_SETUP: { wingCommanderRoleId: 'wing-commander' },
+    memberRoleId: 'wing-commander',
   });
 }
 
