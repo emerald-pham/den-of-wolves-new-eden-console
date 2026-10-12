@@ -6333,6 +6333,11 @@ html:has(.ship-plot[data-aboard='true'][data-expanded='false'])
     position: absolute;
   }
 
+  html:has(.ship-plot[data-aboard='true'][data-expanded='false'])
+    .screen-fade__content > .private-loyalty-flow {
+    padding-top: calc(var(--console-plot-top) + var(--ship-plot-widget-size) + 1rem);
+  }
+
   .ship-console,
   .ship-console:not(.shuttle-console),
   .shuttle-console {
