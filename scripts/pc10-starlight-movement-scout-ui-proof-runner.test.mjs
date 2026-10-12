@@ -11,6 +11,7 @@ import { EventEmitter } from 'node:events';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, extname, resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
+import { gunzipSync } from 'node:zlib';
 import { pc11GmReadiness, pc11MemberReadiness, pc11SameActorEpoch, removePc11OwnedRootRecords,
   recoverPc11CreatedSession, createPc11OwnedRequestTracker } from './qualification/pc11-normal-start-adapter.mjs';
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
@@ -2864,11 +2865,12 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
   directory, closeOwned, terminateOwned, writeOutcome, configureSurfaces, afterGmClaim,
   servedEnvironmentChange, unclaimedWingSeat = false, rejectedMessage = 'ordinary rejected create', proofProfile,
   ordinaryPreparation = false, wingBayFlow = false, onNormalStarted, onWingBayAction,
-  servedSourceBody, servedSourceResponseUrl } = {}) {
+  servedSourceBody, servedSourceResponseUrl, cliEntry = false, landingSourceBody, checkedLandingSource } = {}) {
   let now = Date.now();
   if (clock) now = clock.now();
   const records = new Map(), deletedAuth = [], operations = [], writes = [], privateRecords = [], surfaces = [], browsers = [];
   const preflightAcquisitions = { provider: 0, browser: 0 };
+  const fetchedUrls = [];
   const gm = mountedP181Surface('native-original-gm', { casting: true });
   const wing = mountedP181Surface('native-original-wing', { casting: true });
   const admiral = mountedP181Surface('native-original-admiral', { casting: true });
@@ -3083,33 +3085,55 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
   servedEnvironmentChange?.(servedEnv);
   const runtimeSource = `import.meta.env = ${JSON.stringify(servedEnv)};\n`;
   const env = { P181_SOURCE_COMMIT: launch.sourceCommit,
-    P181_RUNTIME_LAUNCH_RECORD: `${directory ?? '/tmp/in-memory-remaining-native'}/in-memory-launch.json` };
-  const source = p181DeadlineSource.replace(/^import[\s\S]*?;\n/gm, '').replace(/^export /gm, '')
-    .replace(/import\.meta\.url/g, '__moduleUrl').split('\nif (process.argv[1]')[0];
+    P181_RUNTIME_LAUNCH_RECORD: `${directory ?? '/tmp/in-memory-remaining-native'}/in-memory-launch.json`,
+    ...(cliEntry ? { P181_RUNTIME_ALLOCATED: 'yes', P181_PROOF_PROFILE: proofProfile ?? 'starlight',
+      P181_SOURCE_ROOT: repositoryRoot, P181_UI_URL: launch.baseUrl, P181_PROJECT: launch.projectId,
+      P181_PORTS_JSON: JSON.stringify(launch.ports),
+      P181_EVIDENCE_DIRECTORY: directory ?? '/tmp/in-memory-remaining-native',
+      P181_ALLOCATION_STARTED_AT_MS: String(now - 1000),
+      P181_ALLOCATION_DEADLINE_MS: String(now - 1000 + 26 * 60_000) } : {}) };
+  const sourceParts = p181DeadlineSource.replace(/^import[\s\S]*?;\n/gm, '').replace(/^export /gm, '')
+    .replace(/import\.meta\.url/g, '__moduleUrl').split('\nif (process.argv[1]');
+  assert.equal(sourceParts.length, 2, 'Retain the unique actual command-line entry block.');
+  const source = sourceParts[0], cliTail = `\nif (process.argv[1]${sourceParts[1]}`;
+  let resolveCliCompletion;
+  const cliCompletion = new Promise(resolveCompletion => { resolveCliCompletion = resolveCompletion; });
+  const cli = { argv: cliEntry ? ['/opt/local/bin/node', p181DeadlineSourcePath] : [], env, stderr: [], exitCode: undefined };
+  const processFixture = { env, argv: cli.argv, cwd: () => repositoryRoot,
+    stderr: { write: value => cli.stderr.push(value) } };
+  Object.defineProperty(processFixture, 'exitCode', { get: () => cli.exitCode,
+    set: value => { cli.exitCode = value; resolveCliCompletion(value); } });
   const context = { assert: { ...assert, deepEqual: (a, b, ...args) => assert.deepEqual(
     JSON.parse(JSON.stringify(a)), JSON.parse(JSON.stringify(b)), ...args) },
     createHash, typescript, createRequire: () => { preflightAcquisitions.provider++; return name => {
       if (name === 'firebase-admin/app') return { getApps: () => [], initializeApp: () => adminApp };
       if (name === 'firebase-admin/firestore') return { getFirestore: () => db };
       if (name === 'firebase-admin/auth') return { getAuth: () => authAdmin };
+      if (cliEntry && name === 'playwright') return { chromium: {} };
       throw new Error(`Unexpected controlled provider ${name}`);
     }; }, execFileSync: (_cmd, args) => args[0] === 'status' ? '' : launch.sourceCommit,
-    existsSync: () => true, realpath: async () => repositoryRoot, resolve, URL, pathToFileURL: () => {},
-    process: { env, argv: [] }, Date: clock?.Date ?? class extends Date { static now() { return now; } },
+    existsSync: () => true, realpath: async () => repositoryRoot, resolve, URL, pathToFileURL, fileURLToPath,
+    process: processFixture, Date: clock?.Date ?? class extends Date { static now() { return now; } },
     setTimeout: clock?.setTimeout ?? ((callback, budget) => setTimeout(() => { now += budget + 1; callback(); }, 25)),
     clearTimeout: clock?.clearTimeout ?? clearTimeout,
     delay: clock?.delay ?? (async amount => { now += Math.max(1, amount); }),
     readFile: async path => path === env.P181_RUNTIME_LAUNCH_RECORD ? JSON.stringify(launch)
-      : String(path).endsWith('functions/lib/index.js') ? 'controlled-index' : 'controlled-served-source',
+      : String(path).endsWith('functions/lib/index.js') ? 'controlled-index'
+      : String(path).endsWith('src/routes/Landing.tsx') && checkedLandingSource !== undefined
+        ? checkedLandingSource : 'controlled-served-source',
     mkdir: directory ? mkdir : async () => {}, readdir: async () => [],
     writeFile: async (path, body, options) => {
       writes.push({ path, body, options });
       if (directory) await writeFile(path, body, options);
       await writeOutcome?.(path, body);
     },
-    fetch: async url => ({ status: 200, url: servedSourceResponseUrl ?? String(url),
-      text: async () => String(url).endsWith('/src/lib/firebaseConfig.ts')
-        ? runtimeSource : servedSourceBody ?? 'controlled-served-source' }), AbortSignal,
+    fetch: async url => {
+      fetchedUrls.push(String(url));
+      return { status: 200, url: servedSourceResponseUrl ?? String(url),
+        text: async () => String(url).endsWith('/src/lib/firebaseConfig.ts') ? runtimeSource
+          : String(url).endsWith('/src/routes/Landing.tsx?raw') && landingSourceBody !== undefined
+            ? landingSourceBody : servedSourceBody ?? 'controlled-served-source' };
+    }, AbortSignal,
     observeUiReceipt, observeLifecycleActor, captureLifecycleUiAction, publicLifecycleReceipt,
     createMemberNavigationResumeObserver,
     openLifecycleSettings: async surface => surface.page.getByRole('dialog', { name: 'Session settings' }),
@@ -3138,6 +3162,7 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
     __coreInput: coreInput,
     __ordinaryPreparation: ordinaryPreparation,
     __wingBayFlow: wingBayFlow,
+    __cliCompletion: cliCompletion,
     __options: { runtimeAllocated: 'yes', chromium: {}, ...launch, evidenceDirectory: directory ?? '/tmp/in-memory-remaining-native',
       ...(proofProfile === undefined ? {} : { proofProfile }),
       allocationStartedAtMs: now - 1000, allocationDeadlineMs: now - 1000 + 26 * 60_000 } };
@@ -3160,10 +3185,12 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
     if (__ordinaryPreparation && !__wingBayFlow) runP181StarlightMovementScoutUiProof = input =>
       input.io.prepareNormalSession({ initial: input.initial, setup: P181_NORMAL_SETUP,
         deadlineAt: input.absoluteDeadlineMs, requiredBranches: [] });
-    try { await runP181StarlightMovementScoutNative(__options); }
-    catch (error) { return error; }
+    ${cliEntry ? `${cliTail}\nawait __cliCompletion;` : `
+      try { await runP181StarlightMovementScoutNative(__options); }
+      catch (error) { return error; }`}
   })()`, context, { filename: p181DeadlineSourcePath });
   return { gm, wing, admiral, surfaces, browsers, records, deletedAuth, operations, writes, privateRecords, program, preflightAcquisitions,
+    cli, fetchedUrls, launch,
     allocationDeadlineAt: context.__options.allocationDeadlineMs,
     cleanupDeadlineAt: context.__options.allocationDeadlineMs - P181_NATIVE_TIMING.parentIndependentVerificationReserveMs };
 }
@@ -4251,6 +4278,81 @@ test('a reached browser acquisition retains the original native cleanup barrier 
   assert.equal(outcome.actualBrowserProcesses, 3);
   assert.equal(outcome.cleanup.browsersClosed, 3);
   assert.equal(held.browsers.every(browser => browser.closed), true);
+});
+
+// Preserve the actual earlier Landing ?raw response as inert compressed data.
+// Its inline map contains the historical checkout path; neither it nor the
+// returned source is executed. Embedding the fixture keeps build inputs fixed.
+const retainedP181LandingWire = gunzipSync(Buffer.from(
+  'H4sIAAAAAAACE+1a23biyJJ976/Q8cw6trurbcCmqqguVw9grsYYCxCgc2bq6IYQ6EIjiVt1rTWfMU8zvzifMDsyJSEwlKvXnMeutVwGZWZkZMSOHREpG+u5twgE3RgroR0I/7Ac9r24WFhLxb63/LmtbN4IX4RWsd8u1yvi53qx/NBo1z4/VrrdYq3S/VxpF0utyr3wVRgvPEc4v7reX33+yw+R1C9C6BvdQAmMN0KwmRtC1Vs4laXhBsnihaFoQXpFy3Jnb2hdy9OUwPJc9qWtLC0TcvbX/bzwwsBY/Kx7TlqEhsHA6Bq+z5ZPPcuNviTL/+3attRrnz/tGoulpRlpEcVO57NUEbuNp3ZqzdJY0Pz0RN8IHj1S8wmDC0s3mLr8UWdhjI2F4WrGwb7OwXBa4MLwA28Ray/SAY9rzYYObR0diCSkVjGJ1wfj6aUu/KLY1tYoe46juHplsfAWkc/a8ZieHjzQSUsN+ZD8g+a5fiC0KrViefS5/HRf+dyqtGu9unAn3P4Sje4/fotV49DVyDSC5WOzuW0E0Eg3LjT890Hwg4XlmpcfBNXzbENxhS8/CLBXEC5cgWZc2YZrBhPh7u7u2M6///5iVmr4lx++pvd3rcBS7CagwxTwDWWhTVIq8A9MA34Y4D80cAzXWAl9sdVlCzrKQnH8aPXllWkEF+fTSOb5pfDrr8I5jJUc4uDUTOSl8Ne/Ctf/8fe/6z/96/VVAHTEz3+N9vzAhEB75q4W3ADNuJPuhI6lzT4ed+Eb4dwBHhTTOBd+p4gKFpviGPHUNXAk3T//lPaInZJ7oSkA0wchdGeut3Jhjr1dd0bROSOQWY4hjMu5/CWZP1H83kJxfYIlmQAL6VDeWGAzmc/OPXVqgDPILvzpX/DUDW0bTyBJEM7JzefwYTSOiWkpVxqTTKK4F5kLrq8FYhybjGrpjHmuFzAEwnojGAzXgu7hHKTl0hAUCLNtRbUNIYhVZvgScDoub2E4CpTAluPQFhRfUMJggsjTr4SqtTBUBbpFkhV7pWz8RHIkhpYKwcTg4nwQqaUJgbL2XM/ZCGYIPYlcFBVa4rh+YCi6gGP6IDRjIcwXHk6LxdZY4KZmk2gNJnFfwTZ/ObT6JfNggsovQgSTD5H9oq/CV7Lb1x18I28zLBr7eSaBUQSUi8sUStyY3O/SVH+RwoUd5QI+I84M6Rl/I5u9ITqmE/w7n8hSzwX2uvv0IqJjkVdRcKZlqaG/YbJK+LAna6zYe4D9m8EjCXOZPdOTP+4Fxe8Mop8u6P+UgIjMo2Uper64IH8bTHf26SqamlrsGN+zzkkrbCt+wJPKd6xMJu8pjISnG9+nMJuaWkzpTQ81Q+cJEknk7li6TDs2jsFY6dhgAC6O/+uxfHmx0xvkSAYHkSGEfvyRYP2j8OQaAoCKyBnDMYgvIVh5+A1f+YLBAp5im9hICDwBrC0sLHMSfGBz1TAIoJlgelyaTkG3mlg2Re7C+C2EQmByop+xTcvesFCmMeItnt0EfwLiJOkkkqLGWHBxCwVPSCuFBZQynwOflGosF7PxMHQxpNuGTvHtWDzChR+v8b/ib1xtF2uos4jMmWEuFPbsg8CjocOXflx6lv4J/L33PQr/CP8XwSLkPhQSmO9QLID9NtECKLBSrEDgW11E40IMmYtz8igy93kyEkf+xfn1wdhXuCDQJhFvXSY7JBq8zEeXydKx5cJ/m/QidpJd9HLe+kqwSMzluUQOFwbVpx92perHeu+xxb7ZhoPvZC4yUySdTb+aL9jve0538dHZtD0vcOunKlJW2nDNmTYRlV6w9R9Z/tAAZ7+tOMbdWXTos0/RwT7q1jI9rvBC/OfAm9sWUK5Z2s8UPfTl7NNHf664n546FbHYo8K2XRkIlftKW7gWyo3yx2s2zCd1R91e5VHo9oq9fjceucZuyc6T7BHFPn8OrMA2Ev0wj5aenvkz1+zecClvDTx7afgfhDZqqIpuuNHG3y3MD9WzT33XG48tDVwvUDWluOTbMkfXvsCP15Pspx/iL/tNTLKn4VKOryvaDBs98szn3315tT36mkigjKvfI9zvvlBiiQeuk62/xJz2a+R3ftaILI4dNylMyMFj1JjGmQCWUGDOJebNPdsK0l7AHvs8mt6J7fZp7ysezIUFDHZ3RlQe+rF4RTXsu7O4m4plnn3qTcBpukFtFLEbgtmF+uAo4qyYs68+Xs9f7EP93jfPSBCZnUHQ3f4Zvh6KEgSRB0/Eqlq4WFCrGe1+uPE17bwv4+N1+jsljwMr/TGjiEZkB6Lv40pdCR10MijMiDgP7XO5wxCAy+EQj+8rd8gDiRE5FfspnKQ3OLlsvrAcBaaPlp8dmImnwAODUol9d8aHzg7Gju1xfCalPMSbvh8r8T/PLdtoaO6+cB49xa97FwAXl5f7Yg5xU2azdzA9gATXc89snAh/2APGsSN6i7NP3oJ5NT0ZVYdzdD7lhTMcshuqjhXcfeEZ6QDoHxnejq5nI2fCJHBsJKy7M5L3MyWYs8Mzx2ClwYPzMiEHW1ruPAwORFh6eoPvcPixeRw0gbEODkfYllQ23J25oWMsLO1wBropL+6X78481/g5sBzjqDqOsm6xrv/uS6rlP0QXqwknnq0bsF2G/TsUxDruuy+0x+FqdGj3lmkFPhxoo31YWcEE7SIOwjpKQZsoC8STgW4PVadDNzSsyPOtNccw+sKXcMcMExvyqoTA/YL0opaHz7gKlAXq1Sum59XCYEe6uP773++vTfT755dXPgLIuMi8Sd99XF4eSN0/2/X3h7/PkPvPCn+6svnLkaugVwKaguYPhPM/l9CE5Du/5QMe3QBZ4+zbVPbiHvFiv1P6VTgfo+Y+p9sePnL+ihW+vBAg8lZJ4IoJ//s///WfTJ7IJsaPo41Ryxu+h4IXVrykuf99/vU7mJG47aDuSGuBru0EV0bWijLrp2g+aolIAEuO6YSYKkYvvyalFOvH0zdC6Sx5fGe25CzK7IptLIL9JMlKRi44vvr4eliZxjtfvbhFY7qErm6gKUE9tKfQTrzQQzGnmFTuE3ZVFDgnJX4FWNiHq5da7JUM85R9ktTjQdCxlkH14EznD3QNx/qFRrtXEavFcgUtRanfaN0LX1I36V+TRoKrwdX7eE1dDn2+pJujf6BXv77+F8H3woVmPKL/hZP6YutOVwLlA74iavjt3NT33F/oEu3t7Rtj08zJw+ZWGRTCxtTbtsrNYDQsrZRB3tU2jbeNWbX03K/4cr9aknsBPldLTxn27B19fv7z2Z/P/nz257Pvf2aBY8LRIGsTvwyyGb/h2K7qFDZyfz3Xbp6tJzvQMWer3kibUU7aNqZztTFbT1RHnKuOFur19m3Dxjq3vdSHzak8bN+ruXxGHuQzbK4j3Wq1wkYvl2byQJ7og3WmUV1ZyiC7Um+amUalutEcOzcarCvKsL1Sa9V8q1x616isS1I/f9+tSN1hZlJ6zgTN3kwf9/pSr5+p1kWpPRb7+dLzbF0Vy6VCoyZv1FzGbG5ul8/D5kYZyhO1IuIMJX80nLlP2bWmOnYQ6fKuUZe2stTOjIaijf0yxrBkNyryUnOyVd2RQj0t86ZpjwbtTHMbaMNafq4OS0vNfTaNTekR3LzA+qyWkx7VXHui1+ylaq1Mfdi2e041pwx0POub427J0ZxC0CjrG3lQnerl7AY2zcjDRiDXCsER2VPNkbBW6sGmLCdgn9/UnB324QctR/ukdMwUl2rNtlo3bVu7ac/hA6xrYv+2fUR2CRAYSzOp28/Ynd6BHJx/w+Vr74bVdZj4qu6bOGemNyhkSJ/ejWxrbnMu1/o+s2c/u2Tnt0s4I8Zgx1Fu7+zFVm49H1mFQL0RScdnzHGgp606R/Xc4OwZ7G0nZ7abwJloN+oZU3abS7VbdJ/LBV8ZNJbawZwj8shPiT37NyL8faDfDd+vdcPwkdhSB27k7kt7UKyog6qvDOf2cw7nGlRDuQL74fkOV3nC1QT+eSsPRMRHNhgN8jMROFVvGsfsM92f09xGZ6EfjOW3wOej2NdLz1l7/JwpVESpgO/5ulQxzU63mOF4by9Vt40Ya3fEijTuVaQnMSs2GvcZsz1N5Dn6ID/luC3NtQzWDEu+DPvhPDO5O8F+ov1klbZ6vUkxP8dnS80VfOA4bNRJzq3ZqDdtvS5tIIPNbzlr+FTPKOViodPLmNi7/txvy8PMgS719ftGrb0EhkK1JoXyjehBv0KnW7rvZcTqMLOuIu773Xumb4HsTz+yC2wxDN2aiME59Ee8z5f4fE/7P9Tb9gh8pNx7pnYjbqiGeujtPid61yIb1cEXdckm26iOdNOoSt1eNZJRLU00pxpom8kWZwYPmvOWo9t62XQVpzBXZ0x/96FbvO5sii731Z5NjtmVOC8rd2dm0xqZrSx8UV1rctmftTbgT+D+IdKJ5O7088BxHIdjCT628eOKeQ0c06sBezU7lDMcf3SWfs2eKtv1EzAEPK3nhiPNXuK06KoDip2qC4ybY3xHXGY01y7JrmhrNuyQK4Ry/dHtHMeNT1glu0aY9ka5KmKt/xa8ECq5/FLP3RJuHg/mmQbh1CqaJB/5xoT+W622nhjdIjgpFTd92G+QpbxTBecsNWsyHQ0Ro90Zs0WjXIrjwhsN2334C/Io7kWGB7KFXrdX8qDgwOcT4meOM5w91/xNJn7fFJ0m8MvlFieEW9WVfLWM5zbXswHbjJj/NODu1ozOyXx4KL/lMFyYkFNAbMfxw3MRZLU27+GzwnQ0QL5wwCEDMcof4JpBm/Gw0S3Z7LzuI2zznvgm06hNJjp4a9SFroM1bN/05W4pszvzs8l1LJG9OBbL75eER/h9Dn8RD8J/K3M0fMSPlFGI3wbPIXLgHL63RmSfGseHtoGcuj4xMFepVXMkN4pZk/zJuB/7KzUptRfLrfPRpoTfkyX0DnAWVx/YM6yZkoyRUyBZc4o/xNWsUYPtELeai9xhlVbYG3LzUZzaTqMc+5yvYXLI3hGOG+UR5lSP+v+hW4pwUkzH5btGLUscP5EJq4nfkmfmuBfHcvYwpmdxvcL86WbjuLCNOveBXJMc6OsDk+lYSWLgoTx7gX81VTOAA8lPT6OhPJdz1YzcNedPh/MJP0POg9H8VB3ycv4gx/zmk531Cn2WdBYbODfyIe3rkV6d3glera2XwDzL/y034sfy7Mg+zax2M4v2oc/2i31kYB6xc2Rtkj+34Ese73YmPh9yMWzRW7/gknG5FKK+9DvWhP1+6B1yfJzPE1sd1gLeA8ctcW6hQzmP9urmt/G8FzKBn+RcSf3Ba4iH8iRaz+2p8XOH6qB/xI/VrV6Naps/Ki+19tiZ9UqW89AfPrPYZj5/IRN1IPKIjtpSrkQ1H9WQkd5xfdhHrMjgMJnF+0ssQsZUZTWk3WW1MHF+ykfEqbCV2flGHQg8TmCHaP3MRI5hvmd72THPer/Fsf9glToquJNyDNWmMvFGXfSIv/Tce1OvTcDR+hbcR3cxeeIEtbYi3tti3rJRo7xfQg2hezpyMeaDJ5tZHWMqcXSuEHFg8bdGTUTf8GzqOcisMb7GOapZOgv4DHvYIepun8kqrziX1ipkF5aP2D0Qzau3PfVGD9n+XFfGO9Bvt1e9OSFdwJvgYdRlNfQ+uepKq0moXVATbIgzSX+q2ZCTWa2wtuUy49lAId5Lcpy3jHIqbGuH4PA0f9lqVBNEfvJGka5PVtGLMPQcy+zUZXDH809UewEPyOH2FrGbQx8zw7wUJ8c8MfOQJ7O7vB6PcU54qOWz8EeCJeiIOmXHo2x+rXozGtiwcXV6yIM7eSwmvGaOYRq9E+q3GOdlJjdM8a7bOjFvTDl4KIIDi3HNM09qSy5nx2HW5FSdND+Q6WAOcLfOH5FVRozlH2pUD7btvXUSP2NSF+Jzuk5GffRA/eMDYRv9OWKlRnWhOJTh0+f33arY7kU9MGrxgOZ0rBlqOObDlI1LNu+R88AOlyUmuS5t6xLzM2IpRB+72fWtZoyTg36W9xoPu5ouqffxGbEjZjXn1nyoJr58H9UzU+JALQObDfq0Rms48R2Fjrp6ZXXslP/v18jdI/AQcUf7ie4/OrDZsNycUD9LtVhrCG6srefEFaOcPW0NCsQHiNW8zeRPb9+jvpio03ynX5G6z5LY7GVuzd5MGqIeqYj9W/BO6b7bf3yPnnI1Gtz+1Knz3/2s3ZMqUrtRbfexTupvV0su6/Z9KyfO9Wk+5fPie+W+ckzXBEvDLPh2KPoye974KYmbaD2T/W0bjYfAiA4+aA3ozBK32Uy0sW4pW6Whmlvj/I9v0cva+qZURd0QdsoF1OrVcM+2+InO+X06d7NbfdCMfCSFak4G9ttzqompTyH5jAcrSfwl9kyfE7p4j718VIPtbPfyLshOj5uETVY/9yfIBwHZok35cTTQbW2bfderVKXerN0Qpea4W6nedzM2+tZCW5Tavee+Xu1nC+hPq2X0s5U4/mLZlJ9h3wpxd2cYWBS3+3Pe/7TDN39m3KRqlE3Re+HLnBTz8Cv+bFLPFucw1OFZh3rYCCOo+ZvzUTfrwzaxb1bwMTAgvYwXzj3vjuTra9Tk+/aM9Hy5PsYG7OIUfLmXZfuwGgb9A9Pfoj7bngCD6A0kP9IrqVeo9o7PxGMw31dYHhXBRzb1FHP0KtQHhpQ/Zcq96JmQd5P6rTVFrN3nj+lMvMDu82Av4KS97ZG9Ij3VuLfOFsY7O8wC9KahkuU2xV4FI2X3vlPIwp6FU7aATbsxp5GevJZoZ8FBxMfm7j7rhC3LBabvUfn3q+WR53O6P0jxZ/rsqwbl51qEJZfVhFktu48XxIqt3nObpO4hd/1qxEF9slHkB37fktQuUx0xye6Hd7Ve2KiW6D6JejuWu0/56WGY3X+GcyYxsc+bR8/aQV2kvxY7uahuQD3HuV/eEIdFmHuh03fJvKGaMTshzMT1UmTbQ76OZEY15Qnfs7uGCJsjV8rotULI9jwx/xUuBjeJGfiLyTumD7BK/S7iEjXjffYd9twah75IOLUQPtM9Zs4vGBsTfsj8FNcQ5HfERhLTD+VovName/HM7s71FjWCXThqmxNnfKbYo/6JauhvxQ4wE9vsiKxUDj7i6/qrtkSvyv2K+g65qviC46N4c6j2eo1r2P0il2eye+hBE3X1c8FAD9WlMTdzAj+cQ1+Tj8+WPFiz543aJKMO1qgJGxF+qe+/DdhdknQaq8DGjqPZvZB0NCe0chGvH/UJ6g63lNWrx30L7JzQqXkCg98+96vr6+xONeJC0Tbq4rdig+vOe4pIT/QpAwkx3/7WugnibsnrnLWtJ2sLIeoicEQW9Vhkz9MygtFw8oi4cvWaWTAO7tcPa5KkNmH9r+Qh58/kYeTvaXH1eI+f6rfswu+hUc+wWv2UfLrbFGu2ixpvS3yg1ukuSEd9YZqq857uluj+e47+c4pedEOcSH/7gLmbRi3L3ssgH1LdulWGZswb6Ffz3+AczHd06OZ7Mu9pGLcct1vcB7L7sHg++pTqRs5JmZbLz9lCLo7uCrwW8XV1XWnlNL9R1tyHbn6L/E93G6tW+eB9RXk2P+Gvo5zW2h491/sUtx+Txd4vRRy05dzwTZy+kvd2Oed0XLF7BcSSNItrWvYOp1w9+e7o4XieOMUlrEf9f3I48ckup70W3873nPsVPol0adTS9ozvxrJUC2Wo7v1Wjsace5W9r8m+i+9gT7xv9V7ev1Etrjt099XcFN/y98xiFrh1/6D9352Q3Y3v4Cg++fP7lZu3itF+3Wg/U430RW8Q64D6Ef0UeA5xjPz+OG90ymOneese5Y9X8zPdURyJ63oQ7SfNeokOI4fVtq/lwWh+a7hX9/6UyGH3cOCfujSl9ySovVcd92UtCnm5fZ3twoseLxe/r6jQe052X8nfXRz0Ut+ht8zfD/P8na7fnSrisJk5WbNGdxGxLrt3HuhXTvT1hA2+XyM88X7QbNC7rroU0rsPuiuR6d2Z9aKP3dOhURXpPRf2Znc59EPvhrL6q/u12X1xtHd4Wu/i/BBnzH9H/LSrn+SleiPSfeoRzoz/ZmUVQE/CKesDqbdRBo8B6w2d1D3KdM31mhWeRalZkirsby6eREkzxb5Y7U139z/RnVJvILX7Yj9jdvv5PtbUnvvtaqP83ny2pWav8mwamepzv1oYYKzX7Reexr30HVKke8rvOC/6DjuxDb83jN6nlxvWsLuyZMf25W7jbcMqSBrhYlOwqYZBnp5plIu7hYqaa1NdE+r1xyXj+KG5fJwWN20rs34sZ1btbgHx0160bkrTx14xoHeJaq6QaQ13fTHGNnjmoLZhXCmz9w3wnfOIuGY987aVOfgbIzdz938LCj8N90EAAA==', 'base64')).toString('utf8');
+
+test('exact native CLI entry accepts the retained Landing envelope and selects the three-actor profile',
+  { timeout: 5000 }, async () => {
+    assert.equal(p181DeadlineDigest(retainedP181LandingWire),
+      'a43f727dc48c6c14cef1f9b5f0384587106815f1a254883409addda100827510');
+    const checkedLandingSource = await readFile(resolve(repositoryRoot, 'src/routes/Landing.tsx'), 'utf8');
+    assert.equal(p181DeadlineDigest(checkedLandingSource),
+      '54b16f173b7357584aab927a18b5f5ebce1437b649bfb20f43fe9a9b458ee98d');
+    const held = await remainingNativeConsumer({ cliEntry: true, proofProfile: 'wing-bays', rejectedCreate: true,
+      landingSourceBody: retainedP181LandingWire, checkedLandingSource });
+    await held.program;
+    assert.deepEqual(held.cli.argv, ['/opt/local/bin/node', p181DeadlineSourcePath]);
+    assert.equal(held.cli.env.P181_PROOF_PROFILE, 'wing-bays');
+    assert.equal(held.cli.exitCode, 1, 'The actual CLI must retain the intentional downstream create failure.');
+    assert.equal(held.cli.stderr.length, 1);
+    assert.equal(JSON.parse(held.cli.stderr[0]).status, 'P181_STOPPED_FIRST_FAILURE');
+    assert.equal(held.preflightAcquisitions.browser, 3,
+      `The command-selected entry must pass decoded-source verification and use the existing three-actor route: ${held.privateRecords.map(error => error.message).join(' | ')}`);
+    assert.ok(held.privateRecords.some(error => error.heldObservationsInspect.includes('ordinary rejected create')),
+      held.privateRecords.map(error => error.message).join(' | '));
+    for (const path of ['src/components/MaintenanceSystems.tsx', 'src/lib/maintenanceService.ts',
+      'src/lib/shipStateProjection.ts', 'src/data/aegisConsoles.ts', 'src/data/shipPopulation.ts']) {
+      assert.ok(held.fetchedUrls.includes(`${held.launch.baseUrl}/${path}?raw`),
+        'The actual CLI must consume the Wing-bays profile rather than the API default.');
+    }
+    assert.equal(held.writes.some(item => item.path.endsWith('p181-pre-browser-failure-phase.json')), false);
+    const native = held.writes.find(item => item.path.endsWith('p181-starlight-movement-scout.json'));
+    assert.ok(native, 'Acquired actors still require the existing native cleanup outcome.');
+    const outcome = JSON.parse(native.body);
+    assert.equal(outcome.actualBrowserProcesses, 3);
+    assert.equal(outcome.cleanup.browsersClosed, 3);
+    assert.equal(held.browsers.every(browser => browser.closed), true);
+});
+
+test('exact native CLI entry retains a bound pre-browser source failure and its original exit',
+  { timeout: 5000 }, async () => {
+    const checkedLandingSource = await readFile(resolve(repositoryRoot, 'src/routes/Landing.tsx'), 'utf8');
+    const held = await remainingNativeConsumer({ cliEntry: true, proofProfile: 'wing-bays',
+      checkedLandingSource, landingSourceBody: `export default ${JSON.stringify(`${checkedLandingSource}\n/* changed source */`)};` });
+    await held.program;
+    assert.deepEqual(held.cli.argv, ['/opt/local/bin/node', p181DeadlineSourcePath]);
+    assert.equal(held.cli.exitCode, 1);
+    assert.equal(held.cli.stderr.length, 1);
+    assert.equal(JSON.parse(held.cli.stderr[0]).status, 'P181_STOPPED_FIRST_FAILURE');
+    assert.deepEqual(held.preflightAcquisitions, { provider: 0, browser: 0 });
+    assert.deepEqual(held.fetchedUrls, [`${held.launch.baseUrl}/src/lib/firebaseConfig.ts`,
+      `${held.launch.baseUrl}/src/routes/Landing.tsx?raw`]);
+    const original = held.privateRecords[0];
+    assert.ok(original.message.includes('exact decoded served src/routes/Landing.tsx'));
+    const phaseWrite = held.writes.find(item => item.path.endsWith('p181-pre-browser-failure-phase.json'));
+    assert.ok(phaseWrite, 'The actual CLI catch must settle after positive service-only phase evidence.');
+    assert.equal(phaseWrite.path, `${held.cli.env.P181_EVIDENCE_DIRECTORY}/p181-pre-browser-failure-phase.json`);
+    const phase = JSON.parse(phaseWrite.body);
+    assert.equal(phase.phase, 'pre-browser-failed');
+    assert.equal(phase.browserAcquisitionStarted, false);
+    assert.equal(phase.actualAuthActors, 0);
+    assert.equal(phase.actualBrowserProcesses, 0);
+    assert.equal(phase.sourceCommit, held.cli.env.P181_SOURCE_COMMIT);
+    assert.equal(phase.sourceRoot, resolve(held.cli.env.P181_SOURCE_ROOT));
+    assert.equal(phase.projectId, held.cli.env.P181_PROJECT);
+    assert.equal(phase.allocationStartedAtMs, Number(held.cli.env.P181_ALLOCATION_STARTED_AT_MS));
+    assert.equal(phase.allocationDeadlineAt, Number(held.cli.env.P181_ALLOCATION_DEADLINE_MS));
+    assert.equal(phase.runtimeLaunchRecordSha256, p181DeadlineDigest(JSON.stringify(held.launch)));
+    assert.equal(phase.originalError.fingerprint, p181DeadlineDigest(JSON.stringify({
+      name: original.name, code: original.code ?? null, message: original.message,
+    })));
+    assert.equal(held.writes.some(item => item.path.endsWith('p181-starlight-movement-scout.json')), false,
+      'A command-line failure before actors existed must not fabricate actor cleanup.');
 });
 
 test('pre-native existing API completes the actual canonical and complete retained build source preflight before allocation', async () => {
