@@ -34,7 +34,7 @@ import { GM_ACCESS_TIMEOUT_MS, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference, useMotionSafetyGatePending } from '@/lib/motionPreference';
 import { startVersionUpgradeMonitor } from '@/lib/versionUpgrade';
 import { markServiceWorkerUpdateAvailable } from '@/pwa';
-import { dockingForShuttle } from '@/data/shuttles';
+import { SHUTTLECRAFT, dockingForShuttle } from '@/data/shuttles';
 import { findShip } from '@/data/ships';
 import { findConsoleRole } from '@/data/roles';
 import { replacementRoleFor } from '@/data/replacementRoles';
@@ -271,6 +271,12 @@ export function stationRoleFromPath(pathname: string): string | undefined {
     const [, shipId, roleId] = shipMatch;
     const role = findConsoleRole(roleId);
     return role && role.shipId === shipId ? role.id : undefined;
+  }
+  const shuttleMatch = /^\/shuttles\/([^/]+)$/.exec(pathname);
+  if (shuttleMatch) {
+    const shuttle = SHUTTLECRAFT.find((craft) => craft.id === shuttleMatch[1]);
+    const ownerRole = findConsoleRole(shuttle?.captainRoleId);
+    return ownerRole && ownerRole.shipId !== 'press' ? ownerRole.id : undefined;
   }
   const unionMatch = /^\/union\/roles\/([^/]+)$/.exec(pathname);
   const unionRole = findConsoleRole(unionMatch?.[1]);
