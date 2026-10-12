@@ -170,9 +170,10 @@ Independent exact source review passed at14ad04dd; receipt
 `INDEPENDENT_14AD04DD_R2_CONTAINMENT_SOURCE_REVIEW_20261012.json`, SHA256
 `5c187fe2c75488f117e442b2f5cc330639356bf10f36fbfd7bf4c74ddd96bffc`.
 ROOT read/hash verified its13 bound reference instances and owns integration.
-Fresh after-R2 rendered GREEN remains required; source checks/review supply no
-containment PASS. Capture all four required target bounds even when contained,
-not only elements still overflowing, then review wrapped text and Back controls.
+At that source stage, fresh after-R2 rendered GREEN remained required; source
+checks/review supplied no containment PASS. The later corrected qualification
+below captures all four required target bounds even when contained and reviews
+wrapped text and Back controls. The original RED evidence remains unchanged.
 
 Normal operations stopped at **13:54:14.371 UTC**. Exact physical handback was
 **13:59:51.029130 UTC**, before 14:00; receipt
@@ -184,19 +185,75 @@ owned Auth/session/receipt/pointer/config/reservation data was removed. Foreign
 claims and the original dirty checkout were preserved. No runtime remains and
 the allocation cannot be reused.
 
-## Ten remaining distinct execution objectives
+## Corrected R2 authenticated render qualification — 15:05 to 15:40
+
+Exact clean `53783d8081ac455100e0872ece65e2efbf47bf86`, whose product and consumer
+bytes equal reviewed `14ad04dd`, earned scoped objective 2 acceptance in
+`INDEPENDENT_53783D80_R2_ACTUAL_RENDER_SCOPED_REVIEW_20261012.json`, SHA256
+`f26347c0c646f7038878447ee4959f7b521e4026121c4a43d45dd8c433da1b64`.
+ROOT read the full receipt and verified all 40 referenced instances / 28 distinct
+file hashes and recorded lengths, then accepted integration ownership. Evidence
+is in the shared task's
+`pc10-reboot-recovery/native-runs/r2-actual-corrected-20261012-1504-63354c1d45514364b28354525c455520`.
+
+Two normal Auth identities played GM and Wing in two Chrome processes/contexts;
+eight roles were configured and zero human devices were tested. Ordinary
+admission, consent, GM authorization/live instance, casting and production
+0→1 supplied the actual route and private card. Scouting, flight and the prior
+GM read tour were not repeated. Fresh setup and incidental polls earn no
+additional action or mechanic credit.
+
+All nine document widths equal their viewport at 320/390 phone, 844×390 short
+landscape, 1440 restored desktop and the enlarged/scroll/focus samples. At 200%
+root text, the document is 390px rather than the original 485px. All four positive
+bounds fit: readouts24..366, code185.46875..331.421875,
+identity32..358 and Back44.203125..305.203125. Saved images show the complete
+session code, readable wrapping and a contained Back label. Seven visible
+private headings have zero DRADIS intersection; the two offscreen enlarged
+headings earn no visibility credit. The measured consumers pass and independent
+saved-image review finds no material blocker in this render scope.
+
+Actual Tab then ShiftTab returned Back to focus-visible with a measured solid
+2px amber outline and a retained full-page focus frame. The earlier programmatic
+focus sample with no outline is excluded from keyboard credit. Painted glyphs
+identify Courier-Bold for the private heading, Courier for the sampled private
+caption and ship title, and Menlo for the arrow plus Courier for Back text.
+Body wrapping is visually reviewed; the caption sample is not a census of all
+body fonts. Existing CIC tokens remain. Temporary root text16→32px was restored;
+this is not native browser zoom. Back activation, safe input, lost-station,
+reselect, touch, complete keyboard/manual-free use and final emitted-build
+typography/CI/deployment/release are separate unearned claims.
+
+The preceding failed namespace attempt remains preserved: its copied Vite
+project targeted the earlier namespace, one Auth signup occurred and no session
+or R2 measurement was produced. It handed back at14:55:35.791502UTC. The corrected
+attempt verified all five project selectors before acquisition and the served
+Firebase/advertised Functions project before ordinary creation. Wrong operator
+locators and the initial undefined hash alias remain recorded. The first unbound
+PNG is excluded from the nine measured/accepted captures. None is relabeled a
+gameplay defect or a historical PASS.
+
+Acquisition was15:05:59.009UTC and normal operations stopped15:30:20.989UTC,
+before15:35. Exact physical handback was **15:39:32.988208UTC**, before15:40;
+`CORRECTED_R2_1540_EXACT_PHYSICAL_HANDBACK.json` has SHA256
+`25edf984f06ddaec35c353b7beaa32bb88c06f881c659e23bc253ff9da700638`.
+Original browser objects/controller closed, all49 tracked original owned
+process pins/groups and11 selected dual-stack ports were clear, and the exact
+owned session/join/three roots/two membership pointers/two Auth identities,
+configuration/reservation/generated files and browser claim were removed.
+Foreign rows and the original dirty checkout were preserved. Independent review
+ran only after physical handback. No runtime or grant remains.
+
+## Nine remaining distinct execution objectives
 
 This expands the seven existing consolidated families where mechanics differ:
 read verification and phone clearance; N/O/P separately; unique Capybara
 mechanics and complete fresh game. It adds no requirements. Commit, packaging,
 CI and deployment stay together as one release objective.
 
-Objective 1 has the focused acceptance above. The original objective IDs remain
-stable; ten objectives remain, with zero new whole catalog closures.
+Objectives 1 and 2 have the focused acceptances above. The original objective IDs
+remain stable; nine objectives remain, with zero new whole catalog closures.
 
-2. Complete objective 2's enlarged-layout R2 containment and header visibility
-   check after bounded source review. Core R1 is accepted; after-R2 rendered
-   GREEN and the affected heading/font/scroll checks remain open.
 3. Complete the distinct Wing workspace Fighter Bay/wings/mission/rebuild and
    Back/lost-station/safe-input criteria using valid historical reuse first.
 4. Complete current Home/Deluxe Ancient Jump Ring N outcome/recovery/privacy
@@ -227,17 +284,38 @@ Later post-PC10/PC12 work and licensing remain separate; PC11 is not reopened.
 
 ## Next smallest distinct Wing check
 
-Prepare Back/re-entry and safe unsent input, then a genuine GM station release
-and same-Wing reselect. Two admitted actors suffice: Wing supplies the current
-form/station; GM is required to clear and reassign it through ordinary controls.
-Reuse successful admission/casting/start/scout/flight/reload contracts, performing
-only the fresh setup needed to reach this remaining boundary. Historical Captain
-Back/release/reassignment proves its original shared family, not Wing form
-retention. The current Wing Back goes to the AEGIS station overview; the overview
-states that viewing does not enter a station. The actual lost-station chooser,
-reselect instruction, safe input and refusal to replay an unauthorized mutation
-still require a discriminating mounted/native observation. Stop at the first
-unexplained mismatch, preserve evidence and return physical resources.
+The next allocated slice first checks Back/re-entry with an unsent Starlight
+coordinate during ordinary Team Time. Two admitted actors and two browsers
+suffice. Capture the input, current authority and zero scout submissions before
+and after the offered navigation. Stop at the first mismatch and return runtime
+before source diagnosis or saved review. No repair or retention PASS follows
+from source inspection alone.
+
+For the later station-loss criterion, genuine GM release/reassignment and
+same-Wing reselect are supported in Cycle0 casting. GM casting/seat release is locked after setup;
+the live player Settings release clears only the active console pointer while
+retaining the role/seat binding, so that alone is not full authority loss.
+The scout input is editable for its current role holder before Coordination,
+while submission is blocked. Use that existing unsent coordinate during casting
+without changing phase, clock or permissions. Verify the genuine current
+casting state before release and preserve an offered refusal if unavailable.
+
+Follow the offered Starlight Back to the assigned Wing console, then View ship
+consoles to AEGIS station overview and re-enter through its offered links.
+The overview states that viewing does not enter a station. Capture draft value
+and unchanged scout intent/receipt/effect before and after navigation. Ordinary
+GM release in its permitted casting window must supply the server authority change; capture the chooser,
+reselect instruction and retained safe draft on lawful reassignment/re-entry,
+with no automatic request or unauthorized replay. Active-game authority loss
+remains separately unproved by a casting-window result. Source inspection alone
+does not prove draft retention or a product defect: a meaningful mounted/native
+counterexample must precede any repair.
+
+Reuse accepted admission/casting/start/scout/flight/reload contracts, performing
+only necessary fresh setup. Historical Captain recovery retains its exact shared
+scope. No additional tab or submitted scout is planned. Stop at the first
+unexplained mismatch, preserve evidence and return physical resources. This is
+source-only preparation; execution needs a fresh bounded parent allocation.
 
 Keep Fighter Bay/wing/mission/rebuild criteria separate. The current Wing UI
 requires a fresh live writable snapshot, active Team Time, an intact charged

@@ -37,7 +37,7 @@ meaningful RED, independent review and rendered/gameplay gates. See the
 
 | ID | Required behavior | Implementation / connection | Authenticated gameplay / recovery / privacy | Review / release |
 |---|---|---|---|---|
-| 181 | Create the Wing Commander workspace. | Connected canonical Wing station and Starlight console at exact a6485b92; exact f35af64f adds qualified repaired GM reads. | Partial accepted October12: normal authenticated GM/casting/start0→1, original Wing reload, private scout and real flight/docking with unchanged holder. Later f35 scope adds legitimate transit undocked/no-host reply/paint, populated GM log and six scoped API authority denials. Both Fighter Bays/wings/missions/rebuild and Wing Back/lost-station/safe-input remain open. | Exact independent saved-UI/native review PASS in scope. Actual core R1 heading clearance accepted; enlarged-text R2 overflow/header clipping and final release remain open. |
+| 181 | Create the Wing Commander workspace. | Connected canonical Wing station and Starlight console at exact a6485b92; exact f35af64f adds qualified repaired GM reads. | Partial accepted October12: normal authenticated GM/casting/start0→1, original Wing reload, private scout and real flight/docking with unchanged holder. Later f35 scope adds legitimate transit undocked/no-host reply/paint, populated GM log and six scoped API authority denials. Both Fighter Bays/wings/missions/rebuild and Wing Back/lost-station/safe-input remain open. | Exact independent saved-UI/native review PASS in scope. Core R1 and exact53783d80 sampled R2 containment/wrapping/Back keyboard focus accepted; broader navigation/input/touch/final emitted-build typography and release remain open. |
 | 215b | Complete the Scientist workspace. | pending | pending | pending |
 | 223b | Complete the Explorer workspace. | pending | pending | pending |
 | 233b | Complete the PDF Colonel workspace. | pending | pending | pending |
@@ -92,7 +92,7 @@ meaningful RED, independent review and rendered/gameplay gates. See the
 | PC10-A02 | Actual authenticated GM, fresh cycle 0→1, unlimited/manual full-game demo beside existing cycle demo | Actual ordinary GM, fresh manual 0→1/Coordination retry, current Cycle 1 Press transmission and bounded Press natural flight/Pursuit ending/reload accepted within their scopes; complete fresh solo demo and every-role/function ending remain pending. |
 | Gate 1 | Every role/function in fresh full game through ending across two browsers | pending; function inventory to be reconciled |
 | Gate 2 | Claim-based overlap/reconnect/retry/privacy with the smallest sufficient cohort; 21 accounts only for a justified scale claim | Partial local criteria accepted below, including f35 current GM read/presence/transit and six error-only SDK denials with two actual Auth actors/Chrome contexts. Poll counts are not action or capacity proof. Conditional scale/capacity and uncovered audiences remain unclaimed. |
-| Gate 3 | Available actions, costs, blockers and next actor can be understood in app | Partial sampled route/GM-read presentation and actual CIC/system-font evidence. Core R1 overlap accepted; enlarged R2 containment, remaining control families and keyboard/touch remain open. PC11 is not reopened. |
+| Gate 3 | Available actions, costs, blockers and next actor can be understood in app | Partial sampled route/GM-read presentation and actual CIC/system-font evidence. Core R1 and sampled R2 containment/wrapping/Back keyboard focus accepted. Remaining control families, complete keyboard/touch and final emitted-build typography remain open. PC11 is not reopened. |
 
 ### Owner-approved consolidation — October 12
 
@@ -128,7 +128,7 @@ outbound PNG was too late. No positive shuttle-team transport was observed.
 
 The independent review accepts core R1 heading/DRADIS clearance on eight visible
 actual samples and recorded painted Courier/Courier-Bold fallback with CIC
-tokens. Objective 2 stays open: 200% root text measured document485 at viewport390
+tokens. At the14:00 handback, objective 2 stayed open: 200% root text measured document485 at viewport390
 and clipped session readouts/code. A separate measured consumer RED preceded
 test e9d7281b and bounded CSS14ad04dd; source font/palette63/63PASS is not rendered
 containment GREEN. Fresh R2 capture must include all four required measured
@@ -145,11 +145,43 @@ owned data/config/reservations removed. No runtime grant remains. See
 [the normal UI report](PC10_NORMAL_UI_REVIEW_REPORT.md) for immutable bindings,
 source chronology, unknowns and the next two-actor Wing Back/reselect criterion.
 
-Ten original objectives remain (IDs2–11), zero whole catalog rows newly close,
+At the14:00 handback, ten original objectives remained (IDs2–11). After the
+corrected R2 acceptance below, nine remain (IDs3–11), zero whole catalog rows newly close,
 overall703/751 and campaign245/293 stay unchanged. The final fresh every-role
 game is integration through an ending; it reuses accepted mechanic clauses
 without duplicating each detailed rule check. All unobserved roles/functions,
 recovery/privacy and release criteria remain explicit.
+
+### Corrected R2 rendered acceptance — October 12, 15:40 handback
+
+Exact clean53783d80 retains all reviewed14ad product/consumer bytes. Independent
+saved-image receipt `INDEPENDENT_53783D80_R2_ACTUAL_RENDER_SCOPED_REVIEW_20261012.json`
+SHA256 `f26347c0c646f7038878447ee4959f7b521e4026121c4a43d45dd8c433da1b64`
+accepts objective2 within its bounded authenticated render scope. ROOT read the
+full receipt and hash/length-verified40 reference instances/28 distinct files.
+All9 document widths fit; all4 positive200% readout/code/identity/Back bounds
+fit; seven visible private headings remain clear of DRADIS. Saved wrapping/code/
+Back images and actual solid2px amber keyboard focus pass. Two normal Auth actors
+played GM/Wing in two Chrome processes/contexts, eight roles configured, zero
+human devices. Setup/polls earn no duplicate gameplay credit.
+
+Painted samples identify Courier-Bold heading, Courier caption/title and
+Menlo-arrow/Courier Back. No all-body-font or painted SFMono claim. Temporary
+root text16→32px was restored; native browser zoom, Back activation, safe input,
+station loss/reselect, touch/full keyboard/manual-free and final emitted-build/
+typography/CI/deployment/release remain separate. The earlier namespace failure,
+operator errors and first unbound PNG retain their original limits.
+
+Acquired15:05:59.009UTC; operations stopped15:30:20.989UTC before15:35. Physical
+handback **15:39:32.988208UTC** was before15:40; receipt
+`CORRECTED_R2_1540_EXACT_PHYSICAL_HANDBACK.json`, SHA256
+`25edf984f06ddaec35c353b7beaa32bb88c06f881c659e23bc253ff9da700638`.
+All49 original owned process pins/groups,11 ports, exact owned session/Auth/root/
+pointer/config/reservation data and resource claims were cleared. Foreign rows
+and the original dirty checkout were preserved. Saved review occurred afterward.
+Nine original objectives remain IDs3–11; zero whole catalog closures and counts
+703/751,245/293,14partial/34missing remain unchanged. See the normal UI report
+for bindings, chronology and the next minimal Wing preparation.
 
 ### Independently reviewed ordinary GM/Wing UI — October 12
 
