@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { useSessionStore } from '@/store/useSessionStore';
+import { SESSION_STORAGE_KEY, useSessionStore } from '@/store/useSessionStore';
 import ScoutRequestControls from './ScoutRequestControls';
 
 const { request } = vi.hoisted(() => ({ request: vi.fn() }));
@@ -231,6 +231,11 @@ it.each(['session', 'uid', 'cycle'] as const)(
 
     expect(coordinate).toBeEnabled();
     const newRequestButton = within(controls).getByRole('button', { name: 'Record request' });
+    if (changedAuthority !== 'cycle') {
+      expect(coordinate).toHaveValue('');
+      expect(newRequestButton).toBeDisabled();
+      await user.type(coordinate, '5143');
+    }
     expect(newRequestButton).toBeEnabled();
     await user.click(newRequestButton);
 
@@ -321,5 +326,97 @@ it('shows the form only for the exact replacement assignment and gates Team phas
   });
   rerender(<ScoutRequestControls entitlementId="comms-officer" />);
   expect(screen.queryByRole('region', { name: 'Comms Officer scouting request' })).not.toBeInTheDocument();
+  expect(request).not.toHaveBeenCalled();
+});
+
+// Controlled mounted-consumer regressions for the retained actual Team Time
+// Back/re-entry failure. These fixtures do not supply native gameplay evidence.
+it.each(['5143', '51'])('retains safe unsent %s for the same member after a Team Time route remount', async (value) => {
+  const user = userEvent.setup();
+  setOwner('starlight');
+  act(() => {
+    const state = useSessionStore.getState();
+    state.setSession({ ...state.session!, turnPhase: {
+      ...state.session!.turnPhase!,
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    } });
+  });
+  const view = render(<ScoutRequestControls entitlementId="starlight" />);
+  await user.type(screen.getByLabelText('Printed system coordinate'), value);
+  expect(screen.getByRole('button', { name: 'Record request' })).toBeDisabled();
+
+  view.unmount();
+  render(<ScoutRequestControls entitlementId="starlight" />);
+
+  expect(screen.getByLabelText('Printed system coordinate')).toHaveValue(value);
+  expect(screen.getByRole('button', { name: 'Record request' })).toBeDisabled();
+  expect(request).not.toHaveBeenCalled();
+});
+
+it('retains safe unsent input through same-member casting station loss and re-entry', async () => {
+  const user = userEvent.setup();
+  setOwner('starlight');
+  act(() => {
+    const state = useSessionStore.getState();
+    state.setSession({ ...state.session!, phase: 'casting', currentTurn: 0 });
+  });
+  const view = render(<ScoutRequestControls entitlementId="starlight" />);
+  await user.type(screen.getByLabelText('Printed system coordinate'), '5143');
+  expect(screen.getByRole('button', { name: 'Record request' })).toBeDisabled();
+  act(() => {
+    const state = useSessionStore.getState();
+    state.setIdentity(state.session!, {
+      ...state.me!, assignedRoleId: null, seatId: null, activeConsoleRoleId: null,
+    });
+  });
+  expect(screen.queryByLabelText('Printed system coordinate')).not.toBeInTheDocument();
+  view.unmount();
+  act(() => setOwner('starlight'));
+  render(<ScoutRequestControls entitlementId="starlight" />);
+
+  expect(screen.getByLabelText('Printed system coordinate')).toHaveValue('5143');
+  expect(screen.getByRole('button', { name: 'Record request' })).toBeDisabled();
+  expect(request).not.toHaveBeenCalled();
+});
+
+it('does not revive an uncertain submitted request as an unsent remounted draft', async () => {
+  const user = userEvent.setup();
+  setOwner('starlight');
+  request.mockRejectedValueOnce(new Error('The reply was interrupted.'));
+  const view = render(<ScoutRequestControls entitlementId="starlight" />);
+  await user.type(screen.getByLabelText('Printed system coordinate'), '5143');
+  await user.click(screen.getByRole('button', { name: 'Record request' }));
+  expect(await screen.findByRole('button', { name: 'Retry same request' })).toBeVisible();
+  expect(screen.getByLabelText('Printed system coordinate')).toBeDisabled();
+  const originalRequest = request.mock.calls[0]?.[0];
+  view.unmount();
+  render(<ScoutRequestControls entitlementId="starlight" />);
+
+  expect(screen.getByLabelText('Printed system coordinate')).toHaveValue('');
+  expect(screen.getByRole('button', { name: 'Record request' })).toBeDisabled();
+  expect(screen.queryByRole('button', { name: 'Retry same request' })).not.toBeInTheDocument();
+  expect(request).toHaveBeenCalledExactlyOnceWith(originalRequest);
+});
+
+it.each(['disconnect', 'reset'] as const)('clears safe unsent input on %s without serializing it', async (teardown) => {
+  const user = userEvent.setup();
+  setOwner('starlight');
+  const view = render(<ScoutRequestControls entitlementId="starlight" />);
+  await user.type(screen.getByLabelText('Printed system coordinate'), '5143');
+  const saved = JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) ?? '{}');
+  expect(JSON.stringify(saved.state)).not.toContain('5143');
+  view.unmount();
+  const state = useSessionStore.getState();
+  const session = state.session!;
+  const me = state.me!;
+  act(() => {
+    state[teardown]();
+    useSessionStore.getState().setIdentity(session, me);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+  render(<ScoutRequestControls entitlementId="starlight" />);
+
+  expect(screen.getByLabelText('Printed system coordinate')).toHaveValue('');
   expect(request).not.toHaveBeenCalled();
 });
