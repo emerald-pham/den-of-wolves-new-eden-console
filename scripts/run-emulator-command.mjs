@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { constants, existsSync } from 'node:fs';
 import { access, mkdir, readFile, realpath, stat, unlink, writeFile } from 'node:fs/promises';
 import { execFile, spawn } from 'node:child_process';
-import { delimiter, dirname, isAbsolute, resolve } from 'node:path';
+import { delimiter, dirname, isAbsolute, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import {
@@ -113,7 +113,8 @@ async function qualifiedEmulatorLogDirectory(directory) {
   } catch (error) {
     throw new Error(requirement, { cause: error });
   }
-  if (canonicalDirectory !== directory || !metadata.isDirectory() || canonicalDirectory === canonicalRepository) {
+  if (canonicalDirectory !== directory || !metadata.isDirectory() || canonicalDirectory === canonicalRepository ||
+      canonicalDirectory.startsWith(canonicalRepository + sep)) {
     throw new Error(requirement);
   }
   return canonicalDirectory;
