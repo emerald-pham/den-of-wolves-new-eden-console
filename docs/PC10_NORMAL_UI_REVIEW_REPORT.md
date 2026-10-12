@@ -238,7 +238,7 @@ before15:35. Exact physical handback was **15:39:32.988208UTC**, before15:40;
 `CORRECTED_R2_1540_EXACT_PHYSICAL_HANDBACK.json` has SHA256
 `25edf984f06ddaec35c353b7beaa32bb88c06f881c659e23bc253ff9da700638`.
 Original browser objects/controller closed, all49 tracked original owned
-process pins/groups and11 selected dual-stack ports were clear, and the exact
+process pins/groups and 11 selected dual-stack ports were clear, and the exact
 owned session/join/three roots/two membership pointers/two Auth identities,
 configuration/reservation/generated files and browser claim were removed.
 Foreign rows and the original dirty checkout were preserved. Independent review
@@ -308,10 +308,66 @@ SHA256 `7e3b7f5dc5e20adc1f536921f025c7e4fd93ce8120ec87f9c99f1c21ef24199c`.
 ROOT read the complete receipt and verified all 32 reference instances across 24
 distinct files before accepting source integration. Evidence is retained in
 `pc10-reboot-recovery/native-runs/wing-unsent-back-20261012-1600-e86e44addd434278aa8d1943d2a743d6`.
-The source checks and saved original screenshots do not prove after-fix native
-input retention, native casting loss, whole Wing or final emitted-build
-typography. Prior accepted read/R1/R2 criteria remain unchanged. Nine objectives
-and zero new whole catalog closures remain.
+At this source stage, the checks and saved original screenshots did not prove
+after-fix native input retention, native casting loss, whole Wing or final
+emitted-build typography. The following native qualification earns only the
+minimum same-member Back/input criterion. Prior accepted read/R1/R2 criteria
+remain unchanged. Nine objectives and zero new whole catalog closures remain.
+
+## Repaired same-member Wing input qualification — 17:14 to 17:31
+
+Clean candidate `c3a3d87e` inherits the exact reviewed `7042693a` production and
+test bytes; its six later changes are documentation only. The fresh project
+selectors, original owned services and empty namespace were verified before
+two normal Auth actors opened two separate Chrome processes/contexts. The
+ordinary GM authorization, eight-role roster/casting, real production start
+and completed Cycle1 transmission/clock clearance were reused as necessary
+setup, without extra action or role-coverage credit. Zero human devices played.
+
+At 17:26:21.736UTC, the original current Wing entered unsent `5143` in Starlight
+during unpaused, restricted Cycle1 Team Time. The offered Back, View ship
+consoles, actually held Wing and Starlight links returned at 17:27:13.507UTC with
+`5143` intact. The complete captured current authority object is equal before
+and after: same Auth/member/session/role/seat/current console, live server
+projection, current own player and SDK authority, with no resume fence. Record
+remains disabled before Coordination, and original per-browser request records
+contain zero `requestScout` calls. Only the captured `shipResources` and
+`shuttleFuelled` projections were compared and remain equal; there is no scout
+receipt/result collection query or exhaustive effect-absence proof.
+
+Both saved request-region images show `5143`, disabled Record and the
+Coordination-only notice. The after image still says Loading scouting reports;
+report loading/delivery is not accepted by this criterion. The two earlier
+`claimSeat` 400 responses and one `listMyScoutReports` 403 are preserved before
+the criterion observations. Neither all-HTTP200 nor a newly confirmed server
+defect or intended-denial cause is claimed. Operator selector/setup errors,
+the first passive response observer's incorrect actor labels and an early
+paused phase observation are excluded. Correct original per-browser records,
+later actor-bound reply bodies and concrete unpaused before/after SDK/UI
+observations supply the accepted proof.
+
+Original browser objects closed at 17:28:48.751UTC. Guarded cleanup removed only
+the original owned session/join/three root records/two membership pointers/two
+Auth identities. Fresh physical handback completed at **17:31:43.633867UTC**,
+before 17:50: all 54 tracked original process pins plus the separately listed
+configure/cleanup processes were absent, eight original groups empty and 11
+selected ports free. Configuration/generated files, reservations and claims
+were removed; source, all 450 compiled Functions and the original dirty checkout
+were preserved. The 54 tracked cohort and 56 listed absent PIDs are distinct
+totals, not actor counts. Receipt SHA256 is
+`2d13068e41b096d766a16d8f8b104fbad0544ac281c094f3f03cb93fb4295009`.
+
+Independent saved-evidence review accepts only
+`WING_MINIMUM_SAME_MEMBER_UNSENT_INPUT_BACK_REENTRY`. Receipt
+`INDEPENDENT_C3A3D87E_WING_MINIMUM_NATIVE_SAVED_EVIDENCE_REVIEW_20261012.json`
+has SHA256 `62cd15f845abc562e2f06496a69b9ae3881e50bf530125dce655ce195e3abf3e`.
+ROOT read the complete receipt and verified 31 reference instances across 26
+distinct files, then accepted its precise scope. Evidence remains in
+`pc10-reboot-recovery/native-runs/wing-draft-recheck-20261012-1720-25c48949b67142b693c1338048de59f2`.
+The original input-loss RED, meaningful test-first repair and source review
+remain intact. No native station loss/reassign/reselect, submitted scout/retry,
+cold-document persistence, whole Wing or release credit is earned. Nine
+objectives and zero whole catalog closures remain; no runtime or grant remains.
 
 ## Nine remaining distinct execution objectives
 
@@ -353,13 +409,14 @@ Later post-PC10/PC12 work and licensing remain separate; PC11 is not reopened.
 
 ## Next smallest distinct Wing check
 
-The next fresh parent-allocated slice rechecks the repaired unsent Starlight
-coordinate through the same offered Back/overview/re-entry during ordinary
-Team Time. Two admitted actors and two browsers suffice. Capture the input,
-current authority and zero scout submissions before and after navigation.
-The source repair and independent review above are complete; after-fix native
-retention is unearned. Stop at the first mismatch and return runtime before
-source diagnosis or saved review. No allocation is currently active.
+Reuse the accepted same-member Team Time Back/input criterion above. The next
+distinct source-prepared check is genuine GM role release, same-player Wing
+reassignment and chooser/reselect/safe-input recovery in an unlocked Cycle0
+casting window. Two admitted actors and two browsers suffice. Capture actual
+server role/seat changes, route/reselect instruction, specific private-state
+clearing, retained safe text and zero scout submissions. Stop at the first
+mismatch and return runtime before source diagnosis or saved review. No
+allocation is currently active.
 
 For the later station-loss criterion, genuine GM release/reassignment and
 same-Wing reselect are supported in Cycle0 casting. GM casting/seat release is locked after setup;
