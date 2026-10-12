@@ -2097,27 +2097,36 @@ export const P181_NATIVE_TIMING = Object.freeze({
   nativeBrowserContexts: 2,
 });
 
-/** Create only the two ordinary browser processes/contexts owned by P181.
+/** Create only the original browser processes declared by the proof profile.
+ * Starlight keeps its two actors; Wing bays adds the ordinary Admiral whose
+ * maintenance authority is distinct from GM and Wing Commander.
  * Remote requests are aborted; the caller supplies an already allocated,
  * isolated local emulator/App origin. */
 export function createP181StarlightNativeSurfaceFactory({ chromium, baseUrl, ports,
   directory, browsers, surfaces, remoteRequests, pageErrors, calls, requests,
-  absoluteDeadlineAt = Infinity, cleanupDeadlineAt }) {
+  absoluteDeadlineAt = Infinity, cleanupDeadlineAt, actorProfile = 'starlight' }) {
   assert.ok(chromium?.launch && typeof baseUrl === 'string' && directory);
+  assert.ok(actorProfile === 'starlight' || actorProfile === 'wing-bays',
+    'Use an explicitly supported ordinary-actor proof profile.');
+  const actorLabels = actorProfile === 'wing-bays'
+    ? ['normal-gm', 'normal-wing-commander', 'normal-admiral']
+    : ['normal-gm', 'normal-wing-commander'];
   const origin = new URL(baseUrl);
   assert.equal(origin.protocol, 'http:');
   assert.equal(origin.hostname, '127.0.0.1');
   const allowedPorts = new Set([origin.port, ...Object.values(ports).map(String)]);
   let launchCount = 0;
+  const acquiredLabels = new Set();
   const pendingAcquisitions = new Set();
   async function launch(label, requestedDeadlineAt) {
     const deadlineAt = Math.min(absoluteDeadlineAt, requestedDeadlineAt ?? Date.now() + 60_000);
     const cleanupAt = cleanupDeadlineAt ?? deadlineAt + 60_000;
     p181Remaining(deadlineAt);
-    assert.ok(['normal-gm', 'normal-wing-commander'].includes(label));
-    assert.equal(launchCount < P181_NATIVE_TIMING.nativeBrowserProcesses, true,
+    assert.ok(actorLabels.includes(label));
+    assert.equal(launchCount < actorLabels.length && !acquiredLabels.has(label), true,
       'P181 owns exactly one browser process per ordinary Auth actor.');
     launchCount++;
+    acquiredLabels.add(label);
     let browser, acquisitionFailure;
     const acquire = Promise.resolve().then(() => {
       p181Remaining(deadlineAt);
