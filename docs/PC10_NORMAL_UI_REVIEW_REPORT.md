@@ -441,6 +441,50 @@ No new runtime grant, whole catalog closure or release acceptance is recorded.
 Evidence is retained under
 `pc10-reboot-recovery/native-runs/wing-cycle0-casting-20261012-1755-ba1ae4226d194c8aadd7bb7594782157`.
 
+## Minimum Cycle0 casting recovery accepted — 18:45 to 19:11
+
+Exact clean `ee35fdc7` used two normal authenticated GM/Wing actors in two
+Chrome contexts, eight configured roles and zero human devices. The ordinary
+current-GM release committed at 19:02:49.252UTC. The same fresh member lost
+role, seat and console authority; the request input and populated role brief
+disappeared while runtime-only `5143` remained. The actual route returned to
+the station chooser with its reselect instruction. A second ordinary GM
+assignment to that same player committed at 19:04:06.139UTC, followed by
+deliberate role selection at 19:04:40.765UTC, a new canonical seat claim and
+fresh Starlight re-entry at 19:04:41.284UTC. The current role brief reflects the
+new assignment revision 5; input `5143` returns with Record disabled.
+
+The frame labeled after reassignment was captured 69ms before the assignment
+reply and still shows an unassigned player. Notice dismissal also preceded
+that reply. Both are preserved and excluded from any delivered-assignment
+before-dismissal claim. Acceptance uses the later actual assignment reply,
+deliberate selection, seat reply and concrete fresh re-entry. The run has zero
+scout submissions and zero production starts; its two seat claims returned
+200. Four report reads were denied in casting, so report delivery and inactive
+phase guidance remain unqualified. Only `shipResources` and `shuttleFuelled`
+equality was captured. Loyalty was null throughout; populated role-brief
+revocation and restoration are the private-state evidence.
+
+Independent saved functional/rendered review `1fabc09e` approves this minimum
+casting recovery with no material blocker. ROOT fully read the receipt and
+verified all 26 named binding instances across 22 files; ACK `36b9986d`.
+Three saved phone390 full-page images support readable notice/re-entry and
+named horizontal containment only. Negative vertical coordinates and fixed
+airspace bars in composites do not prove unobscured live viewport geometry,
+touch, enlarged text or resolved painted fonts. Earlier R1/R2, read and
+same-member Team Time Back/input acceptances are retained separately.
+
+Physical handback completed at **19:11:39.187655UTC**, before the 19:20 boundary.
+Original browsers, owned processes, eleven ports, the exact session/two Auth
+identities/two root records, configuration, reservations and claims were
+returned; source/build and original dirty checkout were preserved. Receipt
+`02559a84` and exact artifacts remain under
+`pc10-reboot-recovery/native-runs/wing-cycle0-recheck-20261012-1850-7a01062d06cb4532b80565ee1d869cb8`.
+No runtime is held or newly granted. This earns the minimum casting clause;
+whole Wing, active-game authority loss, submitted retry, cold-document draft
+and full ending remain open. The unchanged Endeavour test/fixture failure
+remains an explicit final-validation hold pending contract reconciliation.
+
 ## Nine remaining distinct execution objectives
 
 This expands the seven existing consolidated families where mechanics differ:
@@ -451,8 +495,10 @@ CI and deployment stay together as one release objective.
 Objectives 1 and 2 have the focused acceptances above. The original objective IDs
 remain stable; nine objectives remain, with zero new whole catalog closures.
 
-3. Complete the distinct Wing workspace Fighter Bay/wings/mission/rebuild and
-   Back/lost-station/safe-input criteria using valid historical reuse first.
+3. Complete the distinct Wing workspace Fighter Bay/wings/mission/rebuild
+   criteria and unproved recovery branches using valid historical reuse first.
+   Minimum Team Time Back/input and lawful Cycle0 casting recovery are accepted;
+   they do not establish active-game authority loss or submitted retries.
 4. Complete current Home/Deluxe Ancient Jump Ring N outcome/recovery/privacy
    acceptance, reusing exact unchanged successful clauses.
 5. Complete current Home/Deluxe Deep Nebula O scouting/loss/later-bonus/server
@@ -489,48 +535,33 @@ Later post-PC10/PC12 work and licensing remain separate; PC11 is not reopened.
 
 ## Next smallest distinct Wing check
 
-Reuse the accepted same-member Team Time Back/input criterion above. The next
-distinct source-qualified recheck after the preserved native chooser failure
-is genuine GM role release, same-player Wing reassignment and
-chooser/reselect/safe-input recovery in an unlocked Cycle0
-casting window. Two admitted actors and two browsers suffice. Capture actual
-server role/seat changes, route/reselect instruction, specific private-state
-clearing, retained safe text and zero scout submissions. Stop at the first
-mismatch and return runtime before source diagnosis or saved review. No
-allocation is currently active.
+The next unique objective remains **Wing Fighter Bay/wing/mission/rebuild
+results**, rather than another casting or Back recheck. Map the helper's
+reported Alpha/Bravo launch prefix to its exact original evidence and unchanged
+dependencies before accepting reuse; the current report alone supplies no new
+fighter acceptance. Then select the first unproved ordinary action and its
+smallest justified cohort. Legitimate Admiral/Executive Officer maintenance
+must supply any required bay charge. Keep mission participation/result and
+fighter rebuilding as distinct result clauses.
 
-For the later station-loss criterion, genuine GM release/reassignment and
-same-Wing reselect are supported in Cycle0 casting. GM casting/seat release is locked after setup;
-the live player Settings release clears only the active console pointer while
-retaining the role/seat binding, so that alone is not full authority loss.
-The scout input is editable for its current role holder before Coordination,
-while submission is blocked. Use that existing unsent coordinate during casting
-without changing phase, clock or permissions. Verify the genuine current
-casting state before release and preserve an offered refusal if unavailable.
+The current build UI and handler require fresh live writable Wing authority,
+active Team Time, this cycle's intact charged Construction Bay, room in the
+selected authoritative wing and one Material. Fresh wings start full at four:
+an ordinary combat loss or legitimately purchased Construction Bay upgrade is
+needed before a build can succeed. A prepared count, charge, damage or GM
+resource edit cannot supply this gameplay criterion. Capture the ordinary
+resource/count/revision delta and corresponding pending/committed result.
+Add a real maintenance actor or mission participant only when that chosen
+action needs one; no blanket full roster or capacity run is implied.
 
-Follow the offered Starlight Back to the assigned Wing console, then View ship
-consoles to AEGIS station overview and re-enter through its offered links.
-The overview states that viewing does not enter a station. Capture draft value
-and unchanged scout intent/receipt/effect before and after navigation. Ordinary
-GM release in its permitted casting window must supply the server authority change; capture the chooser,
-reselect instruction and retained safe draft on lawful reassignment/re-entry,
-with no automatic request or unauthorized replay. Active-game authority loss
-remains separately unproved by a casting-window result. Source inspection alone
-does not prove draft retention or a product defect: a meaningful mounted/native
-counterexample must precede any repair.
-
-Reuse accepted admission/casting/start/scout/flight/reload contracts, performing
-only necessary fresh setup. Historical Captain recovery retains its exact shared
-scope. No additional tab or submitted scout is planned. Stop at the first
-unexplained mismatch, preserve evidence and return physical resources. This is
-source-only preparation; execution needs a fresh bounded parent allocation.
-
-Keep Fighter Bay/wing/mission/rebuild criteria separate. The current Wing UI
-requires a fresh live writable snapshot, active Team Time, an intact charged
-Construction Bay, space in the selected authoritative wing and one Material.
-Legitimate maintenance by the Admiral/Executive Officer is its next-actor
-handoff; no prepared charge/damage/count can supply acceptance. Existing exact
-unchanged rebuild/launch/mission evidence must be mapped before a new run.
+Accepted admission/casting/start/scout/flight/reload and both minimum input
+recovery criteria are reused. GM casting reassignment is locked after setup;
+Settings console release alone retains the role/seat and does not prove full
+active-game authority loss. Supported active-game recovery, submitted retry
+and other unproved branches stay with their existing criteria. Stop at the
+first unexplained mismatch, preserve it and return runtime before diagnosis
+or saved review. This is source-only preparation; any new heavy execution
+needs the canonical parent's fresh bounded allocation.
 The final fresh two-browser every-role game remains an integration objective:
 reuse accepted mechanic clauses without repeating each detailed rule proof,
 while actually walking each role/function through the fresh ending.

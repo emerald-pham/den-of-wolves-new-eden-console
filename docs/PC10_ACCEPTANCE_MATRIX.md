@@ -37,7 +37,7 @@ meaningful RED, independent review and rendered/gameplay gates. See the
 
 | ID | Required behavior | Implementation / connection | Authenticated gameplay / recovery / privacy | Review / release |
 |---|---|---|---|---|
-| 181 | Create the Wing Commander workspace. | Connected canonical Wing station and Starlight console at exact a6485b92; exact f35af64f adds qualified repaired GM reads. Source7042693a adds current-member/session/entitlement runtime safe-unsent-coordinate retention after five meaningful mounted REDs, test7df2555d,48 affected GREEN and exact independent source review. | Partial accepted October12: normal authenticated GM/casting/start0→1, original Wing reload, private scout and real flight/docking with unchanged holder. Later f35 scope adds legitimate transit undocked/no-host reply/paint, populated GM log and six scoped API authority denials. Original50f6b189 Team Time input-loss RED is retained. Exactc3 minimum same-current-member Back/overview/held-Wing/Starlight re-entry now independently preserves5143 in unpaused Team Time with current authority, Record disabled and zero scout POSTs; only shipResources/shuttleFuelled equality. Native casting loss/reassign/reselect was not attempted. Both Fighter Bays/wings/missions/rebuild remain distinct. | Exact independent saved-UI/native review PASS in scope. Core R1 and exact53783d80 sampled R2 containment/wrapping/Back keyboard focus accepted.7042693a source approval and exactc3 minimum native Back/input acceptance retained; broader recovery/touch/final emitted-build typography and release remain open. No cold-document draft claim. |
+| 181 | Create the Wing Commander workspace. | Connected canonical Wing station and Starlight console at exact a6485b92; exact f35af64f adds qualified repaired GM reads. Source7042693a adds current-member/session/entitlement runtime safe-unsent-coordinate retention after five meaningful mounted REDs, test7df2555d,48 affected GREEN and exact independent source review. | Partial accepted October12: normal authenticated GM/casting/start0→1, original Wing reload, private scout and real flight/docking with unchanged holder. Later f35 scope adds legitimate transit undocked/no-host reply/paint, populated GM log and six scoped API authority denials. Original50f6b189 Team Time input-loss RED is retained. Exactc3 minimum same-current-member Back/overview/held-Wing/Starlight re-entry now independently preserves5143 in unpaused Team Time with current authority, Record disabled and zero scout POSTs; only shipResources/shuttleFuelled equality. That earlier Back slice left casting loss/reassign unattempted. Exactee35 later independently accepts real Cycle0 GM release/chooser/notice/same-target assignment200/later deliberate selection/fresh Starlight5143 with revoked/restored brief; early pre-reply frame/dismissal excluded. Both Fighter Bays/wings/missions/rebuild and active-game loss remain distinct. | Exact independent saved-UI/native review PASS in scope. Core R1 and exact53783d80 sampled R2 containment/wrapping/Back keyboard focus accepted.7042693a source approval and exactc3 minimum native Back/input acceptance retained; broader recovery/touch/final emitted-build typography and release remain open. No cold-document draft claim. |
 | 215b | Complete the Scientist workspace. | pending | pending | pending |
 | 223b | Complete the Explorer workspace. | pending | pending | pending |
 | 233b | Complete the PDF Colonel workspace. | pending | pending | pending |
@@ -1810,3 +1810,32 @@ statuses remain unchanged: 703/751 overall, 245/293 campaign, 14 partial/34 miss
 The existing fresh-game objective includes supported reconnect/recovery and GM
 operating limits; no event-time reliability guarantee or ready paper fallback
 is established by these isolated checks. No runtime grant or release accepted.
+
+### October 12 minimum casting recovery accepted
+
+Exact `ee35fdc7` ordinary unlocked Cycle0 GM release committed for the same
+current Wing player. Role/seat/console, input and populated private brief were
+revoked; runtime-only `5143` remained and the chooser/reselect notice appeared.
+The actual same-target GM assignment 200 precedes deliberate role selection,
+seat 200 and concrete fresh Starlight re-entry with new private-brief assignment
+revision 5 and input `5143`, Record disabled. The early after-assignment-labelled
+frame and notice dismissal precede the reply and earn no assignment-delivery
+before-dismissal credit. Loyalty was null; only the populated brief is proved.
+
+Exact independent saved review `1fabc09e` and ROOT full-read/hash ACK `36b9986d`
+accept this minimum recovery. Two Auth actors/two Chrome contexts/eight
+configured roles/zero human devices, zero scout/start calls, two seat 200 and
+four casting report 403. Only captured ship resources/fuel projections are
+equal. Phone390 full-page notice/re-entry readability and named horizontal
+containment are scoped evidence; negative Y/fixed-bar composites and computed
+font lists do not certify complete viewport/touch/enlarged/painted typography.
+Physical handback `02559a84` completed 19:11:39.187655UTC before 19:20.
+
+The original native failure and test-first/source/fixture receipts remain
+preserved. Whole Wing stays open for distinct Fighter Bay/wing/mission/rebuild
+results and unproved recovery branches; accepted Back and casting criteria
+are reused. Endeavour final-validation reconciliation and final release gates
+remain. Nine objectives, zero new whole closures and 703/751 overall,
+245/293 campaign, 14 partial/34 missing are unchanged. No runtime held/granted
+or release accepted; [the scoped report](PC10_NORMAL_UI_REVIEW_REPORT.md)
+identifies the next unique criterion and exact evidence limits.
