@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import test from 'node:test';
-import { createP181StarlightNativeSurfaceFactory } from './pc10-starlight-movement-scout-ui-proof.mjs';
+import { createP181StarlightNativeSurfaceFactory, P181_NORMAL_SETUP,
+  runP181StarlightMovementScoutUiProof } from './pc10-starlight-movement-scout-ui-proof.mjs';
 
 // These use the existing actual factory with inert Playwright ports. They do
 // not authenticate, start a browser/server, reserve a slot or prove gameplay.
@@ -95,4 +96,112 @@ test('Wing bay source profile refuses foreign labels without acquiring any provi
     assert.equal(held.providerLaunches(), 0);
     assert.equal(held.browsers.length, 0);
   } finally { await held.close(); }
+});
+
+function controlledWingBayProcedure({ rejectedAction, retireWingBeforeDelivery = false } = {}) {
+  const trace = [], receipts = [];
+  const member = (roleId, uidHash) => ({
+    roleId, uidHash, sessionId: 'normal-session', meSessionId: 'normal-session',
+    hasAuth: true, sameActor: true, playerRole: 'player', profileRoleId: null, profileSessionId: null,
+    assignedRoleId: roleId, activeConsoleRoleId: roleId, seatId: roleId,
+    connectionGeneration: 2, identityHydrationRevision: 3, documentTimeOrigin: 1_000,
+    phase: 'active', cycle: 1, fullGameDemo: null, currentOwnPlayerConfirmed: true,
+    sdkHasServerAuthority: true, sdkResumePending: false, connected: true, kicked: false,
+    escapeLocked: false, invalidFields: [], connection: 'live', freshness: 'server',
+    currentCanonicalSeatOwned: true, currentMemberBerthPresent: true, currentMemberBerthNull: false,
+    currentMemberBerthMatches: true, memberScopeMatches: true, fleetGroupId: 'fleet-1', shipId: 'aegis',
+  });
+  const wing = member('wing-commander', 'a'.repeat(16)), admiral = member('admiral', 'c'.repeat(16));
+  const gm = { ...member(null, 'b'.repeat(16)), playerRole: 'gm', roleId: 'gm',
+    instanceId: 'original-gm-instance', gmInstanceOwned: true, recoveryPending: false };
+  const initial = { sessionId: 'normal-session', phase: 'lobby', cycle: 0, setupConfirmed: true,
+    playerCount: 8, chartId: 'A', activeRoleIds: [...P181_NORMAL_SETUP.roleIds], fullGameDemo: null };
+  const started = { sessionId: 'normal-session', phase: 'active', cycle: 1,
+    uidHash: gm.uidHash, instanceId: gm.instanceId, fullGameDemo: null };
+  const capture = (endpoint, actor, data, result = { status: 'committed' }, httpStatus = 200) => ({
+    endpoint, httpStatus, data: { sessionId: initial.sessionId, requestId: `ordinary-${receipts.length}`, ...data }, result,
+    before: { ...actor, generation: actor.connectionGeneration, hydrationRevision: actor.identityHydrationRevision },
+  });
+  const snapshot = { sessionId: initial.sessionId, phase: 'active', cycle: 1,
+    airspace: 'restricted', connection: 'live', freshness: 'server', materials: 5,
+    maintenance: null, damagedSystemIds: [], constructionBayUpgraded: false,
+    wings: ['alpha', 'bravo'].map(id => ({ id: `fighter-wing-${id}`, count: 4, revision: 0,
+      capacity: 4, damaged: false, charged: false })),
+    cards: ['alpha', 'bravo'].map(id => ({ id: `fighter-wing-${id}`, buildEnabled: false,
+      capacity: '4 fighters // Construction Bay standard', strength: '4 fighters // revision 0',
+      eligibility: 'Unavailable // current charge state is unavailable',
+      guidance: 'Build unavailable // Construction Bay charge state unavailable. Next actor // AEGIS Admiral or Executive Officer uses the current maintenance cycle.' })),
+  };
+  const io = {
+    async prepareNormalSession({ setup }) {
+      assert.equal(setup, P181_NORMAL_SETUP); trace.push('ordinary-setup-two-member-admission-start');
+      return { initial, started, gm, expectedWingCommander: wing, expectedAdmiral: admiral,
+        roster: [wing, admiral].map(actor => ({ roleId: actor.roleId, uidHash: actor.uidHash, sessionId: initial.sessionId })),
+        receipts: ['confirmSetup', 'assignRole', 'assignRole', 'startGame', 'clearTurnAdvanceInterstitial']
+          .map(endpoint => capture(endpoint, gm, { instanceId: gm.instanceId })),
+      };
+    },
+    async observeWingBayActors() { return structuredClone({ gm, wing, admiral }); },
+    async observeWingBayState({ stage }) {
+      trace.push(`observe:${stage}`);
+      if (stage === 'charged' && retireWingBeforeDelivery) wing.assignedRoleId = null;
+      return structuredClone(snapshot);
+    },
+    async performWingBayMaintenanceAction({ action }) {
+      trace.push(`maintenance:${action}`);
+      const revision = snapshot.maintenance?.revision ?? 0;
+      const rejected = action === rejectedAction;
+      const value = capture('runMaintenance', admiral, { shipId: 'aegis', consoleRoleId: 'admiral', action,
+        expectedRevision: revision }, rejected ? null : { status: 'committed', revision: revision + 1 }, rejected ? 403 : 200);
+      receipts.push(value);
+      if (!rejected) snapshot.maintenance = { turn: 1, step: revision + 1, revision: revision + 1,
+        charges: action === 'reactor' ? ['fighter-bay-alpha', 'fighter-bay-bravo', 'construction-bay'] : [] };
+      if (action === 'reactor' && !rejected) {
+        snapshot.wings.forEach(wing => { wing.charged = true; });
+        snapshot.cards.forEach(card => {
+          card.eligibility = 'Eligible // bay charged and operational';
+          card.guidance = 'Build unavailable // wing at capacity (4 fighters). Next actor // Wing Commander waits for space in this wing.';
+        });
+      }
+      return value;
+    },
+    async cleanupOwnedResources({ firstError, deadlineAt }) {
+      trace.push('owned-cleanup'); return { status: 'owned-cleanup-complete', firstErrorPresent: Boolean(firstError), deadlineAt };
+    },
+  };
+  const deadlineAt = Date.now() + 5_000;
+  return { trace, receipts, io, gm, wing, admiral,
+    input: { initial: { ...initial, setupConfirmed: false, activeRoleIds: [] }, proofProfile: 'wing-bays',
+      io, absoluteDeadlineMs: deadlineAt, cleanupDeadlineMs: deadlineAt + 1_000 } };
+}
+
+test('Wing bay finite procedure consumes three ordinary authorities and maintenance without repeating Starlight actions', async () => {
+  const held = controlledWingBayProcedure();
+  let result, failure;
+  try { result = await runP181StarlightMovementScoutUiProof(held.input); }
+  catch (error) { failure = error; }
+  assert.equal(failure, undefined, 'The existing finite wrapper must dispatch the declared ordinary three-actor bay procedure.');
+  assert.deepEqual(held.trace.filter(value => value.startsWith('maintenance:')),
+    ['maintenance:begin', 'maintenance:storage', 'maintenance:rations', 'maintenance:unrest', 'maintenance:riot', 'maintenance:reactor']);
+  assert.equal(result.proofProfile, 'wing-bays');
+  assert.equal(result.actualAuthActorCount, 3);
+  assert.equal(result.positiveFighterBuilds, 0);
+  assert.equal(result.actualAcceptance, false);
+  assert.equal(result.fixedCatalogClosures, 0);
+  assert.equal(held.trace.at(-1), 'owned-cleanup');
+  assert.equal(result.cleanup.deadlineAt, held.input.cleanupDeadlineMs);
+});
+
+test('Wing bay finite procedure stops on the original maintenance rejection and still owns cleanup', async () => {
+  const held = controlledWingBayProcedure({ rejectedAction: 'storage' });
+  await assert.rejects(runP181StarlightMovementScoutUiProof(held.input), /maintenance.*storage|storage.*maintenance/i);
+  assert.deepEqual(held.trace.filter(value => value.startsWith('maintenance:')), ['maintenance:begin', 'maintenance:storage']);
+  assert.equal(held.trace.at(-1), 'owned-cleanup');
+});
+
+test('Wing bay finite procedure withholds charged-card credit if original Wing authority retires during delivery', async () => {
+  const held = controlledWingBayProcedure({ retireWingBeforeDelivery: true });
+  await assert.rejects(runP181StarlightMovementScoutUiProof(held.input), /Wing|authority|station/i);
+  assert.equal(held.trace.includes('observe:charged'), true);
+  assert.equal(held.trace.at(-1), 'owned-cleanup');
 });

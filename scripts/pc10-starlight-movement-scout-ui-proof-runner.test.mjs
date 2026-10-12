@@ -2849,13 +2849,15 @@ test('P181 casting assignment rejects connected omission without a captured ordi
 async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate = false, lateCommit = false,
   scopeStall = false, launchStall = false, foreignState = false, clock, coreInput,
   directory, closeOwned, terminateOwned, writeOutcome, configureSurfaces, afterGmClaim,
-  servedEnvironmentChange, unclaimedWingSeat = false, rejectedMessage = 'ordinary rejected create' } = {}) {
+  servedEnvironmentChange, unclaimedWingSeat = false, rejectedMessage = 'ordinary rejected create', proofProfile,
+  ordinaryPreparation = false } = {}) {
   let now = Date.now();
   if (clock) now = clock.now();
   const records = new Map(), deletedAuth = [], operations = [], writes = [], privateRecords = [], surfaces = [], browsers = [];
   const preflightAcquisitions = { provider: 0, browser: 0 };
   const gm = mountedP181Surface('native-original-gm', { casting: true });
   const wing = mountedP181Surface('native-original-wing', { casting: true });
+  const admiral = mountedP181Surface('native-original-admiral', { casting: true });
   if (unclaimedWingSeat) {
     for (const surface of [gm, wing]) surface.state.seats = [{ id: 'wing-commander', roleId: 'wing-commander',
       status: 'available', holderUid: null }];
@@ -2933,6 +2935,88 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
       wing.deliver('joinSession', { joinCode: '345678' }, { session: { id: 'normal-session' } });
     }
   };
+  if (ordinaryPreparation) {
+    const members = [wing, admiral];
+    for (const surface of [gm, ...members]) surface.state.seats = ['wing-commander', 'admiral']
+      .map(roleId => ({ id: roleId, roleId, holderUid: null, status: 'available' }));
+    const gmChoices = gm.onChoice;
+    gm.onChoice = async name => {
+      if (name.startsWith('Assign role to ')) {
+        const surface = members.find(member => name === `Assign role to ${member.uid}`);
+        assert.ok(surface, 'Assign only the display name of the original normally admitted actor.');
+        const roleId = gm.input;
+        const expectedSetupRevision = gm.state.session.setupRevision;
+        gm.state.session.phase = 'casting'; gm.state.session.setupRevision++;
+        gm.deliver('assignRole', { sessionId: 'normal-session', instanceId: gm.state.gmInstance.id,
+          requestId: `assign-${surface.uid}`, expectedSetupRevision, targetUid: surface.uid, roleId },
+        { status: 'committed', sessionId: 'normal-session', requestId: `assign-${surface.uid}`,
+          setupRevision: gm.state.session.setupRevision });
+        surface.publish(state => {
+          state.session.phase = 'casting'; state.session.setupRevision = gm.state.session.setupRevision;
+          state.me.assignedRoleId = roleId; state.connection = 'connecting';
+          state.sessionSnapshotFreshness = 'cache'; state.sdkResumePending = true;
+          state.session.currentActorBerthAuthority.assignedRoleId = roleId;
+        });
+        const nextGeneration = surface.state.me.connectionGeneration + 1;
+        surface.deliver('resumeSession', { sessionId: 'normal-session' }, {
+          session: { id: 'normal-session' }, player: { ...surface.state.me, connectionGeneration: nextGeneration },
+        });
+        await remainingSettleUntil(() => Boolean(surface.window.__p181OriginalMemberObservation?.castingResumeRequest),
+          'original casting resume guard notification');
+        surface.publish(state => {
+          state.me.connectionGeneration = nextGeneration; state.identityHydrationRevision++;
+          state.session.currentActorBerthAuthority.connectionGeneration = nextGeneration;
+          state.connection = 'live'; state.sessionSnapshotFreshness = 'server'; state.sdkResumePending = false;
+        });
+        return;
+      }
+      if (name === 'ARE YOU SURE? // ADVANCE TO CYCLE 1') {
+        const expectedSetupRevision = gm.state.session.setupRevision;
+        const turnPhase = { turn: 1, airspace: { state: 'restricted' },
+          teamPhaseEndsAt: new Date(now + 600_000).toISOString(),
+          openAirspaceEndsAt: new Date(now + 840_000).toISOString(),
+          timerPause: { reason: 'turn-interstitial', pausedAt: new Date(now).toISOString() } };
+        for (const surface of [gm, ...members]) surface.publish(state => {
+          state.session.phase = 'active'; state.session.currentTurn = 1;
+          state.session.setupRevision = expectedSetupRevision + 1;
+          state.session.turnPhase = structuredClone(turnPhase);
+        });
+        gm.deliver('startGame', { sessionId: 'normal-session', instanceId: gm.state.gmInstance.id,
+          requestId: 'start-original', expectedSetupRevision },
+        { status: 'committed', sessionId: 'normal-session', requestId: 'start-original', currentTurn: 1,
+          setupRevision: expectedSetupRevision + 1, turnPhase });
+        return;
+      }
+      if (name === 'Clear cycle briefing // resume clock') {
+        const pausedAt = gm.state.session.turnPhase.timerPause.pausedAt;
+        for (const surface of [gm, ...members]) surface.publish(state => {
+          delete state.session.turnPhase.timerPause;
+        });
+        gm.deliver('clearTurnAdvanceInterstitial', { sessionId: 'normal-session', instanceId: gm.state.gmInstance.id,
+          requestId: 'clear-original', expectedCycle: 1, expectedPausedAt: pausedAt },
+        { status: 'cleared', cycle: 1, pausedAt, turnPhase: structuredClone(gm.state.session.turnPhase) });
+        return;
+      }
+      await gmChoices(name);
+    };
+    for (const surface of members) surface.onChoice = async name => {
+      if (name === 'Join a session') {
+        surface.state.session.setupConfirmed = true;
+        records.set(`activeMemberships/${surface.uid}`, { sessionId: 'normal-session' });
+        surface.deliver('joinSession', { joinCode: '345678' }, { session: { id: 'normal-session' } });
+      }
+      if (name === `a[href$="/roles/${surface.state.me.assignedRoleId}"]`) {
+        const roleId = surface.state.me.assignedRoleId;
+        surface.setRoute(`#/roles/${roleId}`);
+        surface.publish(state => {
+          state.me.activeConsoleRoleId = state.me.seatId = roleId;
+          state.seats = state.seats.map(seat => seat.id === roleId
+            ? { ...seat, holderUid: surface.uid, status: 'claimed' } : seat);
+          state.session.currentActorBerthAuthority.activeConsoleRoleId = roleId;
+        });
+      }
+    };
+  }
   await configureSurfaces?.({ gm, wing });
   const originalGmWait = gm.page.waitForResponse;
   gm.page.waitForResponse = (predicate, options) => {
@@ -2955,7 +3039,8 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
     VITE_FIREBASE_FIRESTORE_EMULATOR_PORT: String(launch.ports.firestore) };
   servedEnvironmentChange?.(servedEnv);
   const runtimeSource = `import.meta.env = ${JSON.stringify(servedEnv)};\n`;
-  const env = { P181_SOURCE_COMMIT: launch.sourceCommit, P181_RUNTIME_LAUNCH_RECORD: '/tmp/in-memory-launch.json' };
+  const env = { P181_SOURCE_COMMIT: launch.sourceCommit,
+    P181_RUNTIME_LAUNCH_RECORD: `${directory ?? '/tmp/in-memory-remaining-native'}/in-memory-launch.json` };
   const source = p181DeadlineSource.replace(/^import[\s\S]*?;\n/gm, '').replace(/^export /gm, '')
     .replace(/import\.meta\.url/g, '__moduleUrl').split('\nif (process.argv[1]')[0];
   const context = { assert: { ...assert, deepEqual: (a, b, ...args) => assert.deepEqual(
@@ -2998,7 +3083,8 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
     __factory: { launch: async label => {
       preflightAcquisitions.browser++;
       if (launchStall) return new Promise(() => {});
-      const surface = label === 'normal-gm' ? gm : wing;
+      const surface = label === 'normal-gm' ? gm : label === 'normal-wing-commander' ? wing : admiral;
+      surface.label = label;
       const browser = { isConnected: () => !browser.closed, close: async () => {
         operations.push(`close-start:${label}`); await closeOwned?.(label);
         browser.closed = true; operations.push(`close:${label}`);
@@ -3006,7 +3092,9 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
       surfaces.push(surface); browsers.push(browser); return surface;
     } },
     __coreInput: coreInput,
+    __ordinaryPreparation: ordinaryPreparation,
     __options: { runtimeAllocated: 'yes', chromium: {}, ...launch, evidenceDirectory: directory ?? '/tmp/in-memory-remaining-native',
+      ...(proofProfile === undefined ? {} : { proofProfile }),
       allocationStartedAtMs: now - 1000, allocationDeadlineMs: now - 1000 + 26 * 60_000 } };
   // The factory boundary supplies only controlled acquisition. The whole native
   // owner still performs empty-scope admission, request capture and cleanup.
@@ -3024,13 +3112,67 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
       const originalCore = runP181StarlightMovementScoutCore;
       runP181StarlightMovementScoutCore = input => originalCore(__coreInput(input));
     }
+    if (__ordinaryPreparation) runP181StarlightMovementScoutUiProof = input =>
+      input.io.prepareNormalSession({ initial: input.initial, setup: P181_NORMAL_SETUP,
+        deadlineAt: input.absoluteDeadlineMs, requiredBranches: [] });
     try { await runP181StarlightMovementScoutNative(__options); }
     catch (error) { return error; }
   })()`, context, { filename: p181DeadlineSourcePath });
-  return { gm, wing, records, deletedAuth, operations, writes, privateRecords, program, preflightAcquisitions,
+  return { gm, wing, admiral, surfaces, browsers, records, deletedAuth, operations, writes, privateRecords, program, preflightAcquisitions,
     allocationDeadlineAt: context.__options.allocationDeadlineMs,
     cleanupDeadlineAt: context.__options.allocationDeadlineMs - P181_NATIVE_TIMING.parentIndependentVerificationReserveMs };
 }
+
+test('Wing bay actual native owner acquires and tears down its three declared surfaces after ordinary create rejection', async () => {
+  const held = await remainingNativeConsumer({ proofProfile: 'wing-bays', rejectedCreate: true });
+  const first = await held.program;
+  assert.ok(first, 'The original ordinary create rejection must remain primary.');
+  assert.equal(held.preflightAcquisitions.browser, 3,
+    'The declared native bay procedure needs three independent original surfaces before normal admission.');
+  assert.deepEqual(held.surfaces.map(surface => surface.uid),
+    ['native-original-gm', 'native-original-wing', 'native-original-admiral']);
+  assert.equal(held.browsers.every(browser => browser.closed), true);
+  assert.deepEqual(held.deletedAuth, ['native-original-gm']);
+  const outcome = JSON.parse(held.writes.find(item => item.path.endsWith('p181-starlight-movement-scout.json')).body);
+  assert.equal(outcome.cleanup.browsersClosed, 3);
+  assert.equal(outcome.firstError.message, first.message);
+});
+
+test('Wing bay actual native entry refuses an unknown proof profile before acquiring any provider or browser', async () => {
+  const held = await remainingNativeConsumer({ proofProfile: 'unknown-cohort', rejectedCreate: true });
+  const failure = await held.program;
+  assert.match(String(failure), /profile/i);
+  assert.deepEqual(held.preflightAcquisitions, { provider: 0, browser: 0 });
+  assert.deepEqual(held.operations, []);
+});
+
+test('Wing bay actual normal-start consumer joins and casts both independent ordinary members before its real Cycle1 start', async () => {
+  const held = await remainingNativeConsumer({ proofProfile: 'wing-bays', ordinaryPreparation: true,
+    clock: remainingLifecycleClock() });
+  const failure = await held.program;
+  assert.equal(failure, undefined, 'The normal three-actor prefix must finish through its original UI source consumer.');
+  const outcome = JSON.parse(held.writes.find(item => item.path.endsWith('p181-starlight-movement-scout.json')).body);
+  assert.deepEqual(outcome.roster.map(actor => actor.roleId), ['wing-commander', 'admiral']);
+  assert.equal(outcome.actualAuthActors, 3);
+  assert.equal(outcome.started.cycle, 1);
+  assert.deepEqual(outcome.receipts.map(receipt => receipt.endpoint),
+    ['confirmSetup', 'assignRole', 'assignRole', 'startGame', 'clearTurnAdvanceInterstitial']);
+  assert.equal(outcome.cleanup.browsersClosed, 3);
+  assert.equal(outcome.cleanup.deletedFreshAuthIdentities, 3);
+  assert.equal(outcome.cleanup.ownedMembershipPointersAbsent, true);
+  assert.deepEqual([...held.records.keys()], []);
+});
+
+test('Wing bay preparation preserves the unchanged two-actor normal-start prefix for the default profile', async () => {
+  const held = await remainingNativeConsumer({ ordinaryPreparation: true, clock: remainingLifecycleClock() });
+  assert.equal(await held.program, undefined);
+  const outcome = JSON.parse(held.writes.find(item => item.path.endsWith('p181-starlight-movement-scout.json')).body);
+  assert.deepEqual(outcome.roster.map(actor => actor.roleId), ['wing-commander']);
+  assert.equal(outcome.actualAuthActors, 2);
+  assert.equal(outcome.cleanup.browsersClosed, 2);
+  assert.equal(outcome.cleanup.deletedFreshAuthIdentities, 2);
+  assert.deepEqual([...held.records.keys()], []);
+});
 
 // Route regressions mount the unchanged route components, actual Zustand store,
 // role data and React Router handlers. Only SDK/service boundaries and unrelated
