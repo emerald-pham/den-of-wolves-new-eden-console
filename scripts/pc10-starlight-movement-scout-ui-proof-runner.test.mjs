@@ -10,7 +10,7 @@ import { EventEmitter } from 'node:events';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, extname, resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
-import { pc11GmReadiness, pc11SameActorEpoch, removePc11OwnedRootRecords,
+import { pc11GmReadiness, pc11MemberReadiness, pc11SameActorEpoch, removePc11OwnedRootRecords,
   recoverPc11CreatedSession, createPc11OwnedRequestTracker } from './qualification/pc11-normal-start-adapter.mjs';
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import { originalProofError, rememberProofFailure, retainProofFailure } from './pc10-proof-failure-evidence.mjs';
@@ -2083,7 +2083,7 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
   return surface;
 }
 
-async function actualP181CastingAssignmentFixture(t, { assignmentTarget, assignmentRole,
+async function actualP181CastingAssignmentFixture(t, { assignmentTarget, assignmentRole, deferMemberTransition = false,
   resumeGeneration = 3, resumeHydration = 4, resumeStatus = 200, resumeSessionId = 'normal-session',
   resumeUid = 'wing-uid', resumeAssignedRoleId = 'wing-commander' } = {}) {
   const wing = mountedP181Surface('wing-uid', { casting: true });
@@ -2095,7 +2095,7 @@ async function actualP181CastingAssignmentFixture(t, { assignmentTarget, assignm
   const before = await observeFullGameDemoPresentationMember(wing, { knownRoleIds: originalRoleIds });
   const directory = await mkdtemp('/tmp/p181-casting-assignment-resume-');
   const observer = createMemberNavigationResumeObserver(wing.page, { directory, roleId: 'wing-commander',
-    deadlineAt: Date.now() + 4_000, memberContract: 'pc11-live-base', transition: 'casting-assignment' });
+    deadlineAt: Date.now() + 4_000, memberContract: 'pc11-live-base' });
   await observer.prepare(before);
   t.after(async () => { await observer.finish().catch(() => {}); });
 
@@ -2111,30 +2111,45 @@ async function actualP181CastingAssignmentFixture(t, { assignmentTarget, assignm
       requestId: data.requestId, setupRevision: gm.state.session.setupRevision });
   }, { original: gmBefore, gm: true, normalSetup: true, sdkAuthority: true, deadlineAt: Date.now() + 3_000 });
 
-  wing.state.session.phase = 'casting'; wing.state.session.setupRevision = 2;
-  wing.state.me.assignedRoleId = 'wing-commander';
-  wing.state.connection = 'connecting'; wing.state.sessionSnapshotFreshness = 'cache';
-  wing.state.sdkResumePending = true;
-  wing.state.session.currentActorBerthAuthority = { ...wing.state.session.currentActorBerthAuthority,
-    assignedRoleId: 'wing-commander' };
-  wing.publish(() => {});
-  wing.state.me.connectionGeneration = resumeGeneration;
-  wing.state.identityHydrationRevision = resumeHydration;
-  wing.state.session.currentActorBerthAuthority = { ...wing.state.session.currentActorBerthAuthority,
-    connectionGeneration: resumeGeneration };
-  wing.publish(() => {});
-  wing.deliver('resumeSession', { sessionId: resumeSessionId }, { session: { id: resumeSessionId },
-    player: { ...wing.state.me, uid: resumeUid, sessionId: resumeSessionId,
-      assignedRoleId: resumeAssignedRoleId, connectionGeneration: resumeGeneration } }, { status: resumeStatus });
-  wing.state.sdkResumePending = false; wing.state.connection = 'live'; wing.state.sessionSnapshotFreshness = 'server';
-  wing.publish(() => {});
-  const current = await observeFullGameDemoPresentationMember(wing, { knownRoleIds: originalRoleIds });
-  return { wing, gm, observer, before, current, assignment, directory };
+  const applyAssignmentAndResume = async () => {
+    wing.state.session.phase = 'casting'; wing.state.session.setupRevision = 2;
+    wing.state.me.assignedRoleId = 'wing-commander';
+    wing.state.connection = 'connecting'; wing.state.sessionSnapshotFreshness = 'cache';
+    wing.state.sdkResumePending = true;
+    wing.state.session.currentActorBerthAuthority = { ...wing.state.session.currentActorBerthAuthority,
+      assignedRoleId: 'wing-commander' };
+    wing.publish(() => {});
+    wing.state.me.connectionGeneration = resumeGeneration;
+    wing.state.identityHydrationRevision = resumeHydration;
+    wing.state.session.currentActorBerthAuthority = { ...wing.state.session.currentActorBerthAuthority,
+      connectionGeneration: resumeGeneration };
+    wing.publish(() => {});
+    wing.deliver('resumeSession', { sessionId: resumeSessionId }, { session: { id: resumeSessionId },
+      player: { ...wing.state.me, uid: resumeUid, sessionId: resumeSessionId,
+        assignedRoleId: resumeAssignedRoleId, connectionGeneration: resumeGeneration } }, { status: resumeStatus });
+    wing.state.sdkResumePending = false; wing.state.connection = 'live'; wing.state.sessionSnapshotFreshness = 'server';
+    wing.publish(() => {});
+    return observeFullGameDemoPresentationMember(wing, { knownRoleIds: originalRoleIds });
+  };
+  const current = deferMemberTransition ? null : await applyAssignmentAndResume();
+  return { wing, gm, observer, before, current, assignment, applyAssignmentAndResume, directory };
 }
 
 test('P181 casting assignment accepts only the original GM receipt and the member’s captured normal resume', async t => {
-  const f = await actualP181CastingAssignmentFixture(t);
-  const accepted = await f.observer.accept(f.before, f.current,
+  const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true });
+  const wait = await reconciledNativeWait(f.wing, 'full');
+  let transitioned = false;
+  f.wing.onDigest = async () => {
+    if (transitioned) return;
+    transitioned = true;
+    await f.applyAssignmentAndResume();
+  };
+  const navigationStart = await wait(f.wing, 'Original Wing Commander assignment readiness', value =>
+    pc11MemberReadiness(value, { sessionId: f.before.sessionId, uidHash: f.before.uidHash,
+      roleId: 'wing-commander', stage: 'casting' }) && value.phase === 'casting' && value.cycle === 0 &&
+      value.sdkResumePending === false, Date.now() + 3_000, f.before);
+  assert.equal(transitioned, true, 'The mounted source consumer observed assignment and normal resume during its wait.');
+  const accepted = await f.observer.accept(f.before, navigationStart,
     () => observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds }), f.assignment);
   assert.ok(accepted, 'The real casting assignment and ordinary resume must reach fresh member readiness.');
   assert.equal(accepted.assignedRoleId, 'wing-commander');
@@ -4854,9 +4869,10 @@ async function reconciledNativeWait(surface, kind, readRecovery) {
   const sourceModule = await import('./pc10-starlight-movement-scout-ui-proof.mjs');
   const name = kind === 'full' ? 'waitForFullActor' : 'waitForGm';
   const body = kind === 'full' ? p181FullActorWaitBody : p181GmWaitBody;
+  const owner = surface.state?.me?.role === 'gm' ? 'gm' : 'wing-commander';
   const context = { assert, Date, P181_NATIVE_TIMING, pc11GmReadiness, pc11SameActorEpoch,
     gm: surface, wingCommander: {}, sessionId: 'normal-session', gmInstanceId: 'gm-original-instance',
-    ownedAuthUids: new Map([['gm', 'original-gm']]),
+    ownedAuthUids: new Map([[owner, surface.uid]]),
     hashShort: value => createHash('sha256').update(value).digest('hex').slice(0, 16),
     readFullActor: async () => observeFullGameDemoPresentationMember(surface, { knownRoleIds: originalRoleIds }),
     readGmRecoveryPending: readRecovery ?? (async () => false),
