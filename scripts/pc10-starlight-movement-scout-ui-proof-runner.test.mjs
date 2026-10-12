@@ -73,6 +73,35 @@ function actualP181RetainedBuildLocation(values) {
   return runInNewContext(`${helper}\n${p181DeadlineSource.slice(start, end)}`, { assert, resolve, ...values });
 }
 
+function actualP181PlannedLaunchQualifier(plannedLaunch) {
+  const ownedPathStart = p181DeadlineSource.indexOf('export function p181OwnedArtifactPath(');
+  const ownedPathEnd = p181DeadlineSource.indexOf('\n}\n', ownedPathStart) + 3;
+  const environmentStart = p181DeadlineSource.indexOf('async function p181PlannedEnvironmentEvidence(');
+  const environmentEnd = p181DeadlineSource.indexOf('\n}\n\n/** Artifact bytes', environmentStart) + 2;
+  const validatorStart = p181DeadlineSource.indexOf('async function p181ValidatePlannedLaunch(');
+  const validatorEnd = p181DeadlineSource.indexOf('\n}\n\n/** Reuse the actual canonical source tests', validatorStart) + 2;
+  assert.ok(ownedPathStart >= 0 && ownedPathEnd > ownedPathStart);
+  assert.ok(environmentStart >= 0 && environmentEnd > environmentStart);
+  assert.ok(validatorStart >= 0 && validatorEnd > validatorStart);
+  const helpers = `${p181DeadlineSource.slice(ownedPathStart, ownedPathEnd).replace('export ', '')}\n` +
+    `${p181DeadlineSource.slice(environmentStart, environmentEnd)}\n` +
+    p181DeadlineSource.slice(validatorStart, validatorEnd);
+  const sourceAssert = { ...assert,
+    deepEqual: (actual, expected, ...options) => assert.deepEqual(
+      JSON.parse(JSON.stringify(actual)), JSON.parse(JSON.stringify(expected)), ...options) };
+  return runInNewContext(`(async () => { ${helpers}
+    return p181ValidatePlannedLaunch(__plannedLaunch, __sourceRoot, __plannedLaunch.sourceCommit,
+      async (_label, action) => action());
+  })()`, {
+    assert: sourceAssert, createHash, existsSync, readFile, realpath, resolve, process, JSON,
+    P181_NATIVE_TIMING,
+    emulatorEnvironmentForSlot, emulatorPortsForSlot, vitePortForSlot,
+    coordinationFilePath, checkServedEnvironment, localGmAccessConfiguration,
+    resolveFirebaseToolsInvocation,
+    __plannedLaunch: plannedLaunch, __sourceRoot: resolve(repositoryRoot),
+  });
+}
+
 const durableArtifactSourceRoot = '/Users/owner/workspace/pc10-recovery/proof-candidate';
 const durableArtifactDirectory = '/Users/owner/workspace/pc10-recovery/native-runs/fresh';
 const durableArtifactRecord = `${durableArtifactDirectory}/runtime-launch-record.json`;
@@ -3636,7 +3665,8 @@ function p181ReferencePlannedLaunch(sourceCommit, evidenceDirectory = '/tmp/p181
     commands: {
       configure: command(['scripts/configure-emulator-slot.mjs', String(slot)]),
       emulators: command(['scripts/run-emulator-command.mjs', 'start', '--project', projectId, '--only', 'auth,functions,firestore'],
-        { ...nodeEnvironment, FIREBASE_DEBUG_PATH: resolve(evidenceDirectory, 'firebase-debug.log') }),
+        { ...nodeEnvironment, FIREBASE_DEBUG_PATH: resolve(evidenceDirectory, 'firebase-debug.log'),
+          DOW_FIREBASE_EMULATOR_LOG_DIRECTORY: evidenceDirectory }),
       vite: command(['scripts/run-emulator-command.mjs', 'vite', '--host', '127.0.0.1', '--strictPort'], viteEnv),
       proof: command(['scripts/pc10-starlight-movement-scout-ui-proof.mjs'], {
         P181_RUNTIME_ALLOCATED: 'yes', P181_SOURCE_ROOT: repositoryRoot, P181_SOURCE_COMMIT: sourceCommit,
@@ -4039,6 +4069,43 @@ test('launch readiness requires complete exact commands and disables both wrappe
   assert.deepEqual(accepted, [], `Accepted incomplete/wrong planned commands: ${accepted.join(', ')}`);
 });
 
+test('planned launch qualification binds Firebase log production to the exact future evidence directory', async () => {
+  const directory = resolve('/tmp', `p181-uncreated-firebase-log-${process.pid}-${Date.now()}`);
+  assert.equal(existsSync(directory), false, 'The future attempt evidence directory must be absent during source-only qualification.');
+  const plan = p181ReferencePlannedLaunch('a'.repeat(40), directory);
+  assert.equal(plan.commands.emulators.env.DOW_FIREBASE_EMULATOR_LOG_DIRECTORY, directory);
+  const receipt = await actualP181PlannedLaunchQualifier(plan);
+  assert.equal(receipt.configuration.commands.emulators.env.DOW_FIREBASE_EMULATOR_LOG_DIRECTORY, directory);
+  assert.equal(receipt.configuration.commands.emulators.cwd, repositoryRoot,
+    'The wrapper remains rooted in the source checkout to resolve its config and source files.');
+  assert.equal(receipt.installedFirebase.cwd, directory,
+    'The installed Firebase child must use the exact attempt directory for relative debug log output.');
+  const configIndex = receipt.installedFirebase.argv.indexOf('--config');
+  assert.ok(configIndex >= 0);
+  assert.equal(receipt.installedFirebase.argv[configIndex + 1], resolve(repositoryRoot, 'firebase.local.json'),
+    'Firebase must retain the explicit absolute source config while its child cwd is isolated.');
+  assert.equal(existsSync(directory), false, 'Source-only qualification must validate the future path without creating it.');
+});
+
+test('launch readiness rejects missing, mismatched, or leaked Firebase log directory settings', async () => {
+  const directory = resolve('/tmp', `p181-planned-log-cases-${process.pid}-${Date.now()}`);
+  const cases = [
+    { name: 'missing emulator log directory', mutate: plan => { delete plan.commands.emulators.env.DOW_FIREBASE_EMULATOR_LOG_DIRECTORY; } },
+    { name: 'mismatched emulator log directory', mutate: plan => { plan.commands.emulators.env.DOW_FIREBASE_EMULATOR_LOG_DIRECTORY = '/tmp/p181-foreign-emulator-logs'; } },
+    { name: 'log directory leaked to Vite', mutate: plan => { plan.commands.vite.env.DOW_FIREBASE_EMULATOR_LOG_DIRECTORY = plan.evidenceDirectory; } },
+  ];
+  for (const change of cases) {
+    const plan = p181ReferencePlannedLaunch('a'.repeat(40), directory);
+    plan.commands.emulators.env.DOW_FIREBASE_EMULATOR_LOG_DIRECTORY = directory;
+    change.mutate(plan);
+    const expectedMessage = change.name === 'log directory leaked to Vite'
+      ? /Planned P181 vite full environment must contain only/
+      : /Planned P181 emulator DOW_FIREBASE_EMULATOR_LOG_DIRECTORY must equal the exact evidence directory/;
+    await assert.rejects(actualP181PlannedLaunchQualifier(plan), expectedMessage, change.name);
+  }
+  assert.equal(existsSync(directory), false, 'Qualification must never create the future attempt directory.');
+});
+
 test('launch readiness canonical positive returns an exact installed command receipt and inert digest', async () => {
   const fixture = await actualPreNativeConsumer({ sourceOnly: true });
   assertPreflightInert(fixture); assert.equal(fixture.error, undefined);
@@ -4051,6 +4118,7 @@ test('launch readiness canonical positive returns an exact installed command rec
   assert.equal(receipt.allocationAuthority, false);
   assert.equal(receipt.installedFirebase.packageVersion, '15.29.0');
   assert.equal(receipt.installedFirebase.registryResolution, false);
+  assert.equal(receipt.installedFirebase.cwd, fixture.plannedLaunch.evidenceDirectory);
   assert.equal(receipt.installedFirebase.aliasPath, fixture.plannedLaunch.firebaseAliasPath);
   assert.equal(receipt.installedFirebase.executablePath, await realpath(fixture.plannedLaunch.firebaseAliasPath));
   assert.equal(receipt.installedFirebase.entrySha256, p181DeadlineDigest(await readFile(receipt.installedFirebase.executablePath)));
