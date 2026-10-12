@@ -24,10 +24,19 @@ import { normalizeShuttleManifest } from '@/data/shuttles';
 import { stripPersistedNavigationProjection } from '@/lib/navigationPrivacy';
 import type { CommandErrorKind } from '@/lib/commandErrors';
 import { demoActorSessionStorageKey } from '@/lib/demoActorContext';
+import type { ScoutEntitlementId } from '@/lib/scoutRequestAuthority';
 
 export const SESSION_STORAGE_KEY = 'dow-new-eden-session';
 export const GM_ACCESS_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000;
 export type ConsoleMode = 'gm' | 'console' | 'press';
+
+/** Safe text only; command/retry state stays in its original mounted form. */
+export interface ScoutCoordinateDraft {
+  readonly sessionId: string;
+  readonly actorUid: string;
+  readonly entitlementId: ScoutEntitlementId;
+  readonly value: string;
+}
 
 export type PendingCommand = (
   | {
@@ -506,6 +515,7 @@ interface SessionState {
   persistedSessionSnapshot: boolean;
   /** Changes when a join or resume replaces identity and clears private projections. */
   identityHydrationRevision: number;
+  scoutCoordinateDraft: ScoutCoordinateDraft | null;
 
   setSession: (session: GameSession | null) => void;
   setIdentity: (session: GameSession, me: Player) => void;
@@ -547,6 +557,7 @@ interface SessionState {
   setSessionSnapshotFreshness: (freshness: SessionState['sessionSnapshotFreshness']) => void;
   setVoyage33MovementProjectionFresh: (fresh: boolean) => void;
   setVoyage33MovementProjection: (movement: Voyage33MovementState | undefined, fresh: boolean) => void;
+  setScoutCoordinateDraft: (draft: ScoutCoordinateDraft) => void;
   disconnect: () => void;
   reset: () => void;
 }
@@ -590,12 +601,13 @@ const initial = {
   voyage33MovementProjectionFresh: false,
   persistedSessionSnapshot: false,
   identityHydrationRevision: 0,
+  scoutCoordinateDraft: null,
 } satisfies Pick<
   SessionState,
   'session' | 'seats' | 'me' | 'gmInstance' | 'gmRecoveryPending' | 'gmRecoveryMemberRevision' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
   'privateLoyalty' | 'roleBrief' | 'roleBriefLoading' | 'awayMissionHandPointer' | 'awayMissionHand' | 'awayMissionHandPointers' | 'awayMissionHands' | 'gmAwayMissionHandPointers' | 'gmLoyaltyCensus' | 'gmLoyaltyCensusStatus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'facilitatorRuleCall' | 'gmFacilitatorRuleCall' | 'gmCrisisState' | 'gmZealotryResponse' | 'gmCivilUnrestResolution' | 'gmSetupReceipt' | 'commissarPurgeAuthority' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
   'sessionSnapshotFreshness' | 'voyage33MovementProjectionFresh' |
-  'persistedSessionSnapshot' | 'identityHydrationRevision'
+  'persistedSessionSnapshot' | 'identityHydrationRevision' | 'scoutCoordinateDraft'
 >;
 
 function clearVoyageMovement(session: GameSession | null): GameSession | null {
@@ -642,6 +654,7 @@ export const useSessionStore = create<SessionState>()(
           ? state.session?.voyage33Movement
           : undefined;
         return {
+          ...(changedSession ? { scoutCoordinateDraft: null } : {}),
           session: safeSession && preservedMovement
             ? { ...safeSession, voyage33Movement: preservedMovement }
             : safeSession,
@@ -655,6 +668,9 @@ export const useSessionStore = create<SessionState>()(
       setIdentity: (session, me) => set((state) => ({
         ...(state.session?.id !== session.id || state.me?.uid !== me.uid ? { gmRecoveryPending: false } : {}),
         session: clearVoyageMovement(session), me, roleBrief: null, awayMissionHandPointer: null, awayMissionHand: null,
+        scoutCoordinateDraft: state.scoutCoordinateDraft && me.role === 'player' &&
+          me.sessionId === session.id && state.scoutCoordinateDraft.sessionId === session.id &&
+          state.scoutCoordinateDraft.actorUid === me.uid ? state.scoutCoordinateDraft : null,
         roleBriefLoading: me.role === 'player',
         gmLoyaltyCensus: null, gmLoyaltyCensusStatus: 'loading',
         privateLoyalty: samePrivateAssignment(state.me, me) ? state.privateLoyalty : null,
@@ -675,6 +691,10 @@ export const useSessionStore = create<SessionState>()(
             me.uid !== state.gmInstance?.uid || state.gmInstance?.sessionId !== state.session?.id;
           return {
             me,
+            scoutCoordinateDraft: state.scoutCoordinateDraft && me?.role === 'player' &&
+              me.sessionId === state.session?.id &&
+              state.scoutCoordinateDraft.sessionId === me.sessionId &&
+              state.scoutCoordinateDraft.actorUid === me.uid ? state.scoutCoordinateDraft : null,
             ...(state.gmRecoveryPending ? { gmRecoveryMemberRevision: state.gmRecoveryMemberRevision + 1 } : {}),
             ...(!samePrivateAssignment(previous, me) ? { privateLoyalty: null } : {}),
             ...(losesGmAuthority ? {
@@ -780,11 +800,18 @@ export const useSessionStore = create<SessionState>()(
           voyage33MovementProjectionFresh: fresh,
         };
       }),
+      setScoutCoordinateDraft: (draft) => set((state) => {
+        if (!draft.sessionId || !draft.actorUid || state.me?.role !== 'player' ||
+            state.session?.id !== draft.sessionId || state.me.sessionId !== draft.sessionId ||
+            state.me.uid !== draft.actorUid || typeof draft.value !== 'string' || draft.value.length > 4) return {};
+        return { scoutCoordinateDraft: draft };
+      }),
       disconnect: () =>
         set((state) => ({
           session: null,
           seats: [],
           me: null,
+          scoutCoordinateDraft: null,
           gmInstance: null,
           gmRecoveryPending: false,
           turnStartReplay: null,
@@ -846,8 +873,15 @@ export const useSessionStore = create<SessionState>()(
         const restoredSession = hasRestoredSession
           ? normalizePersistedSession(restored.session)
           : current.session;
+        const restoredMe = Object.hasOwn(restored, 'me') ? restored.me : current.me;
         return {
           ...current,
+          // Keep only an existing in-memory draft for this same principal;
+          // serialized input never supplies a draft or command identity.
+          scoutCoordinateDraft: current.scoutCoordinateDraft && restoredMe?.role === 'player' &&
+            restoredMe.sessionId === restoredSession?.id &&
+            current.scoutCoordinateDraft.sessionId === restoredSession?.id &&
+            current.scoutCoordinateDraft.actorUid === restoredMe.uid ? current.scoutCoordinateDraft : null,
           // Older clients could have persisted runtime projections. Only the
           // durable envelope may hydrate before current Firebase entitlement.
           ...(Object.hasOwn(restored, 'me') ? { me: restored.me } : {}),
