@@ -2978,10 +2978,11 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
       }
       if (name === 'ARE YOU SURE? // ADVANCE TO CYCLE 1') {
         const expectedSetupRevision = gm.state.session.setupRevision;
-        const turnPhase = { turn: 1, airspace: { state: 'restricted' },
+        const turnPhase = { turn: 1, airspace: { state: 'restricted', tickerActive: false, pressAccess: false },
           teamPhaseEndsAt: new Date(now + 600_000).toISOString(),
           openAirspaceEndsAt: new Date(now + 840_000).toISOString(),
-          timerPause: { reason: 'turn-interstitial', pausedAt: new Date(now).toISOString() } };
+          timerPause: { reason: 'turn-interstitial', window: 'restricted', remainingMs: 600_000,
+            pausedAt: new Date(now).toISOString() } };
         for (const surface of [gm, ...members]) surface.publish(state => {
           state.session.phase = 'active'; state.session.currentTurn = 1;
           state.session.setupRevision = expectedSetupRevision + 1;
