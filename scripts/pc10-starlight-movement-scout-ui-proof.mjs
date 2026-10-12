@@ -54,6 +54,7 @@ export const P181_SOURCE_BINDING_FILES = Object.freeze([
   'scripts/qualification/pc11-contract-preflight.mjs',
   'scripts/qualification/pc11-launch.mjs',
   'scripts/run-emulator-command.mjs',
+  'scripts/run-emulator-command.installed-contract.test.mjs',
   'scripts/configure-emulator-slot.mjs',
   'scripts/emulator-resource-registry.mjs',
   'scripts/emulator-slots.js',
@@ -2462,6 +2463,11 @@ async function p181SourceOnlyPreflight(options) {
   const proofOnlyPaths = new Set([
     'scripts/pc10-starlight-movement-scout-ui-proof.mjs',
     'scripts/pc10-starlight-movement-scout-ui-proof-runner.test.mjs',
+    // The wrapper and its focused test only bind launch/log behavior. Their
+    // emulator child cwd does not enter frontend or Functions compilation;
+    // exact Functions source/output and frontend output checks remain below.
+    'scripts/run-emulator-command.mjs',
+    'scripts/run-emulator-command.installed-contract.test.mjs',
     'scripts/pc10-full-game-demo-proof-helpers.mjs',
     'scripts/pc10-member-gm-lifecycle-ui-proof.mjs',
     'scripts/pc10-member-navigation-resume.mjs',
