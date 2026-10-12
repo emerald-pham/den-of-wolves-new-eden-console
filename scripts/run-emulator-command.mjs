@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { randomUUID } from 'node:crypto';
 import { constants, existsSync } from 'node:fs';
-import { access, mkdir, readFile, realpath, unlink, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, realpath, stat, unlink, writeFile } from 'node:fs/promises';
 import { execFile, spawn } from 'node:child_process';
-import { delimiter, dirname, resolve } from 'node:path';
+import { delimiter, dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import {
@@ -24,6 +24,8 @@ const repositoryDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..
 const localFirebaseConfigPath = resolve(repositoryDirectory, 'firebase.local.json');
 const localEnvironmentPath = resolve(repositoryDirectory, '.env.emulators.local');
 const FIREBASE_TOOLS = 'firebase-tools@15.29.0';
+// Repository-owned opt-in for start mode; its value selects the installed CLI child's cwd.
+const EMULATOR_LOG_DIRECTORY_ENV = 'DOW_FIREBASE_EMULATOR_LOG_DIRECTORY';
 const RULES_PROJECT_ID = 'dow-new-eden-rules-test';
 const execFileAsync = promisify(execFile);
 
@@ -96,6 +98,27 @@ async function configuredSlot(configPath) {
   return emulatorSlotForConfig(await readJson(configPath)) ?? 0;
 }
 
+async function qualifiedEmulatorLogDirectory(directory) {
+  if (directory === undefined) return undefined;
+  const requirement = `${EMULATOR_LOG_DIRECTORY_ENV} must name an absolute, normalized, existing real directory outside the source checkout.`;
+  if (typeof directory !== 'string' || !isAbsolute(directory) || resolve(directory) !== directory) {
+    throw new Error(requirement);
+  }
+
+  let canonicalDirectory, metadata, canonicalRepository;
+  try {
+    canonicalDirectory = await realpath(directory);
+    metadata = await stat(canonicalDirectory);
+    canonicalRepository = await realpath(repositoryDirectory);
+  } catch (error) {
+    throw new Error(requirement, { cause: error });
+  }
+  if (canonicalDirectory !== directory || !metadata.isDirectory() || canonicalDirectory === canonicalRepository) {
+    throw new Error(requirement);
+  }
+  return canonicalDirectory;
+}
+
 function firebasePorts(slot) {
   return Object.values(emulatorPortsForSlot(slot));
 }
@@ -128,6 +151,7 @@ export function runCommand(
     signalSource = process,
     terminateProcessTree: terminate = terminateProcessTree,
     onSpawn = async () => undefined,
+    cwd = repositoryDirectory,
   } = {},
 ) {
   return new Promise((resolvePromise, rejectPromise) => {
@@ -164,7 +188,7 @@ export function runCommand(
 
     try {
       child = spawnProcess(command, args, {
-        cwd: repositoryDirectory,
+        cwd,
         stdio: 'inherit',
         detached: process.platform !== 'win32',
       });
@@ -215,7 +239,13 @@ export async function runWithReservation({
   runner = runCommand,
   attachChild = updateReservationChildPid,
   resolveFirebaseTools = resolveFirebaseToolsInvocation,
+  environment = process.env,
 }) {
+  const isEmulatorStart = kind === 'emulators' && args[0] === '--yes' &&
+    args[1] === FIREBASE_TOOLS && args[2] === 'emulators:start';
+  const childCwd = isEmulatorStart
+    ? await qualifiedEmulatorLogDirectory(environment?.[EMULATOR_LOG_DIRECTORY_ENV])
+    : undefined;
   const invocation = args[0] === '--yes' && args[1] === FIREBASE_TOOLS
     ? await resolveFirebaseTools(args.slice(2))
     : { command: 'npx', args };
@@ -230,6 +260,7 @@ export async function runWithReservation({
 
   try {
     await runner(invocation.command, invocation.args, {
+      ...(childCwd === undefined ? {} : { cwd: childCwd }),
       onSpawn: (child) => attachChild(reservation, child.pid, filePath),
     });
   } finally {

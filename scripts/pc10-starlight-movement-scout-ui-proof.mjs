@@ -2369,20 +2369,28 @@ async function p181ValidatePlannedLaunch(plannedLaunch, sourceRoot, sourceCommit
     P181_ALLOCATION_STARTED_AT_MS: String(configuration.allocationStartedAtMs), P181_ALLOCATION_DEADLINE_MS: String(configuration.allocationDeadlineMs) };
   for (const [name, value] of Object.entries(proofEnv)) assert.equal(commands.proof.env[name], value, `Planned P181 proof ${name} must retain the exact original tuple.`);
   assert.equal(commands.emulators.env.FIREBASE_DEBUG_PATH, resolve(evidenceDirectory, 'firebase-debug.log'), 'Planned P181 Firebase debug output must use its owned evidence tree.');
+  assert.equal(commands.emulators.env.DOW_FIREBASE_EMULATOR_LOG_DIRECTORY, evidenceDirectory,
+    'Planned P181 emulator DOW_FIREBASE_EMULATOR_LOG_DIRECTORY must equal the exact evidence directory.');
   const common = ['HOME', 'PATH', 'XDG_CONFIG_HOME', 'TMPDIR', 'CI', 'NODE_OPTIONS', 'NODE_PATH', 'TICKER_SMOKE_CACHE_DIR', 'BROWSER', 'BROWSER_ARGS', 'DEBUG',
     'FIRESTORE_EMULATOR_HOST', 'FIREBASE_AUTH_EMULATOR_HOST', 'NO_UPDATE_NOTIFIER', 'CODEX_COORDINATION_FILE', 'DOW_EMULATOR_COORDINATION_FILE'];
   for (const [stage, command] of Object.entries(commands)) {
-    const allowed = new Set([...common, ...(stage === 'proof' ? Object.keys(proofEnv) : []), ...(stage === 'emulators' ? ['FIREBASE_DEBUG_PATH'] : []), ...(stage === 'vite' ? ['NODE_ENV'] : [])]);
+    const allowed = new Set([...common, ...(stage === 'proof' ? Object.keys(proofEnv) : []),
+      ...(stage === 'emulators' ? ['FIREBASE_DEBUG_PATH', 'DOW_FIREBASE_EMULATOR_LOG_DIRECTORY'] : []),
+      ...(stage === 'vite' ? ['NODE_ENV'] : [])]);
     assert.ok(Object.keys(command.env).every(name => allowed.has(name) || (stage === 'vite' && name.startsWith('VITE_'))),
       `Planned P181 ${stage} full environment must contain only the concrete reviewed settings.`);
   }
   const hash = bytes => createHash('sha256').update(bytes).digest('hex');
   const nodeExecutable = await checked('Bind original Node executable path', () => realpath(process.execPath));
   const nodeExecutableSha256 = hash(await checked('Bind original Node executable bytes', () => readFile(nodeExecutable)));
-  const args = ['emulators:start', '--config', resolve(sourceRoot, 'firebase.local.json'), '--project', projectId, '--only', 'auth,functions,firestore'];
+  const sourceConfigPath = resolve(sourceRoot, 'firebase.local.json');
+  const args = ['emulators:start', '--config', sourceConfigPath, '--project', projectId, '--only', 'auth,functions,firestore'];
   const invocation = await checked('Resolve installed pinned Firebase metadata only', () => resolveFirebaseToolsInvocation(args,
     { repository: sourceRoot, searchPath: commands.emulators.env.PATH, nodeExecutable: process.execPath, allowRegistryFallback: false }));
   assert.equal(invocation.command, process.execPath); assert.equal(invocation.packageVersion, '15.29.0'); assert.equal(invocation.registryResolution, false);
+  const configArgumentIndex = invocation.args.indexOf('--config');
+  assert.ok(configArgumentIndex >= 0 && invocation.args[configArgumentIndex + 1] === sourceConfigPath,
+    'Planned P181 installed Firebase must retain the absolute source config while its child cwd is isolated.');
   assert.ok(configuration.firebaseAliasPath?.startsWith('/'), 'Planned P181 installed Firebase alias must be absolute.');
   const executablePath = await checked('Bind original installed Firebase entry', () => realpath(invocation.args[0]));
   assert.equal(await checked('Bind original Firebase PATH alias', () => realpath(configuration.firebaseAliasPath)), executablePath,
@@ -2390,7 +2398,8 @@ async function p181ValidatePlannedLaunch(plannedLaunch, sourceRoot, sourceCommit
   const installedFirebase = { aliasPath: configuration.firebaseAliasPath, executablePath,
     entrySha256: hash(await checked('Bind installed Firebase entry bytes', () => readFile(executablePath))),
     packagePath: invocation.packagePath, packageSha256: hash(await checked('Bind installed Firebase package metadata bytes', () => readFile(invocation.packagePath))),
-    packageVersion: invocation.packageVersion, registryResolution: false, command: invocation.command, argv: invocation.args };
+    packageVersion: invocation.packageVersion, registryResolution: false, command: invocation.command,
+    cwd: evidenceDirectory, sourceConfigPath, argv: invocation.args };
   const vitePackagePath = await checked('Resolve original local Vite metadata', () => realpath(resolve(sourceRoot, 'node_modules/vite/package.json')));
   const vitePackageBytes = await checked('Read original local Vite metadata', () => readFile(vitePackagePath));
   const vitePackage = JSON.parse(vitePackageBytes), lockedVite = JSON.parse(await checked('Read original locked Vite input', () => readFile(resolve(sourceRoot, 'package-lock.json')))).packages['node_modules/vite'];
