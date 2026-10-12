@@ -143,6 +143,21 @@ test('invalid emulator log directories fail before reserving or spawning', async
   }
 });
 
+test('a source-contained emulator log directory is denied before resolver or reservation', async () => {
+  const sourceDirectory = resolve(fileURLToPath(new URL('..', import.meta.url)));
+  const events = [];
+  await assert.rejects(runWithReservation({
+    slot: 5, kind: 'emulators', command: 'npm run emulators', ports: [9149],
+    args: ['--yes', 'firebase-tools@15.29.0', 'emulators:start'],
+    environment: { DOW_FIREBASE_EMULATOR_LOG_DIRECTORY: join(sourceDirectory, 'scripts') },
+    resolveFirebaseTools: async args => { events.push('resolve'); return { command: '/inert/firebase', args }; },
+    reserve: async () => { events.push('reserve'); return {}; },
+    runner: async () => { events.push('spawn'); },
+    release: async () => { events.push('release'); },
+  }), /DOW_FIREBASE_EMULATOR_LOG_DIRECTORY/);
+  assert.deepEqual(events, []);
+});
+
 test('consecutive emulator attempts write logs in separate directories and preserve the prior sentinel', async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'pc10-emulator-separated-logs-')));
   const firstDirectory = join(root, 'attempt-1'), secondDirectory = join(root, 'attempt-2');
