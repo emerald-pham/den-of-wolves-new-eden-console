@@ -253,9 +253,9 @@ beforeEach(() => {
   endeavourResearchMocks.advance.mockResolvedValue(undefined);
   endeavourEcmMocks.read.mockResolvedValue({
     status: 'ready', sessionId: 's1', cycle: 3, controlRevision: 4,
-    researchComplete: false, device: { status: 'ready', revision: 0 },
+    researchComplete: false, built: false, device: { status: 'ready', revision: 0 },
     pursuit: { groupId: 'fleet-1', current: 8 },
-  });
+  } satisfies EndeavourEcmDeviceWorkspace);
   endeavourEcmMocks.activate.mockResolvedValue(undefined);
   vi.mocked(requestScout).mockReset();
   vi.mocked(requestScout).mockResolvedValue(undefined as never);
@@ -1515,30 +1515,7 @@ it('Endeavour route ECM contract withholds the device read after current shuttle
 
 it('opens Endeavour for the Shepherd Scientist with every printed registration fact', async () => {
   const user = userEvent.setup();
-  const state = useSessionStore.getState();
-  state.setSession({
-    ...state.session!,
-    phase: 'active', currentTurn: 3,
-    activeRoleIds: ['shepherd-scientist'],
-    activeVesselIds: ['shepherd', 'aegis'],
-    playerDiscovery: {
-      groupId: 'fleet-1', fleetGroupVesselIds: ['shepherd', 'aegis'],
-      knownCoordinates: [], knownSystems: {}, pursuitDistance: 0, navigationLogs: [], revision: 1,
-    },
-    turnPhase: {
-      turn: 3,
-      teamPhaseEndsAt: '2099-09-23T12:00:00.000Z',
-      openAirspaceEndsAt: '2099-09-23T12:15:00.000Z',
-      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
-    },
-    shuttleDockings: [{ shuttleId: 'endeavour', shipId: 'shepherd', dockedAt: 'SESSION START' }],
-    shuttleControl: { endeavour: {
-      shuttleId: 'endeavour', ownerRoleId: 'shepherd-scientist', ownerUid: 'u1',
-      holderUid: 'u1', revision: 4,
-    } },
-  });
-  state.setMe({ ...state.me!, assignedRoleId: 'shepherd-scientist',
-    activeConsoleRoleId: 'shepherd-scientist', fleetGroupId: 'fleet-1' });
+  seedEndeavourScientistRoute();
 
   render(
     <MemoryRouter initialEntries={['/shuttles/endeavour']}>
@@ -1561,7 +1538,11 @@ it('opens Endeavour for the Shepherd Scientist with every printed registration f
   expect(await screen.findByRole('region', { name: 'Endeavour research controls' })).toBeVisible();
   expect(await screen.findByRole('region', { name: 'Endeavour field-upgrade purchase controls' })).toBeVisible();
   expect(await screen.findByRole('region', { name: 'Endeavour ECM Device controls' })).toBeVisible();
-  expect(await screen.findByText('Complete ECM Device research before use.')).toBeVisible();
+  expect(await screen.findByText('Status: Unavailable')).toBeVisible();
+  const ecm = screen.getByRole('region', { name: 'Endeavour ECM Device controls' });
+  expect(within(ecm).getByText('Build the ECM Device before use.')).toBeVisible();
+  expect(within(ecm).getByRole('button', { name: 'Use ECM Device' })).toBeDisabled();
+  expect(endeavourEcmMocks.activate).not.toHaveBeenCalled();
   expect(screen.getByRole('button', { name: 'Advance standard research' })).toBeEnabled();
   expect(screen.getByRole('list', { name: 'Research progress' })).toHaveTextContent(
     'Reactor: 0 of 5 boxes crossed; next field-upgrade cost is 8 materials.',
