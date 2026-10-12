@@ -298,7 +298,6 @@ export const listPendingScoutRequests = auditedOnCall('listPendingScoutRequests'
   const actorUid = uid(request.auth);
   const raw = command(request.data, ['sessionId', 'instanceId']);
   const sessionId = raw.sessionId as string;
-  const nowMs = Date.now();
   return db.runTransaction(async (tx: Transaction) => {
     const [session, player, instance, requests] = await Promise.all([
       tx.get(db.doc(`sessions/${sessionId}`)),
@@ -306,6 +305,8 @@ export const listPendingScoutRequests = auditedOnCall('listPendingScoutRequests'
       tx.get(db.doc(`sessions/${sessionId}/gmInstances/${raw.instanceId}`)),
       tx.get(db.collection(`sessions/${sessionId}/scoutRequests`)),
     ]);
+    // Presence can renew while the transaction is reading; judge its lease now.
+    const nowMs = Date.now();
     if (!session.exists || session.get('phase') !== 'active') {
       throw new HttpsError('failed-precondition', 'This scouting session is not active.');
     }
@@ -334,7 +335,6 @@ export const listGmScoutResolutionLog = auditedOnCall('listGmScoutResolutionLog'
   const actorUid = uid(request.auth);
   const raw = command(request.data, ['sessionId', 'instanceId']);
   const sessionId = raw.sessionId as string;
-  const nowMs = Date.now();
   const db = getFirestore();
   return db.runTransaction(async tx => {
     const [session, player, instance, audits] = await Promise.all([
@@ -343,6 +343,8 @@ export const listGmScoutResolutionLog = auditedOnCall('listGmScoutResolutionLog'
       tx.get(db.doc(`sessions/${sessionId}/gmInstances/${raw.instanceId}`)),
       tx.get(db.collection(`sessions/${sessionId}/scoutResolutionAudits`)),
     ]);
+    // Presence can renew while the transaction is reading; judge its lease now.
+    const nowMs = Date.now();
     if (!session.exists || session.get('phase') !== 'active') {
       throw new HttpsError('failed-precondition', 'This scouting session is not active.');
     }
