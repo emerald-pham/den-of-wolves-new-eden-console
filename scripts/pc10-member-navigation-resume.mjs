@@ -85,7 +85,7 @@ function resumeReply(body) {
  * No forced resume, command, store setter, interception, or deadline extension. */
 export function createMemberNavigationResumeObserver(page, { directory, roleId, deadlineAt,
   memberContract = 'current-berth', documentReload = false, transition = 'station-navigation',
-  expectedGmUidHash, expectedGmInstanceId }) {
+  expectedGmUidHash, expectedGmInstanceId, onCastingResumeRequest }) {
   assert.ok(['current-berth', 'pc11-live-base'].includes(memberContract), 'Use an explicit supported member contract.');
   assert.equal(typeof documentReload, 'boolean', 'Use an explicit document reload contract.');
   assert.ok(['station-navigation', 'casting-assignment'].includes(transition), 'Use an explicit member navigation transition.');
@@ -132,10 +132,23 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
         ...(name === 'refreshPresence' ? { activeConsoleRoleId: safeId(data?.activeConsoleRoleId) } : {}) };
       append(detail);
       if (name === 'resumeSession' && baseline && Date.now() < deadlineAt) {
-        requests.set(request, { requestedAt: new Date().toISOString(), baseline: safeObservation(baseline),
+        const receipt = { requestedAt: new Date().toISOString(), baseline: safeObservation(baseline),
           requestSessionId: safeId(data?.sessionId),
           requestMatches: !!data && Object.keys(data).length === 1 && Object.hasOwn(data, 'sessionId') && wireId(data.sessionId),
-          endpoint: name });
+          endpoint: name };
+        requests.set(request, receipt);
+        if (transition === 'casting-assignment' && receipt.requestMatches &&
+            receipt.requestSessionId === receipt.baseline.sessionId) {
+          try {
+            const noted = onCastingResumeRequest?.({ sessionId: receipt.requestSessionId,
+            uidHash: receipt.baseline.uidHash, documentTimeOrigin: receipt.baseline.documentTimeOrigin,
+            connectionGeneration: receipt.baseline.connectionGeneration,
+            identityHydrationRevision: receipt.baseline.identityHydrationRevision });
+            if (noted && typeof noted.catch === 'function') noted.catch(error => append({
+              kind: 'resume-guard-notification-error', error: safeError(error, 'guard-notification-failed') }));
+          }
+          catch (error) { append({ kind: 'resume-guard-notification-error', error: safeError(error, 'guard-notification-failed') }); }
+        }
       }
     } catch (error) { append({ kind: 'request-read-error', error: safeError(error, 'request-read-failed') }); }
   });
@@ -242,8 +255,24 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
     }) && value.phase === 'casting' && value.cycle === 0 && value.setupConfirmed === true &&
       value.sdkResumePending === false && value.memberScopeMatches === true &&
       value.currentCanonicalSeatOwned === false && value.seatId == null && value.activeConsoleRoleId == null &&
-      (value.currentMemberBerthPresent === false || value.currentMemberBerthNull === true ||
-        value.currentMemberBerthMatches === true);
+      value.currentOwnPlayerConfirmed === true && value.currentMemberBerthPresent === true &&
+      value.currentMemberBerthNull === false && value.currentMemberBerthMatches === true;
+    const ordinaryResumeDtoGap = epochChanged && candidate && candidate.reply.connectedFieldPresent === false &&
+      current.hasAuth === true && current.sameActor === true && current.uidHash === original.uidHash &&
+      current.sessionId === original.sessionId && current.meSessionId === original.sessionId &&
+      current.playerRole === 'player' && current.assignedRoleId === roleId && current.fleetGroupId === original.fleetGroupId &&
+      current.connected === true && current.currentOwnPlayerConfirmed === false &&
+      current.currentMemberBerthPresent === false && current.currentMemberBerthNull === false &&
+      current.currentMemberBerthMatches === false && current.kicked === false && current.escapeLocked === false &&
+      current.replacementRoleId == null && current.replacementStatus == null && current.phase === 'casting' &&
+      current.cycle === 0 && current.setupConfirmed === true && current.memberScopeMatches === true &&
+      current.currentCanonicalSeatOwned === false && current.seatId == null && current.activeConsoleRoleId == null &&
+      current.sdkHasServerAuthority === true;
+    // The ordinary SessionReply omits both the current-member connected bit
+    // and the separately published own-berth witness. Hold this exact captured
+    // +1 lease/hydration at readiness false until the current-member feed restores
+    // both fields; explicit false, null, mismatch, or any other transition fails.
+    if (ordinaryResumeDtoGap) return false;
     assert.ok(ready(current), 'Original casting assignment must reach fresh, current, unseated casting readiness.');
     if (candidate) assert.ok(stableMemberFields.every(key => candidate.reply.player[key] === current[observationField[key] ?? key]),
       'Original casting assignment resume reply changed the current member scope.');

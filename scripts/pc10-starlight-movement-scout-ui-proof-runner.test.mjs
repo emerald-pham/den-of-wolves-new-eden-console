@@ -2103,7 +2103,8 @@ async function actualP181CastingAssignmentFixture(t, { assignmentTarget, assignm
   const observer = createMemberNavigationResumeObserver(wing.page, { directory, roleId: 'wing-commander',
     deadlineAt: Date.now() + observerDeadlineMs, memberContract: 'pc11-live-base', transition: 'casting-assignment',
     expectedGmUidHash: createHash('sha256').update(gm.uid).digest('hex').slice(0, 16),
-    expectedGmInstanceId: gm.state.gmInstance.id });
+    expectedGmInstanceId: gm.state.gmInstance.id,
+    onCastingResumeRequest: resume => wing.onCastingResumeRequest?.(resume) });
   await observer.prepare(before);
   t.after(async () => { await observer.finish().catch(() => {}); });
 
@@ -2137,6 +2138,8 @@ async function actualP181CastingAssignmentFixture(t, { assignmentTarget, assignm
         'The ordinary resume DTO omits the feed-owned current connected field.');
       if (deliverResume) wing.deliver('resumeSession', { sessionId: resumeSessionId }, { session: replySession,
         player: replyPlayer }, { status: resumeStatus, bodyWait: resumeBodyWait });
+      await wing.castingResumeNotice;
+      if (wing.castingResumeNoticeError) throw wing.castingResumeNoticeError;
       wing.publish(state => {
         delete state.me.connected;
         state.me.connectionGeneration = resumeGeneration;
@@ -2188,14 +2191,6 @@ test('P181 casting assignment accepts only the original GM receipt and the membe
   });
   const wait = await reconciledNativeWait(f.wing, 'full');
   let transitioned = false;
-  let earlyAcceptance;
-  f.wing.onResumeDtoApplied = async hydrated => {
-    assert.equal(hydrated.currentOwnPlayerConfirmed, false);
-    assert.equal(hydrated.currentMemberBerthPresent, false);
-    earlyAcceptance = await f.observer.accept(f.before, hydrated,
-      () => observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds }), f.assignment);
-    f.restoreCurrentMemberBerth();
-  };
   f.wing.onDigest = async () => {
     if (transitioned) return;
     transitioned = true;
@@ -2228,6 +2223,14 @@ test('P181 casting assignment waits for the current member berth after ordinary 
   const authority = await castingAssignmentAuthorityFor(f);
   const wait = await reconciledNativeWait(f.wing, 'full');
   let transitioned = false;
+  let earlyAcceptance;
+  f.wing.onResumeDtoApplied = async hydrated => {
+    assert.equal(hydrated.currentOwnPlayerConfirmed, false);
+    assert.equal(hydrated.currentMemberBerthPresent, false);
+    earlyAcceptance = await f.observer.accept(f.before, hydrated,
+      () => observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds }), f.assignment);
+    f.restoreCurrentMemberBerth();
+  };
   f.wing.onDigest = async () => {
     if (transitioned) return;
     transitioned = true;
@@ -2315,12 +2318,20 @@ test('P181 casting assignment times out on an ordinary resume body delivered aft
 
 async function castingAssignmentAuthorityFor(f) {
   const sourceModule = await import('./pc10-starlight-movement-scout-ui-proof.mjs');
-  return sourceModule.retainP181MemberAuthority(f.wing, Date.now() + 2_000, {
+  const authority = await sourceModule.retainP181MemberAuthority(f.wing, Date.now() + 2_000, {
     mode: 'casting-assignment', castingRoleId: 'wing-commander',
     expected: { sessionId: f.before.sessionId, uidHash: f.before.uidHash, fleetGroupId: f.before.fleetGroupId,
       connectionGeneration: f.before.connectionGeneration,
       identityHydrationRevision: f.before.identityHydrationRevision, documentTimeOrigin: f.before.documentTimeOrigin },
   });
+  f.wing.onCastingResumeRequest = resume => {
+    f.wing.castingResumeNotice = authority.noteCastingResumeRequest(resume).catch(error => {
+      f.wing.castingResumeNoticeError = error;
+      throw error;
+    });
+    return f.wing.castingResumeNotice;
+  };
+  return authority;
 }
 
 const transientCastingRetirements = [
@@ -2338,8 +2349,28 @@ const transientCastingRetirements = [
   ['replacement', f => { f.wing.publish(state => { state.me.replacementRoleId = 'admiral';
     state.me.replacementStatus = 'pending'; }); f.wing.publish(state => {
     delete state.me.replacementRoleId; delete state.me.replacementStatus; }); }],
+  ['explicit connected=false', f => { f.wing.publish(state => { state.me.connected = false; });
+    f.wing.publish(state => { state.me.connected = true; }); }],
   ['disconnect', f => { f.wing.publish(state => { state.connection = 'offline'; });
     f.wing.publish(state => { state.connection = 'live'; }); }],
+  ['explicit null own berth', f => { f.wing.publish(state => { state.session.currentActorBerthAuthority = null; });
+    f.wing.publish(state => { state.session.currentActorBerthAuthority = { ...state.session.currentActorBerthAuthority,
+      sessionId: state.session.id, actorUid: state.me.uid, groupId: state.me.fleetGroupId,
+      role: 'player', connectionGeneration: state.me.connectionGeneration,
+      assignedRoleId: state.me.assignedRoleId, activeConsoleRoleId: null,
+      replacementRoleId: null, replacementStatus: null, shipId: 'aegis' }; }); }],
+  ['mismatched own berth', f => { f.wing.publish(state => { state.session.currentActorBerthAuthority = {
+    ...state.session.currentActorBerthAuthority, shipId: 'foreign-ship' }; });
+    f.wing.publish(state => { state.session.currentActorBerthAuthority = { ...state.session.currentActorBerthAuthority,
+      shipId: 'aegis' }; }); }],
+  ['own berth disappearance after resume settlement', f => { f.wing.publish(state => {
+    delete state.session.currentActorBerthAuthority; }); f.wing.publish(state => {
+    state.session.currentActorBerthAuthority = { sessionId: state.session.id, actorUid: state.me.uid,
+      groupId: state.me.fleetGroupId, role: 'player', connectionGeneration: state.me.connectionGeneration,
+      assignedRoleId: state.me.assignedRoleId, activeConsoleRoleId: null,
+      replacementRoleId: null, replacementStatus: null, shipId: 'aegis' }; }); }],
+  ['connected field disappearance after resume settlement', f => { f.wing.publish(state => {
+    delete state.me.connected; }); f.wing.publish(state => { state.me.connected = true; }); }],
   ['station claim before chooser', f => { f.wing.publish(state => {
     state.me.activeConsoleRoleId = 'wing-commander'; state.me.seatId = 'wing-commander';
     state.seats[0] = { ...state.seats[0], status: 'claimed', holderUid: 'wing-uid' };
@@ -2388,6 +2419,20 @@ test('P181 casting assignment authority retires on document replacement', async 
   f.wing.documentTimeOrigin = 2000;
   try { await assert.rejects(authority.check(), /documentTimeOrigin|document|observation/i); }
   finally { await authority.close().catch(() => {}); await f.observer.finish(); }
+});
+
+test('P181 casting assignment rejects connected omission without a captured ordinary resume', async t => {
+  const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true });
+  const authority = await castingAssignmentAuthorityFor(f);
+  f.wing.onCastingResumeRequest = undefined;
+  try {
+    await f.applyAssignmentAndResume();
+    f.wing.publish(state => { delete state.me.connected; });
+    await assert.rejects(authority.check(), /connected|authority|retired/i);
+  } finally {
+    await authority.close().catch(() => {});
+    await f.observer.finish();
+  }
 });
 
 async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate = false, lateCommit = false,

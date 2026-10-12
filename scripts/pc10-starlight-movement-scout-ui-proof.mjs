@@ -768,6 +768,24 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
         if (held.failure) throw new Error(held.failure);
         return;
       }
+      if (action === 'note-casting-resume') {
+        if (held.options.mode !== 'casting-assignment')
+          throw new Error('Only the original casting assignment may bind its ordinary resume request.');
+        const expected = held.options.expected ?? {};
+        const resume = change;
+        if (!resume || resume.sessionId !== expected.sessionId || resume.uidHash !== expected.uidHash ||
+            resume.documentTimeOrigin !== expected.documentTimeOrigin ||
+            resume.connectionGeneration !== expected.connectionGeneration ||
+            resume.identityHydrationRevision !== expected.identityHydrationRevision)
+          throw new Error('Original P181 casting resume request changed its member baseline.');
+        if (held.castingResumeRequest)
+          throw new Error('Original P181 casting assignment observed multiple normal resume requests.');
+        held.castingResumeRequest = { sessionId: resume.sessionId, uidHash: resume.uidHash,
+          documentTimeOrigin: resume.documentTimeOrigin, connectionGeneration: resume.connectionGeneration,
+          identityHydrationRevision: resume.identityHydrationRevision };
+        await held.check();
+        return { noted: true };
+      }
       if (action === 'pin') await held.pin({ ...change, authorityModuleUrl });
       await held.check();
       return { fresh: held.fresh };
@@ -784,7 +802,8 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       serverSeen: false, sdkCompleted: false, latestGeneration: 0, latestHydration: 0,
       castingEpoch: null, castingAssignedSeen: false, castingPhaseSeen: false,
       castingResumeSettled: false, castingPendingSeen: false, castingBerthSeen: false,
-      castingBerthBinding: null };
+      castingBerthBinding: null, castingBerthGapSeen: false, castingBerthGapRestored: false,
+      castingConnectedGapSeen: false, castingConnectedGapRestored: false };
     window[key] = held;
     held.completed = new Promise(resolve => { held.complete = resolve; });
     held.stop = () => {
@@ -813,8 +832,6 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
           me.kickedAt != null || me.escapeState != null || me.replacementRoleId != null || me.replacementStatus != null)
         throw new Error('Original P181 member identity or authority changed.');
       if (me.connected === true) held.connectedSeen = true;
-      if ((held.connectedSeen || !startup) && me.connected !== true)
-        throw new Error('Original P181 connected member authority retired.');
       // The available Store is observed before the asynchronous SDK module
       // import. Raw ownership is already pinned in that interval; incomplete
       // SDK installation supplies no fresh authority or action qualification.
@@ -828,7 +845,7 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
         if (me.role !== 'player' || me.assignedRoleId != null && me.assignedRoleId !== castingRoleId ||
             me.activeConsoleRoleId != null || me.seatId != null || session.currentTurn !== 0 ||
             !['lobby', 'casting'].includes(session.phase) || session.setupConfirmed !== true ||
-            !['live', 'connecting'].includes(state.connection) || me.connected !== true)
+            !['live', 'connecting'].includes(state.connection))
           throw new Error('Original P181 casting actor, role, seat, phase or connection changed.');
         if (held.castingAssignedSeen && me.assignedRoleId !== castingRoleId)
           throw new Error('Original P181 casting assignment role was retired.');
@@ -847,6 +864,30 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
         const expected = held.options.expected ?? {};
         const generation = expected.connectionGeneration ?? held.castingEpoch?.connectionGeneration ?? me.connectionGeneration;
         const hydration = expected.identityHydrationRevision ?? held.castingEpoch?.identityHydrationRevision ?? state.identityHydrationRevision;
+        const resumeDtoPendingWindow = pending === true && !held.castingResumeSettled ||
+          pending === false && held.castingResumeSettled &&
+            (held.castingConnectedGapSeen || held.castingBerthGapSeen);
+        const acceptedResumeDtoHydration = held.castingResumeRequest?.sessionId === expected.sessionId &&
+          held.castingResumeRequest?.uidHash === expected.uidHash &&
+          held.castingResumeRequest?.documentTimeOrigin === expected.documentTimeOrigin &&
+          held.castingResumeRequest?.connectionGeneration === generation &&
+          held.castingResumeRequest?.identityHydrationRevision === hydration &&
+          held.castingPendingSeen && held.serverSeen && sdk?.hasServerSessionAuthority === true &&
+          resumeDtoPendingWindow &&
+          me.connectionGeneration === generation + 1 && state.identityHydrationRevision === hydration + 1 &&
+          me.role === 'player' && me.assignedRoleId === castingRoleId && me.fleetGroupId === expected.fleetGroupId &&
+          session.phase === 'casting' && session.currentTurn === 0 && session.setupConfirmed === true &&
+          session.memberSessionScope?.groupId === expected.fleetGroupId && me.activeConsoleRoleId == null &&
+          me.seatId == null && me.kickedAt == null && me.escapeState == null &&
+          me.replacementRoleId == null && me.replacementStatus == null;
+        const connectedFieldMissing = !Object.hasOwn(me, 'connected') && me.connected === undefined;
+        if (me.connected === false || Object.hasOwn(me, 'connected') && me.connected !== true)
+          throw new Error('Original P181 connected member authority retired.');
+        if (connectedFieldMissing) {
+          if (!acceptedResumeDtoHydration || held.castingConnectedGapRestored)
+            throw new Error('Original P181 connected member authority retired.');
+          held.castingConnectedGapSeen = true;
+        } else if (held.castingConnectedGapSeen) held.castingConnectedGapRestored = true;
         if (!Number.isSafeInteger(me.connectionGeneration) || !Number.isSafeInteger(state.identityHydrationRevision) ||
             ![generation, generation + 1].includes(me.connectionGeneration) ||
             ![hydration, hydration + 1].includes(state.identityHydrationRevision) ||
@@ -861,7 +902,10 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
           (seat.roleId ?? seat.id) === castingRoleId) ?? [];
         if (targetSeats.some(seat => seat.status === 'claimed' && seat.holderUid === user.uid))
           throw new Error('Original P181 casting actor claimed its station before the chooser.');
+        const berthFieldPresent = Object.hasOwn(session, 'currentActorBerthAuthority');
         const berth = session.currentActorBerthAuthority;
+        if (berthFieldPresent && berth === null)
+          throw new Error('Original P181 casting member berth was explicitly retired.');
         if (berth) {
           if (berth.actorUid !== user.uid || berth.sessionId !== session.id ||
               berth.groupId !== (me.fleetGroupId ?? null) || berth.role !== 'player' ||
@@ -874,13 +918,20 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
           if (held.castingBerthBinding && JSON.stringify(binding) !== JSON.stringify(held.castingBerthBinding))
             throw new Error('Original P181 casting member berth identity or fleet changed.');
           held.castingBerthBinding ??= binding;
+          if (held.castingBerthGapSeen) held.castingBerthGapRestored = true;
           held.castingBerthSeen = true;
-        } else if (held.castingBerthSeen) throw new Error('Original P181 casting member berth was retired.');
+        } else if (held.castingBerthSeen) {
+          if (berthFieldPresent || !acceptedResumeDtoHydration || held.castingBerthGapRestored)
+            throw new Error('Original P181 casting member berth was retired.');
+          held.castingBerthGapSeen = true;
+        }
         if (targetSeats.length && held.castingSeatBinding &&
             JSON.stringify(targetSeats) !== JSON.stringify(held.castingSeatBinding))
           throw new Error('Original P181 casting station seat changed before the chooser.');
         held.castingSeatBinding ??= targetSeats;
       }
+      if (!castingAssignment && (held.connectedSeen || !startup) && me.connected !== true)
+        throw new Error('Original P181 connected member authority retired.');
       if (held.authority && (!startup && !navigation || startup && held.sdkCompleted && !held.options.navigationFrom) &&
           !castingAssignment && (sdk?.hasServerSessionAuthority !== true || pending))
         throw new Error('Original P181 SDK authority retired.');
@@ -1074,7 +1125,9 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
   await command('open');
   const failed = command('wait').then(message => message ? Promise.reject(new Error(message)) : new Promise(() => {}));
   failed.catch(() => {});
-  return { check: () => command('check'), pin: next => command('pin', next), close: () => command('close'), failed };
+  return { check: () => command('check'), pin: next => command('pin', next),
+    noteCastingResumeRequest: resume => command('note-casting-resume', resume),
+    close: () => command('close'), failed };
 }
 
 export async function observeP181StarlightSource(surface, deadlineAt, { scoutRead } = {}) {
@@ -3377,12 +3430,21 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
         await bounded('Select original Wing Commander casting role', () => casting.getByLabel(`Role for ${displayName}`, { exact: true })
           .selectOption(P181_NORMAL_SETUP.wingCommanderRoleId, { timeout: p181Remaining(castingUiEnd) }), castingUiEnd);
         const castingDeadlineAt = Math.min(deadlineAt, Date.now() + P181_NATIVE_TIMING.operationTimeoutMs);
+        let castingAuthority, assignment, navigationStart, navigation, castingFailure;
+        let castingResumeNotice = Promise.resolve(), castingResumeNoticeError;
+        const noteCastingResumeRequest = resume => {
+          if (!castingAuthority) throw new Error('Original casting authority was not armed before ordinary resume.');
+          castingResumeNotice = castingAuthority.noteCastingResumeRequest(resume).catch(error => {
+            castingResumeNoticeError = error;
+          });
+          return castingResumeNotice;
+        };
         const castingResume = createMemberNavigationResumeObserver(wingCommander.page, { directory,
           roleId: P181_NORMAL_SETUP.wingCommanderRoleId, deadlineAt: castingDeadlineAt,
           memberContract: 'pc11-live-base', transition: 'casting-assignment',
-          expectedGmUidHash: hashShort(ownedAuthUids.get('gm')), expectedGmInstanceId: gmInstanceId });
+          expectedGmUidHash: hashShort(ownedAuthUids.get('gm')), expectedGmInstanceId: gmInstanceId,
+          onCastingResumeRequest: noteCastingResumeRequest });
         assert.ok(castingResume, 'Observe the original member’s ordinary casting resume before assignment.');
-        let castingAuthority, assignment, navigationStart, navigation, castingFailure;
         try {
           await bounded('Prepare original casting assignment resume observer',
             () => castingResume.prepare(admitted), castingDeadlineAt);
@@ -3396,6 +3458,8 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
           assignment = await captureAction(gm, 'assignRole', () =>
             casting.getByRole('button', { name: `Assign role to ${displayName}`, exact: true })
               .click({ timeout: Math.min(35_000, castingDeadlineAt - Date.now()) }), castingDeadlineAt);
+          await castingResumeNotice;
+          if (castingResumeNoticeError) throw castingResumeNoticeError;
           const castingReady = value => pc11MemberReadiness(value, { sessionId, uidHash: admittedAuth.uidHash,
             roleId: P181_NORMAL_SETUP.wingCommanderRoleId, stage: 'casting' }) &&
             value.phase === 'casting' && value.cycle === 0 && value.sdkResumePending === false;
@@ -3403,6 +3467,8 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
             const current = await waitForFullActor(wingCommander,
               'Original normal Wing Commander assignment readiness before station navigation', castingReady,
               castingDeadlineAt, admitted, castingAuthority);
+            await castingResumeNotice;
+            if (castingResumeNoticeError) throw castingResumeNoticeError;
             await castingAuthority.check();
             const accepted = await castingResume.accept(admitted, current,
               () => readFullActor(wingCommander, castingDeadlineAt), assignment);
