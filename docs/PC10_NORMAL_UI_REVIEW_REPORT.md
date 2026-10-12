@@ -369,6 +369,78 @@ remain intact. No native station loss/reassign/reselect, submitted scout/retry,
 cold-document persistence, whole Wing or release credit is earned. Nine
 objectives and zero whole catalog closures remain; no runtime or grant remains.
 
+## Actual Cycle0 casting release and chooser repair — 17:50 onward
+
+The exact clean `7856b0cf` run admitted one ordinary GM and the same Wing
+player in two Chrome contexts, with eight configured roles and zero human
+devices. It remained in unlocked casting, cycle0, with no production start or
+scout submission. The GM's offered release committed. The current same-member
+live/server own-player projection cleared role, seat and active console; the
+seat became open and the scouting input disappeared. The populated role brief
+became null, while the matching runtime draft retained `5143`. Loyalty was null
+before and after; this run establishes only null-after for that projection.
+
+The player remained on the obsolete Starlight route without the station chooser
+or reselect notice. That first genuine behavioral failure stopped the run before
+reassignment. The earlier claimed-seat wait had preceded ordinary station entry;
+it was an overstrict preparation step, excluded from behavioral RED credit.
+Physical return completed at **18:02:48.212998UTC**, before 18:25: original
+browser objects, 42 tracked pins plus configure/cleanup, eight process groups,
+11 selected dual-stack ports, exact two-Auth/session/pointers/two-root data,
+configuration, reservations and claims were returned. The original dirty
+checkout and source/build remained unchanged during that attempt.
+
+Independent saved review `c41832b2` confirmed the route failure and HTTP causes;
+ROOT verified all 34 reference instances and 25 unique files before source
+work. The first seat claim committed200 and the two overlapping distinct new
+IDs met the existing current-seat conflict guard400. Matching receipt replay
+precedes that guard; no exact-replay/backend defect was demonstrated. The report
+403 occurred before the source-required active phase. Exact rejected transaction
+snapshots were not captured, and client coalescing/inactive-phase report guidance
+remain unqualified UI concerns. Accepted active GM/private reads stay scoped and
+accepted.
+
+Valid-roster mounted App callbacks observed three missing-chooser REDs before
+implementation: Starlight in both freshness arrival orders and the supported
+Union-owner Ally route. Six restoration, visitor/other-role holder/GM and
+changed-principal controls passed. The initial Ally fixture omitted the printed
+Union roster; its failure is excluded. Tests-only `f70a94a6` preceded source
+`45da1f1e`. Production changes add canonical non-Press shuttle-owner recognition
+to the existing station release/freshness/reselect flow. Server, SDK, store,
+scout request, retry and permission behavior are preserved. The original safe
+unsent draft repair and minimum same-member Back acceptance remain reusable.
+
+At `45da1f1e`, App 118, scout 19 and store 29 tests pass. The wider shuttle
+suite passes 102 and fails one unchanged Endeavour printed-facts assertion, which still expects
+obsolete ECM wording and uses a mock missing its required `built` field. The
+same assertion fails alone; its test/view/service bytes equal the pre-repair
+candidate. It remains intact and flagged for final contract/validation
+reconciliation. The broader four-suite run is **268 passed, one failed**.
+Frontend TypeScript/Vite build and the existing512000-byte budget pass; focused
+lint has zero errors and two existing warnings. Exact independent source
+review `e9896172` approves `45da1f1e` source only.
+Its original focused run passes 17 and fails three at a missing external
+subscription mock, before audience assertions; a private same-assertion correction
+passes those three and two actual service selection barriers pass separately.
+ROOT full read/hash ACK verifies 25 reference instances/24 files. Tests-only
+`c420aec9` adds exactly that missing inert subscription mock, with production
+source and every assertion unchanged. The same 20 selected App cases pass
+(98 deselected); changed test lint/diff pass. Limited independent binding
+confirmation `b193f553` and ROOT full read/hash ACK verify 10 references/eight
+files. These post-source fixture corrections are separately labeled, and do
+not rewrite original before-edit behavioral RED or add counts to owner suites.
+
+After source qualification, the next minimum native check uses ordinary current
+GM release, same-player Wing reassignment and deliberate chooser/role/Starlight
+selection in casting, including existing Dismiss error if needed. It must prove
+removed unauthorized controls/private brief and matching `5143` restoration with
+zero automatic scouts. Native after-fix recovery/reassignment, active-game
+station loss and complete Wing Fighter Bay/wings/mission/rebuild remain open.
+No new runtime grant, whole catalog closure or release acceptance is recorded.
+
+Evidence is retained under
+`pc10-reboot-recovery/native-runs/wing-cycle0-casting-20261012-1755-ba1ae4226d194c8aadd7bb7594782157`.
+
 ## Nine remaining distinct execution objectives
 
 This expands the seven existing consolidated families where mechanics differ:
@@ -392,6 +464,14 @@ remain stable; nine objectives remain, with zero new whole catalog closures.
 8. Complete fresh two-browser solo base/Capybara games through an ending with
    every unique role/function, unlimited manual progression and uncovered
    dropout, all-player clock pause/resume and terminal-recovery branches.
+   Exercise the supported member reload/reconnect and fresh-authority renewal,
+   interrupted operations/retries and GM recovery paths already in scope.
+   Record committed versus pending/expired outcomes and any unsupported recovery
+   the GM must plan around. Source-known limits include casting-only GM role
+   reassignment and runtime-only unsent text; cold-document draft persistence is
+   unproved. The complete rehearsal must establish the playable ending and
+   recovery evidence. Event-time reliability and a ready paper fallback are
+   unclaimed; PC11 guidance and PC12 backup remain future work.
 9. Complete only uncovered private audiences, randomness, denial telemetry,
    action audits and rate-limit criteria. 21-account capacity is conditional,
    not a blanket prerequisite.
@@ -410,8 +490,9 @@ Later post-PC10/PC12 work and licensing remain separate; PC11 is not reopened.
 ## Next smallest distinct Wing check
 
 Reuse the accepted same-member Team Time Back/input criterion above. The next
-distinct source-prepared check is genuine GM role release, same-player Wing
-reassignment and chooser/reselect/safe-input recovery in an unlocked Cycle0
+distinct source-qualified recheck after the preserved native chooser failure
+is genuine GM role release, same-player Wing reassignment and
+chooser/reselect/safe-input recovery in an unlocked Cycle0
 casting window. Two admitted actors and two browsers suffice. Capture actual
 server role/seat changes, route/reselect instruction, specific private-state
 clearing, retained safe text and zero scout submissions. Stop at the first

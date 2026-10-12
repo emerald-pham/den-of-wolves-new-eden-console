@@ -1780,3 +1780,33 @@ closures, native outcomes or release credit: all 48 rows remain open,
 703/751 overall and 245/293 campaign. The fresh two-browser game through an
 ending, every role/function, recovery/privacy and required usability gates
 remain incomplete. Post-PC10, PC11 and PC12 remain deferred.
+
+### October 12 casting role-loss chooser counterexample and source-qualified repair
+
+Exact `7856b0cf` ordinary current GM/Wing casting cycle 0 release clears role/seat/console,
+request input and populated role brief, retaining same-member runtime `5143`, but
+leaves the obsolete Starlight route without chooser/reselect guidance. First
+native failure stops before reassignment; physical handback 18:02:48.212998UTC
+returns own resources before 18:25. Loyalty was null before and after.
+Independent saved failure/HTTP review and ROOT read/hash ACK preserve these
+limits. Overlapping distinct new-ID seat conflicts and pre-active report denial
+match current server guards; client overlap/guidance remains unqualified.
+
+Three valid-roster mounted chooser REDs precede test-only `f70a94a6` then source `45da1f1e`
+canonical non-Press shuttle-owner mapping into the existing current-identity/
+freshness/reselection flow. Exact independent source-only review passes.
+Fixture-only `c420aec9` adds the reviewed missing external subscription mock; same 20
+selected controls pass and limited exact binding is independently confirmed.
+Original failed/private fixture runs remain separate; source and assertions
+are unchanged. Earlier App 118/scout 19/store 29 and source build/budget/lint pass, while
+broader shuttle 102/103 retains an unchanged Endeavour contract assertion failure
+as an explicit final-validation hold. This is source qualification for the
+minimum casting recheck, with native recovery/reassignment and whole Wing open.
+
+See [the scoped report](PC10_NORMAL_UI_REVIEW_REPORT.md) for exact receipts,
+chronology and retained failure limits. The function inventory and catalog
+statuses remain unchanged: 703/751 overall, 245/293 campaign, 14 partial/34 missing,
+48 fixed rows unfinished, nine execution objectives and zero new whole closures.
+The existing fresh-game objective includes supported reconnect/recovery and GM
+operating limits; no event-time reliability guarantee or ready paper fallback
+is established by these isolated checks. No runtime grant or release accepted.
