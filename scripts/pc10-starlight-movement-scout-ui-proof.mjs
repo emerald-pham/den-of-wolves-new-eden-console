@@ -914,14 +914,18 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
   const id = `p181-${Date.now()}-${++p181MemberObservationOrdinal}`;
   const moduleUrl = surface.storeModuleUrl?.();
   const authorityModuleUrl = surface.sessionAuthorityModuleUrl?.();
-  const command = (action, change) => surface.page.evaluate(async ({ id, action, moduleUrl,
+  const rawCommand = (action, change) => surface.page.evaluate(async ({ id, action, moduleUrl,
     authorityModuleUrl, deadlineAt, options, change }) => {
     const key = '__p181OriginalMemberObservation';
     const timeout = () => new Error(options.mode === 'auth-only'
       ? 'Original P181 Auth restoration observation deadline expired.' : 'Original P181 retained authority deadline expired.');
+    const rejectedCastingFailure = held => ({ p181RetainedCastingFailure: {
+      message: held.failure, firstCastingRejectedState: held.firstCastingRejectedState,
+    } });
     if (action !== 'open') {
       const held = window[key];
       if (!held || held.id !== id) throw new Error('Original P181 authority observation or document changed.');
+      try {
       if (performance.timeOrigin !== held.timeOrigin) {
         held.failure ??= 'Original P181 observation documentTimeOrigin changed.';
         held.stop(); held.complete(held.failure);
@@ -956,6 +960,11 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       if (action === 'pin') await held.pin({ ...change, authorityModuleUrl });
       await held.check();
       return { fresh: held.fresh };
+      } catch (error) {
+        if (held.firstCastingRejectedState && error?.message === held.failure)
+          return rejectedCastingFailure(held);
+        throw error;
+      }
     }
     if (!Number.isFinite(deadlineAt) || Date.now() >= deadlineAt) throw timeout();
     if (window[key]) throw new Error('Another P181 observation already owns this original document.');
@@ -977,8 +986,15 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       clearTimeout(held.timer);
       for (const stop of held.stops.splice(0)) { try { stop(); } catch (error) { held.failure ??= String(error?.message ?? error); } }
     };
-    const fail = error => { held.failure ??= String(error?.message ?? error); held.stop(); held.complete(held.failure); };
-    const inspect = (state, historical = false) => {
+    const fail = error => {
+      if (held.failure === null) {
+        held.failure = String(error?.message ?? error);
+        if (error?.firstCastingRejectedState) held.firstCastingRejectedState = error.firstCastingRejectedState;
+      }
+      held.stop();
+      held.complete(held.firstCastingRejectedState ? rejectedCastingFailure(held) : held.failure);
+    };
+    const inspect = (state, historical = false, observationOrigin = 'current') => {
       if (held.failure) return;
       const user = client.currentUser;
       if (performance.timeOrigin !== held.timeOrigin || (held.rawUid && user?.uid !== held.rawUid))
@@ -1009,11 +1025,42 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
         const profile = profileContext?.activeDemoActorProfile ?? null;
         if (profile?.roleId != null || profile?.sessionId != null)
           throw new Error('Original P181 casting actor profile changed.');
-        if (me.role !== 'player' || me.assignedRoleId != null && me.assignedRoleId !== castingRoleId ||
-            me.activeConsoleRoleId != null || me.seatId != null || session.currentTurn !== 0 ||
-            !['lobby', 'casting'].includes(session.phase) || session.setupConfirmed !== true ||
-            !['live', 'connecting'].includes(state.connection))
-          throw new Error('Original P181 casting actor, role, seat, phase or connection changed.');
+        const failedPredicates = [
+          me.role !== 'player' && 'playerRole',
+          me.assignedRoleId != null && me.assignedRoleId !== castingRoleId && 'assignedRoleId',
+          me.activeConsoleRoleId != null && 'activeConsoleRoleId', me.seatId != null && 'seatId',
+          session.currentTurn !== 0 && 'cycle', !['lobby', 'casting'].includes(session.phase) && 'phase',
+          session.setupConfirmed !== true && 'setupConfirmed',
+          !['live', 'connecting'].includes(state.connection) && 'connection',
+        ].filter(Boolean);
+        if (failedPredicates.length) {
+          // Freeze only the tuple already being inspected. No later Store,
+          // SDK, Auth or network read supplies or replaces this private witness.
+          const field = (object, name) => {
+            const value = object?.[name];
+            return { present: Object.hasOwn(object ?? {}, name),
+              valueKind: value === null ? 'null' : typeof value,
+              value: ['string', 'boolean', 'number'].includes(typeof value) ? value : null };
+          };
+          const error = new Error('Original P181 casting actor, role, seat, phase or connection changed.');
+          error.firstCastingRejectedState = {
+            schemaVersion: 1, observationOrigin, observedAtMs: Date.now(), failedPredicates,
+            expected: { memberRoleId: castingRoleId, sessionId: held.options.expected?.sessionId,
+              uidHash: held.options.expected?.uidHash, documentTimeOrigin: held.options.expected?.documentTimeOrigin,
+              connectionGeneration: held.options.expected?.connectionGeneration,
+              identityHydrationRevision: held.options.expected?.identityHydrationRevision },
+            inspected: { playerRole: field(me, 'role'), assignedRoleId: field(me, 'assignedRoleId'),
+              activeConsoleRoleId: field(me, 'activeConsoleRoleId'), seatId: field(me, 'seatId'),
+              cycle: field(session, 'currentTurn'), phase: field(session, 'phase'),
+              setupConfirmed: field(session, 'setupConfirmed'), connection: field(state, 'connection') },
+            identity: { authMatchesOriginal: user.uid === held.rawUid, memberMatchesAuth: me.uid === user.uid,
+              sessionMatchesOriginal: session.id === held.options.expected?.sessionId },
+            epoch: { connectionGeneration: field(me, 'connectionGeneration'),
+              identityHydrationRevision: field(state, 'identityHydrationRevision'),
+              documentTimeOrigin: performance.timeOrigin },
+          };
+          throw error;
+        }
         if (held.castingAssignedSeen && me.assignedRoleId !== castingRoleId)
           throw new Error('Original P181 casting assignment role was retired.');
         if (me.assignedRoleId === castingRoleId) held.castingAssignedSeen = true;
@@ -1192,8 +1239,10 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       if (held.failure) return;
       try {
         if (Date.now() >= deadlineAt) throw timeout();
-        if (previous) inspect(previous, true);
-        for (const state of [delivered, held.store?.getState()]) if (state) inspect(state);
+        if (previous) inspect(previous, true, 'previous');
+        if (delivered) inspect(delivered, false, 'delivered');
+        const observedCurrent = held.store?.getState();
+        if (observedCurrent) inspect(observedCurrent, false, 'current');
         const current = held.store?.getState();
         if (current && held.options.navigationFrom) {
           held.latestGeneration = current.me?.connectionGeneration ?? held.latestGeneration;
@@ -1225,7 +1274,7 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       if (held.closed) throw new Error('Original P181 retained authority scope already ended.');
       if (held.failure) throw new Error(held.failure);
       if (Date.now() >= deadlineAt) throw timeout();
-      inspect(held.store?.getState());
+      inspect(held.store?.getState(), false, 'check-before-hash');
       const uid = client.currentUser?.uid;
       // The Auth-only reload stage pins a restored SDK UID continuously but
       // grants no member authority. Its following Node comparison binds the
@@ -1237,7 +1286,7 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       }
       if (held.failure) throw new Error(held.failure);
       if (held.closed) throw new Error('Original P181 retained authority scope ended during verification.');
-      inspect(held.store?.getState());
+      inspect(held.store?.getState(), false, 'check-after-hash');
     } catch (error) { fail(error); throw error; } };
     held.pin = async next => {
       await held.check();
@@ -1286,9 +1335,24 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       }
       observe(); await held.check();
       return { fresh: held.fresh };
-    } catch (error) { fail(error); held.stop(); delete window[key]; throw error; }
+    } catch (error) {
+      fail(error); held.stop(); delete window[key];
+      if (held.firstCastingRejectedState && error?.message === held.failure) return rejectedCastingFailure(held);
+      throw error;
+    }
   }, { id, action, moduleUrl, authorityModuleUrl: surface.sessionAuthorityModuleUrl?.() ?? authorityModuleUrl,
     deadlineAt, options, change });
+  const command = async (action, change) => {
+    const result = await rawCommand(action, change);
+    const retained = result?.p181RetainedCastingFailure;
+    if (retained) {
+      const error = new Error(retained.message);
+      error.firstCastingRejectedState = retained.firstCastingRejectedState;
+      rememberProofFailure(error, { firstCastingRejectedState: retained.firstCastingRejectedState });
+      throw error;
+    }
+    return result;
+  };
   await command('open');
   const failed = command('wait').then(message => message ? Promise.reject(new Error(message)) : new Promise(() => {}));
   failed.catch(() => {});
