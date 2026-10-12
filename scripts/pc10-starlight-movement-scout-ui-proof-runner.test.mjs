@@ -2088,7 +2088,7 @@ function mountedP181Surface(uid, { gm = false, casting = false } = {}) {
 async function actualP181CastingAssignmentFixture(t, { assignmentTarget, assignmentRole, deferMemberTransition = false,
   resumeGeneration = 3, resumeHydration = 4, resumeStatus = 200, resumeSessionId = 'normal-session',
   resumeUid = 'wing-uid', resumeAssignedRoleId = 'wing-commander', deliverResume = true,
-  resumeBodyWait, observerDeadlineMs = 4_000 } = {}) {
+  resumeBodyWait, observerDeadlineMs = 4_000, resumeBerthGap = false } = {}) {
   const wing = mountedP181Surface('wing-uid', { casting: true });
   wing.state.session.phase = 'lobby'; wing.state.session.setupConfirmed = true; wing.state.session.setupRevision = 1;
   wing.state.me.assignedRoleId = null; wing.state.me.activeConsoleRoleId = null; wing.state.me.seatId = null;
@@ -2125,6 +2125,25 @@ async function actualP181CastingAssignmentFixture(t, { assignmentTarget, assignm
       state.session.currentActorBerthAuthority = { ...state.session.currentActorBerthAuthority,
         assignedRoleId: 'wing-commander' };
     });
+    if (resumeBerthGap) {
+      const replySession = { id: 'normal-session', phase: 'casting', currentTurn: 0,
+        setupConfirmed: true, setupRevision: 2, memberSessionScope: { groupId: 'fleet-1', vesselIds: ['aegis'] } };
+      assert.equal(Object.hasOwn(replySession, 'currentActorBerthAuthority'), false,
+        'The ordinary resume DTO contains the member session but not the separately enveloped own-berth witness.');
+      if (deliverResume) wing.deliver('resumeSession', { sessionId: resumeSessionId }, { session: replySession,
+        player: { ...wing.state.me, uid: resumeUid, sessionId: resumeSessionId,
+          assignedRoleId: resumeAssignedRoleId, connectionGeneration: resumeGeneration } },
+      { status: resumeStatus, bodyWait: resumeBodyWait });
+      wing.publish(state => {
+        state.me.connectionGeneration = resumeGeneration;
+        state.identityHydrationRevision = resumeHydration;
+        delete state.session.currentActorBerthAuthority;
+        state.sessionSnapshotFreshness = 'server';
+      });
+      wing.publish(state => { state.sdkResumePending = false; state.connection = 'live';
+        state.sessionSnapshotFreshness = 'server'; });
+      return observeFullGameDemoPresentationMember(wing, { knownRoleIds: originalRoleIds });
+    }
     wing.publish(state => {
       state.me.connectionGeneration = resumeGeneration;
       state.identityHydrationRevision = resumeHydration;
@@ -2140,8 +2159,16 @@ async function actualP181CastingAssignmentFixture(t, { assignmentTarget, assignm
     });
     return observeFullGameDemoPresentationMember(wing, { knownRoleIds: originalRoleIds });
   };
+  const restoreCurrentMemberBerth = () => wing.publish(state => {
+    state.session.currentActorBerthAuthority = { ...state.session.currentActorBerthAuthority,
+      sessionId: state.session.id, actorUid: state.me.uid, groupId: state.me.fleetGroupId,
+      role: 'player', connectionGeneration: state.me.connectionGeneration,
+      assignedRoleId: state.me.assignedRoleId, activeConsoleRoleId: null,
+      replacementRoleId: null, replacementStatus: null, shipId: 'aegis' };
+  });
   const current = deferMemberTransition ? null : await applyAssignmentAndResume();
-  return { wing, gm, observer, before, current, assignment, applyAssignmentAndResume, directory };
+  return { wing, gm, observer, before, current, assignment, applyAssignmentAndResume,
+    restoreCurrentMemberBerth, directory };
 }
 
 test('P181 casting assignment accepts only the original GM receipt and the member’s captured normal resume', async t => {
@@ -2180,6 +2207,45 @@ test('P181 casting assignment accepts only the original GM receipt and the membe
   assert.equal(f.wing.observers.stores.size, 0, 'The mounted readiness consumer leaves no Store observers attached.');
   for (const event of ['request', 'response', 'requestfailed', 'framenavigated'])
     assert.equal(f.wing.page.listenerCount(event), 0, `The passive resume observer removes its ${event} listener.`);
+});
+
+test('P181 casting assignment waits for the current member berth after ordinary resume DTO hydration', async t => {
+  const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true, resumeBerthGap: true });
+  const authority = await castingAssignmentAuthorityFor(f);
+  const wait = await reconciledNativeWait(f.wing, 'full');
+  let transitioned = false;
+  f.wing.onDigest = async () => {
+    if (transitioned) return;
+    transitioned = true;
+    await f.applyAssignmentAndResume();
+  };
+  try {
+    const hydrated = await wait(f.wing, 'Original casting assignment with normal resume DTO', value =>
+      pc11MemberReadiness(value, { sessionId: f.before.sessionId, uidHash: f.before.uidHash,
+        roleId: 'wing-commander', stage: 'casting' }) && value.phase === 'casting' &&
+        value.sdkResumePending === false, Date.now() + 3_000, f.before, authority);
+    assert.equal(transitioned, true);
+    assert.equal(hydrated.currentMemberBerthPresent, false,
+      'The resume SessionReply may hydrate before the current-member own-berth feed.');
+    assert.equal(await f.observer.accept(f.before, hydrated,
+      () => observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds }), f.assignment), false,
+    'Do not accept casting readiness until the current member reader confirms the original own berth.');
+    f.restoreCurrentMemberBerth();
+    const confirmed = await wait(f.wing, 'Original casting member berth confirmation', value =>
+      pc11MemberReadiness(value, { sessionId: f.before.sessionId, uidHash: f.before.uidHash,
+        roleId: 'wing-commander', stage: 'casting' }) && value.phase === 'casting' &&
+        value.sdkResumePending === false && value.currentMemberBerthMatches === true,
+    Date.now() + 3_000, f.before, authority);
+    assert.equal(confirmed.currentMemberBerthPresent, true);
+    assert.equal(confirmed.currentMemberBerthMatches, true);
+    const accepted = await f.observer.accept(f.before, confirmed,
+      () => observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds }), f.assignment);
+    assert.ok(accepted);
+    assert.equal(accepted.currentMemberBerthMatches, true);
+  } finally {
+    await authority.close().catch(() => {});
+    await f.observer.finish();
+  }
 });
 
 test('P181 casting assignment permits a same-epoch role receipt only with fully fresh unseated readiness', async t => {
