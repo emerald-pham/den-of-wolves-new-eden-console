@@ -6329,6 +6329,13 @@ html:has(.ship-plot[data-aboard='true'][data-expanded='false'])
    opening document area. The complete console scrolls past them without
    leaving controls or identity labels over the active workspace. */
 @media (max-width: 42rem), (max-height: 42rem) {
+  .app-header > .session-readouts {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    min-width: 0;
+    max-width: 100%;
+  }
+
   .ship-plot[data-aboard='true'][data-expanded='false'] {
     position: absolute;
   }
@@ -6342,6 +6349,7 @@ html:has(.ship-plot[data-aboard='true'][data-expanded='false'])
   .ship-console:not(.shuttle-console),
   .shuttle-console {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     align-content: start;
     gap: 1rem;
     overflow: visible;
@@ -6355,9 +6363,14 @@ html:has(.ship-plot[data-aboard='true'][data-expanded='false'])
     bottom: auto;
     left: auto;
     width: 100%;
+    min-width: 0;
     max-height: none;
     overflow: visible;
     background: var(--cic-void);
+  }
+
+  .ship-console .ship-console__back {
+    max-width: 100%;
   }
 
   .ship-console .ship-console__instruments {
