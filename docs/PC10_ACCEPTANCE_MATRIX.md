@@ -37,7 +37,7 @@ meaningful RED, independent review and rendered/gameplay gates. See the
 
 | ID | Required behavior | Implementation / connection | Authenticated gameplay / recovery / privacy | Review / release |
 |---|---|---|---|---|
-| 181 | Create the Wing Commander workspace. | pending | pending | pending |
+| 181 | Create the Wing Commander workspace. | Connected canonical Wing station and Starlight console at exact a6485b92. | Partial accepted October12: two authenticated browser ordinary GM/casting/start0→1, Wing reload to server freshness, private scout 5143 report and real Aegis→Icebreaker flight/automatic docking with unchanged holder. Both Fighter Bays/wings/missions/rebuild and Back/lost-station/safe-input criteria need valid reuse or minimal missing proof. | Exact independent saved-UI review PASS for this slice; phone overlap held, bounded GM-read anomaly source repairs separately reviewed; final release pending. |
 | 215b | Complete the Scientist workspace. | pending | pending | pending |
 | 223b | Complete the Explorer workspace. | pending | pending | pending |
 | 233b | Complete the PDF Colonel workspace. | pending | pending | pending |
@@ -70,7 +70,7 @@ meaningful RED, independent review and rendered/gameplay gates. See the
 | 584 | Run the Capybara vertical scenario. | pending | pending | pending |
 | 585 | Run the base/expansion isolation scenario. | pending | pending | pending |
 | 593 | Show candidate preparation help. | Mounted current-group N/O/P preparation. | Partial: distinct costs/blockers/next actor and Cycle 6 reload accepted; hidden bonus/Wolf/private calculation and foreign-group/requester-peer audiences remain open. | focused tests/contracts and bounded Sol review pass; final rendered usability/release pending |
-| 618 | Reconnect every live projection. | Connected current member/SDK recovery. | Partial: prior Captain/Press history, Black Sheep cargo/control reload, settled Host9/Shuttle1 desktop balances, and Water exact UI retry/cold reload/original SDK replay accepted with original identity/seat/group/current-holder/SDK authority; other projections/dropout paths open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
+| 618 | Reconnect every live projection. | Connected current member/SDK recovery. | October12 original Wing reload to server-fresh generation2 with same UID/session/role/seat accepted; other projection/dropout/clock criteria remain distinct. Partial: prior Captain/Press history, Black Sheep cargo/control reload, settled Host9/Shuttle1 desktop balances, and Water exact UI retry/cold reload/original SDK replay accepted with original identity/seat/group/current-holder/SDK authority; other projections/dropout paths open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
 | 619 | Make candidate retries survive reconnect. | Connected paid Ring crossing exact intent/receipt recovery. | Partial: Ring3 Aegis committed-ack loss, original intent across cold GM reload, exact UI/SDK replay, borrowed-actor denial and late-success replay accepted; other N contribution/O roll-loss-fuel/P reactor-outcome recovery remain open. | scoped source/negative mapping and final gates pending |
 | 620 | Recover from stale revisions. | Connected phase confirmation and exact retry. | Partial: prior phase/flight/ending recovery, cargo and Water committed-ack loss/exact UI retry/cold reload/SDK replay, historical control receipts after revision2, and fresh current-maintenance-revision Water once-guard refusal accepted; other stale/conflicting role requests open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
 | 629 | Protect private projections comprehensively. | Tested current scoped private readers and authority negatives. | Partial: prior populated private/borrowed-GM denials plus fresh Black Sheep nonowner/revoked-holder denial with selected gameplay/receipt/audit hashes unchanged accepted; other private audiences open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
@@ -114,6 +114,27 @@ consolidation. Removing a distinct game rule, ordinary admission/privacy,
 authenticated GM/manual advancement, the promised full-game solo capability or
 an unverified ending would change the product requirement and needs an explicit
 owner decision. This consolidation grants no closure or acceptance by itself.
+
+### Independently reviewed ordinary GM/Wing UI — October 12
+
+[Exact reviewed evidence and remaining objectives](PC10_NORMAL_UI_REVIEW_REPORT.md)
+credit the consolidated fresh two-browser Starlight flow directly. Actual source
+`a6485b92`, two Auth identities, two Chrome processes/contexts, eight configured
+roles and zero human devices are recorded separately. Normal GM start, current
+Wing station, eventual same-actor server-fresh reload, private scout 5143 report
+and first-leg transit/automatic docking are accepted. They do not need the old
+custom driver to pass. Earlier accepted setup/start overlaps are not added again.
+
+P181 now records partial catalog credit for these satisfied subcriteria. Its
+distinct Fighter Bay/wings/missions/rebuild and Back/lost-station/safe-input
+criteria remain open unless exact unchanged historical evidence satisfies them.
+No whole catalog row is proven solely by this slice, and no new fixed closure is
+invented. The phone capture visibly overlaps DRADIS and the private-card heading;
+its live-versus-full-page capture cause needs one focused geometry check. The
+GM 403 / boarding 400 are separately reproduced source defects with focused
+RED/GREEN repairs; original native evidence is not relabeled as repaired proof.
+Owned resources and fresh data were returned at **12:13:23.934115 UTC** before
+the 12:15 allocation deadline. No new heavy runtime is authorized by this record.
 
 Prepared presentation, native tests, normal authenticated emulator HTTP/UI/rules, automated concurrent browsers, human/device playtesting, CI and production deployment are separate evidence classes. No unavailable evidence earns closure credit.
 
@@ -878,7 +899,7 @@ Cycle0→1 transition. During casting, the ordinary player identity/assigned rol
 canonical seat and SDK authority qualified without asserting an operational
 berth. After the real start, both ordinary actors met the strict current Source
 berth/group/member/SDK guards before gameplay. The printed owner handed Black
-Sheep to the Captain through the actual UI: control revision0→1 and one original
+Sheep to the Captain through the actual UI: control revision 0→1 and one original
 request/audit, retaining printed-owner identity. Former-holder cargo controls
 were removed and the Captain opened the ordinary assigned shuttle route.
 
