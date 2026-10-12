@@ -2865,7 +2865,7 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
   directory, closeOwned, terminateOwned, writeOutcome, configureSurfaces, afterGmClaim,
   servedEnvironmentChange, unclaimedWingSeat = false, rejectedMessage = 'ordinary rejected create', proofProfile,
   ordinaryPreparation = false, wingBayFlow = false, onNormalStarted, onWingBayAction,
-  servedSourceBody, servedSourceResponseUrl, cliEntry = false, landingSourceBody, checkedLandingSource } = {}) {
+  servedSourceBody, servedSourceResponseUrl, cliEntry = false, landingSourceBody, checkedLandingSource, ownerInput } = {}) {
   let now = Date.now();
   if (clock) now = clock.now();
   const records = new Map(), deletedAuth = [], operations = [], writes = [], privateRecords = [], surfaces = [], browsers = [];
@@ -3099,7 +3099,11 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
   let resolveCliCompletion;
   const cliCompletion = new Promise(resolveCompletion => { resolveCliCompletion = resolveCompletion; });
   const cli = { argv: cliEntry ? ['/opt/local/bin/node', p181DeadlineSourcePath] : [], env, stderr: [], exitCode: undefined };
-  const processFixture = { env, argv: cli.argv, cwd: () => repositoryRoot,
+  const ownedInput = ownerInput ?? new EventEmitter();
+  ownedInput.resume ??= () => ownedInput;
+  ownedInput.pause ??= () => ownedInput;
+  ownedInput.destroy ??= () => { ownedInput.destroyed = true; };
+  const processFixture = { env, argv: cli.argv, cwd: () => repositoryRoot, stdin: ownedInput,
     stderr: { write: value => cli.stderr.push(value) } };
   Object.defineProperty(processFixture, 'exitCode', { get: () => cli.exitCode,
     set: value => { cli.exitCode = value; resolveCliCompletion(value); } });
@@ -3190,7 +3194,7 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
       catch (error) { return error; }`}
   })()`, context, { filename: p181DeadlineSourcePath });
   return { gm, wing, admiral, surfaces, browsers, records, deletedAuth, operations, writes, privateRecords, program, preflightAcquisitions,
-    cli, fetchedUrls, launch,
+    cli, fetchedUrls, launch, ownerInput: ownedInput,
     allocationDeadlineAt: context.__options.allocationDeadlineMs,
     cleanupDeadlineAt: context.__options.allocationDeadlineMs - P181_NATIVE_TIMING.parentIndependentVerificationReserveMs };
 }
@@ -6483,5 +6487,67 @@ test('P181 first rejected casting state does not replace an earlier distinct mem
     assert.equal(failure.firstCastingRejectedState, undefined);
     await assert.rejects(authority.check(), /connected member authority retired/);
   } finally { await authority.close().catch(() => {}); }
+});
+function currentFixtureOwnerStop(fixture, clock, overrides = {}) {
+  return { schemaVersion: 1, kind: 'P181_OWNER_OPERATION_STOP',
+    sourceRoot: repositoryRoot, sourceCommit: fixture.launch.sourceCommit, projectId: fixture.launch.projectId,
+    allocationStartedAtMs: fixture.allocationDeadlineAt - P181_NATIVE_TIMING.totalAllocationMs,
+    allocationDeadlineAt: fixture.allocationDeadlineAt,
+    runtimeLaunchRecordSha256: createHash('sha256').update(JSON.stringify(fixture.launch)).digest('hex'),
+    requestedAtMs: clock.now(), reasonSha256: 'a'.repeat(64), ...overrides };
+}
+for (const [label, deliver] of [
+  ['bound original stop', (input, request) => input.emit('data', JSON.stringify(request) + '\n')],
+  ['stale source stop', (input, request) => input.emit('data', JSON.stringify({ ...request, sourceCommit: 'foreign-source' }) + '\n')],
+  ['foreign source root stop', (input, request) => input.emit('data', JSON.stringify({ ...request, sourceRoot: '/foreign/source' }) + '\n')],
+  ['foreign project stop', (input, request) => input.emit('data', JSON.stringify({ ...request, projectId: 'demo-foreign' }) + '\n')],
+  ['renewed start stop', (input, request) => input.emit('data', JSON.stringify({ ...request,
+    allocationStartedAtMs: request.allocationStartedAtMs + 1 }) + '\n')],
+  ['renewed deadline stop', (input, request) => input.emit('data', JSON.stringify({ ...request,
+    allocationDeadlineAt: request.allocationDeadlineAt + 1 }) + '\n')],
+  ['wrong launch record stop', (input, request) => input.emit('data', JSON.stringify({ ...request,
+    runtimeLaunchRecordSha256: 'b'.repeat(64) }) + '\n')],
+  ['future request stop', (input, request) => input.emit('data', JSON.stringify({ ...request,
+    requestedAtMs: request.allocationDeadlineAt + 1 }) + '\n')],
+  ['extra authority field stop', (input, request) => input.emit('data', JSON.stringify({ ...request,
+    renewDeadline: true }) + '\n')],
+  ['malformed stop', input => input.emit('data', '{not-json}\n')],
+  ['closed owner channel', input => input.emit('end')],
+  ['failed owner channel', input => input.emit('error', new Error('SYNTHETIC_PRIVATE_PIPE_FAILURE'))],
+]) {
+  test(`P181 owned stop channel prevents new gameplay after ${label} and preserves cleanup`, async () => {
+    const input = new EventEmitter(), clock = remainingLifecycleClock();
+    let fixture;
+    fixture = await remainingNativeConsumer({ proofProfile: 'wing-bays', ordinaryPreparation: true, clock,
+      ownerInput: input, afterGmClaim: gm => {
+        gm.setRoute('#/gm'); deliver(input, currentFixtureOwnerStop(fixture, clock));
+      } });
+    const first = await fixture.program;
+    assert.equal(fixture.gm.choices.includes('Confirm setup // Confirm roster'), false,
+      'The actual native operation boundary must refuse the next mutation after the original owner channel stops.');
+    assert.equal(fixture.wing.choices.includes('Join a session'), false);
+    assert.equal(fixture.admiral.choices.includes('Join a session'), false);
+    assert.ok(first, 'An owner stop/channel failure remains an explicit native failure.');
+    assert.equal(fixture.browsers.every(browser => browser.closed), true);
+    const outcome = JSON.parse(fixture.writes.find(item => item.path.endsWith('p181-starlight-movement-scout.json')).body);
+    assert.equal(outcome.cleanup.status, 'owned-cleanup-complete');
+    assert.equal(outcome.cleanup.deletedFreshAuthIdentities, 1);
+    assert.equal(outcome.finalization.allocationDeadlineAt, fixture.allocationDeadlineAt);
+    assert.ok(outcome.ownerOperationStop, 'The original owner channel failure/stop must be retained as stop-only evidence.');
+    assert.equal(outcome.ownerOperationStop.status, label === 'bound original stop' ? 'received-owner-stop' : 'owner-channel-failed');
+    assert.equal(outcome.ownerOperationStop.grantsActionAuthority, false);
+    assert.equal(outcome.actualAcceptance, false);
+  });
+}
+test('P181 owned stop channel does not replace an earlier native rejection during finalization', async () => {
+  const input = new EventEmitter(), clock = remainingLifecycleClock();
+  let fixture;
+  fixture = await remainingNativeConsumer({ clock, ownerInput: input, rejectedCreate: true,
+    closeOwned: () => input.emit('data', JSON.stringify(currentFixtureOwnerStop(fixture, clock)) + '\n') });
+  const first = await fixture.program;
+  assert.equal(first.actual, 403);
+  assert.equal(first.expected, 200);
+  assert.equal(fixture.browsers.every(browser => browser.closed), true);
+  assert.equal(first.ownerOperationStop, undefined, 'A later owner notification must not replace the earlier primary.');
 });
 
