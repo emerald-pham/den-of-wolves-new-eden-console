@@ -43,6 +43,7 @@ export const P181_NORMAL_SETUP = Object.freeze({
 export const P181_SOURCE_BINDING_FILES = Object.freeze([
   'scripts/pc10-starlight-movement-scout-ui-proof.mjs',
   'scripts/pc10-starlight-movement-scout-ui-proof-runner.test.mjs',
+  'scripts/pc10-wing-bay-source-preparation.test.mjs',
   'scripts/pc10-member-gm-lifecycle-ui-proof.mjs',
   'scripts/pc10-full-game-demo-proof-helpers.mjs',
   'scripts/pc10-two-browser-gameplay.mjs',
@@ -88,6 +89,11 @@ export const P181_SOURCE_BINDING_FILES = Object.freeze([
   'functions/src/starChartGraph.ts',
   'functions/src/shuttleTransit.ts',
   'src/components/AegisConsoleWorkspace.tsx',
+  'src/components/MaintenanceSystems.tsx',
+  'src/lib/maintenanceService.ts',
+  'src/lib/shipStateProjection.ts',
+  'src/data/aegisConsoles.ts',
+  'src/data/shipPopulation.ts',
   'src/routes/ShuttleConsole.tsx',
   'src/components/ShuttleControl.tsx',
   'src/components/ScoutRequestControls.tsx',
@@ -704,7 +710,7 @@ async function runP181StarlightMovementScoutCore({
  * browser/Auth/session teardown one finite deadline on both success and error. */
 /** A bounded current-state/bay slice, using the ordinary Admiral's maintenance
  * authority. It intentionally stops before launch, mission or a paid rebuild. */
-async function runP181WingBayCore({ initial, io, absoluteDeadlineMs }) {
+async function runP181WingBayCore({ initial, io, absoluteDeadlineMs, cleanupDeadlineMs }) {
   assert.ok(Number.isFinite(absoluteDeadlineMs) && Date.now() < absoluteDeadlineMs,
     'Retain the original finite Wing bay proof deadline.');
   assert.ok(initial?.phase === 'lobby' && initial.cycle === 0 && initial.setupConfirmed === false,
@@ -713,10 +719,16 @@ async function runP181WingBayCore({ initial, io, absoluteDeadlineMs }) {
     'performWingBayMaintenanceAction'].every(name => typeof io[name] === 'function'));
   io.absoluteDeadlineAt = absoluteDeadlineMs;
   const held = { stage: 'normal three-actor preparation', receipts: [], observations: {} };
+  let retainedPath = false, pathError, pathResult;
   const work = async (stage, action) => {
     held.stage = stage;
-    return p181BoundedWork(stage, action, Math.min(absoluteDeadlineMs, Date.now() + 60_000),
+    if (retainedPath) await io.checkPathAuthority();
+    const value = await p181BoundedWork(stage, () => retainedPath
+      ? Promise.race([Promise.resolve().then(action), io.pathAuthorityFailed]) : action(),
+    Math.min(absoluteDeadlineMs, Date.now() + 60_000),
       value => { held.observations[stage] = value; });
+    if (retainedPath) await io.checkPathAuthority();
+    return value;
   };
   try {
     const prepared = await work('normal three-actor preparation', () => io.prepareNormalSession({
@@ -743,6 +755,11 @@ async function runP181WingBayCore({ initial, io, absoluteDeadlineMs }) {
     for (const receipt of prepared.receipts) {
       assert.equal(receipt.httpStatus, 200); assert.equal(receipt.data.sessionId, initial.sessionId);
       held.receipts.push(publicLifecycleReceipt(receipt));
+    }
+    if (typeof io.beginPathAuthority === 'function') {
+      await work('Retain original three-actor Wing bay authority', () => io.beginPathAuthority(absoluteDeadlineMs));
+      retainedPath = true;
+      await io.checkPathAuthority();
     }
     const requireAuthorities = async () => {
       const actors = await work('current Wing bay authorities', () => io.observeWingBayActors());
@@ -812,9 +829,10 @@ async function runP181WingBayCore({ initial, io, absoluteDeadlineMs }) {
       assert.equal(card.strength, `${wing.count} fighters // revision ${wing.revision}`);
       assert.ok(card.capacity.startsWith(`${wing.capacity} fighters // Construction Bay `));
       assert.equal(card.eligibility, 'Eligible // bay charged and operational');
-      assert.ok(card.guidance.includes(`wing at capacity (${wing.capacity} fighters)`));
+      assert.ok(card.guidance.includes(`wing at capacity (${wing.capacity} fighters)`),
+        `The actual current Wing capacity blocker differs: ${card.guidance}`);
     }
-    return { status: 'P181_WING_BAY_FLOW_COMPLETE_ZERO_ACCEPTANCE', proofProfile: 'wing-bays',
+    pathResult = { status: 'P181_WING_BAY_FLOW_COMPLETE_ZERO_ACCEPTANCE', proofProfile: 'wing-bays',
       actualAcceptance: false, fixedCatalogClosures: 0, checkpointOrReleaseCredit: 0,
       actualAuthActorCount: 3, positiveFighterBuilds: 0, flightOperations: 0,
       bayBefore: before, bayAfter: after, sourceUiReceipts: held.receipts,
@@ -822,10 +840,18 @@ async function runP181WingBayCore({ initial, io, absoluteDeadlineMs }) {
         'Only ordinary bay state, maintenance charge delivery and full-wing construction blockers are in this slice.',
         'Launch, mission, fighter loss and positive paid rebuild remain unproved by this slice.'] };
   } catch (error) {
+    pathError = error;
     rememberProofFailure(error, { wingBayStage: held.stage, heldWingBayObservations: held.observations,
       heldWingBayReceipts: held.receipts });
-    throw error;
+  } finally {
+    if (retainedPath) {
+      try { await p181BoundedWork('Detach original Wing bay path observations', () => io.finishPathAuthority(),
+        Math.min(cleanupDeadlineMs ?? absoluteDeadlineMs, Date.now() + 5_000)); }
+      catch (error) { if (pathError) rememberProofFailure(pathError, { retainedAuthorityCleanupError: error }); else pathError = error; }
+    }
   }
+  if (pathError) throw pathError;
+  return pathResult;
 }
 
 export async function runP181StarlightMovementScoutUiProof(input) {
@@ -2510,10 +2536,14 @@ async function p181ValidatePlannedLaunch(plannedLaunch, sourceRoot, sourceCommit
   const expectedVite = { ...environment.publicFirebaseDefaults, ...emulatorEnvironmentForSlot(slot), VITE_FIREBASE_PROJECT_ID: projectId, VITE_LOCAL_GM_ACCESS: '1' };
   for (const [name, value] of Object.entries(expectedVite)) assert.equal(commands.vite.env[name], value, `Planned P181 canonical ${name} required.`);
   assert.deepEqual(configuration.expectedServedEnvironment, { ...expectedVite, DEV: true }, 'Planned P181 expected served environment must match all consumed client settings.');
+  const proofProfile = commands.proof.env.P181_PROOF_PROFILE ?? 'starlight';
+  assert.ok(proofProfile === 'starlight' || proofProfile === 'wing-bays',
+    'Planned P181 proof must use an explicitly supported ordinary-actor proof profile.');
   const proofEnv = { P181_RUNTIME_ALLOCATED: 'yes', P181_SOURCE_ROOT: configuration.sourceRoot, P181_SOURCE_COMMIT: sourceCommit,
     P181_PROJECT: projectId, P181_UI_URL: baseUrl, P181_PORTS_JSON: JSON.stringify({ auth: ports.auth, functions: ports.functions, firestore: ports.firestore }),
     P181_EVIDENCE_DIRECTORY: evidenceDirectory, P181_RUNTIME_LAUNCH_RECORD: runtimeLaunchRecord,
-    P181_ALLOCATION_STARTED_AT_MS: String(configuration.allocationStartedAtMs), P181_ALLOCATION_DEADLINE_MS: String(configuration.allocationDeadlineMs) };
+    P181_ALLOCATION_STARTED_AT_MS: String(configuration.allocationStartedAtMs), P181_ALLOCATION_DEADLINE_MS: String(configuration.allocationDeadlineMs),
+    ...(Object.hasOwn(commands.proof.env, 'P181_PROOF_PROFILE') ? { P181_PROOF_PROFILE: proofProfile } : {}) };
   for (const [name, value] of Object.entries(proofEnv)) assert.equal(commands.proof.env[name], value, `Planned P181 proof ${name} must retain the exact original tuple.`);
   assert.equal(commands.emulators.env.FIREBASE_DEBUG_PATH, resolve(evidenceDirectory, 'firebase-debug.log'), 'Planned P181 Firebase debug output must use its owned evidence tree.');
   assert.equal(commands.emulators.env.DOW_FIREBASE_EMULATOR_LOG_DIRECTORY, evidenceDirectory,
@@ -2556,7 +2586,7 @@ async function p181ValidatePlannedLaunch(plannedLaunch, sourceRoot, sourceCommit
   const installedVite = { packagePath: vitePackagePath, packageVersion: vitePackage.version, packageSha256: hash(vitePackageBytes),
     executablePath: viteEntry, entrySha256: hash(await checked('Bind original local Vite entry bytes', () => readFile(viteEntry))),
     localNoInstall: true, wrapperArguments: ['--no-install', 'vite', '--mode', 'emulators', ...commands.vite.argv.slice(2)] };
-  return { configuration, allocationAuthority: false, nodeExecutable, nodeExecutableSha256, installedFirebase, installedVite, environment };
+  return { configuration, proofProfile, allocationAuthority: false, nodeExecutable, nodeExecutableSha256, installedFirebase, installedVite, environment };
 }
 
 /** Reuse the actual canonical source tests and original complete build bytes
@@ -2685,7 +2715,7 @@ async function p181SourceOnlyPreflight(options) {
 }
 
 /**
- * Complete ordinary two-actor browser scenario. The allocation must be issued
+ * Complete ordinary browser scenario for the named actor profile. The allocation must be issued
  * by the parent before this function is called. Nothing in this module starts
  * an App, emulator, build, CLI probe, or server. `runtime` is the parent's
  * already-launched local-only App/SDK boundary; Chrome, Auth, setup, role
@@ -2772,6 +2802,9 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
     'src/components/AegisConsoleWorkspace.tsx', 'src/routes/ShuttleConsole.tsx',
     'src/components/ShuttleControl.tsx', 'src/components/ScoutRequestControls.tsx',
     'src/components/ScoutReportController.tsx', 'src/components/GmScoutRevealController.tsx',
+    ...(proofProfile === 'wing-bays' ? ['src/components/MaintenanceSystems.tsx',
+      'src/lib/maintenanceService.ts', 'src/lib/shipStateProjection.ts',
+      'src/data/aegisConsoles.ts', 'src/data/shipPopulation.ts'] : []),
   ];
   for (const path of servedSourceFiles) {
     const response = await preflight(`Read original served ${path} headers`, () => fetch(`${baseUrl}/${path}?raw`,
@@ -3002,7 +3035,9 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
               creationRequestId, startRequestId, instanceId: gmInstanceId });
           });
         }
-        if (cleanup.sessionAbsent && lifecycleRootsRemoved) await step('remove only the captured original actor memberships', async end => {
+        if (cleanup.sessionAbsent && lifecycleRootsRemoved) await step(nativeActorCount === 2
+          ? 'remove only the two captured original actor memberships'
+          : 'remove only the captured original actor memberships', async end => {
           const memberships = await db.collection('activeMemberships').where('sessionId', '==', sessionId).get();
           const owned = new Set(ownedAuthUids.values());
           assert.ok(owned.size <= nativeActorCount && memberships.docs.length <= owned.size &&
@@ -3271,6 +3306,27 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
       assert.equal(before.hydrationRevision, currentMember.identityHydrationRevision);
     }
     const originalGmMutation = surface === gm && !firstGmClaim && gmInstanceId != null;
+    const originalAdmiralMutation = surface !== gm && surface.label === 'normal-admiral' && endpoint === 'runMaintenance';
+    let originalAdmiralEpoch;
+    const qualifyOriginalAdmiral = async () => {
+      assert.equal(proofProfile, 'wing-bays');
+      const registeredUid = ownedAuthUids.get('admiral');
+      assert.ok(typeof registeredUid === 'string' && registeredUid.length > 0,
+        'Original registered Admiral Auth identity is required before ordinary maintenance.');
+      const current = await readFullActor(surface, deadlineAt);
+      assert.equal(pc11MemberReadiness(current, { sessionId, uidHash: hashShort(registeredUid),
+        roleId: 'admiral', stage: 'station', connectionGeneration: before.generation,
+        identityHydrationRevision: before.hydrationRevision }), true,
+      'Ordinary maintenance requires the original registered Admiral and current canonical station authority.');
+      assert.equal(current.sdkResumePending, false); assert.equal(current.memberScopeMatches, true);
+      assert.equal(current.currentMemberBerthMatches, true);
+      assert.equal(before.uidHash, current.uidHash);
+      originalAdmiralEpoch ??= { ...current };
+      assert.equal(pc11SameActorEpoch(originalAdmiralEpoch, current), true,
+        'The original Admiral document and SDK epoch must survive the ordinary action boundary.');
+      return current;
+    };
+    if (originalAdmiralMutation) await qualifyOriginalAdmiral();
     if (originalGmMutation) {
       const registeredUid = ownedAuthUids.get('gm');
       assert.ok(typeof registeredUid === 'string' && registeredUid.length > 0,
@@ -3292,6 +3348,7 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
       assert.equal(currentMember.sdkResumePending, false);
     }
     const beforeDispatch = async () => {
+      if (originalAdmiralMutation) await qualifyOriginalAdmiral();
       if (firstGmClaim || originalGmMutation) {
         const recoveryPending = originalGmMutation ? await readGmRecoveryPending(surface, deadlineAt) : undefined;
         const current = await readFullActor(surface, deadlineAt);
@@ -3309,8 +3366,9 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
       () => captureLifecycleUiAction(surface, endpoint,
         () => bounded('Choose original native UI action', choose, choiceDeadlineAt),
         firstGmClaim ? { timeout, deadlineAt, gm: false, beforeDispatch, sdkAuthority: true }
-          : { timeout, deadlineAt, original: before, gm: surface === gm, beforeDispatch, normalSetup,
-            sdkAuthority: originalGmMutation }), deadlineAt);
+          : { timeout, deadlineAt, original: originalAdmiralMutation ? undefined : before,
+            gm: surface === gm, beforeDispatch, normalSetup,
+            sdkAuthority: originalGmMutation || originalAdmiralMutation }), deadlineAt);
     if (firstGmClaim) {
       assert.equal(capture.before.uidHash, originalGmClaimActor.uidHash);
       assert.equal(capture.before.sessionId, originalGmClaimActor.sessionId);
@@ -3782,8 +3840,171 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
       },
     };
 
+    const readWingBayState = async (surface, deadlineAt) => {
+      return bounded('Read original mounted AEGIS bay/source projection', () => surface.page.evaluate(async moduleUrl => {
+        const { useSessionStore } = await import(moduleUrl);
+        const { projectShipState } = await import('/src/lib/shipStateProjection.ts');
+        const { AEGIS_ROLE_CONSOLES } = await import('/src/data/aegisConsoles.ts');
+        const state = useSessionStore.getState(), session = state.session;
+        if (!session || state.connection !== 'live' || state.sessionSnapshotFreshness !== 'server')
+          throw new Error('Original live AEGIS bay source is unavailable.');
+        const ship = projectShipState(session, 'aegis');
+        if (!ship.resources || !ship.damage) throw new Error('Original AEGIS resources/damage are not published.');
+        const constructionBayUpgraded = ship.upgrades?.includes('construction-bay') === true;
+        const wings = AEGIS_ROLE_CONSOLES['wing-commander'].craft.filter(craft => craft.fighterWing).map(craft => {
+          const wing = ship.fighterWingCounts?.[craft.fighterWing.countId];
+          if (!wing) throw new Error('Original AEGIS fighter count is not published.');
+          return { id: craft.fighterWing.countId, count: wing.count, revision: wing.revision,
+            capacity: constructionBayUpgraded ? craft.fighterWing.capacity.upgraded : craft.fighterWing.capacity.standard,
+            damaged: ship.damage.damagedSystemIds.includes(craft.launchSystemId),
+            charged: ship.maintenanceCycle?.charges.includes(craft.launchSystemId) === true };
+        });
+        const cards = [...document.querySelectorAll('.aegis-craft')].flatMap(article => {
+          const name = article.querySelector('h3')?.textContent?.trim();
+          const craft = AEGIS_ROLE_CONSOLES['wing-commander'].craft.find(craft => craft.fighterWing && craft.name === name);
+          if (!craft) return [];
+          const value = label => [...article.querySelectorAll('dt')].find(dt => dt.textContent?.trim() === label)
+            ?.nextElementSibling?.textContent?.trim() ?? '';
+          const button = article.querySelector('.aegis-craft__construction-action button');
+          return [{ id: craft.fighterWing.countId, capacity: value('Effective capacity'),
+            strength: value('Live strength'), eligibility: value('Launch eligibility'),
+            guidance: article.querySelector('.aegis-craft__construction-action p')?.textContent?.trim() ?? '',
+            buildEnabled: Boolean(button && !button.disabled) }];
+        });
+        return { sessionId: session.id, phase: session.phase, cycle: session.currentTurn,
+          airspace: session.turnPhase?.airspace.state ?? null, connection: state.connection,
+          freshness: state.sessionSnapshotFreshness, materials: ship.resources.materials,
+          maintenance: ship.maintenanceCycle ?? null, damagedSystemIds: ship.damage.damagedSystemIds,
+          constructionBayUpgraded, wings, cards };
+      }, surface.storeModuleUrl()), deadlineAt);
+    };
+    const createWingBayIo = () => {
+      let prepared;
+      const records = [];
+      const io = { cleanupOwnedResources, retainFirstFailure,
+        async prepareNormalSession(args) { prepared = await normalStart.prepare(args); return prepared; },
+        async beginPathAuthority(deadlineAt) {
+          try {
+            for (const [surface, expected, memberRoleId, requireGm] of [
+              [gm, prepared.gm, 'wing-commander', true],
+              [wingCommander, prepared.expectedWingCommander, 'wing-commander', false],
+              [admiral, prepared.expectedAdmiral, 'admiral', false],
+            ]) records.push(await bounded('Retain original current Wing bay actor authority', () =>
+              retainP181MemberAuthority(surface, deadlineAt, { mode: 'startup', proofProfile: 'wing-bays',
+                memberRoleId, requireGm, expected: { ...expected } }), operationDeadline()));
+            io.pathAuthorityFailed = Promise.race(records.map(record => record.failed));
+            io.pathAuthorityFailed.catch(() => {});
+            await io.checkPathAuthority();
+          } catch (error) {
+            await io.finishPathAuthority().catch(cleanup => rememberProofFailure(error, { authorityDetachError: cleanup }));
+            throw error;
+          }
+        },
+        async checkPathAuthority() {
+          for (const record of records) await bounded('Check original Wing bay actor authority',
+            () => record.check(), operationDeadline());
+        },
+        async finishPathAuthority() {
+          let failure;
+          // Keep the exact closed records: their existing check() refuses a
+          // late continuation after teardown instead of seeing an empty scope.
+          for (const record of records) {
+            try { await bounded('Close original Wing bay authority observation', () => record.close(),
+              Math.min(cleanupDeadlineAt, Date.now() + 5_000)); }
+            catch (error) { failure ??= error; }
+          }
+          if (failure) throw failure;
+        },
+        async observeWingBayActors() {
+          const end = operationDeadline();
+          const actors = { gm: await readFullActor(gm, end), wing: await readFullActor(wingCommander, end),
+            admiral: await readFullActor(admiral, end) };
+          actors.gm.recoveryPending = await readGmRecoveryPending(gm, end);
+          return actors;
+        },
+        async observeWingBayState({ stage, deadlineAt }) {
+          const end = Math.min(deadlineAt, operationDeadline());
+          const value = await readWingBayState(wingCommander, end);
+          assert.equal(value.cards.length, 2, 'Observe both actual mounted Wing cards.');
+          const screenshot = await bounded('Capture original mounted Wing bay cards', () =>
+            wingCommander.page.screenshot({ fullPage: true, timeout: Math.min(35_000, p181Remaining(end)) }), end);
+          const path = resolve(directory, `p181-wing-bays-${stage}.png`);
+          await bounded('Save original private Wing bay capture', () =>
+            writeFile(path, screenshot, { mode: 0o600, flag: 'wx' }), end);
+          return { ...value, screenshot: { path, sha256: createHash('sha256').update(screenshot).digest('hex') } };
+        },
+        async performWingBayMaintenanceAction({ action, deadlineAt }) {
+          const end = Math.min(deadlineAt, operationDeadline());
+          const maintenance = admiral.page.getByRole('region', { name: 'AEGIS maintenance cycle', exact: true });
+          const choice = async (name, operation = 'click') => {
+            await io.checkPathAuthority();
+            return bounded(`Choose original ordinary maintenance ${action}`, () =>
+            maintenance.getByRole('button', { name, exact: true })[operation]({ timeout: Math.min(35_000, p181Remaining(end)) }), end);
+          };
+          if (action === 'rations') {
+            const rationChoice = await bounded('Read affordable printed ordinary AEGIS rations', () =>
+              admiral.page.evaluate(async moduleUrl => {
+                const { useSessionStore } = await import(moduleUrl);
+                const { projectShipState } = await import('/src/lib/shipStateProjection.ts');
+                const { shipRationSchedule } = await import('/src/data/shipPopulation.ts');
+                const state = useSessionStore.getState(), ship = projectShipState(state.session, 'aegis');
+                if (state.connection !== 'live' || state.sessionSnapshotFreshness !== 'server' || !ship.resources)
+                  throw new Error('Original ration inventory is unavailable.');
+                const schedule = shipRationSchedule('aegis', ship.population);
+                const highestAffordable = (costs, stock) => {
+                  if (!Number.isSafeInteger(stock) || stock < 0) throw new Error('Original ration inventory is invalid.');
+                  const level = [3, 2, 1, 0].find(level => costs[level] <= stock);
+                  if (level === undefined) throw new Error('No printed affordable ration choice is available.');
+                  return String(level);
+                };
+                return { food: highestAffordable(schedule.food, ship.resources.food),
+                  water: highestAffordable(schedule.water, ship.resources.water) };
+              }, admiral.storeModuleUrl()), end);
+            for (const [name, value] of [['Food', rationChoice.food], ['Water', rationChoice.water]])
+              await bounded('Select original printed ordinary rations', async () => {
+                await io.checkPathAuthority();
+                return maintenance.getByLabel(`${name} ration level`, { exact: true })
+                  .selectOption(value, { timeout: Math.min(35_000, p181Remaining(end)) });
+              }, end);
+          }
+          if (action === 'reactor') {
+            const current = await readWingBayState(admiral, end);
+            assert.ok(!['fighter-bay-alpha', 'fighter-bay-bravo', 'construction-bay']
+              .some(id => current.damagedSystemIds.includes(id)),
+            'The actual riot/damage result blocks this three-bay charge; do not reroll or repair it through a bypass.');
+            for (const name of ['Fighter Bay Alpha', 'Fighter Bay Bravo', 'Construction Bay']) {
+              const checkbox = maintenance.getByLabel(name, { exact: true });
+              assert.equal(await bounded('Read original offered charge control', () => checkbox.isEnabled(), end), true,
+                'The original ordinary reactor capacity must offer this bay charge.');
+              await io.checkPathAuthority();
+              await bounded('Choose original ordinary bay charge', () =>
+                checkbox.check({ timeout: Math.min(35_000, p181Remaining(end)) }), end);
+            }
+          }
+          const capture = await captureAction(admiral, 'runMaintenance', async () => {
+            if (action === 'begin') { await choice('Begin Maintenance Cycle: Cycle 1'); await choice('ARE YOU SURE?'); }
+            else if (action === 'reactor') { await choice('Power up reactor'); await choice('ARE YOU SURE?'); }
+            else await choice({ storage: 'Check storage', rations: 'Proceed with rations',
+              unrest: 'Run unrest check', riot: 'Run riot check' }[action]);
+          }, end);
+          if (capture.httpStatus === 200) {
+            const nextRevision = capture.data.expectedRevision + 1;
+            let current;
+            while (Date.now() < end) {
+              current = await readWingBayState(admiral, end);
+              if (current.maintenance?.revision === nextRevision) break;
+              await bounded('Wait for original maintenance publication', () => delay(Math.min(100, p181Remaining(end))), end);
+            }
+            assert.equal(current?.maintenance?.revision, nextRevision,
+              'Observe the exact committed ordinary maintenance revision before the next choice.');
+          }
+          return capture;
+        },
+      };
+      return io;
+    };
     const cleanupIo = { cleanupOwnedResources };
-    const freshIo = createP181StarlightBrowserIo({ gm, wingCommander, gameplay, directory,
+    const freshIo = proofProfile === 'wing-bays' ? createWingBayIo() : createP181StarlightBrowserIo({ gm, wingCommander, gameplay, directory,
       initial, started: undefined, expectedWingCommander: undefined, normalStart,
       captureOriginalGmAction: captureAction, onReceipt: receipt => trace.push(receipt),
       retainFirstFailure,
@@ -3793,7 +4014,7 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
     freshIo.sourceRoot = sourceRoot;
     freshIo.sourceCommit = sourceCommit;
 
-    proofResult = await runP181StarlightMovementScoutUiProof({ initial, started: undefined,
+    proofResult = await runP181StarlightMovementScoutUiProof({ proofProfile, initial, started: undefined,
       roster: undefined, gm: undefined, expectedWingCommander: undefined,
       io: freshIo, absoluteDeadlineMs: proofStopAt, cleanupDeadlineMs: cleanupDeadlineAt,
       requiredBranches: ['movement', 'first-scout'] });
@@ -3863,6 +4084,7 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
       fixedCatalogClosures: 0,
       checkpointOrReleaseCredit: 0,
       sourceCommit,
+      proofProfile,
       sourceContractPreflight,
       sourceBindingsBefore: sourceBindingsBefore?.sourceFiles ?? null,
       runtime,
@@ -3890,7 +4112,9 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
       zeroNativeCreditBeforeRun: true,
       limitations: [
         'Controlled IO tests and source preparation are not mounted App/backend/native gameplay acceptance.',
-        'The normal two-actor run earns only its observed Starlight movement and first private scan; no peer audience, capacity, fighter, mission, full-workspace or all-role claim is made.',
+        proofProfile === 'wing-bays'
+          ? 'The three-actor run observes ordinary GM/Wing/Admiral bay state, maintenance charges and full-wing construction blockers only; no build, launch, mission, capacity, all-role or ending claim is made.'
+          : 'The normal two-actor run earns only its observed Starlight movement and first private scan; no peer audience, capacity, fighter, mission, full-workspace or all-role claim is made.',
         'Second scan remains unearned unless live original-cycle fuel, maintenance, cadence and another printed coordinate are actually offered.',
         'Independent port/process/emulator reservation verification remains the parent owner’s responsibility within the original allocation; finalization records only the remaining budget, never a verified handback.',
       ],
