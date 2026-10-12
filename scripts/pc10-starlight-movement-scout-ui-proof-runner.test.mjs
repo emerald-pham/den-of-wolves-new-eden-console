@@ -2364,7 +2364,10 @@ test('Wing bay profile observes the actual ordinary Admiral station without acce
     await authority.check();
     surface.publish(state => { state.me.assignedRoleId = 'wing-commander'; });
     await assert.rejects(authority.check(), /role|authority|retired/i);
-  } finally { await authority.close(); }
+  } finally {
+    // This deliberate authority retirement also survives observer teardown.
+    await authority.close().catch(() => {});
+  }
   assert.equal(surface.observers.stores.size, 0);
 });
 
