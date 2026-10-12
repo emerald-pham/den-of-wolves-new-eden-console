@@ -62,8 +62,9 @@ short-display media rule. Existing font/palette checks pass. Exact independent
 source review passed at `151b93ed` with no material blocker; receipt SHA256
 `2d76298b52c3d0e4a14f1d40262605eab0b37aebdb9d1c3eeeb29451448b4c35`.
 ROOT read/hash verified the receipt and every bound file, and accepted integration
-ownership. After-fix rendered GREEN remains required and unearned. No post-fix
-capture was made under the original allocation.
+ownership. At this original source stage, after-fix rendered GREEN was required
+and unearned. No post-fix capture was made under that allocation. The later
+authenticated qualification below accepts core R1 and retains the new R2 gap.
 
 Initial virtual-JSX fixture compilation failed before measurements and returned
 its original handles/resources. An acquisition-only attempt then hit the parked
@@ -108,19 +109,94 @@ controls; selected tests are not added to the owner total. No repaired native/
 browser or deployment PASS is inferred from source tests. No frontend or
 Firestore-rule permissions changed.
 
-## Eleven remaining distinct execution objectives
+## Focused native reads and phone qualification — 13:20 to 14:00
+
+Exact `f35af64f605cc277b6c991104175c0018beec1f8` earned the scoped native
+acceptance in independent receipt
+`INDEPENDENT_F35AF64F_FOCUSED_NATIVE_READ_PHONE_SAVED_EVIDENCE_REVIEW_20261012.json`,
+SHA256 `dfac46117197051fb4a79f82084ec7e99630a24b3ac9a57f5273232c613905e7`.
+ROOT read/hash verified it and every bound reference, and owns integration.
+The saved evidence lives in the shared task's
+`pc10-reboot-recovery/native-runs/focused-read-phone-20261012-1320-6f8a74ce6b76449db232f82f8b7c5a61`.
+
+Two normal admitted Auth identities played GM and Wing in two separate Chrome
+processes/contexts on one Mac. Eight roles were configured; no human devices
+were tested. Ordinary GM creation, consent, authorization/live instance,
+casting and production 0→1 were reused as setup, with one visible CAS rejection
+and the offered successful retry preserved. One ordinary private scout supplied
+actual pending and populated GM data. Natural Team Time expiry enabled flight;
+no clock override, prepared store or gameplay admin write supplied these results.
+
+All 575 ordinary current-GM reads returned 200: 283 pending, 283 resolution-log
+and nine boarding-location replies. These are polling/refreshed read responses,
+not 575 actions or independent scenarios. Player and owned-GM-instance presence
+renewed while the selected session fields stayed unchanged. No individual
+transaction race was instrumented; the previously observed deterministic
+actual-handler RED remains a separate source regression.
+
+The reader returned Starlight undocked with no host during legitimate transit,
+then docked after automatic arrival. The first outbound screenshot was too late
+for undocked-paint credit. A necessary normal return leg captured the timely
+undocked reply, DOM and PNG, followed by ordinary arrival. The craft carried zero
+security teams; no positive shuttle-team transport claim follows. Six actual
+SDK negatives returned error-only 403s: Wing pending/log/boarding reads, wrong
+GM-instance log/boarding reads, and Wing log access after it was populated.
+The public projection exposed no private route or holder. Broader private
+audiences, malformed/stale actors and all-role recovery remain open. Objective
+1 is accepted within this scope, without closing a whole catalog row.
+
+Nine actual authenticated route captures covered 320/390 phone, 844×390 short
+landscape, 1440 desktop, scroll/restoration and 200% root text. Eight visible
+private headings had zero measured DRADIS intersection; the enlarged TOP
+heading was below the viewport and earns no visible credit. Independent image
+review accepts core R1. Actual painted platform fonts were Courier-Bold for the
+private heading and Courier for private body/GM read text, from the existing
+mono fallback stack. CIC background/ink/cyan samples were retained. This is not
+a final emitted-build typography, native browser-zoom or full accessibility pass.
+
+Objective 2 stays open for R2: both 200% root-text samples measured document
+width 485px at viewport 390px, with the readout group and session code extending
+left of the viewport. Root text was temporarily set from 16px to 32px and
+restored; this was not native browser zoom. The identity panel measured 453px
+wide and its Back control also exceeded the right edge. The original evidence
+remains RED. A 29-line consumer reports every measured document/readout/identity/
+Back failure; its meaningful observed RED preceded test-only commit
+`e9d7281bf33fbf52bd66e72123422a91957652eb` and the 13-line CSS correction
+`14ad04dd23f6c10623bab35d63c2f283b223a6dc`. The correction permits header readout
+wrapping and constrains the existing phone/short-screen console grid, identity
+and Back width. It changes no font, palette, authority or gameplay state and
+does not hide overflow. All 63 existing font/palette source checks pass.
+Independent exact source review passed at14ad04dd; receipt
+`INDEPENDENT_14AD04DD_R2_CONTAINMENT_SOURCE_REVIEW_20261012.json`, SHA256
+`5c187fe2c75488f117e442b2f5cc330639356bf10f36fbfd7bf4c74ddd96bffc`.
+ROOT read/hash verified its13 bound reference instances and owns integration.
+Fresh after-R2 rendered GREEN remains required; source checks/review supply no
+containment PASS. Capture all four required target bounds even when contained,
+not only elements still overflowing, then review wrapped text and Back controls.
+
+Normal operations stopped at **13:54:14.371 UTC**. Exact physical handback was
+**13:59:51.029130 UTC**, before 14:00; receipt
+`FOCUSED_1400_EXACT_PHYSICAL_HANDBACK.json`, SHA256
+`353f3b03d32a072454357d9a241f7f10ce55e258f4f99f80a019671c79442456`.
+Original browser handles/controller closed, all 66 tracked original owned
+process pins/groups were absent, selected dual-stack ports were free and exact
+owned Auth/session/receipt/pointer/config/reservation data was removed. Foreign
+claims and the original dirty checkout were preserved. No runtime remains and
+the allocation cannot be reused.
+
+## Ten remaining distinct execution objectives
 
 This expands the seven existing consolidated families where mechanics differ:
 read verification and phone clearance; N/O/P separately; unique Capybara
 mechanics and complete fresh game. It adds no requirements. Commit, packaging,
 CI and deployment stay together as one release objective.
 
-1. Verify both already source-reviewed read repairs under their legitimate
-   presence/transit interleavings. Source repairs are complete; native repaired
-   behavior remains unverified.
-2. Verify after-fix rendered GREEN for private-card/DRADIS clearance. The overlap
-   and source-reviewed narrow repair are recorded; no post-fix clearance is
-   inferred from source checks.
+Objective 1 has the focused acceptance above. The original objective IDs remain
+stable; ten objectives remain, with zero new whole catalog closures.
+
+2. Complete objective 2's enlarged-layout R2 containment and header visibility
+   check after bounded source review. Core R1 is accepted; after-R2 rendered
+   GREEN and the affected heading/font/scroll checks remain open.
 3. Complete the distinct Wing workspace Fighter Bay/wings/mission/rebuild and
    Back/lost-station/safe-input criteria using valid historical reuse first.
 4. Complete current Home/Deluxe Ancient Jump Ring N outcome/recovery/privacy
@@ -148,6 +224,37 @@ subcriteria retained. This slice newly closes zero whole rows; overall done is
 703/751, campaign 245/293, with 14 partial and 34 missing rows in the current catalog.
 No invented progress percentage or duplicate setup/release-tour work is counted.
 Later post-PC10/PC12 work and licensing remain separate; PC11 is not reopened.
+
+## Next smallest distinct Wing check
+
+Prepare Back/re-entry and safe unsent input, then a genuine GM station release
+and same-Wing reselect. Two admitted actors suffice: Wing supplies the current
+form/station; GM is required to clear and reassign it through ordinary controls.
+Reuse successful admission/casting/start/scout/flight/reload contracts, performing
+only the fresh setup needed to reach this remaining boundary. Historical Captain
+Back/release/reassignment proves its original shared family, not Wing form
+retention. The current Wing Back goes to the AEGIS station overview; the overview
+states that viewing does not enter a station. The actual lost-station chooser,
+reselect instruction, safe input and refusal to replay an unauthorized mutation
+still require a discriminating mounted/native observation. Stop at the first
+unexplained mismatch, preserve evidence and return physical resources.
+
+Keep Fighter Bay/wing/mission/rebuild criteria separate. The current Wing UI
+requires a fresh live writable snapshot, active Team Time, an intact charged
+Construction Bay, space in the selected authoritative wing and one Material.
+Legitimate maintenance by the Admiral/Executive Officer is its next-actor
+handoff; no prepared charge/damage/count can supply acceptance. Existing exact
+unchanged rebuild/launch/mission evidence must be mapped before a new run.
+The final fresh two-browser every-role game remains an integration objective:
+reuse accepted mechanic clauses without repeating each detailed rule proof,
+while actually walking each role/function through the fresh ending.
+
+Generated catalog views and scoped evidence/count consistency pass. The
+release-progress validator remains RED on the unchanged current 0.5.72 changelog
+snapshot (13 partial/35 missing versus the current catalog14/34). All catalog
+statuses were already identical before this evidence-only update. Preserve
+historical release notes; objective11 must reconcile the new final release
+metadata. This is an open release check, not a source/layout or closure PASS.
 
 The ordinary authenticated UI allocation handed back at
 **2026-10-12T12:13:23.934115Z**, before 12:15. The exact

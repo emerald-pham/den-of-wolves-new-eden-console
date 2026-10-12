@@ -21,9 +21,9 @@
     {
       "id": "wing-commander",
       "kind": "core/optional station",
-      "currentFreshGameProof": "pending",
-      "recoveryProof": "pending",
-      "usabilityProof": "pending"
+      "currentFreshGameProof": "partial: canonical station/Starlight/private scout/normal flight and docking accepted ata648; f35 adds timely return transit read/paint. Other wing/mission/rebuild and whole fresh ending remain pending.",
+      "recoveryProof": "partial: original same-UID/role/seat cold reload eventuallyserverfresh accepted; Back/lost-station/reselect/safe-input remain pending.",
+      "usabilityProof": "partial: actual visible private heading clearance coreR1 and painted mono/CIC accepted atf35; enlarged R2 overflow/header clipping, remaining controls and final emitted-build typography remain pending."
     },
     {
       "id": "dione-captain",
@@ -245,9 +245,9 @@
     {
       "id": "gm",
       "kind": "authenticated facilitator",
-      "currentFreshGameProof": "pending",
+      "currentFreshGameProof": "partial: normal real authorization/live instance, casting/start0\u21921 and focused GM reads accepted atf35; whole fresh game/ending remains pending.",
       "recoveryProof": "pending",
-      "usabilityProof": "pending"
+      "usabilityProof": "partial: populated pending/log/boarding UI, actual rendered system mono/CIC samples; full control/keyboard/touch/final built typography remains pending."
     },
     {
       "id": "fleet-loyalist",
@@ -394,9 +394,9 @@
       "clientConsumers": [
         "src/lib/scoutResultService.ts"
       ],
-      "currentFreshGameProof": "pending",
-      "authorityPrivacyRecoveryProof": "pending",
-      "automatedBrowserProof": "pending",
+      "currentFreshGameProof": "partial: accepted focused fresh normal GM/Wing scope atf35af64f; complete every-role game/ending remains pending. See PC10_NORMAL_UI_REVIEW_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: current live owned GM pending reads succeed through real presence renewal; nonempty pending result observed; ordinary Wing is denied with error-only403. Broader stale/malformed/foreign-instance and recovery controls remain pending.",
+      "automatedBrowserProof": "accepted scoped: two Auth actors/two Chrome processes/contexts, normal UI and six actual SDK error-only negatives;575 reads across3handlers are polling, not575 actions. Exactf35 receipt dfac4611.",
       "humanDeviceProof": "not claimed"
     },
     {
@@ -405,9 +405,9 @@
       "clientConsumers": [
         "src/lib/scoutResultService.ts"
       ],
-      "currentFreshGameProof": "pending",
-      "authorityPrivacyRecoveryProof": "pending",
-      "automatedBrowserProof": "pending",
+      "currentFreshGameProof": "partial: accepted focused fresh normal GM/Wing scope atf35af64f; complete every-role game/ending remains pending. See PC10_NORMAL_UI_REVIEW_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: current live owned GM log reads succeed through real presence renewal, including populated results; ordinary Wing (including after population) and wrong GM instance receive error-only403. Broader stale/malformed/demoted/recovery controls remain pending.",
+      "automatedBrowserProof": "accepted scoped: two Auth actors/two Chrome processes/contexts, normal UI and six actual SDK error-only negatives;575 reads across3handlers are polling, not575 actions. Exactf35 receipt dfac4611.",
       "humanDeviceProof": "not claimed"
     },
     {
@@ -731,9 +731,9 @@
       "clientConsumers": [
         "src/lib/boardingSecurityTeamService.ts"
       ],
-      "currentFreshGameProof": "pending",
-      "authorityPrivacyRecoveryProof": "pending",
-      "automatedBrowserProof": "pending",
+      "currentFreshGameProof": "partial: accepted focused fresh normal GM/Wing scope atf35af64f; complete every-role game/ending remains pending. See PC10_NORMAL_UI_REVIEW_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: current live owned GM docked/undocked transit reads succeed with nohost/private route/holder exposure; ordinary Wing and wrong GM instance receive error-only403. Zero shuttle teams were carried; positive transport, broader stale/malformed/recovery controls remain pending.",
+      "automatedBrowserProof": "accepted scoped: two Auth actors/two Chrome processes/contexts, normal UI and six actual SDK error-only negatives;575 reads across3handlers are polling, not575 actions. Exactf35 receipt dfac4611.",
       "humanDeviceProof": "not claimed"
     },
     {

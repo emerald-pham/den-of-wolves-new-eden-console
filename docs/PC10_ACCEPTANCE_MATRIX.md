@@ -37,7 +37,7 @@ meaningful RED, independent review and rendered/gameplay gates. See the
 
 | ID | Required behavior | Implementation / connection | Authenticated gameplay / recovery / privacy | Review / release |
 |---|---|---|---|---|
-| 181 | Create the Wing Commander workspace. | Connected canonical Wing station and Starlight console at exact a6485b92. | Partial accepted October12: two authenticated browser ordinary GM/casting/start0→1, Wing reload to server freshness, private scout 5143 report and real Aegis→Icebreaker flight/automatic docking with unchanged holder. Both Fighter Bays/wings/missions/rebuild and Back/lost-station/safe-input criteria need valid reuse or minimal missing proof. | Exact independent saved-UI review PASS for this slice; phone overlap held, bounded GM-read anomaly source repairs separately reviewed; final release pending. |
+| 181 | Create the Wing Commander workspace. | Connected canonical Wing station and Starlight console at exact a6485b92; exact f35af64f adds qualified repaired GM reads. | Partial accepted October12: normal authenticated GM/casting/start0→1, original Wing reload, private scout and real flight/docking with unchanged holder. Later f35 scope adds legitimate transit undocked/no-host reply/paint, populated GM log and six scoped API authority denials. Both Fighter Bays/wings/missions/rebuild and Wing Back/lost-station/safe-input remain open. | Exact independent saved-UI/native review PASS in scope. Actual core R1 heading clearance accepted; enlarged-text R2 overflow/header clipping and final release remain open. |
 | 215b | Complete the Scientist workspace. | pending | pending | pending |
 | 223b | Complete the Explorer workspace. | pending | pending | pending |
 | 233b | Complete the PDF Colonel workspace. | pending | pending | pending |
@@ -91,8 +91,8 @@ meaningful RED, independent review and rendered/gameplay gates. See the
 | PC10-A01 | Joined primary Settings ordinary join QR/link/code; ordinary admission/Auth/consent/privacy | Scoped QR payload/pixel and ordinary admission evidence accepted below; final current-source rendering/release pending. |
 | PC10-A02 | Actual authenticated GM, fresh cycle 0→1, unlimited/manual full-game demo beside existing cycle demo | Actual ordinary GM, fresh manual 0→1/Coordination retry, current Cycle 1 Press transmission and bounded Press natural flight/Pursuit ending/reload accepted within their scopes; complete fresh solo demo and every-role/function ending remain pending. |
 | Gate 1 | Every role/function in fresh full game through ending across two browsers | pending; function inventory to be reconciled |
-| Gate 2 | Claim-based overlap/reconnect/retry/privacy with the smallest sufficient cohort; 21 accounts only for a justified scale claim | Partial local criteria accepted in the bounded families below. Conditional scale/capacity remains unclaimed and does not block unrelated local credit; record actual Auth actors, browser contexts and cohort reason. |
-| Gate 3 | Available actions, costs, blockers and next actor can be understood in app | pending; broader PC11 guidance is future work |
+| Gate 2 | Claim-based overlap/reconnect/retry/privacy with the smallest sufficient cohort; 21 accounts only for a justified scale claim | Partial local criteria accepted below, including f35 current GM read/presence/transit and six error-only SDK denials with two actual Auth actors/Chrome contexts. Poll counts are not action or capacity proof. Conditional scale/capacity and uncovered audiences remain unclaimed. |
+| Gate 3 | Available actions, costs, blockers and next actor can be understood in app | Partial sampled route/GM-read presentation and actual CIC/system-font evidence. Core R1 overlap accepted; enlarged R2 containment, remaining control families and keyboard/touch remain open. PC11 is not reopened. |
 
 ### Owner-approved consolidation — October 12
 
@@ -114,6 +114,42 @@ consolidation. Removing a distinct game rule, ordinary admission/privacy,
 authenticated GM/manual advancement, the promised full-game solo capability or
 an unverified ending would change the product requirement and needs an explicit
 owner decision. This consolidation grants no closure or acceptance by itself.
+
+### Focused read and phone disposition — October 12, 14:00 handback
+
+Objective 1 is accepted within the independently reviewed exact f35 native
+scope: 575 ordinary successful pending/log/boarding replies across real GM
+presence renewal, a populated log, legitimate undocked transit and six
+intentional error-only authority denials. These replies are mostly polling,
+not 575 game actions. Two actual Auth actors played GM/Wing in two Chrome
+processes/contexts; eight configured roles and zero human devices are separate
+counts. Timely undocked DOM/paint required the normal return leg; the earlier
+outbound PNG was too late. No positive shuttle-team transport was observed.
+
+The independent review accepts core R1 heading/DRADIS clearance on eight visible
+actual samples and recorded painted Courier/Courier-Bold fallback with CIC
+tokens. Objective 2 stays open: 200% root text measured document485 at viewport390
+and clipped session readouts/code. A separate measured consumer RED preceded
+test e9d7281b and bounded CSS14ad04dd; source font/palette63/63PASS is not rendered
+containment GREEN. Fresh R2 capture must include all four required measured
+readout/code/identity/Back bounds, including contained elements, as well as
+actual document widths and affected heading/font/scroll checks. An overflow-only
+element list is insufficient for a positive result.
+
+Receipt `INDEPENDENT_F35AF64F_FOCUSED_NATIVE_READ_PHONE_SAVED_EVIDENCE_REVIEW_20261012.json`
+has SHA256 `dfac46117197051fb4a79f82084ec7e99630a24b3ac9a57f5273232c613905e7`;
+ROOT read/hash acknowledgment is retained. Exact physical handback was
+13:59:51.029130UTC, before14:00, with original handles/controller closed, all66
+owned process pins/groups absent, selected dual-stack ports free and exact
+owned data/config/reservations removed. No runtime grant remains. See
+[the normal UI report](PC10_NORMAL_UI_REVIEW_REPORT.md) for immutable bindings,
+source chronology, unknowns and the next two-actor Wing Back/reselect criterion.
+
+Ten original objectives remain (IDs2–11), zero whole catalog rows newly close,
+overall703/751 and campaign245/293 stay unchanged. The final fresh every-role
+game is integration through an ending; it reuses accepted mechanic clauses
+without duplicating each detailed rule check. All unobserved roles/functions,
+recovery/privacy and release criteria remain explicit.
 
 ### Independently reviewed ordinary GM/Wing UI — October 12
 
