@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import typescript from 'typescript';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
@@ -124,6 +125,8 @@ const MOVEMENT_ENDPOINTS = new Set([
 ]);
 const identifier = value => typeof value === 'string' && /^[\w-]{1,128}$/.test(value);
 const p181NativePassedPreflight = new WeakSet();
+const p181PreBrowserFailureContexts = new WeakMap();
+const p181BrowserAcquisitionStarted = new WeakSet();
 const uidHash = value => createHash('sha256').update(String(value ?? '')).digest('hex').slice(0, 16);
 const fingerprint = value => createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex');
 const safeP181Error = error => {
@@ -2722,6 +2725,31 @@ async function p181SourceOnlyPreflight(options) {
  * selection, start, movement and scouting are driven through the real UI.
  */
 export async function runP181StarlightMovementScoutNative(options = {}) {
+  try { return await p181RunStarlightMovementScoutNative(options); }
+  catch (error) {
+    const phase = p181PreBrowserFailureContexts.get(options);
+    if (phase && !p181BrowserAcquisitionStarted.has(options)) {
+      try {
+        await p181BoundedWork('Retain original terminal pre-browser failure phase', () => writeFile(
+          resolve(phase.directory, 'p181-pre-browser-failure-phase.json'), JSON.stringify({
+            schemaVersion: 1, phase: 'pre-browser-failed', browserAcquisitionStarted: false,
+            actualAuthActors: 0, actualBrowserProcesses: 0, sourceRoot: phase.sourceRoot,
+            sourceCommit: phase.sourceCommit, projectId: phase.projectId,
+            allocationStartedAtMs: phase.allocationStartedAtMs, allocationDeadlineAt: phase.allocationDeadlineAt,
+            runtimeLaunchRecordSha256: phase.runtimeLaunchRecordSha256,
+            recordedAtMs: Date.now(), originalError: { ...safeP181Error(error),
+              // Keep the original diagnostic code in this private identity
+              // hash; public error classification still uses the safe list.
+              fingerprint: fingerprint({ name: error?.name ?? 'Error', code: error?.code ?? null,
+                message: typeof error?.message === 'string' ? error.message : '' }) },
+          }, null, 2) + '\n', { flag: 'wx', mode: 0o600 }), phase.cleanupDeadlineAt);
+      } catch (phaseError) { rememberProofFailure(error, { preBrowserPhaseRetentionError: phaseError }); }
+    }
+    throw error;
+  }
+}
+
+async function p181RunStarlightMovementScoutNative(options) {
   if (options.sourceOnly === true) return p181SourceOnlyPreflight(options);
   const proofProfile = options.proofProfile ?? process.env.P181_PROOF_PROFILE ?? 'starlight';
   assert.ok(proofProfile === 'starlight' || proofProfile === 'wing-bays',
@@ -2767,7 +2795,8 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
   const launchRecordPath = process.env.P181_RUNTIME_LAUNCH_RECORD;
   assert.ok(p181OwnedArtifactPath(sourceRoot, launchRecordPath) && launchRecordPath.startsWith(`${directory}/`),
     'Read the exact parent-issued isolated runtime launch record.');
-  const launchRecord = JSON.parse(await preflight('Read original runtime launch record', () => readFile(launchRecordPath, 'utf8')));
+  const launchRecordText = await preflight('Read original runtime launch record', () => readFile(launchRecordPath, 'utf8'));
+  const launchRecord = JSON.parse(launchRecordText);
   assert.equal(launchRecord.sourceCommit, sourceCommit);
   assert.equal(await preflight('Resolve original launch source root', () => realpath(launchRecord.sourceRoot)), sourceEntry);
   assert.equal(launchRecord.projectId, projectId);
@@ -2775,6 +2804,12 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
   assert.equal(launchRecord.baseUrl, baseUrl);
   assert.equal(launchRecord.functionsBuiltBeforeLaunch, true);
   assert.equal(launchRecord.processCwdsVerified, true);
+  // This context records only a terminal failure before any browser/ordinary
+  // Auth actor acquisition. It never substitutes for actor cleanup after the
+  // first launch attempt, including a pending or partially acquired browser.
+  p181PreBrowserFailureContexts.set(options, { directory, sourceRoot, sourceCommit, projectId,
+    allocationStartedAtMs: startAt, allocationDeadlineAt: totalEnd, cleanupDeadlineAt,
+    runtimeLaunchRecordSha256: createHash('sha256').update(launchRecordText).digest('hex') });
 
   await preflight('Create original private native evidence directory', () => mkdir(directory, { recursive: true, mode: 0o700 }));
   const sourceContractPreflight = runPc11ContractPreflight(sourceRoot);
@@ -2782,8 +2817,12 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
   const sourceHash = value => createHash('sha256').update(value).digest('hex');
   const hashShort = value => uidHash(value);
   const remoteRequests = [], pageErrors = [], calls = [], requests = [], browsers = [], surfaces = [];
-  const sourceRuntimeText = await preflight('Read original served Firebase runtime source', async () => (await fetch(`${baseUrl}/src/lib/firebaseConfig.ts`,
-    { signal: AbortSignal.timeout(Math.min(5_000, p181Remaining(preflightDeadlineAt))) })).text());
+  const runtimeSourceUrl = `${baseUrl}/src/lib/firebaseConfig.ts`;
+  const sourceRuntimeResponse = await preflight('Read original served Firebase runtime source headers', () => fetch(runtimeSourceUrl,
+    { redirect: 'error', signal: AbortSignal.timeout(Math.min(5_000, p181Remaining(preflightDeadlineAt))) }));
+  assert.equal(sourceRuntimeResponse.status, 200, 'The served Firebase runtime source must succeed.');
+  assert.equal(sourceRuntimeResponse.url, runtimeSourceUrl, 'The served Firebase runtime source must use the exact local URL.');
+  const sourceRuntimeText = await preflight('Read original served Firebase runtime source body', () => sourceRuntimeResponse.text());
   const runtime = validateProofRuntime(proofRuntimeFromViteSource(sourceRuntimeText), { baseUrl, projectId, ports });
   await preflight('Qualify original served local GM environment', () => checkServedEnvironment(sourceRuntimeText, { baseUrl, projectId, ports }));
   assert.equal(sourceHash(await preflight('Read original compiled Functions entrypoint', () => readFile(resolve(sourceRoot, 'functions/lib/index.js')))),
@@ -2807,12 +2846,34 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
       'src/data/aegisConsoles.ts', 'src/data/shipPopulation.ts'] : []),
   ];
   for (const path of servedSourceFiles) {
-    const response = await preflight(`Read original served ${path} headers`, () => fetch(`${baseUrl}/${path}?raw`,
-      { signal: AbortSignal.timeout(Math.min(5_000, p181Remaining(preflightDeadlineAt))) }));
+    const sourceUrl = `${baseUrl}/${path}?raw`;
+    const response = await preflight(`Read original served ${path} headers`, () => fetch(sourceUrl,
+      { redirect: 'error', signal: AbortSignal.timeout(Math.min(5_000, p181Remaining(preflightDeadlineAt))) }));
     assert.equal(response.status, 200, `The local App must serve the exact ${path} source.`);
-    assert.equal(sourceHash(await preflight(`Read original served ${path} body`, () => response.text())),
-      sourceHash(await preflight(`Read original checked ${path}`, () => readFile(resolve(sourceRoot, path), 'utf8'))),
-      `The mounted App must match the committed ${path} source.`);
+    assert.equal(response.url, sourceUrl, `The served ${path} must use the exact local URL.`);
+    const wire = await preflight(`Read original served ${path} body`, () => response.text());
+    const checkedSource = await preflight(`Read original checked ${path}`, () => readFile(resolve(sourceRoot, path), 'utf8'));
+    try {
+      // Reuse the proven normal-UI verification: some files are already exact
+      // raw TSX, while Vite wraps others in one static export literal plus a
+      // source-map comment. Parse that representation without executing it.
+      if (wire !== checkedSource) {
+        const ast = typescript.createSourceFile(`${path}.raw.mjs`, wire, typescript.ScriptTarget.Latest, true, typescript.ScriptKind.JS);
+        assert.equal(ast.parseDiagnostics.length, 0, `The served ${path} literal module must parse.`);
+        assert.equal(ast.statements.length, 1, `The served ${path} must contain one literal export.`);
+        const statement = ast.statements[0];
+        assert.ok(typescript.isExportAssignment(statement) && !statement.isExportEquals,
+          `The served ${path} must be a default literal export.`);
+        const expression = statement.expression;
+        assert.ok(typescript.isStringLiteral(expression) || typescript.isNoSubstitutionTemplateLiteral(expression),
+          `The served ${path} must contain only a static source literal.`);
+        assert.equal(expression.text, checkedSource, `The exact decoded served ${path} must match committed source.`);
+      }
+    } catch (error) {
+      rememberProofFailure(error, { servedSourceVerification: { path, wireSha256: sourceHash(wire),
+        checkedSha256: sourceHash(checkedSource), receivedCodeExecuted: false }, servedSourceWire: wire });
+      throw error;
+    }
   }
   p181NativePassedPreflight.add(options);
   let gm, wingCommander, admiral, sessionId, joinCode, creationRequestId, startRequestId, gmInstanceId, gmClaimedAt;
@@ -3512,6 +3573,7 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
     const chromium = options.chromium ?? adminRequire('playwright').chromium;
     assert.ok(Date.now() < browserLaunchDeadlineAt, 'Launch both original browser processes inside the first two minutes.');
     const launchDeadlineAt = Math.min(browserLaunchDeadlineAt, operationDeadline());
+    p181BrowserAcquisitionStarted.add(options);
     gm = await bounded('Acquire original normal GM browser', () => factory.launch('normal-gm', launchDeadlineAt), launchDeadlineAt);
     wingCommander = await bounded('Acquire original Wing Commander browser', () => factory.launch('normal-wing-commander', launchDeadlineAt), launchDeadlineAt);
     if (proofProfile === 'wing-bays') admiral = await bounded('Acquire original ordinary Admiral browser',
