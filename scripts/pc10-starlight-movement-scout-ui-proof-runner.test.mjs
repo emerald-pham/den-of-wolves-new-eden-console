@@ -47,6 +47,100 @@ const repositoryRoot = fileURLToPath(new URL('..', import.meta.url));
 const p181DeadlineSourcePath = fileURLToPath(new URL('./pc10-starlight-movement-scout-ui-proof.mjs', import.meta.url));
 const p181DeadlineSource = await readFile(p181DeadlineSourcePath, 'utf8');
 const p181DeadlineDigest = value => createHash('sha256').update(value).digest('hex');
+
+// Reconstructed artifact isolation evidence after the owner-confirmed reboot.
+// These invoke the actual pre-SDK source assertions with inert filesystem/path
+// ports. They never create an allocation, process, browser, SDK or network client.
+function actualP181ArtifactAssertion(message, values) {
+  const marker = p181DeadlineSource.indexOf(message);
+  const start = p181DeadlineSource.lastIndexOf('  assert.ok(', marker);
+  const end = p181DeadlineSource.indexOf(';', marker) + 1;
+  assert.ok(marker >= 0 && start >= 0 && end > marker);
+  const helperStart = p181DeadlineSource.indexOf('export function p181OwnedArtifactPath(');
+  const helper = helperStart < 0 ? '' : p181DeadlineSource.slice(helperStart,
+    p181DeadlineSource.indexOf('\n}\n', helperStart) + 3).replace('export ', '');
+  return runInNewContext(`${helper}\n${p181DeadlineSource.slice(start, end)}`, { assert, resolve, ...values });
+}
+
+function actualP181RetainedBuildLocation(values) {
+  const marker = p181DeadlineSource.indexOf("  const buildRoot = await checked('Resolve original retained build mapping'");
+  const start = p181DeadlineSource.lastIndexOf('  assert.ok(', marker);
+  const end = p181DeadlineSource.indexOf(';', start) + 1;
+  const helperStart = p181DeadlineSource.indexOf('export function p181OwnedArtifactPath(');
+  const helper = helperStart < 0 ? '' : p181DeadlineSource.slice(helperStart,
+    p181DeadlineSource.indexOf('\n}\n', helperStart) + 3).replace('export ', '');
+  assert.ok(marker > start && start >= 0 && end < marker);
+  return runInNewContext(`${helper}\n${p181DeadlineSource.slice(start, end)}`, { assert, resolve, ...values });
+}
+
+const durableArtifactSourceRoot = '/Users/owner/workspace/pc10-recovery/proof-candidate';
+const durableArtifactDirectory = '/Users/owner/workspace/pc10-recovery/native-runs/fresh';
+const durableArtifactRecord = `${durableArtifactDirectory}/runtime-launch-record.json`;
+
+test('P181 durable artifact directory passes the actual native isolation gate', () => {
+  actualP181ArtifactAssertion('P181 evidence must remain in the isolated', {
+    sourceRoot: durableArtifactSourceRoot, directory: durableArtifactDirectory,
+  });
+});
+
+test('P181 durable artifact directory passes the actual planned isolation gate', () => {
+  actualP181ArtifactAssertion('Planned P181 launch requires an absolute owned', {
+    sourceRoot: durableArtifactSourceRoot, evidenceDirectory: durableArtifactDirectory,
+  });
+});
+
+test('P181 durable build receipt passes the actual digest and isolation gate', () => {
+  actualP181ArtifactAssertion('Use the exact parent-approved immutable build binding and digest.', {
+    sourceRoot: durableArtifactSourceRoot,
+    options: { buildBindingPath: '/Users/owner/workspace/pc10-recovery/build-recovery/binding.json',
+      buildBindingSha256: 'a'.repeat(64) },
+  });
+});
+
+test('P181 durable runtime record passes the actual native receipt path gate', () => {
+  actualP181ArtifactAssertion('Read the exact parent-issued isolated runtime launch record.', {
+    sourceRoot: durableArtifactSourceRoot, directory: durableArtifactDirectory,
+    launchRecordPath: durableArtifactRecord,
+  });
+});
+
+test('P181 durable retained build root passes the actual provenance location gate', () => {
+  actualP181RetainedBuildLocation({ sourceRoot: durableArtifactSourceRoot,
+    buildRecord: { sourceRoot: '/Users/owner/workspace/pc10-recovery/product-07237376' } });
+});
+
+test('P181 durable retained build root still rejects a foreign workspace', () => {
+  assert.throws(() => actualP181RetainedBuildLocation({ sourceRoot: durableArtifactSourceRoot,
+    buildRecord: { sourceRoot: '/Users/owner/foreign/build' } }));
+});
+
+test('P181 durable artifact native gate still rejects a foreign workspace', () => {
+  assert.throws(() => actualP181ArtifactAssertion('P181 evidence must remain in the isolated', {
+    sourceRoot: durableArtifactSourceRoot, directory: '/Users/owner/foreign/runtime',
+  }));
+});
+
+test('P181 durable build receipt still requires the exact SHA256 shape', () => {
+  assert.throws(() => actualP181ArtifactAssertion('Use the exact parent-approved immutable build binding and digest.', {
+    sourceRoot: durableArtifactSourceRoot,
+    options: { buildBindingPath: '/Users/owner/workspace/pc10-recovery/build-recovery/binding.json',
+      buildBindingSha256: 'unbound' },
+  }));
+});
+
+test('P181 durable artifact native gate preserves existing isolated tmp input', () => {
+  actualP181ArtifactAssertion('P181 evidence must remain in the isolated', {
+    sourceRoot: '/private/tmp/source', directory: '/tmp/owned-proof/fresh',
+  });
+});
+
+test('P181 durable runtime record rejects another run even inside isolated tmp', () => {
+  assert.throws(() => actualP181ArtifactAssertion('Read the exact parent-issued isolated runtime launch record.', {
+    sourceRoot: '/private/tmp/source', directory: '/tmp/owned-proof/fresh',
+    launchRecordPath: '/tmp/other-proof/runtime-launch-record.json',
+  }));
+});
+
 const p181NativeEntry = p181DeadlineSource.indexOf('export async function runP181StarlightMovementScoutNative(');
 function p181NativeRegion(startText, endText, after = p181NativeEntry) {
   const start = p181DeadlineSource.indexOf(startText, after);
