@@ -7,7 +7,7 @@ prerequisite for these earned observations.
 
 Two independent Auth identities used two Chrome processes/contexts on one Mac:
 a real GM with a live owned instance and one Wing Commander. Eight roles were
-configured; zero human devices were tested. The28 chosen / 27 observed operator UI
+configured; zero human devices were tested. The 28 chosen / 27 observed operator UI
 records include diagnostic/failed-selector steps; periodic polling is not an
 action count. Prior successful setup/start criteria overlap and are not summed.
 
@@ -44,11 +44,37 @@ not a blanket hold for the old driver or an unneeded21-account cohort.
 
 ## Preserved failures and affected repair
 
-The phone PNG overlaps the DRADIS floating panel and private-card heading.
-The saved render cannot earn unobstructed-phone acceptance. Persistent live
-obstruction versus full-page/sticky capture behavior and exact source cause
-remain unproved; a single focused live-geometry/scroll check must distinguish
-those before choosing a visual fix.
+The original phone PNG overlaps DRADIS and the private-card heading. The
+parent's focused render-only allocation then mounted the production ShipPlot,
+AppHeader, PrivateLoyaltyPanel and ScreenFade components with prepared role data
+and a scroll-only stand-in route. Zero Auth actors/emulators/gameplay mutations
+were involved. At 390×844, the visible heading intersects DRADIS by 2451.875 square
+pixels both at top and after 180 pixels of scroll; the 1440×900 sample has zero
+intersection. The source omission is confirmed: the preceding private flow
+clears only the header, while the fleet/route panels reserve compact DRADIS.
+
+A 28-line consumer validates measured, viewport-clipped heading/plot rectangles;
+it failed the first 390_TOP sample before CSS implementation. The later scroll
+and desktop measurements exist, but their assertions were not reached in that
+RED. Test-only commit b94dd554 preceded the five-line CSS repair 151b93ed, which
+adds the existing compact-plot reserve to private flow in the existing phone/
+short-display media rule. Existing font/palette checks pass. Exact independent
+source review passed at `151b93ed` with no material blocker; receipt SHA256
+`2d76298b52c3d0e4a14f1d40262605eab0b37aebdb9d1c3eeeb29451448b4c35`.
+ROOT read/hash verified the receipt and every bound file, and accepted integration
+ownership. After-fix rendered GREEN remains required and unearned. No post-fix
+capture was made under the original allocation.
+
+Initial virtual-JSX fixture compilation failed before measurements and returned
+its original handles/resources. An acquisition-only attempt then hit the parked
+entry guard; supported own-entry resume and Vite's public JSX transform yielded
+three real measurements. A post-measurement in-process cohort diagnostic
+reported a foreign UID; that guard was preserved, with no numeric/foreign
+signals. Original browser/server handles closed, then independent root/group,
+port, source and foreign-ledger checks passed. The diagnostic makes the
+controller exit1, not a blanket successful-run claim. Physical handback was
+**12:54:43.216029 UTC** before 12:56; resources are empty. The detailed receipt
+SHA256 is `25e23d5c9582532d7e287edefb1e720440bc6c4a3b42f6236599932d7ed777ef`.
 
 The original native responses include one GM scout-log 403 and one GM boarding
 location 400. Error bodies and exact denied transaction snapshots were not
@@ -74,34 +100,57 @@ fixture failure and initial TypeScript overload failure are preserved separately
 and are not claimed as behavioral RED.
 
 Seven reconciled affected suites pass 134/134, focused lint passes and the
-Functions build passes using Node 22. Exact independent source review is pending
-at this report's first commit. No repaired native/browser or deployment PASS is
-inferred from source tests. No frontend or Firestore-rule permissions changed.
+Functions build passes using Node 22. Exact independent source review passed at
+`eb250f36` with no material blockers;
+receipt SHA256 `dd9827b3c9834f5e6ca8f3d2aa6fa0be97638c33640fabf0b4f7f6253e1bfe5d`.
+The reviewer independently passed 14 selected regressions and 4 compatibility
+controls; selected tests are not added to the owner total. No repaired native/
+browser or deployment PASS is inferred from source tests. No frontend or
+Firestore-rule permissions changed.
 
-## Smallest remaining unique objectives
+## Eleven remaining distinct execution objectives
 
-1. Reconcile the distinct Wing Fighter Bay/wings/mission/rebuild and
-   Back/lost-station/safe-input criteria with exact valid historical evidence;
-   run only the missing current consumer/authority checks.
-2. Verify the two repaired reads under the affected legitimate interleavings,
-   plus the one phone live-geometry/scroll disposition. Reuse this successful
-   admission/casting/start/scout/flight evidence instead of replaying its tour.
-3. Complete distinct Home/Deluxe N/O outcomes/recovery/privacy and edition
-   rendering; P's liberation, reactor capacity/activation and ending. Retained
-   P repeat-wave/population acknowledgments are not those outcomes.
-4. Complete unique Capybara salvage/reclamation/Scrap/isolation and uncovered
-   full-game role/function/terminal/recovery behavior, including the promised
-   fresh solo two-browser ending and all-player-disconnection clock recovery.
-5. Cover only uncovered private audiences, random/denial/audit/rate-limit
-   claims.21-account capacity needs a separately justified scale claim and is
-   not a general prerequisite.
-6. Finish affected action/cost/blocker/next-actor and keyboard/touch/render
-   checks; broader cross-game PC11 guidance remains separate and is not reopened.
-7. Reconcile once, run required final checks/review, then verify exact candidate
-   and main CI, deployment revision/health/IAM and a small live primary-app
-   check before release. No production gameplay mutations.
+This expands the seven existing consolidated families where mechanics differ:
+read verification and phone clearance; N/O/P separately; unique Capybara
+mechanics and complete fresh game. It adds no requirements. Commit, packaging,
+CI and deployment stay together as one release objective.
 
-Physical handback was **2026-10-12T12:13:23.934115Z**, before 12:15. The exact
+1. Verify both already source-reviewed read repairs under their legitimate
+   presence/transit interleavings. Source repairs are complete; native repaired
+   behavior remains unverified.
+2. Verify after-fix rendered GREEN for private-card/DRADIS clearance. The overlap
+   and source-reviewed narrow repair are recorded; no post-fix clearance is
+   inferred from source checks.
+3. Complete the distinct Wing workspace Fighter Bay/wings/mission/rebuild and
+   Back/lost-station/safe-input criteria using valid historical reuse first.
+4. Complete current Home/Deluxe Ancient Jump Ring N outcome/recovery/privacy
+   acceptance, reusing exact unchanged successful clauses.
+5. Complete current Home/Deluxe Deep Nebula O scouting/loss/later-bonus/server
+   roll/success/duplicate-effect/recovery/privacy acceptance.
+6. Complete Station P repeated attacks through liberation, 18 Reactor capacity,
+   unique contributions, activation/defence and ending. Existing wave/ack
+   evidence remains accepted only as its prefix.
+7. Complete unique Capybara Macaw/Boa/Scrap and base/expansion isolation mechanics.
+8. Complete fresh two-browser solo base/Capybara games through an ending with
+   every unique role/function, unlimited manual progression and uncovered
+   dropout, all-player clock pause/resume and terminal-recovery branches.
+9. Complete only uncovered private audiences, randomness, denial telemetry,
+   action audits and rate-limit criteria. 21-account capacity is conditional,
+   not a blanket prerequisite.
+10. Complete remaining PC10 action/cost/blocker/next-actor and keyboard/touch/
+    relevant presentation checks. PC11 is not reopened.
+11. Reconcile and release PC10 once: required final validation/review, truthful
+    catalog/version/changelog/docs, exact candidate/main CI, deployment
+    revision/health/IAM and a small primary live check. No production gameplay.
+
+All 48 assigned catalog rows still await full closure, with distinct accepted
+subcriteria retained. This slice newly closes zero whole rows; overall done is
+703/751, campaign 245/293, with 14 partial and 34 missing rows in the current catalog.
+No invented progress percentage or duplicate setup/release-tour work is counted.
+Later post-PC10/PC12 work and licensing remain separate; PC11 is not reopened.
+
+The ordinary authenticated UI allocation handed back at
+**2026-10-12T12:13:23.934115Z**, before 12:15. The exact
 receipt SHA256 is
 `b0a2f05398535e546c53b476ac7830f15ad685226172ed5ec7e716be7198d18a`.
 Original browser objects closed/controller exited; exact owned session/Auth,

@@ -129,12 +129,22 @@ P181 now records partial catalog credit for these satisfied subcriteria. Its
 distinct Fighter Bay/wings/missions/rebuild and Back/lost-station/safe-input
 criteria remain open unless exact unchanged historical evidence satisfies them.
 No whole catalog row is proven solely by this slice, and no new fixed closure is
-invented. The phone capture visibly overlaps DRADIS and the private-card heading;
-its live-versus-full-page capture cause needs one focused geometry check. The
+invented. A focused prepared-component Chrome render confirmed visible phone
+heading/DRADIS overlap at top and after scrolling. A measured geometry assertion
+failed before the separate test commit and narrow CSS repair; exact independent
+source review passed at `151b93ed`. After-fix rendered GREEN remains open. The
 GM 403 / boarding 400 are separately reproduced source defects with focused
-RED/GREEN repairs; original native evidence is not relabeled as repaired proof.
-Owned resources and fresh data were returned at **12:13:23.934115 UTC** before
-the 12:15 allocation deadline. No new heavy runtime is authorized by this record.
+RED/GREEN repairs and exact independent source review PASS at `eb250f36`;
+original native evidence is not relabeled as repaired proof.
+
+The ordinary authenticated UI allocation returned owned resources and fresh
+data at **12:13:23.934115 UTC** before 12:15. The later geometry allocation
+physically handed back at **12:54:43.216029 UTC** before 12:56, with original
+browser/server handles closed, own claims released and root/group/port checks
+clear. Its optional post-measurement metadata diagnostic failed; this is not a
+blanket capture-process PASS or a full browser PID census. No new heavy runtime
+is authorized by this record. The linked report lists the eleven remaining
+distinct objectives from the existing consolidated map, including one release.
 
 Prepared presentation, native tests, normal authenticated emulator HTTP/UI/rules, automated concurrent browsers, human/device playtesting, CI and production deployment are separate evidence classes. No unavailable evidence earns closure credit.
 
