@@ -2579,13 +2579,17 @@ test('P181 casting assignment rejects connected omission without a captured ordi
 async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate = false, lateCommit = false,
   scopeStall = false, launchStall = false, foreignState = false, clock, coreInput,
   directory, closeOwned, terminateOwned, writeOutcome, configureSurfaces, afterGmClaim,
-  servedEnvironmentChange, rejectedMessage = 'ordinary rejected create' } = {}) {
+  servedEnvironmentChange, unclaimedWingSeat = false, rejectedMessage = 'ordinary rejected create' } = {}) {
   let now = Date.now();
   if (clock) now = clock.now();
   const records = new Map(), deletedAuth = [], operations = [], writes = [], privateRecords = [], surfaces = [], browsers = [];
   const preflightAcquisitions = { provider: 0, browser: 0 };
   const gm = mountedP181Surface('native-original-gm', { casting: true });
   const wing = mountedP181Surface('native-original-wing', { casting: true });
+  if (unclaimedWingSeat) {
+    for (const surface of [gm, wing]) surface.state.seats = [{ id: 'wing-commander', roleId: 'wing-commander',
+      status: 'available', holderUid: null }];
+  }
   const get = path => ({ exists: records.has(path), ref: ref(path),
     get: key => key.split('.').reduce((value, part) => value?.[part], records.get(path)) });
   const ref = path => ({ path, get: async () => get(path) });
@@ -2708,6 +2712,7 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
     fetch: async url => ({ status: 200, text: async () => String(url).endsWith('/src/lib/firebaseConfig.ts')
       ? runtimeSource : 'controlled-served-source' }), AbortSignal,
     observeUiReceipt, observeLifecycleActor, captureLifecycleUiAction, publicLifecycleReceipt,
+    createMemberNavigationResumeObserver,
     openLifecycleSettings: async surface => surface.page.getByRole('dialog', { name: 'Session settings' }),
     closeLifecycleSettings: async () => {}, observeFullGameDemoPresentationMember,
     proofRuntimeFromViteSource, validateProofRuntime, checkServedEnvironment,
@@ -2883,7 +2888,7 @@ function actualP181NavigationMount() {
 test('Attempt3 actual mounted post-claim GM routes reach native confirmSetup through the ordinary catalog', async () => {
   const mounted = actualP181NavigationMount(), clock = remainingLifecycleClock();
   try {
-    const fixture = await remainingNativeConsumer({ clock,
+    const fixture = await remainingNativeConsumer({ clock, unclaimedWingSeat: true,
       configureSurfaces: ({ gm }) => mounted.attach(gm),
       afterGmClaim: gm => mounted.mount(gm, '/roles'),
     });
@@ -2962,7 +2967,7 @@ test('Attempt3 mounted assigned Wing console and actual Starlight open/return li
 });
 
 test('remaining F8-R1 full native startup uses the actual safe DTO after the original GM claim', async () => {
-  const fixture = await remainingNativeConsumer();
+  const fixture = await remainingNativeConsumer({ unclaimedWingSeat: true });
   const error = await fixture.program;
   assert.ok(fixture.gm.choices.includes('Confirm setup // Confirm roster'),
     `Original held claim must authorize confirmSetup despite the safe DTO omitting claimedAt; ${error?.message}`);
