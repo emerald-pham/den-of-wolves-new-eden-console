@@ -244,6 +244,75 @@ configuration/reservation/generated files and browser claim were removed.
 Foreign rows and the original dirty checkout were preserved. Independent review
 ran only after physical handback. No runtime or grant remains.
 
+## Unsent Wing input loss and source repair — 15:59 to 17:05
+
+The next ordinary two-browser slice ran on clean source `50f6b189` using two
+normal Auth actors, GM and Wing, with eight configured roles and zero human
+devices. It reused ordinary admission/casting/start and completed the offered
+Cycle briefing to enter real, unpaused Cycle1 Team Time. Setup and polling are
+not new action or role-coverage credit.
+
+The Wing entered unsent Starlight coordinate `5143` while Record was unavailable
+during Team Time. The offered Back, View ship consoles, currently held Wing and
+Starlight links returned to the same console with an empty input. Before and
+after records retain the same UID/session/role/seat, live server-fresh own-player
+projection and current SDK authority, with zero `requestScout` submissions.
+The actual value assertion failed `'' !== '5143'`. This is a product
+counterexample, not an after-fix acceptance. Station loss/reassignment was never
+attempted because the run stopped at this first mismatch.
+
+Operator selector mistakes and an early asynchronous predicate that returned
+before a real phase observation remain preserved and receive no acceptance
+credit. The actual start HTTP200 and concrete before/after SDK/UI records
+establish the phase and authority. A brief environment callback was followed by
+fresh original ownership verification before work continued. No process loss
+or cleanup was inferred from the callback.
+
+Original normal operations and browser objects closed at 16:19:35.807UTC. Exact
+owned session/join/three root records/two player pointers/two Auth identities
+were deleted through the existing guarded cleanup. All 51 original tracked
+process pins/eight groups and 11 ports, configuration, reservation and claims
+were clear at physical handback **16:24:55.512873UTC**, before 16:35. Receipt
+`WING_1635_EXACT_PHYSICAL_HANDBACK.json` has SHA256
+`b6db38d2cb34d3b0013364291f4ee7b53497ac7cfd6affcc626e6ac22103cadb`.
+No runtime grant remains.
+
+The bounded source repair changes only `ScoutRequestControls.tsx` and
+`useSessionStore.ts`. Five mounted input-value regressions failed before source:
+full and partial same-member remount, controlled same-member casting loss and
+re-entry, and old local text leaking across changed session or UID. Fourteen
+unchanged/boundary controls passed. Test-only `7df2555d` preceded source
+`7042693a`; no missing API or forced exception supplied RED credit.
+
+The existing runtime store now retains at most four unsent characters for the
+current player/session/shuttle entitlement. Same-member route re-entry may
+restore that safe text. Identity/session change, non-player identity,
+disconnect and reset clear it; durable storage never restores a serialized
+draft. Dispatch clears cached unsent text before the request starts, while the
+original mounted form retains its existing exact request/retry behavior. A
+remounted form does not revive submitted request metadata or send an action.
+This implements runtime memory retention, not cold-document draft persistence.
+Existing server, live-authority, phase and submission guards remain unchanged.
+
+Owner affected mounted/store tests pass 48/48, with frontend typecheck/build,
+focused lint and the unchanged 512,000-byte bundle guard passing. Independent
+Sol source review at exact `7042693a` found no material findings: ten selected
+owner controls and four separate current-member/durable-merge/entitlement/late-
+reply controls pass, without adding them to owner 48 or native action counts.
+The review confirms the five meaningful test-first failures and source chain.
+Its private import-resolution failure collected zero tests and is preserved
+without behavioral RED credit.
+
+`INDEPENDENT_7042693A_WING_SAFE_UNSENT_DRAFT_SOURCE_REVIEW_20261012.json` has
+SHA256 `7e3b7f5dc5e20adc1f536921f025c7e4fd93ce8120ec87f9c99f1c21ef24199c`.
+ROOT read the complete receipt and verified all 32 reference instances across 24
+distinct files before accepting source integration. Evidence is retained in
+`pc10-reboot-recovery/native-runs/wing-unsent-back-20261012-1600-e86e44addd434278aa8d1943d2a743d6`.
+The source checks and saved original screenshots do not prove after-fix native
+input retention, native casting loss, whole Wing or final emitted-build
+typography. Prior accepted read/R1/R2 criteria remain unchanged. Nine objectives
+and zero new whole catalog closures remain.
+
 ## Nine remaining distinct execution objectives
 
 This expands the seven existing consolidated families where mechanics differ:
@@ -284,12 +353,13 @@ Later post-PC10/PC12 work and licensing remain separate; PC11 is not reopened.
 
 ## Next smallest distinct Wing check
 
-The next allocated slice first checks Back/re-entry with an unsent Starlight
-coordinate during ordinary Team Time. Two admitted actors and two browsers
-suffice. Capture the input, current authority and zero scout submissions before
-and after the offered navigation. Stop at the first mismatch and return runtime
-before source diagnosis or saved review. No repair or retention PASS follows
-from source inspection alone.
+The next fresh parent-allocated slice rechecks the repaired unsent Starlight
+coordinate through the same offered Back/overview/re-entry during ordinary
+Team Time. Two admitted actors and two browsers suffice. Capture the input,
+current authority and zero scout submissions before and after navigation.
+The source repair and independent review above are complete; after-fix native
+retention is unearned. Stop at the first mismatch and return runtime before
+source diagnosis or saved review. No allocation is currently active.
 
 For the later station-loss criterion, genuine GM release/reassignment and
 same-Wing reselect are supported in Cycle0 casting. GM casting/seat release is locked after setup;
