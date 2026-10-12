@@ -485,6 +485,36 @@ whole Wing, active-game authority loss, submitted retry, cold-document draft
 and full ending remain open. The unchanged Endeavour test/fixture failure
 remains an explicit final-validation hold pending contract reconciliation.
 
+## Endeavour test-contract reconciliation — source only
+
+Exact `a5f9fda5` resolves the retained Endeavour fixture/expectation mismatch
+without changing product source. Coverage-only `3e52bbe0` first adds seven
+route cases for unbuilt incomplete/complete research, built-ready current
+Scientist, stale connection/cache after a legitimate ready load, persisted
+spent state and revoked custody. The original printed-facts test remains
+byte-identical through that coverage commit. The later fixture correction
+supplies required typed `built:false` and current live/server Scientist state;
+the obsolete research-only wording expectation becomes explicit Unavailable,
+the paid-build blocker, disabled Use and no activation. Printed facts,
+research cost/button/read count and Back focus/Enter assertions remain.
+
+All affected tests pass: shuttle route 110, ECM panel 7 and parser 3, total
+120 across three files. Independent exact source-only review `d4fbbac1` passes
+eight overlapping selected route cases with no material findings. ROOT reads
+the complete receipt and verifies all 25 named bindings; ACK `95cc642e`.
+The original contract failure and initial detached-loading-section assertion
+reader failures remain preserved. Those preparation failures are not product
+REDs; this is regression coverage/fixture reconciliation against unchanged
+paid-build, custody, freshness and one-use behavior. No new four-suite run,
+product repair, native Scientist gameplay or release acceptance is claimed.
+
+The executor interruption was paused and one parent-authorized harmless probe
+restored access; exact clean candidate and empty owned runtime were verified.
+The parent reports unstable/offline catalog state again at 19:41. Completed
+review/ACK evidence is preserved; a transport failure stops dependent work
+without retries. No native checks restarted or runtime allocated. The final
+whole-game, rendered, CI and deployment gates remain unchanged.
+
 ## Nine remaining distinct execution objectives
 
 This expands the seven existing consolidated families where mechanics differ:

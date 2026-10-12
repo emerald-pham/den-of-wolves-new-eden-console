@@ -1839,3 +1839,19 @@ remain. Nine objectives, zero new whole closures and 703/751 overall,
 245/293 campaign, 14 partial/34 missing are unchanged. No runtime held/granted
 or release accepted; [the scoped report](PC10_NORMAL_UI_REVIEW_REPORT.md)
 identifies the next unique criterion and exact evidence limits.
+
+### Endeavour fixture contract resolved; gameplay scope unchanged
+
+Tests-only `3e52bbe0` adds seven route paid-build/current-holder/stale/persisted
+state controls before `a5f9fda5` reconciles required `built:false`, live/server
+Scientist setup and the obsolete research-only blocker expectation. The
+current Unavailable/build blocker/disabled Use/no activation checks strengthen
+the paid-construction contract. All printed/research/cost/read count/Back
+keyboard assertions remain. Production source/player artifacts are unchanged.
+Affected route110/panel7/parser3 pass120/120; independent exact review `d4fbbac1`
+passes eight overlapping cases, with ROOT complete-read/25-binding ACK `95cc642e`.
+The original failure and detached-reader preparation failures remain preserved,
+without fabricated product RED or new combined-four-suite/native claims.
+This resolves only the identified source test-contract hold. Whole Wing, fresh
+ending/recovery/privacy/usability and final release gates remain; nine
+objectives, zero new whole closures and catalog/function inventory unchanged.
