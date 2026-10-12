@@ -210,3 +210,43 @@ test('Wing bay finite procedure withholds charged-card credit if original Wing a
   assert.equal(held.trace.includes('observe:charged'), true);
   assert.equal(held.trace.at(-1), 'owned-cleanup');
 });
+
+// These preserve the already intended teardown contract before a lint-only
+// control-flow refactor. They are regression controls, not invented REDs.
+test('Wing bay finite teardown preserves the original maintenance failure when authority detachment also fails', async () => {
+  const held = controlledWingBayProcedure({ rejectedAction: 'storage' });
+  const detachError = new Error('controlled authority detach failure');
+  let original, cleanupPrimary;
+  held.io.beginPathAuthority = async () => { held.trace.push('retain-authority'); };
+  held.io.checkPathAuthority = async () => {};
+  held.io.pathAuthorityFailed = new Promise(() => {});
+  held.io.finishPathAuthority = async () => { held.trace.push('detach-authority'); throw detachError; };
+  const cleanup = held.io.cleanupOwnedResources;
+  held.io.cleanupOwnedResources = async value => { cleanupPrimary = value.firstError; return cleanup(value); };
+  await assert.rejects(runP181StarlightMovementScoutUiProof(held.input), error => {
+    original = error;
+    assert.notEqual(error, detachError);
+    assert.match(error.message, /maintenance.*storage|storage.*maintenance/i);
+    return true;
+  });
+  assert.equal(cleanupPrimary, original);
+  assert.deepEqual(held.trace.filter(value => value.startsWith('maintenance:')), ['maintenance:begin', 'maintenance:storage']);
+  assert.equal(held.trace.at(-2), 'detach-authority');
+  assert.equal(held.trace.at(-1), 'owned-cleanup');
+});
+
+test('Wing bay finite teardown rejects successful gameplay when authority detachment fails and still cleans up', async () => {
+  const held = controlledWingBayProcedure();
+  const detachError = new Error('controlled authority detach failure');
+  let cleanupPrimary;
+  held.io.beginPathAuthority = async () => {};
+  held.io.checkPathAuthority = async () => {};
+  held.io.pathAuthorityFailed = new Promise(() => {});
+  held.io.finishPathAuthority = async () => { held.trace.push('detach-authority'); throw detachError; };
+  const cleanup = held.io.cleanupOwnedResources;
+  held.io.cleanupOwnedResources = async value => { cleanupPrimary = value.firstError; return cleanup(value); };
+  await assert.rejects(runP181StarlightMovementScoutUiProof(held.input), error => error === detachError);
+  assert.equal(cleanupPrimary, detachError);
+  assert.equal(held.trace.at(-2), 'detach-authority');
+  assert.equal(held.trace.at(-1), 'owned-cleanup');
+});
