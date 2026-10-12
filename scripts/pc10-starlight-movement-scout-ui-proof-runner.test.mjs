@@ -6,6 +6,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { readFile, mkdtemp, stat, mkdir, writeFile, readdir, realpath } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import test from 'node:test';
+import typescript from 'typescript';
 import { EventEmitter } from 'node:events';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, extname, resolve } from 'node:path';
@@ -2862,7 +2863,8 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
   scopeStall = false, launchStall = false, foreignState = false, clock, coreInput,
   directory, closeOwned, terminateOwned, writeOutcome, configureSurfaces, afterGmClaim,
   servedEnvironmentChange, unclaimedWingSeat = false, rejectedMessage = 'ordinary rejected create', proofProfile,
-  ordinaryPreparation = false, wingBayFlow = false, onNormalStarted, onWingBayAction } = {}) {
+  ordinaryPreparation = false, wingBayFlow = false, onNormalStarted, onWingBayAction,
+  servedSourceBody, servedSourceResponseUrl } = {}) {
   let now = Date.now();
   if (clock) now = clock.now();
   const records = new Map(), deletedAuth = [], operations = [], writes = [], privateRecords = [], surfaces = [], browsers = [];
@@ -3072,7 +3074,8 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
     ports: { auth: 9109, firestore: 8090, functions: 5011 }, baseUrl: 'http://127.0.0.1:5173',
     functionsBuiltBeforeLaunch: true, processCwdsVerified: true, builtFunctionsSha256: digest('controlled-index'),
     compiledFiles: bindings.compiledFiles, compiledFileCount: 1, compiledTreeSha256: bindings.compiledTreeSha256,
-    functionsSourceTreeSha256: bindings.functionsSourceTreeSha256, buildCompletedAtMs: now - 2, runtimeStartedAtMs: now - 1 };
+    functionsSourceTreeSha256: bindings.functionsSourceTreeSha256,
+    buildCompletedAtMs: now - 1002, runtimeStartedAtMs: now - 1000 };
   const servedEnv = { DEV: true, VITE_LOCAL_GM_ACCESS: '1', VITE_USE_EMULATORS: '1',
     VITE_FIREBASE_PROJECT_ID: launch.projectId, VITE_FIREBASE_AUTH_EMULATOR_PORT: String(launch.ports.auth),
     VITE_FIREBASE_FUNCTIONS_EMULATOR_PORT: String(launch.ports.functions),
@@ -3085,7 +3088,7 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
     .replace(/import\.meta\.url/g, '__moduleUrl').split('\nif (process.argv[1]')[0];
   const context = { assert: { ...assert, deepEqual: (a, b, ...args) => assert.deepEqual(
     JSON.parse(JSON.stringify(a)), JSON.parse(JSON.stringify(b)), ...args) },
-    createHash, createRequire: () => { preflightAcquisitions.provider++; return name => {
+    createHash, typescript, createRequire: () => { preflightAcquisitions.provider++; return name => {
       if (name === 'firebase-admin/app') return { getApps: () => [], initializeApp: () => adminApp };
       if (name === 'firebase-admin/firestore') return { getFirestore: () => db };
       if (name === 'firebase-admin/auth') return { getAuth: () => authAdmin };
@@ -3104,8 +3107,9 @@ async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate =
       if (directory) await writeFile(path, body, options);
       await writeOutcome?.(path, body);
     },
-    fetch: async url => ({ status: 200, text: async () => String(url).endsWith('/src/lib/firebaseConfig.ts')
-      ? runtimeSource : 'controlled-served-source' }), AbortSignal,
+    fetch: async url => ({ status: 200, url: servedSourceResponseUrl ?? String(url),
+      text: async () => String(url).endsWith('/src/lib/firebaseConfig.ts')
+        ? runtimeSource : servedSourceBody ?? 'controlled-served-source' }), AbortSignal,
     observeUiReceipt, observeLifecycleActor, captureLifecycleUiAction, publicLifecycleReceipt,
     createMemberNavigationResumeObserver,
     openLifecycleSettings: async surface => surface.page.getByRole('dialog', { name: 'Session settings' }),
@@ -4177,6 +4181,77 @@ function assertPreflightInert(fixture) {
   assert.equal(fixture.counters.configuration, 0); assert.equal(fixture.counters.reservation, 0);
   assert.equal(fixture.counters.runtimeLaunch, 0);
 }
+
+for (const [representation, wire] of [
+  ['raw bytes', 'controlled-served-source'],
+  ['JSON string literal', 'export default "controlled-served-source";\n'],
+  ['static template literal', 'export default `controlled-served-source`;\n//# sourceMappingURL=data:application/json;base64,e30='],
+]) test(`decoded source gate accepts exact ${representation} before the three normal actors`, async () => {
+    const held = await remainingNativeConsumer({ proofProfile: 'wing-bays', rejectedCreate: true, servedSourceBody: wire });
+    const failure = await held.program;
+    assert.equal(held.preflightAcquisitions.browser, 3,
+      `The actual native source gate must decode exact literal bytes before the existing ordinary flow: ${String(failure)}`);
+    assert.equal(held.browsers.every(browser => browser.closed), true);
+    assert.equal(held.writes.some(item => item.path.endsWith('p181-pre-browser-failure-phase.json')), false);
+});
+
+test('decoded source gate refuses changed literals and executable envelopes before any provider or browser', async () => {
+  for (const wire of ['export default "changed-source";', 'export default `changed-source`;',
+    'export default `controlled-${unknown}`;', 'export default (() => "controlled-served-source")();',
+    'export default "controlled-served-source"; globalThis.untrusted = true;',
+    'export { value as default };', 'export = "controlled-served-source";', 'export default "unterminated']) {
+    const held = await remainingNativeConsumer({ proofProfile: 'wing-bays', rejectedCreate: true, servedSourceBody: wire });
+    const failure = await held.program;
+    assert.ok(failure);
+    assert.deepEqual(held.preflightAcquisitions, { provider: 0, browser: 0 });
+  }
+});
+
+test('decoded source gate refuses a foreign response URL even when the returned source text matches', async () => {
+  const held = await remainingNativeConsumer({ proofProfile: 'wing-bays', rejectedCreate: true,
+    servedSourceResponseUrl: 'http://foreign.invalid/src/routes/Landing.tsx?raw' });
+  const failure = await held.program;
+  assert.ok(failure);
+  assert.equal(held.preflightAcquisitions.browser, 0,
+    'A matching body cannot authorize a different served source origin.');
+});
+
+test('pre-browser source failure emits a distinct bound terminal phase without inventing native cleanup', async () => {
+  const held = await remainingNativeConsumer({ proofProfile: 'wing-bays', rejectedCreate: true,
+    servedSourceBody: 'export default "changed-source";' });
+  const failure = await held.program;
+  assert.ok(failure);
+  assert.deepEqual(held.preflightAcquisitions, { provider: 0, browser: 0 });
+  const phaseWrite = held.writes.find(item => item.path.endsWith('p181-pre-browser-failure-phase.json'));
+  assert.ok(phaseWrite, 'The actual failure transition must retain positive evidence before actors ever existed.');
+  const phase = JSON.parse(phaseWrite.body);
+  assert.equal(phase.phase, 'pre-browser-failed');
+  assert.equal(phase.browserAcquisitionStarted, false);
+  assert.equal(phase.actualAuthActors, 0);
+  assert.equal(phase.actualBrowserProcesses, 0);
+  assert.equal(phase.sourceCommit, 'controlled-remaining-native');
+  assert.equal(phase.projectId, 'demo-controlled');
+  assert.equal(phase.allocationDeadlineAt, held.allocationDeadlineAt);
+  assert.match(phase.runtimeLaunchRecordSha256, /^[a-f0-9]{64}$/);
+  assert.equal(phase.originalError.fingerprint, createHash('sha256').update(JSON.stringify({
+    name: failure.name, code: failure.code ?? null, message: failure.message,
+  })).digest('hex'));
+  assert.equal(held.writes.some(item => item.path.endsWith('p181-starlight-movement-scout.json')), false,
+    'Service-only failure is phase evidence, not a manufactured actor cleanup PASS.');
+});
+
+test('a reached browser acquisition retains the original native cleanup barrier and three-actor accounting', async () => {
+  const held = await remainingNativeConsumer({ proofProfile: 'wing-bays', rejectedCreate: true });
+  await held.program;
+  assert.equal(held.preflightAcquisitions.browser, 3);
+  assert.equal(held.writes.some(item => item.path.endsWith('p181-pre-browser-failure-phase.json')), false);
+  const nativeWrite = held.writes.find(item => item.path.endsWith('p181-starlight-movement-scout.json'));
+  assert.ok(nativeWrite);
+  const outcome = JSON.parse(nativeWrite.body);
+  assert.equal(outcome.actualBrowserProcesses, 3);
+  assert.equal(outcome.cleanup.browsersClosed, 3);
+  assert.equal(held.browsers.every(browser => browser.closed), true);
+});
 
 test('pre-native existing API completes the actual canonical and complete retained build source preflight before allocation', async () => {
   const fixture = await actualPreNativeConsumer({ sourceOnly: true });
