@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, realpath, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { observeUiReceipt, attachUiReceiptDiagnostics } from './pc10-browser-ui-receipt.mjs';
 import { observeLifecycleActor, captureLifecycleUiAction, publicLifecycleReceipt,
@@ -2283,6 +2283,16 @@ async function p181PlannedEnvironmentEvidence(configuration, checked) {
     dotenvPrecedence: 'Explicit child VITE environment overrides all mode dotenv files.', unreviewedViteNames: [...unreviewed].sort() };
 }
 
+/** Artifact bytes may remain in legacy isolated tmp or the owned workspace
+ * containing the exact isolated source checkout. Parent-issued paths/digests,
+ * source/build bindings and runtime authority remain independently required. */
+export function p181OwnedArtifactPath(sourceRoot, path) {
+  if (typeof sourceRoot !== 'string' || typeof path !== 'string' ||
+      !path.startsWith('/') || resolve(path) !== path) return false;
+  return path.startsWith('/tmp/') || path.startsWith('/private/tmp/') ||
+    path.startsWith(`${resolve(sourceRoot, '..')}/`);
+}
+
 /** Qualify concrete commands as inert data. The unchanged wrappers still own
  * configuration/reservation and require a separate fresh parent allocation. */
 async function p181ValidatePlannedLaunch(plannedLaunch, sourceRoot, sourceCommit, checked) {
@@ -2300,8 +2310,8 @@ async function p181ValidatePlannedLaunch(plannedLaunch, sourceRoot, sourceCommit
   assert.match(projectId ?? '', /^demo-[a-z0-9-]{3,64}$/, 'Planned P181 project must be the original local demo project.');
   assert.deepEqual(ports, emulatorPortsForSlot(slot), 'Planned P181 canonical emulator ports must use the original slot.');
   assert.equal(baseUrl, `http://127.0.0.1:${vitePortForSlot(slot)}`, 'Planned P181 canonical Vite URL/port and loopback host required.');
-  assert.ok(evidenceDirectory?.startsWith('/tmp/') && resolve(evidenceDirectory) === evidenceDirectory,
-    'Planned P181 launch requires an absolute owned /tmp evidence directory.');
+  assert.ok(p181OwnedArtifactPath(sourceRoot, evidenceDirectory),
+    'Planned P181 launch requires an absolute owned isolated evidence directory.');
   assert.ok(runtimeLaunchRecord?.startsWith(`${evidenceDirectory}/`) && resolve(runtimeLaunchRecord) === runtimeLaunchRecord,
     'Planned P181 runtime launch record must remain in its exact evidence tree.');
   assert.ok(Number.isSafeInteger(configuration.allocationStartedAtMs) && Number.isSafeInteger(configuration.allocationDeadlineMs) &&
@@ -2416,13 +2426,13 @@ async function p181SourceOnlyPreflight(options) {
   const validatedPlannedLaunch = await p181ValidatePlannedLaunch(options.plannedLaunch, sourceRoot, sourceCommit, checked);
   assert.equal(existsSync(resolve(sourceRoot, 'src/lib/demoActorContext.ts')), true,
     'The published ordinary App observer must consume the actual null-profile module.');
-  assert.ok(options.buildBindingPath?.startsWith('/tmp/') && /^[a-f0-9]{64}$/.test(options.buildBindingSha256 ?? ''),
+  assert.ok(p181OwnedArtifactPath(sourceRoot, options.buildBindingPath) && /^[a-f0-9]{64}$/.test(options.buildBindingSha256 ?? ''),
     'Use the exact parent-approved immutable build binding and digest.');
   const sourceHash = value => createHash('sha256').update(value).digest('hex');
   const recordBytes = await checked('Read original complete build binding', () => readFile(options.buildBindingPath));
   assert.equal(sourceHash(recordBytes), options.buildBindingSha256);
   const buildRecord = JSON.parse(recordBytes);
-  assert.ok(buildRecord.sourceRoot?.startsWith('/private/tmp/') || buildRecord.sourceRoot?.startsWith('/tmp/'));
+  assert.ok(p181OwnedArtifactPath(sourceRoot, buildRecord.sourceRoot));
   const buildRoot = await checked('Resolve original retained build mapping', () => realpath(buildRecord.sourceRoot));
   const complete = root => captureP181SourceBindings(root, { buildRoot, completeInputs: true, deadlineAt });
   const sourceBindings = await checked('Bind complete candidate source and retained build bytes', () => complete(sourceRoot));
@@ -2532,7 +2542,7 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
   assert.ok(baseUrl?.startsWith('http://127.0.0.1:') && ports &&
     Object.values(ports).every(value => Number.isSafeInteger(value) && value > 0));
   assert.ok(/^demo-[a-z0-9-]{3,64}$/.test(projectId ?? ''), 'Use the allocated local demo project only.');
-  assert.ok(directory.startsWith('/tmp/'), 'P181 evidence must remain in the isolated /tmp evidence tree.');
+  assert.ok(p181OwnedArtifactPath(sourceRoot, directory), 'P181 evidence must remain in the isolated owned evidence tree.');
 
   const totalEnd = options.allocationDeadlineMs ?? Number(process.env.P181_ALLOCATION_DEADLINE_MS);
   const issuedStart = options.allocationStartedAtMs ?? process.env.P181_ALLOCATION_STARTED_AT_MS;
@@ -2560,7 +2570,8 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
   assert.equal(execFileSync('git', ['status', '--porcelain', '--untracked-files=no'],
     { cwd: sourceRoot, encoding: 'utf8' }).trim(), '', 'Native source must be the committed P181 source candidate.');
   const launchRecordPath = process.env.P181_RUNTIME_LAUNCH_RECORD;
-  assert.ok(launchRecordPath?.startsWith('/tmp/'), 'Read the exact parent-issued isolated runtime launch record.');
+  assert.ok(p181OwnedArtifactPath(sourceRoot, launchRecordPath) && launchRecordPath.startsWith(`${directory}/`),
+    'Read the exact parent-issued isolated runtime launch record.');
   const launchRecord = JSON.parse(await preflight('Read original runtime launch record', () => readFile(launchRecordPath, 'utf8')));
   assert.equal(launchRecord.sourceCommit, sourceCommit);
   assert.equal(await preflight('Resolve original launch source root', () => realpath(launchRecord.sourceRoot)), sourceEntry);
@@ -3787,8 +3798,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     Number(process.env.P181_ALLOCATION_DEADLINE_MS) - P181_NATIVE_TIMING.proofStopReserveMs, Date.now() + 60_000);
   runP181StarlightMovementScoutNative(nativeOptions).catch(async error => {
     if (!p181NativePassedPreflight.has(nativeOptions)) {
-      const requestedDirectory = resolve(process.env.P181_EVIDENCE_DIRECTORY ?? '/tmp/dow-pc10-evidence');
-      const failureDirectory = requestedDirectory.startsWith('/tmp/') ? requestedDirectory : '/tmp/dow-pc10-evidence';
+      const failureSourceRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
+      const fallbackDirectory = resolve(failureSourceRoot, '.pc10-evidence', 'pre-native-failures');
+      const requestedDirectory = resolve(process.env.P181_EVIDENCE_DIRECTORY ?? fallbackDirectory);
+      const failureDirectory = p181OwnedArtifactPath(failureSourceRoot, requestedDirectory) ? requestedDirectory : fallbackDirectory;
       rememberProofFailure(error, { primaryFailureStage: 'P181 pre-native source preflight',
         originalFailureDeadlineAt });
       try {
