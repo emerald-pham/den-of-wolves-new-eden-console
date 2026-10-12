@@ -6425,4 +6425,63 @@ for (const kind of ['full', 'gm']) {
     assert.equal(result.error?.name, 'TimeoutError');
   });
 }
+for (const [field, change, expectedValue, expectedKind] of [
+  ['connection', state => { state.connection = 'offline'; }, 'offline', 'string'],
+  ['assignedRoleId', state => { state.me.assignedRoleId = 'admiral'; }, 'admiral', 'string'],
+  ['setupConfirmed', state => { state.session.setupConfirmed = false; }, false, 'boolean'],
+  ['setupConfirmed', state => { delete state.session.setupConfirmed; }, null, 'undefined'],
+  ['cycle', state => { state.session.currentTurn = 1; }, 1, 'number'],
+]) {
+  test(`P181 first rejected casting state retains ${field} ${expectedKind} through original failure transport`, async t => {
+    const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true });
+    const authority = await castingAssignmentAuthorityFor(f);
+    const moduleReads = [];
+    f.wing.beforeModule = path => { moduleReads.push(path); };
+    try {
+      f.wing.publish(change);
+      const failure = await authority.failed.then(() => null, error => error);
+      assert.equal(failure.message, 'Original P181 casting actor, role, seat, phase or connection changed.');
+      assert.ok(failure.firstCastingRejectedState,
+        'The already-inspected rejected state must survive the original failure promise, rather than only its composite message.');
+      const witness = failure.firstCastingRejectedState;
+      assert.equal(witness.schemaVersion, 1);
+      assert.equal(witness.observationOrigin, 'delivered');
+      assert.ok(witness.failedPredicates.includes(field));
+      assert.equal(witness.inspected[field].value, expectedValue);
+      assert.equal(witness.inspected[field].valueKind, expectedKind);
+      assert.equal(witness.inspected[field].present, expectedKind !== 'undefined');
+      assert.equal(witness.expected.uidHash, f.before.uidHash);
+      assert.equal(witness.expected.sessionId, f.before.sessionId);
+      assert.equal(witness.epoch.connectionGeneration.value, f.before.connectionGeneration);
+      const privateError = originalProofError(failure);
+      assert.ok(privateError.heldObservationsInspect.includes('firstCastingRejectedState'),
+        'The existing private first-failure consumer must retain the original witness.');
+      assert.equal(Object.hasOwn(witness, 'actorUid'), false);
+      const first = JSON.stringify(witness);
+      f.wing.publish(state => {
+        state.connection = 'live'; state.me.assignedRoleId = null;
+        state.session.setupConfirmed = true; state.session.currentTurn = 0;
+      });
+      await assert.rejects(authority.check(), error => {
+        assert.equal(JSON.stringify(error.firstCastingRejectedState), first,
+          'A later check/recovery must return the first rejected tuple unchanged.');
+        return error.message === failure.message;
+      });
+      assert.deepEqual(moduleReads, [], 'No post-retirement module/SDK re-probe supplies rejection evidence.');
+    } finally { await authority.close().catch(() => {}); }
+    assert.equal(f.wing.observers.stores.size, 0); assert.equal(f.wing.observers.auth.size, 0);
+  });
+}
+test('P181 first rejected casting state does not replace an earlier distinct member retirement', async t => {
+  const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true });
+  const authority = await castingAssignmentAuthorityFor(f);
+  try {
+    f.wing.publish(state => { state.me.connected = false; });
+    f.wing.publish(state => { state.connection = 'offline'; });
+    const failure = await authority.failed.then(() => null, error => error);
+    assert.match(failure.message, /connected member authority retired/);
+    assert.equal(failure.firstCastingRejectedState, undefined);
+    await assert.rejects(authority.check(), /connected member authority retired/);
+  } finally { await authority.close().catch(() => {}); }
+});
 
