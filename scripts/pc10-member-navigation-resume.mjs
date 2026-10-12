@@ -257,21 +257,23 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
       value.currentCanonicalSeatOwned === false && value.seatId == null && value.activeConsoleRoleId == null &&
       value.currentOwnPlayerConfirmed === true && value.currentMemberBerthPresent === true &&
       value.currentMemberBerthNull === false && value.currentMemberBerthMatches === true;
+    const connectedWitnessPending = current.currentOwnPlayerConfirmed === false && current.currentMemberBerthNull === false;
+    const berthWitnessPending = current.currentMemberBerthPresent === false && current.currentMemberBerthNull === false &&
+      current.currentMemberBerthMatches === false;
     const ordinaryResumeDtoGap = epochChanged && candidate && candidate.reply.connectedFieldPresent === false &&
       current.hasAuth === true && current.sameActor === true && current.uidHash === original.uidHash &&
       current.sessionId === original.sessionId && current.meSessionId === original.sessionId &&
       current.playerRole === 'player' && current.assignedRoleId === roleId && current.fleetGroupId === original.fleetGroupId &&
-      current.connected === true && current.currentOwnPlayerConfirmed === false &&
-      current.currentMemberBerthPresent === false && current.currentMemberBerthNull === false &&
-      current.currentMemberBerthMatches === false && current.kicked === false && current.escapeLocked === false &&
+      current.connected === true && (connectedWitnessPending || berthWitnessPending) && current.currentMemberBerthNull === false &&
+      current.kicked === false && current.escapeLocked === false &&
       current.replacementRoleId == null && current.replacementStatus == null && current.phase === 'casting' &&
       current.cycle === 0 && current.setupConfirmed === true && current.memberScopeMatches === true &&
       current.currentCanonicalSeatOwned === false && current.seatId == null && current.activeConsoleRoleId == null &&
       current.sdkHasServerAuthority === true;
-    // The ordinary SessionReply omits both the current-member connected bit
-    // and the separately published own-berth witness. Hold this exact captured
-    // +1 lease/hydration at readiness false until the current-member feed restores
-    // both fields; explicit false, null, mismatch, or any other transition fails.
+    // The ordinary SessionReply can omit either current-member witness while
+    // the App publishes its connected and berth feeds separately. Hold only
+    // this exact captured +1 lease/hydration at readiness false until both are
+    // current; explicit false, null, mismatch, or any other transition fails.
     if (ordinaryResumeDtoGap) return false;
     assert.ok(ready(current), 'Original casting assignment must reach fresh, current, unseated casting readiness.');
     if (candidate) assert.ok(stableMemberFields.every(key => candidate.reply.player[key] === current[observationField[key] ?? key]),

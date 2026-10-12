@@ -3462,7 +3462,9 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
           if (castingResumeNoticeError) throw castingResumeNoticeError;
           const castingReady = value => pc11MemberReadiness(value, { sessionId, uidHash: admittedAuth.uidHash,
             roleId: P181_NORMAL_SETUP.wingCommanderRoleId, stage: 'casting' }) &&
-            value.phase === 'casting' && value.cycle === 0 && value.sdkResumePending === false;
+            value.phase === 'casting' && value.cycle === 0 && value.sdkResumePending === false &&
+            value.currentMemberBerthPresent === true && value.currentMemberBerthNull === false &&
+            value.currentMemberBerthMatches === true;
           while (Date.now() < castingDeadlineAt) {
             const current = await waitForFullActor(wingCommander,
               'Original normal Wing Commander assignment readiness before station navigation', castingReady,

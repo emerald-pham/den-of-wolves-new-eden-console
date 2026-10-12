@@ -2370,6 +2370,39 @@ test('P181 casting observer holds when the current berth restores before connect
   }
 });
 
+test('P181 casting authority rejects a mismatched berth during the captured connected omission', async t => {
+  const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true, resumeBerthGap: true });
+  const authority = await castingAssignmentAuthorityFor(f);
+  const wait = await reconciledNativeWait(f.wing, 'full');
+  const ready = actualP181CastingReadyPredicate(f.before);
+  let transitioned = false;
+  f.wing.onResumeDtoApplied = async hydrated => {
+    assert.equal(hydrated.currentOwnPlayerConfirmed, false);
+    assert.equal(hydrated.currentMemberBerthPresent, false);
+    f.wing.publish(state => {
+      state.session.currentActorBerthAuthority = { sessionId: state.session.id, actorUid: state.me.uid,
+        groupId: state.me.fleetGroupId, role: 'player', connectionGeneration: state.me.connectionGeneration,
+        assignedRoleId: state.me.assignedRoleId, activeConsoleRoleId: null,
+        replacementRoleId: null, replacementStatus: null, shipId: 'foreign-ship' };
+    });
+    await assert.rejects(authority.check(), /berth (?:changed|identity)/i,
+      'A wrong present berth remains terminal even while connected is omitted.');
+  };
+  f.wing.onDigest = async () => {
+    if (transitioned) return;
+    transitioned = true;
+    await f.applyAssignmentAndResume();
+  };
+  try {
+    await assert.rejects(wait(f.wing, 'Casting assignment rejects a mismatched partial berth', ready,
+      Date.now() + 2_000, f.before, authority), /berth (?:changed|identity)/i);
+    assert.equal(transitioned, true);
+  } finally {
+    await authority.close().catch(() => {});
+    await f.observer.finish();
+  }
+});
+
 test('P181 casting assignment permits a same-epoch role receipt only with fully fresh unseated readiness', async t => {
   const f = await actualP181CastingAssignmentFixture(t, {
     resumeGeneration: 2, resumeHydration: 3, deliverResume: false,
