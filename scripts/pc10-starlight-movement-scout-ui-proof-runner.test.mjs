@@ -3116,7 +3116,11 @@ test('P181 ordinary false and pending authority observations remain holds withou
     f.wing.publish(state => { state.sdkResumePending = true; });
     const result = await authority.check();
     assert.equal(result.fresh, false);
-    assert.equal(await authority.failed.then(() => true, () => false), false,
+    const terminalDuringPendingHold = await Promise.race([
+      authority.failed.then(() => true, () => true),
+      new Promise(resolvePending => setTimeout(() => resolvePending(false), 25)),
+    ]);
+    assert.equal(terminalDuringPendingHold, false,
       'An ordinary non-fresh/pending state remains a hold and does not become a terminal witness.');
   } finally {
     await authority.close().catch(() => {});
