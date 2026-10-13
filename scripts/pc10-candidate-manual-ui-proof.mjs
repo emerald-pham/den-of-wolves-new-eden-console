@@ -746,6 +746,47 @@ export async function runRingEnding(context) {
   assert.equal((await crew.observe()).cycle, 4);
 }
 
+/** Qualify the captured paid O attempt through the existing private GM reader.
+ * Scan marks remain server-only; neither the driver nor a member enumerates them. */
+export async function readNebulaCandidateCalculation(context, tools, shipId, receipt) {
+  assert.equal(receipt.sessionId, context.initial.sessionId);
+  assert.equal(receipt.code, 'O'); assert.equal(receipt.action, 'nebula-jump');
+  assert.ok(typeof receipt.requestId === 'string' && receipt.requestId.length);
+  const gm = await tools.select('gm', { enter: false });
+  assert.equal(gm, context.gm, 'Use the original GM browser for its private calculation.');
+  const original = await gm.observe();
+  const requireGm = actor => {
+    assert.ok(actor.hasAuth && actor.sameActor && actor.gmInstanceOwned, 'Keep original live GM authority.');
+    assert.equal(actor.playerRole, 'gm');
+    assert.equal(actor.sessionId, context.initial.sessionId);
+    assert.equal(actor.uidHash, context.started.uidHash, 'Keep the original GM identity.');
+    assert.equal(actor.instanceId, context.started.instanceId, 'Keep the original GM instance.');
+    assert.equal(actor.connection, 'live'); assert.equal(actor.freshness, 'server');
+  };
+  requireGm(original);
+  const source = await tools.state(), groupId = source.shipFleetGroupIds[shipId];
+  assert.equal(source.sessionId, context.initial.sessionId);
+  assert.match(groupId, /^fleet-[1-9]\d*$/);
+  const workspace = await gm.page.evaluate(async expectedGroupId => {
+    const { readCandidateWorkspace } = await import('/src/lib/candidateService.ts');
+    return readCandidateWorkspace(expectedGroupId);
+  }, groupId);
+  const currentSource = await tools.state(), current = await gm.observe();
+  requireGm(current);
+  for (const key of ['documentTimeOrigin', 'sessionId', 'uidHash', 'instanceId', 'cycle', 'phase'])
+    assert.equal(current[key], original[key], 'Original GM calculation authority changed during the read.');
+  assert.equal(currentSource.sessionId, source.sessionId);
+  assert.equal(currentSource.shipFleetGroupIds[shipId], groupId, 'Original paid ship group changed.');
+  assert.equal(workspace.sessionId, source.sessionId); assert.equal(workspace.groupId, groupId);
+  const calculations = workspace.privateCalculations?.filter(audit =>
+    audit.requestId === receipt.requestId && audit.code === 'O') ?? [];
+  assert.equal(calculations.length, 1, 'The original paid Nebula receipt needs its exact private GM calculation.');
+  const audit = calculations[0];
+  assert.equal(audit.result, receipt.outcome, 'The private calculation must describe the captured paid result.');
+  assert.equal(audit.calculation.scouts, 8, 'The actual paid calculation must count eight qualifying scout marks.');
+  return { requestId: audit.requestId, count: audit.calculation.scouts };
+}
+
 /** One genuine paid loss, followed by physically entitled scans and source-paid safe attempts. */
 export async function runNebulaEnding(context) {
   const tools = candidateGameplayTools(context);
@@ -804,10 +845,6 @@ export async function runNebulaEnding(context) {
     await tools.scout('shepherd-scientist', 'endeavour', coordinate);
     await tools.scout('quellon-explorer', 'hummingbird', coordinate);
   }
-  const scans = await tools.read('gm', 'deepNebulaScans', { collection: true });
-  assert.equal(scans.length, 8, 'Eight real private server scan records must exist before safe attempts.');
-  await tools.record('private GM scan verification', { count: 8,
-    mechanism: 'entitled read-only browser Firestore SDK; no scan or die write' });
   for (const shipId of survivors) {
     const surface = await tools.select(candidateShipRole(context.roster, shipId, 'captain'));
     const candidate = surface.page.getByRole('region', { name: 'Candidate preparation and actions', exact: true });
@@ -815,6 +852,9 @@ export async function runNebulaEnding(context) {
     const result = await tools.receipt(surface, 'executeCandidateAction', () =>
       candidate.getByRole('button', { name: new RegExp(`^Long jump into Nebula \\/\\/ ${shipId} \\/\\/ \\d+ fuel$`) }).click());
     assert.equal(result.outcome, 'reached'); assert.ok(result.fuelSpent > 0);
+    const calculation = await readNebulaCandidateCalculation(context, tools, shipId, result);
+    await tools.record('private GM paid Nebula scout modifier verification', { shipId, ...calculation,
+      mechanism: 'original GM readCandidateWorkspace projection for the captured paid attempt; no scan or die write' });
     await tools.record('actual source-paid successful Nebula attempt', { shipId, fuelSpent: result.fuelSpent });
   }
   await tools.complete('O');
