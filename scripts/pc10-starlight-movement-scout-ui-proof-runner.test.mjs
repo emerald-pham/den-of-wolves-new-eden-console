@@ -6904,3 +6904,131 @@ test('P181 casting freshness handoff keeps pending prepared-observer cleanup fai
   assert.equal(result.discarded, 0);
   assert.equal(result.retries, 0);
 });
+// Exact generic-signature consumer controls. These execute the existing
+// observer and its original first-failure transport; no browser or SDK client.
+async function memberSignatureCaptureFixture(t, configure) {
+  const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true });
+  configure?.(f);
+  const authority = await castingAssignmentAuthorityFor(f);
+  authority.failed.catch(() => {});
+  t.after(async () => { await authority.close().catch(() => {}); });
+  return { f, authority };
+}
+
+test('P181 member-signature rejection captures the compared scope field and authority without a later read', async t => {
+  const { f, authority } = await memberSignatureCaptureFixture(t);
+  const reads = [];
+  f.wing.beforeModule = path => { reads.push(path); };
+  f.wing.publish(s => { s.session.memberSessionScope.vesselIds = ['different-controlled-vessel']; });
+  const error = await authority.failed.then(() => null, error => error);
+  assert.equal(error.message, 'Original P181 member epoch, phase or source custody authority retired.');
+  const witness = error.firstMemberSignatureRejectedState;
+  assert.ok(witness, 'The actual generic comparison must retain its first differing fields.');
+  assert.equal(witness.predicate, 'serializedMemberSignatureMatchesPinned');
+  assert.equal(witness.observationOrigin, 'delivered');
+  assert.ok(witness.differentFields.includes('scope'));
+  assert.equal(witness.expectedState.scope.valueKind, 'object');
+  assert.equal(witness.inspectedState.scope.valueKind, 'object');
+  assert.equal(witness.authority.identity.authMatchesOriginal, true);
+  assert.equal(witness.authority.identity.memberMatchesAuth, true);
+  assert.equal(witness.authority.identity.sessionMatchesOriginal, true);
+  assert.equal(witness.authority.epoch.connectionGeneration.value, f.before.connectionGeneration);
+  assert.equal(witness.authority.sdk.hasServerSessionAuthority, true);
+  assert.equal(witness.authority.sdk.resumePending, false);
+  assert.ok(originalProofError(error).heldObservationsInspect.includes('firstMemberSignatureRejectedState'));
+  assert.deepEqual(reads, [], 'Do not re-probe a Store/SDK/module after the rejected tuple.');
+});
+
+test('P181 member-signature rejection preserves the first capture across check pin close and later restoration', async t => {
+  const { f, authority } = await memberSignatureCaptureFixture(t);
+  f.wing.publish(s => { s.session.fullGameDemo = { enabled: true }; });
+  const firstError = await authority.failed.then(() => null, error => error);
+  assert.ok(firstError.firstMemberSignatureRejectedState);
+  const encoded = JSON.stringify(firstError.firstMemberSignatureRejectedState);
+  f.wing.publish(s => { s.session.fullGameDemo = null; });
+  for (const action of [() => authority.check(), () => authority.pin({ expected: f.before }), () => authority.close()]) {
+    await assert.rejects(action(), error => {
+      assert.equal(error.message, firstError.message);
+      assert.equal(JSON.stringify(error.firstMemberSignatureRejectedState), encoded);
+      return true;
+    });
+  }
+  assert.equal(f.wing.observers.stores.size, 0);
+  assert.equal(f.wing.observers.auth.size, 0);
+});
+
+test('P181 member-signature rejection records previous before a healthy delivered tuple', async t => {
+  const { f, authority } = await memberSignatureCaptureFixture(t);
+  const previous = structuredClone(f.wing.state);
+  previous.session.memberSessionScope.vesselIds = ['previous-controlled-change'];
+  for (const listener of [...f.wing.observers.stores]) listener(f.wing.state, previous);
+  const error = await authority.failed.then(() => null, error => error);
+  assert.ok(error.firstMemberSignatureRejectedState);
+  assert.equal(error.firstMemberSignatureRejectedState.observationOrigin, 'previous');
+  assert.ok(error.firstMemberSignatureRejectedState.differentFields.includes('scope'));
+});
+
+test('P181 member-signature rejection redacts identifiers unknown keys tokens and nested private payloads', async t => {
+  const secret = 'PRIVATE-BEARER-CREDENTIAL-SENTINEL';
+  const { f, authority } = await memberSignatureCaptureFixture(t, f => {
+    f.wing.state.session.memberSessionScope[secret] = { email: 'private@example.invalid', accessToken: secret };
+    f.wing.state.session.fullGameDemo = { profiles: [{ uid: f.wing.uid, token: secret }] };
+  });
+  f.wing.publish(s => { s.session.memberSessionScope[secret].accessToken += '-changed'; });
+  const error = await authority.failed.then(() => null, error => error);
+  const witness = error.firstMemberSignatureRejectedState;
+  assert.ok(witness);
+  const encoded = JSON.stringify(witness);
+  for (const hidden of [secret, 'private@example.invalid', f.wing.uid, f.before.sessionId])
+    assert.equal(encoded.includes(hidden), false, 'Only fixed-schema summaries/match flags may leave the browser.');
+  assert.ok(encoded.length < 9_000, 'Capture is bounded to the known signature fields and sanitized authority.');
+  assert.equal(witness.authority.identity.authMatchesOriginal, true);
+});
+
+test('P181 member-signature rejection distinguishes first valid canonical berth publication from proven identity loss', async t => {
+  let berth;
+  const { f, authority } = await memberSignatureCaptureFixture(t, f => {
+    berth = structuredClone(f.wing.state.session.currentActorBerthAuthority);
+    delete f.wing.state.session.currentActorBerthAuthority;
+  });
+  f.wing.publish(s => {
+    s.session.phase = 'casting'; s.me.assignedRoleId = 'wing-commander';
+    s.session.currentActorBerthAuthority = { ...berth, assignedRoleId: 'wing-commander' };
+  });
+  const error = await authority.failed.then(() => null, error => error);
+  assert.equal(error.message, 'Original P181 member epoch, phase or source custody authority retired.');
+  const witness = error.firstMemberSignatureRejectedState;
+  assert.ok(witness, 'Existing freeze of the broader berth signature needs its exact discriminating capture.');
+  assert.ok(witness.differentFields.includes('berth'));
+  assert.equal(witness.expectedState.berth.present, false);
+  assert.equal(witness.inspectedState.berth.present, true);
+  assert.equal(witness.inspectedState.berth.actorMatchesOriginal, true);
+  assert.equal(witness.authority.identity.authMatchesOriginal, true);
+  assert.equal(witness.authority.identity.memberMatchesAuth, true);
+  assert.equal(witness.authority.epoch.connectionGeneration.value, f.before.connectionGeneration);
+});
+
+test('P181 member-signature rejection leaves the declared phase and role assignment normalization accepted', async t => {
+  const { f, authority } = await memberSignatureCaptureFixture(t);
+  f.wing.publish(s => {
+    s.session.phase = 'casting'; s.me.assignedRoleId = 'wing-commander';
+    s.session.currentActorBerthAuthority.assignedRoleId = 'wing-commander';
+  });
+  assert.equal((await authority.check()).fresh, true);
+  assert.equal(f.wing.choices.length, 0, 'Readiness observation itself grants no gameplay action.');
+});
+
+for (const [label, retire] of [
+  ['identity', s => { s.me.uid = 'different-private-actor'; }],
+  ['epoch', s => { s.me.connectionGeneration += 3; }],
+  ['lease', s => { s.me.connected = false; }],
+]) test(`P181 member-signature rejection cannot replace earlier ${label} retirement`, async t => {
+  const { f, authority } = await memberSignatureCaptureFixture(t);
+  f.wing.publish(retire);
+  f.wing.publish(s => { s.session.memberSessionScope.vesselIds = ['later-signature-change']; });
+  const error = await authority.failed.then(() => null, error => error);
+  assert.equal(error.firstMemberSignatureRejectedState, undefined);
+  assert.notEqual(error.message, 'Original P181 member epoch, phase or source custody authority retired.');
+  await assert.rejects(authority.check(), e => e.message === error.message);
+  assert.equal(f.wing.choices.length, 0);
+});
