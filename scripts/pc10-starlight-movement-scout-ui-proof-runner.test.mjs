@@ -3100,9 +3100,27 @@ for (const [label, reject] of expandedRetainerRejections) {
       assert.equal(typeof witness.predicate, 'string');
       assert.ok(['lobby', 'casting', 'briefing', 'active', 'paused', 'debrief', 'closed', null]
         .includes(witness.phase));
+      assert.ok(witness.firstPinContext,
+        'Retain the first already-inspected pin, including its original source phase.');
+      assert.equal(witness.firstPinContext.observed.authMatchesOriginal, true);
+      assert.equal(witness.firstPinContext.observed.phase, 'lobby');
+      assert.equal(witness.firstPinContext.observed.cycle, 0);
       const encoded = JSON.stringify(witness);
       for (const privateKey of ['"uid"', '"sessionId"', '"fleetGroupId"', '"shipId"'])
         assert.equal(encoded.includes(privateKey), false, `The bounded witness must not export ${privateKey}.`);
+      if (label === 'Auth identity') {
+        assert.equal(witness.observed.authMatchesOriginal, false,
+          'The callback tuple identifies the first Auth mismatch without reading the Store again.');
+        const serialized = originalProofError(error);
+        assert.ok(serialized.fullInspect.includes('firstP181AuthorityRejectedState'));
+        assert.ok(serialized.heldObservationsInspect.includes('firstP181AuthorityRejectedState'),
+          'The generic witness must cross the native primary-failure serializer.');
+        const evidence = await retainProofFailure(f.directory, 'first-authority-witness', error);
+        assert.equal(evidence.evidenceWriteFailed, false);
+        const record = JSON.parse(await readFile(evidence.path, 'utf8'));
+        assert.equal(record.originalError.message, error.message);
+        assert.ok(record.originalError.fullInspect.includes('firstP181AuthorityRejectedState'));
+      }
     } finally {
       await authority.close().catch(() => {});
       await f.observer.finish();
@@ -3145,13 +3163,17 @@ test('P181 actual ordinary-navigation observer preserves the first receipt rejec
     'The original missing-receipt rejection remains unchanged.');
   assert.ok(error?.firstP181AuthorityRejectedState,
     'The actual station-navigation consumer must retain its first terminal receipt witness.');
+  assert.equal(error.firstP181AuthorityRejectedState.boundary, 'normal-navigation.accept');
+  assert.equal(error.firstP181AuthorityRejectedState.firstPin.sessionMatchesExpected, true);
 });
 
 test('P181 actual full-actor caller preserves its first terminal assertion witness', async () => {
   const valid = actualP181ReadinessConsumer('full', false).member;
   const rejected = { ...valid, hasAuth: false };
   const consumer = actualP181ReadinessConsumer('full', false, { memberReads: [rejected] });
-  await assert.rejects(consumer.execute(), error => Boolean(error.firstP181AuthorityRejectedState),
+  await assert.rejects(consumer.execute(), error => Boolean(error.firstP181AuthorityRejectedState &&
+    error.firstP181AuthorityRejectedState.observed.hasAuth === false &&
+    error.firstP181AuthorityRejectedState.sourceRead === 'held-only'),
     'The existing caller-side Auth assertion must serialize its held tuple without a new read.');
 });
 
@@ -3159,7 +3181,9 @@ test('P181 actual GM caller preserves authority loss across the awaited recovery
   const valid = actualP181ReadinessConsumer('gm', false).member;
   const rejected = { ...valid, playerRole: 'player' };
   const consumer = actualP181ReadinessConsumer('gm', false, { memberReads: [valid, rejected] });
-  await assert.rejects(consumer.execute(), error => Boolean(error.firstP181AuthorityRejectedState),
+  await assert.rejects(consumer.execute(), error => Boolean(error.firstP181AuthorityRejectedState &&
+    error.firstP181AuthorityRejectedState.observed.roleMatchesExpected === false &&
+    error.firstP181AuthorityRejectedState.context.recoveryFlagObserved),
     'The post-recovery reread must retain the first terminal role witness without re-probing.');
 });
 
