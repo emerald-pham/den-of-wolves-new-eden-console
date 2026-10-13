@@ -73,6 +73,15 @@ canonical parent for requested checkpoints, blockers, approval needs and materia
 changes; ordinary commentary does not replace those messages. Do not create
 coordinator goals.
 
+When returning an ownership acknowledgement, reconcile the actual state of
+child turns and preserve their completed work and next action. If yielding the
+owner turn interrupted a worker, a later source-work resume must explicitly
+restart that interrupted worker with its existing bounded assignment. Updating
+the parent status or messaging an interrupted worker does not restart it.
+Confirm that the resumed turn is running and report its first completed
+remaining check before treating the dependency as cleared; do not rerun a
+completed check or invent a live process from missing bookkeeping.
+
 When an in-progress checkpoint has a delegated owner, preserve its active work
 and obtain one concise handback at a safe boundary. Return checkpoint and release
 ownership to the orchestrator; turn any continuing implementation into a bounded
