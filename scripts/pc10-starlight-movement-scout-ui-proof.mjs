@@ -127,6 +127,7 @@ const identifier = value => typeof value === 'string' && /^[\w-]{1,128}$/.test(v
 const p181NativePassedPreflight = new WeakSet();
 const p181PreBrowserFailureContexts = new WeakMap();
 const p181BrowserAcquisitionStarted = new WeakSet();
+const p181OwnerStopScopes = new WeakMap();
 const uidHash = value => createHash('sha256').update(String(value ?? '')).digest('hex').slice(0, 16);
 const fingerprint = value => createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex');
 const safeP181Error = error => {
@@ -176,6 +177,65 @@ async function p181BoundedWork(label, operation, deadlineAt, hold = () => {}, ma
     rememberProofFailure(error, { operation: label, deadlineAt, delivered });
     throw error;
   } finally { clearTimeout(timer); }
+}
+
+/** The original parent's pipe can only stop operations; it grants no authority. */
+function createP181OwnerStopObserver(input, binding) {
+  assert.ok(input && typeof input.on === 'function' && typeof input.off === 'function' &&
+    typeof input.resume === 'function' && input.isTTY !== true,
+  'The original owner stop channel must be available before native operations.');
+  let firstError, buffered = '', closed = false;
+  let observation = { status: 'owner-channel-open', grantsActionAuthority: false };
+  let rejectFailure;
+  const failed = new Promise((_resolve, reject) => { rejectFailure = reject; });
+  failed.catch(() => {});
+  const fail = (status, reason, request) => {
+    if (closed || firstError) return;
+    observation = { status, transportEvent: reason, observedAtMs: Date.now(), grantsActionAuthority: false,
+      ...(request ? { requestedAtMs: request.requestedAtMs, reasonSha256: request.reasonSha256,
+        runtimeLaunchRecordSha256: request.runtimeLaunchRecordSha256 } : {}) };
+    firstError = new Error(status === 'received-owner-stop'
+      ? 'Original P181 owner stopped native operations.' : 'Original P181 owner operation-stop channel failed.');
+    firstError.ownerOperationStop = observation;
+    rememberProofFailure(firstError, { ownerOperationStop: observation });
+    rejectFailure(firstError);
+  };
+  const data = chunk => {
+    if (closed || firstError) return;
+    try {
+      buffered += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+      if (buffered.length > 8192) throw new Error('oversized');
+      if (!buffered.includes('\n')) return;
+      const lines = buffered.split('\n');
+      assert.equal(lines.length, 2); assert.equal(lines[1], '');
+      const request = JSON.parse(lines[0]);
+      const expectedKeys = ['schemaVersion', 'kind', ...Object.keys(binding), 'requestedAtMs', 'reasonSha256'];
+      assert.ok(request && typeof request === 'object' && !Array.isArray(request));
+      assert.deepEqual(Object.keys(request).sort(), expectedKeys.sort());
+      assert.equal(request.schemaVersion, 1); assert.equal(request.kind, 'P181_OWNER_OPERATION_STOP');
+      for (const [key, value] of Object.entries(binding)) assert.equal(request[key], value);
+      assert.ok(Number.isSafeInteger(request.requestedAtMs) && request.requestedAtMs >= binding.allocationStartedAtMs &&
+        request.requestedAtMs <= Date.now() && Date.now() < binding.allocationDeadlineAt);
+      assert.match(request.reasonSha256, /^[a-f0-9]{64}$/);
+      fail('received-owner-stop', 'bound-original-pipe-request', request);
+    } catch {
+      fail('owner-channel-failed', 'invalid-original-pipe-request');
+    }
+  };
+  const end = () => fail('owner-channel-failed', 'original-pipe-ended');
+  const error = () => fail('owner-channel-failed', 'original-pipe-error');
+  input.on('data', data); input.on('end', end); input.on('close', end); input.on('error', error);
+  if (input.readableEnded || input.destroyed) end();
+  input.resume();
+  return {
+    failed, check() { if (firstError) throw firstError; },
+    observation: () => observation,
+    close() {
+      if (closed) return; closed = true;
+      input.off('data', data); input.off('end', end); input.off('close', end); input.off('error', error);
+      input.pause?.(); input.destroy?.();
+    },
+  };
 }
 
 function p181ActorReady(current, expected) {
@@ -2810,6 +2870,9 @@ export async function runP181StarlightMovementScoutNative(options = {}) {
       } catch (phaseError) { rememberProofFailure(error, { preBrowserPhaseRetentionError: phaseError }); }
     }
     throw error;
+  } finally {
+    p181OwnerStopScopes.get(options)?.close();
+    p181OwnerStopScopes.delete(options);
   }
 }
 
@@ -2874,6 +2937,10 @@ async function p181RunStarlightMovementScoutNative(options) {
   p181PreBrowserFailureContexts.set(options, { directory, sourceRoot, sourceCommit, projectId,
     allocationStartedAtMs: startAt, allocationDeadlineAt: totalEnd, cleanupDeadlineAt,
     runtimeLaunchRecordSha256: createHash('sha256').update(launchRecordText).digest('hex') });
+  const ownerStop = createP181OwnerStopObserver(process.stdin, { sourceRoot, sourceCommit, projectId,
+    allocationStartedAtMs: startAt, allocationDeadlineAt: totalEnd,
+    runtimeLaunchRecordSha256: createHash('sha256').update(launchRecordText).digest('hex') });
+  p181OwnerStopScopes.set(options, ownerStop);
 
   await preflight('Create original private native evidence directory', () => mkdir(directory, { recursive: true, mode: 0o700 }));
   const sourceContractPreflight = runPc11ContractPreflight(sourceRoot);
@@ -2950,18 +3017,27 @@ async function p181RunStarlightMovementScoutNative(options) {
   let privateFailureArtifact = null;
   const cleanupFailures = [];
   const trace = [];
+  let normalOperationsStopped = false;
   const operationDeadline = () => Math.min(proofStopAt, Date.now() + P181_NATIVE_TIMING.operationTimeoutMs);
-  const bounded = async (label, operation, deadlineAt = cleanupDeadlineAt, hold = () => {}) => {
+  const bounded = async (label, operation, deadlineAt = cleanupDeadlineAt, hold = () => {}, finalizationOnly = false) => {
     const budget = deadlineAt - Date.now();
     assert.ok(budget > 0, `${label}: original finite P181 deadline expired.`);
     let timer, delivered;
     try {
+      if (!finalizationOnly) {
+        ownerStop.check();
+        assert.equal(normalOperationsStopped, false, 'Original P181 native operations have entered finalization.');
+      }
       const result = await Promise.race([Promise.resolve().then(() => {
         assert.ok(Date.now() < deadlineAt, `${label}: original finite P181 deadline expired.`);
+        if (!finalizationOnly) {
+          ownerStop.check();
+          assert.equal(normalOperationsStopped, false, 'Original P181 native operations have entered finalization.');
+        }
         return operation();
       }).then(value => { delivered = value; hold(value); return value; }), new Promise((_, reject) => {
         timer = setTimeout(() => reject(new Error(`${label}: original finite P181 deadline expired.`)), budget);
-      })]);
+      }), ...(finalizationOnly ? [] : [ownerStop.failed])]);
       assert.ok(Date.now() < deadlineAt, `${label}: result arrived after the original finite P181 deadline.`);
       return result;
     } catch (error) {
@@ -2969,6 +3045,7 @@ async function p181RunStarlightMovementScoutNative(options) {
       throw error;
     } finally { clearTimeout(timer); }
   };
+  const finalizationBounded = (label, operation, deadlineAt, hold) => bounded(label, operation, deadlineAt, hold, true);
   let adminRequire, db, authAdmin, adminApp, factory;
   const normalPreparationDiagnostic = { activeAwaitedOperation: null };
   const retainFirstFailure = async (error, { deadlineAt = cleanupDeadlineAt } = {}) => {
@@ -2979,12 +3056,12 @@ async function p181RunStarlightMovementScoutNative(options) {
         typeof wingCommander?.page?.screenshot === 'function') {
       const diagnosticDeadlineAt = Math.min(deadlineAt, cleanupDeadlineAt, Date.now() + 5_000);
       try {
-        const screenshot = await bounded('Capture original Wing Commander station readiness screenshot',
+        const screenshot = await finalizationBounded('Capture original Wing Commander station readiness screenshot',
           () => wingCommander.page.screenshot({
             timeout: Math.max(1, Math.min(5_000, diagnosticDeadlineAt - Date.now())),
           }), diagnosticDeadlineAt);
         const path = resolve(directory, 'p181-normal-preparation-failure.png');
-        await bounded('Save original Wing Commander station readiness screenshot',
+        await finalizationBounded('Save original Wing Commander station readiness screenshot',
           () => writeFile(path, screenshot, { flag: 'wx', mode: 0o600 }), diagnosticDeadlineAt);
         normalPreparation.screenshot = { path, sha256: createHash('sha256').update(screenshot).digest('hex') };
       } catch (screenshotError) {
@@ -2998,7 +3075,7 @@ async function p181RunStarlightMovementScoutNative(options) {
       heldReceipts: trace, heldRemoteRequests: remoteRequests, heldPageErrors: pageErrors,
       heldOriginalCreate: { ...originalCreate }, normalPreparationDiagnostic: normalPreparation });
     try {
-      privateFailureArtifact = await bounded('Retain original native failure before owned teardown',
+      privateFailureArtifact = await finalizationBounded('Retain original native failure before owned teardown',
         () => retainProofFailure(directory, 'p181-native-primary', error, {
           sourceCommit, sourceBindingsBefore, receipts: trace, remoteRequests, pageErrors,
           heldOriginalCreate: { ...originalCreate }, normalPreparationDiagnostic: normalPreparation,
@@ -3011,8 +3088,8 @@ async function p181RunStarlightMovementScoutNative(options) {
   };
   const previousFirestoreEmulatorHost = process.env.FIRESTORE_EMULATOR_HOST;
   const previousAuthEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST;
-  async function awaitOriginalIdentityCaptures(deadlineAt) {
-    const results = await bounded('Original admission Auth ownership capture',
+  async function awaitOriginalIdentityCaptures(deadlineAt, finalizing = false) {
+    const results = await (finalizing ? finalizationBounded : bounded)('Original admission Auth ownership capture',
       () => Promise.all(pendingOriginalIdentities), deadlineAt);
     const failed = results.find(value => value?.error);
     if (failed) throw failed.error;
@@ -3020,6 +3097,8 @@ async function p181RunStarlightMovementScoutNative(options) {
   }
   const cleanupOwnedResources = async ({ firstError: _firstError, deadlineAt }) => {
     if (cleanupPromise) return cleanupPromise;
+    normalOperationsStopped = true;
+    ownerStop.close();
     cleanupPromise = (async () => {
       // The unchanged receipt/recovery helpers receive this owner's original
       // finite read/transaction fence. A late get cannot continue into deletion.
@@ -3027,7 +3106,7 @@ async function p181RunStarlightMovementScoutNative(options) {
         const originals = new WeakMap();
         const wrap = ref => {
           const guarded = new Proxy(ref, { get(target, key) {
-            if (key === 'get') return () => bounded('Read exact owned cleanup record', () => target.get(), end);
+            if (key === 'get') return () => finalizationBounded('Read exact owned cleanup record', () => target.get(), end);
             const value = Reflect.get(target, key);
             return typeof value === 'function' ? value.bind(target) : value;
           } });
@@ -3035,9 +3114,9 @@ async function p181RunStarlightMovementScoutNative(options) {
         };
         return new Proxy(db, { get(target, key) {
           if (key === 'doc') return path => wrap(target.doc(path));
-          if (key === 'runTransaction') return callback => bounded('Exact owned cleanup transaction', () =>
+          if (key === 'runTransaction') return callback => finalizationBounded('Exact owned cleanup transaction', () =>
             target.runTransaction(tx => callback({
-              get: ref => bounded('Read exact owned cleanup transaction record', () => tx.get(originals.get(ref) ?? ref), end),
+              get: ref => finalizationBounded('Read exact owned cleanup transaction record', () => tx.get(originals.get(ref) ?? ref), end),
               delete: ref => {
                 assert.ok(Date.now() < end, 'Original owned cleanup transaction deadline expired.');
                 tx.delete(originals.get(ref) ?? ref);
@@ -3052,7 +3131,7 @@ async function p181RunStarlightMovementScoutNative(options) {
         errors: [] };
       const step = async (name, action) => {
         const end = Math.min(deadlineAt, Date.now() + 60_000);
-        try { return await bounded(`P181 cleanup ${name}`, () => action(end), end); }
+        try { return await finalizationBounded(`P181 cleanup ${name}`, () => action(end), end); }
         catch (error) {
           cleanupFailures.push({ step: name, error });
           if (_firstError) rememberProofFailure(_firstError, { secondaryCleanupFailure: { step: name, error } });
@@ -3066,7 +3145,7 @@ async function p181RunStarlightMovementScoutNative(options) {
         admiralAdmissionTracker?.finish();
       });
       await step('settle original Auth admission ownership observers', async end => {
-        await awaitOriginalIdentityCaptures(end);
+        await awaitOriginalIdentityCaptures(end, true);
       });
       if (factory?.pendingAcquisitions?.size) await step('settle original browser acquisitions within the fixed cleanup reserve', () =>
         Promise.allSettled([...factory.pendingAcquisitions]));
@@ -3223,6 +3302,7 @@ async function p181RunStarlightMovementScoutNative(options) {
     return cleanupPromise;
   };
   try {
+    ownerStop.check();
     adminRequire = createRequire(resolve(sourceRoot, 'functions/package.json'));
     const { initializeApp, getApps } = adminRequire('firebase-admin/app');
     const { getFirestore } = adminRequire('firebase-admin/firestore');
@@ -3258,7 +3338,7 @@ async function p181RunStarlightMovementScoutNative(options) {
     rememberProofFailure(error, { primaryFailureStage: 'P181 provider initialization',
       sourceCommit, sourceBindingsBefore: sourceBindingsBefore?.sourceFiles ?? null });
     try {
-      await bounded('Retain original provider failure privately', () => retainProofFailure(directory, 'p181-provider-initialization', error, {
+      await finalizationBounded('Retain original provider failure privately', () => retainProofFailure(directory, 'p181-provider-initialization', error, {
         sourceCommit, sourceBindingsBefore: sourceBindingsBefore?.sourceFiles ?? null, cleanup: cleanupResult,
       }), Math.min(cleanupDeadlineAt, Date.now() + 60_000));
     } catch (retentionError) {
@@ -4148,7 +4228,7 @@ async function p181RunStarlightMovementScoutNative(options) {
     assert.equal(pageErrors.length, 0, 'Do not accept a native scenario with mounted App errors.');
     assert.equal(surfaces.length, nativeActorCount);
     assert.equal(browsers.length, nativeActorCount);
-    const sourceBindingsAfter = await bounded('Recheck original complete source manifest', () => captureP181SourceBindings(sourceRoot), operationDeadline());
+    const sourceBindingsAfter = await finalizationBounded('Recheck original complete source manifest', () => captureP181SourceBindings(sourceRoot), operationDeadline());
     assert.deepEqual(sourceBindingsAfter, sourceBindingsBefore,
       'Preserve the exact committed source and complete Functions build manifest throughout the normal UI run.');
   } catch (error) {
@@ -4158,6 +4238,8 @@ async function p181RunStarlightMovementScoutNative(options) {
       heldReceipts: trace, heldRemoteRequests: remoteRequests, heldPageErrors: pageErrors,
       heldOriginalCreate: { ...originalCreate } });
   } finally {
+    normalOperationsStopped = true;
+    ownerStop.close();
     if (firstError) await retainFirstFailure(firstError);
     if (!cleanupPromise) {
       try { cleanupResult = await cleanupOwnedResources({ firstError,
@@ -4194,7 +4276,7 @@ async function p181RunStarlightMovementScoutNative(options) {
       try {
         // The pre-teardown primary remains immutable. Only bookkeeping can
         // use the residual parent budget after the owned cleanup cutoff.
-        privateCleanupArtifact = await bounded('Retain original native cleanup qualification privately', () => retainProofFailure(directory, 'p181-native-cleanup', firstError, {
+        privateCleanupArtifact = await finalizationBounded('Retain original native cleanup qualification privately', () => retainProofFailure(directory, 'p181-native-cleanup', firstError, {
           sourceCommit, sourceBindingsBefore, receipts: trace, remoteRequests, pageErrors,
           cleanup: cleanupResult, cleanupFailures,
         }), Math.min(totalEnd, Date.now() + 60_000));
@@ -4220,6 +4302,7 @@ async function p181RunStarlightMovementScoutNative(options) {
       actualBrowserProcesses: browsers.length,
       actualBrowserContexts: surfaces.length,
       actualAuthActors: ownedAuthUids.size,
+      ownerOperationStop: ownerStop.observation(),
       actorUidHashes: Object.fromEntries([...ownedAuthUids].map(([label, uid]) => [label, hashShort(uid)])),
       remoteRequests,
       pageErrors,
@@ -4254,7 +4337,7 @@ async function p181RunStarlightMovementScoutNative(options) {
       finalOutcome.firstError = safeP181Error(firstError);
     }
     try {
-      await bounded('Write original safe native outcome', () => writeFile(resolve(directory, 'p181-starlight-movement-scout.json'),
+      await finalizationBounded('Write original safe native outcome', () => writeFile(resolve(directory, 'p181-starlight-movement-scout.json'),
         `${JSON.stringify(finalOutcome, null, 2)}\n`, { mode: 0o600, flag: 'wx' }), Math.min(totalEnd, Date.now() + 60_000));
     } catch (error) {
       if (!firstError) {
@@ -4262,7 +4345,7 @@ async function p181RunStarlightMovementScoutNative(options) {
         rememberProofFailure(firstError, { primaryFailureStage: 'P181 public final output write',
           sourceCommit, heldReceipts: trace, cleanup: cleanupResult });
         try {
-          await bounded('Retain original output failure privately', () => retainProofFailure(directory, 'p181-final-output', firstError,
+          await finalizationBounded('Retain original output failure privately', () => retainProofFailure(directory, 'p181-final-output', firstError,
             { sourceCommit, receipts: trace, cleanup: cleanupResult }), Math.min(totalEnd, Date.now() + 60_000));
         } catch (retentionError) {
           rememberProofFailure(firstError, { nativeFailureRetentionError: retentionError });
