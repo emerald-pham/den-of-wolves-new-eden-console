@@ -337,7 +337,7 @@ async function nebulaPermittedCalculationFixture({ incomplete = false, change } 
     const source = await readFile(new URL(`../${file}`, import.meta.url), 'utf8'), module = { exports: {} };
     runInNewContext(ts.transpileModule(source, { compilerOptions: {
       module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
-    } }).outputText, { module, exports: module.exports, window: { navigator: { onLine: true } },
+    } }).outputText, { module, exports: module.exports, structuredClone, window: { navigator: { onLine: true } },
       require: name => { assert.ok(Object.hasOwn(dependencies, name), `Only declared inert ports: ${name}`); return dependencies[name]; } });
     return module.exports;
   };
