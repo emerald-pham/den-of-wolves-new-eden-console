@@ -1299,75 +1299,87 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       }
       const signature = JSON.stringify(member);
       if (held.signature !== null && signature !== held.signature) {
-        // Capture only the exact two compared signatures and the authority
-        // tuple already inspected. Never re-read a provider after rejection.
-        // The broad signature can change without proving identity/lease loss.
         const pinned = JSON.parse(held.signature), inspected = JSON.parse(signature);
         const fields = ['uid', 'document', 'sessionId', 'memberUid', 'memberSession', 'role', 'group',
           'phase', 'cycle', 'fullGameDemo', 'assigned', 'active', 'seat', 'scope', 'berth', 'ownSeat',
           'instance', 'custody', 'docking', 'generation', 'hydration'];
-        const field = (object, name) => {
-          const value = object?.[name];
-          // A null normalized berth supplies no berth authority. Retain the
-          // serialized-field flag separately so null and omission stay distinct.
-          return { present: Object.hasOwn(object ?? {}, name) && value != null,
-            serializedFieldPresent: Object.hasOwn(object ?? {}, name),
-            valueKind: value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value };
-        };
-        const numeric = (object, name) => ({ ...field(object, name),
-          value: Number.isFinite(object?.[name]) ? object[name] : null });
-        const roles = ['player', 'gm', 'press', 'admiral', 'wing-commander', 'icebreaker-miner',
-          'shepherd-scientist', 'quellon-explorer', 'refinery-124-pdf-colonel',
-          'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker'];
-        const summarize = (object, name) => {
-          const value = object[name], summary = field(object, name);
-          if (['document', 'cycle', 'generation', 'hydration'].includes(name)) return numeric(object, name);
-          if (['uid', 'memberUid'].includes(name)) summary.matchesOriginal = value === held.rawUid;
-          if (['sessionId', 'memberSession'].includes(name))
-            summary.matchesOriginal = value === held.options.expected?.sessionId;
-          if (name === 'group') summary.matchesOriginal = value === pinned.group;
-          if (['role', 'assigned', 'active', 'seat'].includes(name))
-            summary.value = value === null || roles.includes(value) ? value : null;
-          if (name === 'phase') summary.value = ['lobby', 'casting', 'active', 'paused', 'ended'].includes(value) ? value : null;
-          if (Array.isArray(value)) summary.itemCount = value.length;
-          if (value && typeof value === 'object' && !Array.isArray(value)) {
-            if (name === 'scope') {
-              summary.groupMatchesOriginal = value.groupId === pinned.group;
-              summary.vesselCount = Array.isArray(value.vesselIds) ? value.vesselIds.length : null;
+        const differentFields = fields.filter(name => JSON.stringify(pinned[name]) !== JSON.stringify(inspected[name]));
+        const firstCastingBerthBinding = castingAssignment && differentFields.length === 1 &&
+          differentFields[0] === 'berth' && pinned.berth === null && inspected.berth !== null &&
+          held.castingBerthSeen && held.castingBerthBinding !== null &&
+          JSON.stringify(inspected.berth) === JSON.stringify(held.castingBerthBinding);
+        if (firstCastingBerthBinding) {
+          // Casting validation above has bound this exact current berth to the
+          // original actor/session/group. Ratchet only that pinned field once;
+          // every other serialized field remains compared to its original pin.
+          held.signature = JSON.stringify({ ...pinned, berth: inspected.berth });
+        } else {
+          // Capture only the exact two compared signatures and the authority
+          // tuple already inspected. Never re-read a provider after rejection.
+          // The broad signature can change without proving identity/lease loss.
+          const field = (object, name) => {
+            const value = object?.[name];
+            // A null normalized berth supplies no berth authority. Retain the
+            // serialized-field flag separately so null and omission stay distinct.
+            return { present: Object.hasOwn(object ?? {}, name) && value != null,
+              serializedFieldPresent: Object.hasOwn(object ?? {}, name),
+              valueKind: value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value };
+          };
+          const numeric = (object, name) => ({ ...field(object, name),
+            value: Number.isFinite(object?.[name]) ? object[name] : null });
+          const roles = ['player', 'gm', 'press', 'admiral', 'wing-commander', 'icebreaker-miner',
+            'shepherd-scientist', 'quellon-explorer', 'refinery-124-pdf-colonel',
+            'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker'];
+          const summarize = (object, name) => {
+            const value = object[name], summary = field(object, name);
+            if (['document', 'cycle', 'generation', 'hydration'].includes(name)) return numeric(object, name);
+            if (['uid', 'memberUid'].includes(name)) summary.matchesOriginal = value === held.rawUid;
+            if (['sessionId', 'memberSession'].includes(name))
+              summary.matchesOriginal = value === held.options.expected?.sessionId;
+            if (name === 'group') summary.matchesOriginal = value === pinned.group;
+            if (['role', 'assigned', 'active', 'seat'].includes(name))
+              summary.value = value === null || roles.includes(value) ? value : null;
+            if (name === 'phase') summary.value = ['lobby', 'casting', 'active', 'paused', 'ended'].includes(value) ? value : null;
+            if (Array.isArray(value)) summary.itemCount = value.length;
+            if (value && typeof value === 'object' && !Array.isArray(value)) {
+              if (name === 'scope') {
+                summary.groupMatchesOriginal = value.groupId === pinned.group;
+                summary.vesselCount = Array.isArray(value.vesselIds) ? value.vesselIds.length : null;
+              }
+              if (name === 'berth') {
+                summary.actorMatchesOriginal = value.actorUid === held.rawUid;
+                summary.sessionMatchesOriginal = value.sessionId === held.options.expected?.sessionId;
+                summary.groupMatchesOriginal = value.groupId === pinned.group;
+                summary.playerRole = value.role === 'player';
+                summary.shipPresent = typeof value.shipId === 'string' && value.shipId.length > 0;
+              }
+              if (name === 'instance') {
+                summary.actorMatchesOriginal = value.uid === held.rawUid;
+                summary.sessionMatchesOriginal = value.sessionId === held.options.expected?.sessionId;
+              }
             }
-            if (name === 'berth') {
-              summary.actorMatchesOriginal = value.actorUid === held.rawUid;
-              summary.sessionMatchesOriginal = value.sessionId === held.options.expected?.sessionId;
-              summary.groupMatchesOriginal = value.groupId === pinned.group;
-              summary.playerRole = value.role === 'player';
-              summary.shipPresent = typeof value.shipId === 'string' && value.shipId.length > 0;
-            }
-            if (name === 'instance') {
-              summary.actorMatchesOriginal = value.uid === held.rawUid;
-              summary.sessionMatchesOriginal = value.sessionId === held.options.expected?.sessionId;
-            }
-          }
-          return summary;
-        };
-        const error = new Error('Original P181 member epoch, phase or source custody authority retired.');
-        error.firstMemberSignatureRejectedState = {
-          schemaVersion: 1, predicate: 'serializedMemberSignatureMatchesPinned', observationOrigin,
-          observedAtMs: Date.now(), mode: ['casting-assignment', 'startup', 'navigation'].includes(held.options.mode)
-            ? held.options.mode : 'member',
-          differentFields: fields.filter(name => JSON.stringify(pinned[name]) !== JSON.stringify(inspected[name])),
-          expectedState: Object.fromEntries(fields.map(name => [name, summarize(pinned, name)])),
-          inspectedState: Object.fromEntries(fields.map(name => [name, summarize(inspected, name)])),
-          authority: {
-            identity: { authMatchesOriginal: user.uid === held.rawUid, memberMatchesAuth: me.uid === user.uid,
-              sessionMatchesOriginal: session.id === held.options.expected?.sessionId,
-              memberSessionMatchesSession: me.sessionId === session.id, groupMatchesPinned: me.fleetGroupId === pinned.group },
-            epoch: { connectionGeneration: numeric(me, 'connectionGeneration'),
-              identityHydrationRevision: numeric(state, 'identityHydrationRevision'), documentTimeOrigin: held.timeOrigin },
-            sdk: { hasServerSessionAuthority: sdk?.hasServerSessionAuthority === true,
-              resumePending: pending === true },
-          },
-        };
-        throw error;
+            return summary;
+          };
+          const error = new Error('Original P181 member epoch, phase or source custody authority retired.');
+          error.firstMemberSignatureRejectedState = {
+            schemaVersion: 1, predicate: 'serializedMemberSignatureMatchesPinned', observationOrigin,
+            observedAtMs: Date.now(), mode: ['casting-assignment', 'startup', 'navigation'].includes(held.options.mode)
+              ? held.options.mode : 'member',
+            differentFields,
+            expectedState: Object.fromEntries(fields.map(name => [name, summarize(pinned, name)])),
+            inspectedState: Object.fromEntries(fields.map(name => [name, summarize(inspected, name)])),
+            authority: {
+              identity: { authMatchesOriginal: user.uid === held.rawUid, memberMatchesAuth: me.uid === user.uid,
+                sessionMatchesOriginal: session.id === held.options.expected?.sessionId,
+                memberSessionMatchesSession: me.sessionId === session.id, groupMatchesPinned: me.fleetGroupId === pinned.group },
+              epoch: { connectionGeneration: numeric(me, 'connectionGeneration'),
+                identityHydrationRevision: numeric(state, 'identityHydrationRevision'), documentTimeOrigin: held.timeOrigin },
+              sdk: { hasServerSessionAuthority: sdk?.hasServerSessionAuthority === true,
+                resumePending: pending === true },
+            },
+          };
+          throw error;
+        }
       }
       held.signature ??= signature;
       held.fresh = state.connection === 'live' && state.sessionSnapshotFreshness === 'server' &&
