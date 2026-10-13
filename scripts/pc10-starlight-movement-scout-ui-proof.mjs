@@ -1136,12 +1136,50 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
     profileContext = options.mode === 'casting-assignment'
       ? await import('/src/lib/demoActorContext.ts') : null;
     const client = auth();
+    let castingAdmission = null;
+    if (options.mode === 'casting-assignment' && Object.hasOwn(options, 'castingAdmission')) {
+      const admission = options.castingAdmission, expected = options.expected ?? {};
+      const present = admission?.currentMemberBerthPresent, absentOwn = admission?.currentMemberBerthNull;
+      const matches = admission?.currentMemberBerthMatches;
+      if (!admission || typeof admission !== 'object' || Array.isArray(admission) ||
+          admission.hasAuth !== true || admission.sameActor !== true || admission.uidHash !== expected.uidHash ||
+          admission.sessionId !== expected.sessionId || admission.meSessionId !== expected.sessionId ||
+          admission.documentTimeOrigin !== expected.documentTimeOrigin ||
+          !Number.isFinite(admission.documentTimeOrigin) || admission.documentTimeOrigin <= 0 ||
+          admission.fleetGroupId !== expected.fleetGroupId || admission.memberScopeMatches !== true ||
+          !Number.isSafeInteger(admission.memberVesselCount) || admission.memberVesselCount < 1 ||
+          !Number.isSafeInteger(admission.memberCraftCount) || admission.memberCraftCount < 0 ||
+          admission.connectionGeneration !== expected.connectionGeneration ||
+          admission.identityHydrationRevision !== expected.identityHydrationRevision ||
+          !Number.isSafeInteger(admission.connectionGeneration) || admission.connectionGeneration < 1 ||
+          !Number.isSafeInteger(admission.identityHydrationRevision) || admission.identityHydrationRevision < 1 ||
+          admission.playerRole !== 'player' || admission.assignedRoleId != null ||
+          admission.activeConsoleRoleId != null || admission.seatId != null ||
+          admission.profileRoleId != null || admission.profileSessionId != null || admission.fullGameDemo != null ||
+          admission.connected !== true || admission.currentOwnPlayerConfirmed !== true || admission.kicked !== false ||
+          admission.escapeLocked !== false || admission.replacementRoleId != null || admission.replacementStatus != null ||
+          admission.connection !== 'live' || admission.freshness !== 'server' ||
+          admission.sdkHasServerAuthority !== true || admission.sdkResumePending !== false ||
+          admission.cycle !== 0 || !['lobby', 'casting'].includes(admission.phase) || admission.setupConfirmed !== true ||
+          !Array.isArray(admission.invalidFields) || admission.invalidFields.length !== 0 ||
+          typeof present !== 'boolean' || typeof absentOwn !== 'boolean' || typeof matches !== 'boolean' ||
+          !present && (absentOwn || matches) || present && absentOwn && matches || present && !absentOwn && !matches)
+        throw new Error('Original P181 casting admission provenance changed.');
+      // This is the already validated admission shape, not a ship authority or
+      // an App privacy origin. A positive admission can never use the null wait.
+      castingAdmission = Object.freeze({ sessionId: admission.sessionId, uidHash: admission.uidHash,
+        documentTimeOrigin: admission.documentTimeOrigin, fleetGroupId: admission.fleetGroupId,
+        connectionGeneration: admission.connectionGeneration, identityHydrationRevision: admission.identityHydrationRevision,
+        memberVesselCount: admission.memberVesselCount, memberCraftCount: admission.memberCraftCount,
+        berthPresent: present, berthNull: absentOwn });
+    }
     held = { id, options, failure: null, fresh: false, stops: [], timer: null,
       rawUid: client.currentUser?.uid ?? null, timeOrigin: performance.timeOrigin,
       store: null, authority: null, resumePending: null, signature: null, connectedSeen: false,
       serverSeen: false, sdkCompleted: false, latestGeneration: 0, latestHydration: 0,
       castingEpoch: null, castingAssignedSeen: false, castingPhaseSeen: false,
       castingResumeSettled: false, castingPendingSeen: false, castingBerthSeen: false,
+      castingAdmission, castingActualResumePendingSeen: false,
       castingProjectionWithheldSeen: false,
       castingBerthBinding: null, castingBerthGapSeen: false, castingBerthGapRestored: false,
       firstStartupBerthRejectedState: null, startupOwnedBerthContext: null,
@@ -1277,6 +1315,7 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       const castingAssignment = held.options.mode === 'casting-assignment';
       let castingProjectionWithheld = false;
       let castingProjectionConfirmed = false;
+      let castingInitialAdmissionPending = false;
       let startupProjectionWithheld = false;
       const castingRoleId = held.options.castingRoleId ?? 'wing-commander';
       if (castingAssignment && castingRoleId !== held.options.memberRoleId)
@@ -1347,6 +1386,8 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
         if (held.castingResumeSettled && pending !== false)
           throw new Error('Original P181 casting SDK resume fence reopened.');
         if (pending === true) held.castingPendingSeen = true;
+        if (held.authority && pending === true && held.castingResumeRequest)
+          held.castingActualResumePendingSeen = true;
         if (held.castingPendingSeen && pending === false && held.castingEpoch &&
             me.connectionGeneration === held.castingEpoch.connectionGeneration + 1)
           held.castingResumeSettled = true;
@@ -1399,6 +1440,20 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
           held.castingResumeRequest?.documentTimeOrigin === expected.documentTimeOrigin &&
           held.castingResumeRequest?.connectionGeneration === generation &&
           held.castingResumeRequest?.identityHydrationRevision === hydration;
+        const admittedNull = held.castingAdmission?.berthPresent === true && held.castingAdmission.berthNull === true;
+        const originalAdmissionEpoch = me.connectionGeneration === generation && state.identityHydrationRevision === hydration;
+        const capturedAdmissionEpoch = capturedResume && held.castingActualResumePendingSeen &&
+          [generation, generation + 1].includes(me.connectionGeneration) &&
+          [hydration, hydration + 1].includes(state.identityHydrationRevision);
+        const scope = session.memberSessionScope;
+        const initialNullWait = admittedNull && !held.castingBerthSeen && held.castingBerthBinding === null &&
+          (originalAdmissionEpoch || capturedAdmissionEpoch) &&
+          scope && typeof scope === 'object' && !Array.isArray(scope) && Object.keys(scope).length === 3 &&
+          ['groupId', 'vesselIds', 'craftIds'].every(key => Object.hasOwn(scope, key)) &&
+          scope.groupId === expected.fleetGroupId && scope.groupId === me.fleetGroupId &&
+          Array.isArray(scope.vesselIds) && Array.isArray(scope.craftIds) && scope.vesselIds.includes('aegis') &&
+          scope.vesselIds.length === held.castingAdmission.memberVesselCount &&
+          scope.craftIds.length === held.castingAdmission.memberCraftCount;
         if (projectionPending != null) {
           const keys = ['kind', 'sessionId', 'actorUid', 'groupId', 'role', 'assignedRoleId',
             'activeConsoleRoleId', 'seatId', 'shipId', 'connectionGeneration',
@@ -1444,7 +1499,7 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
             throw new Error('Original P181 casting pending berth projection origin changed.');
           held.castingProjectionWithheldSeen = true;
         }
-        if (berthFieldPresent && berth === null && !castingProjectionWithheld)
+        if (berthFieldPresent && berth === null && !castingProjectionWithheld && !initialNullWait)
           throw new Error('Original P181 casting member berth was explicitly retired.');
         if (berth) {
           const keys = ['sessionId', 'actorUid', 'groupId', 'role', 'connectionGeneration',
@@ -1469,6 +1524,8 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
             berth.groupId === session.memberSessionScope?.groupId &&
             session.memberSessionScope?.vesselIds?.includes(berth.shipId) === true &&
             (!held.castingProjectionWithheldSeen || capturedResume && held.castingResumeSettled &&
+              me.connectionGeneration === generation + 1 && state.identityHydrationRevision === hydration + 1) &&
+            (!admittedNull || capturedResume && held.castingActualResumePendingSeen && held.castingResumeSettled &&
               me.connectionGeneration === generation + 1 && state.identityHydrationRevision === hydration + 1);
         } else if (held.castingBerthSeen && !castingProjectionWithheld) {
           if (berthFieldPresent || !acceptedResumeDtoHydration || held.castingBerthGapRestored)
@@ -1479,6 +1536,9 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
             JSON.stringify(targetSeats) !== JSON.stringify(held.castingSeatBinding))
           throw new Error('Original P181 casting station seat changed before the chooser.');
         held.castingSeatBinding ??= targetSeats;
+        // Admission null and omitted normal DTO fields can only wait. Every
+        // identity/scope/signature check still runs and positive loss is terminal.
+        castingInitialAdmissionPending = admittedNull && !castingProjectionConfirmed;
       }
       if (!castingAssignment && (held.connectedSeen || !startup) && me.connected !== true)
         throw new Error('Original P181 connected member authority retired.');
@@ -1793,6 +1853,7 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       }
       held.fresh = state.connection === 'live' && state.sessionSnapshotFreshness === 'server' &&
         sdk?.hasServerSessionAuthority === true && !pending && me.connected === true && !castingProjectionWithheld && !startupProjectionWithheld &&
+        !castingInitialAdmissionPending &&
         (!castingAssignment || !held.castingProjectionWithheldSeen || castingProjectionConfirmed);
     };
     const observe = (delivered, previous) => {
@@ -4475,7 +4536,7 @@ async function p181RunStarlightMovementScoutNative(options) {
             castingRejectionBoundary = 'retained-authority-open';
             castingAuthority = await bounded('Retain original casting assignment authority', () =>
               retainP181MemberAuthority(memberSurface, castingDeadlineAt, { mode: 'casting-assignment', proofProfile,
-                castingRoleId: memberRoleId,
+                castingRoleId: memberRoleId, castingAdmission: admitted,
                 expected: { sessionId, uidHash: hashShort(admittedAuth.uid),
                   fleetGroupId: admitted.fleetGroupId, connectionGeneration: admitted.connectionGeneration,
                   identityHydrationRevision: admitted.identityHydrationRevision,
