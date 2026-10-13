@@ -476,8 +476,8 @@ describe('prospective normal initial Admiral admission and casting', () => {
     await observeTerminal(kind === 'Auth' ? /Auth authority or document retired/ : /documentTimeOrigin changed/);
     assert.equal(counts('resumeSession'), 0);
   });
-  it.each(['scope', 'group', 'role', 'disconnected', 'kicked', 'replacement', 'lease'] as const)
-  ('keeps a real %s source change terminal throughout initial-null pending', async kind => {
+  it.each(['scope', 'group', 'role', 'disconnected', 'kicked', 'replacement', 'lease'] as const)(
+    'keeps a real %s source change terminal throughout initial-null pending', async kind => {
     const admission = await acceptedNullAdmission(); await retainActualCasting(admission);
     assert.equal((await casting!.check()).fresh, false);
     if (kind === 'scope') group = { ...group, vesselIds: ['aegis', 'icebreaker', 'shepherd', 'dione', 'refinery-124'] };
