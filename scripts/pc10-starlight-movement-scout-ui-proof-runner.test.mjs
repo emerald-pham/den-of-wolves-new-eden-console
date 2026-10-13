@@ -7087,7 +7087,7 @@ async function actualCastingFreshnessHandoff(f, { lostAfterAcceptance = false,
   contradictoryDuringPreparation = false, pendingCloseFails = false } = {}) {
   const text = readFileSync(p181DeadlineSourcePath, 'utf8');
   const start = text.indexOf('            const castingReady = value =>');
-  const end = text.indexOf('          } catch (error) { castingFailure = error; }', start);
+  const end = text.indexOf('          } catch (error) {', start);
   assert.ok(start >= 0 && end > start);
   let now = 10, fresh = lostAfterAcceptance || contradictoryAfterAcceptance ||
     lostDuringPreparation || contradictoryDuringPreparation;
