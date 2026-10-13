@@ -6774,13 +6774,15 @@ for (const [timing, initiallyPending] of [['during pending', true], ['simultaneo
 // provider ports. Acceptance/navigation are observed effects, never real UI
 // actions; the source body must fence them with current retained freshness.
 async function actualCastingFreshnessHandoff(f, { lostAfterAcceptance = false,
-  exhausted = false, contradictoryAfterAcceptance = false } = {}) {
+  exhausted = false, contradictoryAfterAcceptance = false, lostDuringPreparation = false,
+  contradictoryDuringPreparation = false, pendingCloseFails = false } = {}) {
   const text = readFileSync(p181DeadlineSourcePath, 'utf8');
   const start = text.indexOf('            const castingReady = value =>');
   const end = text.indexOf('          } catch (error) { castingFailure = error; }', start);
   assert.ok(start >= 0 && end > start);
-  let now = 10, fresh = lostAfterAcceptance || contradictoryAfterAcceptance;
-  let accepted = 0, prepared = 0, retries = 0, contradiction = false;
+  let now = 10, fresh = lostAfterAcceptance || contradictoryAfterAcceptance ||
+    lostDuringPreparation || contradictoryDuringPreparation;
+  let accepted = 0, prepared = 0, discarded = 0, retries = 0, contradiction = false;
   const trace = [];
   const deadlineAt = 100, current = structuredClone(f.current);
   const authority = { failed: new Promise(() => {}), check: async () => {
@@ -6812,6 +6814,13 @@ async function actualCastingFreshnessHandoff(f, { lostAfterAcceptance = false,
       return { prepare: async () => {
         assert.equal(fresh, true, 'No navigation preparation may run while current authority is unavailable.');
         prepared++; trace.push('prepare');
+        await Promise.resolve();
+        if (prepared === 1 && lostDuringPreparation) fresh = false;
+        if (prepared === 1 && contradictoryDuringPreparation) contradiction = true;
+      }, finish: async () => {
+        trace.push('close-prepared');
+        if (pendingCloseFails) throw new Error('Original pending navigation observer cleanup failed.');
+        discarded++;
       } };
     },
     bounded: async (_label, action, cutoff) => {
@@ -6828,7 +6837,7 @@ async function actualCastingFreshnessHandoff(f, { lostAfterAcceptance = false,
     let navigationStart, navigation; ${text.slice(start, end)}
     return { navigationStart };
   })()`, ports); } catch (failure) { error = failure; }
-  return { result, error, accepted, prepared, retries, trace, now, deadlineAt };
+  return { result, error, accepted, prepared, discarded, retries, trace, now, deadlineAt, currentFresh: fresh };
 }
 for (const lostAfterAcceptance of [false, true]) {
   const boundary = lostAfterAcceptance ? 'after awaited acceptance before navigation' : 'before acceptance';
@@ -6857,4 +6866,41 @@ test('P181 casting freshness handoff keeps a true retirement after awaited accep
   const result = await actualCastingFreshnessHandoff(f, { contradictoryAfterAcceptance: true });
   assert.match(result.error?.message ?? '', /authority retired/);
   assert.equal(result.prepared, 0);
+});
+test('P181 casting freshness handoff rechecks after navigation preparation and closes pending observer before retry', async t => {
+  const f = await actualP181CastingAssignmentFixture(t);
+  const result = await actualCastingFreshnessHandoff(f, { lostDuringPreparation: true });
+  assert.equal(result.error, undefined);
+  assert.equal(result.currentFresh, true,
+    'The onward binding must remain unavailable until current freshness returns after preparation.');
+  assert.ok(result.result.navigationStart);
+  assert.equal(result.discarded, 1, 'Dispose the already prepared owned observer before retry.');
+  assert.equal(result.prepared, 2);
+  assert.ok(result.trace.indexOf('close-prepared') < result.trace.indexOf('pending-wait'));
+  assert.equal(f.wing.choices.length, 0);
+});
+test('P181 casting freshness handoff exhausts original cutoff after navigation preparation without onward binding', async t => {
+  const f = await actualP181CastingAssignmentFixture(t);
+  const result = await actualCastingFreshnessHandoff(f, { lostDuringPreparation: true, exhausted: true });
+  assert.match(result.error?.message ?? '', /deadline|did not reach/);
+  assert.equal(result.result?.navigationStart, undefined);
+  assert.equal(result.discarded, 1);
+  assert.equal(result.prepared, 1);
+  assert.ok(result.now >= result.deadlineAt);
+});
+test('P181 casting freshness handoff keeps true authority loss during navigation preparation terminal', async t => {
+  const f = await actualP181CastingAssignmentFixture(t);
+  const result = await actualCastingFreshnessHandoff(f, { contradictoryDuringPreparation: true });
+  assert.match(result.error?.message ?? '', /authority retired/);
+  assert.equal(result.result?.navigationStart, undefined);
+  assert.equal(result.prepared, 1);
+  assert.equal(result.retries, 0);
+});
+test('P181 casting freshness handoff keeps pending prepared-observer cleanup failure terminal', async t => {
+  const f = await actualP181CastingAssignmentFixture(t);
+  const result = await actualCastingFreshnessHandoff(f, { lostDuringPreparation: true, pendingCloseFails: true });
+  assert.match(result.error?.message ?? '', /navigation observer cleanup failed/);
+  assert.equal(result.result?.navigationStart, undefined);
+  assert.equal(result.discarded, 0);
+  assert.equal(result.retries, 0);
 });
