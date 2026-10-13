@@ -2597,6 +2597,49 @@ function actualP181CastingReadyPredicate(before) {
   });
 }
 
+test('P181 casting wait stays pending when connected restores before the current berth', async t => {
+  const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true, resumeBerthGap: true });
+  const authority = await castingAssignmentAuthorityFor(f);
+  const wait = await reconciledNativeWait(f.wing, 'full');
+  const ready = actualP181CastingReadyPredicate(f.before);
+  let transitioned = false, lateBerth;
+  f.wing.onResumeDtoApplied = async hydrated => {
+    assert.equal(hydrated.currentOwnPlayerConfirmed, false);
+    assert.equal(hydrated.currentMemberBerthPresent, false);
+    f.restoreOwnPlayerConnected();
+    const connectedOnly = await observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds });
+    assert.equal(connectedOnly.currentOwnPlayerConfirmed, true);
+    assert.equal(connectedOnly.currentMemberBerthPresent, false);
+    lateBerth = setTimeout(f.restoreCurrentMemberBerthOnly, 350);
+    assert.equal(ready(connectedOnly), false,
+      'The actual production casting readiness predicate must continue waiting for the current berth.');
+    await authority.check();
+    assert.equal(await f.observer.accept(f.before, connectedOnly,
+      () => observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds }), f.assignment), false,
+    'A captured resume does not become ready from connected restoration alone.');
+  };
+  f.wing.onDigest = async () => {
+    if (transitioned) return;
+    transitioned = true;
+    await f.applyAssignmentAndResume();
+  };
+  try {
+    const current = await wait(f.wing, 'Casting assignment after connected restoration', ready,
+      Date.now() + 2_000, f.before, authority);
+    assert.equal(transitioned, true);
+    assert.equal(current.currentOwnPlayerConfirmed, true);
+    assert.equal(current.currentMemberBerthPresent, true);
+    assert.equal(current.currentMemberBerthNull, false);
+    assert.equal(current.currentMemberBerthMatches, true);
+    assert.ok(await f.observer.accept(f.before, current,
+      () => observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds }), f.assignment));
+  } finally {
+    clearTimeout(lateBerth);
+    await authority.close().catch(() => {});
+    await f.observer.finish();
+  }
+});
+
 test('P181 casting wait stays pending when connected restores before the current berth from an initially absent berth', async t => {
   const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true, resumeBerthGap: true,
     omitInitialMemberBerth: true });
@@ -2636,6 +2679,48 @@ test('P181 casting wait stays pending when connected restores before the current
       () => observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds }), f.assignment));
   } finally {
     clearTimeout(lateBerth);
+    await authority.close().catch(() => {});
+    await f.observer.finish();
+  }
+});
+
+test('P181 casting observer holds when the current berth restores before connected', async t => {
+  const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true, resumeBerthGap: true });
+  const authority = await castingAssignmentAuthorityFor(f);
+  const wait = await reconciledNativeWait(f.wing, 'full');
+  const ready = actualP181CastingReadyPredicate(f.before);
+  let transitioned = false, lateConnected;
+  f.wing.onResumeDtoApplied = async hydrated => {
+    assert.equal(hydrated.currentOwnPlayerConfirmed, false);
+    assert.equal(hydrated.currentMemberBerthPresent, false);
+    f.restoreCurrentMemberBerthOnly();
+    const berthOnly = await observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds });
+    assert.equal(berthOnly.currentOwnPlayerConfirmed, false);
+    assert.equal(berthOnly.currentMemberBerthPresent, true);
+    assert.equal(berthOnly.currentMemberBerthNull, false);
+    await authority.check();
+    assert.equal(await f.observer.accept(f.before, berthOnly,
+      () => observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds }), f.assignment), false,
+    'A captured resume remains pending while the own-player connected witness is still omitted.');
+    lateConnected = setTimeout(f.restoreOwnPlayerConnected, 250);
+  };
+  f.wing.onDigest = async () => {
+    if (transitioned) return;
+    transitioned = true;
+    await f.applyAssignmentAndResume();
+  };
+  try {
+    const current = await wait(f.wing, 'Casting assignment after berth restoration', ready,
+      Date.now() + 2_000, f.before, authority);
+    assert.equal(transitioned, true);
+    assert.equal(current.currentOwnPlayerConfirmed, true);
+    assert.equal(current.currentMemberBerthPresent, true);
+    assert.equal(current.currentMemberBerthNull, false);
+    assert.equal(current.currentMemberBerthMatches, true);
+    assert.ok(await f.observer.accept(f.before, current,
+      () => observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds }), f.assignment));
+  } finally {
+    clearTimeout(lateConnected);
     await authority.close().catch(() => {});
     await f.observer.finish();
   }
