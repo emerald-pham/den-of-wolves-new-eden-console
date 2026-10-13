@@ -731,8 +731,10 @@ export const useSessionStore = create<SessionState>()(
               (state.currentActorBerthProjectionPending.assignedRoleId === (me.assignedRoleId ?? null) ||
                 state.currentActorBerthProjectionPending.assignedRoleId === null && me.assignedRoleId === 'wing-commander') &&
               me.activeConsoleRoleId == null && me.seatId == null &&
-              me.replacementRoleId == null && me.replacementStatus == null && me.escapeState == null && me.kickedAt == null
-              ? { ...state.currentActorBerthProjectionPending, assignedRoleId: me.assignedRoleId ?? null,
+              me.replacementRoleId == null && me.replacementStatus == null && me.escapeState == null &&
+              (me as Player & { readonly kickedAt?: unknown }).kickedAt == null
+              ? { ...state.currentActorBerthProjectionPending,
+                assignedRoleId: me.assignedRoleId === 'wing-commander' ? 'wing-commander' as const : null,
                 connectionGeneration: me.connectionGeneration! } : null,
             scoutCoordinateDraft: state.scoutCoordinateDraft && me?.role === 'player' &&
               me.sessionId === state.session?.id &&

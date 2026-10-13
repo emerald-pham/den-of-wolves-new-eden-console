@@ -499,7 +499,8 @@ function AppRoutes() {
         member?.uid === playerUid && member.role === 'player' && member.connected === true &&
         (member.assignedRoleId == null || member.assignedRoleId === 'wing-commander') &&
         member.activeConsoleRoleId == null && member.seatId == null && member.escapeState == null &&
-        member.kickedAt == null && member.replacementRoleId == null && member.replacementStatus == null &&
+        (member as Player & { readonly kickedAt?: unknown }).kickedAt == null &&
+        member.replacementRoleId == null && member.replacementStatus == null &&
         Number.isSafeInteger(member.connectionGeneration) && (member.connectionGeneration ?? 0) > 0 &&
         scope && current.currentActorBerthAuthority?.shipId === 'aegis'
         ? { kind: 'app-casting-berth-withheld' as const, sessionId, actorUid: playerUid,
