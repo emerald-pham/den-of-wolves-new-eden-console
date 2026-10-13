@@ -679,6 +679,11 @@ third-party/game material, dependencies, other contributors and assets with
 unconfirmed provenance are excluded. Existing asset bytes and third-party
 notices remain unchanged.
 
+The October 13 [post-release colorblindness backlog](CHECKPOINT_COMPLETION_PLAN.md#post-release-colorblindness-backlog--october-13)
+records an app-wide audit and optional Settings **“Don’t rely on color”** mode
+with non-color cues and patterns after verified PC10 and the full app release.
+Current release scope, PC10 acceptance, PC11 and the version 0.9 schedule remain unchanged.
+
 ## October 10 deadline and sequential PC11 handoff
 
 The owner's October 5 steering sets **October 10** as the available work

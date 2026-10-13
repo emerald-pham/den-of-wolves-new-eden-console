@@ -246,6 +246,14 @@ third-party/game material, dependencies, other contributors and assets with
 unconfirmed provenance are excluded. Existing asset bytes and third-party
 notices remain unchanged.
 
+## Post-release colorblindness backlog — October 13
+
+After verified PC10 and the full app release, audit color-dependent states
+across Den of Wolves and add an optional Settings **“Don’t rely on color”**
+mode with non-color cues and patterns. This deferred item preserves the current
+release scope: it adds no PC10 acceptance requirement, does not reopen PC11,
+and does not delay version 0.9. Existing later-work sequencing remains in place.
+
 ## October 8 owner N/O edition choice
 
 Emerald approved **Home as the default** for the app and canonical paper kit,
