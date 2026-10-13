@@ -30,7 +30,7 @@ import { validateScoutBundle } from './pc10-navigation-scout-proof-contracts.mjs
 import { runPc11ContractPreflight } from './qualification/pc11-contract-preflight.mjs';
 import { createP181StarlightBrowserIo, createP181StarlightNativeSurfaceFactory,
   captureP181SourceBindings, observeP181StarlightSource, runP181StarlightMovementScoutUiProof,
-  runP181StarlightMovementScoutNative, P181_NATIVE_TIMING } from './pc10-starlight-movement-scout-ui-proof.mjs';
+  runP181StarlightMovementScoutNative, retainP181CallerRejection, P181_NATIVE_TIMING } from './pc10-starlight-movement-scout-ui-proof.mjs';
 
 // Keep the pre-implementation RED behavioral: the test invokes the expected
 // P181 consumer transition with controlled observers and receipts. A missing
@@ -238,6 +238,7 @@ function actualP181ReadinessConsumer(kind, late, { memberReads, recoveryResult =
       currentOwnPlayerConfirmed: true, sdkHasServerAuthority: true, sdkResumePending: false,
     gmInstanceOwned: true, instanceId: 'controlled-gm-instance', phase: 'active', cycle: 1 };
   const context = { assert, Date: { now: () => now }, JSON, P181_NATIVE_TIMING, pc11GmReadiness,
+    retainP181CallerRejection,
     gm: { controlled: true }, gmInstanceId: member.instanceId, sessionId: member.sessionId,
     ownedAuthUids: new Map([['gm', ownedUid]]),
     hashShort: value => createHash('sha256').update(value).digest('hex').slice(0, 16),
@@ -6380,6 +6381,7 @@ async function reconciledNativeWait(surface, kind, readRecovery) {
   const owner = surface.state?.me?.role === 'gm' ? 'gm' : 'wing-commander';
   const context = { assert, Date, P181_NATIVE_TIMING, pc11GmReadiness, pc11SameActorEpoch,
     gm: surface, wingCommander: {}, sessionId: 'normal-session', gmInstanceId: 'gm-original-instance',
+    retainP181CallerRejection: sourceModule.retainP181CallerRejection,
     ownedAuthUids: new Map([[owner, surface.uid]]),
     hashShort: value => createHash('sha256').update(value).digest('hex').slice(0, 16),
     readFullActor: async () => observeFullGameDemoPresentationMember(surface, { knownRoleIds: originalRoleIds }),
