@@ -131,7 +131,8 @@ export async function stationNavigationResumeFixture(options = {}) {
           playerSnap: { get: key => player[key] }, cleanName: value => value ?? 'Native player',
           isoOf: () => undefined, playerEscapeState: () => undefined });
         reply = plain(new Script(js(`(${resumeReplySource})`)).runInContext(server));
-        assert.equal(Object.hasOwn(reply.player, 'connected'), false, 'Use the exact current server DTO, not an invented connected flag.');
+        assert.equal(reply.player.connected, player.connected,
+          'Use the post-commit player snapshot value from the exact current server DTO.');
         reply.session = { ...(endpoint === 'joinSession' ? start.session : before.session) };
       }
       delete reply.session.currentActorBerthAuthority;

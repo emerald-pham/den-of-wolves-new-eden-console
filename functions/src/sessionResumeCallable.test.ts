@@ -286,9 +286,24 @@ it('renews a current live member without scanning every player or rewriting shar
   const reply = await resumeSession.run(request('s1'));
 
   expect(reply.player).toMatchObject({ connectionGeneration: 4, assignedRoleId: 'admiral', seatId: 'admiral', activeConsoleRoleId: 'admiral' });
+  expect(reply.player.connected).toBe(true);
   expect(mock.get.mock.calls.map(([ref]) => ref.path)).not.toContain('sessions/s1/players');
   expect(nonRateLimitSetCalls().map(([ref]) => ref.path)).toEqual(['activeMemberships/u1']);
   expect(mock.update.mock.calls.map(([ref]) => ref.path)).not.toContain('sessions/s1/serverState/navigation');
+});
+
+it('returns the observed post-commit disconnect instead of manufacturing a connected resume player', async () => {
+  prepareCurrentResume();
+  const read = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation((reference: { path: string }) => {
+    const current = read(reference);
+    if (reference.path !== 'sessions/s1/players/u1' || !mock.committedWrites.has(reference.path)) return current;
+    return snapshot({ ...current.data(), connected: false });
+  });
+
+  const reply = await resumeSession.run(request('s1'));
+
+  expect(reply.player).toMatchObject({ connectionGeneration: 4, connected: false });
 });
 
 it('restores missing printed loyalty directives from the current holder private secret on resume', async () => {
@@ -888,6 +903,7 @@ it('resumes an existing disconnected member into a privacy-scoped immutable clos
   expect(response.session).not.toHaveProperty('loyalty');
   expect(JSON.stringify(response.session)).not.toMatch(/foreign-group|foreign-route|nebula-bonus|private-source|shepherd/);
   expect(response.player).toMatchObject({ uid: 'u1', role: 'player', fleetGroupId: 'fleet-1' });
+  expect(response.player).not.toHaveProperty('connected');
   expect(sessionData.phase).toBe('closed');
   expect(playerData.connected).toBe(false);
   expect(mock.update).not.toHaveBeenCalled();

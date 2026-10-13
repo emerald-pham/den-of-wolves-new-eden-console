@@ -63,7 +63,7 @@ for (const [name, gateOptions, release] of [
     assert.equal(saved.transitions.length, 1); assert.equal(saved.receipts.length, 1);
     assert.equal(saved.transitions[0].status, 'accepted-normal-resume-bound');
     assert.equal(saved.receipts[0].httpStatus, 200); assert.equal(saved.receipts[0].bodyStatus, 'parsed');
-    assert.equal(saved.receipts[0].reply.connectedFieldPresent, false);
+    assert.equal(saved.receipts[0].reply.connectedFieldPresent, true);
     assert.equal(JSON.stringify(saved).includes('private-native-'), false);
   } finally { await cleanup(f, run); }
 });

@@ -37,7 +37,7 @@ test('offline original Press waits for existing App retry, actual source resume 
   assert.equal(result.current.sdkResumePending, false); assert.equal(result.actor.uidHash, f.actorOptions.roster[0].uidHash);
   assert.deepEqual(f.sdkCalls, ['resumeSession']); assert.deepEqual(f.uiChoices, []);
   assert.equal(result.deadlineAt, deadlineAt); assert.equal(result.actor.activeConsoleRoleId, 'press-officer');
-  assert.equal(Object.hasOwn(f.resumeReplies[0].player, 'connected'), false, 'The exact server resume DTO does not manufacture own-player confirmation.');
+  assert.equal(f.resumeReplies[0].player.connected, true, 'The exact live server DTO carries its post-commit player snapshot.');
 });
 test('recovered original Press may have its console withdrawn while retaining legitimate null account authority', async () => {
   const f = await presentationStartFixture({ held: true }); f.resumeConsoleNull = true; f.setOffline(); let retry = false;
@@ -45,12 +45,13 @@ test('recovered original Press may have its console withdrawn while retaining le
   assert.equal(result.actor.activeConsoleRoleId, null); assert.equal(result.actor.assignedRoleId, null);
   assert.equal(result.current.seatId, null); assert.deepEqual(f.uiChoices, []);
 });
-test('live flags from a normal resume DTO cannot stand in for the missing own-player/member feed', async () => {
+test('a live connected flag from resume cannot stand in for the missing current member envelope', async () => {
   const f = await presentationStartFixture({ held: true }); f.setOffline(); let retry = false;
   await assert.rejects(wait(f, { deadlineAt: Date.now() + 100, onSample: async () => {
     if (!retry) { retry = true; await f.automaticRetry({ feed: false }); }
   } }), /deadline|Deadline/);
-  assert.equal(f.store.getState().connection, 'live'); assert.equal(f.store.getState().me.connected, undefined);
+  assert.equal(f.store.getState().connection, 'live'); assert.equal(f.store.getState().me.connected, true);
+  assert.equal(Object.hasOwn(f.store.getState().session, 'currentActorBerthAuthority'), false);
   assert.deepEqual(f.sdkCalls, ['resumeSession']);
 });
 for (const [name, mutate] of [

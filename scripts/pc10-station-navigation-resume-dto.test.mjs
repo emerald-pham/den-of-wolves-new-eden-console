@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { stationNavigationResumeFixture } from './fixtures/pc10-station-navigation-resume-native-fixture.mjs';
 
-// Execute the exact current server reply initializer: it intentionally omits
-// connected. Authority comes from the accepted SDK and real current member
-// envelope, including the independently confirmed connected own player.
-test('the actual server resume DTO without connected can bind only after current own member confirms connection', async () => {
+// Execute the exact current server reply initializer: connected is copied from
+// the post-commit player read. The separate current member envelope is still
+// required before this station path accepts authority.
+test('the actual server resume DTO carries post-commit connection and still needs the current member envelope', async () => {
   const f = await stationNavigationResumeFixture({ sourceResumeReply: true });
   try {
     assert.equal(await f.run(), f.crew); assert.equal(f.store.getState().me.connected, true);
@@ -15,7 +15,7 @@ test('the actual server resume DTO without connected can bind only after current
   } finally { await f.cleanup(); }
 });
 
-test('an actual resume DTO cannot hide a disconnected current member behind omitted connected', async () => {
+test('an actual connected resume DTO cannot hide a later disconnected current member', async () => {
   const f = await stationNavigationResumeFixture({ sourceResumeReply: true, disconnectedMemberFeed: true, shortDeadline: true });
   try { await assert.rejects(f.run()); assert.equal(f.counters.sdkCalls, 0); }
   finally { await f.cleanup(); }

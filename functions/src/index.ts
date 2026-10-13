@@ -19542,6 +19542,7 @@ export const resumeSession = auditedOnCall<{ sessionId?: string }>('resumeSessio
       ...(typeof playerSnap.get('shipPreferenceId') === 'string' || playerSnap.get('shipPreferenceId') === null
         ? { shipPreferenceId: playerSnap.get('shipPreferenceId') } : {}),
       ...(playerEscapeState(playerSnap) ? { escapeState: playerEscapeState(playerSnap) } : {}),
+      ...(typeof playerSnap.get('connected') === 'boolean' ? { connected: playerSnap.get('connected') } : {}),
       activeConsoleRoleId:
         (playerSnap.get('activeConsoleRoleId') as string | null) ?? null,
       connectionGeneration: resumeResult.connectionGeneration,

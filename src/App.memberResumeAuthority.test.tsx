@@ -116,12 +116,11 @@ function publishPlayer(value: Player = actor) {
 }
 function commitResume(): ResumeReply {
   // Coupled to resumeSession's actual transaction and reply construction:
-  // index.ts advances the lease before SDK delivery, omits connected, and
-  // reads the member session separately after the player transaction.
+  // index.ts advances the lease, then returns connected from the post-commit
+  // player read alongside the separately read current member session.
   actor = { ...actor, connected: true, connectionGeneration: (actor.connectionGeneration ?? 0) + 1 };
   sessionData = { ...sessionData, updatedAt: new Date(Date.now() + actor.connectionGeneration!).toISOString() };
   const player = { ...actor };
-  delete player.connected;
   return { data: { session: currentSession(), player } };
 }
 async function deliverResume(index: number, reply = commitResume()) {
@@ -403,6 +402,17 @@ describe('normal original member resume publication', () => {
     expect(useSessionStore.getState()).toMatchObject({ connection: 'live', identityHydrationRevision: 1,
       me: { uid: actor.uid, sessionId, connectionGeneration: 2 } });
     expect(callCount('resumeSession')).toBe(1); expect(sdk.signIn).not.toHaveBeenCalled();
+  });
+
+  it('joins the current server berth with the post-commit connected player snapshot', async () => {
+    await acceptedMember();
+    expect(useSessionStore.getState().me?.connected).toBe(true);
+    await advance(5_100);
+    expect(callCount('getCurrentMemberSession')).toBeGreaterThan(0);
+    expect(useSessionStore.getState().session?.currentActorBerthAuthority).toMatchObject({
+      actorUid: actor.uid, connectionGeneration: 2, shipId: 'aegis',
+    });
+    expect(useSessionStore.getState().me?.connected).toBe(true);
   });
 
   it('keeps closed history free of operational player callbacks', async () => {
