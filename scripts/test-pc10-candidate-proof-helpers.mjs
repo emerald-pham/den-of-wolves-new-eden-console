@@ -402,7 +402,7 @@ async function nebulaPermittedCalculationFixture({ incomplete = false, change } 
     begin: async () => state, state: async () => state,
     printedRationBudget: async () => Object.fromEntries(ships.map(ship => [ship, { food: 1, water: 1 }])),
     gmSupplies: async () => {}, gmRepair: async () => {}, maintenanceUi: async () => {},
-    coordination: async () => {}, jump: async () => {},
+    coordination: async () => {}, jump: async shipId => { state.shipFleetGroupIds[shipId] = 'fleet-1'; },
     confirmPhysicalGroups: async () => {}, cycle: async cycle => { state.cycle = cycle; },
     select: async roleId => { selectedShip = Object.keys(roleFor).find(ship => roleFor[ship] === roleId); return roleId === 'gm' ? gm : surface; },
     candidateGeometry: async () => {}, record: async (stage, detail) => { evidence.push({ stage, ...detail }); },
