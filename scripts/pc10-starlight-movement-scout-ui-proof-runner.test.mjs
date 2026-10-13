@@ -1129,6 +1129,53 @@ test('setup transition proof-only lifecycle observer changes retain the complete
   assert.equal(fixture.result.sourceBindings.trackedFiles.length, 2082 + 3);
 });
 
+test('sourceOnly accepts only the reviewed O proof driver and its actual-consumer test without changing build provenance', async () => {
+  const proofPaths = ['scripts/pc10-candidate-manual-ui-proof.mjs', 'scripts/test-pc10-candidate-proof-helpers.mjs'];
+  const altered = new Map(proofPaths.map(path => [resolve(repositoryRoot, path), undefined]));
+  const fixture = await actualPreNativeConsumer({ sourceOnly: true,
+    alterRead: (path, bytes) => {
+      if (!altered.has(path)) return undefined;
+      const next = Buffer.concat([Buffer.from(bytes), Buffer.from('\n// controlled reviewed O proof-only revision\n')]);
+      altered.set(path, next);
+      return next;
+    } });
+  assertPreflightInert(fixture);
+  assert.equal(fixture.error, undefined,
+    `The exact reviewed proof-only driver/test pair must reuse the retained build: ${fixture.error?.message}`);
+  assert.equal(fixture.result.status, 'P181_SOURCE_ONLY_PREFLIGHT_PASS');
+  assert.deepEqual([...altered.values()].map(Boolean), [true, true], 'Both exact proof paths must be hashed by the actual consumer.');
+  for (const path of proofPaths) {
+    const input = fixture.result.sourceBindings.trackedFiles.find(value => value.path === path);
+    assert.ok(input, `Keep the original tracked ${path} input present.`);
+    assert.equal(input.sha256, createHash('sha256').update(altered.get(resolve(repositoryRoot, path))).digest('hex'));
+  }
+  assert.equal(fixture.result.buildProvenance.builtHere, false);
+  assert.equal(fixture.result.buildProvenance.compiledFileCount, 450);
+  assert.equal(fixture.result.buildProvenance.frontendFileCount, 277);
+  assert.equal(fixture.result.sourceBindings.functionsSourceFiles.length, 542);
+});
+
+test('sourceOnly still rejects changed App and Functions inputs and an unreviewed tracked script', async () => {
+  for (const path of ['src/lib/sessionService.ts', 'functions/src/index.ts']) {
+    const fixture = await actualPreNativeConsumer({ sourceOnly: true,
+      alterRead: (readPath, bytes) => readPath === resolve(repositoryRoot, path)
+        ? Buffer.concat([Buffer.from(bytes), Buffer.from('\n// controlled product input mismatch\n')]) : undefined });
+    assertPreflightInert(fixture); assert.ok(fixture.error, `Accepted changed protected input ${path}.`);
+    assert.equal(fixture.error.code, 'ERR_ASSERTION');
+    assert.ok(fixture.error.message.includes(path), `Name the protected input that changed: ${fixture.error.message}`);
+    assert.equal(fixture.counters.contract, 0);
+  }
+
+  const unreviewed = 'scripts/pc10-unreviewed-source-input.mjs';
+  const fixture = await actualPreNativeConsumer({ sourceOnly: true,
+    changeCandidateTrackedPaths: paths => [...paths, unreviewed],
+    virtualInputs: { [resolve(repositoryRoot, unreviewed)]: 'export const unreviewed = true;\n' } });
+  assertPreflightInert(fixture); assert.ok(fixture.error, `Accepted unknown tracked input ${unreviewed}.`);
+  assert.equal(fixture.error.code, 'ERR_ASSERTION');
+  assert.ok(fixture.error.message.includes(`unexpected tracked input ${unreviewed}`), fixture.error.message);
+  assert.equal(fixture.counters.contract, 0);
+});
+
 async function actualCompiledFunctionsGuard({ staleIndex = false, staleDependency = false,
   staleSource = false, builtAfterLaunch = false } = {}) {
   const sourcePath = fileURLToPath(new URL('./pc10-starlight-movement-scout-ui-proof.mjs', import.meta.url));

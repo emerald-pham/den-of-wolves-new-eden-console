@@ -3202,6 +3202,10 @@ async function p181SourceOnlyPreflight(options) {
   const proofOnlyPaths = new Set([
     'scripts/pc10-starlight-movement-scout-ui-proof.mjs',
     'scripts/pc10-starlight-movement-scout-ui-proof-runner.test.mjs',
+    // Independently reviewed O-only proof driver and its actual-consumer test;
+    // neither file participates in the App or Functions build.
+    'scripts/pc10-candidate-manual-ui-proof.mjs',
+    'scripts/test-pc10-candidate-proof-helpers.mjs',
     // The wrapper and its focused test only bind launch/log behavior. Their
     // emulator child cwd does not enter frontend or Functions compilation;
     // exact Functions source/output and frontend output checks remain below.
