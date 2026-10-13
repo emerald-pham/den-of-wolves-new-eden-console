@@ -202,6 +202,7 @@ function actualP181BoundedConsumer({ now = 10, completesAt = 20 } = {}) {
   const timers = new Set();
   const bounded = runInNewContext(`(() => { ${p181BoundedBody}; return bounded; })()`, {
     assert, Date: { now: () => now }, Promise, rememberProofFailure,
+    ownerStop: actualOpenP181OwnerStopPort(), normalOperationsStopped: false,
     setTimeout: callback => { timers.add(callback); return callback; },
     clearTimeout: timer => timers.delete(timer),
   });
@@ -209,6 +210,19 @@ function actualP181BoundedConsumer({ now = 10, completesAt = 20 } = {}) {
     now = completesAt;
     return 'actual-result';
   }, 100) };
+}
+
+function actualOpenP181OwnerStopPort() {
+  const start = p181DeadlineSource.indexOf('function createP181OwnerStopObserver(');
+  const end = p181DeadlineSource.indexOf('\n}\n\nfunction p181ActorReady', start) + 2;
+  assert.ok(start >= 0 && end > start);
+  const input = new EventEmitter();
+  input.resume = input.pause = () => input;
+  input.destroy = () => { input.destroyed = true; };
+  // Isolated closure readers supply the new input port without a process,
+  // runtime or stop claim. Full native consumers exercise notifications below.
+  return runInNewContext(`${p181DeadlineSource.slice(start, end)}
+    createP181OwnerStopObserver(__input, {});`, { assert, Date, rememberProofFailure, __input: input });
 }
 
 function actualP181ReadinessConsumer(kind, late) {
@@ -296,6 +310,7 @@ function actualP181FirstFailureRetentionConsumer({ screenshotFails = false } = {
       return { path: '/tmp/p181-controlled-original-failure.json', evidenceWriteFailed: false };
     },
   };
+  context.finalizationBounded = context.bounded;
   const retain = runInNewContext(`(() => { ${p181FirstFailureRetentionBody}; return retainFirstFailure; })()`, context);
   return { error, diagnostic, screenshotBytes, screenshots, writes, retained, bounds,
     execute: () => retain(error, { deadlineAt: 5_000 }) };
@@ -333,6 +348,7 @@ function actualP181FinalizationConsumer({ remote = false, pageError = false, cha
     errors: cleanupFails ? [{ step: 'controlled cleanup', error: { name: 'Error' } }] : [] };
   const context = {
     assert, Date, resolve, JSON, P181_NATIVE_TIMING, safeP181Error: p181ActualSafeError,
+    ownerStop: actualOpenP181OwnerStopPort(), normalOperationsStopped: false,
     directory: '/tmp/p181-controlled-in-memory-only', sourceRoot: repositoryRoot,
     sourceCommit: 'controlled-source-not-native', sourceContractPreflight: { controlled: true },
     sourceBindingsBefore: before, runtime: { controlled: true }, servedSourceFiles: [],
@@ -361,6 +377,7 @@ function actualP181FinalizationConsumer({ remote = false, pageError = false, cha
         evidenceWriteFailed: false };
     },
   };
+  context.finalizationBounded = context.bounded;
   const run = runInNewContext(`(async () => { try { ${p181FinalizationBody})`, context,
     { filename: p181FinalizationSourcePath });
   return { context, writes, privateRecords, async execute() {
