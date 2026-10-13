@@ -3190,7 +3190,7 @@ test('P181 document retirement carries its first witness through the authority f
   }
 });
 
-test('P181 retainer classifies GM instance retirement specifically', async t => {
+test('P181 retainer classifies GM instance retirement specifically', async () => {
   const gm = mountedP181Surface('original-gm', { gm: true });
   const before = await observeFullGameDemoPresentationMember(gm, { knownRoleIds: originalRoleIds });
   const { retainP181MemberAuthority } = await import('./pc10-starlight-movement-scout-ui-proof.mjs');
@@ -6162,6 +6162,7 @@ for (const kind of ['full', 'gm']) {
     const name = kind === 'full' ? 'waitForFullActor' : 'waitForGm';
     const wait = runInNewContext(`(() => { ${body}; return ${name}; })()`, {
       assert, Date: { now: () => now }, P181_NATIVE_TIMING, pc11GmReadiness, pc11SameActorEpoch,
+      retainP181CallerRejection,
       gm: surface, wingCommander: {}, sessionId: 'startup-session', gmInstanceId: 'original-instance',
       ownedAuthUids: new Map([['gm', uid]]), hashShort: hash,
       readFullActor: async () => snapshots[Math.min(reads++, snapshots.length - 1)],
