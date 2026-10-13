@@ -4,6 +4,7 @@ import type { createCurrentMemberSessionReader as CreateMemberReader } from '../
 import type { GameSession, Player } from '@/types/game';
 import type { useSessionStore as SessionStore } from '@/store/useSessionStore';
 import type * as SessionService from '@/lib/sessionService';
+import { acknowledgeSessionWaiver } from '@/lib/sessionWaiver';
 
 const sdk = vi.hoisted(() => ({
   auth: { currentUser: null as { uid: string } | null, authStateReady: vi.fn() },
@@ -216,7 +217,7 @@ async function mount(options: { demo?: boolean; press?: boolean; gm?: boolean; l
 beforeEach(() => {
   vi.resetModules(); vi.useFakeTimers(); vi.setSystemTime('2026-10-06T09:20:00.000Z'); localStorage.clear();
   localStorage.setItem('dow-new-eden-motion-safety', JSON.stringify({ acknowledgedAt: Date.now(), choice: 'reduce' }));
-  localStorage.setItem('dow-new-eden-session-waiver', String(Date.now()));
+  acknowledgeSessionWaiver();
   sessionId = `initial-actor-authority-${++serial}`;
   sessionData = { name: 'Initial actor authority', joinCode: '123456', phase: 'active', currentTurn: 1,
     playerCount: 18, activeVesselIds: ['aegis'], activeRoleIds: ['executive-officer'],
