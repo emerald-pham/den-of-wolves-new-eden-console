@@ -7166,6 +7166,118 @@ test('P181 member-signature rejection redacts identifiers unknown keys tokens an
   assert.equal(witness.authority.identity.authMatchesOriginal, true);
 });
 
+test('P181 startup berth first rejection retains a safe discriminant through the actual observer and failure writer', async t => {
+  const cases = [
+    ['omitted', state => { delete state.session.currentActorBerthAuthority; }, ['berthMissing'], false, 'undefined'],
+    ['explicit null', state => { state.session.currentActorBerthAuthority = null; }, ['berthMissing'], true, 'null'],
+    ['actor mismatch', state => { state.session.currentActorBerthAuthority.actorUid = 'private-other-actor'; },
+      ['actorUidMismatch'], true, 'object'],
+    ['group mismatch', state => { state.session.currentActorBerthAuthority.groupId = 'private-other-group'; },
+      ['groupIdMismatch'], true, 'object'],
+    ['ship mismatch with private unknown field', state => {
+      state.session.currentActorBerthAuthority.shipId = 'private-other-ship';
+      state.session.currentActorBerthAuthority.privateUnknown = { accessToken: 'PRIVATE-BERTH-TOKEN', email: 'private@example.invalid' };
+    }, ['shipIdMismatch'], true, 'object'],
+    ['role mismatch', state => { state.session.currentActorBerthAuthority.role = 'gm'; },
+      ['roleMismatch'], true, 'object'],
+  ];
+
+  for (const [label, rejectBerth, failedPredicates, fieldPresent, valueKind] of cases) {
+    const f = await actualP181CastingAssignmentFixture(t);
+    f.wing.moduleReads = 0;
+    f.wing.beforeModule = () => { f.wing.moduleReads++; };
+    const sourceModule = await import('./pc10-starlight-movement-scout-ui-proof.mjs');
+    const authority = await sourceModule.retainP181MemberAuthority(f.wing, Date.now() + 3_000, {
+      mode: 'startup', proofProfile: 'starlight', memberRoleId: 'wing-commander',
+      expected: { sessionId: f.current.sessionId, uidHash: f.current.uidHash },
+      navigationFrom: f.current, startCycleOne: true,
+    });
+    try {
+      assert.equal((await authority.check()).fresh, true,
+        'Seed startup authority only after the original normal assignment and captured resume were accepted.');
+      assert.equal(f.current.phase, 'casting');
+      assert.equal(f.current.cycle, 0);
+      assert.equal(f.current.assignedRoleId, 'wing-commander');
+      assert.equal(f.current.sdkResumePending, false);
+      f.wing.publish(rejectBerth);
+      const error = await authority.failed.then(() => null, failure => failure);
+      assert.equal(error?.message, 'Original startup own berth authority retired.', label);
+      const witness = error?.firstStartupBerthRejectedState;
+      assert.ok(witness, `${label}: preserve the exact first startup-berth disjunct without changing rejection.`);
+      assert.equal(witness.predicate, 'startupOwnedBerthMatchesCurrent');
+      assert.equal(witness.observationOrigin, 'delivered');
+      assert.deepEqual(witness.failedPredicates, failedPredicates);
+      assert.equal(witness.berth.fieldPresent, fieldPresent);
+      assert.equal(witness.berth.valueKind, valueKind);
+      assert.equal(witness.firstPin.phase, 'casting');
+      assert.equal(witness.firstPin.cycle, 0);
+      assert.equal(witness.firstPin.assignedRoleId, 'wing-commander');
+      assert.equal(witness.firstPin.activeConsoleRoleId, null);
+      assert.equal(witness.firstPin.seatId, null);
+      assert.equal(witness.firstPin.afterAssignment, true);
+      assert.equal(witness.firstPin.afterAcceptedResume, true);
+      assert.equal(witness.firstPin.sdkHasServerAuthority, true);
+      assert.equal(witness.firstPin.sdkResumePending, false);
+      assert.equal(witness.identity.authMatchesOriginal, true);
+      assert.equal(witness.identity.memberMatchesAuth, true);
+      assert.equal(witness.identity.sessionMatchesExpected, true);
+      assert.equal(witness.epoch.connectionGeneration, f.current.connectionGeneration);
+      assert.equal(witness.epoch.identityHydrationRevision, f.current.identityHydrationRevision);
+      if (label === 'actor mismatch') assert.equal(witness.berth.actorUidMatchesAuth, false);
+      if (label === 'group mismatch') assert.equal(witness.berth.groupIdMatchesMember, false);
+      if (label.startsWith('ship mismatch')) assert.equal(witness.berth.shipIdMatchesPinned, false);
+      if (label === 'role mismatch') assert.equal(witness.berth.roleIsPlayer, false);
+
+      const encoded = JSON.stringify(witness);
+      for (const privateValue of [f.wing.uid, f.current.sessionId, f.current.fleetGroupId,
+        'aegis', 'private-other-actor', 'private-other-group', 'private-other-ship',
+        'PRIVATE-BERTH-TOKEN', 'private@example.invalid'])
+        assert.equal(encoded.includes(privateValue), false, `${label}: do not serialize ${privateValue}.`);
+      assert.ok(encoded.length < 4_000, 'The fixed startup-berth tuple stays bounded.');
+
+      if (label === 'omitted') {
+        const beforeClose = originalProofError(error);
+        assert.ok(beforeClose.heldObservationsInspect.includes('firstStartupBerthRejectedState'),
+          'The retained browser witness must cross the actual command/failed boundary.');
+        const evidence = await retainProofFailure(f.directory, 'startup-berth-diagnostic', error);
+        assert.equal(evidence.evidenceWriteFailed, false);
+        const record = JSON.parse(await readFile(evidence.path, 'utf8'));
+        assert.equal(record.originalError.message, 'Original startup own berth authority retired.');
+        assert.ok(record.originalError.fullInspect.includes('firstStartupBerthRejectedState'),
+          'The native primary failure writer must retain the diagnostic on its original error.');
+        assert.ok(record.originalError.heldObservationsInspect.includes('firstStartupBerthRejectedState'));
+        for (const privateValue of [f.wing.uid, f.current.sessionId, f.current.fleetGroupId,
+          'aegis', 'PRIVATE-BERTH-TOKEN', 'private@example.invalid']) {
+          assert.equal(record.originalError.fullInspect.includes(privateValue), false);
+          assert.equal(record.originalError.heldObservationsInspect.includes(privateValue), false);
+        }
+      }
+
+      const readsAtFailure = f.wing.moduleReads ?? 0;
+      f.wing.publish(state => {
+        state.session.currentActorBerthAuthority = { sessionId: state.session.id, actorUid: state.me.uid,
+          groupId: state.me.fleetGroupId, role: 'player', connectionGeneration: state.me.connectionGeneration,
+          assignedRoleId: state.me.assignedRoleId, activeConsoleRoleId: null, replacementRoleId: null,
+          replacementStatus: null, shipId: 'aegis' };
+      });
+      for (const action of [() => authority.check(), () => authority.pin({ expected: {} }), () => authority.close()]) {
+        await assert.rejects(action(), failure => {
+          assert.equal(failure.message, error.message, `${label}: later restoration cannot replace the first failure.`);
+          assert.equal(JSON.stringify(failure.firstStartupBerthRejectedState), encoded);
+          return true;
+        });
+      }
+      assert.equal(f.wing.moduleReads ?? 0, readsAtFailure,
+        `${label}: do not re-probe provider modules after the first rejection.`);
+      assert.equal(f.wing.choices.length, 0);
+      assert.equal(f.wing.observers.stores.size, 0);
+      assert.equal(f.wing.observers.auth.size, 0);
+    } finally {
+      await authority.close().catch(() => {});
+    }
+  }
+});
+
 test('P181 casting assignment binds a matching berth during pending resume, but only the captured settled consumer may accept it', async t => {
   const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true, omitInitialMemberBerth: true });
   assert.equal(f.before.currentMemberBerthPresent, false,
