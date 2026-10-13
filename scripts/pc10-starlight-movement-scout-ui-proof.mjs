@@ -3931,12 +3931,20 @@ async function p181RunStarlightMovementScoutNative(options) {
               // Acceptance may await receipt persistence. Recheck the same
               // retained authority before publishing its navigation binding.
               if (accepted && (await castingAuthority.check()).fresh === true) {
-                navigationStart = accepted;
                 navigation = createMemberNavigationResumeObserver(memberSurface.page, { directory,
                   roleId: memberRoleId, deadlineAt, proofProfile, memberContract: 'pc11-live-base' });
                 await bounded('Prepare original station navigation observer',
-                  () => navigation.prepare(navigationStart), deadlineAt);
-                break;
+                  () => navigation.prepare(accepted), deadlineAt);
+                // Preparation also persists asynchronously. Publish onward
+                // authority only after its current-fresh check; an unavailable
+                // interval must release this prepared observer before retry.
+                if ((await castingAuthority.check()).fresh === true) {
+                  navigationStart = accepted;
+                  break;
+                }
+                await bounded('Close original pending station navigation observer',
+                  () => navigation.finish(), castingDeadlineAt);
+                navigation = undefined;
               }
               await bounded('Wait for original casting resume acceptance', () =>
                 Promise.race([delay(Math.min(100, castingDeadlineAt - Date.now())), castingAuthority.failed]), castingDeadlineAt);
