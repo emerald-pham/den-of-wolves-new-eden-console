@@ -6490,7 +6490,7 @@ test('P181 first rejected casting state does not replace an earlier distinct mem
 });
 function currentFixtureOwnerStop(fixture, clock, overrides = {}) {
   return { schemaVersion: 1, kind: 'P181_OWNER_OPERATION_STOP',
-    sourceRoot: repositoryRoot, sourceCommit: fixture.launch.sourceCommit, projectId: fixture.launch.projectId,
+    sourceRoot: resolve(repositoryRoot), sourceCommit: fixture.launch.sourceCommit, projectId: fixture.launch.projectId,
     allocationStartedAtMs: fixture.allocationDeadlineAt - P181_NATIVE_TIMING.totalAllocationMs,
     allocationDeadlineAt: fixture.allocationDeadlineAt,
     runtimeLaunchRecordSha256: createHash('sha256').update(JSON.stringify(fixture.launch)).digest('hex'),
