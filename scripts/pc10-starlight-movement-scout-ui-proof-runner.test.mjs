@@ -225,10 +225,11 @@ function actualOpenP181OwnerStopPort() {
     createP181OwnerStopObserver(__input, {});`, { assert, Date, rememberProofFailure, __input: input });
 }
 
-function actualP181ReadinessConsumer(kind, late) {
+function actualP181ReadinessConsumer(kind, late, { memberReads, recoveryResult = false } = {}) {
   let now = 10;
   const ownedUid = 'controlled-original-gm';
   const uidHash = createHash('sha256').update(ownedUid).digest('hex').slice(0, 16);
+  const state = { reads: 0 };
   const member = { hasAuth: true, sameActor: true, uidHash, sessionId: 'controlled-session',
     meSessionId: 'controlled-session', playerRole: 'gm', profileRoleId: null,
     profileSessionId: null, fullGameDemo: null, connectionGeneration: 2,
@@ -240,8 +241,12 @@ function actualP181ReadinessConsumer(kind, late) {
     gm: { controlled: true }, gmInstanceId: member.instanceId, sessionId: member.sessionId,
     ownedAuthUids: new Map([['gm', ownedUid]]),
     hashShort: value => createHash('sha256').update(value).digest('hex').slice(0, 16),
-    readFullActor: async () => { if (late && kind === 'full') now = 101; return member; },
-    readGmRecoveryPending: async () => { if (late) now = 101; return false; },
+    readFullActor: async () => {
+      if (late && kind === 'full') now = 101;
+      const index = state.reads++;
+      return memberReads ? memberReads[Math.min(index, memberReads.length - 1)] : member;
+    },
+    readGmRecoveryPending: async () => { if (late) now = 101; return recoveryResult; },
     // This clock-only adapter controls the retained observer port. The
     // contemporary R5 cases below use the actual mounted Auth/store observer.
     retainP181MemberAuthority: async () => ({ check: async () => {}, close: async () => {}, failed: new Promise(() => {}) }),
@@ -3058,6 +3063,99 @@ test('P181 casting assignment rejects connected omission without a captured ordi
     await authority.close().catch(() => {});
     await f.observer.finish();
   }
+});
+
+// Expanded first-rejection controls intentionally exercise the real mounted
+// store/Auth observer. The assertions are additive: terminal decisions and
+// their original messages remain the contract; this group requires the
+// bounded first witness to survive the browser-command and failure bridge.
+const expandedRetainerRejections = [
+  ['Auth identity', f => f.wing.publishAuth({ uid: 'foreign-uid' })],
+  ['member session', f => f.wing.publish(state => { state.me.sessionId = 'foreign-session'; })],
+  ['actor role', f => f.wing.publish(state => { state.me.role = 'gm'; })],
+  ['fleet group', f => f.wing.publish(state => { state.me.fleetGroupId = 'fleet-2'; })],
+  ['phase and cycle', f => f.wing.publish(state => { state.session.phase = 'active'; state.session.currentTurn = 1; })],
+  ['SDK server authority', f => f.wing.publish(state => { state.sdkHasServerAuthority = false; })],
+  ['member lease', f => f.wing.publish(state => { state.me.connectionGeneration += 2; })],
+  ['own station seat', f => f.wing.publish(state => {
+    state.me.activeConsoleRoleId = 'wing-commander'; state.me.seatId = 'wing-commander';
+    state.seats[0] = { ...state.seats[0], status: 'claimed', holderUid: 'wing-uid' };
+  })],
+  ['explicit null own berth', f => f.wing.publish(state => { state.session.currentActorBerthAuthority = null; })],
+];
+for (const [label, reject] of expandedRetainerRejections) {
+  test(`P181 actual retained authority first-rejection capture covers ${label}`, async t => {
+    const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true });
+    const authority = await castingAssignmentAuthorityFor(f);
+    try {
+      reject(f);
+      const error = await authority.failed.then(() => null, failure => failure);
+      assert.ok(error, `The original ${label} guard remains terminal.`);
+      assert.ok(error.firstP181AuthorityRejectedState,
+        `The first ${label} rejection must traverse the actual retainer, command bridge, and native error path.`);
+      const witness = error.firstP181AuthorityRejectedState;
+      assert.equal(witness.schemaVersion, 1);
+      assert.equal(typeof witness.boundary, 'string');
+      assert.equal(typeof witness.predicate, 'string');
+      assert.ok(['lobby', 'casting', 'briefing', 'active', 'paused', 'debrief', 'closed', null]
+        .includes(witness.phase));
+      const encoded = JSON.stringify(witness);
+      for (const privateKey of ['"uid"', '"sessionId"', '"fleetGroupId"', '"shipId"'])
+        assert.equal(encoded.includes(privateKey), false, `The bounded witness must not export ${privateKey}.`);
+    } finally {
+      await authority.close().catch(() => {});
+      await f.observer.finish();
+    }
+  });
+}
+
+test('P181 ordinary false and pending authority observations remain holds without first-rejection capture', async t => {
+  const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true });
+  const authority = await castingAssignmentAuthorityFor(f);
+  try {
+    f.wing.publish(state => { state.sdkResumePending = true; });
+    const result = await authority.check();
+    assert.equal(result.fresh, false);
+    assert.equal(await authority.failed.then(() => true, () => false), false,
+      'An ordinary non-fresh/pending state remains a hold and does not become a terminal witness.');
+  } finally {
+    await authority.close().catch(() => {});
+    await f.observer.finish();
+  }
+});
+
+test('P181 actual ordinary-navigation observer preserves the first receipt rejection', async t => {
+  const f = await actualP181CastingAssignmentFixture(t);
+  const navigation = createMemberNavigationResumeObserver(f.wing.page, { directory: f.directory,
+    roleId: 'wing-commander', deadlineAt: Date.now() + 3_000, memberContract: 'pc11-live-base' });
+  const station = { ...f.current, connectionGeneration: f.current.connectionGeneration + 1,
+    identityHydrationRevision: f.current.identityHydrationRevision + 1 };
+  await navigation.prepare(f.current);
+  let error;
+  try {
+    await navigation.accept(f.current, station, async () => station);
+  } catch (caught) { error = caught; }
+  await navigation.finish(error);
+  assert.match(error?.message ?? '', /normal resume receipt and accepted hydration/i,
+    'The original missing-receipt rejection remains unchanged.');
+  assert.ok(error?.firstP181AuthorityRejectedState,
+    'The actual station-navigation consumer must retain its first terminal receipt witness.');
+});
+
+test('P181 actual full-actor caller preserves its first terminal assertion witness', async () => {
+  const valid = actualP181ReadinessConsumer('full', false).member;
+  const rejected = { ...valid, hasAuth: false };
+  const consumer = actualP181ReadinessConsumer('full', false, { memberReads: [rejected] });
+  await assert.rejects(consumer.execute(), error => Boolean(error.firstP181AuthorityRejectedState),
+    'The existing caller-side Auth assertion must serialize its held tuple without a new read.');
+});
+
+test('P181 actual GM caller preserves authority loss across the awaited recovery read', async () => {
+  const valid = actualP181ReadinessConsumer('gm', false).member;
+  const rejected = { ...valid, playerRole: 'player' };
+  const consumer = actualP181ReadinessConsumer('gm', false, { memberReads: [valid, rejected] });
+  await assert.rejects(consumer.execute(), error => Boolean(error.firstP181AuthorityRejectedState),
+    'The post-recovery reread must retain the first terminal role witness without re-probing.');
 });
 
 async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate = false, lateCommit = false,
