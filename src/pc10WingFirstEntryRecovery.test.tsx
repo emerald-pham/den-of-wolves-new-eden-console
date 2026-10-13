@@ -191,14 +191,14 @@ async function installPorts() {
     runTransaction: async (callback: (tx: unknown) => Promise<unknown>, options: unknown) => {
       check('real member reader uses a read-only transaction', () => assert.deepEqual(options, { readOnly: true }));
       const values: Record<string, Record<string, unknown>> = {
-        [rootPath()]: clone(root), [playerPath()]: clone(actor), [`${rootPath()}/fleetGroups/fleet-1`]: clone(group),
+        [rootPath()]: clone(root), [playerPath()]: clone({ ...actor }), [`${rootPath()}/fleetGroups/fleet-1`]: clone(group),
       };
       record('reader.atomic-snapshot');
       return callback({ get: async (reference: ReturnType<typeof ref>) => {
         record('reader.get', { kind: reference.collection ? 'collection' : 'document',
           leaf: reference.path.split('/').slice(-2).join('/').replace(actor.uid, 'own-player') });
         return reference.collection ? { docs: Object.keys(values).filter(path => path.startsWith(`${reference.path}/`) &&
-          !path.slice(reference.path.length + 1).includes('/')).map(path => document(path, values[path])) }
+          !path.slice(reference.path.length + 1).includes('/')).map(path => document(path, values[path]!)) }
           : document(reference.path, values[reference.path] ?? null);
       } });
     } };
@@ -221,7 +221,7 @@ async function installPorts() {
       group = { ...group, memberUids: [actor.uid] };
       record('port.join.committed');
       const reply = await dto();
-      delete reply.data.player.connected; // Production join DTO omits it.
+      delete (reply.data.player as { connected?: boolean }).connected; // Production join DTO omits it.
       return reply;
     }
     assert.equal(data.sessionId, sessionId);
@@ -300,7 +300,7 @@ async function acceptedPrefix() {
   // Trigger the existing App online recovery, not a fixture identity/live setter.
   act(() => window.dispatchEvent(new Event('online'))); await advance();
   check('exactly one original normal assignment resume was dispatched', () => assert.equal(resumes.length, 1));
-  resumes[0].pending.resolve(await resumes[0].reply); record('deliver.original-resume.connected-dto');
+  resumes[0]!.pending.resolve(await resumes[0]!.reply); record('deliver.original-resume.connected-dto');
   await advance(); await deliverPlayer(); await drainMembers(); await deliverSeats();
   check('normal resume and current reader accept assignedWing/unseated positive2/2', () => {
     const state = store.getState();

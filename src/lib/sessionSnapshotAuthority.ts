@@ -179,6 +179,7 @@ export function pendingWingFirstEntry(
   if (authority.hasServerSessionAuthority && !memberSessionResumeBlocksFreshness(authority) &&
       wingFirstEntryMatches(entry, state, uid, documentTimeOrigin)) return entry;
   wingFirstEntries.delete(authority);
+  return undefined;
 }
 
 export function finishWingFirstEntry(authority: SessionSnapshotAuthority, entry?: WingFirstEntryProjectionPending): void {
