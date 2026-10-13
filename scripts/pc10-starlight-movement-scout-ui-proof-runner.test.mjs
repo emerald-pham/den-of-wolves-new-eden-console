@@ -7215,14 +7215,21 @@ test('P181 startup berth first rejection retains a safe discriminant through the
       assert.equal(witness.firstPin.activeConsoleRoleId, null);
       assert.equal(witness.firstPin.seatId, null);
       assert.equal(witness.firstPin.afterAssignment, true);
-      assert.equal(witness.firstPin.afterAcceptedResume, true);
-      assert.equal(witness.firstPin.sdkHasServerAuthority, true);
-      assert.equal(witness.firstPin.sdkResumePending, false);
+      assert.equal(witness.firstPin.navigationEpochMatchesBaseline, true);
+      assert.equal(witness.firstPin.afterAcceptedResume, false,
+        'The first Store observation precedes import of the actual SDK authority module.');
+      assert.equal(witness.firstPin.sdkObservationComplete, false);
+      assert.equal(witness.firstPin.sdkHasServerAuthority, null);
+      assert.equal(witness.firstPin.sdkResumePending, null,
+        'Do not mislabel the conservative pre-SDK default as an observed pending fence.');
       assert.equal(witness.identity.authMatchesOriginal, true);
       assert.equal(witness.identity.memberMatchesAuth, true);
       assert.equal(witness.identity.sessionMatchesExpected, true);
       assert.equal(witness.epoch.connectionGeneration, f.current.connectionGeneration);
       assert.equal(witness.epoch.identityHydrationRevision, f.current.identityHydrationRevision);
+      assert.equal(witness.sdk.observationComplete, true);
+      assert.equal(witness.sdk.hasServerSessionAuthority, true);
+      assert.equal(witness.sdk.resumePending, false);
       if (label === 'actor mismatch') assert.equal(witness.berth.actorUidMatchesAuth, false);
       if (label === 'group mismatch') assert.equal(witness.berth.groupIdMatchesMember, false);
       if (label.startsWith('ship mismatch')) assert.equal(witness.berth.shipIdMatchesPinned, false);
