@@ -982,6 +982,10 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
     const rejectedCastingFailure = held => ({ p181RetainedCastingFailure: {
       message: held.failure, firstCastingRejectedState: held.firstCastingRejectedState,
     } });
+    const retainedFailure = held => held.firstCastingRejectedState ? rejectedCastingFailure(held)
+      : held.firstMemberSignatureRejectedState ? { p181RetainedMemberSignatureFailure: {
+        message: held.failure, firstMemberSignatureRejectedState: held.firstMemberSignatureRejectedState,
+      } } : held.failure;
     if (action !== 'open') {
       const held = window[key];
       if (!held || held.id !== id) throw new Error('Original P181 authority observation or document changed.');
@@ -1021,8 +1025,8 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       await held.check();
       return { fresh: held.fresh };
       } catch (error) {
-        if (held.firstCastingRejectedState && error?.message === held.failure)
-          return rejectedCastingFailure(held);
+        if ((held.firstCastingRejectedState || held.firstMemberSignatureRejectedState) && error?.message === held.failure)
+          return retainedFailure(held);
         throw error;
       }
     }
@@ -1050,9 +1054,11 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       if (held.failure === null) {
         held.failure = String(error?.message ?? error);
         if (error?.firstCastingRejectedState) held.firstCastingRejectedState = error.firstCastingRejectedState;
+        if (error?.firstMemberSignatureRejectedState)
+          held.firstMemberSignatureRejectedState = error.firstMemberSignatureRejectedState;
       }
       held.stop();
-      held.complete(held.firstCastingRejectedState ? rejectedCastingFailure(held) : held.failure);
+      held.complete(retainedFailure(held));
     };
     const inspect = (state, historical = false, observationOrigin = 'current') => {
       if (held.failure) return;
@@ -1292,8 +1298,77 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
         }
       }
       const signature = JSON.stringify(member);
-      if (held.signature !== null && signature !== held.signature)
-        throw new Error('Original P181 member epoch, phase or source custody authority retired.');
+      if (held.signature !== null && signature !== held.signature) {
+        // Capture only the exact two compared signatures and the authority
+        // tuple already inspected. Never re-read a provider after rejection.
+        // The broad signature can change without proving identity/lease loss.
+        const pinned = JSON.parse(held.signature), inspected = JSON.parse(signature);
+        const fields = ['uid', 'document', 'sessionId', 'memberUid', 'memberSession', 'role', 'group',
+          'phase', 'cycle', 'fullGameDemo', 'assigned', 'active', 'seat', 'scope', 'berth', 'ownSeat',
+          'instance', 'custody', 'docking', 'generation', 'hydration'];
+        const field = (object, name) => {
+          const value = object?.[name];
+          // A null normalized berth supplies no berth authority. Retain the
+          // serialized-field flag separately so null and omission stay distinct.
+          return { present: Object.hasOwn(object ?? {}, name) && value != null,
+            serializedFieldPresent: Object.hasOwn(object ?? {}, name),
+            valueKind: value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value };
+        };
+        const numeric = (object, name) => ({ ...field(object, name),
+          value: Number.isFinite(object?.[name]) ? object[name] : null });
+        const roles = ['player', 'gm', 'press', 'admiral', 'wing-commander', 'icebreaker-miner',
+          'shepherd-scientist', 'quellon-explorer', 'refinery-124-pdf-colonel',
+          'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker'];
+        const summarize = (object, name) => {
+          const value = object[name], summary = field(object, name);
+          if (['document', 'cycle', 'generation', 'hydration'].includes(name)) return numeric(object, name);
+          if (['uid', 'memberUid'].includes(name)) summary.matchesOriginal = value === held.rawUid;
+          if (['sessionId', 'memberSession'].includes(name))
+            summary.matchesOriginal = value === held.options.expected?.sessionId;
+          if (name === 'group') summary.matchesOriginal = value === pinned.group;
+          if (['role', 'assigned', 'active', 'seat'].includes(name))
+            summary.value = value === null || roles.includes(value) ? value : null;
+          if (name === 'phase') summary.value = ['lobby', 'casting', 'active', 'paused', 'ended'].includes(value) ? value : null;
+          if (Array.isArray(value)) summary.itemCount = value.length;
+          if (value && typeof value === 'object' && !Array.isArray(value)) {
+            if (name === 'scope') {
+              summary.groupMatchesOriginal = value.groupId === pinned.group;
+              summary.vesselCount = Array.isArray(value.vesselIds) ? value.vesselIds.length : null;
+            }
+            if (name === 'berth') {
+              summary.actorMatchesOriginal = value.actorUid === held.rawUid;
+              summary.sessionMatchesOriginal = value.sessionId === held.options.expected?.sessionId;
+              summary.groupMatchesOriginal = value.groupId === pinned.group;
+              summary.playerRole = value.role === 'player';
+              summary.shipPresent = typeof value.shipId === 'string' && value.shipId.length > 0;
+            }
+            if (name === 'instance') {
+              summary.actorMatchesOriginal = value.uid === held.rawUid;
+              summary.sessionMatchesOriginal = value.sessionId === held.options.expected?.sessionId;
+            }
+          }
+          return summary;
+        };
+        const error = new Error('Original P181 member epoch, phase or source custody authority retired.');
+        error.firstMemberSignatureRejectedState = {
+          schemaVersion: 1, predicate: 'serializedMemberSignatureMatchesPinned', observationOrigin,
+          observedAtMs: Date.now(), mode: ['casting-assignment', 'startup', 'navigation'].includes(held.options.mode)
+            ? held.options.mode : 'member',
+          differentFields: fields.filter(name => JSON.stringify(pinned[name]) !== JSON.stringify(inspected[name])),
+          expectedState: Object.fromEntries(fields.map(name => [name, summarize(pinned, name)])),
+          inspectedState: Object.fromEntries(fields.map(name => [name, summarize(inspected, name)])),
+          authority: {
+            identity: { authMatchesOriginal: user.uid === held.rawUid, memberMatchesAuth: me.uid === user.uid,
+              sessionMatchesOriginal: session.id === held.options.expected?.sessionId,
+              memberSessionMatchesSession: me.sessionId === session.id, groupMatchesPinned: me.fleetGroupId === pinned.group },
+            epoch: { connectionGeneration: numeric(me, 'connectionGeneration'),
+              identityHydrationRevision: numeric(state, 'identityHydrationRevision'), documentTimeOrigin: held.timeOrigin },
+            sdk: { hasServerSessionAuthority: sdk?.hasServerSessionAuthority === true,
+              resumePending: pending === true },
+          },
+        };
+        throw error;
+      }
       held.signature ??= signature;
       held.fresh = state.connection === 'live' && state.sessionSnapshotFreshness === 'server' &&
         sdk?.hasServerSessionAuthority === true && !pending && me.connected === true;
@@ -1400,18 +1475,20 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       return { fresh: held.fresh };
     } catch (error) {
       fail(error); held.stop(); delete window[key];
-      if (held.firstCastingRejectedState && error?.message === held.failure) return rejectedCastingFailure(held);
+      if ((held.firstCastingRejectedState || held.firstMemberSignatureRejectedState) && error?.message === held.failure)
+        return retainedFailure(held);
       throw error;
     }
   }, { id, action, moduleUrl, authorityModuleUrl: surface.sessionAuthorityModuleUrl?.() ?? authorityModuleUrl,
     deadlineAt, options, change });
   const command = async (action, change) => {
     const result = await rawCommand(action, change);
-    const retained = result?.p181RetainedCastingFailure;
+    const retained = result?.p181RetainedCastingFailure ?? result?.p181RetainedMemberSignatureFailure;
     if (retained) {
       const error = new Error(retained.message);
-      error.firstCastingRejectedState = retained.firstCastingRejectedState;
-      rememberProofFailure(error, { firstCastingRejectedState: retained.firstCastingRejectedState });
+      const field = retained.firstCastingRejectedState ? 'firstCastingRejectedState' : 'firstMemberSignatureRejectedState';
+      error[field] = retained[field];
+      rememberProofFailure(error, { [field]: retained[field] });
       throw error;
     }
     return result;
