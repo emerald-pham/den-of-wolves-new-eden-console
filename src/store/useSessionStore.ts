@@ -25,6 +25,10 @@ import { stripPersistedNavigationProjection } from '@/lib/navigationPrivacy';
 import type { CommandErrorKind } from '@/lib/commandErrors';
 import { demoActorSessionStorageKey } from '@/lib/demoActorContext';
 import type { ScoutEntitlementId } from '@/lib/scoutRequestAuthority';
+import {
+  finishWingFirstEntry, pendingWingFirstEntry, sessionSnapshotAuthorityFor, wingFirstEntryMatches,
+  type WingFirstEntryProjectionPending,
+} from '@/lib/sessionSnapshotAuthority';
 
 export const SESSION_STORAGE_KEY = 'dow-new-eden-session';
 export const GM_ACCESS_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000;
@@ -32,7 +36,7 @@ export type ConsoleMode = 'gm' | 'console' | 'press';
 
 /** App-only provenance for a withheld casting projection, never berth authority
  * or persisted/cloud input. The authority field remains present and null. */
-export interface CurrentActorBerthProjectionPending {
+interface CastingBerthProjectionPending {
   readonly kind: 'app-casting-berth-withheld';
   readonly sessionId: string;
   readonly actorUid: string;
@@ -49,6 +53,8 @@ export interface CurrentActorBerthProjectionPending {
   readonly documentTimeOrigin: number;
   readonly memberSessionScope: NonNullable<GameSession['memberSessionScope']>;
 }
+
+export type CurrentActorBerthProjectionPending = CastingBerthProjectionPending | WingFirstEntryProjectionPending;
 
 /** Safe text only; command/retry state stays in its original mounted form. */
 export interface ScoutCoordinateDraft {
@@ -671,11 +677,24 @@ export const useSessionStore = create<SessionState>()(
       ...initial,
       setSession: (session, projectionPending) => set((state) => {
         const changedSession = state.session?.id !== session?.id;
+        // A positive pre-activation read ends a local withdrawal, but the
+        // accepted CAS still owns its pending presence/activating-player path.
+        const completedEntry = projectionPending === null && (!session?.currentActorBerthAuthority ||
+          session.currentActorBerthAuthority.activeConsoleRoleId === 'wing-commander' && state.me?.activeConsoleRoleId === 'wing-commander');
+        if ((changedSession || session === null || completedEntry) && state.session && state.me) {
+          finishWingFirstEntry(sessionSnapshotAuthorityFor(state.session.id, state.me.uid));
+        }
+        if (session && state.me) pendingWingFirstEntry(sessionSnapshotAuthorityFor(session.id, state.me.uid),
+          { ...state, session }, state.me.uid, performance.timeOrigin);
         const safeSession = clearVoyageMovement(session);
-        const pendingOrigin = !changedSession && session && ['lobby', 'casting'].includes(session.phase ?? '') &&
+        let pendingOrigin = !changedSession && session && ['lobby', 'casting'].includes(session.phase ?? '') &&
           session.currentTurn === 0 && session.currentActorBerthAuthority === null
           ? projectionPending === undefined ? state.currentActorBerthProjectionPending : projectionPending
           : null;
+        if (pendingOrigin?.kind === 'app-wing-first-entry-withheld' && (!state.me || !session ||
+            !wingFirstEntryMatches(pendingOrigin, { ...state, session }, state.me.uid, performance.timeOrigin) ||
+            pendingWingFirstEntry(sessionSnapshotAuthorityFor(session.id, state.me.uid), { ...state, session },
+              state.me.uid, performance.timeOrigin)?.claimRequestId !== pendingOrigin.claimRequestId)) pendingOrigin = null;
         const preservedMovement = !pendingOrigin && !changedSession && state.voyage33MovementProjectionFresh
           ? state.session?.voyage33Movement
           : undefined;
@@ -693,8 +712,10 @@ export const useSessionStore = create<SessionState>()(
           ...(changedSession && session !== null ? { voyage33MovementProjectionFresh: false } : {}),
         };
       }),
-      setIdentity: (session, me) => set((state) => ({
-        currentActorBerthProjectionPending: null,
+      setIdentity: (session, me) => set((state) => {
+        if (state.session && state.me) finishWingFirstEntry(sessionSnapshotAuthorityFor(state.session.id, state.me.uid));
+        return {
+          currentActorBerthProjectionPending: null,
         ...(state.session?.id !== session.id || state.me?.uid !== me.uid ? { gmRecoveryPending: false } : {}),
         session: clearVoyageMovement(session), me, roleBrief: null, awayMissionHandPointer: null, awayMissionHand: null,
         scoutCoordinateDraft: state.scoutCoordinateDraft && me.role === 'player' &&
@@ -709,18 +730,25 @@ export const useSessionStore = create<SessionState>()(
         gmFacilitatorRuleCall: null, gmCrisisState: null, gmZealotryResponse: null, gmCivilUnrestResolution: null, commissarPurgeAuthority: null,
         identityHydrationRevision: state.identityHydrationRevision + 1,
         voyage33MovementProjectionFresh: false,
-      })),
+        };
+      }),
       setSeats: (seats) => set({ seats }),
       // Presence snapshots often carry the same player fields. Avoid notifying
       // the entire UI and serializing the full persisted session in that case.
       setMe: (me) => {
         const previous = get().me;
         if (!shallow(previous, me) || get().gmRecoveryPending) set((state) => {
+          if (state.session && state.me) pendingWingFirstEntry(sessionSnapshotAuthorityFor(state.session.id, state.me.uid),
+            { ...state, me }, me?.uid, performance.timeOrigin);
           const losesGmAuthority = me?.role !== 'gm' || me.sessionId !== state.session?.id ||
             me.uid !== state.gmInstance?.uid || state.gmInstance?.sessionId !== state.session?.id;
           return {
             me,
-            currentActorBerthProjectionPending: state.currentActorBerthProjectionPending &&
+            currentActorBerthProjectionPending: state.currentActorBerthProjectionPending?.kind === 'app-wing-first-entry-withheld'
+              ? wingFirstEntryMatches(state.currentActorBerthProjectionPending, { ...state, me }, me?.uid, performance.timeOrigin)
+                ? { ...state.currentActorBerthProjectionPending, activeConsoleRoleId: me!.activeConsoleRoleId as 'wing-commander' | null }
+                : null
+              : state.currentActorBerthProjectionPending &&
               me?.uid === state.currentActorBerthProjectionPending.actorUid &&
               me.sessionId === state.currentActorBerthProjectionPending.sessionId && me.role === 'player' &&
               me.connected === true && me.fleetGroupId === state.currentActorBerthProjectionPending.groupId &&
@@ -852,7 +880,9 @@ export const useSessionStore = create<SessionState>()(
         return { scoutCoordinateDraft: draft };
       }),
       disconnect: () =>
-        set((state) => ({
+        set((state) => {
+          if (state.session && state.me) finishWingFirstEntry(sessionSnapshotAuthorityFor(state.session.id, state.me.uid));
+          return ({
           session: null,
           currentActorBerthProjectionPending: null,
           seats: [],
@@ -893,8 +923,12 @@ export const useSessionStore = create<SessionState>()(
           pendingCommands: state.pendingCommands.filter(
             (command) => command.kind === 'disconnectFromSession' || command.kind === 'logoutGmAccess',
           ),
-        })),
-      reset: () => set({ ...initial }),
+          });
+        }),
+      reset: () => set((state) => {
+        if (state.session && state.me) finishWingFirstEntry(sessionSnapshotAuthorityFor(state.session.id, state.me.uid));
+        return { ...initial };
+      }),
     }),
     {
       name: demoActorSessionStorageKey(SESSION_STORAGE_KEY),
@@ -912,6 +946,7 @@ export const useSessionStore = create<SessionState>()(
         lastRoute,
       }),
       merge: (persisted, current) => {
+        if (current.session && current.me) finishWingFirstEntry(sessionSnapshotAuthorityFor(current.session.id, current.me.uid));
         const restored = persisted && typeof persisted === 'object'
           ? persisted as Partial<SessionState>
           : {};

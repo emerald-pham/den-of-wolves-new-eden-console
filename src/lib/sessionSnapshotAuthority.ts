@@ -1,4 +1,4 @@
-import type { GameSession } from '@/types/game';
+import type { GameSession, Player, Seat } from '@/types/game';
 import { turnLimitForSession, turnStateForPhaseContext } from './turnPhase';
 import {
   LEGAL_LIFECYCLE_TRANSITIONS,
@@ -53,6 +53,7 @@ const memberResumeTokens = new WeakMap<SessionSnapshotAuthority, symbol>();
 
 export function beginMemberSessionResume(authority: SessionSnapshotAuthority): symbol {
   const token = Symbol('member-resume');
+  wingFirstEntries.delete(authority);
   memberResumeTokens.set(authority, token);
   return token;
 }
@@ -67,6 +68,121 @@ export function finishMemberSessionResume(authority: SessionSnapshotAuthority, t
 
 export function memberSessionResumeBlocksFreshness(authority: SessionSnapshotAuthority): boolean {
   return memberResumeTokens.has(authority);
+}
+
+/** Local provenance for one accepted first-entry CAS; it grants no authority. */
+export interface WingFirstEntryProjectionPending {
+  readonly kind: 'app-wing-first-entry-withheld';
+  readonly sessionId: string;
+  readonly actorUid: string;
+  readonly groupId: string;
+  readonly role: 'player';
+  readonly assignedRoleId: 'wing-commander';
+  readonly activeConsoleRoleId: 'wing-commander' | null;
+  readonly seatId: 'wing-commander';
+  readonly shipId: 'aegis';
+  readonly connectionGeneration: number;
+  readonly identityHydrationRevision: number;
+  readonly sourceConnectionGeneration: number;
+  readonly sourceIdentityHydrationRevision: number;
+  readonly documentTimeOrigin: number;
+  readonly deadlineAt: number;
+  readonly claimRequestId: string;
+  readonly claimedSetupRevision: number;
+  readonly memberSessionScope: NonNullable<GameSession['memberSessionScope']>;
+}
+
+type WingEntryContext = {
+  readonly session: GameSession | null;
+  readonly me: Player | null;
+  readonly identityHydrationRevision: number;
+};
+const wingFirstEntries = new WeakMap<SessionSnapshotAuthority, WingFirstEntryProjectionPending>();
+
+export function wingFirstEntryMatches(
+  entry: WingFirstEntryProjectionPending,
+  state: WingEntryContext,
+  uid: string | undefined,
+  documentTimeOrigin: number,
+): boolean {
+  const { session, me } = state;
+  return Boolean(entry.kind === 'app-wing-first-entry-withheld' && entry.role === 'player' && entry.shipId === 'aegis' &&
+    entry.assignedRoleId === 'wing-commander' && entry.seatId === 'wing-commander' &&
+    Number.isSafeInteger(entry.connectionGeneration) && entry.connectionGeneration > 0 &&
+    Number.isSafeInteger(entry.identityHydrationRevision) && entry.identityHydrationRevision > 0 &&
+    typeof entry.claimRequestId === 'string' && entry.claimRequestId.length > 0 &&
+    Number.isSafeInteger(entry.claimedSetupRevision) && entry.claimedSetupRevision >= 0 &&
+    Number.isFinite(entry.deadlineAt) && Number.isFinite(entry.documentTimeOrigin) &&
+    session && me && uid === entry.actorUid && me.uid === uid &&
+    session.id === entry.sessionId && me.sessionId === session.id && me.role === 'player' && me.connected === true &&
+    session.phase === 'casting' && session.currentTurn === 0 && session.setupConfirmed === true &&
+    me.fleetGroupId === entry.groupId && me.assignedRoleId === entry.assignedRoleId && me.seatId === entry.seatId &&
+    (me.activeConsoleRoleId === null || me.activeConsoleRoleId === entry.assignedRoleId) &&
+    me.connectionGeneration === entry.connectionGeneration && entry.connectionGeneration === entry.sourceConnectionGeneration &&
+    state.identityHydrationRevision === entry.identityHydrationRevision &&
+    entry.identityHydrationRevision === entry.sourceIdentityHydrationRevision &&
+    me.replacementRoleId == null && me.replacementStatus == null && me.escapeState == null &&
+    (me as Player & { readonly kickedAt?: unknown }).kickedAt == null &&
+    documentTimeOrigin === entry.documentTimeOrigin && Date.now() < entry.deadlineAt &&
+    JSON.stringify(session.memberSessionScope) === JSON.stringify(entry.memberSessionScope));
+}
+
+export function beginWingFirstEntry(
+  authority: SessionSnapshotAuthority,
+  before: WingEntryContext,
+  current: WingEntryContext & { readonly seats: readonly Seat[] },
+  uid: string | undefined,
+  documentTimeOrigin: number,
+  receipt: { readonly requestId: string; readonly setupRevision: number },
+  deadlineAt: number,
+): WingFirstEntryProjectionPending | undefined {
+  const { session, me } = before;
+  const berth = session?.currentActorBerthAuthority;
+  const scope = session?.memberSessionScope;
+  if (!authority.hasServerSessionAuthority || memberSessionResumeBlocksFreshness(authority) || wingFirstEntries.has(authority) ||
+      !session || !me || !scope || me.role !== 'player' || me.connected !== true || me.uid !== uid || me.sessionId !== session.id ||
+      me.assignedRoleId !== 'wing-commander' || me.activeConsoleRoleId !== null || me.seatId != null ||
+      me.replacementRoleId != null || me.replacementStatus != null || me.escapeState != null ||
+      (me as Player & { readonly kickedAt?: unknown }).kickedAt != null ||
+      session.phase !== 'casting' || session.currentTurn !== 0 || session.setupConfirmed !== true ||
+      !Number.isSafeInteger(me.connectionGeneration) || (me.connectionGeneration ?? 0) < 1 ||
+      !(before.identityHydrationRevision > 0) || !berth || berth.sessionId !== session.id || berth.actorUid !== uid ||
+      berth.role !== 'player' || berth.shipId !== 'aegis' || berth.groupId !== me.fleetGroupId || scope.groupId !== me.fleetGroupId ||
+      !Array.isArray(scope.vesselIds) || !Array.isArray(scope.craftIds) || !scope.vesselIds.includes('aegis') ||
+      berth.connectionGeneration !== me.connectionGeneration ||
+      berth.assignedRoleId !== me.assignedRoleId || berth.activeConsoleRoleId !== null ||
+      berth.replacementRoleId != null || berth.replacementStatus != null ||
+      !current.seats.some(seat => seat.id === 'wing-commander' && seat.status === 'claimed' && seat.holderUid === uid) ||
+      !Number.isSafeInteger(receipt.setupRevision) || receipt.setupRevision < (session.setupRevision ?? 0) ||
+      current.session?.setupRevision !== receipt.setupRevision ||
+      !receipt.requestId || !Number.isFinite(documentTimeOrigin) || !Number.isFinite(deadlineAt) || deadlineAt <= Date.now()) return;
+  const entry: WingFirstEntryProjectionPending = Object.freeze({ kind: 'app-wing-first-entry-withheld',
+    sessionId: session.id, actorUid: me.uid, groupId: scope.groupId, role: 'player', assignedRoleId: 'wing-commander',
+    activeConsoleRoleId: null, seatId: 'wing-commander', shipId: 'aegis', connectionGeneration: me.connectionGeneration!,
+    identityHydrationRevision: before.identityHydrationRevision, sourceConnectionGeneration: me.connectionGeneration!,
+    sourceIdentityHydrationRevision: before.identityHydrationRevision, documentTimeOrigin, deadlineAt,
+    claimRequestId: receipt.requestId, claimedSetupRevision: receipt.setupRevision,
+    memberSessionScope: { groupId: scope.groupId, vesselIds: [...scope.vesselIds], craftIds: [...scope.craftIds] } });
+  if (!wingFirstEntryMatches(entry, current, uid, documentTimeOrigin)) return;
+  wingFirstEntries.set(authority, entry);
+  return entry;
+}
+
+export function pendingWingFirstEntry(
+  authority: SessionSnapshotAuthority,
+  state: WingEntryContext,
+  uid: string | undefined,
+  documentTimeOrigin: number,
+): WingFirstEntryProjectionPending | undefined {
+  const entry = wingFirstEntries.get(authority);
+  if (!entry) return;
+  if (authority.hasServerSessionAuthority && !memberSessionResumeBlocksFreshness(authority) &&
+      wingFirstEntryMatches(entry, state, uid, documentTimeOrigin)) return entry;
+  wingFirstEntries.delete(authority);
+}
+
+export function finishWingFirstEntry(authority: SessionSnapshotAuthority, entry?: WingFirstEntryProjectionPending): void {
+  if (!entry || wingFirstEntries.get(authority) === entry) wingFirstEntries.delete(authority);
 }
 
 /** One authority object shared by callable hydration and every listener for an identity. */

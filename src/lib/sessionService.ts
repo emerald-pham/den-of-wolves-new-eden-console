@@ -74,10 +74,13 @@ import { closedMemberSessionFrom, parseArrestPosseCalculation, parseSessionDebri
 import {
   acceptCallableSessionAuthority,
   beginMemberSessionResume,
+  beginWingFirstEntry,
   finishMemberSessionResume,
+  finishWingFirstEntry,
   isCurrentMemberSessionResume,
   sessionSnapshotAuthorityFor,
   sessionSnapshotAuthorityVersion,
+  type WingFirstEntryProjectionPending,
 } from './sessionSnapshotAuthority';
 import {
   captureSessionAuthority,
@@ -2885,18 +2888,34 @@ export async function submitCivilUnrestGrievance(input: {
 
 /** Claim a stable role seat through the server-owned CAS transaction. */
 export async function claimSeat(seatId: string): Promise<CommandDisposition> {
+  return claimSeatWithReceipt(seatId);
+}
+
+async function claimSeatWithReceipt(
+  seatId: string,
+  receive?: (receipt: { readonly requestId: string; readonly setupRevision: number }) => void,
+): Promise<CommandDisposition> {
   const store = useSessionStore.getState();
   if (!store.session || !store.me) throw new Error('Join a session before claiming a seat.');
+  const requestId = commandId();
   return sendOrQueue({
     id: commandId(),
     kind: 'claimSeat',
     payload: {
       sessionId: store.session.id,
       seatId,
-      requestId: commandId(),
+      requestId,
       expectedSetupRevision: expectedSetupRevision(store.session),
     },
     createdAt: new Date().toISOString(),
+  }, (result) => {
+    if (!receive || typeof result !== 'object' || result === null) return;
+    const receipt = result as Record<string, unknown>;
+    if ((receipt.status === 'committed' || receipt.status === 'replayed') && receipt.requestId === requestId &&
+        receipt.seatId === seatId && receipt.holderUid === store.me?.uid &&
+        Number.isSafeInteger(receipt.setupRevision) && Number(receipt.setupRevision) >= 0) {
+      receive({ requestId, setupRevision: Number(receipt.setupRevision) });
+    }
   });
 }
 
@@ -3256,6 +3275,16 @@ export async function selectConsoleRole(roleId: string): Promise<void> {
   const checkpoint = before.session
     ? sessionAuthorityCheckpoint(before.session.id, sessionAuthorityUid(before))
     : undefined;
+  let firstEntry: WingFirstEntryProjectionPending | undefined;
+  const retireFirstEntry = () => {
+    if (!firstEntry) return;
+    finishWingFirstEntry(sessionSnapshotAuthorityFor(firstEntry.sessionId, firstEntry.actorUid), firstEntry);
+    const current = useSessionStore.getState();
+    if (current.currentActorBerthProjectionPending?.kind === 'app-wing-first-entry-withheld' &&
+        current.currentActorBerthProjectionPending.claimRequestId === firstEntry.claimRequestId) {
+      current.setSession(current.session, null);
+    }
+  };
   if (before.communicationError?.kind === 'station-selection-required' &&
       authorityCheckpointIsCurrent(checkpoint)) {
     // A stale route can finish mounting while App redirects this browser back
@@ -3276,10 +3305,16 @@ export async function selectConsoleRole(roleId: string): Promise<void> {
     // first-entry seat CAS before presence grants console authority.
     const isGm = before.me?.role === 'gm';
     if (!isGm && targetSeat?.status === 'open') {
-      const disposition = await claimSeat(targetSeat.id);
+      let receipt: { readonly requestId: string; readonly setupRevision: number } | undefined;
+      const disposition = await claimSeatWithReceipt(targetSeat.id, (accepted) => { receipt = accepted; });
       if (disposition !== 'applied') {
         if (disposition === 'stale') requireStationReselection(checkpoint);
         return;
+      }
+      if (roleId === 'wing-commander' && before.session && before.me && receipt) {
+        firstEntry = beginWingFirstEntry(sessionSnapshotAuthorityFor(before.session.id, before.me.uid), before,
+          useSessionStore.getState(), auth().currentUser?.uid, performance.timeOrigin, receipt,
+          Date.now() + COMMAND_RECONNECT_WINDOW_MS);
       }
     } else if (!isGm && (
       targetSeat && targetSeat.holderUid !== before.me?.uid
@@ -3291,12 +3326,16 @@ export async function selectConsoleRole(roleId: string): Promise<void> {
       return;
     }
     await refreshPresence(roleId);
-    if (useSessionStore.getState().communicationError?.kind === 'station-selection-required') return;
+    if (useSessionStore.getState().communicationError?.kind === 'station-selection-required') {
+      retireFirstEntry();
+      return;
+    }
     const store = useSessionStore.getState();
     if (store.me && authorityCheckpointIsCurrent(checkpoint)) {
       store.setMe({ ...store.me, activeConsoleRoleId: roleId });
     }
   } catch (cause) {
+    retireFirstEntry();
     if (authorityCheckpointIsCurrent(checkpoint)) {
       const error = interception(cause);
       if (error.kind === 'station-selection-required') requireStationReselection(checkpoint);

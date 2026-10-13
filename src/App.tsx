@@ -20,7 +20,8 @@ import AppHeader from '@/components/AppHeader';
 import WolfHackingRuntime from '@/components/WolfHackingRuntime';
 import ShipPlot from '@/components/ShipPlot';
 import { useFleetGroupNavigation } from '@/lib/useFleetGroupNavigation';
-import { memberSessionResumeBlocksFreshness, sessionSnapshotAuthorityFor } from '@/lib/sessionSnapshotAuthority';
+import { finishWingFirstEntry, memberSessionResumeBlocksFreshness, pendingWingFirstEntry,
+  sessionSnapshotAuthorityFor } from '@/lib/sessionSnapshotAuthority';
 import ScreenFade from '@/components/ScreenFade';
 import CommunicationError from '@/components/CommunicationError';
 import PopulationAlert from '@/components/PopulationAlert';
@@ -418,6 +419,10 @@ function AppRoutes() {
     const callbackCurrent = () => active && appRoutesMounted.current &&
       playerListenerGeneration.current === listenerGeneration &&
       useSessionStore.getState().gmInstance?.id === gmInstanceId;
+    const currentWingFirstEntry = () => callbackCurrent()
+      ? pendingWingFirstEntry(sessionSnapshotAuthorityFor(sessionId, playerUid), useSessionStore.getState(),
+        auth().currentUser?.uid, performance.timeOrigin)
+      : undefined;
     let pendingRoleBrief: RoleBriefProjection | null = null;
     let pendingWolfCultIntelligence: { intelligence: WolfCultIntelligence; generation: number } | null = null;
     let wolfCultAuthorityGeneration = 0;
@@ -492,7 +497,10 @@ function AppRoutes() {
       // Only a validated positive current berth can originate this local
       // distinction. A server null or invalid/foreign witness remains untagged.
       const sourceMember = previousPlayer ?? member;
-      const projectionPending = ['lobby', 'casting'].includes(current.phase ?? '') && current.currentTurn === 0 &&
+      const firstEntry = currentWingFirstEntry();
+      const projectionPending = firstEntry && currentActorBerthMatches(current, sourceMember)
+        ? { ...firstEntry, activeConsoleRoleId: member?.activeConsoleRoleId === 'wing-commander' ? 'wing-commander' as const : null }
+        : ['lobby', 'casting'].includes(current.phase ?? '') && current.currentTurn === 0 &&
         current.setupConfirmed === true && currentActorBerthMatches(current, sourceMember) &&
         auth().currentUser?.uid === playerUid && sourceMember?.uid === member?.uid &&
         sourceMember?.sessionId === member?.sessionId && sourceMember?.fleetGroupId === member?.fleetGroupId &&
@@ -1008,7 +1016,10 @@ function AppRoutes() {
         },
         onSessionFreshness: (fresh) => {
           if (!callbackCurrent()) return;
-          pendingStationMemberRefresh = undefined;
+          // An accepted first-entry CAS owns this wait even when the member
+          // transaction arrives before the activating own-player projection.
+          pendingStationMemberRefresh = !fresh && currentWingFirstEntry()
+            ? () => Boolean(currentWingFirstEntry()) : undefined;
           const store = useSessionStore.getState();
           if (fresh && playerRole === 'player' &&
               memberSessionResumeBlocksFreshness(sessionSnapshotAuthorityFor(sessionId, playerUid))) {
@@ -1403,11 +1414,13 @@ function AppRoutes() {
         },
         onError: () => {
           if (!callbackCurrent()) return;
+          finishWingFirstEntry(sessionSnapshotAuthorityFor(sessionId, playerUid));
           pendingStationMemberRefresh = undefined;
           playerProjectionFresh = false;
           invalidatePendingStationReleaseFreshness();
           clearCurrentGroupCandidateReveals();
           const store = useSessionStore.getState();
+          if (store.currentActorBerthProjectionPending?.kind === 'app-wing-first-entry-withheld') store.setSession(store.session, null);
           store.setSessionSnapshotFreshness('cache');
           store.setConnection('offline');
         },
@@ -1415,6 +1428,7 @@ function AppRoutes() {
     });
     return () => {
       active = false;
+      finishWingFirstEntry(sessionSnapshotAuthorityFor(sessionId, playerUid));
       playerListenerGeneration.current += 1;
       pendingRoleBrief = null;
       clearLoyaltyCensus();
@@ -1653,11 +1667,14 @@ function AppRuntime() {
     const markAuthorityOffline = () => {
       pendingStationMemberRefresh = undefined;
       const store = useSessionStore.getState();
+      if (store.session && store.me) finishWingFirstEntry(sessionSnapshotAuthorityFor(store.session.id, store.me.uid));
+      if (store.currentActorBerthProjectionPending?.kind === 'app-wing-first-entry-withheld') store.setSession(store.session, null);
       store.setSessionSnapshotFreshness('cache');
       store.setConnection('offline');
     };
     const renewPresence = () => refreshPresence().catch(markAuthorityOffline);
     const reconnectIfNeeded = () => {
+      if (pendingStationMemberRefresh?.()) return;
       const state = useSessionStore.getState();
       if (state.session?.phase === 'closed' && state.sessionSnapshotFreshness === 'server') {
         readClosedHistoryIfReady();

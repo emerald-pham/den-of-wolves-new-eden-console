@@ -1277,6 +1277,7 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       const castingAssignment = held.options.mode === 'casting-assignment';
       let castingProjectionWithheld = false;
       let castingProjectionConfirmed = false;
+      let startupProjectionWithheld = false;
       const castingRoleId = held.options.castingRoleId ?? 'wing-commander';
       if (castingAssignment && castingRoleId !== held.options.memberRoleId)
         throw new Error('Original P181 casting assignment role changed.');
@@ -1666,7 +1667,31 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
           });
           return error;
         };
-        if (held.startupOwnedBerth && (!berth || berth.actorUid !== user.uid || berth.groupId !== me.fleetGroupId ||
+        const origin = state.currentActorBerthProjectionPending;
+        const pin = held.startupOwnedBerthContext;
+        startupProjectionWithheld = Boolean(berth === null && held.startupOwnedBerth?.shipId === 'aegis' && pin &&
+          origin?.kind === 'app-wing-first-entry-withheld' && origin.sessionId === session.id && origin.actorUid === user.uid &&
+          origin.groupId === me.fleetGroupId && origin.role === 'player' && me.role === 'player' && me.connected === true &&
+          origin.assignedRoleId === 'wing-commander' && me.assignedRoleId === origin.assignedRoleId &&
+          origin.seatId === 'wing-commander' && me.seatId === origin.seatId && ownsSeat &&
+          origin.activeConsoleRoleId === (me.activeConsoleRoleId ?? null) &&
+          (origin.activeConsoleRoleId === null || origin.activeConsoleRoleId === 'wing-commander') &&
+          origin.shipId === held.startupOwnedBerth.shipId && origin.documentTimeOrigin === held.timeOrigin &&
+          origin.connectionGeneration === me.connectionGeneration && origin.sourceConnectionGeneration === pin.generation &&
+          origin.sourceConnectionGeneration === origin.connectionGeneration &&
+          origin.identityHydrationRevision === state.identityHydrationRevision && origin.sourceIdentityHydrationRevision === pin.hydration &&
+          origin.sourceIdentityHydrationRevision === origin.identityHydrationRevision &&
+          Number.isFinite(origin.deadlineAt) && Date.now() < origin.deadlineAt &&
+          typeof origin.claimRequestId === 'string' && origin.claimRequestId.length > 0 &&
+          Number.isSafeInteger(origin.claimedSetupRevision) && session.setupRevision >= origin.claimedSetupRevision &&
+          session.phase === 'casting' && session.currentTurn === 0 && session.setupConfirmed === true &&
+          origin.memberSessionScope?.groupId === me.fleetGroupId &&
+          JSON.stringify(origin.memberSessionScope) === JSON.stringify(session.memberSessionScope) &&
+          origin.memberSessionScope.vesselIds?.includes(origin.shipId) &&
+          (!held.authority || sdk?.hasServerSessionAuthority === true && pending === false) &&
+          ['playerDiscovery', 'shipGalacticCoordinates', 'shipNavigationLogs', 'currentGroupCandidateReveals', 'voyage33Movement']
+            .every(key => !Object.hasOwn(session, key)));
+        if (held.startupOwnedBerth && !startupProjectionWithheld && (!berth || berth.actorUid !== user.uid || berth.groupId !== me.fleetGroupId ||
             berth.shipId !== held.startupOwnedBerth.shipId || berth.role !== 'player'))
           throw startupBerthFailure(berth);
         if (berth?.actorUid === user.uid) {
@@ -1767,7 +1792,7 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
         held.signature = signature;
       }
       held.fresh = state.connection === 'live' && state.sessionSnapshotFreshness === 'server' &&
-        sdk?.hasServerSessionAuthority === true && !pending && me.connected === true && !castingProjectionWithheld &&
+        sdk?.hasServerSessionAuthority === true && !pending && me.connected === true && !castingProjectionWithheld && !startupProjectionWithheld &&
         (!castingAssignment || !held.castingProjectionWithheldSeen || castingProjectionConfirmed);
     };
     const observe = (delivered, previous) => {
