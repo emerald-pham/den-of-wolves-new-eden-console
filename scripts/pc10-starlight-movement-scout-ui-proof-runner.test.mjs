@@ -2803,9 +2803,9 @@ async function castingAssignmentAuthorityFor(f) {
 }
 
 const invalidFirstCastingBerths = [
-  ['actor UID', (_berth, f) => ({ actorUid: 'foreign-actor' })],
-  ['session ID', (_berth, f) => ({ sessionId: 'foreign-session' })],
-  ['fleet group', (_berth, f) => ({ groupId: 'fleet-2' })],
+  ['actor UID', () => ({ actorUid: 'foreign-actor' })],
+  ['session ID', () => ({ sessionId: 'foreign-session' })],
+  ['fleet group', () => ({ groupId: 'fleet-2' })],
   ['member role', () => ({ role: 'gm' })],
   ['missing ship', () => ({ shipId: '' })],
   ['lease generation', (_berth, f) => ({ connectionGeneration: f.before.connectionGeneration + 2 })],
