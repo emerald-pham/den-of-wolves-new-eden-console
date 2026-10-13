@@ -4,6 +4,8 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { runInNewContext } from 'node:vm';
 
 const helpers = () => import('./pc10-candidate-proof-helpers.mjs');
 const coreRoles = [
@@ -323,3 +325,157 @@ test('proof evidence cannot relabel a seeded run, extra browser or human attenda
   assert.equal(result.adminGameplayWrites, false); assert.equal(result.callableFixtures, false);
   assert.equal(result.acceleratedClock, false); assert.equal(result.wholeGameProof, false);
 });
+
+/** Actual O callback and scout/candidate producers; only UI/provider ports are inert.
+ * There is no Firebase client, emulator, browser or pre-seeded successful result. */
+async function nebulaPermittedCalculationFixture({ incomplete = false, change } = {}) {
+  const require = createRequire(import.meta.url);
+  const { resolveCandidateAction, candidateWorkspace } = require('../functions/lib/candidatePaths.js');
+  const { buildScoutResolutionPlan } = require('../functions/lib/scoutResolutionPlan.js');
+  const ts = require('typescript');
+  const compiled = async (file, dependencies = {}) => {
+    const source = await readFile(new URL(`../${file}`, import.meta.url), 'utf8'), module = { exports: {} };
+    runInNewContext(ts.transpileModule(source, { compilerOptions: {
+      module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
+    } }).outputText, { module, exports: module.exports, window: { navigator: { onLine: true } },
+      require: name => { assert.ok(Object.hasOwn(dependencies, name), `Only declared inert ports: ${name}`); return dependencies[name]; } });
+    return module.exports;
+  };
+  const ships = ['aegis', 'shepherd', 'quellon', 'icebreaker', 'refinery-124'];
+  const roleFor = { aegis: 'executive-officer', shepherd: 'shepherd-engineer', quellon: 'quellon-engineer',
+    icebreaker: 'icebreaker-engineer', 'refinery-124': 'refinery-124-engineer' };
+  const roster = Object.values(roleFor).map(roleId => ({ roleId }));
+  const state = { sessionId: 'nebula-session', phase: 'active', cycle: 1, activeVesselIds: ships,
+    organiserSites: { '0408': { code: 'O' } },
+    shipFleetGroupIds: Object.fromEntries(ships.map(ship => [ship, ['icebreaker', 'refinery-124'].includes(ship) ? 'fleet-2' : 'fleet-1'])),
+    shipResources: Object.fromEntries(ships.map(ship => [ship, { fuel: 40 }])),
+    shipDamage: Object.fromEntries(ships.map(ship => [ship, { destroyed: false }])),
+    shipSurvivors: Object.fromEntries(ships.map(ship => [ship, 100])) };
+  const store = { session: { id: state.sessionId, currentTurn: 5, phase: 'active' },
+    me: { uid: 'original-gm', sessionId: state.sessionId, role: 'gm', fleetGroupId: 'fleet-1',
+      assignedRoleId: null, activeConsoleRoleId: null },
+    gmInstance: { id: 'owned-instance', uid: 'original-gm', sessionId: state.sessionId, claimedAt: 'original-lease' },
+    connection: 'live', sessionSnapshotFreshness: 'server' };
+  const actor = { hasAuth: true, sameActor: true, uidHash: 'original-gm-hash', sessionId: state.sessionId,
+    instanceId: 'owned-instance', gmInstanceOwned: true, playerRole: 'gm', connection: 'live', freshness: 'server',
+    documentTimeOrigin: 1000 };
+  const productionPhase = await compiled('src/lib/turnPhase.ts');
+  const productionLifecycle = await compiled('functions/src/lifecycle.ts');
+  const sdkAuthority = await compiled('src/lib/sessionSnapshotAuthority.ts', {
+    './turnPhase': productionPhase, '../../functions/src/lifecycle': productionLifecycle,
+  });
+  const cursor = sdkAuthority.sessionSnapshotAuthorityFor(store.session.id, store.me.uid);
+  assert.equal(sdkAuthority.acceptServerSessionAuthority(cursor, store.session, { seconds: 1, nanoseconds: 0 }), true);
+  const storePort = { useSessionStore: { getState: () => store } };
+  const mutation = await compiled('src/lib/sessionMutationAuthority.ts', {
+    '@/store/useSessionStore': storePort, './sessionSnapshotAuthority': sdkAuthority,
+  });
+  let candidates = { revision: 0, sites: {} }, selectedShip, scoutCalls = 0, completeCalls = 0, forbiddenReads = 0;
+  const marks = [], audits = [], paidResults = [], workspaceReads = [], evidence = [];
+  const authority = (shipId, gm = false) => ({ sessionId: state.sessionId, cycle: state.cycle, phase: state.phase,
+    coordination: true, now: '2026-10-13T07:00:00.000Z', groupId: 'fleet-1', vesselIds: ships,
+    actor: { uid: gm ? store.me.uid : roleFor[shipId], gm, shipIds: gm ? ships : [shipId], research: false, shuttleIds: [] },
+    discovered: [{ code: 'O', coordinate: '0408' }], research: {}, engineeringShuttles: [], hiddenScoutCount: marks.length,
+    ships: Object.fromEntries(ships.map(ship => [ship, { fuel: state.shipResources[ship].fuel, materials: 0,
+      destroyed: state.shipDamage[ship].destroyed, reactorCapacity: 3, jumpCharged: true, jumpDamaged: false,
+      longJumpCost: 8, atCandidate: true, jumpedThisCycle: false, coordinate: '0408' }])) });
+  const provider = async (_name, payload) => {
+    workspaceReads.push({ ...payload });
+    let report = { ...candidateWorkspace(authority(undefined, true), candidates), privateCalculations: structuredClone(audits) };
+    if (change) report = change({ report, store, actor, cursor, sdkAuthority }) ?? report;
+    return report;
+  };
+  const service = await compiled('src/lib/candidateService.ts', {
+    'firebase/functions': { httpsCallable: (_unused, name) => async payload => ({ data: await provider(name, payload) }) },
+    './firebase': { functions: () => ({ inertProvider: true }) },
+    './sessionMutationAuthority': mutation, '@/store/useSessionStore': storePort,
+  });
+  const gm = { observe: async () => ({ ...actor }), page: {
+    evaluate: async (callback, input) => runInNewContext(`(${String(callback).replace(/\bimport\s*\(/g, '__load(')})(__input)`, {
+      __input: input, __load: async path => { assert.equal(path, '/src/lib/candidateService.ts'); return service; },
+    }),
+  } };
+  const surface = { page: { getByRole: () => ({
+    getByRole: () => ({ click: async () => {}, }), locator: () => ({ count: async () => 0 }),
+  }), screenshot: async () => {} } };
+  const tools = {
+    begin: async () => state, state: async () => state,
+    printedRationBudget: async () => Object.fromEntries(ships.map(ship => [ship, { food: 1, water: 1 }])),
+    gmSupplies: async () => {}, gmRepair: async () => {}, maintenanceUi: async () => {},
+    coordination: async () => {}, jump: async () => {},
+    confirmPhysicalGroups: async () => {}, cycle: async cycle => { state.cycle = cycle; },
+    select: async roleId => { selectedShip = Object.keys(roleFor).find(ship => roleFor[ship] === roleId); return roleId === 'gm' ? gm : surface; },
+    candidateGeometry: async () => {}, record: async (stage, detail) => { evidence.push({ stage, ...detail }); },
+    waitState: async (_description, predicate) => { assert.ok(predicate(state)); return state; },
+    read: async () => { forbiddenReads++; throw Object.assign(new Error('Server-only deepNebulaScans client read denied.'), { code: 'permission-denied' }); },
+    scout: async (roleId, craft, coordinate) => {
+      const requestId = `scout-${++scoutCalls}`, shipId = craft === 'endeavour' ? 'shepherd' : 'quellon';
+      const scan = { sourceId: craft, attempt: 1, range: 'unlimited', targetCoordinate: coordinate };
+      const plan = buildScoutResolutionPlan({
+        request: { type: 'scout-request', status: 'requested', resolution: 'pending', sessionId: state.sessionId,
+          requestId, actorUid: roleId, entitlementId: craft, source: 'craft', ownerRoleId: roleId,
+          anchorShipId: shipId, receivingShipId: shipId, cycle: state.cycle, targetCoordinate: coordinate, scan, createdAt: 'source-time' },
+        cadence: { sessionId: state.sessionId, entitlementId: craft, cycle: state.cycle, scans: [{ requestId, actorUid: roleId, scan }] },
+        session: { sessionId: state.sessionId, phase: 'active', chartId: 'A', chartSelectionLocked: true, currentCycle: state.cycle },
+        facilitator: { type: 'automatic-server' }, fleetGroupId: 'fleet-1', recordedAt: '2026-10-13T07:00:00.000Z',
+      });
+      assert.equal(plan.result.systemFact.code, 'O'); assert.ok(plan.deepNebulaScan);
+      if (!incomplete || scoutCalls !== 8) marks.push(plan.deepNebulaScan);
+    },
+    receipt: async (_surface, endpoint, click) => {
+      assert.equal(endpoint, 'executeCandidateAction'); await click();
+      const command = { sessionId: state.sessionId, requestId: `jump-${paidResults.length + 1}`, expectedRevision: candidates.revision,
+        expectedGroupId: 'fleet-1', code: 'O', coordinate: '0408', action: 'nebula-jump', shipId: selectedShip };
+      const plan = resolveCandidateAction(authority(selectedShip), candidates, command, 6);
+      candidates = plan.state;
+      for (const [ship, patch] of Object.entries(plan.shipPatches)) {
+        state.shipResources[ship].fuel = patch.fuel;
+        if (patch.destroyed) { state.shipDamage[ship].destroyed = true; state.shipSurvivors[ship] = 0; }
+      }
+      audits.push({ requestId: command.requestId, code: 'O', result: plan.reply.outcome, calculation: plan.calculation });
+      paidResults.push(plan.reply);
+      if (plan.groupOutcome) state.phase = 'debrief';
+      return plan.reply;
+    },
+    complete: async code => { assert.equal(code, 'O'); assert.equal(state.phase, 'debrief'); completeCalls++; },
+  };
+  const proof = await import('./pc10-candidate-manual-ui-proof.mjs');
+  const { candidateShipRole } = await helpers();
+  // Run the actual exported consumer body, replacing its tool factory with
+  // explicit UI ports. Producer/service source remains real; no native claim.
+  const run = new Function('assert', 'candidateGameplayTools', 'candidateShipRole', 'readNebulaCandidateCalculation',
+    `return (${proof.runNebulaEnding.toString()});`)(assert, () => tools, candidateShipRole, proof.readNebulaCandidateCalculation);
+  const context = { gm, crew: surface, initial: { sessionId: state.sessionId }, started: { ...actor }, roster, directory: '/inert-evidence' };
+  return { run: () => run(context), marks, paidResults, workspaceReads, evidence,
+    counts: () => ({ scoutCalls, completeCalls, forbiddenReads }), store, actor };
+}
+
+test('actual O ending consumes eight source scout marks through permitted original GM calculation without a private collection read', async t => {
+  const fixture = await nebulaPermittedCalculationFixture();
+  try { await fixture.run(); }
+  finally { t.diagnostic(JSON.stringify({ counts: fixture.counts(), sourceScoutMarks: fixture.marks.length,
+    paidOutcomes: fixture.paidResults.map(reply => reply.outcome), permittedReads: fixture.workspaceReads.length })); }
+  assert.deepEqual(fixture.counts(), { scoutCalls: 8, completeCalls: 1, forbiddenReads: 0 });
+  assert.equal(fixture.marks.length, 8);
+  assert.equal(fixture.workspaceReads.length, 4, 'Each paid survivor attempt must match its own calculation.');
+  assert.ok(fixture.workspaceReads.every(read => read.sessionId === 'nebula-session' && read.expectedGroupId === 'fleet-1' && read.instanceId === 'owned-instance'));
+  assert.deepEqual(fixture.paidResults.map(reply => reply.outcome), ['lost', 'reached', 'reached', 'reached', 'reached']);
+});
+
+for (const [label, change, message] of [
+  ['incomplete qualifying scans', undefined, /eight|scout|modifier/i],
+  ['missing matched private calculation', ({ report }) => ({ ...report, privateCalculations: [] }), /original|calculation|receipt/i],
+  ['another request calculation', ({ report }) => ({ ...report, privateCalculations: report.privateCalculations.map(audit => ({ ...audit, requestId: 'foreign-request' })) }), /original|calculation|receipt/i],
+  ['foreign group response', ({ report }) => ({ ...report, groupId: 'fleet-2' }), /verified|group|authority/i],
+  ['GM role retired during reply', ({ store }) => { store.me.role = 'player'; }, /audience|authority|GM/i],
+  ['original GM identity changed during reply', ({ actor }) => { actor.uidHash = 'other-gm'; }, /original|GM|authority/i],
+  ['cache reply', ({ store }) => { store.connection = 'offline'; store.sessionSnapshotFreshness = 'cache'; }, /live|authority|reconnect/i],
+]) {
+  test(`actual O ending refuses ${label} instead of inventing scan or ending credit`, async () => {
+    const fixture = await nebulaPermittedCalculationFixture({ incomplete: label === 'incomplete qualifying scans', change });
+    await assert.rejects(fixture.run(), message);
+    assert.equal(fixture.counts().forbiddenReads, 0, 'No diagnostic can weaken server-only scan privacy.');
+    assert.equal(fixture.counts().completeCalls, 0);
+    assert.ok(fixture.paidResults.length <= 2, 'Invalid first survivor evidence must stop all later paid choices.');
+  });
+}
