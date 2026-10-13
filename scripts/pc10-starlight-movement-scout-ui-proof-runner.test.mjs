@@ -2597,7 +2597,7 @@ function actualP181CastingReadyPredicate(before) {
   });
 }
 
-test('P181 casting wait stays pending when connected restores before the current berth', async t => {
+test('P181 casting wait stays pending when connected restores before the current berth from an initially absent berth', async t => {
   const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true, resumeBerthGap: true,
     omitInitialMemberBerth: true });
   const authority = await castingAssignmentAuthorityFor(f);
@@ -2641,7 +2641,7 @@ test('P181 casting wait stays pending when connected restores before the current
   }
 });
 
-test('P181 casting observer holds when the current berth restores before connected', async t => {
+test('P181 casting observer holds when the current berth restores before connected from an initially absent berth', async t => {
   const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true, resumeBerthGap: true,
     omitInitialMemberBerth: true });
   const authority = await castingAssignmentAuthorityFor(f);
@@ -2771,6 +2771,19 @@ test('P181 casting assignment times out on an ordinary resume body delivered aft
   }
 });
 
+test('P181 casting assignment rejects a second ordinary resume even after the first receipt settled', async t => {
+  const f = await actualP181CastingAssignmentFixture(t);
+  const repeatedPlayer = { ...f.wing.state.me, uid: f.wing.uid, sessionId: f.before.sessionId,
+    assignedRoleId: 'wing-commander', connectionGeneration: f.before.connectionGeneration + 1 };
+  f.wing.deliver('resumeSession', { sessionId: f.before.sessionId }, {
+    session: { id: f.before.sessionId }, player: repeatedPlayer,
+  });
+  await assert.rejects(f.observer.accept(f.before, f.current,
+    () => observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds }), f.assignment),
+  /multiple normal resume requests/i);
+  await f.observer.finish();
+});
+
 async function castingAssignmentAuthorityFor(f) {
   const sourceModule = await import('./pc10-starlight-movement-scout-ui-proof.mjs');
   const authority = await sourceModule.retainP181MemberAuthority(f.wing, Date.now() + 2_000, {
@@ -2787,6 +2800,76 @@ async function castingAssignmentAuthorityFor(f) {
     return f.wing.castingResumeNotice;
   };
   return authority;
+}
+
+const invalidFirstCastingBerths = [
+  ['actor UID', (_berth, f) => ({ actorUid: 'foreign-actor' })],
+  ['session ID', (_berth, f) => ({ sessionId: 'foreign-session' })],
+  ['fleet group', (_berth, f) => ({ groupId: 'fleet-2' })],
+  ['member role', () => ({ role: 'gm' })],
+  ['missing ship', () => ({ shipId: '' })],
+  ['lease generation', (_berth, f) => ({ connectionGeneration: f.before.connectionGeneration + 2 })],
+  ['assigned role pointer', () => ({ assignedRoleId: 'admiral' })],
+  ['active console pointer', () => ({ activeConsoleRoleId: 'wing-commander' })],
+  ['replacement role pointer', () => ({ replacementRoleId: 'admiral' })],
+  ['replacement status pointer', () => ({ replacementStatus: 'assigned' })],
+];
+for (const [label, mutate] of invalidFirstCastingBerths) {
+  test(`P181 casting retainer rejects a first berth with a mismatched ${label} before pinning`, async t => {
+    const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true,
+      omitInitialMemberBerth: true });
+    const authority = await castingAssignmentAuthorityFor(f);
+    try {
+      const originalBerth = { sessionId: f.before.sessionId, actorUid: f.wing.uid,
+        groupId: f.before.fleetGroupId, role: 'player', connectionGeneration: f.before.connectionGeneration,
+        assignedRoleId: 'wing-commander', activeConsoleRoleId: null,
+        replacementRoleId: null, replacementStatus: null, shipId: 'aegis' };
+      f.wing.publish(state => {
+        state.session.phase = 'casting'; state.me.assignedRoleId = 'wing-commander';
+        state.connection = 'connecting'; state.sessionSnapshotFreshness = 'cache'; state.sdkResumePending = true;
+        state.session.currentActorBerthAuthority = { ...originalBerth, ...mutate(originalBerth, f) };
+      });
+      const error = await authority.failed.then(() => null, failure => failure);
+      assert.ok(error, `The invalid ${label} must be terminal before a binding exists.`);
+      assert.match(error.message, /berth|authority|identity/i);
+      assert.equal(error.firstMemberSignatureRejectedState, undefined,
+        'Malformed or mismatched source input must fail in the casting validator, not the generic signature comparator.');
+    } finally {
+      await authority.close().catch(() => {});
+      await f.observer.finish();
+    }
+  });
+}
+
+for (const [label, retire] of [
+  ['explicit null', state => { state.session.currentActorBerthAuthority = null; }],
+  ['omission before the captured DTO gap', state => { delete state.session.currentActorBerthAuthority; }],
+  ['ship replacement', state => { state.session.currentActorBerthAuthority.shipId = 'foreign-ship'; }],
+]) {
+  test(`P181 casting retainer keeps a bound first berth terminal after ${label}`, async t => {
+    const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true,
+      omitInitialMemberBerth: true });
+    const authority = await castingAssignmentAuthorityFor(f);
+    let heldFailure;
+    f.wing.onCastingBerthPublished = async current => {
+      assert.equal(current.currentMemberBerthMatches, true);
+      assert.equal((await authority.check()).fresh, false,
+        'The first valid publication is held while the ordinary resume fence is pending.');
+      f.wing.publish(retire);
+      heldFailure = await authority.failed.then(() => null, failure => failure);
+      assert.match(heldFailure?.message ?? '', /berth|authority|retired/i);
+      throw heldFailure;
+    };
+    try {
+      await assert.rejects(f.applyAssignmentAndResume(), error => error === heldFailure);
+      assert.ok(heldFailure);
+      assert.equal(heldFailure.firstMemberSignatureRejectedState, undefined,
+        'The one-field pin must ratchet and later retirement must fail its casting-specific guard.');
+    } finally {
+      await authority.close().catch(() => {});
+      await f.observer.finish();
+    }
+  });
 }
 
 const transientCastingRetirements = [
@@ -7030,6 +7113,28 @@ test('P181 casting assignment binds a matching berth during pending resume, but 
     assert.equal(f.wing.choices.length, 0, 'Observation and receipt acceptance grant no gameplay action.');
   } finally {
     await authority.close().catch(() => {});
+    await f.observer.finish();
+  }
+});
+
+test('P181 casting resume refuses a first berth whose ship is outside the original member scope', async t => {
+  const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true, omitInitialMemberBerth: true });
+  f.wing.onCastingBerthPublished = async current => {
+    assert.equal(current.currentMemberBerthMatches, true);
+    f.wing.publish(state => { state.session.currentActorBerthAuthority.shipId = 'foreign-ship'; });
+  };
+  try {
+    const current = await f.applyAssignmentAndResume();
+    assert.equal(current.currentMemberBerthPresent, true);
+    assert.equal(current.currentMemberBerthMatches, false,
+      'A ship outside the original member scope cannot become current berth readiness.');
+    assert.equal(current.sdkResumePending, false);
+    assert.equal(current.connection, 'live');
+    assert.equal(current.freshness, 'server');
+    await assert.rejects(f.observer.accept(f.before, current,
+      () => observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds }), f.assignment),
+    /current.*readiness|berth/i);
+  } finally {
     await f.observer.finish();
   }
 });
