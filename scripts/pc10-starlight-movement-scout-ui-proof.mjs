@@ -985,6 +985,8 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
     const retainedFailure = held => held.firstCastingRejectedState ? rejectedCastingFailure(held)
       : held.firstMemberSignatureRejectedState ? { p181RetainedMemberSignatureFailure: {
         message: held.failure, firstMemberSignatureRejectedState: held.firstMemberSignatureRejectedState,
+      } } : held.firstStartupBerthRejectedState ? { p181RetainedStartupBerthFailure: {
+        message: held.failure, firstStartupBerthRejectedState: held.firstStartupBerthRejectedState,
       } } : held.failure;
     if (action !== 'open') {
       const held = window[key];
@@ -1025,7 +1027,8 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       await held.check();
       return { fresh: held.fresh };
       } catch (error) {
-        if ((held.firstCastingRejectedState || held.firstMemberSignatureRejectedState) && error?.message === held.failure)
+        if ((held.firstCastingRejectedState || held.firstMemberSignatureRejectedState ||
+            held.firstStartupBerthRejectedState) && error?.message === held.failure)
           return retainedFailure(held);
         throw error;
       }
@@ -1043,6 +1046,7 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       castingEpoch: null, castingAssignedSeen: false, castingPhaseSeen: false,
       castingResumeSettled: false, castingPendingSeen: false, castingBerthSeen: false,
       castingBerthBinding: null, castingBerthGapSeen: false, castingBerthGapRestored: false,
+      firstStartupBerthRejectedState: null, startupOwnedBerthContext: null,
       castingConnectedGapSeen: false, castingConnectedGapRestored: false };
     window[key] = held;
     held.completed = new Promise(resolve => { held.complete = resolve; });
@@ -1056,6 +1060,8 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
         if (error?.firstCastingRejectedState) held.firstCastingRejectedState = error.firstCastingRejectedState;
         if (error?.firstMemberSignatureRejectedState)
           held.firstMemberSignatureRejectedState = error.firstMemberSignatureRejectedState;
+        if (error?.firstStartupBerthRejectedState)
+          held.firstStartupBerthRejectedState = error.firstStartupBerthRejectedState;
       }
       held.stop();
       held.complete(retainedFailure(held));
@@ -1288,10 +1294,122 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
         if (held.startupOwnedSeat && !ownsSeat) throw new Error('Original startup own seat authority retired.');
         if (ownsSeat) held.startupOwnedSeat = true;
         const berth = session.currentActorBerthAuthority;
+        const startupRoles = ['player', 'gm', 'press', 'admiral', 'wing-commander', 'icebreaker-miner',
+          'shepherd-scientist', 'quellon-explorer', 'refinery-124-pdf-colonel',
+          'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker'];
+        const safeStartupRole = value => startupRoles.includes(value) ? value : null;
+        const safeStartupPhase = value => ['lobby', 'casting', 'briefing', 'active', 'paused', 'debrief', 'closed']
+          .includes(value) ? value : null;
+        const safeStartupEpoch = value => Number.isSafeInteger(value) ? value : null;
+        const safeStartupBoolean = value => typeof value === 'boolean' ? value : null;
+        const safeStartupKind = value => value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
+        const safeConnectedState = member => !Object.hasOwn(member ?? {}, 'connected') ? 'missing'
+          : typeof member.connected === 'boolean' ? member.connected : 'invalid';
+        const startupIdentityWitness = () => ({ authMatchesOriginal: user.uid === held.rawUid,
+          memberMatchesAuth: me.uid === user.uid,
+          sessionMatchesExpected: session.id === held.options.expected?.sessionId,
+          memberSessionMatchesSession: me.sessionId === session.id,
+          documentMatchesOriginal: performance.timeOrigin === held.timeOrigin,
+          groupMatchesScope: me.fleetGroupId === session.memberSessionScope?.groupId });
+        const startupBerthWitness = value => ({ fieldPresent: Object.hasOwn(session, 'currentActorBerthAuthority'),
+          valueKind: safeStartupKind(value),
+          actorUidFieldPresent: Boolean(value && typeof value === 'object' && Object.hasOwn(value, 'actorUid')),
+          actorUidMatchesAuth: value && typeof value === 'object' ? value.actorUid === user.uid : null,
+          groupIdFieldPresent: Boolean(value && typeof value === 'object' && Object.hasOwn(value, 'groupId')),
+          groupIdMatchesMember: value && typeof value === 'object' ? value.groupId === me.fleetGroupId : null,
+          groupIdMatchesScope: value && typeof value === 'object'
+            ? value.groupId === session.memberSessionScope?.groupId : null,
+          shipIdFieldPresent: Boolean(value && typeof value === 'object' && Object.hasOwn(value, 'shipId')),
+          shipIdMatchesPinned: value && typeof value === 'object'
+            ? value.shipId === held.startupOwnedBerth?.shipId : null,
+          shipIdInMemberScope: value && typeof value === 'object'
+            ? Array.isArray(session.memberSessionScope?.vesselIds) &&
+              session.memberSessionScope.vesselIds.includes(value.shipId) : null,
+          roleFieldPresent: Boolean(value && typeof value === 'object' && Object.hasOwn(value, 'role')),
+          roleIsPlayer: value && typeof value === 'object' ? value.role === 'player' : null });
+        const createStartupBerthPinContext = value => {
+          const navigationFrom = held.options.navigationFrom;
+          const navigationEpochMatchesBaseline = Boolean(navigationFrom &&
+            me.connectionGeneration === navigationFrom.connectionGeneration &&
+            state.identityHydrationRevision === navigationFrom.identityHydrationRevision);
+          const sdkObservationComplete = typeof held.authority === 'function' &&
+            typeof held.resumePending === 'function';
+          const sdkSettledAtPin = navigationEpochMatchesBaseline && sdkObservationComplete &&
+            sdk?.hasServerSessionAuthority === true && pending === false;
+          const berthSummary = startupBerthWitness(value);
+          return Object.freeze({ schemaVersion: 1,
+            observationOrigin,
+            role: safeStartupRole(me.role), phase: safeStartupPhase(session.phase),
+            cycle: safeStartupEpoch(session.currentTurn), assignedRoleId: safeStartupRole(me.assignedRoleId),
+            activeConsoleRoleId: safeStartupRole(me.activeConsoleRoleId), seatId: safeStartupRole(me.seatId),
+            afterAssignment: me.assignedRoleId === held.options.memberRoleId &&
+              session.phase === 'casting' && session.currentTurn === 0,
+            navigationFromPresent: navigationFrom != null,
+            navigationEpochMatchesBaseline,
+            sdkSettledAtPin,
+            connectedState: safeConnectedState(me),
+            connection: ['live', 'offline', 'connecting', 'disconnected'].includes(state.connection)
+              ? state.connection : 'other',
+            freshness: ['server', 'cache', 'unknown'].includes(state.sessionSnapshotFreshness)
+              ? state.sessionSnapshotFreshness : 'other',
+            sdkObservationComplete,
+            sdkHasServerAuthority: sdkObservationComplete ? safeStartupBoolean(sdk?.hasServerSessionAuthority) : null,
+            sdkResumePending: sdkObservationComplete && (pending === true || pending === false) ? pending : null,
+            generation: safeStartupEpoch(me.connectionGeneration),
+            hydration: safeStartupEpoch(state.identityHydrationRevision),
+            identity: startupIdentityWitness(), berth: berthSummary });
+        };
+        const startupBerthFailure = value => {
+          const fieldPresent = Object.hasOwn(session, 'currentActorBerthAuthority');
+          const sdkObservationComplete = typeof held.authority === 'function' &&
+            typeof held.resumePending === 'function';
+          const failedPredicates = value ? [
+            value.actorUid !== user.uid && 'actorUidMismatch',
+            value.groupId !== me.fleetGroupId && 'groupIdMismatch',
+            value.shipId !== held.startupOwnedBerth.shipId && 'shipIdMismatch',
+            value.role !== 'player' && 'roleMismatch',
+          ].filter(Boolean) : ['berthMissing'];
+          const navigationFrom = held.options.navigationFrom;
+          const pinnedMember = held.signature ? JSON.parse(held.signature) : null;
+          const error = new Error('Original startup own berth authority retired.');
+          error.firstStartupBerthRejectedState = Object.freeze({ schemaVersion: 1,
+            predicate: 'startupOwnedBerthMatchesCurrent', observationOrigin, observedAtMs: Date.now(),
+            failedPredicates: Object.freeze(failedPredicates),
+            firstPin: held.startupOwnedBerthContext ?? null,
+            identity: Object.freeze({ ...startupIdentityWitness(),
+              groupMatchesFirstSignature: pinnedMember ? me.fleetGroupId === pinnedMember.group : null }),
+            member: Object.freeze({ role: safeStartupRole(me.role),
+              assignedRoleId: safeStartupRole(me.assignedRoleId),
+              activeConsoleRoleId: safeStartupRole(me.activeConsoleRoleId), seatId: safeStartupRole(me.seatId),
+              connectedState: safeConnectedState(me), kicked: me.kickedAt != null,
+              escapeStatePresent: me.escapeState != null, replacementRolePresent: me.replacementRoleId != null,
+              replacementStatusPresent: me.replacementStatus != null,
+              phase: safeStartupPhase(session.phase), cycle: safeStartupEpoch(session.currentTurn),
+              groupMatchesScope: me.fleetGroupId === session.memberSessionScope?.groupId }),
+            epoch: Object.freeze({ documentMatchesOriginal: performance.timeOrigin === held.timeOrigin,
+              connectionGeneration: safeStartupEpoch(me.connectionGeneration),
+              identityHydrationRevision: safeStartupEpoch(state.identityHydrationRevision),
+              generationDelta: navigationFrom && Number.isSafeInteger(me.connectionGeneration) &&
+                Number.isSafeInteger(navigationFrom.connectionGeneration)
+                ? me.connectionGeneration - navigationFrom.connectionGeneration : null,
+              hydrationDelta: navigationFrom && Number.isSafeInteger(state.identityHydrationRevision) &&
+                Number.isSafeInteger(navigationFrom.identityHydrationRevision)
+                ? state.identityHydrationRevision - navigationFrom.identityHydrationRevision : null }),
+            sdk: Object.freeze({ hasServerSessionAuthority: safeStartupBoolean(sdk?.hasServerSessionAuthority),
+              observationComplete: sdkObservationComplete,
+              resumePending: sdkObservationComplete && (pending === true || pending === false) ? pending : null,
+              serverSeen: held.serverSeen, sdkCompleted: held.sdkCompleted }),
+            berth: Object.freeze({ fieldPresent, ...startupBerthWitness(value) }),
+          });
+          return error;
+        };
         if (held.startupOwnedBerth && (!berth || berth.actorUid !== user.uid || berth.groupId !== me.fleetGroupId ||
             berth.shipId !== held.startupOwnedBerth.shipId || berth.role !== 'player'))
-          throw new Error('Original startup own berth authority retired.');
-        if (berth?.actorUid === user.uid) held.startupOwnedBerth ??= { shipId: berth.shipId };
+          throw startupBerthFailure(berth);
+        if (berth?.actorUid === user.uid) {
+          held.startupOwnedBerth ??= { shipId: berth.shipId };
+          held.startupOwnedBerthContext ??= createStartupBerthPinContext(berth);
+        }
         delete member.assigned; delete member.active; delete member.seat; delete member.ownSeat; delete member.berth;
         if (held.options.startCycleOne && session.phase === 'casting' && session.currentTurn === 0) {
           member.phase = 'active'; member.cycle = 1;
@@ -1487,7 +1605,8 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       return { fresh: held.fresh };
     } catch (error) {
       fail(error); held.stop(); delete window[key];
-      if ((held.firstCastingRejectedState || held.firstMemberSignatureRejectedState) && error?.message === held.failure)
+      if ((held.firstCastingRejectedState || held.firstMemberSignatureRejectedState ||
+          held.firstStartupBerthRejectedState) && error?.message === held.failure)
         return retainedFailure(held);
       throw error;
     }
@@ -1495,10 +1614,13 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
     deadlineAt, options, change });
   const command = async (action, change) => {
     const result = await rawCommand(action, change);
-    const retained = result?.p181RetainedCastingFailure ?? result?.p181RetainedMemberSignatureFailure;
+    const retained = result?.p181RetainedCastingFailure ?? result?.p181RetainedMemberSignatureFailure ??
+      result?.p181RetainedStartupBerthFailure;
     if (retained) {
       const error = new Error(retained.message);
-      const field = retained.firstCastingRejectedState ? 'firstCastingRejectedState' : 'firstMemberSignatureRejectedState';
+      const field = retained.firstCastingRejectedState ? 'firstCastingRejectedState'
+        : retained.firstMemberSignatureRejectedState ? 'firstMemberSignatureRejectedState'
+          : 'firstStartupBerthRejectedState';
       error[field] = retained[field];
       rememberProofFailure(error, { [field]: retained[field] });
       throw error;
