@@ -1091,7 +1091,7 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
           me.activeConsoleRoleId != null && 'activeConsoleRoleId', me.seatId != null && 'seatId',
           session.currentTurn !== 0 && 'cycle', !['lobby', 'casting'].includes(session.phase) && 'phase',
           session.setupConfirmed !== true && 'setupConfirmed',
-          !['live', 'connecting'].includes(state.connection) && 'connection',
+          !['live', 'offline', 'connecting'].includes(state.connection) && 'connection',
         ].filter(Boolean);
         if (failedPredicates.length) {
           // Freeze only the tuple already being inspected. No later Store,
@@ -1214,7 +1214,10 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
         throw new Error('Original P181 GM role or instance authority retired.');
       if (held.options.expected?.instanceId && state.gmInstance?.id !== held.options.expected.instanceId)
         throw new Error('Original P181 GM instance changed.');
-      if (!(castingAssignment ? ['live', 'connecting'] : ['live', 'offline', 'connecting']).includes(state.connection) ||
+      // App can withdraw same-actor member freshness as offline/cache. Keep
+      // evaluating every authority predicate; only current live/server may
+      // qualify readiness after that bounded interval.
+      if (!['live', 'offline', 'connecting'].includes(state.connection) ||
           !['server', 'cache', ...(startup || navigation ? ['unknown'] : [])].includes(state.sessionSnapshotFreshness))
         throw new Error('Original P181 freshness is not an eligible readiness transition.');
       const navigationFrom = held.options.navigationFrom;
@@ -3389,7 +3392,7 @@ async function p181RunStarlightMovementScoutNative(options) {
     try {
     while (Date.now() < readDeadlineAt) {
       current = await Promise.race([readFullActor(surface, readDeadlineAt), authority.failed]);
-      await authority.check();
+      const retainedReadiness = await authority.check();
       assert.ok(Date.now() < readDeadlineAt, `${description}: readiness tuple arrived after its original deadline.`);
       const owned = ownedAuthUids.get(actorLabel);
       assert.equal(current.hasAuth, true, 'Keep the original startup Auth authority.');
@@ -3419,7 +3422,7 @@ async function p181RunStarlightMovementScoutNative(options) {
         if (original.sdkHasServerAuthority) assert.equal(current.sdkHasServerAuthority, true, 'Original startup SDK authority retired.');
         latestGeneration = current.connectionGeneration; latestHydration = current.identityHydrationRevision;
       }
-      if (predicate(current)) return current;
+      if (predicate(current) && (!authorityOverride || retainedReadiness?.fresh === true)) return current;
       await bounded(`${description}: readiness retry interval`,
         () => Promise.race([delay(Math.min(200, readDeadlineAt - Date.now())), authority.failed]), readDeadlineAt);
     }
@@ -3922,19 +3925,23 @@ async function p181RunStarlightMovementScoutNative(options) {
                 castingDeadlineAt, admitted, castingAuthority);
               await castingResumeNotice;
               if (castingResumeNoticeError) throw castingResumeNoticeError;
-              await castingAuthority.check();
-              const accepted = await castingResume.accept(admitted, current,
-                () => readFullActor(memberSurface, castingDeadlineAt), assignment);
-              if (accepted) { navigationStart = accepted; break; }
+              const accepted = (await castingAuthority.check()).fresh === true
+                ? await castingResume.accept(admitted, current,
+                  () => readFullActor(memberSurface, castingDeadlineAt), assignment) : false;
+              // Acceptance may await receipt persistence. Recheck the same
+              // retained authority before publishing its navigation binding.
+              if (accepted && (await castingAuthority.check()).fresh === true) {
+                navigationStart = accepted;
+                navigation = createMemberNavigationResumeObserver(memberSurface.page, { directory,
+                  roleId: memberRoleId, deadlineAt, proofProfile, memberContract: 'pc11-live-base' });
+                await bounded('Prepare original station navigation observer',
+                  () => navigation.prepare(navigationStart), deadlineAt);
+                break;
+              }
               await bounded('Wait for original casting resume acceptance', () =>
                 Promise.race([delay(Math.min(100, castingDeadlineAt - Date.now())), castingAuthority.failed]), castingDeadlineAt);
             }
             assert.ok(navigationStart, 'Original casting assignment did not reach captured normal resume acceptance.');
-            await castingAuthority.check();
-            navigation = createMemberNavigationResumeObserver(memberSurface.page, { directory,
-              roleId: memberRoleId, deadlineAt, proofProfile, memberContract: 'pc11-live-base' });
-            await bounded('Prepare original station navigation observer',
-              () => navigation.prepare(navigationStart), deadlineAt);
           } catch (error) { castingFailure = error; }
           finally {
             if (castingAuthority) {
