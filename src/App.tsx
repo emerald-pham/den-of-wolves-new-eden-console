@@ -480,14 +480,39 @@ function AppRoutes() {
       groupId: projection.groupId, fleetGroupVesselIds: projection.fleetGroupVesselIds, revision: projection.revision,
       knownCoordinates: [], knownSystems: {}, pursuitDistance: 0, navigationLogs: [],
     });
-    const withdrawCurrentActorBerth = () => {
+    const withdrawCurrentActorBerth = (previousPlayer?: Player | null) => {
       const store = useSessionStore.getState();
       const current = store.session;
       if (!current || current.id !== sessionId || !Object.hasOwn(current, 'currentActorBerthAuthority')) return;
       pendingPlayerDiscovery = undefined;
       if (current.currentActorBerthAuthority === null && !current.playerDiscovery &&
           !current.shipGalacticCoordinates && !current.shipNavigationLogs) return;
-      store.setSession({ ...stripOwnPlayerNavigation(current), currentActorBerthAuthority: null });
+      const member = store.me;
+      const scope = current.memberSessionScope;
+      // Only a validated positive current berth can originate this local
+      // distinction. A server null or invalid/foreign witness remains untagged.
+      const sourceMember = previousPlayer ?? member;
+      const projectionPending = ['lobby', 'casting'].includes(current.phase ?? '') && current.currentTurn === 0 &&
+        current.setupConfirmed === true && currentActorBerthMatches(current, sourceMember) &&
+        auth().currentUser?.uid === playerUid && sourceMember?.uid === member?.uid &&
+        sourceMember?.sessionId === member?.sessionId && sourceMember?.fleetGroupId === member?.fleetGroupId &&
+        member?.uid === playerUid && member.role === 'player' && member.connected === true &&
+        (member.assignedRoleId == null || member.assignedRoleId === 'wing-commander') &&
+        member.activeConsoleRoleId == null && member.seatId == null && member.escapeState == null &&
+        member.kickedAt == null && member.replacementRoleId == null && member.replacementStatus == null &&
+        Number.isSafeInteger(member.connectionGeneration) && (member.connectionGeneration ?? 0) > 0 &&
+        scope && current.currentActorBerthAuthority?.shipId === 'aegis'
+        ? { kind: 'app-casting-berth-withheld' as const, sessionId, actorUid: playerUid,
+          groupId: scope.groupId, role: 'player' as const,
+          assignedRoleId: member.assignedRoleId == null ? null : 'wing-commander' as const,
+          activeConsoleRoleId: null, seatId: null, shipId: current.currentActorBerthAuthority.shipId,
+          connectionGeneration: member.connectionGeneration!, identityHydrationRevision: store.identityHydrationRevision,
+          sourceConnectionGeneration: current.currentActorBerthAuthority.connectionGeneration,
+          sourceIdentityHydrationRevision: store.identityHydrationRevision,
+          documentTimeOrigin: performance.timeOrigin,
+          memberSessionScope: { groupId: scope.groupId, vesselIds: [...scope.vesselIds], craftIds: [...scope.craftIds] } }
+        : null;
+      store.setSession({ ...stripNavigationProjection(current), currentActorBerthAuthority: null }, projectionPending);
     };
     const invalidatePendingStationReleaseFreshness = () => {
       const pending = pendingStationRelease.current;
@@ -893,7 +918,7 @@ function AppRoutes() {
           const current = store.session;
           if (!current || current.id !== next.id) {
             retainedGroupCandidateProjection = undefined;
-            store.setSession(next);
+            store.setSession(next, null);
             return;
           }
           // Protected documents have independent snapshot timing. A public
@@ -950,7 +975,9 @@ function AppRoutes() {
             }) ? { pursuitEmergencyWindowAuthority: emergencyAuthority } : {}),
             ...(candidateProjection ? { currentGroupCandidateReveals: candidateProjection } : {}),
           };
-          store.setSession(store.me?.role === 'gm' ? composed : stripGmNavigationProjection(composed));
+          // This actual transaction response, including canonical null, ends
+          // the local withdrawal origin. It never inherits a pending marker.
+          store.setSession(store.me?.role === 'gm' ? composed : stripGmNavigationProjection(composed), null);
         },
         onPlayerDiscovery: (projection) => {
           if (!callbackCurrent()) return;
@@ -1054,7 +1081,7 @@ function AppRoutes() {
             ? currentCandidateProjection : undefined;
           hideCurrentGroupCandidateReveals();
           store.setMe(next);
-          if (!keepPressGroup && store.session && !currentActorBerthMatches(store.session, next)) withdrawCurrentActorBerth();
+          if (!keepPressGroup && store.session && !currentActorBerthMatches(store.session, next)) withdrawCurrentActorBerth(previousPlayer);
           if (previousWolfCultIdentity !== nextWolfCultIdentity || next.role !== 'player') {
             clearWolfCultIntelligence();
           }

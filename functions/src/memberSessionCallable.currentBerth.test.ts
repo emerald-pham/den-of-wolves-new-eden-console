@@ -47,6 +47,21 @@ it('derives only the authenticated current berth from the existing atomic read, 
   expect(runTransaction).toHaveBeenCalledWith(expect.any(Function), { readOnly: true });
 });
 
+it.each([null, 'wing-commander'])('publishes a mapped unseated casting berth for assignment %s without exposing the map', async assignedRoleId => {
+  Object.assign(records['sessions/s1']!, { phase: 'casting', currentTurn: 0 });
+  Object.assign(records['sessions/s1/players/u1']!, { fleetGroupId: 'fleet-1', assignedRoleId,
+    activeConsoleRoleId: null, seatId: null });
+  Object.assign(records['sessions/s1/fleetGroups/fleet-1']!, { memberUids: ['u1', 'u3'],
+    memberShipIds: { u1: 'aegis', u3: 'aegis' } });
+  Object.assign(records['sessions/s1/fleetGroups/fleet-2']!, { memberUids: ['u2'], memberShipIds: { u2: 'icebreaker' } });
+  const response = await read(request);
+  expect(response).toHaveProperty('currentActorBerthAuthority', authority({ groupId: 'fleet-1',
+    assignedRoleId, activeConsoleRoleId: null, shipId: 'aegis' }));
+  expect(JSON.stringify(response)).not.toContain('memberShipIds');
+  expect(JSON.stringify(response)).not.toContain('u3');
+  expect(writes).not.toHaveBeenCalled();
+});
+
 it.each([
   ['joint-engineering-shepherd-icebreaker', 'shepherd', ['shepherd', 'icebreaker']],
   ['joint-engineering-quellon-refinery', 'refinery-124', ['quellon', 'refinery-124']],

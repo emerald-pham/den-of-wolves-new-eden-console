@@ -30,6 +30,26 @@ export const SESSION_STORAGE_KEY = 'dow-new-eden-session';
 export const GM_ACCESS_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000;
 export type ConsoleMode = 'gm' | 'console' | 'press';
 
+/** App-only provenance for a withheld casting projection, never berth authority
+ * or persisted/cloud input. The authority field remains present and null. */
+export interface CurrentActorBerthProjectionPending {
+  readonly kind: 'app-casting-berth-withheld';
+  readonly sessionId: string;
+  readonly actorUid: string;
+  readonly groupId: string;
+  readonly role: 'player';
+  readonly assignedRoleId: 'wing-commander' | null;
+  readonly activeConsoleRoleId: null;
+  readonly seatId: null;
+  readonly shipId: string;
+  readonly connectionGeneration: number;
+  readonly identityHydrationRevision: number;
+  readonly sourceConnectionGeneration: number;
+  readonly sourceIdentityHydrationRevision: number;
+  readonly documentTimeOrigin: number;
+  readonly memberSessionScope: NonNullable<GameSession['memberSessionScope']>;
+}
+
 /** Safe text only; command/retry state stays in its original mounted form. */
 export interface ScoutCoordinateDraft {
   readonly sessionId: string;
@@ -472,6 +492,7 @@ export interface CommunicationError {
  */
 interface SessionState {
   session: GameSession | null;
+  currentActorBerthProjectionPending: CurrentActorBerthProjectionPending | null;
   seats: readonly Seat[];
   me: Player | null;
   gmInstance: GmInstance | null;
@@ -517,7 +538,7 @@ interface SessionState {
   identityHydrationRevision: number;
   scoutCoordinateDraft: ScoutCoordinateDraft | null;
 
-  setSession: (session: GameSession | null) => void;
+  setSession: (session: GameSession | null, projectionPending?: CurrentActorBerthProjectionPending | null) => void;
   setIdentity: (session: GameSession, me: Player) => void;
   setSeats: (seats: readonly Seat[]) => void;
   setMe: (me: Player | null) => void;
@@ -564,6 +585,7 @@ interface SessionState {
 
 const initial = {
   session: null,
+  currentActorBerthProjectionPending: null,
   seats: [] as readonly Seat[],
   me: null,
   gmInstance: null,
@@ -604,7 +626,7 @@ const initial = {
   scoutCoordinateDraft: null,
 } satisfies Pick<
   SessionState,
-  'session' | 'seats' | 'me' | 'gmInstance' | 'gmRecoveryPending' | 'gmRecoveryMemberRevision' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
+  'session' | 'currentActorBerthProjectionPending' | 'seats' | 'me' | 'gmInstance' | 'gmRecoveryPending' | 'gmRecoveryMemberRevision' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
   'privateLoyalty' | 'roleBrief' | 'roleBriefLoading' | 'awayMissionHandPointer' | 'awayMissionHand' | 'awayMissionHandPointers' | 'awayMissionHands' | 'gmAwayMissionHandPointers' | 'gmLoyaltyCensus' | 'gmLoyaltyCensusStatus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'facilitatorRuleCall' | 'gmFacilitatorRuleCall' | 'gmCrisisState' | 'gmZealotryResponse' | 'gmCivilUnrestResolution' | 'gmSetupReceipt' | 'commissarPurgeAuthority' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
   'sessionSnapshotFreshness' | 'voyage33MovementProjectionFresh' |
   'persistedSessionSnapshot' | 'identityHydrationRevision' | 'scoutCoordinateDraft'
@@ -647,13 +669,19 @@ export const useSessionStore = create<SessionState>()(
   persist(
     (set, get) => ({
       ...initial,
-      setSession: (session) => set((state) => {
+      setSession: (session, projectionPending) => set((state) => {
         const changedSession = state.session?.id !== session?.id;
         const safeSession = clearVoyageMovement(session);
-        const preservedMovement = !changedSession && state.voyage33MovementProjectionFresh
+        const pendingOrigin = !changedSession && session && ['lobby', 'casting'].includes(session.phase ?? '') &&
+          session.currentTurn === 0 && session.currentActorBerthAuthority === null
+          ? projectionPending === undefined ? state.currentActorBerthProjectionPending : projectionPending
+          : null;
+        const preservedMovement = !pendingOrigin && !changedSession && state.voyage33MovementProjectionFresh
           ? state.session?.voyage33Movement
           : undefined;
         return {
+          currentActorBerthProjectionPending: pendingOrigin,
+          ...(pendingOrigin ? { voyage33MovementProjectionFresh: false } : {}),
           ...(changedSession ? { scoutCoordinateDraft: null } : {}),
           session: safeSession && preservedMovement
             ? { ...safeSession, voyage33Movement: preservedMovement }
@@ -666,6 +694,7 @@ export const useSessionStore = create<SessionState>()(
         };
       }),
       setIdentity: (session, me) => set((state) => ({
+        currentActorBerthProjectionPending: null,
         ...(state.session?.id !== session.id || state.me?.uid !== me.uid ? { gmRecoveryPending: false } : {}),
         session: clearVoyageMovement(session), me, roleBrief: null, awayMissionHandPointer: null, awayMissionHand: null,
         scoutCoordinateDraft: state.scoutCoordinateDraft && me.role === 'player' &&
@@ -691,6 +720,20 @@ export const useSessionStore = create<SessionState>()(
             me.uid !== state.gmInstance?.uid || state.gmInstance?.sessionId !== state.session?.id;
           return {
             me,
+            currentActorBerthProjectionPending: state.currentActorBerthProjectionPending &&
+              me?.uid === state.currentActorBerthProjectionPending.actorUid &&
+              me.sessionId === state.currentActorBerthProjectionPending.sessionId && me.role === 'player' &&
+              me.connected === true && me.fleetGroupId === state.currentActorBerthProjectionPending.groupId &&
+              Number.isSafeInteger(me.connectionGeneration) &&
+              [state.currentActorBerthProjectionPending.sourceConnectionGeneration,
+                state.currentActorBerthProjectionPending.sourceConnectionGeneration + 1].includes(me.connectionGeneration!) &&
+              (me.assignedRoleId == null || me.assignedRoleId === 'wing-commander') &&
+              (state.currentActorBerthProjectionPending.assignedRoleId === (me.assignedRoleId ?? null) ||
+                state.currentActorBerthProjectionPending.assignedRoleId === null && me.assignedRoleId === 'wing-commander') &&
+              me.activeConsoleRoleId == null && me.seatId == null &&
+              me.replacementRoleId == null && me.replacementStatus == null && me.escapeState == null && me.kickedAt == null
+              ? { ...state.currentActorBerthProjectionPending, assignedRoleId: me.assignedRoleId ?? null,
+                connectionGeneration: me.connectionGeneration! } : null,
             scoutCoordinateDraft: state.scoutCoordinateDraft && me?.role === 'player' &&
               me.sessionId === state.session?.id &&
               state.scoutCoordinateDraft.sessionId === me.sessionId &&
@@ -809,6 +852,7 @@ export const useSessionStore = create<SessionState>()(
       disconnect: () =>
         set((state) => ({
           session: null,
+          currentActorBerthProjectionPending: null,
           seats: [],
           me: null,
           scoutCoordinateDraft: null,
@@ -876,6 +920,8 @@ export const useSessionStore = create<SessionState>()(
         const restoredMe = Object.hasOwn(restored, 'me') ? restored.me : current.me;
         return {
           ...current,
+          // Rehydration cannot resurrect even an otherwise matching origin.
+          currentActorBerthProjectionPending: null,
           // Keep only an existing in-memory draft for this same principal;
           // serialized input never supplies a draft or command identity.
           scoutCoordinateDraft: current.scoutCoordinateDraft && restoredMe?.role === 'player' &&

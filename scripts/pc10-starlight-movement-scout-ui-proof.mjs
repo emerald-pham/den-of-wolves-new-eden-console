@@ -1142,6 +1142,7 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       serverSeen: false, sdkCompleted: false, latestGeneration: 0, latestHydration: 0,
       castingEpoch: null, castingAssignedSeen: false, castingPhaseSeen: false,
       castingResumeSettled: false, castingPendingSeen: false, castingBerthSeen: false,
+      castingProjectionWithheldSeen: false,
       castingBerthBinding: null, castingBerthGapSeen: false, castingBerthGapRestored: false,
       firstStartupBerthRejectedState: null, startupOwnedBerthContext: null,
       firstP181AuthorityRejectedState: null, firstPinContext: null, lastObservation: null,
@@ -1274,6 +1275,8 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       const me = state?.me, session = state?.session;
       const startup = held.options.mode === 'startup', navigation = held.options.mode === 'navigation';
       const castingAssignment = held.options.mode === 'casting-assignment';
+      let castingProjectionWithheld = false;
+      let castingProjectionConfirmed = false;
       const castingRoleId = held.options.castingRoleId ?? 'wing-commander';
       if (castingAssignment && castingRoleId !== held.options.memberRoleId)
         throw new Error('Original P181 casting assignment role changed.');
@@ -1389,10 +1392,65 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
           throw new Error('Original P181 casting actor claimed its station before the chooser.');
         const berthFieldPresent = Object.hasOwn(session, 'currentActorBerthAuthority');
         const berth = session.currentActorBerthAuthority;
-        if (berthFieldPresent && berth === null)
+        const projectionPending = state.currentActorBerthProjectionPending;
+        const capturedResume = held.castingResumeRequest?.sessionId === expected.sessionId &&
+          held.castingResumeRequest?.uidHash === expected.uidHash &&
+          held.castingResumeRequest?.documentTimeOrigin === expected.documentTimeOrigin &&
+          held.castingResumeRequest?.connectionGeneration === generation &&
+          held.castingResumeRequest?.identityHydrationRevision === hydration;
+        if (projectionPending != null) {
+          const keys = ['kind', 'sessionId', 'actorUid', 'groupId', 'role', 'assignedRoleId',
+            'activeConsoleRoleId', 'seatId', 'shipId', 'connectionGeneration',
+            'identityHydrationRevision', 'sourceConnectionGeneration', 'sourceIdentityHydrationRevision',
+            'documentTimeOrigin', 'memberSessionScope'];
+          const scope = projectionPending.memberSessionScope;
+          // Assignment freshness is withdrawn before the normal resume request
+          // exists. That original epoch can only wait; every advanced epoch
+          // needs the one actually captured request and its pending fence.
+          const originalPendingEpoch = me.connectionGeneration === generation &&
+            state.identityHydrationRevision === hydration && !held.castingResumeSettled &&
+            projectionPending.sourceConnectionGeneration === generation &&
+            projectionPending.sourceIdentityHydrationRevision === hydration;
+          const capturedPendingEpoch = capturedResume && held.castingPendingSeen &&
+            [generation, generation + 1].includes(me.connectionGeneration) &&
+            [hydration, hydration + 1].includes(state.identityHydrationRevision) &&
+            [generation, generation + 1].includes(projectionPending.sourceConnectionGeneration) &&
+            [hydration, hydration + 1].includes(projectionPending.sourceIdentityHydrationRevision);
+          // This origin supplies no authority. Only the App's bounded privacy
+          // withdrawal of this exact captured-resume Wing may remain pending.
+          castingProjectionWithheld = Boolean(berthFieldPresent && berth === null &&
+            typeof projectionPending === 'object' && !Array.isArray(projectionPending) &&
+            Object.keys(projectionPending).length === keys.length &&
+            Object.keys(projectionPending).every(key => keys.includes(key)) &&
+            projectionPending.kind === 'app-casting-berth-withheld' && castingRoleId === 'wing-commander' &&
+            projectionPending.sessionId === session.id && projectionPending.actorUid === user.uid &&
+            projectionPending.groupId === me.fleetGroupId && projectionPending.role === me.role &&
+            projectionPending.assignedRoleId === me.assignedRoleId && projectionPending.activeConsoleRoleId === null &&
+            projectionPending.seatId === null && me.connected === true &&
+            projectionPending.connectionGeneration === me.connectionGeneration &&
+            projectionPending.identityHydrationRevision === state.identityHydrationRevision &&
+            projectionPending.documentTimeOrigin === held.timeOrigin &&
+            (originalPendingEpoch || capturedPendingEpoch) && sdk?.hasServerSessionAuthority === true &&
+            scope && typeof scope === 'object' && !Array.isArray(scope) &&
+            Object.keys(scope).length === 3 && ['groupId', 'vesselIds', 'craftIds'].every(key => Object.hasOwn(scope, key)) &&
+            scope.groupId === expected.fleetGroupId && Array.isArray(scope.vesselIds) && Array.isArray(scope.craftIds) &&
+            JSON.stringify(scope) === JSON.stringify(session.memberSessionScope) &&
+            projectionPending.shipId === 'aegis' && scope.vesselIds.includes(projectionPending.shipId) &&
+            (!held.castingBerthBinding || held.castingBerthBinding.shipId === projectionPending.shipId) &&
+            ['playerDiscovery', 'shipGalacticCoordinates', 'shipNavigationLogs', 'currentGroupCandidateReveals', 'voyage33Movement']
+              .every(key => !Object.hasOwn(session, key)));
+          if (!castingProjectionWithheld)
+            throw new Error('Original P181 casting pending berth projection origin changed.');
+          held.castingProjectionWithheldSeen = true;
+        }
+        if (berthFieldPresent && berth === null && !castingProjectionWithheld)
           throw new Error('Original P181 casting member berth was explicitly retired.');
         if (berth) {
-          if (berth.actorUid !== user.uid || berth.sessionId !== session.id ||
+          const keys = ['sessionId', 'actorUid', 'groupId', 'role', 'connectionGeneration',
+            'assignedRoleId', 'activeConsoleRoleId', 'replacementRoleId', 'replacementStatus', 'shipId'];
+          if (typeof berth !== 'object' || Array.isArray(berth) || Object.keys(berth).length !== keys.length ||
+              Object.keys(berth).some(key => !keys.includes(key)) ||
+              berth.actorUid !== user.uid || berth.sessionId !== session.id ||
               berth.groupId !== (me.fleetGroupId ?? null) || berth.role !== 'player' ||
               !berth.shipId || berth.replacementRoleId != null || berth.replacementStatus != null ||
               berth.assignedRoleId != null && berth.assignedRoleId !== castingRoleId ||
@@ -1405,7 +1463,13 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
           held.castingBerthBinding ??= binding;
           if (held.castingBerthGapSeen) held.castingBerthGapRestored = true;
           held.castingBerthSeen = true;
-        } else if (held.castingBerthSeen) {
+          castingProjectionConfirmed = berth.connectionGeneration === me.connectionGeneration && berth.assignedRoleId === me.assignedRoleId &&
+            me.assignedRoleId === castingRoleId && berth.activeConsoleRoleId === null &&
+            berth.groupId === session.memberSessionScope?.groupId &&
+            session.memberSessionScope?.vesselIds?.includes(berth.shipId) === true &&
+            (!held.castingProjectionWithheldSeen || capturedResume && held.castingResumeSettled &&
+              me.connectionGeneration === generation + 1 && state.identityHydrationRevision === hydration + 1);
+        } else if (held.castingBerthSeen && !castingProjectionWithheld) {
           if (berthFieldPresent || !acceptedResumeDtoHydration || held.castingBerthGapRestored)
             throw new Error('Original P181 casting member berth was retired.');
           held.castingBerthGapSeen = true;
@@ -1703,7 +1767,8 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
         held.signature = signature;
       }
       held.fresh = state.connection === 'live' && state.sessionSnapshotFreshness === 'server' &&
-        sdk?.hasServerSessionAuthority === true && !pending && me.connected === true;
+        sdk?.hasServerSessionAuthority === true && !pending && me.connected === true && !castingProjectionWithheld &&
+        (!castingAssignment || !held.castingProjectionWithheldSeen || castingProjectionConfirmed);
     };
     const observe = (delivered, previous) => {
       if (held.failure) return;
