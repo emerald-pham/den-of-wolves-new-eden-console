@@ -22,18 +22,18 @@ const diagnosticPhases = new Set(['lobby', 'casting', 'briefing', 'active', 'pau
 const diagnosticEnum = (value, values) => value == null ? null : values.has(value) ? value : 'other';
 function diagnosticPredicate(error, boundary) {
   const message = typeof error?.message === 'string' ? error.message.toLowerCase() : '';
-  if (/auth|uid|identity/.test(message)) return 'auth-identity';
+  if (/\bauth(?:entication)?\b|\buid\b/.test(message)) return 'auth-identity';
   if (/document|timeorigin/.test(message)) return 'document-binding';
-  if (/session|group|fleet|scope/.test(message)) return 'member-session-scope';
-  if (/role|profile/.test(message)) return 'member-role';
-  if (/phase|cycle|turn|setup/.test(message)) return 'phase-cycle-setup';
-  if (/sdk|fence|pending|authority/.test(message)) return 'sdk-authority-fence';
   if (/connected|connection/.test(message)) return 'connected-authority';
   if (/seat|berth|station|chooser/.test(message)) return 'seat-berth';
+  if (/sdk|fence|pending/.test(message)) return 'sdk-authority-fence';
   if (/lease|hydration|generation|epoch/.test(message)) return 'lease-hydration-epoch';
-  if (/instance|recovery|gm/.test(message)) return 'gm-instance-recovery';
   if (/resume|receipt|request|response/.test(message)) return boundary.includes('casting')
     ? 'casting-resume-receipt' : 'navigation-resume-receipt';
+  if (/instance|recovery|\bgm\b/.test(message)) return 'gm-instance-recovery';
+  if (/session|group|fleet|scope|\bmember\b/.test(message)) return 'member-session-scope';
+  if (/role|profile/.test(message)) return 'member-role';
+  if (/phase|cycle|turn|setup/.test(message)) return 'phase-cycle-setup';
   if (/deadline|expired|timeout/.test(message)) return 'finite-deadline';
   return 'terminal-authority-assertion';
 }
@@ -52,8 +52,8 @@ export function preserveP181AuthorityRejection(error, boundary, expected, origin
       ? value.sessionId === expected.sessionId : null,
     memberSessionMatchesExpected: typeof value.meSessionId === 'string' && typeof expected?.sessionId === 'string'
       ? value.meSessionId === expected.sessionId : null,
-    documentTimeOriginPresent: Number.isSafeInteger(value.documentTimeOrigin),
-    documentMatchesExpected: Number.isSafeInteger(value.documentTimeOrigin) && Number.isSafeInteger(expected?.documentTimeOrigin)
+    documentTimeOriginPresent: Number.isFinite(value.documentTimeOrigin),
+    documentMatchesExpected: Number.isFinite(value.documentTimeOrigin) && Number.isFinite(expected?.documentTimeOrigin)
       ? value.documentTimeOrigin === expected.documentTimeOrigin : null,
     playerRole: diagnosticEnum(value.playerRole, diagnosticRoles),
     roleMatchesExpected: typeof expected?.roleId === 'string'
@@ -98,7 +98,7 @@ export function preserveP181AuthorityRejection(error, boundary, expected, origin
     expected: Object.freeze({ sessionPresent: typeof expected?.sessionId === 'string',
       roleId: diagnosticEnum(expected?.roleId, diagnosticRoles), stage: expected?.stage === 'casting' || expected?.stage === 'station'
         ? expected.stage : null,
-      uidHashPresent: typeof expected?.uidHash === 'string', documentTimeOriginPresent: Number.isSafeInteger(expected?.documentTimeOrigin),
+      uidHashPresent: typeof expected?.uidHash === 'string', documentTimeOriginPresent: Number.isFinite(expected?.documentTimeOrigin),
       connectionGeneration: safeGeneration(expected?.connectionGeneration),
       identityHydrationRevision: safeGeneration(expected?.identityHydrationRevision),
       fleetGroupPresent: typeof expected?.fleetGroupId === 'string', instancePresent: typeof expected?.instanceId === 'string' }),
@@ -418,7 +418,7 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
       try {
       assert.ok(Date.now() < deadlineAt, 'Original role navigation deadline expired.');
       if (transition === 'casting-assignment')
-        return acceptCastingAssignment(original, current, readAcceptedCurrent, assignment);
+        return await acceptCastingAssignment(original, current, readAcceptedCurrent, assignment);
       if (documentReload) assert.ok(Number.isFinite(current.documentTimeOrigin) &&
         current.documentTimeOrigin > original.documentTimeOrigin,
         'Original reload must publish a new document before accepting its SDK resume.');
@@ -511,7 +511,7 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
             fleetGroupId: original?.fleetGroupId },
           original, lastAcceptedObservation ?? current, { transition,
             assignmentReceiptPresent: Boolean(assignment?.endpoint === 'assignRole'),
-            navigationPrepared: baseline !== null });
+            navigationPrepared: baseline !== null && baseline !== undefined });
       }
     },
     async finish(error) {

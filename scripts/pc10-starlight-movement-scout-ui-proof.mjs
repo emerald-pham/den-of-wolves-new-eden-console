@@ -995,16 +995,32 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
     const safeBool = value => typeof value === 'boolean' ? value : null;
     const rejectionPredicate = error => {
       const message = typeof error?.message === 'string' ? error.message.toLowerCase() : '';
-      if (/auth|uid|identity/.test(message)) return 'auth-identity';
+      const casting = error?.firstCastingRejectedState?.failedPredicates ?? [];
+      const startup = error?.firstStartupBerthRejectedState?.failedPredicates ?? [];
+      const changed = error?.firstMemberSignatureRejectedState?.differentFields ?? [];
+      if (startup.some(value => ['actorUidMismatch', 'groupIdMismatch', 'shipIdMismatch', 'roleMismatch', 'berthMissing'].includes(value)))
+        return 'seat-berth';
+      if (casting.includes('connection')) return 'connected-authority';
+      if (casting.some(value => ['activeConsoleRoleId', 'seatId'].includes(value))) return 'seat-berth';
+      if (casting.some(value => ['playerRole', 'assignedRoleId'].includes(value))) return 'member-role';
+      if (casting.some(value => ['phase', 'cycle', 'setupConfirmed'].includes(value))) return 'phase-cycle-setup';
+      if (changed.includes('document')) return 'document-binding';
+      if (changed.some(value => ['uid', 'memberUid'].includes(value))) return 'auth-identity';
+      if (changed.some(value => ['sessionId', 'memberSession', 'group', 'scope'].includes(value))) return 'member-session-scope';
+      if (changed.some(value => ['role', 'assigned', 'active'].includes(value))) return 'member-role';
+      if (changed.some(value => ['seat', 'ownSeat', 'berth'].includes(value))) return 'seat-berth';
+      if (changed.some(value => ['generation', 'hydration'].includes(value))) return 'lease-hydration-epoch';
+      if (changed.includes('instance')) return 'gm-instance-recovery';
+      if (/\bauth(?:entication)?\b|\buid\b/.test(message)) return 'auth-identity';
       if (/document|timeorigin/.test(message)) return 'document-binding';
-      if (/session|group|fleet|scope/.test(message)) return 'member-session-scope';
-      if (/role|profile/.test(message)) return 'member-role';
-      if (/phase|cycle|turn|setup/.test(message)) return 'phase-cycle-setup';
-      if (/sdk|fence|pending|authority/.test(message)) return 'sdk-authority-fence';
       if (/connected|connection/.test(message)) return 'connected-authority';
       if (/seat|berth|station|chooser/.test(message)) return 'seat-berth';
+      if (/instance|recovery|\bgm\b/.test(message)) return 'gm-instance-recovery';
+      if (/sdk|fence|pending/.test(message)) return 'sdk-authority-fence';
       if (/lease|hydration|generation|epoch/.test(message)) return 'lease-hydration-epoch';
-      if (/instance|recovery|gm/.test(message)) return 'gm-instance-recovery';
+      if (/session|group|fleet|scope|\bmember\b/.test(message)) return 'member-session-scope';
+      if (/role|profile/.test(message)) return 'member-role';
+      if (/phase|cycle|turn|setup/.test(message)) return 'phase-cycle-setup';
       if (/resume|receipt|request|response/.test(message)) return 'normal-resume-receipt';
       if (/deadline|expired|timeout/.test(message)) return 'finite-deadline';
       return 'terminal-authority-assertion';
@@ -1070,8 +1086,10 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       if (performance.timeOrigin !== held.timeOrigin) {
         if (held.lastObservation?.observed) held.lastObservation = Object.freeze({ ...held.lastObservation,
           observed: Object.freeze({ ...held.lastObservation.observed, documentMatchesOriginal: false }) });
-        held.failure ??= 'Original P181 observation documentTimeOrigin changed.';
-        held.stop(); held.complete(held.failure);
+        const documentError = new Error('Original P181 observation documentTimeOrigin changed.');
+        held.failure ??= documentError.message;
+        captureFirstRejection(documentError, action === 'note-casting-resume' ? 'note-casting-resume' : action, change);
+        held.stop(); held.complete(retainedFailure(held));
         if (action === 'close') delete window[key];
         throw new Error(held.failure);
       }
@@ -1154,8 +1172,8 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
           uidHashPresent: typeof expected.uidHash === 'string', role: safeEnum(expectedRole, diagnosticRoles),
           roleMatches: typeof expectedRole === 'string' && typeof me?.role === 'string'
             ? (held.options.requireGm ? me.role === 'gm' : me.role === 'player') : null,
-          documentTimeOriginPresent: Number.isSafeInteger(expected.documentTimeOrigin),
-          documentMatches: Number.isSafeInteger(expected.documentTimeOrigin)
+          documentTimeOriginPresent: Number.isFinite(expected.documentTimeOrigin),
+          documentMatches: Number.isFinite(expected.documentTimeOrigin)
             ? performance.timeOrigin === expected.documentTimeOrigin : null,
           connectionGeneration: safeEpoch(expected.connectionGeneration),
           identityHydrationRevision: safeEpoch(expected.identityHydrationRevision),
@@ -1165,7 +1183,8 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
           instancePresent: typeof expected.instanceId === 'string',
           instanceMatches: typeof expected.instanceId === 'string' && typeof state?.gmInstance?.id === 'string'
             ? state.gmInstance.id === expected.instanceId : null }),
-        observed: Object.freeze({ documentMatchesOriginal: performance.timeOrigin === held.timeOrigin,
+        observed: Object.freeze({ documentTimeOriginPresent: Number.isFinite(performance.timeOrigin),
+          documentMatchesOriginal: performance.timeOrigin === held.timeOrigin,
           authPresent: Boolean(user?.uid), authMatchesOriginal: held.rawUid && user?.uid
             ? user.uid === held.rawUid : null,
           uidHashMatchesExpected: null,
@@ -4317,10 +4336,20 @@ async function p181RunStarlightMovementScoutNative(options) {
             value.assignedRoleId == null && value.activeConsoleRoleId == null && value.seatId == null &&
             value.connection === 'live' && value.freshness === 'server' && value.sdkHasServerAuthority === true,
           deadlineAt);
-          assert.equal(admitted.uidHash, admittedAuth.uidHash);
-          assert.equal(pc11MemberReadiness(admitted, { sessionId, uidHash: admittedAuth.uidHash,
-            roleId: null, stage: 'casting' }), true,
-          'Capture original Auth identity during normal admission, before role assignment or berth claim.');
+          try {
+            assert.equal(admitted.uidHash, admittedAuth.uidHash);
+            assert.equal(pc11MemberReadiness(admitted, { sessionId, uidHash: admittedAuth.uidHash,
+              roleId: null, stage: 'casting' }), true,
+            'Capture original Auth identity during normal admission, before role assignment or berth claim.');
+          } catch (error) {
+            throw retainP181CallerRejection(error, 'casting-assignment.admitted-readiness',
+              { sessionId, uidHash: admittedAuth.uidHash, roleId: null, stage: 'casting',
+                documentTimeOrigin: admitted.documentTimeOrigin,
+                connectionGeneration: admitted.connectionGeneration,
+                identityHydrationRevision: admitted.identityHydrationRevision,
+                fleetGroupId: admitted.fleetGroupId }, admitted, admitted,
+              { transition: 'casting-assignment', assignmentReceiptPresent: false, navigationPrepared: false });
+          }
           const displayName = (await bounded(`Observe original admitted ${memberName} actor`,
             () => observeLifecycleActor(memberSurface, sessionId), deadlineAt)).displayName;
           assert.ok(typeof displayName === 'string' && displayName.length > 0);

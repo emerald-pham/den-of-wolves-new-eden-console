@@ -2248,8 +2248,10 @@ async function actualP181CastingAssignmentFixture(t, { assignmentTarget, assignm
   resumeGeneration = 3, resumeHydration = 4, resumeStatus = 200, resumeSessionId = 'normal-session',
   resumeUid = 'wing-uid', resumeAssignedRoleId = 'wing-commander', deliverResume = true,
   resumeBodyWait, observerDeadlineMs = 4_000, resumeBerthGap = false,
-  memberRoleId = 'wing-commander', proofProfile = 'starlight', omitInitialMemberBerth = false } = {}) {
+  memberRoleId = 'wing-commander', proofProfile = 'starlight', omitInitialMemberBerth = false,
+  documentTimeOrigin = 1000 } = {}) {
   const wing = mountedP181Surface('wing-uid', { casting: true });
+  wing.documentTimeOrigin = documentTimeOrigin;
   wing.state.session.phase = 'lobby'; wing.state.session.setupConfirmed = true; wing.state.session.setupRevision = 1;
   wing.state.me.assignedRoleId = null; wing.state.me.activeConsoleRoleId = null; wing.state.me.seatId = null;
   wing.state.seats = [{ id: memberRoleId, roleId: memberRoleId, status: 'available', holderUid: null }];
@@ -2369,6 +2371,21 @@ test('Wing bay profile accepts the ordinary Admiral assignment and its original 
   assert.equal(accepted.currentMemberBerthMatches, true);
   assert.equal(accepted.connectionGeneration, f.before.connectionGeneration + 1);
   assert.equal(f.assignment.data.targetUid, f.wing.uid);
+});
+
+test('P181 casting acceptance captures asynchronous receipt rejections', async t => {
+  const f = await actualP181CastingAssignmentFixture(t);
+  const wrongAssignment = structuredClone(f.assignment);
+  wrongAssignment.data.targetUid = 'another-auth-actor';
+  await assert.rejects(f.observer.accept(f.before, f.current,
+    () => observeFullGameDemoPresentationMember(f.wing, { knownRoleIds: originalRoleIds }), wrongAssignment), error => {
+    assert.match(error.message, /successful original GM assignRole target\/role receipt/);
+    assert.equal(error.firstP181AuthorityRejectedState?.boundary, 'casting-assignment.accept');
+    assert.equal(error.firstP181AuthorityRejectedState?.predicate, 'casting-resume-receipt');
+    assert.equal(error.firstP181AuthorityRejectedState?.context.assignmentReceiptPresent, true);
+    return true;
+  });
+  await f.observer.finish();
 });
 
 test('Wing bay profile retains ordinary Admiral casting authority before its assignment', async t => {
@@ -3071,20 +3088,21 @@ test('P181 casting assignment rejects connected omission without a captured ordi
 // their original messages remain the contract; this group requires the
 // bounded first witness to survive the browser-command and failure bridge.
 const expandedRetainerRejections = [
-  ['Auth identity', f => f.wing.publishAuth({ uid: 'foreign-uid' })],
-  ['member session', f => f.wing.publish(state => { state.me.sessionId = 'foreign-session'; })],
-  ['actor role', f => f.wing.publish(state => { state.me.role = 'gm'; })],
+  ['Auth identity', f => f.wing.publishAuth({ uid: 'foreign-uid' }), 'auth-identity'],
+  ['member session', f => f.wing.publish(state => { state.me.sessionId = 'foreign-session'; }), 'member-session-scope'],
+  ['actor role', f => f.wing.publish(state => { state.me.role = 'gm'; }), 'member-role'],
   ['fleet group', f => f.wing.publish(state => { state.me.fleetGroupId = 'fleet-2'; })],
-  ['phase and cycle', f => f.wing.publish(state => { state.session.phase = 'active'; state.session.currentTurn = 1; })],
-  ['SDK server authority', f => f.wing.publish(state => { state.sdkHasServerAuthority = false; })],
-  ['member lease', f => f.wing.publish(state => { state.me.connectionGeneration += 2; })],
+  ['phase and cycle', f => f.wing.publish(state => { state.session.phase = 'active'; state.session.currentTurn = 1; }), 'phase-cycle-setup'],
+  ['SDK server authority', f => f.wing.publish(state => { state.sdkHasServerAuthority = false; }), 'sdk-authority-fence'],
+  ['connected authority', f => f.wing.publish(state => { state.me.connected = false; }), 'connected-authority'],
+  ['member lease', f => f.wing.publish(state => { state.me.connectionGeneration += 2; }), 'lease-hydration-epoch'],
   ['own station seat', f => f.wing.publish(state => {
     state.me.activeConsoleRoleId = 'wing-commander'; state.me.seatId = 'wing-commander';
     state.seats[0] = { ...state.seats[0], status: 'claimed', holderUid: 'wing-uid' };
-  })],
-  ['explicit null own berth', f => f.wing.publish(state => { state.session.currentActorBerthAuthority = null; })],
+  }), 'seat-berth'],
+  ['explicit null own berth', f => f.wing.publish(state => { state.session.currentActorBerthAuthority = null; }), 'seat-berth'],
 ];
-for (const [label, reject] of expandedRetainerRejections) {
+for (const [label, reject, expectedPredicate] of expandedRetainerRejections) {
   test(`P181 actual retained authority first-rejection capture covers ${label}`, async t => {
     const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true });
     const authority = await castingAssignmentAuthorityFor(f);
@@ -3098,6 +3116,8 @@ for (const [label, reject] of expandedRetainerRejections) {
       assert.equal(witness.schemaVersion, 1);
       assert.equal(typeof witness.boundary, 'string');
       assert.equal(typeof witness.predicate, 'string');
+      if (expectedPredicate) assert.equal(witness.predicate, expectedPredicate,
+        `${label} first rejection: ${error.message}`);
       assert.ok(['lobby', 'casting', 'briefing', 'active', 'paused', 'debrief', 'closed', null]
         .includes(witness.phase));
       assert.ok(witness.firstPinContext,
@@ -3127,6 +3147,63 @@ for (const [label, reject] of expandedRetainerRejections) {
     }
   });
 }
+
+test('P181 first rejection preserves fractional performance time origins', async t => {
+  const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true, documentTimeOrigin: 1000.25 });
+  const authority = await castingAssignmentAuthorityFor(f);
+  try {
+    f.wing.publishAuth({ uid: 'foreign-uid' });
+    await assert.rejects(authority.failed, error => {
+      const witness = error.firstP181AuthorityRejectedState;
+      assert.ok(witness);
+      assert.equal(witness.firstPinContext.expected.documentTimeOriginPresent, true);
+      assert.equal(witness.firstPinContext.expected.documentMatches, true);
+      assert.equal(witness.firstPinContext.observed.documentTimeOriginPresent, true);
+      assert.equal(witness.firstPinContext.observed.documentMatchesOriginal, true);
+      return true;
+    });
+  } finally {
+    await authority.close().catch(() => {});
+    await f.observer.finish();
+  }
+});
+
+test('P181 document retirement carries its first witness through the authority failed channel', async t => {
+  const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true });
+  const authority = await castingAssignmentAuthorityFor(f);
+  try {
+    f.wing.documentTimeOrigin = 2000.5;
+    const checkFailure = authority.check().then(() => null, error => error);
+    await assert.rejects(authority.failed, error => {
+      assert.equal(error.message, 'Original P181 observation documentTimeOrigin changed.');
+      assert.equal(error.firstP181AuthorityRejectedState?.predicate, 'document-binding');
+      assert.equal(error.firstP181AuthorityRejectedState?.observed.documentMatchesOriginal, false);
+      assert.equal(error.firstP181AuthorityRejectedState?.sourceRead, 'already-held-only');
+      return true;
+    });
+    const checkError = await checkFailure;
+    assert.ok(checkError?.firstP181AuthorityRejectedState,
+      'Both the direct check and the already-armed failed channel preserve the first document witness.');
+  } finally {
+    await authority.close().catch(() => {});
+    await f.observer.finish();
+  }
+});
+
+test('P181 retainer classifies GM instance retirement specifically', async t => {
+  const gm = mountedP181Surface('original-gm', { gm: true });
+  const before = await observeFullGameDemoPresentationMember(gm, { knownRoleIds: originalRoleIds });
+  const { retainP181MemberAuthority } = await import('./pc10-starlight-movement-scout-ui-proof.mjs');
+  const authority = await retainP181MemberAuthority(gm, Date.now() + 3_000, { mode: 'startup', requireGm: true,
+    expected: { sessionId: before.sessionId, uidHash: before.uidHash, instanceId: before.instanceId } });
+  try {
+    gm.publish(state => { state.gmInstance.id = 'replacement-gm-instance'; });
+    await assert.rejects(authority.failed, error => {
+      assert.equal(error.firstP181AuthorityRejectedState?.predicate, 'gm-instance-recovery');
+      return true;
+    });
+  } finally { await authority.close().catch(() => {}); }
+});
 
 test('P181 ordinary false and pending authority observations remain holds without first-rejection capture', async t => {
   const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true });
@@ -3167,6 +3244,19 @@ test('P181 actual ordinary-navigation observer preserves the first receipt rejec
   assert.equal(error.firstP181AuthorityRejectedState.firstPin.sessionMatchesExpected, true);
 });
 
+test('P181 observer reports navigation unprepared when acceptance fails before prepare', async t => {
+  const f = await actualP181CastingAssignmentFixture(t);
+  const navigation = createMemberNavigationResumeObserver(f.wing.page, { directory: f.directory,
+    roleId: 'wing-commander', deadlineAt: Date.now() + 3_000, memberContract: 'pc11-live-base' });
+  const station = { ...f.current, connectionGeneration: f.current.connectionGeneration + 1,
+    identityHydrationRevision: f.current.identityHydrationRevision + 1 };
+  let error;
+  try { await navigation.accept(f.before, station, async () => station); } catch (caught) { error = caught; }
+  await navigation.finish(error);
+  assert.match(error?.message ?? '', /normal resume receipt and accepted hydration/i);
+  assert.equal(error.firstP181AuthorityRejectedState?.context.navigationPrepared, false);
+});
+
 test('P181 actual full-actor caller preserves its first terminal assertion witness', async () => {
   const valid = actualP181ReadinessConsumer('full', false).member;
   const rejected = { ...valid, hasAuth: false };
@@ -3185,6 +3275,34 @@ test('P181 actual GM caller preserves authority loss across the awaited recovery
     error.firstP181AuthorityRejectedState.observed.roleMatchesExpected === false &&
     error.firstP181AuthorityRejectedState.context.recoveryFlagObserved),
     'The post-recovery reread must retain the first terminal role witness without re-probing.');
+});
+
+test('P181 admission UID and casting readiness assertions retain the held admitted tuple', async () => {
+  const source = readFileSync(p181DeadlineSourcePath, 'utf8');
+  const marker = '          try {\n            assert.equal(admitted.uidHash, admittedAuth.uidHash);';
+  const start = source.indexOf(marker);
+  const end = source.indexOf('\n          const displayName', start);
+  assert.ok(start >= 0 && end > start, 'Bind the actual normal-admission readiness assertions.');
+  const consumer = source.slice(start, end);
+  const valid = actualP181ReadinessConsumer('full', false).member;
+  for (const [label, admitted, admittedAuth, expected] of [
+    ['UID hash', { ...valid, uidHash: 'wrong-held-hash' }, { uidHash: valid.uidHash },
+      witness => witness.observed.uidHashMatchesExpected === false],
+    ['casting readiness', { ...valid, connection: 'offline' }, { uidHash: valid.uidHash },
+      witness => witness.observed.connection === 'offline'],
+  ]) {
+    const operation = runInNewContext(`(async () => { ${consumer} })()`, { assert, admitted, admittedAuth,
+      sessionId: valid.sessionId, memberRoleId: 'wing-commander', pc11MemberReadiness,
+      retainP181CallerRejection });
+    await assert.rejects(operation, error => {
+      const witness = error.firstP181AuthorityRejectedState;
+      assert.ok(witness, `${label} remains terminal and includes the held tuple.`);
+      assert.equal(witness.boundary, 'casting-assignment.admitted-readiness');
+      assert.equal(witness.sourceRead, 'held-only');
+      assert.ok(expected(witness));
+      return true;
+    });
+  }
 });
 
 async function remainingNativeConsumer({ rejectedCreate = false, pendingCreate = false, lateCommit = false,
