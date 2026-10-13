@@ -13,7 +13,7 @@ import { observeLifecycleActor, captureLifecycleUiAction, publicLifecycleReceipt
   openLifecycleSettings, closeLifecycleSettings } from './pc10-member-gm-lifecycle-ui-proof.mjs';
 import { observeFullGameDemoPresentationMember, proofRuntimeFromViteSource,
   validateProofRuntime } from './pc10-full-game-demo-proof-helpers.mjs';
-import { createMemberNavigationResumeObserver } from './pc10-member-navigation-resume.mjs';
+import { createMemberNavigationResumeObserver, preserveP181AuthorityRejection } from './pc10-member-navigation-resume.mjs';
 import { pc11GmReadiness, pc11MemberReadiness, removePc11OwnedRootRecords,
   pc11SameActorEpoch, createPc11OwnedRequestTracker, recoverPc11CreatedSession } from './qualification/pc11-normal-start-adapter.mjs';
 import { runPc11ContractPreflight } from './qualification/pc11-contract-preflight.mjs';
@@ -108,6 +108,13 @@ export const P181_SOURCE_BINDING_FILES = Object.freeze([
   'functions/src/starlightScout.ts',
   'functions/src/scoutRequestCadence.ts',
 ]);
+
+export function retainP181CallerRejection(error, boundary, expected, original, observed, context = {}) {
+  const retained = preserveP181AuthorityRejection(error, boundary, expected, original, observed, context);
+  if (retained?.firstP181AuthorityRejectedState)
+    rememberProofFailure(retained, { firstP181AuthorityRejectedState: retained.firstP181AuthorityRejectedState });
+  return retained;
+}
 
 export const P181_REQUIRED_LIVE_PREDICATES = Object.freeze([
   'ordinary Auth create/join and consent; no local-only Auth or Admin gameplay write',
@@ -979,20 +986,90 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
     const key = '__p181OriginalMemberObservation';
     const timeout = () => new Error(options.mode === 'auth-only'
       ? 'Original P181 Auth restoration observation deadline expired.' : 'Original P181 retained authority deadline expired.');
-    const rejectedCastingFailure = held => ({ p181RetainedCastingFailure: {
-      message: held.failure, firstCastingRejectedState: held.firstCastingRejectedState,
-    } });
-    const retainedFailure = held => held.firstCastingRejectedState ? rejectedCastingFailure(held)
-      : held.firstMemberSignatureRejectedState ? { p181RetainedMemberSignatureFailure: {
-        message: held.failure, firstMemberSignatureRejectedState: held.firstMemberSignatureRejectedState,
-      } } : held.firstStartupBerthRejectedState ? { p181RetainedStartupBerthFailure: {
-        message: held.failure, firstStartupBerthRejectedState: held.firstStartupBerthRejectedState,
-      } } : held.failure;
+    const diagnosticRoles = ['player', 'gm', 'press', 'admiral', 'wing-commander', 'icebreaker-miner',
+      'shepherd-scientist', 'quellon-explorer', 'refinery-124-pdf-colonel',
+      'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker'];
+    const diagnosticPhases = ['lobby', 'casting', 'briefing', 'active', 'paused', 'debrief', 'closed', 'ended'];
+    const safeEnum = (value, values) => value === null ? null : values.includes(value) ? value : value === undefined ? null : 'other';
+    const safeEpoch = value => Number.isSafeInteger(value) && value >= 0 ? value : null;
+    const safeBool = value => typeof value === 'boolean' ? value : null;
+    const rejectionPredicate = error => {
+      const message = typeof error?.message === 'string' ? error.message.toLowerCase() : '';
+      if (/auth|uid|identity/.test(message)) return 'auth-identity';
+      if (/document|timeorigin/.test(message)) return 'document-binding';
+      if (/session|group|fleet|scope/.test(message)) return 'member-session-scope';
+      if (/role|profile/.test(message)) return 'member-role';
+      if (/phase|cycle|turn|setup/.test(message)) return 'phase-cycle-setup';
+      if (/sdk|fence|pending|authority/.test(message)) return 'sdk-authority-fence';
+      if (/connected|connection/.test(message)) return 'connected-authority';
+      if (/seat|berth|station|chooser/.test(message)) return 'seat-berth';
+      if (/lease|hydration|generation|epoch/.test(message)) return 'lease-hydration-epoch';
+      if (/instance|recovery|gm/.test(message)) return 'gm-instance-recovery';
+      if (/resume|receipt|request|response/.test(message)) return 'normal-resume-receipt';
+      if (/deadline|expired|timeout/.test(message)) return 'finite-deadline';
+      return 'terminal-authority-assertion';
+    };
+    let held, profileContext = null;
+    const captureFirstRejection = (error, boundary, change) => {
+      if (!held || held.firstP181AuthorityRejectedState) return;
+      const observation = held.lastObservation;
+      const action = ['open', 'check', 'pin', 'close', 'wait', 'note-casting-resume'].includes(boundary) ? boundary : 'observer';
+      const safeCastingPredicates = ['playerRole', 'assignedRoleId', 'activeConsoleRoleId', 'seatId', 'cycle', 'phase',
+        'setupConfirmed', 'connection'];
+      const safeSignatureFields = ['uid', 'document', 'sessionId', 'memberUid', 'memberSession', 'role', 'group', 'phase',
+        'cycle', 'fullGameDemo', 'assigned', 'active', 'seat', 'scope', 'berth', 'ownSeat', 'instance', 'custody',
+        'docking', 'generation', 'hydration'];
+      const castingChecks = Array.isArray(error?.firstCastingRejectedState?.failedPredicates)
+        ? error.firstCastingRejectedState.failedPredicates.filter(value => safeCastingPredicates.includes(value)) : [];
+      const startupChecks = Array.isArray(error?.firstStartupBerthRejectedState?.failedPredicates)
+        ? error.firstStartupBerthRejectedState.failedPredicates.filter(value =>
+          ['actorUidMismatch', 'groupIdMismatch', 'shipIdMismatch', 'roleMismatch', 'berthMissing'].includes(value)) : [];
+      const signatureFields = Array.isArray(error?.firstMemberSignatureRejectedState?.differentFields)
+        ? error.firstMemberSignatureRejectedState.differentFields.filter(value => safeSignatureFields.includes(value)) : [];
+      const control = boundary === 'note-casting-resume' && change && typeof change === 'object'
+        ? Object.freeze({ sessionMatchesExpected: change.sessionId === held.options.expected?.sessionId,
+            uidHashMatchesExpected: change.uidHash === held.options.expected?.uidHash,
+            documentMatchesOriginal: change.documentTimeOrigin === held.timeOrigin,
+            generationMatchesExpected: change.connectionGeneration === held.options.expected?.connectionGeneration,
+            hydrationMatchesExpected: change.identityHydrationRevision === held.options.expected?.identityHydrationRevision })
+        : Object.freeze({ action, mode: ['auth-only', 'startup', 'navigation', 'casting-assignment'].includes(held.options.mode)
+            ? held.options.mode : 'other' });
+      held.firstP181AuthorityRejectedState = Object.freeze({ schemaVersion: 1,
+        boundary: ['store-observer', 'retained-check', 'pin', 'note-casting-resume', 'auth-callback',
+          'observer-deadline', 'open', 'close', 'wait', 'command'].includes(boundary) ? boundary : 'retainer-terminal',
+        predicate: rejectionPredicate(error), observationOrigin: observation?.observationOrigin ?? 'unavailable',
+        phase: observation?.observed?.phase ?? null, sourceRead: 'already-held-only',
+        expected: observation?.expected ?? null, firstPinContext: held.firstPinContext ?? null,
+        observed: observation?.observed ?? null,
+        rejectedPredicates: Object.freeze([...castingChecks, ...startupChecks]),
+        signatureDifferences: Object.freeze(signatureFields),
+        sdk: observation?.observed ? Object.freeze({ observationComplete: observation.observed.sdkObservationComplete,
+          hasServerSessionAuthority: observation.observed.sdkHasServerAuthority,
+          resumePending: observation.observed.sdkResumePending,
+          serverSeen: observation.observed.sdkServerSeen, sdkCompleted: observation.observed.sdkCompleted })
+          : Object.freeze({ observationComplete: false, hasServerSessionAuthority: null, resumePending: null,
+            serverSeen: false, sdkCompleted: false }),
+        control });
+    };
+    const retainedFailure = held => {
+      const retained = {};
+      if (held.firstP181AuthorityRejectedState) retained.p181RetainedAuthorityFailure = {
+        message: held.failure, firstP181AuthorityRejectedState: held.firstP181AuthorityRejectedState };
+      if (held.firstCastingRejectedState) retained.p181RetainedCastingFailure = {
+        message: held.failure, firstCastingRejectedState: held.firstCastingRejectedState };
+      if (held.firstMemberSignatureRejectedState) retained.p181RetainedMemberSignatureFailure = {
+        message: held.failure, firstMemberSignatureRejectedState: held.firstMemberSignatureRejectedState };
+      if (held.firstStartupBerthRejectedState) retained.p181RetainedStartupBerthFailure = {
+        message: held.failure, firstStartupBerthRejectedState: held.firstStartupBerthRejectedState };
+      return retained;
+    };
     if (action !== 'open') {
-      const held = window[key];
+      held = window[key];
       if (!held || held.id !== id) throw new Error('Original P181 authority observation or document changed.');
       try {
       if (performance.timeOrigin !== held.timeOrigin) {
+        if (held.lastObservation?.observed) held.lastObservation = Object.freeze({ ...held.lastObservation,
+          observed: Object.freeze({ ...held.lastObservation.observed, documentMatchesOriginal: false }) });
         held.failure ??= 'Original P181 observation documentTimeOrigin changed.';
         held.stop(); held.complete(held.failure);
         if (action === 'close') delete window[key];
@@ -1027,19 +1104,21 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       await held.check();
       return { fresh: held.fresh };
       } catch (error) {
-        if ((held.firstCastingRejectedState || held.firstMemberSignatureRejectedState ||
+        captureFirstRejection(error, action === 'note-casting-resume' ? 'note-casting-resume' : action, change);
+        if ((held.firstP181AuthorityRejectedState || held.firstCastingRejectedState || held.firstMemberSignatureRejectedState ||
             held.firstStartupBerthRejectedState) && error?.message === held.failure)
           return retainedFailure(held);
-        throw error;
+        return { p181RetainedAuthorityFailure: { message: String(error?.message ?? error),
+          firstP181AuthorityRejectedState: held.firstP181AuthorityRejectedState } };
       }
     }
     if (!Number.isFinite(deadlineAt) || Date.now() >= deadlineAt) throw timeout();
     if (window[key]) throw new Error('Another P181 observation already owns this original document.');
     const { auth } = await import('/src/lib/firebase.ts');
-    const profileContext = options.mode === 'casting-assignment'
+    profileContext = options.mode === 'casting-assignment'
       ? await import('/src/lib/demoActorContext.ts') : null;
     const client = auth();
-    const held = { id, options, failure: null, fresh: false, stops: [], timer: null,
+    held = { id, options, failure: null, fresh: false, stops: [], timer: null,
       rawUid: client.currentUser?.uid ?? null, timeOrigin: performance.timeOrigin,
       store: null, authority: null, resumePending: null, signature: null, connectedSeen: false,
       serverSeen: false, sdkCompleted: false, latestGeneration: 0, latestHydration: 0,
@@ -1047,6 +1126,7 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       castingResumeSettled: false, castingPendingSeen: false, castingBerthSeen: false,
       castingBerthBinding: null, castingBerthGapSeen: false, castingBerthGapRestored: false,
       firstStartupBerthRejectedState: null, startupOwnedBerthContext: null,
+      firstP181AuthorityRejectedState: null, firstPinContext: null, lastObservation: null,
       castingConnectedGapSeen: false, castingConnectedGapRestored: false };
     window[key] = held;
     held.completed = new Promise(resolve => { held.complete = resolve; });
@@ -1054,8 +1134,106 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       clearTimeout(held.timer);
       for (const stop of held.stops.splice(0)) { try { stop(); } catch (error) { held.failure ??= String(error?.message ?? error); } }
     };
-    const fail = error => {
+    const summarizeObservation = (state, user, observationOrigin, sdkObserved = false, sdk, pending) => {
+      const me = state?.me, session = state?.session, expected = held.options.expected ?? {};
+      const actorProfile = profileContext?.activeDemoActorProfile ?? null;
+      const berthFieldPresent = Boolean(session && Object.hasOwn(session, 'currentActorBerthAuthority'));
+      const berth = session?.currentActorBerthAuthority;
+      const scope = session?.memberSessionScope;
+      const seats = Array.isArray(state?.seats) ? state.seats : [];
+      const targetRole = held.options.castingRoleId ?? held.options.memberRoleId ?? null;
+      const targetSeats = targetRole ? seats.filter(seat => seat?.id === targetRole ||
+        (seat?.roleId ?? seat?.id) === targetRole) : [];
+      const expectedRole = held.options.requireGm ? 'gm' : targetRole;
+      return Object.freeze({ observationOrigin: ['current', 'delivered', 'previous', 'check-before-hash',
+        'check-after-hash', 'pin', 'note-casting-resume', 'auth-callback', 'unavailable'].includes(observationOrigin)
+        ? observationOrigin : 'other',
+        expected: Object.freeze({ sessionPresent: typeof expected.sessionId === 'string',
+          sessionMatches: typeof session?.id === 'string' && typeof expected.sessionId === 'string'
+            ? session.id === expected.sessionId : null,
+          uidHashPresent: typeof expected.uidHash === 'string', role: safeEnum(expectedRole, diagnosticRoles),
+          roleMatches: typeof expectedRole === 'string' && typeof me?.role === 'string'
+            ? (held.options.requireGm ? me.role === 'gm' : me.role === 'player') : null,
+          documentTimeOriginPresent: Number.isSafeInteger(expected.documentTimeOrigin),
+          documentMatches: Number.isSafeInteger(expected.documentTimeOrigin)
+            ? performance.timeOrigin === expected.documentTimeOrigin : null,
+          connectionGeneration: safeEpoch(expected.connectionGeneration),
+          identityHydrationRevision: safeEpoch(expected.identityHydrationRevision),
+          fleetGroupPresent: typeof expected.fleetGroupId === 'string',
+          fleetGroupMatches: typeof expected.fleetGroupId === 'string' && typeof me?.fleetGroupId === 'string'
+            ? me.fleetGroupId === expected.fleetGroupId : null,
+          instancePresent: typeof expected.instanceId === 'string',
+          instanceMatches: typeof expected.instanceId === 'string' && typeof state?.gmInstance?.id === 'string'
+            ? state.gmInstance.id === expected.instanceId : null }),
+        observed: Object.freeze({ documentMatchesOriginal: performance.timeOrigin === held.timeOrigin,
+          authPresent: Boolean(user?.uid), authMatchesOriginal: held.rawUid && user?.uid
+            ? user.uid === held.rawUid : null,
+          uidHashMatchesExpected: null,
+          memberPresent: Boolean(me), memberMatchesAuth: user?.uid && me?.uid ? me.uid === user.uid : null,
+          sessionPresent: Boolean(session), sessionMatchesExpected: typeof expected.sessionId === 'string' && session
+            ? session.id === expected.sessionId : null,
+          memberSessionMatchesSession: me?.sessionId && session?.id ? me.sessionId === session.id : null,
+          role: safeEnum(me?.role, diagnosticRoles), assignedRoleId: safeEnum(me?.assignedRoleId, diagnosticRoles),
+          activeConsoleRoleId: safeEnum(me?.activeConsoleRoleId, diagnosticRoles), seatId: safeEnum(me?.seatId, diagnosticRoles),
+          phase: safeEnum(session?.phase, diagnosticPhases), cycle: safeEpoch(session?.currentTurn),
+          setupConfirmed: safeBool(session?.setupConfirmed), connection: ['live', 'offline', 'connecting', 'idle', 'disconnected']
+            .includes(state?.connection) ? state.connection : state?.connection == null ? null : 'other',
+          freshness: ['server', 'cache', 'unknown'].includes(state?.sessionSnapshotFreshness)
+            ? state.sessionSnapshotFreshness : state?.sessionSnapshotFreshness == null ? null : 'other',
+          connectedFieldPresent: Boolean(me && Object.hasOwn(me, 'connected')), connected: safeBool(me?.connected),
+          kicked: me ? me.kickedAt != null : null, escapeStatePresent: me ? me.escapeState != null : null,
+          replacementRolePresent: me ? me.replacementRoleId != null : null,
+          replacementStatusPresent: me ? me.replacementStatus != null : null,
+          fleetGroupMatchesExpected: typeof expected.fleetGroupId === 'string' && typeof me?.fleetGroupId === 'string'
+            ? me.fleetGroupId === expected.fleetGroupId : null,
+          groupMatchesMemberScope: typeof me?.fleetGroupId === 'string' && typeof scope?.groupId === 'string'
+            ? me.fleetGroupId === scope.groupId : null,
+          memberScopePresent: Boolean(scope),
+          memberScopeVesselCount: Array.isArray(scope?.vesselIds) ? scope.vesselIds.length : null,
+          actorProfilePresent: Boolean(actorProfile),
+          actorProfileUnassigned: actorProfile ? actorProfile.roleId == null && actorProfile.sessionId == null : null,
+          connectionGeneration: safeEpoch(me?.connectionGeneration),
+          identityHydrationRevision: safeEpoch(state?.identityHydrationRevision),
+          targetSeatCount: targetSeats.length,
+          targetSeatOwnedByAuth: Boolean(user?.uid && targetSeats.some(seat => seat?.holderUid === user.uid && seat.status === 'claimed')),
+          berthFieldPresent, berthKind: berth === null ? 'null' : berth && typeof berth === 'object'
+            ? Array.isArray(berth) ? 'array' : 'object' : berth === undefined ? 'undefined' : typeof berth,
+          berthActorMatchesAuth: berth && typeof berth === 'object' && user?.uid ? berth.actorUid === user.uid : null,
+          berthSessionMatches: berth && typeof berth === 'object' && session?.id ? berth.sessionId === session.id : null,
+          berthGroupMatchesMember: berth && typeof berth === 'object' && me?.fleetGroupId
+            ? berth.groupId === me.fleetGroupId : null,
+          berthGroupMatchesScope: berth && typeof berth === 'object' && scope?.groupId
+            ? berth.groupId === scope.groupId : null,
+          berthRoleIsPlayer: berth && typeof berth === 'object' ? berth.role === 'player' : null,
+          berthShipPresent: berth && typeof berth === 'object' ? typeof berth.shipId === 'string' && berth.shipId.length > 0 : null,
+          berthShipInMemberScope: berth && typeof berth === 'object' && Array.isArray(scope?.vesselIds)
+            ? scope.vesselIds.includes(berth.shipId) : null,
+          berthAssignedRoleId: safeEnum(berth?.assignedRoleId, diagnosticRoles),
+          berthActiveConsoleRoleId: safeEnum(berth?.activeConsoleRoleId, diagnosticRoles),
+          berthGeneration: safeEpoch(berth?.connectionGeneration),
+          gmInstancePresent: Boolean(state?.gmInstance),
+          gmInstanceOwned: Boolean(user?.uid && state?.gmInstance?.uid === user.uid),
+          gmInstanceSessionMatches: Boolean(session?.id && state?.gmInstance?.sessionId === session.id),
+          gmInstanceMatchesExpected: typeof expected.instanceId === 'string' && typeof state?.gmInstance?.id === 'string'
+            ? state.gmInstance.id === expected.instanceId : null,
+          gmRecoveryPending: safeBool(state?.gmRecoveryPending),
+          sdkObservationComplete: sdkObserved, sdkHasServerAuthority: sdkObserved ? safeBool(sdk?.hasServerSessionAuthority) : null,
+          sdkResumePending: sdkObserved && (pending === true || pending === false) ? pending : null,
+          sdkServerSeen: held.serverSeen, sdkCompleted: held.sdkCompleted,
+          resumeRequestSeen: Boolean(held.castingResumeRequest),
+          signaturePinned: held.signature !== null }),
+      });
+    };
+    const retainAuthCallbackObservation = user => {
+      if (!held.lastObservation?.observed) return;
+      held.lastObservation = Object.freeze({ ...held.lastObservation,
+        observationOrigin: 'auth-callback',
+        observed: Object.freeze({ ...held.lastObservation.observed, authPresent: Boolean(user?.uid),
+          authMatchesOriginal: held.rawUid && user?.uid ? user.uid === held.rawUid : null }) });
+    };
+    const fail = (error, boundary = 'retainer-terminal', change) => {
       if (held.failure === null) {
+        captureFirstRejection(error, boundary, change);
         held.failure = String(error?.message ?? error);
         if (error?.firstCastingRejectedState) held.firstCastingRejectedState = error.firstCastingRejectedState;
         if (error?.firstMemberSignatureRejectedState)
@@ -1069,6 +1247,7 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
     const inspect = (state, historical = false, observationOrigin = 'current') => {
       if (held.failure) return;
       const user = client.currentUser;
+      held.lastObservation = summarizeObservation(state, user, observationOrigin);
       if (performance.timeOrigin !== held.timeOrigin || (held.rawUid && user?.uid !== held.rawUid))
         throw new Error('Original P181 Auth authority or document retired.');
       if (user?.uid) held.rawUid ??= user.uid;
@@ -1091,6 +1270,7 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       // import. Raw ownership is already pinned in that interval; incomplete
       // SDK installation supplies no fresh authority or action qualification.
       const sdk = held.authority?.(session.id, user.uid), pending = held.resumePending?.(sdk) ?? true;
+      held.lastObservation = summarizeObservation(state, user, observationOrigin, Boolean(held.authority), sdk, pending);
       if (sdk?.hasServerSessionAuthority === true) held.serverSeen = true;
       if (sdk?.hasServerSessionAuthority === true && pending === false) held.sdkCompleted = true;
       if (castingAssignment) {
@@ -1499,7 +1679,10 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
           throw error;
         }
       }
-      held.signature ??= signature;
+      if (held.signature === null) {
+        held.firstPinContext ??= held.lastObservation;
+        held.signature = signature;
+      }
       held.fresh = state.connection === 'live' && state.sessionSnapshotFreshness === 'server' &&
         sdk?.hasServerSessionAuthority === true && !pending && me.connected === true;
     };
@@ -1516,7 +1699,7 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
           held.latestGeneration = current.me?.connectionGeneration ?? held.latestGeneration;
           held.latestHydration = current.identityHydrationRevision ?? held.latestHydration;
         }
-      } catch (error) { fail(error); }
+      } catch (error) { fail(error, 'store-observer'); }
     };
     const requireOpen = () => {
       if (held.closed) throw new Error('Original P181 retained authority scope already ended.');
@@ -1550,12 +1733,15 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       if (uid && held.options.mode !== 'auth-only' && held.options.expected?.uidHash) {
         const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(uid))))
           .map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16);
+        held.lastObservation = Object.freeze({ ...held.lastObservation,
+          observed: Object.freeze({ ...held.lastObservation?.observed,
+            uidHashMatchesExpected: hash === held.options.expected.uidHash }) });
         if (hash !== held.options.expected.uidHash) throw new Error('Original P181 owned Auth account UID changed.');
       }
       if (held.failure) throw new Error(held.failure);
       if (held.closed) throw new Error('Original P181 retained authority scope ended during verification.');
       inspect(held.store?.getState(), false, 'check-after-hash');
-    } catch (error) { fail(error); throw error; } };
+    } catch (error) { fail(error, 'retained-check'); throw error; } };
     held.pin = async next => {
       await held.check();
       const enteringMember = held.options.mode === 'auth-only';
@@ -1590,10 +1776,11 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
     };
     try {
       held.stops.push(client.onAuthStateChanged(user => {
-        if (held.rawUid && user?.uid !== held.rawUid) fail(new Error('Original P181 Auth authority retired.'));
+        retainAuthCallbackObservation(user);
+        if (held.rawUid && user?.uid !== held.rawUid) fail(new Error('Original P181 Auth authority retired.'), 'auth-callback');
         else if (user?.uid) held.rawUid ??= user.uid;
-      }, fail));
-      held.timer = setTimeout(() => fail(timeout()), deadlineAt - Date.now());
+      }, error => fail(error, 'auth-callback')));
+      held.timer = setTimeout(() => fail(timeout(), 'observer-deadline'), deadlineAt - Date.now());
       if (options.mode !== 'auth-only') {
         if (!authorityModuleUrl) throw new Error('Original observed App SDK authority module is required.');
         const { useSessionStore } = await import(moduleUrl);
@@ -1604,8 +1791,8 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       observe(); await held.check();
       return { fresh: held.fresh };
     } catch (error) {
-      fail(error); held.stop(); delete window[key];
-      if ((held.firstCastingRejectedState || held.firstMemberSignatureRejectedState ||
+      fail(error, 'open'); held.stop(); delete window[key];
+      if ((held.firstP181AuthorityRejectedState || held.firstCastingRejectedState || held.firstMemberSignatureRejectedState ||
           held.firstStartupBerthRejectedState) && error?.message === held.failure)
         return retainedFailure(held);
       throw error;
@@ -1613,16 +1800,32 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
   }, { id, action, moduleUrl, authorityModuleUrl: surface.sessionAuthorityModuleUrl?.() ?? authorityModuleUrl,
     deadlineAt, options, change });
   const command = async (action, change) => {
-    const result = await rawCommand(action, change);
-    const retained = result?.p181RetainedCastingFailure ?? result?.p181RetainedMemberSignatureFailure ??
-      result?.p181RetainedStartupBerthFailure;
+    let result;
+    try { result = await rawCommand(action, change); }
+    catch (error) {
+      const retained = retainP181CallerRejection(error, `retainer-command.${action}`,
+        { sessionId: options.expected?.sessionId, uidHash: options.expected?.uidHash,
+          roleId: options.castingRoleId ?? options.memberRoleId, documentTimeOrigin: options.expected?.documentTimeOrigin,
+          connectionGeneration: options.expected?.connectionGeneration,
+          identityHydrationRevision: options.expected?.identityHydrationRevision,
+          fleetGroupId: options.expected?.fleetGroupId, instanceId: options.expected?.instanceId }, null, null);
+      throw retained;
+    }
+    const retained = [result?.p181RetainedAuthorityFailure, result?.p181RetainedCastingFailure,
+      result?.p181RetainedMemberSignatureFailure, result?.p181RetainedStartupBerthFailure]
+      .filter(Boolean).reduce((all, value) => ({ ...all, ...value }), null);
     if (retained) {
       const error = new Error(retained.message);
-      const field = retained.firstCastingRejectedState ? 'firstCastingRejectedState'
-        : retained.firstMemberSignatureRejectedState ? 'firstMemberSignatureRejectedState'
-          : 'firstStartupBerthRejectedState';
-      error[field] = retained[field];
-      rememberProofFailure(error, { [field]: retained[field] });
+      if (retained.firstP181AuthorityRejectedState) {
+        error.firstP181AuthorityRejectedState = retained.firstP181AuthorityRejectedState;
+        rememberProofFailure(error, { firstP181AuthorityRejectedState: retained.firstP181AuthorityRejectedState });
+      }
+      for (const field of ['firstCastingRejectedState', 'firstMemberSignatureRejectedState', 'firstStartupBerthRejectedState']) {
+        if (retained[field]) {
+          error[field] = retained[field];
+          rememberProofFailure(error, { [field]: retained[field] });
+        }
+      }
       throw error;
     }
     return result;
@@ -3599,11 +3802,14 @@ async function p181RunStarlightMovementScoutNative(options) {
         mode: 'startup', expected: { sessionId, ...(ownedUid ? { uidHash: hashShort(ownedUid) } : {}) },
         navigationFrom: normalNavigationFrom, startCycleOne: true,
         ...(actorLabel === 'admiral' ? { proofProfile: 'wing-bays', memberRoleId: 'admiral' } : {}) }), readDeadlineAt);
-    let failure;
+    let failure, rejectionBoundary = 'readiness-entry';
     try {
     while (Date.now() < readDeadlineAt) {
+      rejectionBoundary = 'await-member-read';
       current = await Promise.race([readFullActor(surface, readDeadlineAt), authority.failed]);
+      rejectionBoundary = 'retained-authority-check';
       const retainedReadiness = await authority.check();
+      rejectionBoundary = 'caller-authority-assertions';
       assert.ok(Date.now() < readDeadlineAt, `${description}: readiness tuple arrived after its original deadline.`);
       const owned = ownedAuthUids.get(actorLabel);
       assert.equal(current.hasAuth, true, 'Keep the original startup Auth authority.');
@@ -3634,11 +3840,23 @@ async function p181RunStarlightMovementScoutNative(options) {
         latestGeneration = current.connectionGeneration; latestHydration = current.identityHydrationRevision;
       }
       if (predicate(current) && (!authorityOverride || retainedReadiness?.fresh === true)) return current;
+      rejectionBoundary = 'false-readiness-hold';
       await bounded(`${description}: readiness retry interval`,
         () => Promise.race([delay(Math.min(200, readDeadlineAt - Date.now())), authority.failed]), readDeadlineAt);
     }
+    rejectionBoundary = 'finite-readiness-deadline';
     throw new Error(`${description}: ${JSON.stringify(current)}`);
-    } catch (error) { failure = error; throw error; }
+    } catch (error) {
+      failure = error;
+      const roleId = actorLabel === 'gm' ? 'gm' : actorLabel === 'admiral' ? 'admiral' : 'wing-commander';
+      throw retainP181CallerRejection(error, `waitForFullActor.${rejectionBoundary}`,
+        { sessionId, uidHash: ownedUid ? hashShort(ownedUid) : undefined, roleId,
+          stage: normalNavigationFrom ? current?.activeConsoleRoleId ? 'station' : 'casting' : undefined,
+          documentTimeOrigin: normalNavigationFrom?.documentTimeOrigin,
+          connectionGeneration: normalNavigationFrom?.connectionGeneration,
+          identityHydrationRevision: normalNavigationFrom?.identityHydrationRevision },
+        original, current, { transition: normalNavigationFrom ? 'normal-navigation' : null });
+    }
     finally {
       if (!authorityOverride) {
         try { await authority.close(); } catch (error) { if (!failure) throw error; }
@@ -3656,11 +3874,14 @@ async function p181RunStarlightMovementScoutNative(options) {
     const authority = await bounded('Retain original GM startup authority', () =>
       retainP181MemberAuthority(gm, readDeadlineAt, { mode: 'startup', requireGm: true,
         expected: { sessionId, uidHash: hashShort(ownedAuthUids.get('gm')), instanceId }, startCycleOne: active }), readDeadlineAt);
-    let failure;
+    let failure, rejectionBoundary = 'gm-readiness-entry';
     try {
     while (Date.now() < readDeadlineAt) {
+      rejectionBoundary = 'await-gm-member-read';
       member = await Promise.race([readFullActor(gm, readDeadlineAt), authority.failed]);
+      rejectionBoundary = 'gm-retained-authority-check';
       await authority.check();
+      rejectionBoundary = 'gm-caller-authority-assertions';
       assert.ok(Date.now() < readDeadlineAt, 'Original GM readiness tuple arrived after its deadline.');
       const owner = ownedAuthUids.get('gm');
       assert.equal(member.hasAuth, true); assert.equal(member.uidHash, hashShort(owner), 'Keep the original GM Auth identity.');
@@ -3673,12 +3894,17 @@ async function p181RunStarlightMovementScoutNative(options) {
       if (original.playerRole === 'gm') assert.equal(member.playerRole, 'gm', 'Original GM authority retired.');
       if (original.sdkHasServerAuthority) assert.equal(member.sdkHasServerAuthority, true);
       if (original.sdkResumePending === false) assert.equal(member.sdkResumePending, false);
+      rejectionBoundary = 'await-gm-recovery-flag';
       recoveryPending = await Promise.race([readGmRecoveryPending(gm, readDeadlineAt), authority.failed]);
+      rejectionBoundary = 'gm-recovery-authority-check';
       await authority.check();
       // Re-read after the awaited recovery flag. Never return the earlier DTO
       // if current GM/instance/SDK authority changed at that boundary.
+      rejectionBoundary = 'await-gm-post-recovery-member-read';
       member = await Promise.race([readFullActor(gm, readDeadlineAt), authority.failed]);
+      rejectionBoundary = 'gm-post-recovery-authority-check';
       await authority.check();
+      rejectionBoundary = 'gm-post-recovery-caller-assertions';
       for (const key of ['uidHash', 'sessionId', 'meSessionId', 'documentTimeOrigin',
         'connectionGeneration', 'identityHydrationRevision'])
         assert.equal(member[key], original[key], 'Original GM authority changed during recovery read.');
@@ -3688,11 +3914,19 @@ async function p181RunStarlightMovementScoutNative(options) {
         sessionId, instanceId };
       if (pc11GmReadiness({ ...member, recoveryPending }, expected) &&
           member.sdkResumePending === false && (!active || member.phase === 'active' && member.cycle === 1)) return { ...member, recoveryPending };
+      rejectionBoundary = 'gm-false-readiness-hold';
       await bounded('Original GM readiness retry interval',
         () => Promise.race([delay(Math.min(200, readDeadlineAt - Date.now())), authority.failed]), readDeadlineAt);
     }
+    rejectionBoundary = 'gm-finite-readiness-deadline';
     throw new Error(`Original live normal GM authority did not become ready: ${JSON.stringify(member)}`);
-    } catch (error) { failure = error; throw error; }
+    } catch (error) {
+      failure = error;
+      throw retainP181CallerRejection(error, `waitForGm.${rejectionBoundary}`,
+        { sessionId, uidHash: hashShort(ownedAuthUids.get('gm')), roleId: 'gm',
+          stage: active ? 'station' : undefined, instanceId }, original, member,
+        { recoveryPending, transition: null });
+    }
     finally { try { await authority.close(); } catch (error) { if (!failure) throw error; } }
   };
   async function captureAction(surface, endpoint, choose, deadlineAt) {
@@ -4095,7 +4329,8 @@ async function p181RunStarlightMovementScoutNative(options) {
           await bounded(`Select original ${memberName} casting role`, () => casting.getByLabel(`Role for ${displayName}`, { exact: true })
             .selectOption(memberRoleId, { timeout: p181Remaining(castingUiEnd) }), castingUiEnd);
           const castingDeadlineAt = Math.min(deadlineAt, Date.now() + P181_NATIVE_TIMING.operationTimeoutMs);
-          let castingAuthority, assignment, navigationStart, navigation, castingFailure;
+          let castingAuthority, assignment, navigationStart, navigation, castingFailure, castingCurrent;
+          let castingRejectionBoundary = 'casting-resume-prepare';
           let castingResumeNotice = Promise.resolve(), castingResumeNoticeError;
           const noteCastingResumeRequest = resume => {
             if (!castingAuthority) throw new Error('Original casting authority was not armed before ordinary resume.');
@@ -4111,8 +4346,10 @@ async function p181RunStarlightMovementScoutNative(options) {
             onCastingResumeRequest: noteCastingResumeRequest });
           assert.ok(castingResume, 'Observe the original member’s ordinary casting resume before assignment.');
           try {
+            castingRejectionBoundary = 'casting-resume-prepare';
             await bounded('Prepare original casting assignment resume observer',
               () => castingResume.prepare(admitted), castingDeadlineAt);
+            castingRejectionBoundary = 'retained-authority-open';
             castingAuthority = await bounded('Retain original casting assignment authority', () =>
               retainP181MemberAuthority(memberSurface, castingDeadlineAt, { mode: 'casting-assignment', proofProfile,
                 castingRoleId: memberRoleId,
@@ -4120,9 +4357,11 @@ async function p181RunStarlightMovementScoutNative(options) {
                   fleetGroupId: admitted.fleetGroupId, connectionGeneration: admitted.connectionGeneration,
                   identityHydrationRevision: admitted.identityHydrationRevision,
                   documentTimeOrigin: admitted.documentTimeOrigin } }), castingDeadlineAt);
+            castingRejectionBoundary = 'gm-assign-role-receipt';
             assignment = await captureAction(gm, 'assignRole', () =>
               casting.getByRole('button', { name: `Assign role to ${displayName}`, exact: true })
                 .click({ timeout: Math.min(35_000, castingDeadlineAt - Date.now()) }), castingDeadlineAt);
+            castingRejectionBoundary = 'ordinary-resume-request-receipt';
             await castingResumeNotice;
             if (castingResumeNoticeError) throw castingResumeNoticeError;
             const castingReady = value => pc11MemberReadiness(value, { sessionId, uidHash: admittedAuth.uidHash,
@@ -4131,37 +4370,58 @@ async function p181RunStarlightMovementScoutNative(options) {
               value.currentMemberBerthPresent === true && value.currentMemberBerthNull === false &&
               value.currentMemberBerthMatches === true;
             while (Date.now() < castingDeadlineAt) {
-              const current = await waitForFullActor(memberSurface,
+              castingRejectionBoundary = 'casting-readiness-consumer';
+              castingCurrent = await waitForFullActor(memberSurface,
                 `Original normal ${memberName} assignment readiness before station navigation`, castingReady,
                 castingDeadlineAt, admitted, castingAuthority);
+              castingRejectionBoundary = 'ordinary-resume-request-receipt';
               await castingResumeNotice;
               if (castingResumeNoticeError) throw castingResumeNoticeError;
-              const accepted = (await castingAuthority.check()).fresh === true
-                ? await castingResume.accept(admitted, current,
+              castingRejectionBoundary = 'pre-acceptance-retained-authority-check';
+              const preAcceptanceFresh = (await castingAuthority.check()).fresh === true;
+              castingRejectionBoundary = 'casting-resume-acceptance';
+              const accepted = preAcceptanceFresh
+                ? await castingResume.accept(admitted, castingCurrent,
                   () => readFullActor(memberSurface, castingDeadlineAt), assignment) : false;
               // Acceptance may await receipt persistence. Recheck the same
               // retained authority before publishing its navigation binding.
+              castingRejectionBoundary = 'post-acceptance-retained-authority-check';
               if (accepted && (await castingAuthority.check()).fresh === true) {
                 navigation = createMemberNavigationResumeObserver(memberSurface.page, { directory,
                   roleId: memberRoleId, deadlineAt, proofProfile, memberContract: 'pc11-live-base' });
+                castingRejectionBoundary = 'station-navigation-prepare';
                 await bounded('Prepare original station navigation observer',
                   () => navigation.prepare(accepted), deadlineAt);
                 // Preparation also persists asynchronously. Publish onward
                 // authority only after its current-fresh check; an unavailable
                 // interval must release this prepared observer before retry.
+                castingRejectionBoundary = 'post-navigation-prepare-retained-authority-check';
                 if ((await castingAuthority.check()).fresh === true) {
                   navigationStart = accepted;
                   break;
                 }
+                castingRejectionBoundary = 'close-pending-station-navigation-observer';
                 await bounded('Close original pending station navigation observer',
                   () => navigation.finish(), castingDeadlineAt);
                 navigation = undefined;
               }
+              castingRejectionBoundary = 'casting-resume-acceptance-hold';
               await bounded('Wait for original casting resume acceptance', () =>
                 Promise.race([delay(Math.min(100, castingDeadlineAt - Date.now())), castingAuthority.failed]), castingDeadlineAt);
             }
+            castingRejectionBoundary = 'casting-accepted-navigation-binding';
             assert.ok(navigationStart, 'Original casting assignment did not reach captured normal resume acceptance.');
-          } catch (error) { castingFailure = error; }
+          } catch (error) {
+            castingFailure = retainP181CallerRejection(error, `casting-assignment.${castingRejectionBoundary}`,
+              { sessionId, uidHash: admittedAuth.uidHash, roleId: memberRoleId, stage: 'casting',
+                documentTimeOrigin: admitted.documentTimeOrigin,
+                connectionGeneration: admitted.connectionGeneration,
+                identityHydrationRevision: admitted.identityHydrationRevision,
+                fleetGroupId: admitted.fleetGroupId, instanceId: gmInstanceId },
+              admitted, castingCurrent ?? navigationStart,
+              { transition: 'casting-assignment', assignmentReceiptPresent: Boolean(assignment?.endpoint === 'assignRole'),
+                navigationPrepared: Boolean(navigation) });
+          }
           finally {
             if (castingAuthority) {
               try { await bounded('Close original casting assignment authority', () => castingAuthority.close(),
@@ -4180,14 +4440,17 @@ async function p181RunStarlightMovementScoutNative(options) {
           if (castingFailure) throw castingFailure;
           trace.push(`${memberRoleId}-normal-join-and-consent`, 'assignRole', 'casting-assignment-resume-accepted');
 
-          let station, navigationError;
+          let station, navigationError, navigationRejectionBoundary = 'station-chooser-visibility';
           try {
             const roleLink = memberSurface.page.locator(`a[href$="/roles/${memberRoleId}"]`).first();
             const navigationUiEnd = Math.min(deadlineAt, Date.now() + 35_000);
+            navigationRejectionBoundary = 'station-chooser-visibility';
             await bounded('Wait for original station chooser', () => roleLink.waitFor({ state: 'visible', timeout: p181Remaining(navigationUiEnd) }), navigationUiEnd);
+            navigationRejectionBoundary = 'station-chooser-action';
             await bounded('Choose original station berth', () => roleLink.click({ timeout: p181Remaining(navigationUiEnd) }), navigationUiEnd);
             normalPreparationDiagnostic.activeAwaitedOperation =
               `Original ${memberName} normal role chooser/seat claim`;
+            navigationRejectionBoundary = 'station-readiness-consumer';
             station = await waitForFullActor(memberSurface, `Original ${memberName} normal role chooser/seat claim`, value =>
               pc11MemberReadiness(value, { sessionId, uidHash: admittedAuth.uidHash,
                 roleId: memberRoleId, stage: 'station' }) && value.memberScopeMatches === true &&
@@ -4196,12 +4459,24 @@ async function p181RunStarlightMovementScoutNative(options) {
             normalPreparationDiagnostic.activeAwaitedOperation = null;
             if (station.connectionGeneration !== navigationStart.connectionGeneration ||
                 station.identityHydrationRevision !== navigationStart.identityHydrationRevision) {
+              navigationRejectionBoundary = 'ordinary-navigation-resume-acceptance';
               const accepted = await bounded('Accept original actor-bound role navigation receipt',
                 () => navigation.accept(navigationStart, station, () => readFullActor(memberSurface, deadlineAt)), deadlineAt);
+              navigationRejectionBoundary = 'ordinary-navigation-resume-receipt-assertion';
               assert.ok(accepted, 'Original role chooser must retain its actor-bound normal resume receipt.');
               station = { ...station, ...accepted };
             }
-          } catch (error) { navigationError = error; }
+          } catch (error) {
+            navigationError = retainP181CallerRejection(error, `normal-navigation.${navigationRejectionBoundary}`,
+              { sessionId, uidHash: admittedAuth.uidHash, roleId: memberRoleId, stage: 'station',
+                documentTimeOrigin: navigationStart?.documentTimeOrigin,
+                connectionGeneration: navigationStart?.connectionGeneration,
+                identityHydrationRevision: navigationStart?.identityHydrationRevision,
+                fleetGroupId: navigationStart?.fleetGroupId, instanceId: gmInstanceId },
+              navigationStart, station,
+              { transition: 'normal-navigation', assignmentReceiptPresent: Boolean(assignment?.endpoint === 'assignRole'),
+                navigationPrepared: true });
+          }
           finally {
             try { await bounded('P181 role chooser navigation observer teardown', () => navigation.finish(navigationError),
               Math.min(cleanupDeadlineAt, deadlineAt + 5_000)); }

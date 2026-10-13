@@ -15,6 +15,103 @@ const safeId = value => wireId(value) ? value : null;
 const safeBoolean = value => typeof value === 'boolean' ? value : null;
 const safeGeneration = value => Number.isSafeInteger(value) && value >= 0 ? value : null;
 const safeError = (error, category) => ({ category, name: ['Error', 'AssertionError', 'SyntaxError', 'TypeError'].includes(error?.name) ? error.name : 'Error' });
+const diagnosticRoles = new Set(['player', 'gm', 'press', 'admiral', 'wing-commander', 'icebreaker-miner',
+  'shepherd-scientist', 'quellon-explorer', 'refinery-124-pdf-colonel',
+  'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker']);
+const diagnosticPhases = new Set(['lobby', 'casting', 'briefing', 'active', 'paused', 'debrief', 'closed', 'ended']);
+const diagnosticEnum = (value, values) => value == null ? null : values.has(value) ? value : 'other';
+function diagnosticPredicate(error, boundary) {
+  const message = typeof error?.message === 'string' ? error.message.toLowerCase() : '';
+  if (/auth|uid|identity/.test(message)) return 'auth-identity';
+  if (/document|timeorigin/.test(message)) return 'document-binding';
+  if (/session|group|fleet|scope/.test(message)) return 'member-session-scope';
+  if (/role|profile/.test(message)) return 'member-role';
+  if (/phase|cycle|turn|setup/.test(message)) return 'phase-cycle-setup';
+  if (/sdk|fence|pending|authority/.test(message)) return 'sdk-authority-fence';
+  if (/connected|connection/.test(message)) return 'connected-authority';
+  if (/seat|berth|station|chooser/.test(message)) return 'seat-berth';
+  if (/lease|hydration|generation|epoch/.test(message)) return 'lease-hydration-epoch';
+  if (/instance|recovery|gm/.test(message)) return 'gm-instance-recovery';
+  if (/resume|receipt|request|response/.test(message)) return boundary.includes('casting')
+    ? 'casting-resume-receipt' : 'navigation-resume-receipt';
+  if (/deadline|expired|timeout/.test(message)) return 'finite-deadline';
+  return 'terminal-authority-assertion';
+}
+
+/** Attach one bounded witness to the existing terminal error using only the
+ * caller's held values. This does not read App, SDK, browser, or network state. */
+export function preserveP181AuthorityRejection(error, boundary, expected, original, observed, context = {}) {
+  if (!error || typeof error !== 'object') return error;
+  if (error.firstP181AuthorityRejectedState) return error;
+  const summary = value => value ? {
+    hasAuth: typeof value.hasAuth === 'boolean' ? value.hasAuth : null,
+    sameActor: typeof value.sameActor === 'boolean' ? value.sameActor : null,
+    uidHashMatchesExpected: typeof value.uidHash === 'string' && typeof expected?.uidHash === 'string'
+      ? value.uidHash === expected.uidHash : null,
+    sessionMatchesExpected: typeof value.sessionId === 'string' && typeof expected?.sessionId === 'string'
+      ? value.sessionId === expected.sessionId : null,
+    memberSessionMatchesExpected: typeof value.meSessionId === 'string' && typeof expected?.sessionId === 'string'
+      ? value.meSessionId === expected.sessionId : null,
+    documentTimeOriginPresent: Number.isSafeInteger(value.documentTimeOrigin),
+    documentMatchesExpected: Number.isSafeInteger(value.documentTimeOrigin) && Number.isSafeInteger(expected?.documentTimeOrigin)
+      ? value.documentTimeOrigin === expected.documentTimeOrigin : null,
+    playerRole: diagnosticEnum(value.playerRole, diagnosticRoles),
+    roleMatchesExpected: typeof expected?.roleId === 'string'
+      ? expected.roleId === 'gm' ? value.playerRole === 'gm' : value.playerRole === 'player' : null,
+    assignedRoleMatchesExpected: typeof expected?.roleId === 'string' &&
+      ['casting', 'station'].includes(expected.stage) ? value.assignedRoleId === expected.roleId : null,
+    assignedRoleId: diagnosticEnum(value.assignedRoleId, diagnosticRoles),
+    activeConsoleRoleId: diagnosticEnum(value.activeConsoleRoleId, diagnosticRoles),
+    seatId: diagnosticEnum(value.seatId, diagnosticRoles),
+    fleetGroupMatchesOriginal: typeof value.fleetGroupId === 'string' && typeof original?.fleetGroupId === 'string'
+      ? value.fleetGroupId === original.fleetGroupId : null,
+    phase: diagnosticEnum(value.phase, diagnosticPhases),
+    cycle: safeGeneration(value.cycle),
+    connected: typeof value.connected === 'boolean' ? value.connected : null,
+    connection: ['live', 'offline', 'connecting', 'idle', 'disconnected'].includes(value.connection)
+      ? value.connection : value.connection == null ? null : 'other',
+    freshness: ['server', 'cache', 'unknown'].includes(value.freshness)
+      ? value.freshness : value.freshness == null ? null : 'other',
+    kicked: typeof value.kicked === 'boolean' ? value.kicked : null,
+    escapeLocked: typeof value.escapeLocked === 'boolean' ? value.escapeLocked : null,
+    replacementRolePresent: value.replacementRoleId != null,
+    replacementStatusPresent: value.replacementStatus != null,
+    currentOwnPlayerConfirmed: typeof value.currentOwnPlayerConfirmed === 'boolean' ? value.currentOwnPlayerConfirmed : null,
+    currentMemberBerthPresent: typeof value.currentMemberBerthPresent === 'boolean' ? value.currentMemberBerthPresent : null,
+    currentMemberBerthNull: typeof value.currentMemberBerthNull === 'boolean' ? value.currentMemberBerthNull : null,
+    currentMemberBerthMatches: typeof value.currentMemberBerthMatches === 'boolean' ? value.currentMemberBerthMatches : null,
+    currentCanonicalSeatOwned: typeof value.currentCanonicalSeatOwned === 'boolean' ? value.currentCanonicalSeatOwned : null,
+    memberScopeMatches: typeof value.memberScopeMatches === 'boolean' ? value.memberScopeMatches : null,
+    connectionGeneration: safeGeneration(value.connectionGeneration),
+    identityHydrationRevision: safeGeneration(value.identityHydrationRevision),
+    sdkHasServerAuthority: typeof value.sdkHasServerAuthority === 'boolean' ? value.sdkHasServerAuthority : null,
+    sdkResumePending: typeof value.sdkResumePending === 'boolean' ? value.sdkResumePending : null,
+    gmInstanceOwned: typeof value.gmInstanceOwned === 'boolean' ? value.gmInstanceOwned : null,
+    instanceMatchesExpected: typeof value.instanceId === 'string' && typeof expected?.instanceId === 'string'
+      ? value.instanceId === expected.instanceId : null,
+    gmRecoveryPending: typeof value.gmRecoveryPending === 'boolean' ? value.gmRecoveryPending : null,
+    actorProfileUnassigned: typeof value.actorProfileUnassigned === 'boolean' ? value.actorProfileUnassigned : null,
+    recoveryPending: typeof context.recoveryPending === 'boolean' ? context.recoveryPending : null,
+  } : null;
+  const witness = Object.freeze({ schemaVersion: 1, boundary, predicate: diagnosticPredicate(error, boundary),
+    sourceRead: 'held-only', phase: diagnosticEnum(observed?.phase, diagnosticPhases),
+    expected: Object.freeze({ sessionPresent: typeof expected?.sessionId === 'string',
+      roleId: diagnosticEnum(expected?.roleId, diagnosticRoles), stage: expected?.stage === 'casting' || expected?.stage === 'station'
+        ? expected.stage : null,
+      uidHashPresent: typeof expected?.uidHash === 'string', documentTimeOriginPresent: Number.isSafeInteger(expected?.documentTimeOrigin),
+      connectionGeneration: safeGeneration(expected?.connectionGeneration),
+      identityHydrationRevision: safeGeneration(expected?.identityHydrationRevision),
+      fleetGroupPresent: typeof expected?.fleetGroupId === 'string', instancePresent: typeof expected?.instanceId === 'string' }),
+    firstPin: summary(original), observed: summary(observed),
+    context: Object.freeze({ transition: context.transition === 'casting-assignment' ? 'casting-assignment' :
+      context.transition === 'normal-navigation' ? 'normal-navigation' : null,
+      assignmentReceiptPresent: typeof context.assignmentReceiptPresent === 'boolean' ? context.assignmentReceiptPresent : null,
+      navigationPrepared: typeof context.navigationPrepared === 'boolean' ? context.navigationPrepared : null,
+      recoveryFlagObserved: typeof context.recoveryPending === 'boolean' }) });
+  try { Object.defineProperty(error, 'firstP181AuthorityRejectedState', { value: witness, enumerable: true }); }
+  catch { /* The held-observation writer still preserves the witness for frozen errors. */ }
+  return error;
+}
 function observation(current, includeCasting = false) {
   const result = {};
   for (const key of ['profileRoleId', 'profileSessionId', 'sessionId', 'meSessionId', 'playerRole', 'assignedRoleId',
@@ -104,7 +201,7 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
     samples: [], events: [], transitions: [], ...(transition === 'station-navigation' ? {} : { transition }),
     noSdkOrGameplayActionIssued: true };
   const requests = new Map(), listeners = [];
-  let baseline, closed = false, writes = Promise.resolve();
+  let baseline, closed = false, writes = Promise.resolve(), lastAcceptedObservation = null;
   const safeObservation = current => observation(current, transition === 'casting-assignment');
   const cleanReady = (value, original) => pc11MemberReadiness(value, {
     sessionId: original.sessionId, uidHash: original.uidHash, roleId, stage: 'station',
@@ -282,6 +379,7 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
     if (candidate) assert.ok(stableMemberFields.every(key => candidate.reply.player[key] === current[observationField[key] ?? key]),
       'Original casting assignment resume reply changed the current member scope.');
     const settled = await beforeDeadline(readAcceptedCurrent(), deadlineAt);
+    lastAcceptedObservation = settled;
     assert.ok(Date.now() < deadlineAt, 'Original casting assignment SDK acceptance arrived after its deadline.');
     for (const key of stableObservationFields.filter(key => key !== 'assignedRoleId'))
       assert.equal(settled[key], original[key], `Original casting assignment ${key} changed during client acceptance.`);
@@ -316,6 +414,8 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
       record.preparedAt = new Date().toISOString(); record.status = 'bound-before-navigation'; await persist();
     },
     async accept(original, current, readAcceptedCurrent, assignment) {
+      lastAcceptedObservation = current;
+      try {
       assert.ok(Date.now() < deadlineAt, 'Original role navigation deadline expired.');
       if (transition === 'casting-assignment')
         return acceptCastingAssignment(original, current, readAcceptedCurrent, assignment);
@@ -367,6 +467,7 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
       // seat ownership, transaction witness and SDK fence are sampled together
       // after the async yield, inside the caller's original deadline.
       const observed = await beforeDeadline(readAcceptedCurrent(), deadlineAt);
+      lastAcceptedObservation = observed;
       // Both readers observe the same mounted SDK authority after the digest.
       // Preserve an explicit clientAcceptance object; the presentation reader
       // exposes the same two booleans as sdkHasServerAuthority/sdkResumePending.
@@ -374,6 +475,7 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
         hasServerAuthority: observed.sdkHasServerAuthority, resumePending: observed.sdkResumePending,
       };
       const settled = { ...observed, clientAcceptance: accepted };
+      lastAcceptedObservation = settled;
       assert.ok(Date.now() < deadlineAt, 'Original role navigation deadline expired.');
       for (const key of stableObservationFields) assert.equal(settled[key],
         documentReload && key === 'documentTimeOrigin' ? current[key] : original[key],
@@ -398,6 +500,19 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
           requestedAt: receipt.requestedAt, respondedAt: receipt.respondedAt, requestSessionId: receipt.requestSessionId,
           httpStatus: receipt.httpStatus, reply: receipt.reply }, clientAcceptance: safeObservation(current).clientAcceptance });
       baseline = safeObservation(current); record.currentBinding = baseline; await persist(); return current;
+      } catch (error) {
+        throw preserveP181AuthorityRejection(error,
+          transition === 'casting-assignment' ? 'casting-assignment.accept' : 'normal-navigation.accept',
+          { sessionId: original?.sessionId, uidHash: original?.uidHash, roleId,
+            stage: transition === 'casting-assignment' ? 'casting' : 'station',
+            documentTimeOrigin: original?.documentTimeOrigin,
+            connectionGeneration: original?.connectionGeneration,
+            identityHydrationRevision: original?.identityHydrationRevision,
+            fleetGroupId: original?.fleetGroupId },
+          original, lastAcceptedObservation ?? current, { transition,
+            assignmentReceiptPresent: Boolean(assignment?.endpoint === 'assignRole'),
+            navigationPrepared: baseline !== null });
+      }
     },
     async finish(error) {
       closed = true;
