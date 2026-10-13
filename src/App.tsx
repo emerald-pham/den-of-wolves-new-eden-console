@@ -1674,8 +1674,12 @@ function AppRuntime() {
     };
     const renewPresence = () => refreshPresence().catch(markAuthorityOffline);
     const reconnectIfNeeded = () => {
-      if (pendingStationMemberRefresh?.()) return;
       const state = useSessionStore.getState();
+      // The applied Wing first-entry CAS owns this reconnect deferral.
+      // Initial confirmation and ordinary station reads retain normal presence handling.
+      if (pendingStationMemberRefresh?.() && state.session && state.me &&
+          pendingWingFirstEntry(sessionSnapshotAuthorityFor(state.session.id, state.me.uid), state,
+            auth().currentUser?.uid, performance.timeOrigin)) return;
       if (state.session?.phase === 'closed' && state.sessionSnapshotFreshness === 'server') {
         readClosedHistoryIfReady();
         return;
