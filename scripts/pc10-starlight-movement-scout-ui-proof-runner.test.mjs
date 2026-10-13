@@ -2793,7 +2793,9 @@ const transientCastingRetirements = [
     delete state.me.replacementRoleId; delete state.me.replacementStatus; }); }],
   ['explicit connected=false', f => { f.wing.publish(state => { state.me.connected = false; });
     f.wing.publish(state => { state.me.connected = true; }); }],
-  ['disconnect', f => { f.wing.publish(state => { state.connection = 'offline'; });
+  // App emits offline during legitimate freshness withdrawal. Keep the
+  // rejection control on idle, which is ineligible for an admitted caster.
+  ['ineligible connection', f => { f.wing.publish(state => { state.connection = 'idle'; });
     f.wing.publish(state => { state.connection = 'live'; }); }],
   ['explicit null own berth', f => { f.wing.publish(state => { state.session.currentActorBerthAuthority = null; });
     f.wing.publish(state => { state.session.currentActorBerthAuthority = { ...state.session.currentActorBerthAuthority,
@@ -6447,7 +6449,7 @@ for (const kind of ['full', 'gm']) {
   });
 }
 for (const [field, change, expectedValue, expectedKind] of [
-  ['connection', state => { state.connection = 'offline'; }, 'offline', 'string'],
+  ['connection', state => { state.connection = 'idle'; }, 'idle', 'string'],
   ['assignedRoleId', state => { state.me.assignedRoleId = 'admiral'; }, 'admiral', 'string'],
   ['setupConfirmed', state => { state.session.setupConfirmed = false; }, false, 'boolean'],
   ['setupConfirmed', state => { delete state.session.setupConfirmed; }, null, 'undefined'],
@@ -6568,3 +6570,291 @@ test('P181 owned stop channel does not replace an earlier native rejection durin
   assert.equal(first.ownerOperationStop, undefined, 'A later owner notification must not replace the earlier primary.');
 });
 
+
+// Source-shaped consumer regressions: execute actual App/Store expressions
+// through the existing controlled page/SDK fixture; no browser or Firebase client.
+const diagnosisSourceRoot = repositoryRoot;
+const currentAppText = readFileSync(resolve(diagnosisSourceRoot, 'src/App.tsx'), 'utf8');
+const currentStoreText = readFileSync(resolve(diagnosisSourceRoot, 'src/store/useSessionStore.ts'), 'utf8');
+function actualPropertyExpression(text, name, scriptKind) {
+  const file = typescript.createSourceFile('actual-source.tsx', text,
+    typescript.ScriptTarget.Latest, true, scriptKind);
+  const matches = [];
+  const visit = node => {
+    if (typescript.isPropertyAssignment(node) && node.name.getText(file) === name)
+      matches.push(node.initializer.getText(file));
+    typescript.forEachChild(node, visit);
+  };
+  visit(file); assert.equal(matches.length, 1, `Use the one actual ${name} source expression.`);
+  return typescript.transpileModule(`const actualCallback = ${matches[0]};`, {
+    compilerOptions: { target: typescript.ScriptTarget.ES2022 },
+  }).outputText + '\nactualCallback;';
+}
+const appFreshnessExpression = actualPropertyExpression(currentAppText, 'onSessionFreshness', typescript.ScriptKind.TSX);
+const storeConnectionExpression = actualPropertyExpression(currentStoreText, 'setConnection', typescript.ScriptKind.TS);
+const storeFreshnessExpression = actualPropertyExpression(currentStoreText, 'setSessionSnapshotFreshness', typescript.ScriptKind.TS);
+const storeFile = typescript.createSourceFile('actual-store.ts', currentStoreText,
+  typescript.ScriptTarget.Latest, true, typescript.ScriptKind.TS);
+const clearMovementNode = storeFile.statements.find(node => typescript.isFunctionDeclaration(node) &&
+  node.name?.text === 'clearVoyageMovement');
+assert.ok(clearMovementNode);
+const clearMovementExpression = typescript.transpileModule(clearMovementNode.getText(storeFile), {
+  compilerOptions: { target: typescript.ScriptTarget.ES2022 },
+}).outputText;
+function actualAppFreshnessFor(f) {
+  const state = f.wing.state;
+  const ports = { get: () => state,
+    set: update => f.wing.publish(s => Object.assign(s, typeof update === 'function' ? update(s) : update)),
+  };
+  const setConnection = runInNewContext(clearMovementExpression + storeConnectionExpression, { ...ports });
+  const setSessionSnapshotFreshness = runInNewContext(clearMovementExpression + storeFreshnessExpression, { ...ports });
+  const store = () => ({ ...state, setConnection, setSessionSnapshotFreshness,
+    setVoyage33MovementProjection: () => {},
+  });
+  return runInNewContext(appFreshnessExpression, {
+    callbackCurrent: () => true, pendingStationMemberRefresh: undefined, playerRole: 'player',
+    useSessionStore: { getState: store }, sessionId: state.session.id, playerUid: f.wing.uid,
+    sessionSnapshotAuthorityFor: () => ({ hasServerSessionAuthority: state.sdkHasServerAuthority }),
+    memberSessionResumeBlocksFreshness: () => state.sdkResumePending,
+    pendingGmDiscovery: undefined, invalidatePendingStationReleaseFreshness: () => {},
+    clearCurrentGroupCandidateReveals: () => {}, applyPendingGmDiscovery: () => {},
+    applyPendingPlayerDiscovery: () => {}, restoreRetainedGroupCandidateProjection: () => {},
+    reconcileStationRelease: () => {},
+  });
+}
+async function armedCastingFixture(t, deadlineMs) {
+  const f = await actualP181CastingAssignmentFixture(t, { deferMemberTransition: true });
+  const module = await import('./pc10-starlight-movement-scout-ui-proof.mjs');
+  const deadlineAt = Date.now() + (deadlineMs ?? 2_000);
+  const authority = await module.retainP181MemberAuthority(f.wing, deadlineAt, {
+    mode: 'casting-assignment', proofProfile: 'wing-bays', castingRoleId: 'wing-commander',
+    expected: { sessionId: f.before.sessionId, uidHash: f.before.uidHash,
+      fleetGroupId: f.before.fleetGroupId, connectionGeneration: f.before.connectionGeneration,
+      identityHydrationRevision: f.before.identityHydrationRevision, documentTimeOrigin: f.before.documentTimeOrigin },
+  });
+  authority.failed.catch(() => {});
+  t.after(async () => { await authority.close().catch(() => {}); });
+  return { f, authority, fresh: actualAppFreshnessFor(f), deadlineAt };
+}
+
+test('P181 casting freshness contract: actual false-freshness waits without granting authority', async t => {
+  const { f, authority, fresh } = await armedCastingFixture(t);
+  f.wing.state.session.voyage33Movement = { controlledPrivateMarker: 'withdraw-this-projection' };
+  fresh(false);
+  assert.equal(f.wing.state.connection, 'offline');
+  assert.equal(f.wing.state.sessionSnapshotFreshness, 'cache');
+  assert.equal(f.wing.state.session.voyage33Movement, undefined,
+    'Actual Store reducers still withdraw the private movement projection.');
+  const readiness = await authority.check();
+  assert.equal(readiness.fresh, false,
+    'Same original actor/role/lease while not fresh must wait, without action qualification.');
+  assert.equal(f.wing.choices.length, 0);
+});
+
+test('P181 casting freshness contract: repeated same-identity freshness withdrawal can restore', async t => {
+  const { f, authority, fresh } = await armedCastingFixture(t);
+  for (let index = 0; index < 3; index++) {
+    fresh(false);
+    assert.equal((await authority.check()).fresh, false);
+    fresh(true);
+    assert.equal((await authority.check()).fresh, true);
+  }
+  assert.equal(f.wing.state.me.connectionGeneration, f.before.connectionGeneration);
+  assert.equal(f.wing.state.identityHydrationRevision, f.before.identityHydrationRevision);
+  assert.equal(f.wing.choices.length, 0);
+});
+
+test('P181 casting freshness contract: unavailable freshness retains the original finite deadline', async t => {
+  const { f, authority, fresh, deadlineAt } = await armedCastingFixture(t, 250);
+  fresh(false);
+  const failure = await authority.failed.then(() => null, error => error);
+  assert.match(failure.message, /deadline|expired/i,
+    'No authority contradiction is invented and no fresh deadline is created for a same-identity cache interval.');
+  assert.ok(Date.now() >= deadlineAt);
+  assert.equal(f.wing.choices.length, 0);
+});
+
+test('P181 casting freshness control: true-freshness callback with pending SDK resume grants no readiness', async t => {
+  const { f, authority, fresh } = await armedCastingFixture(t);
+  f.wing.publish({ sdkResumePending: true });
+  fresh(true);
+  assert.equal(f.wing.state.connection, 'connecting');
+  assert.equal(f.wing.state.sessionSnapshotFreshness, 'cache');
+  assert.equal((await authority.check()).fresh, false);
+  f.wing.publish({ sdkResumePending: false });
+  fresh(true);
+  assert.equal((await authority.check()).fresh, true);
+  assert.equal(f.wing.choices.length, 0);
+});
+
+test('P181 casting freshness wait discards captured-ready tuple when current retained check is unavailable', async t => {
+  const f = await actualP181CastingAssignmentFixture(t);
+  const proofText = readFileSync(resolve(diagnosisSourceRoot, 'scripts/pc10-starlight-movement-scout-ui-proof.mjs'), 'utf8');
+  const file = typescript.createSourceFile('actual-proof.mjs', proofText,
+    typescript.ScriptTarget.Latest, true, typescript.ScriptKind.JS);
+  let expression;
+  const visit = node => {
+    if (typescript.isVariableDeclaration(node) && node.name.getText(file) === 'waitForFullActor')
+      expression = node.initializer.getText(file);
+    typescript.forEachChild(node, visit);
+  };
+  visit(file); assert.ok(expression);
+  let checks = 0, currentFresh = false;
+  const originalCheck = { failed: new Promise(() => {}),
+    check: async () => ({ fresh: currentFresh = ++checks > 1 }),
+  };
+  const wait = runInNewContext(`(${expression})`, {
+    assert, Date, Promise, P181_NATIVE_TIMING,
+    gm: {}, sessionId: f.before.sessionId,
+    ownedAuthUids: new Map([['wing-commander', f.wing.uid]]),
+    hashShort: uid => createHash('sha256').update(uid).digest('hex').slice(0, 16),
+    bounded: async (_label, action) => action(), delay: async () => {},
+    readFullActor: async () => structuredClone(f.current),
+    retainP181MemberAuthority: () => { throw new Error('The original casting override must be retained.'); },
+  });
+  const current = await wait(f.wing, 'Original casting readiness', value =>
+    value.connection === 'live' && value.freshness === 'server' && value.sdkResumePending === false,
+  Date.now() + 1_000, null, originalCheck);
+  assert.equal(current.uidHash, f.before.uidHash);
+  assert.equal(currentFresh, true,
+    'No qualified casting result may return while the current retained check is false.');
+  assert.equal(f.wing.choices.length, 0);
+});
+
+
+const pendingCastingContradictions = [
+  ['Auth identity', (_state, f) => { f.wing.uid = null; }, /Auth.*retired/],
+  ['member UID', state => { state.me.uid = 'foreign-member'; }, /identity|authority/],
+  ['player role', state => { state.me.role = 'gm'; }, /casting actor|role/],
+  ['assignment', state => { state.me.assignedRoleId = 'admiral'; }, /casting actor|role/],
+  ['connected false', state => { state.me.connected = false; }, /connected member authority retired/],
+  ['fleet group', state => { state.me.fleetGroupId = 'fleet-2'; }, /berth|fleet|authority/],
+  ['SDK server authority', state => { state.sdkHasServerAuthority = false; }, /SDK server authority retired/],
+  ['member lease', state => { state.me.connectionGeneration += 2; }, /lease|hydration/],
+  ['hydration', state => { state.identityHydrationRevision += 2; }, /lease|hydration/],
+  ['station claim', state => { state.me.activeConsoleRoleId = 'wing-commander'; state.me.seatId = 'wing-commander'; }, /casting actor|seat/],
+  ['cycle', state => { state.session.currentTurn = 1; }, /casting actor|phase/],
+  ['phase', state => { state.session.phase = 'active'; }, /casting actor|phase/],
+  ['setup', state => { state.session.setupConfirmed = false; }, /casting actor|phase/],
+  ['kick', state => { state.me.kickedAt = 'owned-kick'; }, /identity|authority/],
+  ['escape', state => { state.me.escapeState = { status: 'locked' }; }, /identity|authority/],
+  ['replacement', state => { state.me.replacementRoleId = 'admiral'; }, /identity|authority/],
+  ['explicit null berth', state => { state.session.currentActorBerthAuthority = null; }, /berth.*retired/],
+  ['foreign berth', state => { state.session.currentActorBerthAuthority.shipId = 'foreign-ship'; }, /berth.*(?:changed|fleet)/],
+  ['ineligible connection', state => { state.connection = 'idle'; }, /casting actor|connection/],
+  ['actor profile', (_state, f) => { f.wing.activeDemoActorProfile = { roleId: 'admiral', sessionId: 'normal-session' }; }, /profile changed/],
+];
+for (const [timing, initiallyPending] of [['during pending', true], ['simultaneous withdrawal', false]]) {
+  for (const [label, change, pattern] of pendingCastingContradictions) {
+    test(`P181 casting freshness preserves ${label} retirement ${timing} through restoration`, async t => {
+      const { f, authority, fresh } = await armedCastingFixture(t);
+      const original = structuredClone(f.wing.state);
+      if (initiallyPending) {
+        fresh(false);
+        assert.equal((await authority.check()).fresh, false,
+          'A valid original actor must remain observed while freshness is unavailable.');
+      }
+      f.wing.publish(state => {
+        state.connection = 'offline'; state.sessionSnapshotFreshness = 'cache';
+        change(state, f);
+      });
+      const first = await authority.failed.then(() => null, error => error);
+      assert.match(first.message, pattern,
+        'Unavailability must not preempt the genuine authority failure.');
+      f.wing.uid = 'wing-uid'; f.wing.activeDemoActorProfile = null;
+      f.wing.publish(state => Object.assign(state, original));
+      fresh(true);
+      await assert.rejects(authority.check(), error => error.message === first.message);
+      assert.equal(f.wing.choices.length, 0);
+    });
+  }
+}
+
+// Execute the actual local casting loop and navigation handoff with inert
+// provider ports. Acceptance/navigation are observed effects, never real UI
+// actions; the source body must fence them with current retained freshness.
+async function actualCastingFreshnessHandoff(f, { lostAfterAcceptance = false,
+  exhausted = false, contradictoryAfterAcceptance = false } = {}) {
+  const text = readFileSync(p181DeadlineSourcePath, 'utf8');
+  const start = text.indexOf('            const castingReady = value =>');
+  const end = text.indexOf('          } catch (error) { castingFailure = error; }', start);
+  assert.ok(start >= 0 && end > start);
+  let now = 10, fresh = lostAfterAcceptance || contradictoryAfterAcceptance;
+  let accepted = 0, prepared = 0, retries = 0, contradiction = false;
+  const trace = [];
+  const deadlineAt = 100, current = structuredClone(f.current);
+  const authority = { failed: new Promise(() => {}), check: async () => {
+    if (contradiction) throw new Error('Original casting authority retired during awaited acceptance.');
+    trace.push(fresh ? 'check-current-fresh' : 'check-current-unavailable');
+    return { fresh };
+  } };
+  const ports = {
+    assert, Date: { now: () => now }, Math, Promise, pc11MemberReadiness,
+    sessionId: f.before.sessionId, admittedAuth: { uidHash: f.before.uidHash }, admitted: f.before,
+    memberName: 'Wing Commander', memberRoleId: 'wing-commander', memberSurface: f.wing,
+    directory: '/inert-evidence', proofProfile: 'wing-bays', deadlineAt, castingDeadlineAt: deadlineAt,
+    castingResumeNotice: Promise.resolve(), castingResumeNoticeError: null, castingAuthority: authority,
+    assignment: f.assignment,
+    waitForFullActor: async (_surface, _description, ready, cutoff, _original, retained) => {
+      assert.equal(cutoff, deadlineAt); assert.equal(retained, authority);
+      assert.equal(ready(current), true); trace.push('captured-ready'); return structuredClone(current);
+    },
+    castingResume: { accept: async () => {
+      assert.equal(fresh, true, 'No casting acceptance may run while the current retained check is false.');
+      accepted++; trace.push('accept'); await Promise.resolve();
+      if (accepted === 1 && lostAfterAcceptance) fresh = false;
+      if (accepted === 1 && contradictoryAfterAcceptance) contradiction = true;
+      return structuredClone(current);
+    } },
+    readFullActor: async () => structuredClone(current),
+    createMemberNavigationResumeObserver: () => {
+      assert.equal(fresh, true, 'No navigation observer may be created from unavailable current authority.');
+      return { prepare: async () => {
+        assert.equal(fresh, true, 'No navigation preparation may run while current authority is unavailable.');
+        prepared++; trace.push('prepare');
+      } };
+    },
+    bounded: async (_label, action, cutoff) => {
+      assert.equal(cutoff, deadlineAt, 'The casting gate cannot extend its original deadline.');
+      if (now >= cutoff) throw new Error('Original casting readiness deadline expired.');
+      const value = await action();
+      if (now >= cutoff) throw new Error('Original casting readiness deadline expired.');
+      return value;
+    },
+    delay: async () => { retries++; now += 25; trace.push('pending-wait'); if (!exhausted) fresh = true; },
+  };
+  let result, error;
+  try { result = await runInNewContext(`(async () => {
+    let navigationStart, navigation; ${text.slice(start, end)}
+    return { navigationStart };
+  })()`, ports); } catch (failure) { error = failure; }
+  return { result, error, accepted, prepared, retries, trace, now, deadlineAt };
+}
+for (const lostAfterAcceptance of [false, true]) {
+  const boundary = lostAfterAcceptance ? 'after awaited acceptance before navigation' : 'before acceptance';
+  test(`P181 casting freshness handoff waits for current authority ${boundary}`, async t => {
+    const f = await actualP181CastingAssignmentFixture(t);
+    const result = await actualCastingFreshnessHandoff(f, { lostAfterAcceptance });
+    assert.equal(result.error, undefined,
+      'The actual local consumer must wait through unavailable freshness without accepting or navigating.');
+    assert.ok(result.retries > 0, 'Pending must remain inside the original bounded wait.');
+    assert.equal(result.prepared, 1);
+    assert.ok(result.result.navigationStart);
+    assert.equal(f.wing.choices.length, 0);
+  });
+  test(`P181 casting freshness handoff expires without onward navigation ${boundary}`, async t => {
+    const f = await actualP181CastingAssignmentFixture(t);
+    const result = await actualCastingFreshnessHandoff(f, { lostAfterAcceptance, exhausted: true });
+    assert.match(result.error?.message ?? '', /deadline|did not reach/);
+    assert.equal(result.prepared, 0);
+    assert.equal(result.accepted, lostAfterAcceptance ? 1 : 0,
+      'No repeated acceptance is allowed while current freshness is unavailable.');
+    assert.ok(result.now >= result.deadlineAt);
+  });
+}
+test('P181 casting freshness handoff keeps a true retirement after awaited acceptance terminal', async t => {
+  const f = await actualP181CastingAssignmentFixture(t);
+  const result = await actualCastingFreshnessHandoff(f, { contradictoryAfterAcceptance: true });
+  assert.match(result.error?.message ?? '', /authority retired/);
+  assert.equal(result.prepared, 0);
+});
