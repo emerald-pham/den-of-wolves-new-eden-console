@@ -7216,7 +7216,7 @@ test('P181 startup berth first rejection retains a safe discriminant through the
       assert.equal(witness.firstPin.seatId, null);
       assert.equal(witness.firstPin.afterAssignment, true);
       assert.equal(witness.firstPin.navigationEpochMatchesBaseline, true);
-      assert.equal(witness.firstPin.afterAcceptedResume, false,
+      assert.equal(witness.firstPin.sdkSettledAtPin, false,
         'The first Store observation precedes import of the actual SDK authority module.');
       assert.equal(witness.firstPin.sdkObservationComplete, false);
       assert.equal(witness.firstPin.sdkHasServerAuthority, null);
