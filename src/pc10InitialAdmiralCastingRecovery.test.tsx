@@ -67,7 +67,7 @@ interface MemberCall { id: number; settled: boolean; reply: Promise<Record<strin
 interface Casting { check: () => Promise<{ fresh: boolean }>; noteCastingResumeRequest: (value: Record<string, unknown>) => Promise<unknown>; close: () => Promise<unknown>; failed: Promise<never>; }
 let serial = 0;
 let sessionId: string;
-let actor: Player;
+let actor: Player & { kickedAt?: string };
 let root: Record<string, unknown>;
 let group: Record<string, unknown>;
 let seat: Record<string, unknown>;
@@ -357,7 +357,7 @@ async function commitSupportedAssignment() {
   check('server-side facilitator port uses the real configured assignment decision', () => {
     assert.equal(actor.connected, true); assert.equal(actor.role, 'player');
     assert.equal(root.phase, 'casting'); assert.equal(root.currentTurn, 0); assert.equal(root.setupConfirmed, true);
-    assert.deepEqual(roleAssignmentDecision([{ uid: PEER_UID, assignedRoleId: 'wing-commander' }], actor.uid, TARGET, ROLES), { allowed: true });
+    assert.deepEqual(roleAssignmentDecision([{ uid: PEER_UID, roleId: 'wing-commander' }], actor.uid, TARGET, ROLES), { allowed: true });
   });
   actor = { ...actor, assignedRoleId: TARGET, activeConsoleRoleId: null, seatId: null };
   group = { ...group, memberShipIds: { ...(group.memberShipIds as Record<string, string>), [actor.uid]: 'aegis' } };
@@ -513,7 +513,7 @@ describe('prospective normal initial Admiral admission and casting', () => {
     // A legitimate previously mapped, currently disconnected legacy member has
     // no stored generation. Normal admission hydrates its real reader witness;
     // no Store/SDK authority or freshness is fixture-set.
-    delete actor.connectionGeneration;
+    assert.equal(Reflect.deleteProperty(actor, 'connectionGeneration'), true);
     group = { ...group, memberUids: [PEER_UID, actor.uid], memberShipIds: { [PEER_UID]: 'aegis', [actor.uid]: 'aegis' } };
     const admission = await acceptedNullAdmission('positive');
     assert.equal(admission.currentMemberBerthPresent, true); assert.equal(admission.currentMemberBerthNull, false);
