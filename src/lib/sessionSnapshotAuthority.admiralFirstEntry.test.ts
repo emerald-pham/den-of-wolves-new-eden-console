@@ -124,8 +124,11 @@ it('keeps only genuine withdrawn lineage through matching positive cache publica
   for (const fields of [{ actorUid: 'foreign' }, { sessionId: 'foreign' }, { groupId: 'foreign' },
     { shipId: 'foreign' }, { assignedRoleId: 'wing-commander' }, { activeConsoleRoleId: null },
     { connectionGeneration: 3 }, { replacementStatus: 'assigned' }]) {
+    // Deliberately malformed wire data crosses the typed canonical envelope.
+    const invalidBerth = { ...restoring.session.currentActorBerthAuthority, ...fields } as unknown as
+      NonNullable<GameSession['currentActorBerthAuthority']>;
     assert.equal(admiralFirstEntryMatches(entry, { ...restoring, session: { ...restoring.session,
-      currentActorBerthAuthority: { ...restoring.session.currentActorBerthAuthority, ...fields } } }, c.uid, c.doc), false);
+      currentActorBerthAuthority: invalidBerth } }, c.uid, c.doc), false);
   }
   const canonicalNull = { ...restoring, session: { ...restoring.session, currentActorBerthAuthority: null } };
   assert.equal(admiralFirstEntryMatches(entry, canonicalNull, c.uid, c.doc), false);
