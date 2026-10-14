@@ -163,3 +163,14 @@ it('keeps a foreign selected trace empty while the existing current member reade
   expect(feed.onFreshness).toHaveBeenLastCalledWith(true); expect(feed.onError).not.toHaveBeenCalled();
   expect(tape?.read().events).toEqual([]); tape?.stop();
 });
+
+it('brackets the unchanged false-freshness and generic-error calls with ordered fixed facts', async () => {
+  const observed: string[] = [];
+  const feed = begin(reply({ actorUid: 'foreign-private-uid' }), event => { observed.push(event.event); });
+  feed.onFreshness.mockImplementation(fresh => { observed.push('freshness:' + fresh); });
+  feed.onError.mockImplementation(() => { observed.push('error'); });
+  await vi.waitFor(() => expect(feed.onError).toHaveBeenCalled());
+  expect(observed.filter(value => value !== 'listener-attached' && value !== 'member-read-start')).toEqual([
+    'member-read-rejected', 'freshness:false', 'freshness-false-returned', 'listener-error', 'error', 'listener-error-returned',
+  ]);
+});
