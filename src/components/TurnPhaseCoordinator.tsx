@@ -12,11 +12,12 @@ import type { WolfAttackMemberView } from '@/types/game';
 export default function TurnPhaseCoordinator() {
   const session = useSessionStore((state) => state.session);
   const connection = useSessionStore((state) => state.connection);
+  const freshness = useSessionStore((state) => state.sessionSnapshotFreshness);
   const actorUid = useSessionStore((state) => state.me?.uid);
   const [attack, setAttack] = useState<WolfAttackMemberView | null>(null);
   const phase = phaseForSession(session);
   const sessionId = session?.id;
-  const pendingHandoff = useRef<{ key: string; settled: Promise<boolean> } | null>(null);
+  const pendingHandoff = useRef<{ key: string; settled: Promise<void> } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -56,38 +57,50 @@ export default function TurnPhaseCoordinator() {
       return undefined;
     }
     const key = JSON.stringify([sessionId, actorUid, cycle]);
+    // Store publication can precede this effect's cleanup. Read its current
+    // scope and clock before dispatch or retry, never a settled reply as proof.
+    const stillEligible = () => {
+      const current = useSessionStore.getState();
+      const currentPhase = phaseForSession(current.session);
+      return current.session?.id === sessionId && current.me?.uid === actorUid &&
+        current.session.phase !== 'closed' && currentPhase?.turn === cycle &&
+        currentPhase.airspace.state === 'restricted' && !currentPhase.timerPause &&
+        currentPhase.progression !== 'manual' && current.connection === 'live' &&
+        !attackLocked && Date.now() >= Date.parse(currentPhase.teamPhaseEndsAt);
+    };
     let cancelled = false;
     let timer: number | undefined;
     const schedule = (delay: number) => {
       timer = window.setTimeout(() => { timer = undefined; void start(); }, delay);
     };
     const start = async () => {
+      if (cancelled || !stillEligible()) return;
       // Retiring a timer cannot cancel an already-dispatched callable. A new
       // eligible effect waits for it rather than overlapping the same handoff.
       const pending = pendingHandoff.current;
       if (pending) {
-        const succeeded = await pending.settled;
-        if (cancelled) return;
+        await pending.settled;
+        if (cancelled || !stillEligible()) return;
         if (pending.key === key) {
-          if (!succeeded) schedule(5_000);
+          schedule(5_000);
           return;
         }
       }
-      if (cancelled) return;
-      const current = { key, settled: beginOpenAirspacePhase(cycle).then(
-        () => true, () => false,
-      ) };
+      if (cancelled || !stillEligible()) return;
+      const current = { key, settled: beginOpenAirspacePhase(cycle).catch(() => undefined) };
       pendingHandoff.current = current;
-      const succeeded = await current.settled;
+      await current.settled;
       if (pendingHandoff.current === current) pendingHandoff.current = null;
-      if (!cancelled && !succeeded) schedule(5_000);
+      // Fulfilled void may be a guarded no-op or an ignored obsolete reply.
+      // Only the current published phase cancels this controlled retry.
+      if (!cancelled && stillEligible()) schedule(5_000);
     };
     schedule(Math.max(0, Date.parse(teamPhaseEndsAt) - Date.now()));
     return () => {
       cancelled = true;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [connection, sessionId, actorUid, sessionPhase, cycle, teamPhaseEndsAt,
+  }, [connection, freshness, sessionId, actorUid, sessionPhase, cycle, teamPhaseEndsAt,
     airspaceState, paused, manual, attackLocked]);
 
   return null;
