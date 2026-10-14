@@ -3994,6 +3994,37 @@ function seatFrom(sessionId: string, id: string, data: DocumentData): Seat {
   };
 }
 
+export type MemberFreshnessReadStage = 'none' | 'request' | 'response-shape-or-scope' | 'session-parse' |
+  'berth-parse' | 'authority-accept' | 'session-delivery' | 'freshness-delivery' | 'remaining-callback';
+export type MemberFreshnessProvenanceEvent = Readonly<{
+  event: 'listener-attached' | 'listener-retired' | 'member-read-start' | 'member-read-accepted' |
+    'member-signature-mismatch' | 'member-read-rejected' | 'actor-signature-change' |
+    'own-player-revoked' | 'listener-error' | 'freshness-false-returned' | 'listener-error-returned';
+  stage: MemberFreshnessReadStage;
+  sequence: number;
+  subscription: number;
+  atMs: number;
+  actorEpoch: number;
+  current: boolean;
+  firstConfirmed: boolean | null;
+  firstAccepted: boolean | null;
+}>;
+let memberFreshnessSequence = 0;
+let memberFreshnessSubscription = 0;
+let memberFreshnessTrace: { readonly sessionId: string; readonly uid: string;
+  readonly events: MemberFreshnessProvenanceEvent[]; dropped: number } | undefined;
+
+/** Explicit local-emulator observation only; this tape never supplies authority. */
+export function startMemberFreshnessTrace(sessionId: string, uid: string) {
+  if (!useEmulators) return undefined;
+  const trace = { sessionId, uid, events: [] as MemberFreshnessProvenanceEvent[], dropped: 0 };
+  memberFreshnessTrace = trace;
+  return {
+    read: () => ({ events: [...trace.events], dropped: trace.dropped }),
+    stop: () => { if (memberFreshnessTrace === trace) memberFreshnessTrace = undefined; },
+  };
+}
+
 export interface SessionStateHandlers {
   /** The app always chooses explicitly from the current authenticated player role. */
   readonly sessionReadAudience?: 'member' | 'gm';
@@ -4004,6 +4035,8 @@ export interface SessionStateHandlers {
   readonly onGmDiscovery?: (projection: GmDiscoveryProjection | null) => void;
   /** Whether the accepted session snapshot is backed by server authority. */
   readonly onSessionFreshness?: (fresh: boolean) => void;
+  /** Optional fixed-fact diagnostic observer; its exceptions never reach game callbacks. */
+  readonly onMemberFreshnessProvenance?: (event: MemberFreshnessProvenanceEvent) => void;
   /** Retain accepted server authority when an equivalent listener is restarted. */
   readonly sessionSnapshotAuthority?: SessionSnapshotAuthority;
   /** Recheck this document's accepted join/resume identity before FIRST player initialization. */
@@ -4131,8 +4164,31 @@ export function subscribeSessionState(
   let startPrivateLoyaltyListener: () => void = () => undefined;
   let unsubscribeAwayMissionHands: Unsubscribe[] = [];
   let awayMissionHandListenerGeneration = 0;
+  const traceSubscription = ++memberFreshnessSubscription;
+  const noteMemberFreshness = (event: MemberFreshnessProvenanceEvent['event'],
+    stage: MemberFreshnessReadStage = 'none', firstConfirmed: boolean | null = null,
+    firstAccepted: boolean | null = null, current = true) => {
+    if (!useEmulators || handlers.sessionReadAudience !== 'member') return;
+    try {
+      const trace = memberFreshnessTrace;
+      const selected = trace?.sessionId === sessionId && trace.uid === uid;
+      if (!selected && !handlers.onMemberFreshnessProvenance) return;
+      const record: MemberFreshnessProvenanceEvent = Object.freeze({ event, stage,
+        sequence: ++memberFreshnessSequence, subscription: traceSubscription, atMs: performance.now(),
+        actorEpoch: memberActorEpoch, current, firstConfirmed, firstAccepted });
+      if (selected && trace) {
+        if (trace.events.length === 64) { trace.events.shift(); trace.dropped += 1; }
+        trace.events.push(record);
+      }
+      handlers.onMemberFreshnessProvenance?.(record);
+    } catch { /* Observation cannot change the existing delivery or error decision. */ }
+  };
   const onError = () => {
-    if (subscribed && sessionSubscriptionOwner.token === subscriptionToken) handlers.onError();
+    if (subscribed && sessionSubscriptionOwner.token === subscriptionToken) {
+      noteMemberFreshness('listener-error');
+      handlers.onError();
+      noteMemberFreshness('listener-error-returned');
+    }
   };
   let sessionConfirmationInFlight = false;
   let sessionConfirmationWanted = false;
@@ -4335,18 +4391,21 @@ export function subscribeSessionState(
     memberSessionConfirmed = false;
     pendingMemberDiscovery = undefined;
     memberActorEpoch += 1;
+    noteMemberFreshness('own-player-revoked');
     if (memberPlayer) {
       memberPlayer = { ...memberPlayer, connected: false };
       handlers.onPlayer(memberPlayer);
     }
     handlers.onPlayerFreshness?.(false);
     handlers.onSessionFreshness?.(false);
+    noteMemberFreshness('freshness-false-returned');
   };
   const actorFingerprint = (actor: { readonly fleetGroupId?: string | null; readonly connectionGeneration?: number;
       readonly assignedRoleId?: string | null; readonly activeConsoleRoleId?: string | null }) => JSON.stringify([
     actor.fleetGroupId, actor.connectionGeneration ?? 1, actor.assignedRoleId ?? null, actor.activeConsoleRoleId ?? null,
   ]);
   const startMemberSessionFeed = (): Unsubscribe => {
+    noteMemberFreshness('listener-attached');
     const read = httpsCallable<{ readonly sessionId: string }, unknown>(functions(), 'getCurrentMemberSession');
     let stopped = false;
     let pending = false;
@@ -4381,8 +4440,12 @@ export function subscribeSessionState(
           const readingConfirmationRevision = confirmationRevision;
           const readingConfirmations = [...confirmations.entries()]
             .filter(([intent]) => intent <= readingConfirmationRevision).map(([, confirmation]) => confirmation);
+          let readStage: MemberFreshnessReadStage = 'request';
+          noteMemberFreshness('member-read-start', readStage);
           try {
-            const response = recordValue((await read({ sessionId })).data);
+            const rawResponse = await read({ sessionId });
+            readStage = 'response-shape-or-scope';
+            const response = recordValue(rawResponse.data);
             if (!current()) break;
             if (readingConfirmations.length && !readingConfirmations.some(confirmation => confirmation.current())) {
               settleConfirmations(readingConfirmationRevision, false);
@@ -4405,22 +4468,31 @@ export function subscribeSessionState(
               assignedRoleId: response.assignedRoleId as string | null,
               activeConsoleRoleId: response.activeConsoleRoleId as string | null });
             if (memberActorFingerprint !== undefined && memberActorFingerprint !== fingerprint) {
+              noteMemberFreshness('member-signature-mismatch', readStage);
               handlers.onSessionFreshness?.(false);
+              noteMemberFreshness('freshness-false-returned', readStage);
               cancelConfirmations();
               break;
             }
+            readStage = 'session-parse';
             const projectedSession = closedHistory ? closedMemberSessionFrom(sessionId, response, data) : sessionFrom(sessionId, data);
+            readStage = 'berth-parse';
             const session = !closedHistory && Object.hasOwn(response, 'currentActorBerthAuthority')
               ? { ...projectedSession, currentActorBerthAuthority:
                 currentActorBerthAuthorityFrom(response.currentActorBerthAuthority, response, scope!, memberPlayer) }
               : projectedSession;
             // This serialized transaction read confirms current content even if a legacy
             // writer did not advance its timestamp. A changed callable cursor fences it.
+            readStage = 'authority-accept';
             if (acceptServerSessionAuthority(sessionSnapshotAuthority, session, undefined, false, true)) {
+              readStage = 'session-delivery';
               handlers.onSession(session);
               memberSessionConfirmed = true;
               confirmedMemberActorFingerprint = fingerprint;
+              readStage = 'freshness-delivery';
               handlers.onSessionFreshness?.(true);
+              noteMemberFreshness('member-read-accepted', readStage);
+              readStage = 'remaining-callback';
               confirmAwayMissionProjectionSession(sessionId, uid, session.awayMissionProjectionSafety);
               if (session.phase === 'closed') stopForClosedHistory();
               else publishPendingMemberDiscovery();
@@ -4431,9 +4503,11 @@ export function subscribeSessionState(
           } catch {
             settleConfirmations(readingConfirmationRevision, false);
             if (current() && actorEpoch === memberActorEpoch) {
+              noteMemberFreshness('member-read-rejected', readStage);
               memberSessionConfirmed = false;
               pendingMemberDiscovery = undefined;
               handlers.onSessionFreshness?.(false);
+              noteMemberFreshness('freshness-false-returned', readStage);
               withdrawAwayMissionProjectionAuthority(sessionId, uid);
               onError();
             }
@@ -4651,7 +4725,9 @@ export function subscribeSessionState(
             memberActorFingerprint = nextFingerprint;
             if (!firstConfirmedPlayer && !firstAcceptedPlayer) {
               memberActorEpoch += 1;
+              noteMemberFreshness('actor-signature-change', 'none', firstConfirmedPlayer, firstAcceptedPlayer);
               handlers.onSessionFreshness?.(false);
+              noteMemberFreshness('freshness-false-returned');
             }
           }
         }
@@ -4977,6 +5053,7 @@ export function subscribeSessionState(
   startArbourVisionListener(false);
   return () => {
     subscribed = false;
+    noteMemberFreshness('listener-retired', 'none', null, null, false);
     memberFeedRefresh = () => undefined;
     unsubscribeSessionListeners();
     if (sessionSubscriptionOwner.token === subscriptionToken) {
