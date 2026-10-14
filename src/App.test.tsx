@@ -1281,6 +1281,107 @@ describe('App', () => {
     unmount();
   });
 
+  it.each(['admiral', 'wing-commander'] as const)(
+    'omits the GM setup-receipt subscription for ordinary %s across the cycle-phase rebind',
+    async (roleId) => {
+      const subscriptions: Parameters<typeof subscribeSessionState>[2][] = [];
+      vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, handlers) => {
+        subscriptions.push(handlers);
+        return vi.fn();
+      });
+      const member: Player = {
+        ...player, role: 'player', connected: true, assignedRoleId: roleId,
+        activeConsoleRoleId: roleId, seatId: roleId,
+      };
+      const casting: GameSession = { ...session, phase: 'casting', currentTurn: 0 };
+      useSessionStore.getState().setIdentity(casting, member);
+      render(<App />);
+      await waitFor(() => expect(subscriptions).toHaveLength(1));
+      expect(subscriptions[0]?.sessionReadAudience).toBe('member');
+      expect(subscriptions[0]?.onSetupReceipt).toBeUndefined();
+
+      act(() => useSessionStore.getState().setSession({ ...casting, phase: 'active', currentTurn: 1 }));
+      await waitFor(() => expect(subscriptions).toHaveLength(2));
+      expect(subscriptions[1]?.sessionReadAudience).toBe('member');
+      expect(subscriptions[1]?.onSetupReceipt).toBeUndefined();
+      expect(subscriptions[1]?.onError).toEqual(expect.any(Function));
+    },
+  );
+
+  it('composes the setup-receipt subscription at GM promotion and rejects its retained callback on demotion', async () => {
+    const subscriptions: Parameters<typeof subscribeSessionState>[2][] = [];
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, handlers) => {
+      subscriptions.push(handlers);
+      return vi.fn();
+    });
+    const member: Player = { ...player, role: 'player', connected: true };
+    const receipt = {
+      source: 'routine-start', playerCount: 8, mode: 'base', rosterIds: ['admiral'],
+      pressEligibility: {}, excludedGmCount: 1, wolfCount: 1 as const,
+      wolfRule: 'one-wolf-at-8-13', selectedWolfRoleIds: ['admiral'],
+      eligibleRoleIds: ['admiral'], orderedModifiers: [], resultCount: 1,
+      loyaltySource: 'automatic-default' as const, request: {}, expectedSetupRevision: 0,
+      committedSetupRevision: 1, actorUid: 'u1', serverTime: '2026-01-01T00:00:00.000Z',
+      event: 'game-started',
+    } satisfies SetupReceipt;
+    useSessionStore.getState().setIdentity(session, member);
+    render(<App />);
+    await waitFor(() => expect(subscriptions).toHaveLength(1));
+    expect(subscriptions[0]?.onSetupReceipt).toBeUndefined();
+
+    act(() => subscriptions[0]?.onPlayer({ ...player, connected: true }));
+    await waitFor(() => expect(subscriptions).toHaveLength(2));
+    const gmHandlers = subscriptions[1]!;
+    expect(gmHandlers.sessionReadAudience).toBe('gm');
+    expect(gmHandlers.onSetupReceipt).toEqual(expect.any(Function));
+    const retainedReceipt = gmHandlers.onSetupReceipt!;
+    act(() => retainedReceipt(receipt));
+    expect(useSessionStore.getState().gmSetupReceipt).toEqual(receipt);
+
+    act(() => {
+      gmHandlers.onPlayer(member);
+      retainedReceipt(receipt);
+    });
+    expect(useSessionStore.getState().gmSetupReceipt).toBeNull();
+    await waitFor(() => expect(subscriptions).toHaveLength(3));
+    expect(subscriptions[2]?.sessionReadAudience).toBe('member');
+    expect(subscriptions[2]?.onSetupReceipt).toBeUndefined();
+    act(() => retainedReceipt(receipt));
+    expect(useSessionStore.getState().gmSetupReceipt).toBeNull();
+  });
+
+  it('keeps current error withdrawal intact when the setup-receipt subscription is omitted', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, next) => {
+      handlers = next;
+      return vi.fn();
+    });
+    const member: Player = {
+      ...player, role: 'player', connected: true, fleetGroupId: 'fleet-1', connectionGeneration: 1,
+      assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander', seatId: 'wing-commander',
+    };
+    const active: GameSession = {
+      ...session, phase: 'active', currentTurn: 1,
+      memberSessionScope: { groupId: 'fleet-1', vesselIds: ['aegis'], craftIds: ['starlight'] },
+      currentActorBerthAuthority: {
+        sessionId: 's1', actorUid: 'u1', groupId: 'fleet-1', role: 'player', connectionGeneration: 1,
+        assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander',
+        replacementRoleId: null, replacementStatus: null, shipId: 'aegis',
+      },
+    };
+    useSessionStore.getState().setIdentity(active, member);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    expect(useSessionStore.getState().session?.currentActorBerthAuthority).toEqual(active.currentActorBerthAuthority);
+    act(() => handlers?.onError());
+    expect(useSessionStore.getState()).toMatchObject({
+      connection: 'offline', sessionSnapshotFreshness: 'cache',
+      session: { id: 's1', currentTurn: 1, currentActorBerthAuthority: null },
+    });
+  });
+
   it('keeps ordinary members online without opening the GM-only census listener', async () => {
     let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
     vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
