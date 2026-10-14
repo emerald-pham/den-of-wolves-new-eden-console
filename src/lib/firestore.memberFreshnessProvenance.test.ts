@@ -11,7 +11,7 @@ vi.mock('./firebaseConfig', () => ({ emulatorPorts: { firestore: 8080 }, useEmul
 
 const firestoreModule = await import('./firestore');
 const { subscribeSessionState } = firestoreModule;
-const { doc, collection, onSnapshot } = await import('firebase/firestore');
+const { doc, collection, query, onSnapshot } = await import('firebase/firestore');
 const { httpsCallable } = await import('firebase/functions');
 const nexts = new Map<string, (snapshot: unknown) => void>();
 const errors = new Map<string, (error: unknown) => void>();
@@ -35,6 +35,7 @@ beforeEach(() => {
   nexts.clear(); errors.clear();
   const reference = ((_db: unknown, path: string) => ({ path })) as never;
   vi.mocked(doc).mockImplementation(reference); vi.mocked(collection).mockImplementation(reference);
+  vi.mocked(query).mockImplementation(((ref: unknown) => ref) as never);
   vi.mocked(onSnapshot).mockImplementation(((ref: { path?: string }, _opts: unknown,
     next: (snapshot: unknown) => void, error: (error: unknown) => void) => {
     if (ref?.path) { nexts.set(ref.path, next); errors.set(ref.path, error); }
@@ -52,14 +53,15 @@ function begin(response = reply(), sink?: (event: Event) => void) {
   const call = vi.fn().mockResolvedValue(response); vi.mocked(httpsCallable).mockReturnValue(call as never);
   const onSession = vi.fn(() => { order.push('session'); });
   const onFreshness = vi.fn((fresh: boolean) => { order.push(fresh ? 'fresh' : 'stale'); });
-  const onError = vi.fn(() => { order.push('error'); }), onBrief = vi.fn();
+  const onError = vi.fn(() => { order.push('error'); }), onBrief = vi.fn(), onPrivate = vi.fn(), onSetup = vi.fn();
   // This existing subscription accepts extra optional diagnostics before implementation;
   // baseline RED must be a missing source event, not a missing method/forced exception.
   const handlers = { sessionReadAudience: 'member' as const, onSession, onSessionFreshness: onFreshness,
-    onPlayer: vi.fn(), onSeats: vi.fn(), onKicked: vi.fn(), onRoleBrief: onBrief, onError,
+    onPlayer: vi.fn(), onSeats: vi.fn(), onKicked: vi.fn(), onRoleBrief: onBrief,
+    onPrivateLoyalty: onPrivate, onSetupReceipt: onSetup, onError,
     onMemberFreshnessProvenance: (event: Event) => { events.push(event); sink?.(event); } };
   stop = subscribeSessionState('trace-session', 'private-uid', handlers);
-  return { events, order, call, onSession, onFreshness, onError, onBrief };
+  return { events, order, call, onSession, onFreshness, onError, onBrief, onPrivate, onSetup };
 }
 
 it('tags the current member response signature mismatch before unchanged withdrawal', async () => {
@@ -145,7 +147,7 @@ it('retains only selected-member fixed facts in a bounded tape and stops collect
   expect(snapshot.events).toHaveLength(64); expect(snapshot.dropped).toBeGreaterThan(0);
   for (const event of snapshot.events) {
     expect(Object.keys(event).sort()).toEqual(['actorEpoch', 'atMs', 'current', 'event', 'firstAccepted',
-      'firstConfirmed', 'sequence', 'stage', 'subscription'].sort());
+      'firstConfirmed', 'sequence', 'stage', 'subscription', 'listenerId', 'errorCategory'].sort());
   }
   const serialized = JSON.stringify(snapshot);
   for (const value of ['PRIVATE', 'private-uid', 'trace-session', 'fleet-1', 'SECRET', 'dione-captain']) {
@@ -173,4 +175,55 @@ it('brackets the unchanged false-freshness and generic-error calls with ordered 
   expect(observed.filter(value => value !== 'listener-attached' && value !== 'member-read-start')).toEqual([
     'member-read-rejected', 'freshness:false', 'freshness-false-returned', 'listener-error', 'error', 'listener-error-returned',
   ]);
+});
+
+it.each([
+  ['roleBriefs/private-uid', 'l12', 'permission-denied'],
+  ['roleBriefs/private-uid', 'l12', 'not-found'],
+  ['seats', 'l10', 'unavailable'],
+  ['secrets', 'l15', 'permission-denied'],
+  ['players/private-uid', 'l08', 'unavailable'],
+])('identifies the existing %s error path without changing its current error decision', async (path, listenerId, code) => {
+  const feed = begin(); await vi.waitFor(() => expect(feed.onSession).toHaveBeenCalledTimes(1));
+  feed.events.length = 0;
+  errors.get('sessions/trace-session/' + path)!({ code, message: 'PRIVATE MESSAGE', uid: 'PRIVATE IDENTITY' });
+  expect(feed.onError).toHaveBeenCalledTimes(1); expect(feed.onFreshness).toHaveBeenLastCalledWith(true);
+  expect(feed.call).toHaveBeenCalledTimes(1);
+  expect(feed.events).toEqual([
+    expect.objectContaining({ event: 'listener-error', listenerId, errorCategory: code }),
+    expect.objectContaining({ event: 'listener-error-returned', listenerId, errorCategory: code }),
+  ]);
+  expect(JSON.stringify(feed.events)).not.toContain('PRIVATE');
+});
+
+it.each([
+  [undefined, 'absent'], ['unlisted-private-code', 'other'], ['firestore/permission-denied', 'permission-denied'],
+])('retains only an allowlisted category for code %s', async (code, errorCategory) => {
+  const feed = begin(); await vi.waitFor(() => expect(feed.onSession).toHaveBeenCalled());
+  feed.events.length = 0;
+  errors.get('sessions/trace-session/seats')!({ code, message: 'PRIVATE MESSAGE' });
+  expect(feed.onError).toHaveBeenCalledTimes(1);
+  expect(feed.events).toContainEqual(expect.objectContaining({ event: 'listener-error', listenerId: 'l10', errorCategory }));
+  expect(JSON.stringify(feed.events)).not.toContain('private-code');
+});
+
+it('contains a diagnostic code-getter error while preserving the original seats error callback', async () => {
+  const feed = begin(); await vi.waitFor(() => expect(feed.onSession).toHaveBeenCalled());
+  feed.events.length = 0;
+  const error = { get code() { throw new Error('PRIVATE GETTER'); } };
+  expect(() => errors.get('sessions/trace-session/seats')!(error)).not.toThrow();
+  expect(feed.onError).toHaveBeenCalledTimes(1); expect(feed.onFreshness).toHaveBeenLastCalledWith(true);
+  expect(feed.events).toContainEqual(expect.objectContaining({ event: 'listener-error', listenerId: 'l10', errorCategory: 'other' }));
+});
+
+it('does not promote a retired listener error or expected private denial into a new current error', async () => {
+  const feed = begin(); await vi.waitFor(() => expect(feed.onSession).toHaveBeenCalled());
+  const retired = errors.get('sessions/trace-session/roleBriefs/private-uid')!;
+  feed.events.length = 0;
+  errors.get('sessions/trace-session/secrets/loyalty-private-uid')!({ code: 'permission-denied' });
+  expect(feed.onPrivate).toHaveBeenLastCalledWith(null); expect(feed.onError).not.toHaveBeenCalled();
+  expect(feed.events).toEqual([]);
+  stop!(); stop = undefined; feed.events.length = 0;
+  retired({ code: 'unavailable' });
+  expect(feed.onError).not.toHaveBeenCalled(); expect(feed.events).toEqual([]);
 });
