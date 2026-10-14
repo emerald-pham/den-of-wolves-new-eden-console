@@ -151,6 +151,8 @@ export default defineConfig(({ mode, command }) => {
             // Keep the pure member projection dependency graph separate from
             // the SDK, subscriptions and session mutation runtime.
             'session-projections': ['./functions/src/memberSession.ts'],
+            // Keep the shared local authority singleton in its own chunk.
+            'session-authority': ['./src/lib/sessionSnapshotAuthority.ts'],
             'session-runtime': ['./src/lib/sessionService.ts', './src/lib/firestore.ts'],
             'react-vendor': ['react', 'react-dom', 'react-router-dom', 'zustand'],
             'firebase-app': ['firebase/app'],
