@@ -54,6 +54,7 @@ import type {
   Player,
   PlayerDiscoveryProjection,
   RoleBrief as RoleBriefProjection,
+  SetupReceipt,
   WolfCultIntelligence,
 } from '@/types/game';
 import { isSessionRoute, restoreSessionRoute } from '@/lib/sessionRoute';
@@ -1424,18 +1425,20 @@ function AppRoutes() {
             store.setCommissarPurgeAuthority(next);
           }
         },
-        onSetupReceipt: playerRole === 'gm' ? (next) => {
-          if (!callbackCurrent()) return;
-          const store = useSessionStore.getState();
-          // A denied GM query can report through the still-mounted session
-          // listener after demotion. Never retain or rehydrate that private
-          // receipt unless the current player projection is still a GM.
-          if (store.me?.role !== 'gm') {
-            store.setGmSetupReceipt(null);
-            return;
-          }
-          store.setGmSetupReceipt(next);
-        } : undefined,
+        ...(playerRole === 'gm' ? {
+          onSetupReceipt: (next: SetupReceipt | null) => {
+            if (!callbackCurrent()) return;
+            const store = useSessionStore.getState();
+            // A denied GM query can report through the still-mounted session
+            // listener after demotion. Never retain or rehydrate that private
+            // receipt unless the current player projection is still a GM.
+            if (store.me?.role !== 'gm') {
+              store.setGmSetupReceipt(null);
+              return;
+            }
+            store.setGmSetupReceipt(next);
+          },
+        } : {}),
         onError: () => {
           if (!callbackCurrent()) return;
           finishWingFirstEntry(sessionSnapshotAuthorityFor(sessionId, playerUid));
