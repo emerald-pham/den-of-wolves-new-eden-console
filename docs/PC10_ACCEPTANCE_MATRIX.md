@@ -1877,9 +1877,17 @@ data-loss defect would hold its affected acceptance. The targeted two-Auth
 phase-only/phase-plus-presence diagnostic is source preparation pending a fresh
 allocation. No recovery/retry credit is added to P618/P620 by this native pass.
 
-The next smallest Wing delta is one paid Zeta refuel and a distinct second
+At N9 handback, the next smallest Wing delta was one paid Zeta refuel and a distinct second
 scout using the existing unlimited/manual full-game demo, with first scout as
 the fresh-session cadence prerequisite. Positive fighter mechanics, missions,
 rebuilds, broader recovery/privacy and the complete fresh-game/all-role/function
 ending remain open. P181/P629 remain partial; P641/P642/P651 remain open.
 Catalog totals stay 703/751 and 245/293, with 14 partial/34 missing in PC10.
+
+### October 14 N11 manual flow and paid Zeta acceptance
+
+The parent accepted the [N11 scoped prefix](PC10_N9_WING_SCOUT_NATIVE_REPORT.md#october-14-n11-accepted-manual-flow-and-paid-zeta-prefix): genuine current-GM full-game preparation before ordinary joins, normal casting/station entry, manual 0→1 without a briefing hold, six ordinary maintenance prerequisites, paid Zeta Fuel 4→3 at step/revision 6→7 and genuine manual Coordination. These are scoped criteria in existing P181 and positive entitled P629 evidence; repeated setup and maintenance prerequisites earn no duplicate milestones. N11's retained first Scout report/note/map/automatic-log receipt is credited separately from the unchanged failed overall child.
+
+The second distinct Scout request received HTTP 200, with `resolutionPendingOnly:true`, but its private report/note/map/log proof failed. All retained private reads are for the first report/note; full native index bodies are unavailable. The installed-selector defect has a test-first, independently reviewed source-only correction at `0c9c09ae`. Native second-result delivery and preservation of first history still need the smallest fresh ordinary route and a new parent allocation. No backend result-existence, overwrite, stale-delivery or comprehensive privacy conclusion is inferred from the acknowledgements.
+
+Three Auth actors/three Chrome contexts/eight configured roles/zero humans remain distinct. Physical return at 21:02:58.720 UTC closed all owned runtime/data/claims, with the first strict physical check passing. N11's original failure and completion flags remain preserved. Positive fighter mechanics, missions/rebuild, full fresh-game/every-role/function ending, broader recovery/privacy/manual-free usability, final visuals/typography and exact candidate/main CI/deployment remain open. All 48 PC10 rows remain unfinished: 14 partial/34 missing, 703/751 overall and 245/293 campaign, zero new closures or release.

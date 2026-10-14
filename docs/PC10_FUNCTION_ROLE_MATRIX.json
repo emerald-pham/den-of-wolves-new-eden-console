@@ -7,7 +7,7 @@
     {
       "id": "admiral",
       "kind": "core/optional station",
-      "currentFreshGameProof": "partial: accepted N4 six ordinary maintenance steps through reactor and bay-charge delivery; N9 original current Admiral preserved through natural Coordination. Other role mechanics/full ending remain open. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "currentFreshGameProof": "partial: accepted N4 six ordinary maintenance steps through reactor and bay-charge delivery; N9 original current Admiral preserved through natural Coordination. Other role mechanics/full ending remain open. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. N11 accepted scoped six reused normal prerequisites and paid Zeta Fuel4→3/step-revision6→7, original Admiral/Wing delivery, substantive ship/custody state preserved; lane incomplete.",
       "recoveryProof": "pending",
       "usabilityProof": "pending"
     },
@@ -21,7 +21,7 @@
     {
       "id": "wing-commander",
       "kind": "core/optional station",
-      "currentFreshGameProof": "partial: canonical station/Starlight/private scout/normal flight and docking accepted ata648; f35 adds timely return transit read/paint. Other wing/mission/rebuild and whole fresh ending remain pending. October14 accepted N4/N9 adds both initial and charged bay cards/full-capacity blockers plus current original first-scout/report/note/map delivery; positive fighters, paid second scout, missions/rebuild and all-role ending remain open. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "currentFreshGameProof": "partial: canonical station/Starlight/private scout/normal flight and docking accepted ata648; f35 adds timely return transit read/paint. Other wing/mission/rebuild and whole fresh ending remain pending. October14 accepted N4/N9 adds both initial and charged bay cards/full-capacity blockers plus current original first-scout/report/note/map delivery; positive fighters, paid second scout, missions/rebuild and all-role ending remain open. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. N11 accepted paid Zeta delivery and retained first distance1 Scout prefix; second distinct pending-only request acknowledged, private result/note/map/log incomplete. Reviewed selector0c9 is inert source evidence only; failed child/flags unchanged.",
       "recoveryProof": "partial: original same-UID/role/seat server-fresh cold reload accepted. Original50f6b189 unsent5143 input-loss RED and test-first7df/source704 repair retained. Independently accepted exactc3 minimum same-current-member unpaused Cycle1 Team Time Back/overview/held-Wing/Starlight re-entry preserves5143 with unchanged current Auth/member/session/role/seat/console/live server SDK authority, Record disabled and zero scout POSTs; only shipResources/shuttleFuelled equality. Actual7856 unlocked Cycle0 GM release clears same player role/seat/console/input and populated brief, retaining runtime5143; obsolete Starlight route/no chooser is preserved native RED, reassignment unattempted. Meaningful3 mounted REDs before testf70/source45da and exact independent source-only PASS; fixture-onlyc420/same20PASS confirmed. At that source stage native after-fix casting chooser/reassign/reselect was unearned; no submitted retry or cold-document draft claim. Exactee35 minimum unlocked Cycle0 real GM release -> chooser/reselect instruction -> same-target assignment200 -> later deliberate select/seat200 -> fresh same-member Wing privateBrief rev5/Starlight5143 is independently accepted (review1fabc09e/ROOT ACK36b9986d). Early pre-reply assignment-labelled frame/dismissal excluded, loyalty null, runtime text only; active-game loss/submitted retry/cold-document and wholeWing remain open.",
       "usabilityProof": "partial: actual core R1 and exact53783d80 sampled R2 containment/wrapping/Back keyboard focus accepted, with sampled Courier/Courier-Bold/Menlo and CIC retained. Exactc3 offered Back/overview/held-Wing/Starlight activation and unsent5143 retention independently accepted only for same current member in Team Time. Prefix overlapping distinct-ID claim conflicts400 and casting-phase report403 are independently source-classified; client coalescing/inactive-phase guidance remains limited. Actual casting station-loss chooser RED has reviewed source-only45da repair/c420 fixture confirmation; At that source stage native chooser/reassignment was unearned; remaining controls, touch/full keyboard/manual-free and final emitted-build typography remain pending. Exactee35 minimum casting chooser/reselection and same-member reentry are accepted with scoped390 fullpage notice/readability/horizontal bounds. NegativeY/fixedbar composites/font metadata do not certify unobscured viewport/touch/enlarged/final painted typography; report403 reader UX remains unqualified."
     },
@@ -245,7 +245,7 @@
     {
       "id": "gm",
       "kind": "authenticated facilitator",
-      "currentFreshGameProof": "partial: normal real authorization/live instance, casting/start0→1 and focused GM reads accepted atf35; whole fresh game/ending remains pending. N9 exact1dd fresh0→1, natural Coordination and populated original-scout automatic-log delivery accepted; no complete manual-game/recovery/ending extension.",
+      "currentFreshGameProof": "partial: normal real authorization/live instance, casting/start0→1 and focused GM reads accepted atf35; whole fresh game/ending remains pending. N9 exact1dd fresh0→1, natural Coordination and populated original-scout automatic-log delivery accepted; no complete manual-game/recovery/ending extension. N11 accepted scoped genuine unlimited/manual preparation before ordinary joins, ordinary casting/manual0→1/no briefing hold and manual Coordination; positive current lease only, no new recovery/ending. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
       "recoveryProof": "pending",
       "usabilityProof": "partial: populated pending/log/boarding UI, actual rendered system mono/CIC samples; full control/keyboard/touch/final built typography remains pending."
     },
@@ -383,9 +383,9 @@
       "clientConsumers": [
         "src/lib/scoutResultService.ts"
       ],
-      "currentFreshGameProof": "partial: N9 exact1dd: current original Wing private fact displayed for the one original scout. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
-      "authorityPrivacyRecoveryProof": "partial: Positive own entitlement only; no new denied-peer/foreign-group or recovered read claim.",
-      "automatedBrowserProof": "partial: three actual Auth actors/three Chrome processes-contexts/eight configured roles/zero human devices, scoped N4/N9 only; no whole-game or capacity proof.",
+      "currentFreshGameProof": "partial: N9 exact1dd: current original Wing private fact displayed for the one original scout. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. N11 scoped partial: N11 retained first-scout correlated private fact/report prefix; four native result reads share only the first fingerprint. Second result delivery unproved, native full indices not retained. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: Positive own entitlement only; no new denied-peer/foreign-group or recovered read claim. N11: Positive own entitlement only; no new denied-peer/foreign-group/recovery or comprehensive private audience claim.",
+      "automatedBrowserProof": "partial: N11 three actual Auth actors/three Chrome processes-contexts/eight configured roles/zero humans; scoped manual/Zeta and first-Scout prefix only. No native second delivery, whole-game, capacity or human-device proof.",
       "humanDeviceProof": "not claimed"
     },
     {
@@ -405,9 +405,9 @@
       "clientConsumers": [
         "src/lib/scoutResultService.ts"
       ],
-      "currentFreshGameProof": "partial: accepted focused fresh normal GM/Wing scope atf35af64f; complete every-role game/ending remains pending. See PC10_NORMAL_UI_REVIEW_REPORT.md. October14 extension: partial: N9 exact1dd: actual current authenticated GM automatic-resolution log matches the original Scout report/note. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
-      "authorityPrivacyRecoveryProof": "partial: current live owned GM log reads succeed through real presence renewal, including populated results; ordinary Wing (including after population) and wrong GM instance receive error-only403. Broader stale/malformed/demoted/recovery controls remain pending. October14 extension: partial: Positive genuine GM read only; earlier scoped denials retained separately, no new denial/recovery extension.",
-      "automatedBrowserProof": "accepted scoped: two Auth actors/two Chrome processes/contexts, normal UI and six actual SDK error-only negatives;575 reads across3handlers are polling, not575 actions. Exactf35 receipt dfac4611. October14 extension: partial: three actual Auth actors/three Chrome processes-contexts/eight configured roles/zero human devices, scoped N4/N9 only; no whole-game or capacity proof.",
+      "currentFreshGameProof": "partial: accepted focused fresh normal GM/Wing scope atf35af64f; complete every-role game/ending remains pending. See PC10_NORMAL_UI_REVIEW_REPORT.md. October14 extension: partial: N9 exact1dd: actual current authenticated GM automatic-resolution log matches the original Scout report/note. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. N11 accepted first-scout original automatic GM-log prefix only; second-scout log proof incomplete. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: current live owned GM log reads succeed through real presence renewal, including populated results; ordinary Wing (including after population) and wrong GM instance receive error-only403. Broader stale/malformed/demoted/recovery controls remain pending. October14 extension: partial: Positive genuine GM read only; earlier scoped denials retained separately, no new denial/recovery extension. N11 adds positive original current-GM entitlement only; no new borrowed-instance/peer/recovery claim.",
+      "automatedBrowserProof": "partial: N11 three actual Auth actors/three Chrome processes-contexts/eight configured roles/zero humans; first-Scout automatic-log prefix only. No native second delivery, whole-game, capacity or human-device proof.",
       "humanDeviceProof": "not claimed"
     },
     {
@@ -427,9 +427,9 @@
       "clientConsumers": [
         "src/lib/scoutResultService.ts"
       ],
-      "currentFreshGameProof": "partial: N9 exact1dd: same-scout saved discovery note displayed and bound to current map discovery. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
-      "authorityPrivacyRecoveryProof": "partial: Positive own note only; no denied peer/foreign-group/export or recovery extension.",
-      "automatedBrowserProof": "partial: three actual Auth actors/three Chrome processes-contexts/eight configured roles/zero human devices, scoped N4/N9 only; no whole-game or capacity proof.",
+      "currentFreshGameProof": "partial: N9 exact1dd: same-scout saved discovery note displayed and bound to current map discovery. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. N11 scoped partial: N11 retained first-scout matching saved note/map prefix; four note reads share only the first fingerprint. Second canonical note delivery unproved. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: Positive own note only; no denied peer/foreign-group/export or recovery extension. N11: Positive own note only; no new denied-peer/foreign-group/export/recovery claim.",
+      "automatedBrowserProof": "partial: N11 three actual Auth actors/three Chrome processes-contexts/eight configured roles/zero humans; scoped manual/Zeta and first-Scout prefix only. No native second delivery, whole-game, capacity or human-device proof.",
       "humanDeviceProof": "not claimed"
     },
     {
@@ -832,9 +832,9 @@
       "clientConsumers": [
         "src/lib/sessionService.ts"
       ],
-      "currentFreshGameProof": "pending",
-      "authorityPrivacyRecoveryProof": "pending",
-      "automatedBrowserProof": "pending",
+      "currentFreshGameProof": "partial: Accepted scoped N11: genuine current-GM manual Cycle0→1 after normal casting, no briefing hold/clear RPC. Setup repeated as prerequisite; no duplicate milestone. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: Current original GM/live owned instance and ordinary admitted players positive authority only; no new negative/replay/recovery claim.",
+      "automatedBrowserProof": "partial: N11 three actual Auth actors/three Chrome processes-contexts/eight configured roles/zero humans; scoped manual/Zeta and first-Scout prefix only. No native second delivery, whole-game, capacity or human-device proof.",
       "humanDeviceProof": "not claimed"
     },
     {
@@ -843,9 +843,9 @@
       "clientConsumers": [
         "src/lib/sessionService.ts"
       ],
-      "currentFreshGameProof": "pending",
-      "authorityPrivacyRecoveryProof": "pending",
-      "automatedBrowserProof": "pending",
+      "currentFreshGameProof": "partial: Accepted scoped N11: owned current authenticated GM prepared genuine unlimited/manual full-game training before ordinary joins; current manual publication observed. Complete demo/every-role/end/recovery remains open. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: Current GM/live owned instance positive authority only; no new negative/replay/recovery claim.",
+      "automatedBrowserProof": "partial: N11 three actual Auth actors/three Chrome processes-contexts/eight configured roles/zero humans; scoped manual/Zeta and first-Scout prefix only. No native second delivery, whole-game, capacity or human-device proof.",
       "humanDeviceProof": "not claimed"
     },
     {
@@ -854,9 +854,9 @@
       "clientConsumers": [
         "src/lib/sessionService.ts"
       ],
-      "currentFreshGameProof": "pending",
-      "authorityPrivacyRecoveryProof": "pending",
-      "automatedBrowserProof": "pending",
+      "currentFreshGameProof": "partial: Accepted scoped N11: owned current GM manually opened Coordination, with current manual publication and compatibility timestamps verified; natural timer evidence reused from N9. Whole-game ending/recovery remains open. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: Current original GM/live owned instance positive authority only; no new negative/replay/recovery claim.",
+      "automatedBrowserProof": "partial: N11 three actual Auth actors/three Chrome processes-contexts/eight configured roles/zero humans; scoped manual/Zeta and first-Scout prefix only. No native second delivery, whole-game, capacity or human-device proof.",
       "humanDeviceProof": "not claimed"
     },
     {
@@ -2778,9 +2778,9 @@
       "clientConsumers": [
         "src/lib/scoutRequestService.ts"
       ],
-      "currentFreshGameProof": "partial: N9 exact1dd: one original ordinary Wing Cycle1 distance2 first scout with one current delivered result, original actor/request and no movement. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
-      "authorityPrivacyRecoveryProof": "partial: Entitled current Wing only; no second/fuelled scout, duplicate/conflict, denied peer or recovery extension.",
-      "automatedBrowserProof": "partial: three actual Auth actors/three Chrome processes-contexts/eight configured roles/zero human devices, scoped N4/N9 only; no whole-game or capacity proof.",
+      "currentFreshGameProof": "partial: N9 exact1dd: one original ordinary Wing Cycle1 distance2 first scout with one current delivered result, original actor/request and no movement. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. N11 scoped partial: N11 retained first Cycle1 distance1 Scout report/note/map/GM-log prefix and two distinct same-actor/cycle request200 acknowledgements. Both acknowledgements pending-only; second resolved private result unproved; original failed child retained. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: Entitled current Wing only; no second/fuelled scout, duplicate/conflict, denied peer or recovery extension. N11: Current entitled Wing positive only; no native second-private-result, new duplicate/conflict/peer/recovery claim.",
+      "automatedBrowserProof": "partial: N11 three actual Auth actors/three Chrome processes-contexts/eight configured roles/zero humans; scoped manual/Zeta and first-Scout prefix only. No native second delivery, whole-game, capacity or human-device proof.",
       "humanDeviceProof": "not claimed"
     },
     {
@@ -2855,9 +2855,9 @@
       "clientConsumers": [
         "src/lib/maintenanceService.ts"
       ],
-      "currentFreshGameProof": "partial: Accepted N4 ffd63649: six ordinary Admiral commits begin/storage/rations/unrest/riot/reactor, step/revision6 and delivered Alpha/Bravo/Construction charges; unchanged consumers reused at1dd. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
-      "authorityPrivacyRecoveryProof": "partial: Original current live Admiral and entitled Wing delivery observed; lane incomplete and no refuel/other steps/new denial/replay/recovery proof.",
-      "automatedBrowserProof": "partial: three actual Auth actors/three Chrome processes-contexts/eight configured roles/zero human devices, scoped N4/N9 only; no whole-game or capacity proof.",
+      "currentFreshGameProof": "partial: Accepted N4 ffd63649: six ordinary Admiral commits begin/storage/rations/unrest/riot/reactor, step/revision6 and delivered Alpha/Bravo/Construction charges; unchanged consumers reused at1dd. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. N11 scoped partial: N11 accepted scoped six ordinary prerequisites revision0→6 and paid bays-zeta Fuel4→3/step-revision6→7, original Admiral/Wing publication and substantive ship/custody state preserved. Existing N4 bay-charge evidence retained; lane incomplete. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: Original current live Admiral and entitled Wing delivery observed; lane incomplete and no refuel/other steps/new denial/replay/recovery proof. N11: Original current Admiral and entitled Wing positive delivery only; other maintenance, denial/replay/recovery remain open.",
+      "automatedBrowserProof": "partial: N11 three actual Auth actors/three Chrome processes-contexts/eight configured roles/zero humans; scoped manual/Zeta and first-Scout prefix only. No native second delivery, whole-game, capacity or human-device proof.",
       "humanDeviceProof": "not claimed"
     },
     {

@@ -1,4 +1,4 @@
-# PC10 Wing bay and first-scout acceptance reconciliation
+# PC10 Wing bay, scout and manual-flow acceptance reconciliation
 
 The parent accepted N9's completed native slice at functional source
 `1dd1d590e4fbcd59faee8d212494b5c3bafb6284`. It proves fresh admission,
@@ -52,8 +52,8 @@ Whole PC10 release remains open for distinct unproved gameplay, recovery,
 privacy, full fresh-game/every-role/function ending, final UI/typography and
 exact candidate/main CI/deployment gates.
 
-The next Wing delta is one ordinary paid Zeta refuel and a distinct second
-scout in the same cycle using the existing authenticated manual full-game
+At N9 handback, the next Wing delta was one ordinary paid Zeta refuel and a
+distinct second scout in the same cycle using the existing authenticated manual full-game
 demo. A first scout is only its fresh-session cadence prerequisite. The
 source-only operator preparation earns no new native credit; it needs its
 own fresh bounded runtime allocation. No new ten-minute natural-timer replay,
@@ -85,3 +85,60 @@ P618/P620 receive no new recovery/retry credit from N9. P321/P322 and
 the already-done first-scout mechanics are not reopened or counted again.
 P641/P642/P651 remain uncompleted aggregate gates. Future post-PC10 work,
 PC11 guidance, conditional PC12 offline mode and licensing are untouched.
+
+## October 14 N11 accepted manual flow and paid Zeta prefix
+
+The canonical parent accepted N11's scoped manual flow and paid Zeta debit at
+source `c55d33c6`, using unchanged functional source `1dd1d590`. The overall
+child remains **failed** at `wing-starlight-second-private-report-saved-note`;
+its false completion flags and original first-failure evidence are preserved.
+The separately retained first-scout receipt supports the completed prefix.
+N11 is a native attempt label, unrelated to the future PC11 checkpoint.
+
+| Accepted scoped observation | Evidence and limit |
+|---|---|
+| Genuine authenticated manual preparation and start | Owned current GM prepared full-game training before normal joins, cast the ordinary Admiral/Wing roles and made actual manual Cycle 0→1. No briefing hold or clear RPC was used. This repeats setup prerequisites, not another milestone. |
+| Ordinary maintenance prerequisites | Six original begin/storage/rations/unrest/riot/reactor actions committed revision 0→6 in Cycle 1 and delivered the original publication. These are prerequisites, not six new closures. |
+| Paid Zeta refuel | Original Admiral `runMaintenance` action `bays-zeta` committed step/revision 6→7 and Fuel 4→3. Original Admiral and Wing received the debit, with counts, Materials, cargo, damage, docking and custody preserved. The maintenance lane remains incomplete. |
+| Genuine manual Coordination | Owned current GM used `advanceFullGameDemoPhase`; the current manual publication and compatibility timestamps were verified. N9's natural timer evidence is reused rather than requalified. |
+| First Scout prefix | One ordinary Cycle 1 distance-1 Scout delivered its correlated private report, saved note, map discovery and automatic GM log. The retained receipt has all eleven proof fields true; private contents were not persisted. |
+| Distinct second request acknowledgement | Same Wing/cycle, different request and target returned HTTP 200. Both Scout acknowledgements explicitly mark `resolutionPendingOnly:true`; their distinct hashes do not prove two resolved private results. |
+
+The second private report/note/map/log proof did not complete. Four private-result
+reads and four note reads have only the first report/note fingerprints. Full
+native index bodies were not persisted, so second backend-result existence,
+overwrite or stale delivery cannot be established from those replies. The
+source-only diagnosis reproduced an operator selector defect: the installed
+Playwright exact label includes option text from the wrapping label. The
+three-line correction scopes the ordinary combobox to **Private scouting
+reports** and retains the exact second opaque request ID and all current
+identity/authority/result-correlation/privacy checks. Candidate `0c9c09ae`
+followed two meaningful selector REDs and passed five targeted inert tests plus
+bounded independent changed-code review. It earns no native second-delivery,
+rendered typography, recovery or broader privacy acceptance.
+
+N11 used three Auth actors, three Chrome processes/contexts, eight configured
+roles and zero human players. Acquisition was **20:58:32.572 UTC**, readiness
+**19,414 ms** later and physical return **21:02:58.720 UTC**, a debit of
+**266,148 ms (4m 26.148s)**. The first strict physical check passed: all owned
+browsers/Auth/session data and original services were closed, captured processes
+and groups absent, 22 IPv4/IPv6 binds free and own reservations/configuration/
+claims zero. Foreign ownership and source/build bytes were preserved. The 376
+transport rows are not 376 game actions. No gameplay retry occurred.
+
+| Retained N11 receipt under `manual-resume-fixed-second-scout-20261014/` | SHA-256 |
+|---|---|
+| `N11_MANUAL_ZETA_SCOUT_PREFIX_SECOND_DELIVERY_FIRST_FAILURE_CLEAN_PARENT_HANDOFF_20261014.json` | `6a2a2db6c1acaa14b636b55d3c974b8688f18f544ab4c23cfd3c3bd43ed4f316` |
+| `ordinary-admiral-ui-first-failure.json` | `f9e36f3c88a4ee44f1d39c9b7afedcdfbbe3697cd584d6e81aa665b3c9573232` |
+| `manual-zeta-paid-original-delivery.json` | `b5693da6d9703d2f7a6bffecdabdc3074f48fba0b2043901747f832dbb70bb7e` |
+| `ordinary-starlight-private-report-saved-note.json` | `91a22df3ae2704c3dc9bee7bbaf95c4ec957062497ad4101184657397bedbebd` |
+| `MANUAL_ZETA_SECOND_SCOUT_NATIVE_PHYSICAL_HANDBACK_20261014.json` | `94fa44b1ccb39cbf67652244f6e344e0cc4aade08f9ec475c022b55b2bd40945` |
+
+The next fresh bounded route preserves this ordinary prefix and must select the
+second request, then prove its own result, canonical saved note, target, actor,
+cycle, current index, map and automatic log while preserving first-report
+history. It requires a fresh parent runtime grant. Third Scout, movement,
+fighters, missions, endings, all-role/function, human-device, comprehensive
+privacy/recovery/usability and release gates remain open. P181/P629 stay partial;
+P641/P642/P651 remain open. Counts stay 703/751, 245/293 and 14 partial/34 missing,
+with zero new fixed closures and no release.
