@@ -231,6 +231,16 @@ function admiralSourceBerthMatches(entry: AdmiralFirstEntryProjectionPending, se
     (berth as NonNullable<typeof berth> & { readonly seatId?: unknown }).seatId == null);
 }
 
+function admiralRestoringBerthMatches(entry: AdmiralFirstEntryProjectionPending, state: AdmiralEntryContext): boolean {
+  const berth = state.session?.currentActorBerthAuthority;
+  return Boolean(berth && state.me?.activeConsoleRoleId === 'admiral' &&
+    berth.actorUid === entry.actorUid && berth.sessionId === entry.sessionId && berth.groupId === entry.groupId &&
+    berth.role === 'player' && berth.shipId === 'aegis' && berth.connectionGeneration === entry.connectionGeneration &&
+    berth.assignedRoleId === 'admiral' && berth.activeConsoleRoleId === 'admiral' &&
+    berth.replacementRoleId == null && berth.replacementStatus == null &&
+    (berth as NonNullable<typeof berth> & { readonly seatId?: unknown }).seatId == null);
+}
+
 export function admiralFirstEntryMatches(
   entry: AdmiralFirstEntryProjectionPending,
   state: AdmiralEntryContext,
@@ -246,7 +256,11 @@ export function admiralFirstEntryMatches(
       key === 'activeConsoleRoleId' || JSON.stringify((projection as AdmiralFirstEntryProjectionPending)[key]) === JSON.stringify(entry[key]));
   return Boolean(entry.kind === 'app-admiral-first-entry-withheld' && entry.role === 'player' && entry.shipId === 'aegis' &&
     (state.connection === 'live' && state.sessionSnapshotFreshness === 'server' ||
-      (localWithdrawal || admiralReaderWaits.has(entry) && admiralSourceBerthMatches(entry, session)) &&
+      (localWithdrawal || admiralReaderWaits.has(entry) && admiralSourceBerthMatches(entry, session) ||
+        // The actual matching reader publishes before its freshness callback.
+        // A current App consumer must not retire the previous genuine null
+        // during that publication; this phase remains cache and nonready.
+        admiralProjectionWithdrawals.has(entry) && admiralRestoringBerthMatches(entry, state)) &&
         state.connection === 'offline' && state.sessionSnapshotFreshness === 'cache') &&
     entry.assignedRoleId === 'admiral' && entry.seatId === 'admiral' &&
     (entry.activeConsoleRoleId === null || entry.activeConsoleRoleId === 'admiral') &&

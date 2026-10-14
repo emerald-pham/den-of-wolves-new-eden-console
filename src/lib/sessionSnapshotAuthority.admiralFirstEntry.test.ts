@@ -107,3 +107,27 @@ it('keeps only the actual withdrawn receipt lineage, denies changed scopes and f
   assert.ok(final); finishAdmiralFirstEntry(other.authority, final);
   assert.equal(pendingAdmiralFirstEntry(other.authority, other.current, other.uid, other.doc), undefined);
 });
+
+it('keeps only genuine withdrawn lineage through matching positive cache publication and still retires untagged null', () => {
+  const c = context();
+  const entry = beginAdmiralFirstEntry(c.authority, c.before, c.current, c.uid, c.doc, c.receipt, Date.now()+15_000);
+  assert.ok(entry);
+  const active = { ...c.current, me: { ...c.current.me, activeConsoleRoleId: 'admiral' } };
+  assert.equal(withholdAdmiralFirstEntry(c.authority, active, c.uid, c.doc), entry);
+  const restoring = { ...active, connection: 'offline', sessionSnapshotFreshness: 'cache',
+    session: { ...active.session, currentActorBerthAuthority: {
+      ...active.session.currentActorBerthAuthority!, activeConsoleRoleId: 'admiral' } },
+    currentActorBerthProjectionPending: null };
+  assert.equal(admiralFirstEntryMatches(entry, restoring, c.uid, c.doc), true);
+  assert.equal(pendingAdmiralFirstEntry(c.authority, restoring, c.uid, c.doc), entry);
+  assert.equal(restoring.connection, 'offline'); assert.equal(restoring.sessionSnapshotFreshness, 'cache');
+  for (const fields of [{ actorUid: 'foreign' }, { sessionId: 'foreign' }, { groupId: 'foreign' },
+    { shipId: 'foreign' }, { assignedRoleId: 'wing-commander' }, { activeConsoleRoleId: null },
+    { connectionGeneration: 3 }, { replacementStatus: 'assigned' }]) {
+    assert.equal(admiralFirstEntryMatches(entry, { ...restoring, session: { ...restoring.session,
+      currentActorBerthAuthority: { ...restoring.session.currentActorBerthAuthority, ...fields } } }, c.uid, c.doc), false);
+  }
+  const canonicalNull = { ...restoring, session: { ...restoring.session, currentActorBerthAuthority: null } };
+  assert.equal(admiralFirstEntryMatches(entry, canonicalNull, c.uid, c.doc), false);
+  assert.equal(pendingAdmiralFirstEntry(c.authority, canonicalNull, c.uid, c.doc), undefined);
+});

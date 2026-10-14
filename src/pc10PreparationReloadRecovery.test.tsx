@@ -21,6 +21,7 @@ import type * as Authority from '@/lib/sessionSnapshotAuthority';
 const sdk = vi.hoisted(() => ({
   auth: { currentUser: null as { uid: string } | null, authStateReady: vi.fn() },
   call: vi.fn(), listen: vi.fn(), read: vi.fn(), signIn: vi.fn(),
+  versionReconnect: undefined as (() => void) | undefined,
 }));
 vi.mock('firebase/auth', () => ({ signInAnonymously: (...args: unknown[]) => sdk.signIn(...args) }));
 vi.mock('firebase/functions', () => ({ httpsCallable: (_service: unknown, name: string) =>
@@ -35,7 +36,10 @@ vi.mock('firebase/firestore', () => ({
   Timestamp: class { toDate() { return new Date(0); } },
 }));
 vi.mock('@/lib/firebaseConfig', () => ({ useEmulators: false, emulatorPorts: { firestore: 8080 } }));
-vi.mock('@/lib/versionUpgrade', () => ({ startVersionUpgradeMonitor: () => () => undefined }));
+vi.mock('@/lib/versionUpgrade', () => ({ startVersionUpgradeMonitor: (options: { reconnect: () => void }) => {
+  sdk.versionReconnect = options.reconnect;
+  return () => { if (sdk.versionReconnect === options.reconnect) sdk.versionReconnect = undefined; };
+} }));
 vi.mock('@/components/AppHeader', () => ({ default: () => null }));
 vi.mock('@/components/ShipPlot', () => ({ default: () => null }));
 vi.mock('@/components/WolfHackingRuntime', () => ({ default: () => null }));
@@ -597,7 +601,7 @@ async function recoveredAdmiralPrefix() {
   });
   return { admitted, surface, recovered };
 }
-async function openOrdinaryAdmiral() {
+async function openOrdinaryAdmiral(beforeGuard?: () => void) {
   const { admitted, surface, recovered } = await recoveredAdmiralPrefix();
   // Match the existing driver: casting authority closes before ordinary chooser.
   await recovered.authority.close(); casting = undefined;
@@ -614,6 +618,7 @@ async function openOrdinaryAdmiral() {
   check('ordinary rendered Roles exposes the same public Admiral href used by the driver', () => assert.ok(role));
   check('actual SessionMode source renders adjacent Admiral label and status spans', () => assert.equal(role!.textContent, 'AdmiralOPEN'));
   await captureActualRenderedPublicUi();
+  beforeGuard?.();
   fireEvent.click(role!);
   // Arm the same startup/navigation consumer as the existing driver before
   // the route fade/effect can claim or publish the station responses.
@@ -681,6 +686,39 @@ describe('faithful ordinary assigned-unseated preparation recovery', () => {
     });
     assert.equal((await casting!.check()).fresh,true);
     record('procedure.ready.for-same-actor-existing-wing-bays');
+  });
+  it('retains the original previous-null guard when actual App reconnect reads the matching positive before reader freshness settles', async () => {
+    let interleavings = 0;
+    let stop: (() => void) | undefined;
+    try {
+      await openOrdinaryAdmiral(() => {
+        // Schedule the actual App-owned version/reconnect consumer before the
+        // original guard subscription. No online event or Store write is used.
+        stop = store.subscribe((current, previous) => {
+          if (interleavings || previous.currentActorBerthProjectionPending?.kind !== 'app-admiral-first-entry-withheld' ||
+              current.session?.currentActorBerthAuthority?.activeConsoleRoleId !== TARGET ||
+              current.connection !== 'offline' || current.sessionSnapshotFreshness !== 'cache') return;
+          assert.equal(berthKind(previous.session), 'null');
+          assert.ok(sdk.versionReconnect);
+          interleavings += 1;
+          record('deliver.actual-App-reconnect-during-matching-positive-publication', {
+            previousNull: true, previousMarker: previous.currentActorBerthProjectionPending.kind,
+            sameGeneration: current.me?.connectionGeneration === previous.me?.connectionGeneration,
+            sameHydration: current.identityHydrationRevision === previous.identityHydrationRevision });
+          sdk.versionReconnect();
+        });
+      });
+      await deliverPlayer();
+      assert.equal(store.getState().currentActorBerthProjectionPending?.kind, 'app-admiral-first-entry-withheld');
+      assert.equal((await casting!.check()).fresh, false);
+      await drainMembers(); await deliverSeats();
+      assert.equal(interleavings, 1);
+      assert.equal((await casting!.check()).fresh, true);
+      assert.deepEqual([store.getState().me?.connectionGeneration, store.getState().identityHydrationRevision], [2,1]);
+      assert.equal(store.getState().currentActorBerthProjectionPending, null);
+      assert.equal(counts('claimSeat'), 1); assert.equal(counts('resumeSession'), 1);
+      record('startup.restored.after-actual-App-consumer-positive-publication');
+    } finally { stop?.(); }
   });
   it('clears the genuine pending origin on actual App unmount without changing Auth document or canonical owner', async () => {
     const { state, sdkAuthority } = await heldAdmiralEntry();
