@@ -1424,7 +1424,7 @@ function AppRoutes() {
             store.setCommissarPurgeAuthority(next);
           }
         },
-        onSetupReceipt: (next) => {
+        onSetupReceipt: playerRole === 'gm' ? (next) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
           // A denied GM query can report through the still-mounted session
@@ -1435,7 +1435,7 @@ function AppRoutes() {
             return;
           }
           store.setGmSetupReceipt(next);
-        },
+        } : undefined,
         onError: () => {
           if (!callbackCurrent()) return;
           finishWingFirstEntry(sessionSnapshotAuthorityFor(sessionId, playerUid));
