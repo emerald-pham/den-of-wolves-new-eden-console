@@ -134,11 +134,80 @@ transport rows are not 376 game actions. No gameplay retry occurred.
 | `ordinary-starlight-private-report-saved-note.json` | `91a22df3ae2704c3dc9bee7bbaf95c4ec957062497ad4101184657397bedbebd` |
 | `MANUAL_ZETA_SECOND_SCOUT_NATIVE_PHYSICAL_HANDBACK_20261014.json` | `94fa44b1ccb39cbf67652244f6e344e0cc4aade08f9ec475c022b55b2bd40945` |
 
-The next fresh bounded route preserves this ordinary prefix and must select the
-second request, then prove its own result, canonical saved note, target, actor,
-cycle, current index, map and automatic log while preserving first-report
-history. It requires a fresh parent runtime grant. Third Scout, movement,
+At N11 handback, the next fresh bounded route needed to preserve this ordinary
+prefix, select the second request and prove its own result, canonical saved
+note, target, actor, cycle, current index, map and automatic log while
+preserving first-report history under a fresh parent runtime grant. Third Scout, movement,
 fighters, missions, endings, all-role/function, human-device, comprehensive
 privacy/recovery/usability and release gates remain open. P181/P629 stay partial;
 P641/P642/P651 remain open. Counts stay 703/751, 245/293 and 14 partial/34 missing,
 with zero new fixed closures and no release.
+
+## October 14 accepted distinct second Scout and retained history
+
+The canonical parent accepted the exact selector-fixed native handoff
+`2e25aded8b77f95b2751f7ba22c181470b5fc4078b1a0943e9c41ccee42a6552`.
+Product source was `019e5bf2`, unchanged functional source `1dd1d590`, with the
+reviewed operator `0c9c09ae`. Genuine authenticated manual preparation before
+ordinary joins, casting/start 0→1, six maintenance prerequisites, paid Zeta and
+manual Coordination repeated as fresh-session prerequisites; they earn no
+duplicate milestones. No launcher/build replacement or backend diagnostic ran.
+
+The ordinary **Private scouting reports** combobox selected the distinct second
+original Scout request. The Cycle 1 Wing received its own second report, saved
+note, map discovery and automatic GM log. All eleven second proof fields passed,
+including original request/actor, two distinct current report indices, private
+result and canonical saved-note matching. The final current-state step checked
+both original pairs and compared the retained first report/note fingerprints to
+the original first proof. First history remained in the current two-report
+index. This does not claim a native first-report reselection after the second,
+cold reload, interrupted/repeated recovery or new denied-peer privacy evidence.
+
+| Correlated private reader | Actual replies | Distinct request/result pairs |
+|---|---:|---:|
+| `readPrivateScoutResult` | 3 HTTP 200 | 2 |
+| `readMyScoutDiscoveryNote` | 3 HTTP 200 | 2 |
+
+The distinct rendered second report/note fingerprints are
+`72748104cf04a8ef8f6150b9d613ccabde598d54436232b9f5befa053dede528` and
+`58b0be4ccb50c1aa7ab7be651385f1775f3b660682a1fc85a61d3fdc9367b5f4`.
+The original first pair fingerprints remained
+`85249b8c9520a29fd2cd4ec0b3c0282ca39bca3eaf737472a3057853933d6fdf` and
+`c8030315fde231eb1c90293ada8d8f4ad246a53f4cae7709c75149685f044cf1`.
+Full request/result/note/target/session/actor/cycle correlation was checked in
+memory; private contents and raw opaque IDs were not persisted. Both ordinary
+Scout acknowledgements retain pending-only semantics. Credit comes from the
+correlated private readers and actual UI proof, rather than the acknowledgements.
+N11's failed child, completion flags and historical evidence stay unchanged.
+
+Acquisition was **21:36:08.586 UTC**, readiness **11,395 ms** later and physical
+return **21:39:17.547 UTC**, a debit of **188,961 ms (3m 08.961s)** within the
+original **22:02:08.586 UTC** hard deadline. Three independent authenticated
+Chrome processes/contexts represented GM, Admiral and Wing; eight roles were
+configured, two players admitted and zero human players involved. The 260
+transport rows are not 260 game actions. No gameplay retry or new recovery ran.
+
+The first strict physical binding check reported address-in-use after owned
+service exits; its receipt is preserved and no claim was released then. The
+unchanged second check passed: all captured owned processes/groups absent,
+22 IPv4/IPv6 bindings free, browsers/Auth/session data cleaned, own
+reservations/configuration/claims zero and foreign ownership/source/build
+preserved. This cleanup boundary observation is separate from product gameplay;
+its exclusive socket-lifetime cause is unestablished. The final strict check and
+foreign-ownership requirements remain mandatory.
+
+| Receipt under `second-report-selector-fixed-20261014/` | SHA-256 |
+|---|---|
+| `SECOND_REPORT_SELECTOR_FIXED_COMPLETED_CLEAN_PARENT_HANDOFF_20261014.json` | `2e25aded8b77f95b2751f7ba22c181470b5fc4078b1a0943e9c41ccee42a6552` |
+| `MANUAL_ZETA_SECOND_SCOUT_NATIVE_PHYSICAL_HANDBACK_20261014.json` | `f7732e0b81b1cf20bbd66a538ea99c1fde22ecf48a852765293fd2dddc4d12ac` |
+
+This earns only distinct second-Scout delivery and preserved first index/
+fingerprint scope. Positive fighter mechanics, missions/rebuilds, complete
+fresh-game/every-role/function ending, broader privacy/recovery/manual-free
+usability, final rendered visuals/typography and exact candidate/main CI/
+deployment remain open. P181/P629 remain partial; P641/P642/P651 remain open.
+Counts stay 703/751 overall, 245/293 campaign, 14 partial/34 missing and zero new
+fixed closures/releases. The next Wing objective is selected from those distinct
+remaining mechanics using the qualified manual route; runtime is returned and a
+new allocation is required. The separately reviewed backend diagnostic remains
+off the gameplay critical path.
