@@ -21,6 +21,8 @@ import WolfHackingRuntime from '@/components/WolfHackingRuntime';
 import ShipPlot from '@/components/ShipPlot';
 import { useFleetGroupNavigation } from '@/lib/useFleetGroupNavigation';
 import { finishWingFirstEntry, memberSessionResumeBlocksFreshness, pendingWingFirstEntry,
+  finishAdmiralFirstEntry, pendingAdmiralFirstEntry, withholdAdmiralFirstEntry,
+  awaitAdmiralFirstEntryReader,
   sessionSnapshotAuthorityFor } from '@/lib/sessionSnapshotAuthority';
 import ScreenFade from '@/components/ScreenFade';
 import CommunicationError from '@/components/CommunicationError';
@@ -423,6 +425,10 @@ function AppRoutes() {
       ? pendingWingFirstEntry(sessionSnapshotAuthorityFor(sessionId, playerUid), useSessionStore.getState(),
         auth().currentUser?.uid, performance.timeOrigin)
       : undefined;
+    const currentAdmiralFirstEntry = () => callbackCurrent()
+      ? pendingAdmiralFirstEntry(sessionSnapshotAuthorityFor(sessionId, playerUid), useSessionStore.getState(),
+        auth().currentUser?.uid, performance.timeOrigin)
+      : undefined;
     let pendingRoleBrief: RoleBriefProjection | null = null;
     let pendingWolfCultIntelligence: { intelligence: WolfCultIntelligence; generation: number } | null = null;
     let wolfCultAuthorityGeneration = 0;
@@ -498,8 +504,19 @@ function AppRoutes() {
       // distinction. A server null or invalid/foreign witness remains untagged.
       const sourceMember = previousPlayer ?? member;
       const firstEntry = currentWingFirstEntry();
+      const admiralEntry = callbackCurrent()
+        ? withholdAdmiralFirstEntry(sessionSnapshotAuthorityFor(sessionId, playerUid), store,
+          auth().currentUser?.uid, performance.timeOrigin) : undefined;
+      const sourceBerth = current.currentActorBerthAuthority;
       const projectionPending = firstEntry && currentActorBerthMatches(current, sourceMember)
         ? { ...firstEntry, activeConsoleRoleId: member?.activeConsoleRoleId === 'wing-commander' ? 'wing-commander' as const : null }
+        : admiralEntry && sourceBerth && sourceBerth.sessionId === admiralEntry.sessionId &&
+          sourceBerth.actorUid === admiralEntry.actorUid && sourceBerth.groupId === admiralEntry.groupId &&
+          sourceBerth.role === 'player' && sourceBerth.shipId === 'aegis' &&
+          sourceBerth.connectionGeneration === admiralEntry.sourceConnectionGeneration &&
+          sourceBerth.assignedRoleId === 'admiral' && sourceBerth.activeConsoleRoleId === null &&
+          sourceBerth.replacementRoleId == null && sourceBerth.replacementStatus == null
+          ? { ...admiralEntry, activeConsoleRoleId: member?.activeConsoleRoleId === 'admiral' ? 'admiral' as const : null }
         : ['lobby', 'casting'].includes(current.phase ?? '') && current.currentTurn === 0 &&
         current.setupConfirmed === true && currentActorBerthMatches(current, sourceMember) &&
         auth().currentUser?.uid === playerUid && sourceMember?.uid === member?.uid &&
@@ -521,6 +538,11 @@ function AppRoutes() {
           documentTimeOrigin: performance.timeOrigin,
           memberSessionScope: { groupId: scope.groupId, vesselIds: [...scope.vesselIds], craftIds: [...scope.craftIds] } }
         : null;
+      if (projectionPending?.kind === 'app-admiral-first-entry-withheld') {
+        // The activating player invalidates the old reader's role projection.
+        // Only a matching normal member/freshness callback can release it.
+        pendingStationMemberRefresh = () => Boolean(currentAdmiralFirstEntry());
+      }
       store.setSession({ ...stripNavigationProjection(current), currentActorBerthAuthority: null }, projectionPending);
     };
     const invalidatePendingStationReleaseFreshness = () => {
@@ -1016,10 +1038,12 @@ function AppRoutes() {
         },
         onSessionFreshness: (fresh) => {
           if (!callbackCurrent()) return;
+          if (!fresh) awaitAdmiralFirstEntryReader(sessionSnapshotAuthorityFor(sessionId, playerUid),
+            useSessionStore.getState(), auth().currentUser?.uid, performance.timeOrigin);
           // An accepted first-entry CAS owns this wait even when the member
           // transaction arrives before the activating own-player projection.
-          pendingStationMemberRefresh = !fresh && currentWingFirstEntry()
-            ? () => Boolean(currentWingFirstEntry()) : undefined;
+          pendingStationMemberRefresh = !fresh && (currentWingFirstEntry() || currentAdmiralFirstEntry())
+            ? () => Boolean(currentWingFirstEntry() || currentAdmiralFirstEntry()) : undefined;
           const store = useSessionStore.getState();
           if (fresh && playerRole === 'player' &&
               memberSessionResumeBlocksFreshness(sessionSnapshotAuthorityFor(sessionId, playerUid))) {
@@ -1415,12 +1439,14 @@ function AppRoutes() {
         onError: () => {
           if (!callbackCurrent()) return;
           finishWingFirstEntry(sessionSnapshotAuthorityFor(sessionId, playerUid));
+          finishAdmiralFirstEntry(sessionSnapshotAuthorityFor(sessionId, playerUid));
           pendingStationMemberRefresh = undefined;
           playerProjectionFresh = false;
           invalidatePendingStationReleaseFreshness();
           clearCurrentGroupCandidateReveals();
           const store = useSessionStore.getState();
-          if (store.currentActorBerthProjectionPending?.kind === 'app-wing-first-entry-withheld') store.setSession(store.session, null);
+          if (store.currentActorBerthProjectionPending?.kind === 'app-wing-first-entry-withheld' ||
+              store.currentActorBerthProjectionPending?.kind === 'app-admiral-first-entry-withheld') store.setSession(store.session, null);
           store.setSessionSnapshotFreshness('cache');
           store.setConnection('offline');
         },
@@ -1429,6 +1455,17 @@ function AppRoutes() {
     return () => {
       active = false;
       finishWingFirstEntry(sessionSnapshotAuthorityFor(sessionId, playerUid));
+      // Normal presence changes the listener's role key before the activating
+      // player/read pair arrives. Only its still-valid accepted Admiral CAS
+      // survives this same-document restart; unmount/identity changes clear it.
+      if (!appRoutesMounted.current || !pendingAdmiralFirstEntry(sessionSnapshotAuthorityFor(sessionId, playerUid),
+          useSessionStore.getState(), auth().currentUser?.uid, performance.timeOrigin)) {
+        finishAdmiralFirstEntry(sessionSnapshotAuthorityFor(sessionId, playerUid));
+        const current = useSessionStore.getState();
+        if (current.currentActorBerthProjectionPending?.kind === 'app-admiral-first-entry-withheld' &&
+            current.currentActorBerthProjectionPending.actorUid === playerUid &&
+            current.currentActorBerthProjectionPending.sessionId === sessionId) current.setSession(current.session, null);
+      }
       playerListenerGeneration.current += 1;
       pendingRoleBrief = null;
       clearLoyaltyCensus();
@@ -1667,19 +1704,25 @@ function AppRuntime() {
     const markAuthorityOffline = () => {
       pendingStationMemberRefresh = undefined;
       const store = useSessionStore.getState();
-      if (store.session && store.me) finishWingFirstEntry(sessionSnapshotAuthorityFor(store.session.id, store.me.uid));
-      if (store.currentActorBerthProjectionPending?.kind === 'app-wing-first-entry-withheld') store.setSession(store.session, null);
+      if (store.session && store.me) {
+        finishWingFirstEntry(sessionSnapshotAuthorityFor(store.session.id, store.me.uid));
+        finishAdmiralFirstEntry(sessionSnapshotAuthorityFor(store.session.id, store.me.uid));
+      }
+      if (store.currentActorBerthProjectionPending?.kind === 'app-wing-first-entry-withheld' ||
+          store.currentActorBerthProjectionPending?.kind === 'app-admiral-first-entry-withheld') store.setSession(store.session, null);
       store.setSessionSnapshotFreshness('cache');
       store.setConnection('offline');
     };
     const renewPresence = () => refreshPresence().catch(markAuthorityOffline);
     const reconnectIfNeeded = () => {
       const state = useSessionStore.getState();
-      // The applied Wing first-entry CAS owns this reconnect deferral.
+      // An applied, still-current first-entry CAS owns this reconnect deferral.
       // Initial confirmation and ordinary station reads retain normal presence handling.
       if (pendingStationMemberRefresh?.() && state.session && state.me &&
-          pendingWingFirstEntry(sessionSnapshotAuthorityFor(state.session.id, state.me.uid), state,
-            auth().currentUser?.uid, performance.timeOrigin)) return;
+          (pendingWingFirstEntry(sessionSnapshotAuthorityFor(state.session.id, state.me.uid), state,
+            auth().currentUser?.uid, performance.timeOrigin) ||
+           pendingAdmiralFirstEntry(sessionSnapshotAuthorityFor(state.session.id, state.me.uid), state,
+            auth().currentUser?.uid, performance.timeOrigin))) return;
       if (state.session?.phase === 'closed' && state.sessionSnapshotFreshness === 'server') {
         readClosedHistoryIfReady();
         return;

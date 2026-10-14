@@ -75,12 +75,16 @@ import {
   acceptCallableSessionAuthority,
   beginMemberSessionResume,
   beginWingFirstEntry,
+  beginAdmiralFirstEntry,
   finishMemberSessionResume,
   finishWingFirstEntry,
+  finishAdmiralFirstEntry,
+  pendingAdmiralFirstEntry,
   isCurrentMemberSessionResume,
   sessionSnapshotAuthorityFor,
   sessionSnapshotAuthorityVersion,
   type WingFirstEntryProjectionPending,
+  type AdmiralFirstEntryProjectionPending,
 } from './sessionSnapshotAuthority';
 import {
   captureSessionAuthority,
@@ -3276,13 +3280,23 @@ export async function selectConsoleRole(roleId: string): Promise<void> {
     ? sessionAuthorityCheckpoint(before.session.id, sessionAuthorityUid(before))
     : undefined;
   let firstEntry: WingFirstEntryProjectionPending | undefined;
+  let admiralFirstEntry: AdmiralFirstEntryProjectionPending | undefined;
   const retireFirstEntry = () => {
-    if (!firstEntry) return;
-    finishWingFirstEntry(sessionSnapshotAuthorityFor(firstEntry.sessionId, firstEntry.actorUid), firstEntry);
-    const current = useSessionStore.getState();
-    if (current.currentActorBerthProjectionPending?.kind === 'app-wing-first-entry-withheld' &&
-        current.currentActorBerthProjectionPending.claimRequestId === firstEntry.claimRequestId) {
-      current.setSession(current.session, null);
+    if (firstEntry) {
+      finishWingFirstEntry(sessionSnapshotAuthorityFor(firstEntry.sessionId, firstEntry.actorUid), firstEntry);
+      const current = useSessionStore.getState();
+      if (current.currentActorBerthProjectionPending?.kind === 'app-wing-first-entry-withheld' &&
+          current.currentActorBerthProjectionPending.claimRequestId === firstEntry.claimRequestId) {
+        current.setSession(current.session, null);
+      }
+    }
+    if (admiralFirstEntry) {
+      finishAdmiralFirstEntry(sessionSnapshotAuthorityFor(admiralFirstEntry.sessionId, admiralFirstEntry.actorUid), admiralFirstEntry);
+      const current = useSessionStore.getState();
+      if (current.currentActorBerthProjectionPending?.kind === 'app-admiral-first-entry-withheld' &&
+          current.currentActorBerthProjectionPending.claimRequestId === admiralFirstEntry.claimRequestId) {
+        current.setSession(current.session, null);
+      }
     }
   };
   if (before.communicationError?.kind === 'station-selection-required' &&
@@ -3315,6 +3329,10 @@ export async function selectConsoleRole(roleId: string): Promise<void> {
         firstEntry = beginWingFirstEntry(sessionSnapshotAuthorityFor(before.session.id, before.me.uid), before,
           useSessionStore.getState(), auth().currentUser?.uid, performance.timeOrigin, receipt,
           Date.now() + COMMAND_RECONNECT_WINDOW_MS);
+      } else if (roleId === 'admiral' && before.session && before.me && receipt) {
+        admiralFirstEntry = beginAdmiralFirstEntry(sessionSnapshotAuthorityFor(before.session.id, before.me.uid), before,
+          useSessionStore.getState(), auth().currentUser?.uid, performance.timeOrigin, receipt,
+          Date.now() + COMMAND_RECONNECT_WINDOW_MS);
       }
     } else if (!isGm && (
       targetSeat && targetSeat.holderUid !== before.me?.uid
@@ -3331,6 +3349,13 @@ export async function selectConsoleRole(roleId: string): Promise<void> {
       return;
     }
     const store = useSessionStore.getState();
+    if (admiralFirstEntry && !authorityCheckpointIsCurrent(checkpoint)) {
+      // A held local projection cannot promote the console from this reply.
+      // Its exact accepted CAS may still await the normal player/member pair.
+      if (pendingAdmiralFirstEntry(sessionSnapshotAuthorityFor(admiralFirstEntry.sessionId, admiralFirstEntry.actorUid),
+          store, auth().currentUser?.uid, performance.timeOrigin) !== admiralFirstEntry) retireFirstEntry();
+      return;
+    }
     if (store.me && authorityCheckpointIsCurrent(checkpoint)) {
       store.setMe({ ...store.me, activeConsoleRoleId: roleId });
     }

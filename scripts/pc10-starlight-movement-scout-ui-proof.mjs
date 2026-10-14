@@ -150,6 +150,7 @@ const safeP181Error = error => {
     ...(code ? { code } : {}) };
 };
 
+
 function p181Remaining(deadlineAt, maximum = 60_000) {
   const budget = Math.min(maximum, deadlineAt - Date.now());
   assert.ok(Number.isFinite(budget) && budget > 0,
@@ -257,6 +258,165 @@ function p181ActorReady(current, expected) {
       connectionGeneration: expected.connectionGeneration,
       identityHydrationRevision: expected.identityHydrationRevision }));
 }
+
+/** Only public flags from the already-delivered readiness read; never IDs or content. */
+export function p181PreparationTuple(value, original) {
+  if (!value) return null;
+  const roles = ['player', 'gm', 'admiral', 'wing-commander'];
+  const bool = key => typeof value[key] === 'boolean' ? value[key] : null;
+  const epoch = key => Number.isSafeInteger(value[key]) && value[key] >= 0 ? value[key] : null;
+  const role = key => value[key] == null ? null : roles.includes(value[key]) ? value[key] : 'other';
+  return { sampledAtMs: Date.now(), hasAuth: bool('hasAuth'), sameActor: bool('sameActor'),
+    ...Object.fromEntries(['uidHash', 'sessionId', 'meSessionId', 'documentTimeOrigin', 'fleetGroupId', 'instanceId']
+      .map(key => [key + 'MatchesOriginal', original && value[key] != null ? value[key] === original[key] : null])),
+    playerRole: role('playerRole'), assignedRoleId: role('assignedRoleId'),
+    activeConsoleRoleId: role('activeConsoleRoleId'), seatId: role('seatId'),
+    connectionGeneration: epoch('connectionGeneration'), identityHydrationRevision: epoch('identityHydrationRevision'),
+    phase: ['lobby', 'casting', 'active', 'paused', 'debrief', 'closed'].includes(value.phase) ? value.phase : null,
+    cycle: epoch('cycle'), connection: ['live', 'offline', 'connecting'].includes(value.connection) ? value.connection : null,
+    freshness: ['server', 'cache'].includes(value.freshness) ? value.freshness : null,
+    ...Object.fromEntries(['connected', 'currentOwnPlayerConfirmed', 'setupConfirmed', 'memberScopeMatches',
+      'currentMemberBerthPresent', 'currentMemberBerthNull', 'currentMemberBerthMatches', 'currentCanonicalSeatOwned',
+      'sdkHasServerAuthority', 'sdkResumePending', 'kicked', 'escapeLocked', 'gmInstanceOwned',
+      'recoveryPending', 'briefingPresent'].map(key => [key, bool(key)])),
+    replacementPresent: value.replacementRoleId != null || value.replacementStatus != null,
+    invalidFieldsPresent: !Array.isArray(value.invalidFields) || value.invalidFields.length !== 0 };
+}
+
+/** The current page is redacted in place, then restored even on failure. No raw-page fallback. */
+export async function captureP181PreparationPublicUi(surface, deadlineAt, cleanupDeadlineAt = deadlineAt) {
+  const token = 'p181-public-' + Date.now();
+  let installed = false;
+  try {
+    const dom = await p181BoundedWork('Capture only public preparation DOM', () => surface.page.evaluate(token => {
+      const rows = [], approved = [], roots = [];
+      const visible = node => node.getClientRects().length > 0 && getComputedStyle(node).visibility !== 'hidden';
+      for (const [selector, kind, allowed] of [
+        ['.indicator', 'connection', ['Offline', 'CONNECTED', 'In session', 'RECONNECTING TO SESSION', 'CONNECTED // AWAITING CIC AUTHENTICATION']],
+        ['main .role-select__title', 'heading', ['Stations and consoles', 'AEGIS // Station overview']],
+        ['.fleet-card__console-link, .ship-role-select .role-card', 'station',
+          ['Admiral', 'Wing Commander'].flatMap(role => ['OPEN', 'HELD BY YOU', 'CLAIMED // READ-ONLY', 'OCCUPIED // READ-ONLY']
+            .map(status => role + ' ' + status))],
+      ]) {
+        for (const node of document.querySelectorAll(selector)) {
+          if (!visible(node)) continue;
+          const text = node.textContent.replace(/\s+/g, ' ').trim();
+          // These real links render adjacent label/status spans. Match only
+          // the entire static known label, retaining canonical public spacing.
+          const canonical = allowed.find(label => label === text || kind === 'station' &&
+            label.replace(/\s+/g, '') === text.replace(/\s+/g, ''));
+          if (!canonical) continue;
+          const nodes = [node, ...node.querySelectorAll('*')];
+          if (nodes.some(child => !['A', 'H1', 'SPAN', 'STRONG'].includes(child.tagName) ||
+              getComputedStyle(child).backgroundImage !== 'none')) continue;
+          approved.push(...nodes); roots.push({ node, text }); rows.push({ kind, text: canonical });
+        }
+      }
+      if (rows.length === 0) throw new Error('Public preparation capture unavailable.');
+      const style = document.createElement('style'); style.id = token;
+      style.textContent = 'html, body, body * { visibility: hidden !important; background-image: none !important; } ' +
+        'body [data-p181-public-capture="' + token + '"] { visibility: visible !important; } ' +
+        '*::before, *::after, *::marker { content: none !important; }';
+      if (approved.some(node => node.hasAttribute('data-p181-public-capture')))
+        throw new Error('Public capture already owns this element.');
+      for (const node of approved) node.setAttribute('data-p181-public-capture', token);
+      document.head.append(style);
+      // A late render cannot turn an approved public label into visible private
+      // text between validation and screenshot. Mutation callbacks run before paint.
+      const observer = new MutationObserver(() => {
+        for (const { node, text } of roots) if (node.textContent.replace(/\s+/g, ' ').trim() !== text ||
+            [node, ...node.querySelectorAll('*')].some(child => !['A', 'H1', 'SPAN', 'STRONG'].includes(child.tagName) ||
+              getComputedStyle(child).backgroundImage !== 'none')) {
+          for (const child of [node, ...node.querySelectorAll('*')]) child.removeAttribute('data-p181-public-capture');
+        }
+      });
+      for (const { node } of roots) observer.observe(node, { subtree: true, childList: true, characterData: true, attributes: true });
+      style.__p181StopPublicCapture = () => observer.disconnect();
+      return { label: 'privacy-redacted current-page diagnostic', publicDom: rows,
+        omissions: 'All other page content, inputs, images, private role text and identifiers are hidden; viewport only.',
+        source: 'actual current visible allowlisted public elements', observedAtMs: Date.now() };
+    }, token), deadlineAt);
+    installed = true;
+    const screenshot = await p181BoundedWork('Capture privacy-redacted current actor screenshot', () =>
+      surface.page.screenshot({ timeout: Math.max(1, deadlineAt - Date.now()), fullPage: false }), deadlineAt);
+    return { ...dom, screenshot };
+  } finally {
+    // Restoration uses the original owned page. Even a failed installation may
+    // have tagged elements; no hidden input values or text are read here.
+    if (installed || surface.page) await p181BoundedWork('Restore original current-page capture redaction', () => surface.page.evaluate(token => {
+      for (const node of document.querySelectorAll('[data-p181-public-capture]'))
+        if (node.getAttribute('data-p181-public-capture') === token) node.removeAttribute('data-p181-public-capture');
+      const style = document.getElementById(token); style?.__p181StopPublicCapture?.(); style?.remove();
+    }, token), Math.min(cleanupDeadlineAt, Date.now() + 2_000));
+  }
+}
+
+/** One intentional new document, using only normal App bootstrap and its captured resume. */
+export async function recoverP181AdmiralPreparation({ surface, admitted, assigned, assignment, oldAuthority,
+  oldNavigation, directory, deadlineAt, readCurrent, note = () => {},
+  retainAuthority = retainP181MemberAuthority }) {
+  assert.ok(admitted.currentMemberBerthPresent === true && admitted.currentMemberBerthNull === true &&
+    pc11MemberReadiness(assigned, { sessionId: admitted.sessionId, uidHash: admitted.uidHash,
+      roleId: 'admiral', stage: 'casting', connectionGeneration: admitted.connectionGeneration,
+      identityHydrationRevision: admitted.identityHydrationRevision }) && assigned.memberScopeMatches === true &&
+    assigned.fleetGroupId === admitted.fleetGroupId && assigned.documentTimeOrigin === admitted.documentTimeOrigin &&
+    assigned.sdkResumePending === false && assigned.currentMemberBerthPresent === true &&
+    assigned.currentMemberBerthNull === true && oldNavigation.resumeRequestCount() === 0,
+  'Only the original current assigned-unseated null Admiral may use preparation reload.');
+  await oldAuthority.check();
+  const navigation = createMemberNavigationResumeObserver(surface.page, { directory, roleId: 'admiral', deadlineAt,
+    proofProfile: 'wing-bays', memberContract: 'pc11-live-base', transition: 'casting-assignment', documentReload: true,
+    expectedGmUidHash: assignment.before.uidHash, expectedGmInstanceId: assignment.before.instanceId });
+  let guard, failure, navigationFinished = false;
+  const work = async (label, action) => {
+    note(label, 'start');
+    try { const value = await p181BoundedWork(label, action, deadlineAt); note(label, 'fulfilled'); return value; }
+    catch (error) { note(label, 'rejected'); throw error; }
+  };
+  try {
+    await work('Prepare original Admiral reload receipt observer', () => navigation.prepare(admitted));
+    assert.equal(oldNavigation.resumeRequestCount(), 0, 'An ordinary resume already owns this preparation.');
+    await work('Close original Admiral prior-document observation', () => oldAuthority.close());
+    await work('Close original Admiral prior-document request observer', () => oldNavigation.finish());
+    await work('Reload original Admiral page/context', () => surface.page.reload({ waitUntil: 'domcontentloaded',
+      timeout: Math.max(1, Math.min(35_000, deadlineAt - Date.now())) }));
+    guard = await work('Observe original restored Admiral Auth', () => retainAuthority(surface, deadlineAt,
+      { mode: 'auth-only', proofProfile: 'wing-bays', memberRoleId: 'admiral',
+        expected: { sessionId: admitted.sessionId, uidHash: admitted.uidHash } }));
+    await work('Wait for original Admiral Auth restoration', () => surface.page.evaluate(async () => {
+      const { auth } = await import('/src/lib/firebase.ts'); await auth().authStateReady();
+    }));
+    while (Date.now() < deadlineAt) {
+      await guard.check();
+      const current = await work('Read original Admiral reload member/SDK', readCurrent);
+      navigation.sample(current);
+      const accepted = await work('Accept original Admiral preparation reload receipt', () =>
+        navigation.accept(admitted, current, readCurrent, assignment));
+      if (accepted) {
+        await guard.check();
+        await work('Bind accepted original Admiral new-document member', () => guard.pin({ mode: 'startup',
+          memberRoleId: 'admiral', proofProfile: 'wing-bays', expected: accepted }));
+        await work('Finish accepted original Admiral reload receipt observer', () => navigation.finish());
+        navigationFinished = true;
+        assert.equal((await guard.check()).fresh, true, 'Accepted Admiral reload must retain current positive SDK authority.');
+        return { accepted, authority: guard };
+      }
+      await work('Wait for original Admiral reload projection', () => Promise.race([
+        delay(Math.min(100, deadlineAt - Date.now())), guard.failed]));
+    }
+    throw new Error('Original Admiral preparation reload deadline expired.');
+  } catch (error) { failure = error; await guard?.close().catch(() => {}); throw error; }
+  finally {
+    if (!navigationFinished) {
+      // finish detaches its listeners synchronously; evidence I/O cannot renew
+      // an expired preparation cutoff or replace the original failure.
+      const detached = navigation.finish(failure); detached.catch(() => {});
+      if (Date.now() < deadlineAt) await work('Finish failed original Admiral reload receipt observer',
+        () => detached).catch(() => {});
+    }
+  }
+}
+
 
 function requireActor(current, expected, label = 'Current Wing Commander') {
   assert.ok(p181ActorReady(current, expected),
@@ -1751,6 +1911,24 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
           (!held.authority || sdk?.hasServerSessionAuthority === true && pending === false) &&
           ['playerDiscovery', 'shipGalacticCoordinates', 'shipNavigationLogs', 'currentGroupCandidateReveals', 'voyage33Movement']
             .every(key => !Object.hasOwn(session, key)));
+        // Admiral's local null must have its own real accepted-CAS SDK origin.
+        // The existing Wing representation above is intentionally unchanged.
+        startupProjectionWithheld ||= Boolean(berth === null && held.options.memberRoleId === 'admiral' &&
+          held.startupOwnedBerth?.shipId === 'aegis' && pin &&
+          origin?.kind === 'app-admiral-first-entry-withheld' && sdk?.hasServerSessionAuthority === true && pending === false &&
+          typeof held.admiralEntryIsCurrent === 'function' &&
+          held.admiralEntryIsCurrent(sdk, origin, state, user.uid, held.timeOrigin) &&
+          origin.sessionId === session.id && origin.actorUid === user.uid && origin.groupId === me.fleetGroupId &&
+          origin.assignedRoleId === 'admiral' && me.assignedRoleId === 'admiral' &&
+          origin.seatId === 'admiral' && me.seatId === 'admiral' && ownsSeat &&
+          origin.activeConsoleRoleId === (me.activeConsoleRoleId ?? null) &&
+          origin.documentTimeOrigin === held.timeOrigin && origin.sourceConnectionGeneration === pin.generation &&
+          origin.connectionGeneration === me.connectionGeneration && origin.sourceConnectionGeneration === origin.connectionGeneration &&
+          origin.sourceIdentityHydrationRevision === pin.hydration &&
+          origin.identityHydrationRevision === state.identityHydrationRevision &&
+          origin.sourceIdentityHydrationRevision === origin.identityHydrationRevision &&
+          ['playerDiscovery', 'shipGalacticCoordinates', 'shipNavigationLogs', 'currentGroupCandidateReveals', 'voyage33Movement']
+            .every(key => !Object.hasOwn(session, key)));
         if (held.startupOwnedBerth && !startupProjectionWithheld && (!berth || berth.actorUid !== user.uid || berth.groupId !== me.fleetGroupId ||
             berth.shipId !== held.startupOwnedBerth.shipId || berth.role !== 'player'))
           throw startupBerthFailure(berth);
@@ -1851,7 +2029,12 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
         held.firstPinContext ??= held.lastObservation;
         held.signature = signature;
       }
-      held.fresh = state.connection === 'live' && state.sessionSnapshotFreshness === 'server' &&
+      const currentBerth = session.currentActorBerthAuthority;
+      const admiralProjectionMatches = !startup || held.options.memberRoleId !== 'admiral' || Boolean(currentBerth &&
+        currentBerth.actorUid === user.uid && currentBerth.sessionId === session.id && currentBerth.groupId === me.fleetGroupId &&
+        currentBerth.assignedRoleId === me.assignedRoleId && currentBerth.activeConsoleRoleId === (me.activeConsoleRoleId ?? null) &&
+        currentBerth.connectionGeneration === me.connectionGeneration);
+      held.fresh = admiralProjectionMatches && state.connection === 'live' && state.sessionSnapshotFreshness === 'server' &&
         sdk?.hasServerSessionAuthority === true && !pending && me.connected === true && !castingProjectionWithheld && !startupProjectionWithheld &&
         !castingInitialAdmissionPending &&
         (!castingAssignment || !held.castingProjectionWithheldSeen || castingProjectionConfirmed);
@@ -1889,6 +2072,7 @@ export async function retainP181MemberAuthority(surface, deadlineAt, options = {
       requireOpen();
       held.authority = sdk.sessionSnapshotAuthorityFor;
       held.resumePending = sdk.memberSessionResumeBlocksFreshness;
+      held.admiralEntryIsCurrent = sdk.admiralFirstEntryProjectionIsCurrent;
       observe(); requireOpen();
     };
     held.check = async () => { try {
@@ -3610,10 +3794,26 @@ async function p181RunStarlightMovementScoutNative(options) {
   const trace = [];
   let normalOperationsStopped = false;
   const operationDeadline = () => Math.min(proofStopAt, Date.now() + P181_NATIVE_TIMING.operationTimeoutMs);
+  const normalPreparationDiagnostic = { active: false, frozen: false, actorRole: null, surface: null,
+    activeAwaitedOperation: null, pendingReadiness: null, steps: [] };
+  const markPreparationActor = (surface, operation) => {
+    if (!normalPreparationDiagnostic.active || normalPreparationDiagnostic.frozen) return;
+    const actorRole = surface === gm ? 'gm' : surface === wingCommander ? 'wing-commander' :
+      surface === admiral ? 'admiral' : null;
+    if (normalPreparationDiagnostic.surface !== surface) normalPreparationDiagnostic.pendingReadiness = null;
+    Object.assign(normalPreparationDiagnostic, { actorRole, surface: actorRole ? surface : null,
+      activeAwaitedOperation: operation });
+  };
   const bounded = async (label, operation, deadlineAt = cleanupDeadlineAt, hold = () => {}, finalizationOnly = false) => {
     const budget = deadlineAt - Date.now();
     assert.ok(budget > 0, `${label}: original finite P181 deadline expired.`);
     let timer, delivered;
+    const step = normalPreparationDiagnostic.active && !normalPreparationDiagnostic.frozen ? {
+      ordinal: normalPreparationDiagnostic.steps.length + 1, actorRole: normalPreparationDiagnostic.actorRole,
+      operation: normalPreparationDiagnostic.activeAwaitedOperation ?? 'normal-preparation.source-await',
+      sourceLabelFingerprint: fingerprint(label), startedAtMs: Date.now(), completedAtMs: null, status: 'pending',
+    } : null;
+    if (step) normalPreparationDiagnostic.steps.push(step);
     try {
       if (!finalizationOnly) {
         ownerStop.check();
@@ -3630,35 +3830,46 @@ async function p181RunStarlightMovementScoutNative(options) {
         timer = setTimeout(() => reject(new Error(`${label}: original finite P181 deadline expired.`)), budget);
       }), ...(finalizationOnly ? [] : [ownerStop.failed])]);
       assert.ok(Date.now() < deadlineAt, `${label}: result arrived after the original finite P181 deadline.`);
+      if (step && !normalPreparationDiagnostic.frozen) Object.assign(step, { completedAtMs: Date.now(), status: 'fulfilled' });
       return result;
     } catch (error) {
+      if (step && !normalPreparationDiagnostic.frozen) Object.assign(step, { completedAtMs: Date.now(), status: 'rejected' });
       rememberProofFailure(error, { operation: label, deadlineAt, delivered });
       throw error;
     } finally { clearTimeout(timer); }
   };
   const finalizationBounded = (label, operation, deadlineAt, hold) => bounded(label, operation, deadlineAt, hold, true);
   let adminRequire, db, authAdmin, adminApp, factory;
-  const normalPreparationDiagnostic = { activeAwaitedOperation: null };
   const retainFirstFailure = async (error, { deadlineAt = cleanupDeadlineAt } = {}) => {
     if (privateFailureArtifact) return privateFailureArtifact;
-    const normalPreparation = { activeAwaitedOperation: normalPreparationDiagnostic.activeAwaitedOperation };
-    if (normalPreparation.activeAwaitedOperation ===
-        'Original Wing Commander normal role chooser/seat claim' &&
-        typeof wingCommander?.page?.screenshot === 'function') {
+    normalPreparationDiagnostic.frozen = true;
+    const activeAtFailure = normalPreparationDiagnostic.active === true;
+    const normalPreparation = { activeAtFailure,
+      actorRole: activeAtFailure ? normalPreparationDiagnostic.actorRole : null,
+      activeAwaitedOperation: activeAtFailure ? normalPreparationDiagnostic.activeAwaitedOperation : null,
+      pendingReadiness: activeAtFailure ? normalPreparationDiagnostic.pendingReadiness : null,
+      steps: normalPreparationDiagnostic.steps.map(step => ({ ...step })), frozenAtMs: Date.now() };
+    if (!activeAtFailure) normalPreparation.completedHistory = {
+      lastActorRole: normalPreparationDiagnostic.actorRole, lastPendingReadiness: normalPreparationDiagnostic.pendingReadiness,
+      completedAtMs: normalPreparationDiagnostic.completedAtMs ?? null };
+    const currentSurface = activeAtFailure ? normalPreparationDiagnostic.surface : null;
+    if (currentSurface && typeof currentSurface.page?.screenshot === 'function') {
       const diagnosticDeadlineAt = Math.min(deadlineAt, cleanupDeadlineAt, Date.now() + 5_000);
       try {
-        const screenshot = await finalizationBounded('Capture original Wing Commander station readiness screenshot',
-          () => wingCommander.page.screenshot({
-            timeout: Math.max(1, Math.min(5_000, diagnosticDeadlineAt - Date.now())),
-          }), diagnosticDeadlineAt);
+        const captured = await captureP181PreparationPublicUi(currentSurface, diagnosticDeadlineAt, cleanupDeadlineAt);
         const path = resolve(directory, 'p181-normal-preparation-failure.png');
-        await finalizationBounded('Save original Wing Commander station readiness screenshot',
-          () => writeFile(path, screenshot, { flag: 'wx', mode: 0o600 }), diagnosticDeadlineAt);
-        normalPreparation.screenshot = { path, sha256: createHash('sha256').update(screenshot).digest('hex') };
+        await finalizationBounded('Save privacy-redacted current preparation screenshot',
+          () => writeFile(path, captured.screenshot, { flag: 'wx', mode: 0o600 }), diagnosticDeadlineAt);
+        normalPreparation.publicUiCapture = { ...captured, screenshot: undefined,
+          actorRole: normalPreparation.actorRole, path, sha256: createHash('sha256').update(captured.screenshot).digest('hex'),
+          renderedOrUsabilityAcceptance: false };
       } catch (screenshotError) {
-        normalPreparation.screenshotError = screenshotError;
+        normalPreparation.publicUiCapture = { status: 'failed-closed', error: safeP181Error(screenshotError),
+          rawPageFallback: false, primaryErrorPreserved: true };
       }
-    }
+    } else normalPreparation.publicUiCapture = { status: 'failed-closed',
+      reason: activeAtFailure ? 'current-surface-unavailable' : 'preparation-inactive',
+      rawPageFallback: false, primaryErrorPreserved: true };
     // These are already-held facts. Freeze the original private disk record
     // before any owned teardown, including teardown begun by the UI wrapper.
     rememberProofFailure(error, { sourceCommit,
@@ -3963,10 +4174,16 @@ async function p181RunStarlightMovementScoutNative(options) {
     ownedAuthUids.set(label, uid);
     return { uid, uidHash: hashShort(uid) };
   };
-  const readFullActor = async (surface, deadlineAt = operationDeadline()) => bounded(
-    'Read original Auth/session/SDK readiness tuple', () => observeFullGameDemoPresentationMember(surface,
-      { knownRoleIds: P181_NORMAL_SETUP.roleIds }), deadlineAt);
+  const readFullActor = async (surface, deadlineAt = operationDeadline()) => {
+    markPreparationActor(surface, 'readFullActor.await-member-read');
+    return bounded('Read original Auth/session/SDK readiness tuple', () => observeFullGameDemoPresentationMember(surface,
+      { knownRoleIds: P181_NORMAL_SETUP.roleIds }), deadlineAt, current => {
+      if (normalPreparationDiagnostic.active && !normalPreparationDiagnostic.frozen)
+        normalPreparationDiagnostic.pendingReadiness = p181PreparationTuple(current);
+    });
+  };
   const waitForFullActor = async (surface, description, predicate, deadlineAt, normalNavigationFrom, authorityOverride) => {
+    markPreparationActor(surface, 'waitForFullActor.entry');
     const readDeadlineAt = Math.min(deadlineAt, Date.now() + P181_NATIVE_TIMING.operationTimeoutMs);
     let current, original, latestGeneration = 0, latestHydration = 0;
     const actorLabel = surface === gm ? 'gm' : surface.label === 'normal-admiral' ? 'admiral' : 'wing-commander';
@@ -3980,8 +4197,14 @@ async function p181RunStarlightMovementScoutNative(options) {
     try {
     while (Date.now() < readDeadlineAt) {
       rejectionBoundary = 'await-member-read';
+      if (normalPreparationDiagnostic.active && !normalPreparationDiagnostic.frozen)
+        normalPreparationDiagnostic.activeAwaitedOperation = `waitForFullActor.${rejectionBoundary}`;
       current = await Promise.race([readFullActor(surface, readDeadlineAt), authority.failed]);
+      if (normalPreparationDiagnostic.active && !normalPreparationDiagnostic.frozen)
+        normalPreparationDiagnostic.pendingReadiness = p181PreparationTuple(current, normalNavigationFrom ?? original);
       rejectionBoundary = 'retained-authority-check';
+      if (normalPreparationDiagnostic.active && !normalPreparationDiagnostic.frozen)
+        normalPreparationDiagnostic.activeAwaitedOperation = `waitForFullActor.${rejectionBoundary}`;
       const retainedReadiness = await authority.check();
       rejectionBoundary = 'caller-authority-assertions';
       assert.ok(Date.now() < readDeadlineAt, `${description}: readiness tuple arrived after its original deadline.`);
@@ -4015,6 +4238,8 @@ async function p181RunStarlightMovementScoutNative(options) {
       }
       if (predicate(current) && (!authorityOverride || retainedReadiness?.fresh === true)) return current;
       rejectionBoundary = 'false-readiness-hold';
+      if (normalPreparationDiagnostic.active && !normalPreparationDiagnostic.frozen)
+        normalPreparationDiagnostic.activeAwaitedOperation = `waitForFullActor.${rejectionBoundary}`;
       await bounded(`${description}: readiness retry interval`,
         () => Promise.race([delay(Math.min(200, readDeadlineAt - Date.now())), authority.failed]), readDeadlineAt);
     }
@@ -4037,12 +4262,15 @@ async function p181RunStarlightMovementScoutNative(options) {
       }
     }
   };
-  const readGmRecoveryPending = (surface, deadlineAt = operationDeadline()) => bounded(
-    'Read original GM recovery state', () => surface.page.evaluate(async moduleUrl => {
+  const readGmRecoveryPending = (surface, deadlineAt = operationDeadline()) => {
+    markPreparationActor(surface, 'readGmRecoveryPending.await-recovery-flag');
+    return bounded('Read original GM recovery state', () => surface.page.evaluate(async moduleUrl => {
       const { useSessionStore } = await import(moduleUrl);
       return useSessionStore.getState().gmRecoveryPending;
     }, surface.storeModuleUrl()), deadlineAt);
+  };
   const waitForGm = async (deadlineAt, { active = false, instanceId = gmInstanceId } = {}) => {
+    markPreparationActor(gm, 'waitForGm.entry');
     const readDeadlineAt = Math.min(deadlineAt, Date.now() + P181_NATIVE_TIMING.operationTimeoutMs);
     let member, recoveryPending, original;
     const authority = await bounded('Retain original GM startup authority', () =>
@@ -4070,6 +4298,8 @@ async function p181RunStarlightMovementScoutNative(options) {
       if (original.sdkResumePending === false) assert.equal(member.sdkResumePending, false);
       rejectionBoundary = 'await-gm-recovery-flag';
       recoveryPending = await Promise.race([readGmRecoveryPending(gm, readDeadlineAt), authority.failed]);
+      if (normalPreparationDiagnostic.active && !normalPreparationDiagnostic.frozen)
+        normalPreparationDiagnostic.pendingReadiness = p181PreparationTuple({ ...member, recoveryPending }, original);
       rejectionBoundary = 'gm-recovery-authority-check';
       await authority.check();
       // Re-read after the awaited recovery flag. Never return the earlier DTO
@@ -4104,6 +4334,7 @@ async function p181RunStarlightMovementScoutNative(options) {
     finally { try { await authority.close(); } catch (error) { if (!failure) throw error; } }
   };
   async function captureAction(surface, endpoint, choose, deadlineAt) {
+    markPreparationActor(surface, `captureAction.${endpoint}`);
     const choiceDeadlineAt = Math.min(deadlineAt, Date.now() + 35_000);
     deadlineAt = Math.min(deadlineAt, Date.now() + P181_NATIVE_TIMING.operationTimeoutMs);
     const before = await bounded('Observe original actor before native action',
@@ -4409,6 +4640,8 @@ async function p181RunStarlightMovementScoutNative(options) {
     const normalStart = {
       async prepare({ initial: fresh, deadlineAt, setup }) {
         deadlineAt = Math.min(deadlineAt, operationDeadline());
+        normalPreparationDiagnostic.active = true;
+        markPreparationActor(gm, 'normal-preparation.gm-claim-and-setup');
         assert.ok(Date.now() < deadlineAt && deadlineAt <= proofStopAt);
         assert.equal(fresh.sessionId, sessionId);
         assert.equal(fresh.phase, 'lobby');
@@ -4458,6 +4691,7 @@ async function p181RunStarlightMovementScoutNative(options) {
         async function admitOriginalMember(memberSurface, memberRoleId) {
           assert.ok(memberRoleId === 'wing-commander' || proofProfile === 'wing-bays' && memberRoleId === 'admiral');
           const memberName = memberRoleId === 'admiral' ? 'Admiral' : 'Wing Commander';
+          markPreparationActor(memberSurface, 'normal-preparation.member-admission');
           await bounded(`Open original ${memberName} admission page`,
             () => memberSurface.page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: P181_NATIVE_TIMING.pageTimeoutMs }), deadlineAt);
           await bounded(`Set original ${memberName} browser motion preference`,
@@ -4515,6 +4749,10 @@ async function p181RunStarlightMovementScoutNative(options) {
           const castingDeadlineAt = Math.min(deadlineAt, Date.now() + P181_NATIVE_TIMING.operationTimeoutMs);
           let castingAuthority, assignment, navigationStart, navigation, castingFailure, castingCurrent;
           let castingRejectionBoundary = 'casting-resume-prepare';
+          const markCastingBoundary = boundary => {
+            castingRejectionBoundary = boundary;
+            markPreparationActor(memberSurface, 'casting-assignment.' + boundary);
+          };
           let castingResumeNotice = Promise.resolve(), castingResumeNoticeError;
           const noteCastingResumeRequest = resume => {
             if (!castingAuthority) throw new Error('Original casting authority was not armed before ordinary resume.');
@@ -4530,10 +4768,10 @@ async function p181RunStarlightMovementScoutNative(options) {
             onCastingResumeRequest: noteCastingResumeRequest });
           assert.ok(castingResume, 'Observe the original member’s ordinary casting resume before assignment.');
           try {
-            castingRejectionBoundary = 'casting-resume-prepare';
+            markCastingBoundary('casting-resume-prepare');
             await bounded('Prepare original casting assignment resume observer',
               () => castingResume.prepare(admitted), castingDeadlineAt);
-            castingRejectionBoundary = 'retained-authority-open';
+            markCastingBoundary('retained-authority-open');
             castingAuthority = await bounded('Retain original casting assignment authority', () =>
               retainP181MemberAuthority(memberSurface, castingDeadlineAt, { mode: 'casting-assignment', proofProfile,
                 castingRoleId: memberRoleId, castingAdmission: admitted,
@@ -4541,11 +4779,11 @@ async function p181RunStarlightMovementScoutNative(options) {
                   fleetGroupId: admitted.fleetGroupId, connectionGeneration: admitted.connectionGeneration,
                   identityHydrationRevision: admitted.identityHydrationRevision,
                   documentTimeOrigin: admitted.documentTimeOrigin } }), castingDeadlineAt);
-            castingRejectionBoundary = 'gm-assign-role-receipt';
+            markCastingBoundary('gm-assign-role-receipt');
             assignment = await captureAction(gm, 'assignRole', () =>
               casting.getByRole('button', { name: `Assign role to ${displayName}`, exact: true })
                 .click({ timeout: Math.min(35_000, castingDeadlineAt - Date.now()) }), castingDeadlineAt);
-            castingRejectionBoundary = 'ordinary-resume-request-receipt';
+            markCastingBoundary('ordinary-resume-request-receipt');
             await castingResumeNotice;
             if (castingResumeNoticeError) throw castingResumeNoticeError;
             const castingReady = value => pc11MemberReadiness(value, { sessionId, uidHash: admittedAuth.uidHash,
@@ -4553,47 +4791,92 @@ async function p181RunStarlightMovementScoutNative(options) {
               value.phase === 'casting' && value.cycle === 0 && value.sdkResumePending === false &&
               value.currentMemberBerthPresent === true && value.currentMemberBerthNull === false &&
               value.currentMemberBerthMatches === true;
-            while (Date.now() < castingDeadlineAt) {
-              castingRejectionBoundary = 'casting-readiness-consumer';
+            if (memberRoleId === 'admiral' && admitted.currentMemberBerthPresent === true && admitted.currentMemberBerthNull === true) {
+              // A real assigned unseated publication is an ordinary role intent,
+              // not ship/private readiness. No synthetic map or online event.
+              while (Date.now() < castingDeadlineAt && castingResume.resumeRequestCount() === 0) {
+                markCastingBoundary('assigned-unseated-current-publication');
+                castingCurrent = await readFullActor(memberSurface, castingDeadlineAt);
+                normalPreparationDiagnostic.pendingReadiness = p181PreparationTuple(castingCurrent, admitted);
+                await castingAuthority.check();
+                if (pc11MemberReadiness(castingCurrent, { sessionId, uidHash: admittedAuth.uidHash,
+                    roleId: 'admiral', stage: 'casting', connectionGeneration: admitted.connectionGeneration,
+                    identityHydrationRevision: admitted.identityHydrationRevision }) &&
+                    castingCurrent.sdkResumePending === false && castingCurrent.memberScopeMatches === true &&
+                    castingCurrent.currentMemberBerthPresent === true && castingCurrent.currentMemberBerthNull === true) {
+                  markCastingBoundary('explicit-preparation-document-recovery');
+                  const recovered = await recoverP181AdmiralPreparation({ surface: memberSurface, admitted,
+                    assigned: castingCurrent, assignment, oldAuthority: castingAuthority, oldNavigation: castingResume,
+                    directory, deadlineAt: castingDeadlineAt,
+                    readCurrent: async () => {
+                      const current = await readFullActor(memberSurface, castingDeadlineAt);
+                      normalPreparationDiagnostic.pendingReadiness = p181PreparationTuple(current, admitted);
+                      return current;
+                    }, note: (operation, status) => {
+                      if (normalPreparationDiagnostic.frozen) return;
+                      normalPreparationDiagnostic.activeAwaitedOperation = operation;
+                      if (status === 'start') normalPreparationDiagnostic.steps.push({
+                        ordinal: normalPreparationDiagnostic.steps.length + 1, actorRole: 'admiral', operation,
+                        startedAtMs: Date.now(), completedAtMs: null, status: 'pending' });
+                      else {
+                        const step = [...normalPreparationDiagnostic.steps].reverse()
+                          .find(step => step.operation === operation && step.status === 'pending');
+                        if (step) Object.assign(step, { status, completedAtMs: Date.now() });
+                      }
+                    } });
+                  castingCurrent = recovered.accepted; castingAuthority = recovered.authority;
+                  navigationStart = recovered.accepted;
+                  navigation = createMemberNavigationResumeObserver(memberSurface.page, { directory,
+                    roleId: memberRoleId, deadlineAt, proofProfile, memberContract: 'pc11-live-base' });
+                  await bounded('Prepare original station navigation after Admiral reload',
+                    () => navigation.prepare(navigationStart), castingDeadlineAt);
+                  break;
+                }
+                await bounded('Wait for current original assigned-unseated Admiral', () =>
+                  Promise.race([delay(Math.min(100, castingDeadlineAt - Date.now())), castingAuthority.failed]), castingDeadlineAt);
+              }
+            }
+            while (!navigationStart && Date.now() < castingDeadlineAt) {
+              markCastingBoundary('casting-readiness-consumer');
               castingCurrent = await waitForFullActor(memberSurface,
                 `Original normal ${memberName} assignment readiness before station navigation`, castingReady,
                 castingDeadlineAt, admitted, castingAuthority);
-              castingRejectionBoundary = 'ordinary-resume-request-receipt';
+              markCastingBoundary('ordinary-resume-request-receipt');
               await castingResumeNotice;
               if (castingResumeNoticeError) throw castingResumeNoticeError;
-              castingRejectionBoundary = 'pre-acceptance-retained-authority-check';
+              markCastingBoundary('pre-acceptance-retained-authority-check');
               const preAcceptanceFresh = (await castingAuthority.check()).fresh === true;
-              castingRejectionBoundary = 'casting-resume-acceptance';
+              markCastingBoundary('casting-resume-acceptance');
               const accepted = preAcceptanceFresh
                 ? await castingResume.accept(admitted, castingCurrent,
                   () => readFullActor(memberSurface, castingDeadlineAt), assignment) : false;
               // Acceptance may await receipt persistence. Recheck the same
               // retained authority before publishing its navigation binding.
-              castingRejectionBoundary = 'post-acceptance-retained-authority-check';
+              markCastingBoundary('post-acceptance-retained-authority-check');
               if (accepted && (await castingAuthority.check()).fresh === true) {
                 navigation = createMemberNavigationResumeObserver(memberSurface.page, { directory,
                   roleId: memberRoleId, deadlineAt, proofProfile, memberContract: 'pc11-live-base' });
-                castingRejectionBoundary = 'station-navigation-prepare';
+                markCastingBoundary('station-navigation-prepare');
                 await bounded('Prepare original station navigation observer',
                   () => navigation.prepare(accepted), deadlineAt);
                 // Preparation also persists asynchronously. Publish onward
                 // authority only after its current-fresh check; an unavailable
                 // interval must release this prepared observer before retry.
-                castingRejectionBoundary = 'post-navigation-prepare-retained-authority-check';
+                markCastingBoundary('post-navigation-prepare-retained-authority-check');
                 if ((await castingAuthority.check()).fresh === true) {
                   navigationStart = accepted;
                   break;
                 }
-                castingRejectionBoundary = 'close-pending-station-navigation-observer';
+                markCastingBoundary('close-pending-station-navigation-observer');
                 await bounded('Close original pending station navigation observer',
                   () => navigation.finish(), castingDeadlineAt);
                 navigation = undefined;
               }
-              castingRejectionBoundary = 'casting-resume-acceptance-hold';
+              markCastingBoundary('casting-resume-acceptance-hold');
               await bounded('Wait for original casting resume acceptance', () =>
                 Promise.race([delay(Math.min(100, castingDeadlineAt - Date.now())), castingAuthority.failed]), castingDeadlineAt);
             }
-            castingRejectionBoundary = 'casting-accepted-navigation-binding';
+            markCastingBoundary('casting-accepted-navigation-binding');
             assert.ok(navigationStart, 'Original casting assignment did not reach captured normal resume acceptance.');
           } catch (error) {
             castingFailure = retainP181CallerRejection(error, `casting-assignment.${castingRejectionBoundary}`,
@@ -4638,6 +4921,8 @@ async function p181RunStarlightMovementScoutNative(options) {
             station = await waitForFullActor(memberSurface, `Original ${memberName} normal role chooser/seat claim`, value =>
               pc11MemberReadiness(value, { sessionId, uidHash: admittedAuth.uidHash,
                 roleId: memberRoleId, stage: 'station' }) && value.memberScopeMatches === true &&
+                value.currentMemberBerthPresent === true && value.currentMemberBerthNull === false &&
+                value.currentMemberBerthMatches === true &&
                 value.sdkResumePending === false,
             deadlineAt, navigationStart);
             normalPreparationDiagnostic.activeAwaitedOperation = null;
@@ -4723,6 +5008,9 @@ async function p181RunStarlightMovementScoutNative(options) {
           uidHash: admittedAuth.uidHash, sessionId }, ...(admiralPrepared ? [{ roleId: 'admiral',
           uidHash: admiralPrepared.admittedAuth.uidHash, sessionId }] : [])];
         trace.push('startGame', 'clearTurnAdvanceInterstitial');
+        normalPreparationDiagnostic.active = false;
+        normalPreparationDiagnostic.completedAtMs = Date.now();
+        normalPreparationDiagnostic.activeAwaitedOperation = null;
         return { initial: confirmedInitial, started, roster, gm: gmReady,
           expectedWingCommander: { ...station, sessionId, uidHash: admittedAuth.uidHash,
             roleId: P181_NORMAL_SETUP.wingCommanderRoleId },

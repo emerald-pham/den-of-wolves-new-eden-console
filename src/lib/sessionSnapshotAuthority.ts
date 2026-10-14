@@ -54,6 +54,7 @@ const memberResumeTokens = new WeakMap<SessionSnapshotAuthority, symbol>();
 export function beginMemberSessionResume(authority: SessionSnapshotAuthority): symbol {
   const token = Symbol('member-resume');
   wingFirstEntries.delete(authority);
+  finishAdmiralFirstEntry(authority);
   memberResumeTokens.set(authority, token);
   return token;
 }
@@ -184,6 +185,204 @@ export function pendingWingFirstEntry(
 
 export function finishWingFirstEntry(authority: SessionSnapshotAuthority, entry?: WingFirstEntryProjectionPending): void {
   if (!entry || wingFirstEntries.get(authority) === entry) wingFirstEntries.delete(authority);
+}
+
+/** One accepted Admiral seat CAS may withhold its old positive projection;
+ * this local, document-bound provenance is never authority or persisted data. */
+export interface AdmiralFirstEntryProjectionPending {
+  readonly kind: 'app-admiral-first-entry-withheld';
+  readonly sessionId: string;
+  readonly actorUid: string;
+  readonly groupId: string;
+  readonly role: 'player';
+  readonly assignedRoleId: 'admiral';
+  readonly activeConsoleRoleId: 'admiral' | null;
+  readonly seatId: 'admiral';
+  readonly shipId: 'aegis';
+  readonly connectionGeneration: number;
+  readonly identityHydrationRevision: number;
+  readonly sourceConnectionGeneration: number;
+  readonly sourceIdentityHydrationRevision: number;
+  readonly documentTimeOrigin: number;
+  readonly deadlineAt: number;
+  readonly claimRequestId: string;
+  readonly claimedSetupRevision: number;
+  readonly memberSessionScope: {
+    readonly groupId: string;
+    readonly vesselIds: readonly string[];
+    readonly craftIds: readonly string[];
+  };
+}
+type AdmiralEntryContext = WingEntryContext & {
+  readonly connection: string;
+  readonly sessionSnapshotFreshness: string;
+  readonly currentActorBerthProjectionPending?: unknown;
+};
+const admiralFirstEntries = new WeakMap<SessionSnapshotAuthority, AdmiralFirstEntryProjectionPending>();
+const admiralProjectionWithdrawals = new WeakSet<AdmiralFirstEntryProjectionPending>();
+const admiralReaderWaits = new WeakSet<AdmiralFirstEntryProjectionPending>();
+
+function admiralSourceBerthMatches(entry: AdmiralFirstEntryProjectionPending, session: GameSession | null): boolean {
+  const berth = session?.currentActorBerthAuthority;
+  return Boolean(berth && berth.actorUid === entry.actorUid && berth.sessionId === entry.sessionId &&
+    berth.groupId === entry.groupId && berth.role === 'player' && berth.shipId === 'aegis' &&
+    berth.connectionGeneration === entry.sourceConnectionGeneration && berth.assignedRoleId === 'admiral' &&
+    berth.activeConsoleRoleId === null && berth.replacementRoleId == null && berth.replacementStatus == null &&
+    (berth as NonNullable<typeof berth> & { readonly seatId?: unknown }).seatId == null);
+}
+
+export function admiralFirstEntryMatches(
+  entry: AdmiralFirstEntryProjectionPending,
+  state: AdmiralEntryContext,
+  uid: string | undefined,
+  documentTimeOrigin: number,
+): boolean {
+  const { session, me } = state;
+  const projection = state.currentActorBerthProjectionPending;
+  const localWithdrawal = session?.currentActorBerthAuthority === null && projection !== null &&
+    typeof projection === 'object' && !Array.isArray(projection) &&
+    (projection as AdmiralFirstEntryProjectionPending).activeConsoleRoleId === (me?.activeConsoleRoleId ?? null) &&
+    (Object.keys(entry) as Array<keyof AdmiralFirstEntryProjectionPending>).every(key =>
+      key === 'activeConsoleRoleId' || JSON.stringify((projection as AdmiralFirstEntryProjectionPending)[key]) === JSON.stringify(entry[key]));
+  return Boolean(entry.kind === 'app-admiral-first-entry-withheld' && entry.role === 'player' && entry.shipId === 'aegis' &&
+    (state.connection === 'live' && state.sessionSnapshotFreshness === 'server' ||
+      (localWithdrawal || admiralReaderWaits.has(entry) && admiralSourceBerthMatches(entry, session)) &&
+        state.connection === 'offline' && state.sessionSnapshotFreshness === 'cache') &&
+    entry.assignedRoleId === 'admiral' && entry.seatId === 'admiral' &&
+    (entry.activeConsoleRoleId === null || entry.activeConsoleRoleId === 'admiral') &&
+    Number.isSafeInteger(entry.connectionGeneration) && entry.connectionGeneration > 0 &&
+    Number.isSafeInteger(entry.identityHydrationRevision) && entry.identityHydrationRevision > 0 &&
+    typeof entry.claimRequestId === 'string' && entry.claimRequestId.length > 0 &&
+    Number.isSafeInteger(entry.claimedSetupRevision) && entry.claimedSetupRevision >= 0 &&
+    Number.isFinite(entry.deadlineAt) && Number.isFinite(entry.documentTimeOrigin) &&
+    session && me && uid === entry.actorUid && me.uid === uid && session.id === entry.sessionId && me.sessionId === session.id &&
+    me.role === 'player' && me.connected === true && session.phase === 'casting' && session.currentTurn === 0 &&
+    session.setupConfirmed === true && (session.setupRevision ?? -1) >= entry.claimedSetupRevision &&
+    me.fleetGroupId === entry.groupId && me.assignedRoleId === 'admiral' && me.seatId === 'admiral' &&
+    (me.activeConsoleRoleId === null || me.activeConsoleRoleId === 'admiral') &&
+    me.connectionGeneration === entry.connectionGeneration && entry.connectionGeneration === entry.sourceConnectionGeneration &&
+    state.identityHydrationRevision === entry.identityHydrationRevision &&
+    entry.identityHydrationRevision === entry.sourceIdentityHydrationRevision &&
+    me.replacementRoleId == null && me.replacementStatus == null && me.escapeState == null &&
+    (me as Player & { readonly kickedAt?: unknown }).kickedAt == null && documentTimeOrigin === entry.documentTimeOrigin &&
+    Date.now() < entry.deadlineAt && JSON.stringify(session.memberSessionScope) === JSON.stringify(entry.memberSessionScope));
+}
+
+export function beginAdmiralFirstEntry(
+  authority: SessionSnapshotAuthority,
+  before: AdmiralEntryContext,
+  current: AdmiralEntryContext & { readonly seats: readonly Seat[] },
+  uid: string | undefined,
+  documentTimeOrigin: number,
+  receipt: { readonly requestId: string; readonly setupRevision: number },
+  deadlineAt: number,
+): AdmiralFirstEntryProjectionPending | undefined {
+  const { session, me } = before;
+  const berth = session?.currentActorBerthAuthority, scope = session?.memberSessionScope;
+  if (!authority.hasServerSessionAuthority || memberSessionResumeBlocksFreshness(authority) || admiralFirstEntries.has(authority) ||
+      before.connection !== 'live' || before.sessionSnapshotFreshness !== 'server' ||
+      current.connection !== 'live' || current.sessionSnapshotFreshness !== 'server' ||
+      !session || !me || !scope || me.role !== 'player' || me.connected !== true || me.uid !== uid || me.sessionId !== session.id ||
+      me.assignedRoleId !== 'admiral' || me.activeConsoleRoleId !== null || me.seatId != null ||
+      me.replacementRoleId != null || me.replacementStatus != null || me.escapeState != null ||
+      (me as Player & { readonly kickedAt?: unknown }).kickedAt != null ||
+      session.phase !== 'casting' || session.currentTurn !== 0 || session.setupConfirmed !== true ||
+      !Number.isSafeInteger(me.connectionGeneration) || (me.connectionGeneration ?? 0) < 1 ||
+      !Number.isSafeInteger(before.identityHydrationRevision) || before.identityHydrationRevision < 1 ||
+      !berth || berth.sessionId !== session.id || berth.actorUid !== uid || berth.role !== 'player' || berth.shipId !== 'aegis' ||
+      berth.groupId !== me.fleetGroupId || scope.groupId !== me.fleetGroupId ||
+      !Array.isArray(scope.vesselIds) || !Array.isArray(scope.craftIds) || !scope.vesselIds.includes('aegis') ||
+      berth.connectionGeneration !== me.connectionGeneration || berth.assignedRoleId !== 'admiral' ||
+      berth.activeConsoleRoleId !== null || berth.replacementRoleId != null || berth.replacementStatus != null ||
+      (berth as typeof berth & { readonly seatId?: unknown }).seatId != null ||
+      JSON.stringify(current.session?.currentActorBerthAuthority) !== JSON.stringify(berth) ||
+      !current.seats.some(seat => seat.id === 'admiral' && seat.status === 'claimed' && seat.holderUid === uid) ||
+      !Number.isSafeInteger(receipt.setupRevision) || receipt.setupRevision < (session.setupRevision ?? 0) ||
+      current.session?.setupRevision !== receipt.setupRevision || !receipt.requestId ||
+      !Number.isFinite(documentTimeOrigin) || !Number.isFinite(deadlineAt) || deadlineAt <= Date.now() ||
+      deadlineAt > Date.now() + 15_000) return;
+  const entry: AdmiralFirstEntryProjectionPending = Object.freeze({ kind: 'app-admiral-first-entry-withheld',
+    sessionId: session.id, actorUid: me.uid, groupId: scope.groupId, role: 'player', assignedRoleId: 'admiral',
+    activeConsoleRoleId: null, seatId: 'admiral', shipId: 'aegis', connectionGeneration: me.connectionGeneration!,
+    identityHydrationRevision: before.identityHydrationRevision, sourceConnectionGeneration: me.connectionGeneration!,
+    sourceIdentityHydrationRevision: before.identityHydrationRevision, documentTimeOrigin, deadlineAt,
+    claimRequestId: receipt.requestId, claimedSetupRevision: receipt.setupRevision,
+    memberSessionScope: Object.freeze({ groupId: scope.groupId,
+      vesselIds: Object.freeze([...scope.vesselIds]), craftIds: Object.freeze([...scope.craftIds]) }) });
+  if (!admiralFirstEntryMatches(entry, current, uid, documentTimeOrigin)) return;
+  admiralFirstEntries.set(authority, entry);
+  return entry;
+}
+
+/** Only the actual previous positive projection may start local withdrawal. */
+export function withholdAdmiralFirstEntry(
+  authority: SessionSnapshotAuthority,
+  state: AdmiralEntryContext,
+  uid: string | undefined,
+  documentTimeOrigin: number,
+): AdmiralFirstEntryProjectionPending | undefined {
+  const entry = pendingAdmiralFirstEntry(authority, state, uid, documentTimeOrigin);
+  const berth = state.session?.currentActorBerthAuthority;
+  if (!entry || !berth || !(state.connection === 'live' && state.sessionSnapshotFreshness === 'server' || admiralReaderWaits.has(entry)) ||
+      berth.actorUid !== entry.actorUid || berth.sessionId !== entry.sessionId || berth.groupId !== entry.groupId ||
+      berth.role !== 'player' || berth.shipId !== 'aegis' || berth.connectionGeneration !== entry.sourceConnectionGeneration ||
+      berth.assignedRoleId !== 'admiral' || berth.activeConsoleRoleId !== null ||
+      berth.replacementRoleId != null || berth.replacementStatus != null) return;
+  admiralProjectionWithdrawals.add(entry);
+  return entry;
+}
+
+/** The actual member feed may become pending before the held presence/player
+ * response. Only the accepted CAS and its original positive source own that wait. */
+export function awaitAdmiralFirstEntryReader(
+  authority: SessionSnapshotAuthority,
+  state: AdmiralEntryContext,
+  uid: string | undefined,
+  documentTimeOrigin: number,
+): AdmiralFirstEntryProjectionPending | undefined {
+  const entry = pendingAdmiralFirstEntry(authority, state, uid, documentTimeOrigin);
+  if (!entry || !admiralSourceBerthMatches(entry, state.session)) return;
+  admiralReaderWaits.add(entry);
+  return entry;
+}
+
+export function pendingAdmiralFirstEntry(
+  authority: SessionSnapshotAuthority,
+  state: AdmiralEntryContext,
+  uid: string | undefined,
+  documentTimeOrigin: number,
+): AdmiralFirstEntryProjectionPending | undefined {
+  const entry = admiralFirstEntries.get(authority);
+  if (!entry) return;
+  if (authority.hasServerSessionAuthority && !memberSessionResumeBlocksFreshness(authority) &&
+      admiralFirstEntryMatches(entry, state, uid, documentTimeOrigin) &&
+      (state.connection === 'live' && state.sessionSnapshotFreshness === 'server' ||
+        admiralProjectionWithdrawals.has(entry) || admiralReaderWaits.has(entry))) return entry;
+  finishAdmiralFirstEntry(authority, entry);
+  return undefined;
+}
+
+/** A structurally plausible Store marker cannot replace its actual SDK/CAS origin. */
+export function admiralFirstEntryProjectionIsCurrent(
+  authority: SessionSnapshotAuthority,
+  origin: AdmiralFirstEntryProjectionPending,
+  state: AdmiralEntryContext,
+  uid: string | undefined,
+  documentTimeOrigin: number,
+): boolean {
+  const entry = pendingAdmiralFirstEntry(authority, state, uid, documentTimeOrigin);
+  return Boolean(entry && admiralProjectionWithdrawals.has(entry) && admiralFirstEntryMatches(origin, state, uid, documentTimeOrigin) &&
+    origin.activeConsoleRoleId === (state.me?.activeConsoleRoleId ?? null) &&
+    (Object.keys(entry) as Array<keyof AdmiralFirstEntryProjectionPending>).every(key =>
+      key === 'activeConsoleRoleId' || JSON.stringify(origin[key]) === JSON.stringify(entry[key])));
+}
+
+export function finishAdmiralFirstEntry(authority: SessionSnapshotAuthority, entry?: AdmiralFirstEntryProjectionPending): void {
+  const current = admiralFirstEntries.get(authority);
+  if (!entry || current === entry) {
+    if (current) { admiralProjectionWithdrawals.delete(current); admiralReaderWaits.delete(current); }
+    admiralFirstEntries.delete(authority);
+  }
 }
 
 /** One authority object shared by callable hydration and every listener for an identity. */
