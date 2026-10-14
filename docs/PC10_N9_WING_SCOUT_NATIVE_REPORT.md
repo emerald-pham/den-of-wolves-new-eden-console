@@ -1,11 +1,11 @@
-# PC10 Wing bay, scout and manual-flow acceptance reconciliation
+# PC10 Wing bay, scout, manual-flow and Alpha-launch acceptance reconciliation
 
 The parent accepted N9's completed native slice at functional source
 `1dd1d590e4fbcd59faee8d212494b5c3bafb6284`. It proves fresh admission,
 GM start, current Wing authority, natural Coordination entry and one ordinary
 scout with its delivered private report, saved note, map discovery and automatic
 GM log. Reuse N4's accepted maintenance/bay observations for unchanged consumers.
-P181 and P629 remain partial. Counts remain **703/751 overall, 245/293 campaign,
+Later scoped second-Scout and Alpha-launch acceptances are recorded below; they do not close the Wing workspace. P181 and P629 remain partial. Counts remain **703/751 overall, 245/293 campaign,
 48 unfinished PC10 IDs: 14 partial and 34 missing**, with zero new closures.
 
 ## Accepted behavior and its limits
@@ -211,3 +211,85 @@ fixed closures/releases. The next Wing objective is selected from those distinct
 remaining mechanics using the qualified manual route; runtime is returned and a
 new allocation is required. The separately reviewed backend diagnostic remains
 off the gameplay critical path.
+
+## October 14 accepted ordinary Alpha launch; Bravo pending
+
+The PC10 orchestrator reconciled the scoped native acceptance
+**E-PC10-ORDINARY-ALPHA-LAUNCH-SCOPED-20261014**
+from `ALPHA_CONVERGENCE_SCOPED_NATIVE_ACCEPTANCE_AND_PREVENTION_HANDOFF_20261014.json`
+(SHA-256 `ea820bdf30ce04bf9c401b24548e6e727326d9899160c84e3137ffaf6a3b60cf`).
+Exact native application source is `c49b813e17c5d32cc0ededf04a87b7a0dda78b25`,
+with operator `23ac2ba404204d395ffc7d6d45637440b25ec910` (SHA-256
+`bcf621770b1180cd0473011f824cf98bb31ab6db853d6fc4426774afc4b06d99`).
+This documentation reconciliation follows that native source and earns no
+successor-native, emitted-build or release credit.
+
+| Accepted player-visible behavior | Exact scope |
+|---|---|
+| Ordinary manual prerequisites | Current genuine GM prepared unlimited/manual training before ordinary joins; normal casting/station entry and manual Cycle 0→1 had no briefing hold. Six maintenance actions through reactor and manual Coordination were reused prerequisites. No paid Zeta or Scout was needed or attempted. |
+| Current GM attack preparation | Ordinary **Mark timing due**, **Save private attack draft** and **Declare Wolf attack** controls committed original HTTP 200 replies. Exact manual clock and current restricted targeting delivery were retained before launch. |
+| One Alpha launch | Original current Wing used the assigned console and **Launch Fighter Wing Alpha** once. One unique original request committed and delivered attack revision 3, wing revision 1. Alpha retained four fighters and became launched. |
+| Truthful pending Bravo | Bravo retained four fighters, remained eligible/unlaunched, and its current rendered launch control was enabled after the Alpha notice. No Bravo action or completed attack is credited. |
+| Preserved state and authority | Current original authority and manual clock, selected counts/resources/maintenance/charges/control/docking were preserved. Material, fuel, charge and loss cost were zero. |
+
+The route completed **37 ordered steps**. Its **281 receipt rows** are transport
+observations, not 281 game actions; two corroborating launch rows are one original
+action. Three Auth actors and three Chrome processes/contexts represented GM
+plus two admitted players, with eight roles configured and zero humans. The
+basic-entry diagnostic PNG supplies no Alpha layout, manual-free usability or
+final typography acceptance.
+
+Acquisition was **23:36:42.386 UTC** and strict physical return
+**23:39:17.852 UTC**, consuming **155,466 ms (2m 35.466s)**. Bounded return
+readiness observed an IPv4 address-in-use binding transient and completed in
+**16 attempts / 7,075 ms** before the unchanged first strict return check passed.
+Captured owned processes/groups were absent, all 22 IPv4/IPv6 bindings free,
+owned browsers/Auth/session data cleaned and own claims/reservations/configuration
+zero; foreign ownership was preserved. The socket-lifetime cause remains unknown.
+The grant is consumed/closed; no runtime is held or fresh retry granted.
+
+Preserved source chronology includes the genuine pre-write failure at operator
+`48b4cff6` and the post-declaration assertion at reader-fixed `fc4bbe21`; neither
+original record is relabeled successful. The actual reader module-ownership
+defect, exact declaration-clock publication counterexamples and actual
+controller/DOM readiness regressions support the bounded operator repairs.
+Independent changed-risk review passed **14 source cases**, overlapping the
+worker's same 14 rather than 28 distinct cases. Native success does not uniquely
+identify either fingerprint-only historical error, establish a specific per-poll
+lag in this run, or prove exclusive prevention. Application, Functions, launcher,
+build and strict cleanup stayed unchanged; no build/risk suite was repeated
+after the native run.
+
+Root's subsequent source-only prevention inspection under the standing parent
+direction checked ordinary
+Back/re-entry, Bravo's fresh paired revision offers and the unresolved-attack
+manual-phase blocker. It found **no justified defect** and made zero new
+functional repairs. Back navigation is distinct from station release; a future
+Bravo choice requires fresh current offers, and attack resolution remains
+required before manual phase advance. These future boundaries earn no native
+acceptance from this Alpha run.
+
+| Receipt under `manual-wing-alpha-convergence-fixed-20261014/` | SHA-256 |
+|---|---|
+| `ALPHA_CONVERGENCE_SCOPED_NATIVE_ACCEPTANCE_AND_PREVENTION_HANDOFF_20261014.json` | `ea820bdf30ce04bf9c401b24548e6e727326d9899160c84e3137ffaf6a3b60cf` |
+| `ordinary-admiral-ui-outcome.json` | `8cb97e4cfef4db970534b93b0f62882c4d0f033ef52695e351fcc200f25315ce` |
+| `manual-alpha-original-launch-current-delivery.json` | `ad4782510082b98602fcf415674c9b74dc71a73346a5c278579b074381cd660c` |
+| `manual-alpha-original-declaration.json` | `d5497b669a34666e1e3c551079d85d8df03a19dde9908ce0173dc60d1d51c497` |
+| `ALPHA_CONVERGENCE_NATIVE_SUCCESS_CLEAN_IMMEDIATE_PARENT_HANDOFF_20261014.json` | `27ee40c5213411db67d82abfc2341e2248d202462d16aae943c6f2804949b064` |
+
+Retained failed-attempt primaries under `native-runs/` are
+`manual-wing-alpha-launch-20261014/ordinary-admiral-ui-first-failure.json`
+(SHA-256 `38f6a7cdeb2c61614841fc6958309d6195aa6230d228c327fdce09ea55b1b542`)
+and `manual-wing-alpha-reader-fixed-20261014/ordinary-admiral-ui-first-failure.json`
+(SHA-256 `45fcacb26dae19d07992e5514a10c487280ba00e831735f9b418a039bc37e49b`).
+The preserved source handoff is outside the application checkout at
+`next-wing-remaining-action-preparation-20261014/ALPHA_DECLARATION_AND_DOM_RECONCILED_SOURCE_HANDOFF_20261014.json`
+(SHA-256 `6a0b083b53eeb498c2301156767a5f730d7e2152f9d133ee16bf662a3a0da778`).
+
+This accepts one positive Alpha mechanic only. This run did not attempt Back,
+Bravo launch, fighter build/exchange/rebuild, range/aftermath, new Scout/Zeta,
+recovery/scale, whole fresh-game/every-role/function ending or final typography.
+All **751 definitions/statuses**, **48 unfinished PC10 IDs (14 partial / 34
+missing)**, **703/751 overall**, **245/293 campaign** and the **nine-objective
+baseline** remain unchanged. P181/P629 stay partial; no closure, CI, deployment,
+release, future checkpoint or licensing credit is added.
