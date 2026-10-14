@@ -4825,11 +4825,21 @@ async function p181RunStarlightMovementScoutNative(options) {
                       }
                     } });
                   castingCurrent = recovered.accepted; castingAuthority = recovered.authority;
-                  navigationStart = recovered.accepted;
                   navigation = createMemberNavigationResumeObserver(memberSurface.page, { directory,
                     roleId: memberRoleId, deadlineAt, proofProfile, memberContract: 'pc11-live-base' });
                   await bounded('Prepare original station navigation after Admiral reload',
-                    () => navigation.prepare(navigationStart), castingDeadlineAt);
+                    () => navigation.prepare(recovered.accepted), castingDeadlineAt);
+                  markCastingBoundary('post-reload-navigation-prepare-retained-authority-check');
+                  const preparedAuthority = await bounded('Check original Admiral authority after navigation preparation',
+                    () => castingAuthority.check(), castingDeadlineAt);
+                  if (preparedAuthority.fresh !== true) {
+                    markCastingBoundary('close-pending-reloaded-station-navigation-observer');
+                    await bounded('Close original pending station navigation after Admiral reload',
+                      () => navigation.finish(), castingDeadlineAt);
+                    navigation = undefined;
+                    assert.fail('Original reloaded Admiral current freshness unavailable after navigation preparation.');
+                  }
+                  navigationStart = recovered.accepted;
                   break;
                 }
                 await bounded('Wait for current original assigned-unseated Admiral', () =>
