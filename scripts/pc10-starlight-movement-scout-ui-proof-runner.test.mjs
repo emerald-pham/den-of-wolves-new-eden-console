@@ -288,17 +288,30 @@ function actualP181StationWaitDiagnosticConsumer() {
 
 function actualP181FirstFailureRetentionConsumer({ screenshotFails = false } = {}) {
   const error = Object.assign(new Error('original finite prepareNormalSession timeout'), { name: 'TimeoutError' });
-  const diagnostic = { activeAwaitedOperation: 'Original Wing Commander normal role chooser/seat claim' };
   const screenshotBytes = Buffer.from('controlled-private-screenshot');
   const screenshots = [], writes = [], retained = [], bounds = [];
+  const currentSurface = { page: { privateInput: 'controlled private input value', screenshot: async options => {
+    screenshots.push(options);
+    if (screenshotFails) throw new Error('controlled screenshot capture failure');
+    return screenshotBytes;
+  } } };
+  const diagnostic = { active: true, actorRole: 'wing-commander', surface: currentSurface,
+    activeAwaitedOperation: 'Original Wing Commander normal role chooser/seat claim',
+    pendingReadiness: { connectionGeneration: 1, identityHydrationRevision: 1, sdkResumePending: true },
+    steps: [{ ordinal: 1, actorRole: 'wing-commander', operation: 'normal-navigation.station-readiness-consumer',
+      startedAtMs: 900, completedAtMs: null, status: 'pending' }] };
   const context = {
     assert, createHash, resolve, Date: { now: () => 1_000 }, error,
     normalPreparationDiagnostic: diagnostic,
-    wingCommander: { page: { screenshot: async options => {
-      screenshots.push(options);
-      if (screenshotFails) throw new Error('controlled screenshot capture failure');
-      return screenshotBytes;
-    } } },
+    safeP181Error: p181ActualSafeError,
+    captureP181PreparationPublicUi: async (surface, deadlineAt, cleanupDeadlineAt) => {
+      assert.equal(surface, currentSurface, 'Capture the currently held actor surface.');
+      assert.ok(deadlineAt <= 5_000 && cleanupDeadlineAt === 5_000);
+      const screenshot = await surface.page.screenshot({ fullPage: false, timeout: deadlineAt - 1_000 });
+      return { screenshot, label: 'privacy-redacted current-page diagnostic',
+        publicDom: [{ kind: 'heading', text: 'Stations and consoles' }],
+        omissions: 'All other content, inputs and private role content omitted; viewport only.', observedAtMs: 1_000 };
+    },
     directory: '/tmp/p181-controlled-normal-preparation-diagnostic',
     privateFailureArtifact: null, sourceCommit: 'controlled-source-commit',
     sourceBindingsBefore: { sourceFiles: { controlled: 'source-hash' } },
@@ -2051,8 +2064,17 @@ test('actual native first-failure retention saves the bounded private readiness 
   assert.equal(consumer.writes[0].options.mode, 0o600);
   assert.equal(consumer.writes[0].options.flag, 'wx');
   assert.deepEqual(consumer.writes[0].body, consumer.screenshotBytes);
-  assert.equal(consumer.retained[0].detail.normalPreparationDiagnostic.screenshot.sha256,
+  const diagnostic = consumer.retained[0].detail.normalPreparationDiagnostic;
+  assert.equal(diagnostic.activeAtFailure, true);
+  assert.equal(diagnostic.publicUiCapture.sha256,
     createHash('sha256').update(consumer.screenshotBytes).digest('hex'));
+  assert.equal(diagnostic.publicUiCapture.label, 'privacy-redacted current-page diagnostic');
+  assert.equal(diagnostic.publicUiCapture.actorRole, 'wing-commander');
+  assert.equal(diagnostic.publicUiCapture.renderedOrUsabilityAcceptance, false);
+  assert.match(diagnostic.publicUiCapture.omissions, /inputs.*private/);
+  assert.deepEqual(diagnostic.pendingReadiness, consumer.diagnostic.pendingReadiness);
+  assert.equal(diagnostic.steps[0].startedAtMs, 900); assert.equal(diagnostic.steps[0].completedAtMs, null);
+  assert.equal(JSON.stringify(diagnostic).includes('controlled private input value'), false);
   assert.equal(artifact.evidenceWriteFailed, false);
   assert.ok(consumer.bounds.every(value => value.deadlineAt <= 5_000));
 });
@@ -2063,8 +2085,14 @@ test('actual native first-failure retention records screenshot errors without re
   assert.equal(consumer.retained.length, 1);
   assert.equal(consumer.retained[0].error, consumer.error);
   const diagnostic = consumer.retained[0].detail.normalPreparationDiagnostic ?? {};
-  assert.equal(diagnostic.screenshotError?.message,
-    'controlled screenshot capture failure');
+  assert.equal(consumer.screenshots.length, 1);
+  assert.equal(diagnostic.publicUiCapture.status, 'failed-closed');
+  assert.equal(diagnostic.publicUiCapture.rawPageFallback, false);
+  assert.equal(diagnostic.publicUiCapture.primaryErrorPreserved, true);
+  assert.equal(diagnostic.publicUiCapture.error.name, 'Error');
+  assert.match(diagnostic.publicUiCapture.error.fingerprint, /^[a-f0-9]{64}$/);
+  assert.equal(JSON.stringify(diagnostic).includes('controlled screenshot capture failure'), false);
+  assert.equal(JSON.stringify(diagnostic).includes('controlled private input value'), false);
   assert.equal(consumer.writes.length, 0);
 });
 
@@ -6570,7 +6598,11 @@ async function reconciledNativeWait(surface, kind, readRecovery) {
   const body = kind === 'full' ? p181FullActorWaitBody : p181GmWaitBody;
   const owner = surface.state?.me?.role === 'gm' ? 'gm' : 'wing-commander';
   const context = { assert, Date, P181_NATIVE_TIMING, pc11GmReadiness, pc11SameActorEpoch,
-    gm: surface, wingCommander: {}, sessionId: 'normal-session', gmInstanceId: 'gm-original-instance',
+    gm: owner === 'gm' ? surface : {}, wingCommander: owner === 'wing-commander' ? surface : {}, admiral: {},
+    sessionId: 'normal-session', gmInstanceId: 'gm-original-instance',
+    normalPreparationDiagnostic: { active: true, frozen: false, actorRole: owner, surface,
+      activeAwaitedOperation: null, pendingReadiness: null, steps: [] },
+    p181PreparationTuple: sourceModule.p181PreparationTuple,
     retainP181CallerRejection: sourceModule.retainP181CallerRejection,
     ownedAuthUids: new Map([[owner, surface.uid]]),
     hashShort: value => createHash('sha256').update(value).digest('hex').slice(0, 16),
@@ -6578,6 +6610,10 @@ async function reconciledNativeWait(surface, kind, readRecovery) {
     readGmRecoveryPending: readRecovery ?? (async () => false),
     bounded: async (_label, action) => action(), delay: async amount => new Promise(done => setTimeout(done, amount)),
     retainP181MemberAuthority: sourceModule.retainP181MemberAuthority };
+  const markerStart = p181DeadlineSource.indexOf('  const markPreparationActor =', p181NativeEntry);
+  const markerEnd = p181DeadlineSource.indexOf('\n  const bounded =', markerStart);
+  assert.ok(markerStart > p181NativeEntry && markerEnd > markerStart);
+  context.markPreparationActor = runInNewContext(p181DeadlineSource.slice(markerStart,markerEnd) + '\nmarkPreparationActor',context);
   return runInNewContext(`(() => { ${body}; return ${name}; })()`, context);
 }
 
