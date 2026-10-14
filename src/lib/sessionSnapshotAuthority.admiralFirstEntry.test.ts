@@ -15,7 +15,8 @@ function context() {
   const me = { uid, sessionId: 'source-session', role: 'player', connected: true, fleetGroupId: scope.groupId,
     assignedRoleId: 'admiral', activeConsoleRoleId: null, seatId: null,
     connectionGeneration: 2, replacementRoleId: null, replacementStatus: null } as Player;
-  const session = { id: me.sessionId, phase: 'casting', currentTurn: 0, setupConfirmed: true, setupRevision: 4,
+  const session = { id: me.sessionId, name: 'Admiral source fixture', joinCode: '123456',
+    createdAt: new Date().toISOString(), phase: 'casting', currentTurn: 0, setupConfirmed: true, setupRevision: 4,
     updatedAt: new Date().toISOString(), memberSessionScope: scope, currentActorBerthAuthority: {
       sessionId: me.sessionId, actorUid: uid, groupId: scope.groupId, role: 'player', shipId: 'aegis',
       connectionGeneration: 2, assignedRoleId: 'admiral', activeConsoleRoleId: null,

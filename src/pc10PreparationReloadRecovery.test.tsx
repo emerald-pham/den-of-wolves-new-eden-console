@@ -600,7 +600,7 @@ async function recoveredAdmiralPrefix() {
 async function openOrdinaryAdmiral() {
   const { admitted, surface, recovered } = await recoveredAdmiralPrefix();
   // Match the existing driver: casting authority closes before ordinary chooser.
-  await casting.close(); casting = undefined;
+  await recovered.authority.close(); casting = undefined;
   let role = globalThis.document.querySelector<HTMLAnchorElement>('a[href$="/roles/admiral"]');
   for (let elapsed = 0; !role && elapsed < 1000; elapsed += 100) {
     await advance(); role = globalThis.document.querySelector<HTMLAnchorElement>('a[href$="/roles/admiral"]');
