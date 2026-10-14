@@ -1413,3 +1413,31 @@ continues P181 source repair without overlapping writers. Functional RED/GREEN,
 independent exact review and final relevant renders remain mandatory. No heavy
 runtime is held; a new bounded parent allocation is needed after readiness.
 This approval and planning add zero fixed closures or native credit.
+
+### October 14 accepted Wing bay and first-scout evidence
+
+The parent accepted N9 at functional source `1dd1d590` within its completed native
+scope. The [current matrix](PC10_ACCEPTANCE_MATRIX.md) and
+[N4/N9 report](PC10_N9_WING_SCOUT_NATIVE_REPORT.md) now credit the fresh actual
+GM start/current Wing authority, natural Coordination entry, one original
+scout/private report/note/map/automatic GM log, plus unchanged N4 maintenance
+through reactor and both charged bay eligibility/full-capacity blocker cards.
+Three actual Auth actors/Chrome processes/contexts, eight configured roles and
+zero human devices remain distinct. N9 physically returned at 19:13:22.317 UTC
+before its original 19:26:11.835 deadline; all owned runtime/data/claims closed.
+
+N9's three overlapping phase executions succeeded, while two internal
+Firestore lock warnings recurred. Their transaction/RPC attempt mapping is
+unknown; the corrected receipt supersedes the preserved initial no-recurrence
+metric. Preserve N8's actual HTTP 500 replies. A targeted unchanged-handler/SDK
+phase-only then phase/presence diagnostic and the next paid-refuel/second-scout
+Wing slice are source-only preparations awaiting fresh bounded allocations.
+No natural-timer rerun, production gameplay mutation or release is authorized
+by those preparations. Internal warnings alone invent no new release gate.
+
+Paid second scout, positive fighter actions, missions/rebuild, broader recovery
+and private audiences, complete fresh all-role/function ending, final rendered
+UI/typography and exact candidate/main CI/deployment gates remain open. Counts
+remain 703/751 and 245/293, PC10 14 partial/34 missing and zero new fixed closures.
+This is acceptance-record reconciliation only; emitted application and Functions
+source stay unchanged. Later post-PC10/PC11/PC12 and licensing stay separate.

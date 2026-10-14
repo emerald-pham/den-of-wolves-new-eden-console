@@ -1,6 +1,6 @@
 # PC10 acceptance matrix
 
-Opening: 703/751 overall; 245/293 campaign. Target: 48 assigned closures, 751/751 and 293/293. All rows start pending. Added scope earns zero campaign credit.
+Opening: 703/751 overall; 245/293 campaign. Target: 48 assigned closures, 751/751 and 293/293. Current scope remains 14 partial and 34 missing; the rows below distinguish accepted subcriteria from remaining work. Added scope earns zero campaign credit.
 
 The [function and role matrix](PC10_FUNCTION_ROLE_MATRIX.json) enumerates the
 actual compiled Firebase SDK endpoints, their current client consumers, core,
@@ -37,7 +37,7 @@ meaningful RED, independent review and rendered/gameplay gates. See the
 
 | ID | Required behavior | Implementation / connection | Authenticated gameplay / recovery / privacy | Review / release |
 |---|---|---|---|---|
-| 181 | Create the Wing Commander workspace. | Connected canonical Wing station and Starlight console at exact a6485b92; exact f35af64f adds qualified repaired GM reads. Source7042693a adds current-member/session/entitlement runtime safe-unsent-coordinate retention after five meaningful mounted REDs, test7df2555d,48 affected GREEN and exact independent source review. | Partial accepted October12: normal authenticated GM/casting/start0→1, original Wing reload, private scout and real flight/docking with unchanged holder. Later f35 scope adds legitimate transit undocked/no-host reply/paint, populated GM log and six scoped API authority denials. Original50f6b189 Team Time input-loss RED is retained. Exactc3 minimum same-current-member Back/overview/held-Wing/Starlight re-entry now independently preserves5143 in unpaused Team Time with current authority, Record disabled and zero scout POSTs; only shipResources/shuttleFuelled equality. That earlier Back slice left casting loss/reassign unattempted. Exactee35 later independently accepts real Cycle0 GM release/chooser/notice/same-target assignment200/later deliberate selection/fresh Starlight5143 with revoked/restored brief; early pre-reply frame/dismissal excluded. Both Fighter Bays/wings/missions/rebuild and active-game loss remain distinct. | Exact independent saved-UI/native review PASS in scope. Core R1 and exact53783d80 sampled R2 containment/wrapping/Back keyboard focus accepted.7042693a source approval and exactc3 minimum native Back/input acceptance retained; broader recovery/touch/final emitted-build typography and release remain open. No cold-document draft claim. |
+| 181 | Create the Wing Commander workspace. | Connected canonical Wing station and Starlight console at exact a6485b92; exact f35af64f adds qualified repaired GM reads. Source7042693a adds current-member/session/entitlement runtime safe-unsent-coordinate retention after five meaningful mounted REDs, test7df2555d,48 affected GREEN and exact independent source review. | Partial accepted October12: normal authenticated GM/casting/start0→1, original Wing reload, private scout and real flight/docking with unchanged holder. Later f35 scope adds legitimate transit undocked/no-host reply/paint, populated GM log and six scoped API authority denials. Original50f6b189 Team Time input-loss RED is retained. Exactc3 minimum same-current-member Back/overview/held-Wing/Starlight re-entry now independently preserves5143 in unpaused Team Time with current authority, Record disabled and zero scout POSTs; only shipResources/shuttleFuelled equality. That earlier Back slice left casting loss/reassign unattempted. Exactee35 later independently accepts real Cycle0 GM release/chooser/notice/same-target assignment200/later deliberate selection/fresh Starlight5143 with revoked/restored brief; early pre-reply frame/dismissal excluded. Positive Fighter Bay/wings/missions/rebuild actions and active-game loss remain distinct.  October14 accepted N4/N9 now qualifies both initial bay cards, the six-step maintenance prefix, delivered Alpha/Bravo/Construction charges, both charged eligibility/full-capacity blockers, and current-source natural Coordination/one original scout/report/note/map/GM-log results. See [exact scope](PC10_N9_WING_SCOUT_NATIVE_REPORT.md). | Exact independent saved-UI/native review PASS in scope. Core R1 and exact53783d80 sampled R2 containment/wrapping/Back keyboard focus accepted.7042693a source approval and exactc3 minimum native Back/input acceptance retained; broader recovery/touch/final emitted-build typography and release remain open. No cold-document draft claim.  N9 first-scout native slice accepted by parent; source1dd bounded review/build retained. Positive fighter actions, paid second scout, missions/rebuild, broader recovery/privacy and final release remain open. |
 | 215b | Complete the Scientist workspace. | pending | pending | pending |
 | 223b | Complete the Explorer workspace. | pending | pending | pending |
 | 233b | Complete the PDF Colonel workspace. | pending | pending | pending |
@@ -73,7 +73,7 @@ meaningful RED, independent review and rendered/gameplay gates. See the
 | 618 | Reconnect every live projection. | Connected current member/SDK recovery. | October12 original Wing reload to server-fresh generation2 with same UID/session/role/seat accepted; other projection/dropout/clock criteria remain distinct. Partial: prior Captain/Press history, Black Sheep cargo/control reload, settled Host9/Shuttle1 desktop balances, and Water exact UI retry/cold reload/original SDK replay accepted with original identity/seat/group/current-holder/SDK authority; other projections/dropout paths open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
 | 619 | Make candidate retries survive reconnect. | Connected paid Ring crossing exact intent/receipt recovery. | Partial: Ring3 Aegis committed-ack loss, original intent across cold GM reload, exact UI/SDK replay, borrowed-actor denial and late-success replay accepted; other N contribution/O roll-loss-fuel/P reactor-outcome recovery remain open. | scoped source/negative mapping and final gates pending |
 | 620 | Recover from stale revisions. | Connected phase confirmation and exact retry. | Partial: prior phase/flight/ending recovery, cargo and Water committed-ack loss/exact UI retry/cold reload/SDK replay, historical control receipts after revision2, and fresh current-maintenance-revision Water once-guard refusal accepted; other stale/conflicting role requests open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
-| 629 | Protect private projections comprehensively. | Tested current scoped private readers and authority negatives. | Partial: prior populated private/borrowed-GM denials plus fresh Black Sheep nonowner/revoked-holder denial with selected gameplay/receipt/audit hashes unchanged accepted; other private audiences open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
+| 629 | Protect private projections comprehensively. | Tested current scoped private readers and authority negatives. | Partial: prior populated private/borrowed-GM denials plus fresh Black Sheep nonowner/revoked-holder denial with selected gameplay/receipt/audit hashes unchanged accepted; other private audiences open.  N9 adds current-source positive own Wing report/note and genuine GM automatic-log delivery only; denied peers/foreign groups/chart export and other audiences remain unproved. | focused core tests/contracts and bounded Sol review pass; final gates pending |
 | 630 | Prove server-owned randomness. | pending | pending | pending |
 | 631 | Rate-limit expensive callables. | pending | pending | pending |
 | 634 | Record security denials privately. | pending | pending | pending |
@@ -1855,3 +1855,31 @@ without fabricated product RED or new combined-four-suite/native claims.
 This resolves only the identified source test-contract hold. Whole Wing, fresh
 ending/recovery/privacy/usability and final release gates remain; nine
 objectives, zero new whole closures and catalog/function inventory unchanged.
+
+### October 14 Wing bay and first-scout reconciliation
+
+The [N4/N9 report](PC10_N9_WING_SCOUT_NATIVE_REPORT.md) credits each accepted
+player-visible subcriterion above. N4's six normal maintenance steps delivered
+three bay charges and both charged bay cards with truthful full-capacity
+blockers. N9's fresh actual GM start, current Wing authority and natural
+Coordination entry delivered one original private scout, its saved note, map
+discovery and automatic GM log. Three Auth actors and three Chrome
+processes/contexts with eight configured roles are automated gameplay; there
+were zero human devices. These exact scoped observations add no whole-ID
+closures and do not rerun or invalidate accepted earlier recovery or movement.
+
+All three overlapping N9 phase executions returned HTTP 200. Two internal
+Firestore transaction-lock warning blocks still occurred; their SDK attempts
+and document-lock identity are unknown. Preserve N8's failed callables and the
+corrected N9 receipt. Internal warnings alone add no release gate beyond the
+current policy; an unrecovered failure, incorrect state, authority/privacy or
+data-loss defect would hold its affected acceptance. The targeted two-Auth
+phase-only/phase-plus-presence diagnostic is source preparation pending a fresh
+allocation. No recovery/retry credit is added to P618/P620 by this native pass.
+
+The next smallest Wing delta is one paid Zeta refuel and a distinct second
+scout using the existing unlimited/manual full-game demo, with first scout as
+the fresh-session cadence prerequisite. Positive fighter mechanics, missions,
+rebuilds, broader recovery/privacy and the complete fresh-game/all-role/function
+ending remain open. P181/P629 remain partial; P641/P642/P651 remain open.
+Catalog totals stay 703/751 and 245/293, with 14 partial/34 missing in PC10.
