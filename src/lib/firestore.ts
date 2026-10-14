@@ -3996,6 +3996,12 @@ function seatFrom(sessionId: string, id: string, data: DocumentData): Seat {
 
 export type MemberFreshnessReadStage = 'none' | 'request' | 'response-shape-or-scope' | 'session-parse' |
   'berth-parse' | 'authority-accept' | 'session-delivery' | 'freshness-delivery' | 'remaining-callback';
+/** Fixed call-site identifiers; private reader contents/entitlements are never recorded. */
+export type MemberFreshnessListenerId = 'none' | 'l01' | 'l02' | 'l03' | 'l04' | 'l05' | 'l06' |
+  'l07' | 'l08' | 'l09' | 'l10' | 'l11' | 'l12' | 'l13' | 'l14' | 'l15' | 'l16' | 'l17' | 'l18';
+export type MemberFreshnessErrorCategory = 'absent' | 'other' | 'permission-denied' | 'not-found' |
+  'unauthenticated' | 'unavailable' | 'deadline-exceeded' | 'cancelled' | 'resource-exhausted' |
+  'failed-precondition' | 'aborted' | 'internal';
 export type MemberFreshnessProvenanceEvent = Readonly<{
   event: 'listener-attached' | 'listener-retired' | 'member-read-start' | 'member-read-accepted' |
     'member-signature-mismatch' | 'member-read-rejected' | 'actor-signature-change' |
@@ -4008,6 +4014,8 @@ export type MemberFreshnessProvenanceEvent = Readonly<{
   current: boolean;
   firstConfirmed: boolean | null;
   firstAccepted: boolean | null;
+  listenerId: MemberFreshnessListenerId;
+  errorCategory: MemberFreshnessErrorCategory;
 }>;
 let memberFreshnessSequence = 0;
 let memberFreshnessSubscription = 0;
@@ -4167,7 +4175,8 @@ export function subscribeSessionState(
   const traceSubscription = ++memberFreshnessSubscription;
   const noteMemberFreshness = (event: MemberFreshnessProvenanceEvent['event'],
     stage: MemberFreshnessReadStage = 'none', firstConfirmed: boolean | null = null,
-    firstAccepted: boolean | null = null, current = true) => {
+    firstAccepted: boolean | null = null, current = true, listenerId: MemberFreshnessListenerId = 'none',
+    errorCategory: MemberFreshnessErrorCategory = 'absent') => {
     if (!useEmulators || handlers.sessionReadAudience !== 'member') return;
     try {
       const trace = memberFreshnessTrace;
@@ -4175,7 +4184,7 @@ export function subscribeSessionState(
       if (!selected && !handlers.onMemberFreshnessProvenance) return;
       const record: MemberFreshnessProvenanceEvent = Object.freeze({ event, stage,
         sequence: ++memberFreshnessSequence, subscription: traceSubscription, atMs: performance.now(),
-        actorEpoch: memberActorEpoch, current, firstConfirmed, firstAccepted });
+        actorEpoch: memberActorEpoch, current, firstConfirmed, firstAccepted, listenerId, errorCategory });
       if (selected && trace) {
         if (trace.events.length === 64) { trace.events.shift(); trace.dropped += 1; }
         trace.events.push(record);
@@ -4183,11 +4192,23 @@ export function subscribeSessionState(
       handlers.onMemberFreshnessProvenance?.(record);
     } catch { /* Observation cannot change the existing delivery or error decision. */ }
   };
-  const onError = () => {
+  const onError = (listenerId: MemberFreshnessListenerId, error?: unknown) => {
     if (subscribed && sessionSubscriptionOwner.token === subscriptionToken) {
-      noteMemberFreshness('listener-error');
+      let errorCategory: MemberFreshnessErrorCategory = 'absent';
+      if (useEmulators && (handlers.onMemberFreshnessProvenance ||
+          memberFreshnessTrace?.sessionId === sessionId && memberFreshnessTrace.uid === uid)) {
+        try {
+          const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
+          const category = typeof code === 'string' ? code.replace(/^(firestore|functions)\//, '') : undefined;
+          errorCategory = code == null ? 'absent' : category && [
+            'permission-denied', 'not-found', 'unauthenticated', 'unavailable', 'deadline-exceeded',
+            'cancelled', 'resource-exhausted', 'failed-precondition', 'aborted', 'internal',
+          ].includes(category) ? category as MemberFreshnessErrorCategory : 'other';
+        } catch { errorCategory = 'other'; }
+      }
+      noteMemberFreshness('listener-error', 'none', null, null, true, listenerId, errorCategory);
       handlers.onError();
-      noteMemberFreshness('listener-error-returned');
+      noteMemberFreshness('listener-error-returned', 'none', null, null, true, listenerId, errorCategory);
     }
   };
   let sessionConfirmationInFlight = false;
@@ -4211,14 +4232,14 @@ export function subscribeSessionState(
         let confirmed;
         try {
           confirmed = await getDocFromServer(sessionDocument);
-        } catch {
+        } catch (error) {
           if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) break;
           if (sessionConfirmationWanted ||
               sessionSnapshotAuthorityVersion(sessionSnapshotAuthority) !== startingVersion) {
             sessionConfirmationWanted = true;
             continue;
           }
-          onError();
+          onError('l01', error);
           break;
         }
         if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) break;
@@ -4228,7 +4249,7 @@ export function subscribeSessionState(
           continue;
         }
         if (!confirmed?.exists()) {
-          onError();
+          onError('l01');
           break;
         }
         const confirmedData = confirmed.data();
@@ -4245,7 +4266,7 @@ export function subscribeSessionState(
           if (raisedCursor && !acceptServerSessionAuthority(
             sessionSnapshotAuthority, session, raisedCursor,
           )) {
-            onError();
+            onError('l01');
             break;
           }
           handlers.onSessionFreshness?.(true);
@@ -4255,7 +4276,7 @@ export function subscribeSessionState(
           handlers.onSession(session);
           handlers.onSessionFreshness?.(true);
         } else {
-          onError();
+          onError('l01');
         }
         if (session.phase === 'closed') stopForClosedHistory();
       }
@@ -4303,7 +4324,7 @@ export function subscribeSessionState(
             publishHands();
             return;
           }
-          onError();
+          onError('l02', error);
         },
       );
       unsubscribeAwayMissionHands.push(unsubscribe);
@@ -4500,7 +4521,7 @@ export function subscribeSessionState(
             } else {
               settleConfirmations(readingConfirmationRevision, false);
             }
-          } catch {
+          } catch (error) {
             settleConfirmations(readingConfirmationRevision, false);
             if (current() && actorEpoch === memberActorEpoch) {
               noteMemberFreshness('member-read-rejected', readStage);
@@ -4509,7 +4530,7 @@ export function subscribeSessionState(
               handlers.onSessionFreshness?.(false);
               noteMemberFreshness('freshness-false-returned', readStage);
               withdrawAwayMissionProjectionAuthority(sessionId, uid);
-              onError();
+              onError('l03', error);
             }
           }
         }
@@ -4576,7 +4597,7 @@ export function subscribeSessionState(
           handlers.onPlayerDiscovery?.(null);
           return;
         }
-        onError();
+        onError('l04', error);
       },
     );
     return stopPlayerDiscoveryListener;
@@ -4601,7 +4622,7 @@ export function subscribeSessionState(
         handlers.onAwayMissionHandPointers?.([]); handlers.onAwayMissionHandPointer?.(null);
         startAwayMissionHandListeners([]); return;
       }
-      onError();
+      onError('l05', error);
     });
   };
   const startGmMissionReader = () => {
@@ -4618,7 +4639,7 @@ export function subscribeSessionState(
       if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
           generation !== gmMissionPointerGeneration || !gmMissionAccess) return;
       if (error.code === 'permission-denied' || error.code === 'not-found') { handlers.onGmAwayMissionHandPointers?.([]); return; }
-      onError();
+      onError('l06', error);
     });
   };
   unsubscribes = [
@@ -4672,8 +4693,8 @@ export function subscribeSessionState(
         }
         if (session.phase === 'closed') stopForClosedHistory();
       }
-      else onError();
-    }, onError) : startMemberSessionFeed(),
+      else onError('l07');
+    }, (error) => onError('l07', error)) : startMemberSessionFeed(),
     onSnapshot(doc(database, `sessions/${sessionId}/players/${uid}`), { includeMetadataChanges: true }, (snapshot) => {
       if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
       const fromCache = snapshot.metadata?.fromCache === true;
@@ -4756,12 +4777,12 @@ export function subscribeSessionState(
         startPrivateLoyaltyListener();
       } else {
         if (!fromCache) revokeMemberActor();
-        onError();
+        onError('l08');
       }
     }, (error: { readonly code?: string }) => {
       if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
       if (error.code === 'permission-denied' || error.code === 'not-found') revokeMemberActor();
-      onError();
+      onError('l08', error);
     }),
     ...(handlers.onPlayerDiscovery ? [startPlayerDiscoveryListener()] : []),
     ...(handlers.onGmDiscovery ? [onSnapshot(
@@ -4786,7 +4807,7 @@ export function subscribeSessionState(
           handlers.onGmDiscovery?.(null);
           return;
         }
-        onError();
+        onError('l09', error);
       },
     )] : []),
     onSnapshot(collection(database, `sessions/${sessionId}/seats`), { includeMetadataChanges: true }, (snapshot) => {
@@ -4795,7 +4816,7 @@ export function subscribeSessionState(
       handlers.onSeats(snapshot.docs
         .map((seat) => seatFrom(sessionId, seat.id, seat.data()))
         .filter((seat) => seat.roleId !== 'press-officer'));
-    }, onError),
+    }, (error) => onError('l10', error)),
     ...(handlers.onPrivateLoyalty ? [(() => {
       unsubscribePrivateLoyalty = onSnapshot(
       doc(database, `sessions/${sessionId}/secrets/loyalty-${uid}`),
@@ -4838,7 +4859,7 @@ export function subscribeSessionState(
           handlers.onPrivateLoyalty?.(null);
           return;
         }
-        onError();
+        onError('l11', error);
       },
       );
       return () => unsubscribePrivateLoyalty();
@@ -4858,7 +4879,7 @@ export function subscribeSessionState(
         if (error.code === 'permission-denied' || error.code === 'not-found') {
           handlers.onRoleBrief?.(null);
         }
-        onError();
+        onError('l12', error);
       },
     )] : []),
     ...(handlers.onCommissarPurgeAuthority ? [onSnapshot(
@@ -4877,7 +4898,7 @@ export function subscribeSessionState(
           handlers.onCommissarPurgeAuthority?.(null);
           return;
         }
-        onError();
+        onError('l13', error);
       },
     )] : []),
     ...(handlers.onFacilitatorRuleCall ? [onSnapshot(
@@ -4896,7 +4917,7 @@ export function subscribeSessionState(
           handlers.onFacilitatorRuleCall?.(null);
           return;
         }
-        onError();
+        onError('l14', error);
       },
     )] : []),
     ...(handlers.onSetupReceipt ? [onSnapshot(
@@ -4915,7 +4936,7 @@ export function subscribeSessionState(
           .at(-1) ?? null;
         handlers.onSetupReceipt?.(latest);
       },
-      onError,
+      (error) => onError('l15', error),
     )] : []),
   ];
   subscriptionsReady = true;
@@ -4967,7 +4988,7 @@ export function subscribeSessionState(
           handlers.onWolfCultIntelligence?.(null);
           return;
         }
-        onError();
+        onError('l16', error);
       },
     );
   };
@@ -4995,7 +5016,7 @@ export function subscribeSessionState(
           handlers.onArbourVision?.(null);
           return;
         }
-        onError();
+        onError('l17', error);
       },
     );
   };
@@ -5045,7 +5066,7 @@ export function subscribeSessionState(
           handlers.onPrivateLoyalty?.(null);
           return;
         }
-        onError();
+        onError('l18', error);
       },
     );
   };
