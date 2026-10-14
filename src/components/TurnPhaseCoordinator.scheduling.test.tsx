@@ -34,6 +34,16 @@ function publishSession(patch: Partial<GameSession> = {}) {
   } });
 }
 
+function publishLifted(cycle = useSessionStore.getState().session!.currentTurn) {
+  const session = useSessionStore.getState().session!;
+  expect(session.currentTurn).toBe(cycle);
+  // This controlled service fixture completes only by publishing the matching
+  // current clock. Fulfilled void alone does not mean the phase was lifted.
+  publishSession({ turnPhase: { ...session.turnPhase!, airspace: {
+    state: 'lifted', tickerActive: false, pressAccess: true,
+  } } });
+}
+
 async function tick(ms = 0) {
   await act(async () => { await vi.advanceTimersByTimeAsync(ms); });
 }
@@ -51,7 +61,7 @@ async function mount() {
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-06T12:00:00.000Z'));
-  transport.begin.mockReset().mockResolvedValue(undefined);
+  transport.begin.mockReset().mockImplementation(async (cycle: number) => publishLifted(cycle));
   transport.receive = undefined;
   const store = useSessionStore.getState();
   store.reset();
@@ -81,7 +91,7 @@ it('does not overlap or restart a successful handoff on harmless accepted member
     await tick();
     expect(transport.begin).toHaveBeenCalledTimes(1);
   }
-  await change(() => held.resolve());
+  await change(() => { publishLifted(); held.resolve(); });
   await change(() => publishSession({ name: 'Publication after successful reply' }));
   await tick(10_000);
   expect(transport.begin).toHaveBeenCalledTimes(1);
@@ -101,7 +111,7 @@ it('keeps the five-second failed-call retry despite fresh publications and holds
   await change(() => publishSession({ name: 'Fresh publication during pending retry' }));
   await tick(5_000);
   expect(transport.begin).toHaveBeenCalledTimes(2);
-  await change(() => retry.resolve());
+  await change(() => { publishLifted(); retry.resolve(); });
 });
 
 it.each(['actor', 'session', 'cycle'] as const)(
@@ -111,7 +121,7 @@ it.each(['actor', 'session', 'cycle'] as const)(
     transport.begin.mockImplementation((cycle: number) => {
       const current = useSessionStore.getState();
       calls.push({ sessionId: current.session!.id, actorUid: current.me!.uid, cycle });
-      return calls.length === 1 ? old.promise : Promise.resolve();
+      return calls.length === 1 ? old.promise : Promise.resolve(publishLifted(cycle));
     });
     await mount();
     await tick(1_000);
