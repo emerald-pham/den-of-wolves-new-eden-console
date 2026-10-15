@@ -741,3 +741,11 @@ describe('host-loss current projections and security manifest', () => {
     })).toThrow(/lost|Lost/);
   });
 });
+
+
+it('keeps absent legacy custody history ambiguous instead of treating it as never-assigned', async () => {
+  const f = await normalPrefix();
+  delete read(f.root).shuttleControl;
+  await expect(destroyNormalIcebreaker(f)).rejects.toThrow(/custody|history|manifest/);
+  expect(read(f.root).lostShuttles).toBeUndefined();
+});
