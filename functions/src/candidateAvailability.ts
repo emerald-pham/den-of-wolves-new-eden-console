@@ -7,8 +7,8 @@ export interface CandidateCraftReservation {
   readonly sourceId: string; readonly cycle: number;
 }
 export type CandidateCraftReservations = Readonly<Record<string, CandidateCraftReservation>>;
-export const CANDIDATE_ENGINEERING_SHUTTLES = ['philia', 'blacksmith', 'black-sheep', 'condor',
-  'chacau', 'wobbly', 'ally', 'macaw'] as const;
+import { CANDIDATE_ENGINEERING_SHUTTLES } from './craftOwnership';
+export { CANDIDATE_ENGINEERING_SHUTTLES } from './craftOwnership';
 const record = (value: unknown): value is Fields => typeof value === 'object' && value !== null && !Array.isArray(value);
 const id = (value: unknown): value is string => typeof value === 'string' && /^[\w-]{1,128}$/.test(value);
 const fail = (message: string): never => { throw new HttpsError('failed-precondition', message); };

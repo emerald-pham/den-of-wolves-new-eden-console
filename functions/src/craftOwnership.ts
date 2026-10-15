@@ -1,4 +1,6 @@
-import { CANDIDATE_ENGINEERING_SHUTTLES } from './candidateAvailability';
+// Pure catalog facts are shared by server authority and browser projections.
+export const CANDIDATE_ENGINEERING_SHUTTLES = ['philia', 'blacksmith', 'black-sheep', 'condor',
+  'chacau', 'wobbly', 'ally', 'macaw'] as const;
 /**
  * The server-side starting ownership catalog for craft that are represented by
  * the current console. Ownership is a printed role fact, so this catalog never
