@@ -25974,11 +25974,27 @@ function wolfRangeSupportChoiceMap(attack: DocumentSnapshot, range: WolfCombatRa
   return result;
 }
 
+type WolfRangeSupportShuttleCustody = Readonly<{
+  hostShipId: string; controlRevision: number; holderUid: string; scrap?: number; fuelled?: boolean;
+}>;
+
 function wolfRangeSupportShuttleHost(
   session: DocumentSnapshot,
   shuttleId: 'highwall' | 'boa',
   ownerRoleId: string,
-): Readonly<{ hostShipId: string; controlRevision: number; holderUid: string; scrap?: number; fuelled?: boolean }> {
+): WolfRangeSupportShuttleCustody;
+function wolfRangeSupportShuttleHost(
+  session: DocumentSnapshot,
+  shuttleId: 'highwall' | 'boa',
+  ownerRoleId: string,
+  allowUnheld: boolean,
+): WolfRangeSupportShuttleCustody | undefined;
+function wolfRangeSupportShuttleHost(
+  session: DocumentSnapshot,
+  shuttleId: 'highwall' | 'boa',
+  ownerRoleId: string,
+  allowUnheld = false,
+): WolfRangeSupportShuttleCustody | undefined {
   const rawDockings = session.get('shuttleDockings');
   const activeVessels = wolfAttackActiveVesselIds(session);
   if (!Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings as AuthoritativeShuttleDocking[], activeVessels)) {
@@ -25989,7 +26005,14 @@ function wolfRangeSupportShuttleHost(
       !activeVessels.includes(dockings[0].shipId)) {
     throw commandError('failed-precondition', `The ${shuttleId} is not docked with an active host.`, 'conflict');
   }
-  const control = parseShuttleControl(session.get('shuttleControl'))?.[shuttleId];
+  const controls = parseShuttleControl(session.get('shuttleControl'));
+  if (!controls) {
+    throw commandError('failed-precondition', `The ${shuttleId} custody authority is malformed.`, 'conflict');
+  }
+  const control = controls[shuttleId];
+  // Normal startup omits custody for configured craft whose role has no
+  // holder. Such craft remain parked/registered but offer no crew action.
+  if (!control && allowUnheld) return undefined;
   if (!control || control.ownerRoleId !== ownerRoleId) {
     throw commandError('failed-precondition', `The ${shuttleId} custody authority is malformed.`, 'conflict');
   }
@@ -26040,7 +26063,8 @@ function wolfRangeSupportAvailability(input: Readonly<{
     if (!activeVessels.includes(vesselId)) return empty(roleId);
     const owners = currentWolfRoleOwners(players, fleetGroups, roleId, vesselId);
     if (owners.length > 1) throw commandError('failed-precondition', `The ${sourceId} source owner is ambiguous.`, 'conflict');
-    const custody = wolfRangeSupportShuttleHost(session, sourceId, roleId);
+    const custody = wolfRangeSupportShuttleHost(session, sourceId, roleId, owners.length === 0);
+    if (!custody) return { ...empty(roleId), applicable: true };
     const holder = players.find((player) => player.id === custody.holderUid);
     const holderGroupId = holder?.get('fleetGroupId');
     const group = typeof holderGroupId === 'string'
@@ -32394,6 +32418,7 @@ function currentRolePlayer(player: DocumentSnapshot): boolean {
 
 function wolfBoardingCurrentAuthority(
   session: DocumentSnapshot,
+  state: DocumentSnapshot,
   players: readonly DocumentSnapshot[],
   fleetGroupSnapshots: readonly DocumentSnapshot[],
 ): Readonly<{ supportCraft: readonly WolfBoardingCraftAuthority[]; playerShipByUid: ReadonlyMap<string, string> }> {
@@ -32440,6 +32465,8 @@ function wolfBoardingCurrentAuthority(
       roleHolders, playerUids: players.filter(currentRolePlayer)
         .map((player) => player.id),
       retainedShuttles: session.get('retainedShuttles') ?? {},
+      ...(Object.hasOwn(state.data() ?? {}, 'parkedCraftIds')
+        ? { admittedShuttleIds: state.get('parkedCraftIds') } : {}),
     });
   } catch (error) {
     throw commandError('failed-precondition',
@@ -32455,7 +32482,7 @@ function wolfBoardingProtocolSnapshot(
   fleetGroupSnapshots: readonly DocumentSnapshot[],
 ): WolfBoardingProtocolSnapshot {
   const inputs = wolfBoardingDefenceInputs(session, state);
-  const { supportCraft, playerShipByUid } = wolfBoardingCurrentAuthority(session, players, fleetGroupSnapshots);
+  const { supportCraft, playerShipByUid } = wolfBoardingCurrentAuthority(session, state, players, fleetGroupSnapshots);
   const assignedCommanders = players.filter((player) => currentRolePlayer(player) &&
     player.get('replacementRoleId') === 'wolf-commander').map((player) => player.id);
   if (assignedCommanders.length > 1) {
@@ -33048,7 +33075,7 @@ export const commitWolfBoardingSpecialChoice = auditedOnCall<{
         throw commandError('failed-precondition', 'The saved boarding receipt belongs to an unavailable attack.', 'stale-revision');
       }
       if (kind === 'relocation' || kind === 'reroll' && choice.source === 'pallas') {
-        const { supportCraft } = wolfBoardingCurrentAuthority(session, players.docs, groups.docs);
+        const { supportCraft } = wolfBoardingCurrentAuthority(session, state, players.docs, groups.docs);
         const craftId = kind === 'relocation' ? choice.craftId : 'pallas';
         const authority = supportCraft.find(({ shuttleId }) => shuttleId === craftId);
         const host = kind === 'relocation' ? ledger.hostAfter : ledger.targetShipId;
