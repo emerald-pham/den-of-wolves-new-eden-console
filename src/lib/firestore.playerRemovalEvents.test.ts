@@ -6,7 +6,9 @@ vi.mock('firebase/firestore', () => ({ collection: vi.fn(), connectFirestoreEmul
   Timestamp: class { toDate() { return new Date(0); } },
 }));
 vi.mock('firebase/functions', () => ({ httpsCallable: vi.fn() }));
-vi.mock('./firebase', () => ({ app: vi.fn(), functions: vi.fn() }));
+const authPort = vi.hoisted(() => ({ currentUser: { uid: 'gm1' } as { uid: string } | null }));
+vi.mock('./firebase', () => ({ app: vi.fn(), functions: vi.fn(), auth: () => authPort }));
+vi.mock('firebase/auth', () => ({ onAuthStateChanged: vi.fn(() => vi.fn()) }));
 vi.mock('./firebaseConfig', () => ({ emulatorPorts: { firestore: 8080 }, useEmulators: false }));
 const { subscribeGmPlayerRemovalEvents, sessionFrom } = await import('./firestore');
 const { onSnapshot, collection, query, where, orderBy, limit } = await import('firebase/firestore');
@@ -19,7 +21,7 @@ const snapshot = (value: unknown = privateEntry, fromCache = false, id = `player
   metadata: { fromCache }, docs: [{ id, data: () => value }],
 });
 beforeEach(() => {
-  vi.clearAllMocks(); useSessionStore.getState().reset();
+  vi.clearAllMocks(); authPort.currentUser = { uid: 'gm1' }; useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({ id: 's1', name: 'Session', phase: 'active', currentTurn: 1 } as never,
     { sessionId: 's1', uid: 'gm1', role: 'gm', connected: true, connectionGeneration: 4, displayName: 'GM' } as never);
   useSessionStore.getState().setGmInstance({ id: 'bridge', sessionId: 's1', uid: 'gm1', name: 'GM', deviceLabel: 'Device',
