@@ -966,8 +966,19 @@ it('continues the actual connected range/boarding finalizer and next Team after 
   }
   expect(read(f.statePath)).toMatchObject({ status: 'resolved', currentStep: 'resolved', attackId: f.attackId });
   expect(read(`${f.statePath}/audit/wolf-finalized-1`)).toMatchObject({ type: 'wolf-attack-finalization', attackId: f.attackId });
-  await expect(advanceTurn.run(req({ sessionId: f.sessionId, instanceId, expectedTurn: 1,
+  await expect(advanceTurn.run(req({ sessionId: f.sessionId, instanceId, expectedTurn: 1, requestId: 'owner-next-team',
     skipTurnStartAnnouncement: true }))).resolves.toMatchObject({ currentTurn: 2 });
   expect((read(f.root).lostShuttles as StoredDocument).highwall).toMatchObject({ status: 'lost' });
   expect((read(f.root).shuttleControl as StoredDocument).highwall).toBeUndefined();
+});
+
+it('does not report an already GM-removed assigned player as a fresh destruction victim or a second Kick victim', async () => {
+  const f = await normalPrefix(false, false, { onlySetup: true, withoutWing: true });
+  await kickPlayer.run(req({ sessionId: f.sessionId, instanceId, requestId: 'owner-kick-before-destruction', targetUid: admiral }));
+  const entries = structuredClone(removalEntries(f.root));
+  expect(entries).toHaveLength(1);
+  await expect(kickPlayer.run(req({ sessionId: f.sessionId, instanceId, requestId: 'owner-redundant-kick', targetUid: admiral }))).rejects.toThrow(/no longer connected/);
+  expect(removalEntries(f.root)).toEqual(entries);
+  await destroyPreparedAegis(f);
+  expect(removalEntries(f.root)).toEqual(entries);
 });
