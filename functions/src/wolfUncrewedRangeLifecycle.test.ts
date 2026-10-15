@@ -341,7 +341,7 @@ describe('normal uncrewed battle-table craft lifecycle', () => {
     expect(roles).toHaveLength(8);
     await advanceWolfAttackLifecycle.run({ params: { sessionId: f.sessionId } });
     expect(read(f.statePath)).toMatchObject({ currentStep: 'medium-range', revision: f.passed.revision + 2,
-      rangeDecisions: { 'long-range': { status: 'unavailable', reason: 'no-configured-executive-officer' } } });
+      rangeDecisions: { 'long-range': { status: 'auto-passed', reason: 'no-eligible-range-action' } } });
     expect(projectWolfAttackMemberView({ sessionId: f.sessionId, state: read(f.statePath), serverTime: new Date().toISOString() }))
       .toMatchObject({ currentStep: 'medium-range', range: 'medium' });
   });
