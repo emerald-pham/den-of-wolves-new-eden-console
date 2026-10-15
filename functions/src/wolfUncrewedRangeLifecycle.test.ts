@@ -270,7 +270,9 @@ import { createSession, loginGmAccess, claimGmInstance, confirmSetup,
   getAegisFighterWingLaunch, launchAegisFighterWing, passWolfFighterLaunchChoice,
   getWolfFighterRangeActionChoice, commitWolfFighterRangeActionChoice,
   getWolfRangeActionChoice, getWolfBoardingDefenceChoice, commitWolfBoardingDefenceChoice,
-  setUnionCraftStartingHost, addShipDamage, kickPlayer, setGmShipConsoleWriteGrant, setSmallShipDocking, setReplacementEligibility, assignReplacementRole } from './index';
+  setUnionCraftStartingHost, addShipDamage, kickPlayer, setGmShipConsoleWriteGrant, setSmallShipDocking, setReplacementEligibility, assignReplacementRole, setFighterWingCount } from './index';
+import { SHIP_DAMAGE_DECKS } from './shipDamage';
+import { initialPdfEscortWingState } from './pdfEscortWingState';
 import { recommendedRoleIds } from './roleConfiguration';
 import { projectWolfAttackMemberView } from './wolfAttackAudience';
 import { wolfCombatRoster, type WolfTargetingReceipt } from './wolfCombatMath';
@@ -793,7 +795,7 @@ describe('owner fate for genuinely admitted optional craft and unassigned fighte
   it('does not assign a new Captain to the actual never-assigned lost craft', async () => {
     const f = await normalSmallShipSetup(); await destroyNormalIcebreaker(f);
     await expect(assignNormalSmallShipCaptain(f)).rejects.toThrow();
-    expect(read(`${f.root}/players/${wing}`).replacementRoleId).toBeNull();
+    expect(read(`${f.root}/players/${wing}`).replacementRoleId).toBeUndefined();
   });
   it('writes assignment history in the actual replacement transaction even before any host loss', async () => {
     const f = await normalSmallShipSetup(); await assignNormalSmallShipCaptain(f);
@@ -830,4 +832,60 @@ describe('owner fate for genuinely admitted optional craft and unassigned fighte
       requestId: 'owner-pdf-loss-9', expectedRevision: 9 }));
     expect(read(`${f.root}/serverState/pdfEscortWing`)).toEqual(state);
   });
+});
+
+
+// Later affected-gate qualification, after the three-kind producer edit. The
+// AEGIS destruction prerequisite is explicitly prepared here because its
+// recyclable hull draws cannot exhaust through the deterministic draw port.
+async function destroyPreparedAegis(f: Awaited<ReturnType<typeof normalPrefix>>) {
+  (read(f.root).shipDamage as StoredDocument).aegis = {
+    damagedSystemIds: SHIP_DAMAGE_DECKS.aegis.map(card => card.systemId), destroyed: false,
+  };
+  await setGmShipConsoleWriteGrant.run(req({ sessionId: f.sessionId, instanceId, shipId: 'aegis', enabled: true,
+    claimedAt: (read(`${f.root}/gmInstances/${instanceId}`).claimedAt as { toDate: () => Date }).toDate().toISOString() }));
+  return addShipDamage.run(req({ sessionId: f.sessionId, instanceId, shipId: 'aegis',
+    expectedRevision: 0, requestId: 'owner-aegis-catastrophe' }));
+}
+async function declareFromCurrentManualSetup(f: Awaited<ReturnType<typeof normalPrefix>>) {
+  await setWolfAttackWindow.run(req({ sessionId: f.sessionId, instanceId, requestId: 'owner-future-due', expectedRevision: 0, status: 'due' }));
+  await stageWolfAttackPreparation.run(req({ sessionId: f.sessionId, instanceId, requestId: 'owner-future-draft', expectedRevision: 0, turn: 1,
+    shipIds: [...Array(10).fill('wolf-fighter-wing'), ...Array(5).fill('wolf-assault-transport')],
+    targetMode: 'pre-rolled', targetAssignments: [], modifiers: [], notes: '' }));
+  return declareWolfAttack.run(req({ sessionId: f.sessionId, instanceId, requestId: 'owner-future-declare', expectedRevision: 1 }));
+}
+it('zeros both never-assigned AEGIS wings and denies a new GM count correction after terminal loss', async () => {
+  const f = await normalPrefix(false, false, { onlySetup: true, withoutWing: true });
+  await destroyPreparedAegis(f);
+  expect(read(f.root).fighterWingCounts).toEqual({
+    'fighter-wing-alpha': { count: 0, revision: 1 }, 'fighter-wing-bravo': { count: 0, revision: 1 },
+  });
+  await expect(setFighterWingCount.run(req({ sessionId: f.sessionId, instanceId, requestId: 'owner-revive-count',
+    wingId: alpha, count: 1, expectedRevision: 1 }))).rejects.toThrow();
+  expect((read(f.root).fighterWingCounts as StoredDocument)[alpha]).toEqual({ count: 0, revision: 1 });
+});
+it('preserves genuinely assigned AEGIS wing counts with the existing retained player craft rule', async () => {
+  const f = await normalPrefix(false, false, { onlySetup: true });
+  const before = structuredClone(read(f.root).fighterWingCounts);
+  await destroyPreparedAegis(f);
+  expect(read(f.root).fighterWingCounts).toEqual(before);
+  expect((read(f.root).retainedShuttles as StoredDocument).starlight).toMatchObject({ holderUid: wing });
+});
+it('rejects a counterfeit terminal PDF marker at the actual declaration when its host is not destroyed', async () => {
+  const f = await normalPrefix(false, false, { onlySetup: true });
+  mock.documents.set(`${f.root}/serverState/pdfEscortWing`, { ...initialPdfEscortWingState(), revision: 1, fighters: 0, losses: 4,
+    hostLoss: { status: 'lost', destroyedHostShipId: 'refinery-124', cycle: 1,
+      sourceId: 'damage-destroyed-refinery-124', lostAt: new Date().toISOString() } });
+  await expect(declareFromCurrentManualSetup(f)).rejects.toThrow(/PDF|host.loss|provenance/);
+  expect(mock.documents.has(f.statePath)).toBe(false);
+});
+it('preserves source-produced predeclaration PDF loss through the actual later declaration without regrowing fighters', async () => {
+  const f = await normalPrefix(false, false, { onlySetup: true });
+  await setGmShipConsoleWriteGrant.run(req({ sessionId: f.sessionId, instanceId, shipId: 'refinery-124', enabled: true,
+    claimedAt: (read(`${f.root}/gmInstances/${instanceId}`).claimedAt as { toDate: () => Date }).toDate().toISOString() }));
+  for (let draw = 0; draw < 10; draw++) await addShipDamage.run(req({ sessionId: f.sessionId, instanceId,
+    shipId: 'refinery-124', requestId: `owner-future-pdf-${draw}`, expectedRevision: draw }));
+  await expect(declareFromCurrentManualSetup(f)).resolves.toMatchObject({ status: 'committed' });
+  expect(read(`${f.root}/serverState/pdfEscortWing`)).toMatchObject({ fighters: 0, losses: 4, launched: false,
+    attackCycle: null, hostLoss: { sourceId: 'damage-destroyed-refinery-124' } });
 });
