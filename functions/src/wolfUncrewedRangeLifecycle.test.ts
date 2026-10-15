@@ -277,6 +277,9 @@ import { wolfCombatRoster, type WolfTargetingReceipt } from './wolfCombatMath';
 import { deriveWolfBoardingSupportCraft, type WolfBoardingCraftAuthorityInput } from './wolfBoardingSupport';
 import { roleOwnedCraftForRoles } from './craftOwnership';
 import { retainShuttlesFromDestroyedHost } from './retainedShuttles';
+import { boardingSecurityTeamAuthority } from './boardingSecurityTeams';
+import { memberSessionProjection } from './memberSession';
+import { sessionFrom } from '@/lib/firestore';
 import { getWolfFighterRangeActionChoice as clientReadRange, commitWolfFighterRangeActionChoice as clientCommitRange } from '@/lib/sessionService';
 import { useSessionStore } from '@/store/useSessionStore';
 import { WolfFighterRangeActionPanelView } from '@/components/WolfFighterRangeActionPanel';
@@ -701,5 +704,40 @@ describe('owner host-loss and actual player-removal incidents', () => {
     const original = structuredClone(removalEntries(f.root));
     await kickPlayer.run(req(command));
     expect(removalEntries(f.root)).toEqual(original);
+  });
+});
+
+
+describe('host-loss current projections and security manifest', () => {
+  it('parses the actual normal terminal loss without recreating a playable craft', async () => {
+    const f = await normalPrefix(); await destroyNormalIcebreaker(f);
+    const session = sessionFrom(f.sessionId, read(f.root));
+    expect(session.lostShuttles).toEqual(read(f.root).lostShuttles);
+    expect(session.shuttleDockings?.some(d => d.shuttleId === 'highwall')).toBe(false);
+    expect(session.shuttleControl?.highwall).toBeUndefined();
+  });
+  it('projects loss only to its host group without granting craft or actor authority', async () => {
+    const f = await normalPrefix(); await destroyNormalIcebreaker(f);
+    const session = { ...read(f.root), id: f.sessionId };
+    const local = memberSessionProjection(session, { groupId: 'fleet-1', vesselIds: ['icebreaker'], actorUid: 'local' });
+    expect(local.lostShuttles).toEqual(session.lostShuttles);
+    expect((local.memberSessionScope as StoredDocument).craftIds).not.toContain('highwall');
+    const foreign = memberSessionProjection(session, { groupId: 'fleet-2', vesselIds: ['aegis'], actorUid: wing });
+    expect(foreign.lostShuttles).toEqual({});
+    expect(JSON.stringify(foreign)).not.toContain('player-removal');
+  });
+  it('uses actual startup manifest and terminal loss for current security ledgers, rejecting resurrected custody', async () => {
+    const f = await normalPrefix(); await destroyNormalIcebreaker(f);
+    const session = read(f.root), manifest = read(`${f.root}/craftOwnership/manifest`);
+    const input = { ...session, activeRoleIds: session.activeRoleIds, activeVesselIds: session.activeVesselIds,
+      vesselMode: manifest.vesselMode, startingCraftManifest: manifest.startingCraft,
+      currentCycle: session.currentTurn } as Parameters<typeof boardingSecurityTeamAuthority>[0];
+    const current = boardingSecurityTeamAuthority(input);
+    expect(current.shuttleSecurityTeams.highwall).toBeUndefined();
+    expect(current.shuttleSecurityTeams.starlight).toBe(0);
+    expect(() => boardingSecurityTeamAuthority({ ...input,
+      shuttleControl: { ...(session.shuttleControl as StoredDocument), highwall: { shuttleId: 'highwall',
+        ownerRoleId: 'icebreaker-miner', ownerUid: 'foreign', holderUid: 'foreign', revision: 0 } },
+    })).toThrow(/lost|Lost/);
   });
 });

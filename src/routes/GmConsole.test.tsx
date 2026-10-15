@@ -102,6 +102,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeGmArrestPosseCalculation: vi.fn(),
   subscribeGmArrestCase: vi.fn(() => vi.fn()),
   subscribeSessionEvents: vi.fn(),
+  subscribeGmPlayerRemovalEvents: vi.fn(),
   subscribeDamageDraws: vi.fn(),
 }));
 
@@ -5388,3 +5389,20 @@ it.each(['offline', 'cache'] as const)(
     expect(screen.getByRole('button', { name: /zoom into dradis panel/i })).toHaveFocus();
   },
 );
+
+
+it('shows a private actual removal in the existing GM event log and withdraws it with live authority', async () => {
+  const module = await import('@/lib/firestore');
+  const event = { id: 'player-removal-fixed', type: 'player-removal', sessionId: 's1', sourceId: 'damage-destroyed-icebreaker',
+    playerUid: 'removed-player', playerName: 'A'.repeat(40), roleId: 'icebreaker-miner', roleName: 'Icebreaker Miner',
+    cause: 'ship-destroyed', shipId: 'icebreaker', cycle: 1, createdAt: '2026-10-15T06:53:19.000Z' };
+  vi.mocked(module.subscribeGmPlayerRemovalEvents).mockImplementation((_id, onEvents) => { onEvents([event]); return vi.fn(); });
+  useSessionStore.getState().setGmInstance(local); streamInstances([local]);
+  renderConsole();
+  const log = await screen.findByRole('list', { name: 'GM event log' });
+  await waitFor(() => expect(within(log).getByText(/Awaiting escape/)).toBeVisible());
+  expect(log).toHaveTextContent('A'.repeat(40)); expect(log).toHaveTextContent('Icebreaker Miner');
+  expect(log).not.toHaveTextContent('removed-player');
+  act(() => useSessionStore.getState().setGmInstance(null));
+  await waitFor(() => expect(screen.queryByText(/Awaiting escape/)).not.toBeInTheDocument());
+});
