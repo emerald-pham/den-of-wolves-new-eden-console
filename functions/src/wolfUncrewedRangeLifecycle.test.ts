@@ -271,9 +271,13 @@ import { createSession, loginGmAccess, claimGmInstance, confirmSetup,
   getAegisFighterWingLaunch, launchAegisFighterWing, passWolfFighterLaunchChoice,
   getWolfFighterRangeActionChoice, commitWolfFighterRangeActionChoice,
   getWolfRangeActionChoice, getWolfBoardingDefenceChoice, commitWolfBoardingDefenceChoice,
-  getWolfBoardingSpecialChoice, commitWolfBoardingSpecialChoice } from './index';
+  getWolfBoardingSpecialChoice, commitWolfBoardingSpecialChoice, setUnionCraftStartingHost } from './index';
 import { recommendedRoleIds } from './roleConfiguration';
 import { projectWolfAttackMemberView } from './wolfAttackAudience';
+import { wolfCombatRoster, type WolfTargetingReceipt } from './wolfCombatMath';
+import { deriveWolfBoardingSupportCraft, type WolfBoardingCraftAuthorityInput } from './wolfBoardingSupport';
+import { roleOwnedCraftForRoles } from './craftOwnership';
+import { retainShuttlesFromDestroyedHost } from './retainedShuttles';
 import { getWolfFighterRangeActionChoice as clientReadRange, commitWolfFighterRangeActionChoice as clientCommitRange } from '@/lib/sessionService';
 import { useSessionStore } from '@/store/useSessionStore';
 import { WolfFighterRangeActionPanelView } from '@/components/WolfFighterRangeActionPanel';
@@ -288,7 +292,7 @@ const alpha = 'fighter-wing-alpha', bravo = 'fighter-wing-bravo';
 const req = (data: Record<string, unknown>, uid = gm) => ({ data, auth: { uid } }) as CallableRequest<Record<string, unknown>>;
 const read = (path: string) => mock.documents.get(path)!;
 
-async function normalPrefix(withMiner = false) {
+async function normalPrefix(withMiner = false, withUnion = false) {
   const created = await createSession.run(req({ requestId: 'normal-create', name: 'Normal Wing',
     displayName: 'GM', playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 8 }));
   const sessionId = (created.session as StoredDocument).id as string;
@@ -298,9 +302,16 @@ async function normalPrefix(withMiner = false) {
   await confirmSetup.run(req({ sessionId, instanceId, requestId: 'normal-confirm', expectedSetupRevision: 0,
     playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 8,
     dioneEnabled: false, capybaraEnabled: true, activeRoleIds: [...roles] }));
+  if (withUnion) {
+    for (const [craftId, hostShipId] of [['wobbly', 'quellon'], ['ally', 'shepherd']]) {
+      await setUnionCraftStartingHost.run(req({ sessionId, instanceId, requestId: `normal-host-${craftId}`,
+        expectedSetupRevision: read(root).setupRevision, craftId, hostShipId }));
+    }
+  }
   await prepareFullGameDemo.run(req({ sessionId, instanceId, requestId: 'normal-training',
     expectedSetupRevision: read(root).setupRevision }));
-  const actors = [[admiral, 'admiral'], [wing, 'wing-commander'], ...(withMiner ? [['normal-miner', 'icebreaker-miner']] : [])];
+  const actors = [[admiral, 'admiral'], [wing, 'wing-commander'], ...(withMiner ? [['normal-miner', 'icebreaker-miner']] : []),
+    ...(withUnion ? [['normal-wobbly', 'joint-engineering-quellon-refinery'], ['normal-ally', 'joint-engineering-shepherd-icebreaker']] : [])];
   for (const [uid, roleId] of actors) {
     await joinSession.run(req({ joinCode: (created.session as StoredDocument).joinCode, displayName: uid }, uid));
     await assignRole.run(req({ sessionId, instanceId, requestId: `assign-${uid}`, targetUid: uid, roleId }));
@@ -316,7 +327,7 @@ async function normalPrefix(withMiner = false) {
   expect(read(root).fullGameDemo).toEqual({ status: 'active', progression: 'manual' });
   if (!withMiner) {
     expect((read(root).shuttleControl as StoredDocument).highwall).toBeUndefined();
-    expect(Object.keys(read(root).shuttleControl as StoredDocument)).toEqual(['starlight']);
+    if (!withUnion) expect(Object.keys(read(root).shuttleControl as StoredDocument)).toEqual(['starlight']);
   } else expect((read(root).shuttleControl as StoredDocument).highwall).toMatchObject({ ownerUid: 'normal-miner', holderUid: 'normal-miner' });
   for (const [revision, action] of ['begin', 'storage', 'rations', 'unrest', 'riot', 'reactor'].entries()) {
     const result = await runMaintenance.run(req({ sessionId, shipId: 'aegis', requestId: `maintenance-${action}`,
@@ -347,6 +358,20 @@ async function normalPrefix(withMiner = false) {
   return { sessionId, root, statePath, passed };
 }
 
+function boardingInput(f: Awaited<ReturnType<typeof normalPrefix>>): WolfBoardingCraftAuthorityInput & { admittedShuttleIds: readonly string[] } {
+  const session = read(f.root), state = read(f.statePath);
+  const players = [...mock.documents.entries()].filter(([path]) => path.startsWith(`${f.root}/players/`)).map(([, value]) => value);
+  const supportIds = new Set(roleOwnedCraftForRoles(session.activeRoleIds as string[])
+    .filter(craft => craft.boardingSupport !== undefined).map(({ id }) => id));
+  return { activeRoleIds: session.activeRoleIds, activeVesselIds: session.activeVesselIds,
+    dockings: session.shuttleDockings, visits: (session.shuttleVisitLog as Array<{ shuttleId: string }>).filter(visit => supportIds.has(visit.shuttleId)),
+    control: session.shuttleControl, fuelled: session.shuttleFuelled, retainedShuttles: session.retainedShuttles ?? {},
+    roleHolders: players.filter(player => player.role === 'player').map(player => ({ uid: player.uid, roleId: player.assignedRoleId })),
+    playerUids: players.filter(player => player.role === 'player').map(player => player.uid),
+    admittedShuttleIds: state.parkedCraftIds,
+  } as WolfBoardingCraftAuthorityInput & { admittedShuttleIds: readonly string[] };
+}
+
 beforeEach(() => {
   mock.reset();
   // Inert deterministic entropy chooses ordinary healthy maintenance and target
@@ -363,6 +388,56 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('normal uncrewed battle-table craft lifecycle', () => {
+  it('excludes only never-admitted optional Union craft from actual normal boarding inputs', async () => {
+    const f = await normalPrefix();
+    const input = boardingInput(f);
+    expect(input.admittedShuttleIds).not.toContain('wobbly');
+    expect(input.admittedShuttleIds).not.toContain('ally');
+    expect(() => deriveWolfBoardingSupportCraft(input)).not.toThrow();
+  });
+
+  it('retains both actually admitted and normally owned Union craft with their original custody', async () => {
+    const f = await normalPrefix(false, true);
+    expect(boardingInput(f).admittedShuttleIds).toEqual(expect.arrayContaining(['wobbly', 'ally']));
+    expect(deriveWolfBoardingSupportCraft(boardingInput(f))).toEqual(expect.arrayContaining([
+      expect.objectContaining({ shuttleId: 'wobbly', ownerUid: 'normal-wobbly', holderUid: 'normal-wobbly', hostShipId: 'quellon' }),
+      expect.objectContaining({ shuttleId: 'ally', ownerUid: 'normal-ally', holderUid: 'normal-ally', hostShipId: 'shepherd' }),
+    ]));
+  });
+
+  it('rejects missing admitted history even when current optional docking/custody evidence is removed', async () => {
+    const f = await normalPrefix(false, true), input = boardingInput(f);
+    const control = { ...(input.control as StoredDocument) }; delete control.wobbly;
+    expect(() => deriveWolfBoardingSupportCraft({ ...input, control,
+      dockings: input.dockings.filter(({ shuttleId }) => shuttleId !== 'wobbly'),
+      visits: input.visits.filter(({ shuttleId }) => shuttleId !== 'wobbly'),
+    })).toThrow(/visit history/);
+  });
+
+  it('rejects a present or historical optional craft contradiction even when omitted from admission IDs', async () => {
+    const f = await normalPrefix(false, true), input = boardingInput(f);
+    expect(() => deriveWolfBoardingSupportCraft({ ...input, admittedShuttleIds: [],
+      visits: input.visits.map(visit => visit.shuttleId === 'wobbly' ? { ...visit, shipId: 'refinery-124' } : visit),
+    } as typeof input)).toThrow(/visit history/);
+    expect(() => deriveWolfBoardingSupportCraft({ ...input, admittedShuttleIds: [],
+      dockings: input.dockings.filter(({ shuttleId }) => shuttleId !== 'wobbly'),
+    } as typeof input)).toThrow(/visit history/);
+  });
+
+  it('keeps actual retained optional craft history required after source-produced destruction retention', async () => {
+    const f = await normalPrefix(false, true), input = boardingInput(f);
+    // Qualify this optional craft's real retention producer without claiming
+    // a whole-ship destruction scene for the unrelated uncrewed shuttles.
+    const retained = retainShuttlesFromDestroyedHost({ destroyedHostShipId: 'quellon',
+      dockings: input.dockings.filter(({ shuttleId }) => shuttleId === 'wobbly'),
+      control: input.control as Parameters<typeof retainShuttlesFromDestroyedHost>[0]['control'], retained: {}, retainedAt: new Date().toISOString() });
+    expect(retained.retainedShuttleIds).toContain('wobbly');
+    expect(() => deriveWolfBoardingSupportCraft({ ...input, admittedShuttleIds: [],
+      dockings: input.dockings.filter(({ shuttleId }) => shuttleId !== 'wobbly'),
+      retainedShuttles: retained.retained, visits: input.visits.filter(({ shuttleId }) => shuttleId !== 'wobbly'),
+    } as typeof input)).toThrow(/visit history/);
+  });
+
   it('feeds actual connected range producers through client getter/parser and the mounted ordinary Medium/Short handlers', async () => {
     const f = await normalPrefix();
     await advanceWolfAttackLifecycle.run({ params: { sessionId: f.sessionId } });
@@ -453,11 +528,14 @@ describe('normal uncrewed battle-table craft lifecycle', () => {
   it('continues actual startup custody + declaration parking + explicit Alpha/Bravo choices from Long to Medium', async () => {
     const f = await normalPrefix();
     expect(roles).toHaveLength(8);
+    const roster = wolfCombatRoster((read(f.statePath).calculationReceipt as { targeting: WolfTargetingReceipt }).targeting);
     await advanceWolfAttackLifecycle.run({ params: { sessionId: f.sessionId } });
     expect(read(f.statePath)).toMatchObject({ currentStep: 'medium-range', revision: f.passed.revision + 2,
       rangeDecisions: { 'long-range': { status: 'auto-passed', reason: 'no-eligible-range-action' } } });
     expect(projectWolfAttackMemberView({ sessionId: f.sessionId, state: read(f.statePath), serverTime: new Date().toISOString() }))
       .toMatchObject({ currentStep: 'medium-range', range: 'medium' });
+    expect(read(f.statePath).combatRoster).toEqual(roster);
+    expect(read(f.statePath).battleTableCraftActions).toContainEqual({ craftId: 'highwall', kind: 'shuttle', ownerRoleId: 'icebreaker-miner' });
   });
 
   it('keeps malformed present Highwall custody fail-closed', async () => {
@@ -475,6 +553,22 @@ describe('normal uncrewed battle-table craft lifecycle', () => {
     expect(read(f.statePath).currentStep).toBe('medium-range');
     expect(read(f.root).shuttleControl).toEqual(custody);
     expect(read(f.statePath).battleTableCraftActions).toContainEqual({ craftId: 'highwall', kind: 'shuttle', ownerRoleId: 'icebreaker-miner' });
+  });
+
+  it('does not turn missing current Miner custody into an automatic absent-owner pass', async () => {
+    const f = await normalPrefix(true);
+    const control = { ...(read(f.root).shuttleControl as StoredDocument) };
+    delete control.highwall;
+    read(f.root).shuttleControl = control;
+    await advanceWolfAttackLifecycle.run({ params: { sessionId: f.sessionId } });
+    expect(read(f.statePath).currentStep).toBe('long-range');
+  });
+
+  it('requires valid current parking before accepting a genuinely absent Highwall owner', async () => {
+    const f = await normalPrefix();
+    read(f.root).shuttleDockings = (read(f.root).shuttleDockings as Array<{ shuttleId: string }>).filter(({ shuttleId }) => shuttleId !== 'highwall');
+    await advanceWolfAttackLifecycle.run({ params: { sessionId: f.sessionId } });
+    expect(read(f.statePath).currentStep).toBe('long-range');
   });
 
   it('does not advance through a changed original manual clock', async () => {
