@@ -2956,14 +2956,17 @@ function ensureInitialFleetGroup(
   if (JSON.stringify(group.memberUids) !== JSON.stringify(memberUids)) {
     group = { ...group, memberUids: [...memberUids] };
   }
-  const memberShipIds: Record<string, string> = { ...(group.memberShipIds ?? {}) };
+  const currentMembers = new Set(group.memberUids);
+  const memberShipIds: Record<string, string> = Object.fromEntries(
+    Object.entries(group.memberShipIds ?? {}).filter(([uid]) => currentMembers.has(uid)),
+  );
   for (const player of players) {
     if (!player.exists || isKickedPlayer(player) || !group.memberUids.includes(player.id) ||
         Object.hasOwn(memberShipIds, player.id)) continue;
     const roleShipId = playerShipId(player);
     if (roleShipId && group.vesselIds.includes(roleShipId)) memberShipIds[player.id] = roleShipId;
   }
-  if (Object.keys(memberShipIds).length > 0 && !isDeepStrictEqual(memberShipIds, group.memberShipIds ?? {})) {
+  if (!isDeepStrictEqual(memberShipIds, group.memberShipIds ?? {})) {
     group = { ...group, memberShipIds };
   }
   const changed = !storedGroup.exists || JSON.stringify(parsed) !== JSON.stringify(group);
@@ -20158,8 +20161,12 @@ async function removePlayer(
       const partitions = await tx.get(db.collection(`sessions/${action.sessionId}/fleetGroups`));
       const groups = movementPursuitFleetGroups(activeVesselIdsForSession(session), partitions, playersSnapshot);
       for (const group of groups) if (group.memberUids.includes(action.targetUid)) {
+        const memberShipIds = group.memberShipIds && Object.fromEntries(
+          Object.entries(group.memberShipIds).filter(([memberUid]) => memberUid !== action.targetUid),
+        );
         tx.update(db.doc(`sessions/${action.sessionId}/fleetGroups/${group.id}`), {
           memberUids: group.memberUids.filter(memberUid => memberUid !== action.targetUid),
+          ...(memberShipIds ? { memberShipIds } : {}),
           updatedAt: FieldValue.serverTimestamp(),
         });
       }
