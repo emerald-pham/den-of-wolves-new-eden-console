@@ -230,6 +230,7 @@ it('transfers a base-craft Captain replacement role and leaves the former holder
   await expect(resolveShipMutiny.run(request(craftCommand))).resolves.toMatchObject({
     status: 'committed', shipId: 'gorgoneion', unrest: 6, oldCaptainUid: 'old', newCaptainUid: 'new',
   });
+  expect([...mock.documents.values()].filter(value => value.type === 'player-removal')).toEqual([expect.objectContaining({ playerUid: 'old', roleId: 'gorgoneion-captain', cause: 'mutiny-replacement' })]);
   expect(mock.documents.get('sessions/s1')?.smallShipStates).toMatchObject({
     gorgoneion: {
       unrest: 6, cycle: { revision: 5 },

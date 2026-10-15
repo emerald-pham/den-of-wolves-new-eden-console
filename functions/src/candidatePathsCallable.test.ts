@@ -439,6 +439,7 @@ describe('ordinary candidate callable authority and durable replay', () => {
     expect(die).toHaveBeenCalledTimes(1);
     expect(documents.get('sessions/s1/candidateCalculationAudits/n1')).toMatchObject({ calculation: { die: 6, scouts: 2, total: 8 } });
     expect(documents.get('sessions/s1/players/admiral')?.candidateDisposition).toEqual({ code: 'O', outcome: 'lost', cycle: 6 });
+    expect([...documents.values()].filter(value => value.type === 'player-removal')).toEqual([expect.objectContaining({ playerUid: 'admiral', roleId: 'admiral', cause: 'candidate-loss', sourceId: 'n1', shipId: 'aegis' })]);
     expect(documents.get('sessions/s1')).toMatchObject({ fullGameDemo: { status: 'active', progression: 'manual' },
       shipResources: { aegis: { fuel: 14 } }, shipDamage: { aegis: { destroyed: true } }, shipSurvivors: { aegis: 0 } });
     expect(JSON.stringify(reply)).not.toMatch(/die|scouts|total|hidden/);

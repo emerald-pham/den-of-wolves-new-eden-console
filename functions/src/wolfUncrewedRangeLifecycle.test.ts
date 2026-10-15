@@ -270,7 +270,7 @@ import { createSession, loginGmAccess, claimGmInstance, confirmSetup,
   getAegisFighterWingLaunch, launchAegisFighterWing, passWolfFighterLaunchChoice,
   getWolfFighterRangeActionChoice, commitWolfFighterRangeActionChoice,
   getWolfRangeActionChoice, getWolfBoardingDefenceChoice, commitWolfBoardingDefenceChoice,
-  setUnionCraftStartingHost } from './index';
+  setUnionCraftStartingHost, addShipDamage, kickPlayer, setGmShipConsoleWriteGrant } from './index';
 import { recommendedRoleIds } from './roleConfiguration';
 import { projectWolfAttackMemberView } from './wolfAttackAudience';
 import { wolfCombatRoster, type WolfTargetingReceipt } from './wolfCombatMath';
@@ -609,3 +609,97 @@ describe('normal uncrewed battle-table craft lifecycle', () => {
   });
 });
 
+
+
+// Owner 2026-10-15: never-assigned craft are lost with their destroyed host.
+// These cases use the genuine partial-roster startup, then ordinary damage
+// calls; no destruction, custody, loss result or current stage is injected.
+async function destroyNormalIcebreaker(f: Awaited<ReturnType<typeof normalPrefix>>) {
+  await setGmShipConsoleWriteGrant.run(req({ sessionId: f.sessionId, instanceId, shipId: 'icebreaker',
+    enabled: true, claimedAt: (read(`${f.root}/gmInstances/${instanceId}`).claimedAt as { toDate: () => Date }).toDate().toISOString() }));
+  let result: unknown;
+  for (let draw = 0; draw < 9; draw++) {
+    result = await addShipDamage.run(req({ sessionId: f.sessionId, instanceId,
+      shipId: 'icebreaker', requestId: `owner-loss-draw-${draw}`,
+      expectedRevision: (read(f.root).vesselActionRevisions as StoredDocument)?.icebreaker ?? 0 }));
+  }
+  return result;
+}
+function removalEntries(root: string) {
+  return [...mock.documents].filter(([path, value]) => path.startsWith(`${root}/procedureAudits/`) &&
+    value.type === 'player-removal').map(([, value]) => value);
+}
+describe('owner host-loss and actual player-removal incidents', () => {
+  it('loses never-assigned normal craft without synthetic custody or a player-removal alert', async () => {
+    const f = await normalPrefix();
+    const history = structuredClone(read(f.root).shuttleVisitLog);
+    const capitalResources = structuredClone(read(f.root).shipResources);
+    await expect(destroyNormalIcebreaker(f)).resolves.toMatchObject({ destroyed: true });
+    const session = read(f.root);
+    expect(session.lostShuttles).toMatchObject({ highwall: { status: 'lost', shuttleId: 'highwall',
+      ownerRoleId: 'icebreaker-miner', destroyedHostShipId: 'icebreaker', cycle: 1,
+      sourceId: 'damage-destroyed-icebreaker', lostAt: expect.any(String) } });
+    expect((session.shuttleDockings as StoredDocument[]).some(d => d.shipId === 'icebreaker')).toBe(false);
+    for (const key of ['shuttleControl', 'shuttleCargo', 'shuttleFuelled', 'retainedShuttles']) {
+      expect((session[key] as StoredDocument | undefined)?.highwall).toBeUndefined();
+    }
+    expect(session.shuttleVisitLog).toEqual(history);
+    expect(session.shipResources).toEqual(capitalResources);
+    expect(removalEntries(f.root)).toEqual([]);
+    expect(mock.documents.has(`${f.root}/shuttleDepartures/highwall`)).toBe(false);
+    expect(mock.documents.has(`${f.root}/shuttleTransitChains/highwall`)).toBe(false);
+    const terminal = structuredClone(session);
+    await addShipDamage.run(req({ sessionId: f.sessionId, instanceId, shipId: 'icebreaker',
+      requestId: 'owner-loss-terminal-repeat', expectedRevision: (session.vesselActionRevisions as StoredDocument).icebreaker }));
+    expect(read(f.root)).toEqual(terminal);
+  });
+  it('preserves a genuinely assigned craft and alerts its exact displaced player once, never a secret', async () => {
+    const f = await normalPrefix(true);
+    const control = structuredClone(read(f.root).shuttleControl);
+    await destroyNormalIcebreaker(f);
+    expect(read(f.root).retainedShuttles).toMatchObject({ highwall: { status: 'retained', holderUid: 'normal-miner' } });
+    expect(read(f.root).shuttleControl).toEqual(control);
+    expect((read(f.root).lostShuttles as StoredDocument)?.highwall).toBeUndefined();
+    const entries = removalEntries(f.root);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ type: 'player-removal', sessionId: f.sessionId,
+      playerUid: 'normal-miner', playerName: 'normal-miner', roleId: 'icebreaker-miner',
+      roleName: expect.any(String), cause: 'ship-destroyed', shipId: 'icebreaker',
+      sourceId: 'damage-destroyed-icebreaker', cycle: 1 });
+    expect(Object.keys(entries[0]).sort()).toEqual(['cause','createdAt','cycle','playerName','playerUid',
+      'roleId','roleName','sessionId','shipId','sourceId','type'].sort());
+    const original = structuredClone(entries);
+    await addShipDamage.run(req({ sessionId: f.sessionId, instanceId, shipId: 'icebreaker',
+      requestId: 'owner-loss-draw-8', expectedRevision: 8 }));
+    expect(removalEntries(f.root)).toEqual(original);
+    expect([...mock.documents].filter(([path]) => path.startsWith(`${f.root}/events/`))
+      .every(([, value]) => value.type !== 'player-removal')).toBe(true);
+  });
+  it.each(['malformed-own-property', 'missing-owner-custody', 'foreign-holder', 'changed-history'])(
+    'denies %s rather than laundering it into never-assigned loss', async (mode) => {
+      const f = await normalPrefix(mode !== 'malformed-own-property' && mode !== 'changed-history');
+      const session = read(f.root), control = { ...(session.shuttleControl as StoredDocument) };
+      if (mode === 'malformed-own-property') control.highwall = undefined;
+      if (mode === 'missing-owner-custody') delete control.highwall;
+      if (mode === 'foreign-holder') control.highwall = { ...(control.highwall as StoredDocument), holderUid: 'foreign' };
+      if (mode === 'changed-history') session.shuttleVisitLog = (session.shuttleVisitLog as StoredDocument[])
+        .map(v => v.shuttleId === 'highwall' ? { ...v, shipId: 'aegis' } : v);
+      session.shuttleControl = control;
+      await expect(destroyNormalIcebreaker(f)).rejects.toThrow(/custody|history|manifest/);
+      expect((read(f.root).shipDamage as StoredDocument).icebreaker).toMatchObject({ destroyed: false });
+      expect(read(f.root).lostShuttles).toBeUndefined(); expect(removalEntries(f.root)).toEqual([]);
+    });
+  it('logs permanent GM removal with the actual original role once and refuses foreign/currentless authority', async () => {
+    const f = await normalPrefix();
+    const command = { sessionId: f.sessionId, instanceId, requestId: 'owner-kick-wing', targetUid: wing };
+    await expect(kickPlayer.run(req(command, admiral))).rejects.toThrow();
+    expect(removalEntries(f.root)).toEqual([]);
+    await kickPlayer.run(req(command));
+    expect(read(`${f.root}/players/${wing}`)).toMatchObject({ connected: false, assignedRoleId: 'wing-commander' });
+    expect(removalEntries(f.root)).toEqual([expect.objectContaining({ playerUid: wing, playerName: wing,
+      roleId: 'wing-commander', roleName: expect.any(String), cause: 'gm-removal', sourceId: 'owner-kick-wing' })]);
+    const original = structuredClone(removalEntries(f.root));
+    await kickPlayer.run(req(command));
+    expect(removalEntries(f.root)).toEqual(original);
+  });
+});

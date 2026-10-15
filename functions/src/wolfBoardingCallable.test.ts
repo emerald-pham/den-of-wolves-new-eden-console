@@ -540,6 +540,7 @@ it('R4 atomically consumes the committed front-line death through the existing r
   const militia = await militiaDeathFixture();
   const historicalLoyalty = structuredClone(fields(`${sessionPath}/secrets/loyalty-militia-1`));
   await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect([...testState.documents.values()].filter(value => value.type === 'player-removal')).toEqual([expect.objectContaining({ playerUid: 'militia-1', roleId: 'rosal-militia-leader', cause: 'boarding-death' })]);
   expect(fields(attackPath)).toMatchObject({ status: 'resolved', calculationReceipt: { boarding: [{ militiaLeaderKilled: true }] } });
   expect(fields(`${sessionPath}/players/militia-1`)).toMatchObject({ assignedRoleId: 'shepherd-scientist',
     replacementRoleId: null, replacementStatus: 'awaiting-re-role', activeConsoleRoleId: null, seatId: null });

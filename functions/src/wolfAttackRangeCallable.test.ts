@@ -3070,6 +3070,7 @@ it('acknowledges the same committed fatal Ace action without rolling or applying
   const payload = { ...f.actionPayload(), targetId: 'contact-1' };
   const committed = await commitPdfFighterAceCombat.run(request(payload, 'ace-current'));
   expect(committed).toMatchObject({ aceDied: true, fighterDestroyed: true });
+  expect([...testState.documents.values()].filter(value => value.type === 'player-removal')).toEqual([expect.objectContaining({ playerUid: 'ace-current', roleId: 'pdf-fighter-ace', cause: 'fighter-ace-death' })]);
   expect(testState.documents.get('sessions/s1/players/ace-current')).toMatchObject({ replacementStatus: 'awaiting-re-role' });
   const saved = structuredClone([...testState.documents]);
   await expect(commitPdfFighterAceCombat.run(request(payload, 'ace-current'))).resolves.toEqual({ ...committed, status: 'replayed' });
