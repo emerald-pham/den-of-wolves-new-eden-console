@@ -24,6 +24,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
+import { onAuthStateChanged } from 'firebase/auth';
 import { app, auth, functions } from './firebase';
 import { sessionSubscriptionOwner, type MemberProjectionConfirmation } from './sessionSubscriptionOwner';
 import { emulatorPorts, useEmulators } from './firebaseConfig';
@@ -6332,7 +6333,8 @@ export function subscribeGmPlayerRemovalEvents(
 ): Unsubscribe {
   const key = (): string | null => {
     const state = useSessionStore.getState(), me = state.me, instance = state.gmInstance;
-    if (state.session?.id !== sessionId || me?.sessionId !== sessionId || me.role !== 'gm' ||
+    if (!auth().currentUser || auth().currentUser?.uid !== me?.uid ||
+        state.session?.id !== sessionId || me?.sessionId !== sessionId || me.role !== 'gm' ||
         me.connected === false || state.gmRecoveryPending || state.connection !== 'live' ||
         state.sessionSnapshotFreshness !== 'server' || !instance || instance.uid !== me.uid ||
         instance.sessionId !== sessionId) return null;
@@ -6344,15 +6346,25 @@ export function subscribeGmPlayerRemovalEvents(
   onEvents([]);
   if (!originalKey) return () => { active = false; onEvents([]); };
   let stopSnapshot: Unsubscribe = () => undefined;
+  let stopStore: Unsubscribe = () => undefined;
+  let stopAuth: Unsubscribe = () => undefined;
   const withdraw = () => {
     if (!active) return;
     active = false;
     stopSnapshot();
+    stopStore();
+    stopAuth();
     onEvents([]);
   };
-  const stopStore = useSessionStore.subscribe(() => {
+  stopStore = useSessionStore.subscribe(() => {
     if (key() !== originalKey) withdraw();
   });
+  stopAuth = onAuthStateChanged(auth(), () => {
+    if (key() !== originalKey) withdraw();
+  }, () => { if (active) { withdraw(); onError(); } });
+  if (!active || key() !== originalKey) {
+    withdraw(); stopStore(); stopAuth(); return () => undefined;
+  }
   stopSnapshot = onSnapshot(
     query(collection(db(), `sessions/${sessionId}/procedureAudits`),
       where('type', '==', 'player-removal'), orderBy('createdAt', 'desc'), limit(30)),
@@ -6370,7 +6382,7 @@ export function subscribeGmPlayerRemovalEvents(
     () => { if (active) { withdraw(); onError(); } },
   );
   if (!active) stopSnapshot();
-  return () => { withdraw(); stopStore(); };
+  return withdraw;
 }
 
 export function subscribeSessionEvents(
