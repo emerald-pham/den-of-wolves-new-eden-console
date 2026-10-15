@@ -270,7 +270,7 @@ import { createSession, loginGmAccess, claimGmInstance, confirmSetup,
   getAegisFighterWingLaunch, launchAegisFighterWing, passWolfFighterLaunchChoice,
   getWolfFighterRangeActionChoice, commitWolfFighterRangeActionChoice,
   getWolfRangeActionChoice, getWolfBoardingDefenceChoice, commitWolfBoardingDefenceChoice,
-  setUnionCraftStartingHost, addShipDamage, kickPlayer, setGmShipConsoleWriteGrant, setSmallShipDocking, setReplacementEligibility, assignReplacementRole, setFighterWingCount } from './index';
+  setUnionCraftStartingHost, addShipDamage, kickPlayer, setGmShipConsoleWriteGrant, setSmallShipDocking, setReplacementEligibility, assignReplacementRole, setFighterWingCount, repairAllShipDamage } from './index';
 import { SHIP_DAMAGE_DECKS } from './shipDamage';
 import { initialPdfEscortWingState } from './pdfEscortWingState';
 import { recommendedRoleIds } from './roleConfiguration';
@@ -888,4 +888,29 @@ it('preserves source-produced predeclaration PDF loss through the actual later d
   await expect(declareFromCurrentManualSetup(f)).resolves.toMatchObject({ status: 'committed' });
   expect(read(`${f.root}/serverState/pdfEscortWing`)).toMatchObject({ fighters: 0, losses: 4, launched: false,
     attackCycle: null, hostLoss: { sourceId: 'damage-destroyed-refinery-124' } });
+});
+
+it('keeps actual shuttle and admitted small-ship losses terminal through ordinary host repair and a future declaration', async () => {
+  const f = await normalSmallShipSetup(); await destroyNormalIcebreaker(f);
+  const loss = structuredClone(read(f.root).lostShuttles);
+  await expect(repairAllShipDamage.run(req({ sessionId: f.sessionId, instanceId, shipId: 'icebreaker',
+    expectedRevision: 9, requestId: 'owner-repair-icebreaker' }))).resolves.toMatchObject({ repaired: true });
+  expect((read(f.root).shipDamage as StoredDocument).icebreaker).toMatchObject({ destroyed: false });
+  await expect(declareFromCurrentManualSetup(f)).resolves.toMatchObject({ status: 'committed' });
+  expect(read(f.root).lostShuttles).toMatchObject(loss);
+  expect((read(f.root).smallShipStates as StoredDocument).gorgoneion).toMatchObject({ hostShipId: null, loss: { status: 'lost' } });
+  await expect(setSmallShipDocking.run(req({ sessionId: f.sessionId, instanceId, smallShipId: 'gorgoneion', hostShipId: 'aegis',
+    docked: true, expectedRevision: 2, requestId: 'owner-revive-repaired-smallship' }))).rejects.toThrow();
+});
+it('keeps actual PDF host loss at zero after ordinary host repair and a new real attack initialization', async () => {
+  const f = await normalPrefix(false, false, { onlySetup: true });
+  await setGmShipConsoleWriteGrant.run(req({ sessionId: f.sessionId, instanceId, shipId: 'refinery-124', enabled: true,
+    claimedAt: (read(`${f.root}/gmInstances/${instanceId}`).claimedAt as { toDate: () => Date }).toDate().toISOString() }));
+  for (let draw = 0; draw < 10; draw++) await addShipDamage.run(req({ sessionId: f.sessionId, instanceId,
+    shipId: 'refinery-124', requestId: `owner-repair-pdf-damage-${draw}`, expectedRevision: draw }));
+  await repairAllShipDamage.run(req({ sessionId: f.sessionId, instanceId, shipId: 'refinery-124',
+    expectedRevision: 10, requestId: 'owner-repair-refinery' }));
+  await expect(declareFromCurrentManualSetup(f)).resolves.toMatchObject({ status: 'committed' });
+  expect(read(`${f.root}/serverState/pdfEscortWing`)).toMatchObject({ fighters: 0, losses: 4,
+    hostLoss: { status: 'lost' }, attackCycle: 1, launched: false });
 });
