@@ -293,3 +293,68 @@ All **751 definitions/statuses**, **48 unfinished PC10 IDs (14 partial / 34
 missing)**, **703/751 overall**, **245/293 campaign** and the **nine-objective
 baseline** remain unchanged. P181/P629 stay partial; no closure, CI, deployment,
 release, future checkpoint or licensing credit is added.
+
+## October 15 Bravo HTTP acknowledgement and client read contract
+
+The fresh Bravo attempt used application `d3eeffe5` and unchanged reviewed
+operator `015252df` (SHA-256
+`c5f09daff607ae97e93b1d950db7f3ad728fd078ce094dd5a602406ccc258242`).
+One ordinary Bravo pass reached HTTP 200 after one normal Alpha launch. The
+passive and mounted rows share one request/result fingerprint; they are not two
+actions. The run then failed at `wing-pass-bravo-current-after-state` before
+final Bravo delivery/DOM/cost/authority proof. Its original failure fingerprint
+`1b40ba10eb8e59ba4f57c8b2539989595366705d4a6a023520989ec82df2dd65`
+and false completion flags remain unchanged. Earlier accepted Alpha evidence
+stays distinct; this failed run adds no completed Bravo acceptance.
+
+Before runtime, Root identified an actual installed Playwright ordering defect:
+Request is emitted before route authorization. Tests-only `60e442e4` observed
+that the old listener aborted the first valid request; `015252df` separates
+observation from admission and retains the original route guard with same-request
+identity. Five affected cases and the same independent review passed. The
+initial incomplete PASS, its withdrawal, the held candidate and genuine RED are
+preserved. This is an observed source-supported prevented failure. The fresh
+native HTTP 200 shows this transport boundary admitted one request; it does not
+explain the later verification failure. The ordering qualification is reused.
+
+The subsequent source investigation demonstrated a separate contract mismatch:
+AEGIS's actual producer returns launched Alpha with choiceStatus launched,
+eligible false and reason waiting after targeting; the client read parser
+rejected that valid tuple. Tests-only `4342b875` executed the real producer,
+client getter and unchanged Wing reader with inert ports: long/medium failed,
+while three baseline/denial/receipt controls passed. Source `63bb6325` adds only
+that exact read exception and explicitly keeps committed/replayed launch receipts
+requiring already-launched. An initial uncommitted edit hit adjacent Dione code;
+the same regression remained RED, that edit was reverted, and the final diff
+contains no Dione change. Five original cases passed after the correct repair;
+three later short/boarding/resolved read regressions bring focused coverage to
+eight. These later siblings are not contemporaneous RED or native progression.
+The operator still admits only targeting/long/medium for this objective. Source
+compatibility does not uniquely identify the fingerprint-only native cause.
+
+Acquisition was **00:24:54.201 UTC**, physical return **00:27:25.733 UTC**,
+with **151,532 ms (2m 31.532s)** debit. Three authenticated actors and three
+Chrome processes/contexts, eight configured roles and zero humans were used.
+Cleanup removed browsers/Auth/session/join/membership data; six captured owned
+processes/groups were absent, all 22 IPv4/IPv6 bindings free and own
+claims/reservations/configuration zero. Return readiness took 27 attempts /
+12,176 ms after an address-in-use observation, then the unchanged first strict
+return check passed. Kernel cause remains unknown; foreign resources were
+untouched. The single-attempt grant is consumed and no runtime is held.
+
+| Preserved receipt | SHA-256 |
+|---|---|
+| `manual-wing-bravo-pass-20261014/BRAVO_PASS_NATIVE_FIRST_FAILURE_CLEAN_IMMEDIATE_PARENT_HANDOFF_20261015.json` | `9f4875939fd3288ea01b967d6c25f045b6567b3e58d609fab955b1f6504c21f1` |
+| `manual-wing-bravo-pass-20261014/MANUAL_ZETA_SECOND_SCOUT_NATIVE_PHYSICAL_HANDBACK_20261014.json` | `35652dbffe974d98d7a8f1bf39a9bea5ce9c19816b7734ead3725ae2a391a957` |
+| `manual-wing-bravo-pass-20261014/ordinary-admiral-ui-first-failure.json` | `fd855e4d7969f3cb56d04ac2c62b6ad855df5f4127f418907c2e71e2419d6d69` |
+| `next-wing-remaining-action-preparation-20261014/AEGIS_LAUNCHED_RANGE_PARSER_SOURCE_HANDOFF_20261015.json` | `26e2aff8e6c437f1940ae7b8535afd7226f7fa6995a325badf56edb38ce243f2` |
+
+The first three receipts are under `native-runs/`; source handoffs remain outside
+the application checkout. Root owns exact source review, frontend-only build
+binding and fresh parent allocation before any successor runtime. Functions,
+rules, operator, launcher and cleanup are unchanged. All 48 PC10 IDs remain
+unfinished, 14 partial/34 missing, 703/751 overall and 245/293 campaign, with
+zero new closure or release. Final Bravo proof, other Wing functions, whole
+fresh-game/every-role/function ending, recovery/privacy/usability, final rendered
+UI/typography and exact candidate/main CI/deployment remain open. No later
+checkpoint or licensing work is included.

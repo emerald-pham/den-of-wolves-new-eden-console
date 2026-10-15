@@ -1467,3 +1467,26 @@ The PC10 orchestrator reconciled the scoped native acceptance **E-PC10-ORDINARY-
 Runtime acquired23:36:42.386UTC and physically returned23:39:17.852UTC with155466ms debit. Binding readiness took16attempts7075ms after an observed address-in-use transient, then the unchanged first strict return check passed:22binds free, owned data/processes absent, own rows zero and foreign ownership preserved. The grant is consumed; no runtime is held. Driver module/clock/DOM repairs and all failed evidence/chronology are retained;14 independent source cases overlap worker14 rather than28. Native success does not prove exclusive historical cause or specific same-run lag.
 
 Root source-only prevention audit under the standing parent direction covered ordinary Back/re-entry, Bravo current paired revision offers and unresolved-attack manual-phase refusal; no justified defect/new functional repair was found. Existing native Back evidence remains separately scoped. This docs-only reconciliation follows nativec49: no successor-native/build claim, repeated build/risk suite, runtime/CI/push/merge/release. Bravo launch, build/exchange/rebuild, range/aftermath, missions, new recovery/scale, whole fresh-game/every-role/function ending, final usability/typography and release remain open. All751 IDs/definitions/statuses,48 unfinished14partial34missing,703/751overall245/293campaign and nine objectives are unchanged; no catalog closure/CI/deployment/release credit. Root owns next scope, review/binding/fresh allocation and final reconciliation.
+
+### October 15 Bravo verification failure and bounded parser repair
+
+The one-attempt Bravo run at application `d3eeffe5`, operator `015252df`,
+reached one ordinary **Pass Fighter Wing Bravo** HTTP 200 after the fresh Alpha
+prerequisite, then failed during verification before final Bravo state/UI proof.
+The [scoped report](PC10_N9_WING_SCOUT_NATIVE_REPORT.md#october-15-bravo-http-acknowledgement-and-client-read-contract)
+preserves the first failure, earlier request-before-route prevention, actual
+producer/client regression and evidence limits. Physical return was
+00:27:25.733 UTC after 151,532 ms: browsers/Auth/session data cleaned, six owned
+processes/groups absent, 22 IPv4/IPv6 bindings free and own claims/configuration
+zero. The grant is consumed; a reviewed exact successor and fresh parent grant
+are required before another runtime.
+
+Source `63bb6325` repairs the demonstrated AEGIS launched/waiting read-view
+contract while retaining strict already-launched mutation receipts. Actual
+producer/getter/Wing-reader RED preceded the repair; eight focused cases include
+later canonical lifecycle siblings, explicitly separate from contemporaneous
+RED. This does not uniquely identify the fingerprint-only native error or accept
+Bravo. Functions, rules, operator, authority and cleanup gates are unchanged.
+All 48 PC10 IDs remain unfinished, 14 partial/34 missing, at 703/751 overall and
+245/293 campaign; no new closure, final rendered/typography, CI, deployment,
+release, later checkpoint or licensing credit.
