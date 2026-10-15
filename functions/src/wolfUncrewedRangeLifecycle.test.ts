@@ -1,7 +1,6 @@
-// @vitest-environment jsdom
+// @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
-import type { TurnPhase } from './turnZero';
 
 type StoredDocument = Record<string, unknown>;
 
@@ -198,7 +197,7 @@ const mock = vi.hoisted(() => {
       transactionAttempts.mockClear();
     },
     MockTimestamp,
-    randomInt: vi.fn((first: number, second?: number) => second === undefined ? 0 : 1001),
+    randomInt: vi.fn((first: number, second?: number) => second === undefined ? 0 : first),
     randomUUID: vi.fn(() => 'composition-uuid'),
     db: {
       doc: ref,
@@ -271,7 +270,7 @@ import { createSession, loginGmAccess, claimGmInstance, confirmSetup,
   getAegisFighterWingLaunch, launchAegisFighterWing, passWolfFighterLaunchChoice,
   getWolfFighterRangeActionChoice, commitWolfFighterRangeActionChoice,
   getWolfRangeActionChoice, getWolfBoardingDefenceChoice, commitWolfBoardingDefenceChoice,
-  getWolfBoardingSpecialChoice, commitWolfBoardingSpecialChoice, setUnionCraftStartingHost } from './index';
+  setUnionCraftStartingHost } from './index';
 import { recommendedRoleIds } from './roleConfiguration';
 import { projectWolfAttackMemberView } from './wolfAttackAudience';
 import { wolfCombatRoster, type WolfTargetingReceipt } from './wolfCombatMath';
@@ -282,7 +281,8 @@ import { getWolfFighterRangeActionChoice as clientReadRange, commitWolfFighterRa
 import { useSessionStore } from '@/store/useSessionStore';
 import { WolfFighterRangeActionPanelView } from '@/components/WolfFighterRangeActionPanel';
 import { createElement } from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render } from '@testing-library/react';
+import { JSDOM } from 'jsdom';
 import type { GameSession, Player } from '@/types/game';
 
 const roles = recommendedRoleIds(8);
@@ -291,6 +291,10 @@ const instanceId = 'normal-bridge';
 const alpha = 'fighter-wing-alpha', bravo = 'fighter-wing-bravo';
 const req = (data: Record<string, unknown>, uid = gm) => ({ data, auth: { uid } }) as CallableRequest<Record<string, unknown>>;
 const read = (path: string) => mock.documents.get(path)!;
+const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/' });
+Object.defineProperty(globalThis, 'window', { value: dom.window, configurable: true });
+Object.defineProperty(globalThis, 'document', { value: dom.window.document, configurable: true });
+Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
 
 async function normalPrefix(withMiner = false, withUnion = false) {
   const created = await createSession.run(req({ requestId: 'normal-create', name: 'Normal Wing',
@@ -342,9 +346,15 @@ async function normalPrefix(withMiner = false, withUnion = false) {
   await stageWolfAttackPreparation.run(req({ sessionId, instanceId, requestId: 'normal-draft', expectedRevision: 0, turn: 1,
     shipIds: [...Array(10).fill('wolf-fighter-wing'), ...Array(5).fill('wolf-assault-transport')],
     targetMode: 'pre-rolled', targetAssignments: [], modifiers: [], notes: '' }));
+  const declarationEntropyStart = mock.randomInt.mock.calls.length;
   const declared = await declareWolfAttack.run(req({ sessionId, instanceId, requestId: 'normal-declare', expectedRevision: 1 }));
   expect(declared).toMatchObject({ status: 'committed', currentStep: 'targeting' });
   const statePath = `${root}/wolfAttackState/current`;
+  // Check that Node's real server entropy import is bound to this inert port;
+  // a DOM project's built-in import normalization must not silently bypass it.
+  expect(mock.randomInt.mock.calls.slice(declarationEntropyStart).filter(([upperBound]) => upperBound === 5)).toHaveLength(15);
+  expect(((read(statePath).calculationReceipt as { targeting: WolfTargetingReceipt }).targeting.rolls)
+    .every(roll => roll.target === 'aegis')).toBe(true);
   expect(read(statePath).battleTableCraftActions).toContainEqual({ craftId: 'highwall', kind: 'shuttle', ownerRoleId: 'icebreaker-miner' });
   await advanceWolfAttackLifecycle.run({ params: { sessionId } });
   const offer = await getAegisFighterWingLaunch.run(req({ sessionId, wingId: alpha }, wing));
@@ -355,7 +365,7 @@ async function normalPrefix(withMiner = false, withUnion = false) {
     expectedRevision: current.revision, expectedWingRevision: current.wingRevision, sourceId: bravo }, wing));
   expect(passed).toMatchObject({ choiceStatus: 'passed', sourceId: bravo });
   expect(read(statePath).currentStep).toBe('long-range');
-  return { sessionId, root, statePath, passed };
+  return { sessionId, root, statePath, passed, attackId: declared.announcementId };
 }
 
 function boardingInput(f: Awaited<ReturnType<typeof normalPrefix>>): WolfBoardingCraftAuthorityInput & { admittedShuttleIds: readonly string[] } {
@@ -374,6 +384,7 @@ function boardingInput(f: Awaited<ReturnType<typeof normalPrefix>>): WolfBoardin
 
 beforeEach(() => {
   mock.reset();
+  mock.randomInt.mockClear();
   // Inert deterministic entropy chooses ordinary healthy maintenance and target
   // rolls. No outcome is supplied in any command body.
   mock.randomInt.mockImplementation((first: number, second?: number) => second === undefined ? 0 : first === 1000 ? 1001 : first);
@@ -403,6 +414,16 @@ describe('normal uncrewed battle-table craft lifecycle', () => {
       expect.objectContaining({ shuttleId: 'wobbly', ownerUid: 'normal-wobbly', holderUid: 'normal-wobbly', hostShipId: 'quellon' }),
       expect.objectContaining({ shuttleId: 'ally', ownerUid: 'normal-ally', holderUid: 'normal-ally', hostShipId: 'shepherd' }),
     ]));
+  });
+
+  it('rejects present malformed admission and own-property optional custody instead of treating them as absent', async () => {
+    const f = await normalPrefix(), input = boardingInput(f);
+    for (const admittedShuttleIds of [undefined, null, ['wobbly', 'wobbly'], ['foreign-craft']]) {
+      expect(() => deriveWolfBoardingSupportCraft({ ...input, admittedShuttleIds } as unknown as typeof input))
+        .toThrow(/admission/);
+    }
+    expect(() => deriveWolfBoardingSupportCraft({ ...input, control: { ...(input.control as StoredDocument), ally: undefined } }))
+      .toThrow();
   });
 
   it('rejects missing admitted history even when current optional docking/custody evidence is removed', async () => {
@@ -450,11 +471,11 @@ describe('normal uncrewed battle-table craft lifecycle', () => {
       onResolveMedium: actions => { pending = clientCommitRange(medium.turn, medium.revision, medium.range, alpha, actions); },
       onResolveShort: () => { throw new Error('Short is not mounted during Medium.'); } }));
     for (const [index, kind] of [[1, 'attack'], [2, 'target-shift']] as const) {
-      fireEvent.change(screen.getByLabelText(`Fighter ${index} action`), { target: { value: kind } });
-      fireEvent.change(screen.getByLabelText(`Fighter ${index} target`), { target: { value: medium.targets[0].instanceId } });
+      fireEvent.change(ui.getByLabelText(`Fighter ${index} action`), { target: { value: kind } });
+      fireEvent.change(ui.getByLabelText(`Fighter ${index} target`), { target: { value: medium.targets[0].instanceId } });
     }
-    fireEvent.change(screen.getByLabelText('Fighter 2 shift'), { target: { value: '-1' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Resolve Medium actions' }));
+    fireEvent.change(ui.getByLabelText('Fighter 2 shift'), { target: { value: '-1' } });
+    fireEvent.click(ui.getByRole('button', { name: 'Resolve Medium actions' }));
     const mediumReceipt = await pending!;
     expect(mediumReceipt).toMatchObject({ choiceStatus: 'pending-resolution', selectedFighterIndexes: [0, 1], revision: medium.revision + 1 });
     expect(read(f.statePath).currentStep).toBe('short-range');
@@ -464,11 +485,11 @@ describe('normal uncrewed battle-table craft lifecycle', () => {
     ] });
     ui.unmount();
     const short = await clientReadRange('short-range', alpha);
-    render(createElement(WolfFighterRangeActionPanelView, { view: short,
+    const shortUi = render(createElement(WolfFighterRangeActionPanelView, { view: short,
       onResolveMedium: () => { throw new Error('Medium is not mounted during Short.'); },
       onResolveShort: indexes => { pending = clientCommitRange(short.turn, short.revision, short.range, alpha, indexes); } }));
-    for (let index = 1; index <= 4; index++) fireEvent.click(screen.getByLabelText(`Fighter ${index} Short attack`));
-    fireEvent.click(screen.getByRole('button', { name: 'Resolve selected Short attacks' }));
+    for (let index = 1; index <= 4; index++) fireEvent.click(shortUi.getByLabelText(`Fighter ${index} Short attack`));
+    fireEvent.click(shortUi.getByRole('button', { name: 'Resolve selected Short attacks' }));
     expect(await pending!).toMatchObject({ choiceStatus: 'pending-resolution', selectedFighterIndexes: [0, 1, 2, 3] });
     const member = projectWolfAttackMemberView({ sessionId: f.sessionId, state: read(f.statePath), serverTime: new Date().toISOString() });
     expect(member).toMatchObject({ currentStep: 'boarding', range: null });
@@ -512,17 +533,14 @@ describe('normal uncrewed battle-table craft lifecycle', () => {
       const revision = read(f.statePath).revision;
       await advanceWolfAttackLifecycle.run({ params: { sessionId: f.sessionId } });
       if (read(f.statePath).status === 'resolved') break;
-      if (read(f.statePath).revision !== revision) continue;
-      const choice = await getWolfBoardingSpecialChoice.run(req({ sessionId: f.sessionId }, admiral));
-      expect(choice.type).toBe('wolf-boarding-special-choice-view');
-      expect(choice.choice).toMatchObject({ kind: 'reroll', source: 'aegis' });
-      await commitWolfBoardingSpecialChoice.run(req({ sessionId: f.sessionId, requestId: `normal-boarding-special-${index}`,
-        expectedTurn: 1, expectedRevision: choice.revision,
-        choice: { kind: 'reroll', source: choice.choice.source, targetShipId: choice.choice.targetShipId, dieIndexes: [] } }, admiral));
+      expect(read(f.statePath).revision).not.toBe(revision);
     }
-    expect(read(f.statePath)).toMatchObject({ status: 'resolved', currentStep: 'resolved', attackId: shortReceipt.attackId });
+    expect(read(f.statePath)).toMatchObject({ status: 'resolved', currentStep: 'resolved', attackId: f.attackId });
     expect((read(f.root).turnPhase as StoredDocument).airspace).toMatchObject({ state: 'lifted' });
-    expect(mock.documents.has(`${f.statePath}/audit/finalization-1`)).toBe(true);
+    expect(mock.documents.has(`${f.statePath}/audit/wolf-finalized-1`)).toBe(true);
+    expect(read(`${f.statePath}/audit/wolf-finalized-1`)).toMatchObject({ type: 'wolf-attack-finalization', attackId: f.attackId,
+      requestId: `wolf-final-${f.attackId}`, revision: read(f.statePath).finalizationRevision });
+    expect(read(`${f.statePath}/audit/wolf-finalized-1`).receipt).toEqual(read(f.statePath).calculationReceipt);
   });
 
   it('continues actual startup custody + declaration parking + explicit Alpha/Bravo choices from Long to Medium', async () => {
