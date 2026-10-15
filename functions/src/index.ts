@@ -2100,6 +2100,8 @@ function markPlayersForShipEscape(
   destructionEventId: string,
   revision: number,
   cycle: number,
+  // Caller command/attack identity; numeric CAS revisions have distinct domains.
+  incidentKey: string,
 ): void {
   for (const player of players) {
     if (!playerHoldsDestroyedShip(player, shipId)) continue;
@@ -2113,7 +2115,7 @@ function markPlayersForShipEscape(
       activeConsoleRoleId: null,
     });
     writePlayerRemovalAlert(tx, db, { sessionId, sourceId: destructionEventId, player,
-      cause: 'ship-destroyed', shipId, cycle, incidentKey: `${destructionEventId}:${revision}`,
+      cause: 'ship-destroyed', shipId, cycle, incidentKey: `${destructionEventId}:${incidentKey}`,
       recordedAt: new Date().toISOString(), createdAt: FieldValue.serverTimestamp() });
   }
 }
@@ -20762,7 +20764,8 @@ async function jumpDamageConsequences(input: {
 
   if (newlyDestroyed && destruction) {
     if (retainedShuttleTransition) writeOtherHostCraftLoss(tx, sessionId, retainedShuttleTransition.other);
-    markPlayersForShipEscape(tx, sessionId, affectedPlayers, shipId, destruction.eventId, revision, sessionTurn(session.get('currentTurn')));
+    markPlayersForShipEscape(tx, sessionId, affectedPlayers, shipId, destruction.eventId, revision,
+      sessionTurn(session.get('currentTurn')), `jump-damage:${requestId}`);
     for (const shuttleId of retainedShuttleTransition ? [...retainedShuttleTransition.retainedShuttleIds, ...retainedShuttleTransition.lostShuttleIds] : []) {
       tx.delete(db.doc(`sessions/${sessionId}/shuttleDepartures/${shuttleId}`));
       tx.delete(db.doc(`sessions/${sessionId}/shuttleTransitChains/${shuttleId}`));
@@ -27453,7 +27456,8 @@ async function reconcileWolfAttackBoarding(
   }
   for (const target of destructionTargets) {
     const destruction = destructionTransition(target, currentShipDamage[target]?.destroyed === true, false);
-    markPlayersForShipEscape(tx, sessionId, destroyedPlayers, target, destruction.eventId, nextRevision, turn as number);
+    markPlayersForShipEscape(tx, sessionId, destroyedPlayers, target, destruction.eventId, nextRevision,
+      turn as number, `wolf-attack:${attackId}`);
     for (const shuttleId of retainedShuttleIds) {
       if (shuttleTransitions.some(({ target: host, transition }) => host === target && transition && [...transition.retainedShuttleIds, ...transition.lostShuttleIds].includes(shuttleId))) {
         tx.delete(db.doc(`sessions/${sessionId}/shuttleDepartures/${shuttleId}`));
@@ -39710,6 +39714,7 @@ export const addShipDamage = auditedOnCall<{
         destruction.eventId,
         currentRevision + 1,
         sessionTurn(session.get('currentTurn')),
+        `ship-damage:${identity.requestId}`,
       );
     }
     if (!result.destroyed || newlyDestroyed) {
@@ -43177,6 +43182,7 @@ export const runMaintenance = auditedOnCall<{
         destruction.eventId,
         result.cycle.revision,
         currentTurn,
+        `maintenance:${data.requestId}`,
       );
       for (const shuttleId of retainedShuttleTransition ? [...retainedShuttleTransition.retainedShuttleIds, ...retainedShuttleTransition.lostShuttleIds] : []) {
         tx.delete(db.doc(`sessions/${data.sessionId}/shuttleDepartures/${shuttleId}`));

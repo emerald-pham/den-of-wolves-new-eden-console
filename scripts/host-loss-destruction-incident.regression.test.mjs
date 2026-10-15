@@ -75,3 +75,29 @@ test('distinct caller incidents within the same cycle and equal numeric revision
   assert.equal(f.records.size, 2, 'caller domain and original receipt identity distinguish incidents in the same cycle');
   assert.deepEqual(f.records.get(first[0][0]), first[0][1]);
 });
+
+// Later GREEN qualification of the real four call-site expressions, not an
+// absent-argument RED: evaluate their original command/attack identities and
+// feed them to the actual helper/writer with identical numeric CAS revisions.
+test('actual four callers retain their original domain and command or attack identity', () => {
+  const source = ts.createSourceFile('index.ts', file('functions/src/index.ts'), ts.ScriptTarget.Latest, true);
+  const keys = [];
+  const visit = node => {
+    if (ts.isCallExpression(node) && node.expression.getText(source) === 'markPlayersForShipEscape') {
+      assert.equal(node.arguments.length, 8);
+      keys.push(vm.runInNewContext(node.arguments[7].getText(source), {
+        requestId: 'original-jump', attackId: 'original-attack',
+        identity: { requestId: 'original-draw' }, data: { requestId: 'original-maintenance' },
+      }));
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  assert.deepEqual(keys.sort(), ['jump-damage:original-jump', 'maintenance:original-maintenance',
+    'ship-damage:original-draw', 'wolf-attack:original-attack'].sort());
+  const f = fixture();
+  for (const key of keys) f.mark(9, 1, f.victim(), key);
+  assert.equal(f.records.size, 4);
+  const original = [...f.records]; f.mark(9, 1, f.victim(), keys[0]);
+  assert.deepEqual([...f.records], original);
+});
