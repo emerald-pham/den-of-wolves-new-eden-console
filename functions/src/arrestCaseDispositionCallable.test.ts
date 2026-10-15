@@ -79,7 +79,12 @@ it('records a facilitator execution during the next Team Phase and opens arreste
     eligible: true, reason: 'arrested', revision: 1, requestId: 'disposition-1',
   });
   expect(mock.documents.get('sessions/s1/commandReceipts/disposition-1')?.result).toEqual(result);
-  expect([...mock.documents.values()].filter(value => value.type === 'player-removal')).toEqual([expect.objectContaining({ playerUid: 'u2', roleId: 'admiral', cause: 'execution' })]);
+  expect([...mock.documents.values()].filter(value => value.type === 'player-removal')).toEqual([expect.objectContaining({ playerUid: 'u2', roleId: 'admiral', cause: 'execution', sourceId: 'disposition-1', playerName: expect.any(String), roleName: expect.any(String) })]);
+  const audit = structuredClone([...mock.documents].filter(([, value]) => value.type === 'player-removal'));
+  mock.set.mockClear(); mock.update.mockClear();
+  await expect(resolveArrestCaseDisposition.run(request())).resolves.toEqual(result);
+  expect([...mock.documents].filter(([, value]) => value.type === 'player-removal')).toEqual(audit);
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('allows release during the deadline Team Phase without creating replacement eligibility', async () => {

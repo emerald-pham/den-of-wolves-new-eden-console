@@ -447,7 +447,9 @@ describe('ordinary candidate callable authority and durable replay', () => {
   it('recovers the exact request after debrief without fresh calculation, and rejects payload and actor collisions', async () => {
     const first = await handlers.execute(request(command));
     update(ref('sessions/s1'), { phase: 'debrief' });
+    const removal = structuredClone([...documents].filter(([, value]) => value.type === 'player-removal'));
     const retry = await handlers.execute(request(command));
+    expect([...documents].filter(([, value]) => value.type === 'player-removal')).toEqual(removal);
     expect(retry).toEqual({ ...first, status: 'replayed' });
     expect(die).toHaveBeenCalledTimes(1);
     await expect(handlers.execute(request({ ...command, coordinate: '6798' }))).rejects.toMatchObject({ code: 'failed-precondition' });

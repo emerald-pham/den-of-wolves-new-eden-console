@@ -46,6 +46,7 @@ const mock = vi.hoisted(() => {
   const documents = new Map<string, StoredDocument>();
   const versions = new Map<string, number>();
   let generatedSession = 0;
+  let strictReadOrder = false;
 
   function applyFields(
     path: string,
@@ -142,7 +143,9 @@ const mock = vi.hoisted(() => {
       const workingVersions = new Map(versions);
       const baseVersions = new Map(versions);
       const readPaths = new Set<string>();
+      let wrote = false;
       const transactionGet = async (target: Ref | Query) => {
+        if (strictReadOrder && wrote) throw new Error('Firestore transactions require all reads before all writes.');
         if ('query' in target) {
           const result = querySnapshot(target, working);
           for (const item of result.docs) readPaths.add(item.ref.path);
@@ -154,13 +157,14 @@ const mock = vi.hoisted(() => {
       const result = await callback({
         get: transactionGet,
         set: (target: Ref, fields: StoredDocument, options?: { merge?: boolean }) =>
-          set(target, fields, working, workingVersions, options),
+          { wrote = true; return set(target, fields, working, workingVersions, options); },
         create: (target: Ref, fields: StoredDocument) => {
+          wrote = true;
           if (working.has(target.path)) throw new Error(`Mock transaction create collision: ${target.path}`);
           set(target, fields, working, workingVersions);
         },
-        update: (target: Ref, fields: StoredDocument) => update(target, fields, working, workingVersions),
-        delete: (target: Ref) => remove(target, working, workingVersions),
+        update: (target: Ref, fields: StoredDocument) => { wrote = true; return update(target, fields, working, workingVersions); },
+        delete: (target: Ref) => { wrote = true; return remove(target, working, workingVersions); },
       });
       const conflicted = [...readPaths].some((path) =>
         versions.get(path) !== baseVersions.get(path));
@@ -185,10 +189,12 @@ const mock = vi.hoisted(() => {
 
   return {
     documents,
+    requireReadOrder: () => { strictReadOrder = true; },
     reset: () => {
       documents.clear();
       versions.clear();
       generatedSession = 0;
+      strictReadOrder = false;
       get.mockClear();
       set.mockClear();
       update.mockClear();
@@ -270,7 +276,7 @@ import { createSession, loginGmAccess, claimGmInstance, confirmSetup,
   getAegisFighterWingLaunch, launchAegisFighterWing, passWolfFighterLaunchChoice,
   getWolfFighterRangeActionChoice, commitWolfFighterRangeActionChoice,
   getWolfRangeActionChoice, getWolfBoardingDefenceChoice, commitWolfBoardingDefenceChoice,
-  setUnionCraftStartingHost, addShipDamage, kickPlayer, setGmShipConsoleWriteGrant, setSmallShipDocking, setReplacementEligibility, assignReplacementRole, setFighterWingCount, repairAllShipDamage } from './index';
+  setUnionCraftStartingHost, addShipDamage, kickPlayer, setGmShipConsoleWriteGrant, setSmallShipDocking, setReplacementEligibility, assignReplacementRole, setFighterWingCount, repairAllShipDamage, advanceTurn } from './index';
 import { SHIP_DAMAGE_DECKS } from './shipDamage';
 import { initialPdfEscortWingState } from './pdfEscortWingState';
 import { recommendedRoleIds } from './roleConfiguration';
@@ -624,6 +630,7 @@ describe('normal uncrewed battle-table craft lifecycle', () => {
 async function destroyNormalIcebreaker(f: Awaited<ReturnType<typeof normalPrefix>>) {
   await setGmShipConsoleWriteGrant.run(req({ sessionId: f.sessionId, instanceId, shipId: 'icebreaker',
     enabled: true, claimedAt: (read(`${f.root}/gmInstances/${instanceId}`).claimedAt as { toDate: () => Date }).toDate().toISOString() }));
+  mock.requireReadOrder();
   let result: unknown;
   for (let draw = 0; draw < 9; draw++) {
     result = await addShipDamage.run(req({ sessionId: f.sessionId, instanceId,
@@ -913,4 +920,54 @@ it('keeps actual PDF host loss at zero after ordinary host repair and a new real
   await expect(declareFromCurrentManualSetup(f)).resolves.toMatchObject({ status: 'committed' });
   expect(read(`${f.root}/serverState/pdfEscortWing`)).toMatchObject({ fighters: 0, losses: 4,
     hostLoss: { status: 'lost' }, attackCycle: 1, launched: false });
+});
+
+it('requires the original catastrophe before an ordinary repair can acknowledge terminal craft history', async () => {
+  const f = await normalSmallShipSetup(); await destroyNormalIcebreaker(f);
+  mock.documents.delete(`${f.root}/damageDraws/damage-destroyed-icebreaker`);
+  const before = structuredClone(read(f.root));
+  await expect(repairAllShipDamage.run(req({ sessionId: f.sessionId, instanceId, shipId: 'icebreaker',
+    expectedRevision: 9, requestId: 'owner-repair-without-catastrophe' }))).rejects.toThrow(/original host catastrophe/);
+  expect(read(f.root)).toEqual(before);
+});
+it('denies missing, foreign and future repair witnesses rather than reviving a terminal craft on a living host', async () => {
+  const f = await normalSmallShipSetup(); await destroyNormalIcebreaker(f);
+  await repairAllShipDamage.run(req({ sessionId: f.sessionId, instanceId, shipId: 'icebreaker',
+    expectedRevision: 9, requestId: 'owner-repair-witness-denials' }));
+  const loss = (read(f.root).lostShuttles as StoredDocument).highwall as StoredDocument;
+  const proof = structuredClone(loss.hostRepair as StoredDocument);
+  for (const [index, hostRepair] of [undefined, { ...proof, sourceId: 'damage-destroyed-aegis' }, { ...proof, revision: 11 }].entries()) {
+    if (hostRepair === undefined) delete loss.hostRepair; else loss.hostRepair = hostRepair;
+    await expect(index === 0 ? declareFromCurrentManualSetup(f) : declareWolfAttack.run(req({ sessionId: f.sessionId, instanceId,
+      requestId: `owner-denied-repair-witness-${index}`, expectedRevision: 1 }))).rejects.toThrow();
+    expect((read(f.root).shuttleDockings as StoredDocument[]).some(dock => dock.shuttleId === 'highwall')).toBe(false);
+  }
+});
+it('continues the actual connected range/boarding finalizer and next Team after terminal unassigned host loss', async () => {
+  const f = await normalPrefix(); await destroyNormalIcebreaker(f);
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: f.sessionId } });
+  expect(read(f.statePath).currentStep).toBe('medium-range');
+  const medium = await getWolfFighterRangeActionChoice.run(req({ sessionId: f.sessionId, sourceId: alpha, range: 'medium-range' }, wing));
+  await commitWolfFighterRangeActionChoice.run(req({ sessionId: f.sessionId, requestId: 'owner-chain-medium', expectedTurn: 1,
+    expectedRevision: medium.revision, sourceId: alpha, range: 'medium-range', actions: [
+      { fighterIndex: 0, kind: 'attack', targetContactId: medium.targets[0].instanceId },
+      { fighterIndex: 1, kind: 'target-shift', targetContactId: medium.targets[0].instanceId, shift: -1 },
+    ] }, wing));
+  expect(read(f.statePath).currentStep).toBe('short-range');
+  const short = await getWolfFighterRangeActionChoice.run(req({ sessionId: f.sessionId, sourceId: alpha, range: 'short-range' }, wing));
+  await commitWolfFighterRangeActionChoice.run(req({ sessionId: f.sessionId, requestId: 'owner-chain-short', expectedTurn: 1,
+    expectedRevision: short.revision, sourceId: alpha, range: 'short-range',
+    fighterIndexes: short.fighters.map((fighter: { fighterIndex: number }) => fighter.fighterIndex) }, wing));
+  const defence = await getWolfBoardingDefenceChoice.run(req({ sessionId: f.sessionId }, admiral));
+  await commitWolfBoardingDefenceChoice.run(req({ sessionId: f.sessionId, requestId: 'owner-chain-defence', expectedTurn: 1,
+    expectedRevision: defence.revision, targetShipId: defence.targetShipId, securityTeams: defence.availableSecurityTeams }, admiral));
+  for (let step = 0; step < 12 && read(f.statePath).status !== 'resolved'; step++) {
+    await advanceWolfAttackLifecycle.run({ params: { sessionId: f.sessionId } });
+  }
+  expect(read(f.statePath)).toMatchObject({ status: 'resolved', currentStep: 'resolved', attackId: f.attackId });
+  expect(read(`${f.statePath}/audit/wolf-finalized-1`)).toMatchObject({ type: 'wolf-attack-finalization', attackId: f.attackId });
+  await expect(advanceTurn.run(req({ sessionId: f.sessionId, instanceId, expectedTurn: 1,
+    skipTurnStartAnnouncement: true }))).resolves.toMatchObject({ currentTurn: 2 });
+  expect((read(f.root).lostShuttles as StoredDocument).highwall).toMatchObject({ status: 'lost' });
+  expect((read(f.root).shuttleControl as StoredDocument).highwall).toBeUndefined();
 });
