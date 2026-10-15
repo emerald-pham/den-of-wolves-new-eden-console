@@ -13,6 +13,7 @@ const alpha='fighter-wing-alpha',bravo='fighter-wing-bravo',uid='wing-inert',ses
 const rawClock=req(root+'/functions/lib/turnZero.js').startTurnPhase(1,1900000000000,{progression:'manual'});
 const clock={...rawClock,airspace:{...rawClock.airspace,state:'restricted',tickerActive:true}};
 const combatModule=req(root+'/functions/lib/fighterWingCombat.js');
+const audience=req(root+'/functions/lib/wolfAttackAudience.js');
 const combat=combatModule.launchAegisFighterWing(combatModule.initialAegisFighterWingAttack({attackId,cycle:1,counts:{[alpha]:4,[bravo]:4}}),
  {attackId,cycle:1,wingId:alpha,expectedRevision:0,bayCharged:true,bayDamaged:false});
 const snapshot=data=>({get:key=>data[key]});
@@ -25,11 +26,13 @@ const actualView=compile(nodeFor(index,'wolfFighterLaunchChoiceMap')+'\n'+nodeFo
  parseMaintenanceCycle:req(root+'/functions/lib/maintenance.js').parseMaintenanceCycle,
  SHIP_DAMAGE_DECKS:{aegis:[{systemId:'fighter-bay-alpha'},{systemId:'fighter-bay-bravo'}]},},'return aegisFighterWingLaunchView;');
 function producer(step='targeting'){
- const state={type:'wolf-attack-state',status:'declared',turn:1,attackId,revision:step==='targeting'?4:step==='long-range'?5:6,currentStep:step,
-  deadlineAt:clock.openAirspaceEndsAt,airspaceLocked:true,fighterLaunchChoices:{
+ assert.ok(audience.WOLF_ATTACK_PUBLIC_STEPS.includes(step));
+ const state={type:'wolf-attack-state',status:step==='resolved'?'resolved':'declared',turn:1,attackId,
+  revision:4+audience.WOLF_ATTACK_PUBLIC_STEPS.indexOf(step),currentStep:step,
+  deadlineAt:clock.openAirspaceEndsAt,airspaceLocked:step!=='resolved',fighterLaunchChoices:{
    [alpha]:{sourceId:alpha,status:'launched',turn:1,attackId,revision:3,actorUid:uid,actorRoleId:'wing-commander',requestId:'alpha-inert'},
    [bravo]:{sourceId:bravo,status:'passed',turn:1,attackId,revision:4,actorUid:uid,actorRoleId:'wing-commander',requestId:'bravo-inert'}}};
- return {state,member:req(root+'/functions/lib/wolfAttackAudience.js').projectWolfAttackMemberView({sessionId,state,serverTime:'2030-03-17T17:46:40.000Z'}),
+ return {state,member:audience.projectWolfAttackMemberView({sessionId,state,serverTime:'2030-03-17T17:46:40.000Z'}),
   views:Object.fromEntries([alpha,bravo].map(id=>[id,actualView(sessionId,snapshot(session),snapshot(state),id)]))};
 }
 function client(raw){
@@ -60,6 +63,18 @@ test('actual targeting producer passes actual current client getter and Wing rea
 for(const step of ['long-range','medium-range'])test('actual '+step+' producer remains readable through actual client getter and Wing reader',async()=>{
  const raw=producer(step);assert.equal(raw.views[alpha].launched,true);assert.equal(raw.views[alpha].choiceStatus,'launched');assert.equal(raw.views[alpha].reason,'waiting');
  const {value}=await wingReader(raw);assert.deepEqual(value.views,raw.views);assert.equal(value.member.currentStep,step);assert.equal(value.views[bravo].launched,false);
+});
+// Later regression coverage requested after the initial long/medium RED and repair.
+// These read-only lifecycle siblings do not expand the Bravo objective's accepted steps.
+for(const step of ['short-range','boarding','resolved'])test('same producer branch '+step+' sibling remains readable without enabling launch',async()=>{
+ const raw=producer(step),{value}=await wingReader(raw);
+ assert.deepEqual(value.views,raw.views);assert.equal(value.member.currentStep,step);
+ assert.equal(value.member.status,step==='resolved'?'resolved':'declared');
+ assert.equal(value.member.range,step==='short-range'?'short':null);
+ assert.deepEqual([value.views[alpha].launched,value.views[alpha].choiceStatus,value.views[alpha].eligible,value.views[alpha].reason],
+  [true,'launched',false,'waiting']);
+ assert.deepEqual([value.views[bravo].launched,value.views[bravo].choiceStatus,value.views[bravo].eligible,value.views[bravo].reason],
+  [false,'passed',false,'waiting']);
 });
 test('read compatibility retains malformed, eligible contradiction, integer, source and current-role denials',async()=>{
  for(const mutate of [v=>v.reason='passed',v=>delete v.choiceStatus,v=>v.choiceStatus='passed',v=>v.eligible=true,
