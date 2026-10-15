@@ -5634,7 +5634,8 @@ function aegisFighterWingLaunchViewReply(value: unknown): AegisFighterWingLaunch
       !Number.isSafeInteger(reply.fighters) || (reply.fighters as number) < 0 ||
       typeof reply.launched !== 'boolean' || typeof reply.eligible !== 'boolean' || !validReason || !validChoiceStatus ||
       (reply.eligible && (reply.launched || reply.reason !== undefined)) ||
-      (reply.launched && reply.reason !== 'already-launched') ||
+      (reply.launched && reply.reason !== 'already-launched' &&
+        !(reply.reason === 'waiting' && reply.choiceStatus === 'launched' && reply.eligible === false)) ||
       (!reply.eligible && !reply.reason)) return null;
   return {
     type: 'aegis-fighter-wing-launch-view', sessionId: reply.sessionId,
@@ -5651,7 +5652,7 @@ function aegisFighterWingLaunchResultReply(value: unknown): AegisFighterWingLaun
   const view = aegisFighterWingLaunchViewReply(value);
   if (!view || typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const reply = value as Record<string, unknown>;
-  return (reply.status === 'committed' || reply.status === 'replayed') &&
+  return reply.reason === 'already-launched' && (reply.status === 'committed' || reply.status === 'replayed') &&
     typeof reply.requestId === 'string' && reply.requestId.length > 0
     ? { ...view, status: reply.status, requestId: reply.requestId }
     : null;
