@@ -270,7 +270,7 @@ import { createSession, loginGmAccess, claimGmInstance, confirmSetup,
   getAegisFighterWingLaunch, launchAegisFighterWing, passWolfFighterLaunchChoice,
   getWolfFighterRangeActionChoice, commitWolfFighterRangeActionChoice,
   getWolfRangeActionChoice, getWolfBoardingDefenceChoice, commitWolfBoardingDefenceChoice,
-  setUnionCraftStartingHost, addShipDamage, kickPlayer, setGmShipConsoleWriteGrant } from './index';
+  setUnionCraftStartingHost, addShipDamage, kickPlayer, setGmShipConsoleWriteGrant, setSmallShipDocking, setReplacementEligibility, assignReplacementRole } from './index';
 import { recommendedRoleIds } from './roleConfiguration';
 import { projectWolfAttackMemberView } from './wolfAttackAudience';
 import { wolfCombatRoster, type WolfTargetingReceipt } from './wolfCombatMath';
@@ -299,7 +299,7 @@ Object.defineProperty(globalThis, 'window', { value: dom.window, configurable: t
 Object.defineProperty(globalThis, 'document', { value: dom.window.document, configurable: true });
 Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
 
-async function normalPrefix(withMiner = false, withUnion = false) {
+async function normalPrefix(withMiner = false, withUnion = false, options: { onlySetup?: boolean; withoutWing?: boolean; withColonel?: boolean } = {}) {
   const created = await createSession.run(req({ requestId: 'normal-create', name: 'Normal Wing',
     displayName: 'GM', playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 8 }));
   const sessionId = (created.session as StoredDocument).id as string;
@@ -317,7 +317,8 @@ async function normalPrefix(withMiner = false, withUnion = false) {
   }
   await prepareFullGameDemo.run(req({ sessionId, instanceId, requestId: 'normal-training',
     expectedSetupRevision: read(root).setupRevision }));
-  const actors = [[admiral, 'admiral'], [wing, 'wing-commander'], ...(withMiner ? [['normal-miner', 'icebreaker-miner']] : []),
+  const actors = [[admiral, 'admiral'], ...(!options.withoutWing ? [[wing, 'wing-commander']] : []),
+    ...(options.withColonel ? [['normal-colonel', 'refinery-124-pdf-colonel']] : []), ...(withMiner ? [['normal-miner', 'icebreaker-miner']] : []),
     ...(withUnion ? [['normal-wobbly', 'joint-engineering-quellon-refinery'], ['normal-ally', 'joint-engineering-shepherd-icebreaker']] : [])];
   for (const [uid, roleId] of actors) {
     await joinSession.run(req({ joinCode: (created.session as StoredDocument).joinCode, displayName: uid }, uid));
@@ -334,7 +335,7 @@ async function normalPrefix(withMiner = false, withUnion = false) {
   expect(read(root).fullGameDemo).toEqual({ status: 'active', progression: 'manual' });
   if (!withMiner) {
     expect((read(root).shuttleControl as StoredDocument).highwall).toBeUndefined();
-    if (!withUnion) expect(Object.keys(read(root).shuttleControl as StoredDocument)).toEqual(['starlight']);
+    if (!withUnion) expect(Object.keys(read(root).shuttleControl as StoredDocument)).toEqual(options.withColonel ? ['starlight', 'chepu'] : options.withoutWing ? [] : ['starlight']);
   } else expect((read(root).shuttleControl as StoredDocument).highwall).toMatchObject({ ownerUid: 'normal-miner', holderUid: 'normal-miner' });
   for (const [revision, action] of ['begin', 'storage', 'rations', 'unrest', 'riot', 'reactor'].entries()) {
     const result = await runMaintenance.run(req({ sessionId, shipId: 'aegis', requestId: `maintenance-${action}`,
@@ -345,6 +346,7 @@ async function normalPrefix(withMiner = false, withUnion = false) {
     expect(result).toMatchObject({ status: 'committed', revision: revision + 1 });
   }
   await advanceFullGameDemoPhase.run(req({ sessionId, instanceId, requestId: 'normal-coordination', expectedTurn: 1 }));
+  if (options.onlySetup) return { sessionId, root, statePath: `${root}/wolfAttackState/current`, passed: undefined, attackId: '' };
   await setWolfAttackWindow.run(req({ sessionId, instanceId, requestId: 'normal-due', expectedRevision: 0, status: 'due' }));
   await stageWolfAttackPreparation.run(req({ sessionId, instanceId, requestId: 'normal-draft', expectedRevision: 0, turn: 1,
     shipIds: [...Array(10).fill('wolf-fighter-wing'), ...Array(5).fill('wolf-assault-transport')],
@@ -748,4 +750,84 @@ it('keeps absent legacy custody history ambiguous instead of treating it as neve
   delete read(f.root).shuttleControl;
   await expect(destroyNormalIcebreaker(f)).rejects.toThrow(/custody|history|manifest/);
   expect(read(f.root).lostShuttles).toBeUndefined();
+});
+
+
+async function normalSmallShipSetup(id = 'gorgoneion') {
+  const f = await normalPrefix(false, false, { onlySetup: true });
+  await setSmallShipDocking.run(req({ sessionId: f.sessionId, instanceId, smallShipId: id,
+    hostShipId: 'icebreaker', docked: true, expectedRevision: 0, requestId: `owner-admit-${id}` }));
+  return f;
+}
+async function assignNormalSmallShipCaptain(f: Awaited<ReturnType<typeof normalPrefix>>, id = 'gorgoneion') {
+  await setReplacementEligibility.run(req({ sessionId: f.sessionId, instanceId, requestId: 'owner-captain-eligibility',
+    targetUid: wing, reason: 'removed', expectedRevision: 0, expectedSetupRevision: read(f.root).setupRevision }));
+  return assignReplacementRole.run(req({ sessionId: f.sessionId, instanceId, requestId: 'owner-assign-captain', targetUid: wing,
+    replacementRoleId: `${id}-captain`, expectedRevision: 1, expectedSetupRevision: read(f.root).setupRevision }));
+}
+describe('owner fate for genuinely admitted optional craft and unassigned fighter wings', () => {
+  it('records never-assigned provenance on first ordinary GM admission and permanent assignment on the real role transaction', async () => {
+    const f = await normalSmallShipSetup();
+    expect((read(f.root).smallShipStates as StoredDocument).gorgoneion).toMatchObject({ everAssigned: false });
+    await assignNormalSmallShipCaptain(f);
+    expect((read(f.root).smallShipStates as StoredDocument).gorgoneion).toMatchObject({ everAssigned: true });
+  });
+  it('loses an actually admitted never-assigned small ship with its host without creating a player alert', async () => {
+    const f = await normalSmallShipSetup(); await destroyNormalIcebreaker(f);
+    expect((read(f.root).smallShipStates as StoredDocument).gorgoneion).toMatchObject({ hostShipId: null,
+      everAssigned: false, dockingRevision: 2, loss: { status: 'lost', destroyedHostShipId: 'icebreaker',
+        sourceId: 'damage-destroyed-icebreaker', cycle: 1, lostAt: expect.any(String) } });
+    expect(removalEntries(f.root)).toEqual([]);
+  });
+  it('denies ordinary GM undock/redock and replacement assignment after the real host loss', async () => {
+    const f = await normalSmallShipSetup(); await destroyNormalIcebreaker(f);
+    const state = structuredClone(read(f.root).smallShipStates);
+    const current = (state as StoredDocument).gorgoneion as StoredDocument;
+    await expect(setSmallShipDocking.run(req({ sessionId: f.sessionId, instanceId, smallShipId: 'gorgoneion',
+      hostShipId: null, docked: false, expectedRevision: current.dockingRevision, requestId: 'owner-revive-undock' }))).rejects.toThrow();
+    await expect(setSmallShipDocking.run(req({ sessionId: f.sessionId, instanceId, smallShipId: 'gorgoneion',
+      hostShipId: 'aegis', docked: true, expectedRevision: current.dockingRevision, requestId: 'owner-revive-redock' }))).rejects.toThrow();
+    await expect(assignNormalSmallShipCaptain(f)).rejects.toThrow();
+    expect(read(f.root).smallShipStates).toEqual(state);
+  });
+  it('does not assign a new Captain to the actual never-assigned lost craft', async () => {
+    const f = await normalSmallShipSetup(); await destroyNormalIcebreaker(f);
+    await expect(assignNormalSmallShipCaptain(f)).rejects.toThrow();
+    expect(read(`${f.root}/players/${wing}`).replacementRoleId).toBeNull();
+  });
+  it('writes assignment history in the actual replacement transaction even before any host loss', async () => {
+    const f = await normalSmallShipSetup(); await assignNormalSmallShipCaptain(f);
+    expect((read(f.root).smallShipStates as StoredDocument).gorgoneion).toMatchObject({ everAssigned: true });
+  });
+  it('preserves genuine assigned small-ship fate and never resets its assignment history on ordinary docking', async () => {
+    const f = await normalSmallShipSetup(); await assignNormalSmallShipCaptain(f);
+    await setSmallShipDocking.run(req({ sessionId: f.sessionId, instanceId, smallShipId: 'gorgoneion',
+      hostShipId: null, docked: false, expectedRevision: 1, requestId: 'owner-owned-undock' }));
+    await setSmallShipDocking.run(req({ sessionId: f.sessionId, instanceId, smallShipId: 'gorgoneion',
+      hostShipId: 'icebreaker', docked: true, expectedRevision: 2, requestId: 'owner-owned-redock' }));
+    const before = structuredClone((read(f.root).smallShipStates as StoredDocument).gorgoneion);
+    await destroyNormalIcebreaker(f);
+    expect((read(f.root).smallShipStates as StoredDocument).gorgoneion).toEqual(before);
+    expect(before).toMatchObject({ everAssigned: true });
+  });
+  it('keeps missing legacy assignment provenance ambiguous instead of irreversibly losing an admitted craft', async () => {
+    const f = await normalSmallShipSetup();
+    delete ((read(f.root).smallShipStates as StoredDocument).gorgoneion as StoredDocument).everAssigned;
+    await expect(destroyNormalIcebreaker(f)).rejects.toThrow(/assignment|custody|history/);
+  });
+  it('zeros never-assigned PDF fighters through ordinary host destruction with canonical terminal identity', async () => {
+    const f = await normalPrefix(false, false, { onlySetup: true });
+    await setGmShipConsoleWriteGrant.run(req({ sessionId: f.sessionId, instanceId, shipId: 'refinery-124',
+      enabled: true, claimedAt: (read(`${f.root}/gmInstances/${instanceId}`).claimedAt as { toDate: () => Date }).toDate().toISOString() }));
+    for (let draw = 0; draw < 10; draw++) await addShipDamage.run(req({ sessionId: f.sessionId, instanceId,
+      shipId: 'refinery-124', requestId: `owner-pdf-loss-${draw}`,
+      expectedRevision: (read(f.root).vesselActionRevisions as StoredDocument)?.['refinery-124'] ?? 0 }));
+    expect(read(`${f.root}/serverState/pdfEscortWing`)).toMatchObject({ fighters: 0, losses: 4, launched: false,
+      hostLoss: { status: 'lost', destroyedHostShipId: 'refinery-124', cycle: 1, sourceId: 'damage-destroyed-refinery-124' } });
+    expect(removalEntries(f.root)).toEqual([]);
+    const state = structuredClone(read(`${f.root}/serverState/pdfEscortWing`));
+    await addShipDamage.run(req({ sessionId: f.sessionId, instanceId, shipId: 'refinery-124',
+      requestId: 'owner-pdf-loss-9', expectedRevision: 9 }));
+    expect(read(`${f.root}/serverState/pdfEscortWing`)).toEqual(state);
+  });
 });

@@ -273,3 +273,18 @@ it('keeps the base Capybara Jump Drive selector unavailable when the expansion s
   expect(within(capybara).getByText(/unavailable.*expansion Capybara uses the full-ship rules/i)).toBeVisible();
   expect(within(capybara).queryByRole('checkbox', { name: 'Jump Drive' })).not.toBeInTheDocument();
 });
+
+
+it('shows the terminal host loss without advertising ordinary GM re-admission or operations', () => {
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...session, smallShipStates: { ...session.smallShipStates,
+    gorgoneion: { ...session.smallShipStates!.gorgoneion!, hostShipId: null, dockingRevision: 2,
+      everAssigned: false, loss: { status: 'lost', destroyedHostShipId: 'aegis', cycle: 2,
+        sourceId: 'damage-destroyed-aegis', lostAt: '2026-10-15T06:53:19.000Z' } },
+  } } as never);
+  render(<SmallShipOperations />);
+  const card = screen.getByRole('region', { name: 'Gorgoneion small-ship operations' });
+  expect(within(card).getByRole('status')).toHaveTextContent(/Lost with/);
+  expect(within(card).queryByRole('button')).not.toBeInTheDocument();
+  expect(card).not.toHaveTextContent('GM admission required');
+});
