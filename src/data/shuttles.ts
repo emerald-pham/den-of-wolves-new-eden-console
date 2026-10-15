@@ -174,6 +174,7 @@ interface ShuttleSessionState {
   readonly activeRoleIds?: readonly string[];
   readonly playerCount?: number;
   readonly retainedShuttles?: Readonly<Record<string, unknown>>;
+  readonly lostShuttles?: Readonly<Record<string, unknown>>;
   readonly memberSessionScope?: { readonly groupId: string };
 }
 
@@ -183,7 +184,7 @@ export function shuttlebayForShip(session: ShuttleSessionState, shipId: string) 
     session.shuttleVisitLog,
     session.activeRoleIds,
     session.playerCount,
-    Object.keys(session.retainedShuttles ?? {}),
+    [...Object.keys(session.retainedShuttles ?? {}), ...Object.keys(session.lostShuttles ?? {})],
     session.memberSessionScope !== undefined,
   );
   const dockings = manifest.dockings;
@@ -210,7 +211,7 @@ export function dockingForShuttle(session: ShuttleSessionState, shuttleId: strin
     session.shuttleVisitLog,
     session.activeRoleIds,
     session.playerCount,
-    Object.keys(session.retainedShuttles ?? {}),
+    [...Object.keys(session.retainedShuttles ?? {}), ...Object.keys(session.lostShuttles ?? {})],
     session.memberSessionScope !== undefined,
   ).dockings
     .find((docking) => docking.shuttleId === shuttleId);

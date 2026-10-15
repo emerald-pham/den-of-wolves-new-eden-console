@@ -1,3 +1,4 @@
+import { writePlayerRemovalAlert } from './playerRemovalAlert';
 import type { CandidateDebriefPathStep } from './sessionDebrief';
 import type { DocumentReference, DocumentSnapshot, Firestore, Transaction } from 'firebase-admin/firestore';
 import { randomInt } from 'node:crypto';
@@ -419,6 +420,11 @@ export function createCandidateCallables(d: Dependencies) {
         const ship = shipForRole(boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')));
         if (ship && dispositionShips.has(ship) && player.get('role') === 'player') {
           const disposition = outcomes[ship] as Fields;
+          if (player.get('candidateDisposition') == null && ['lost', 'left-behind', 'cannibalised'].includes(String(disposition.outcome))) {
+            writePlayerRemovalAlert(tx, db, { sessionId: command.sessionId, sourceId: command.requestId,
+              player, cause: 'candidate-loss', shipId: ship, cycle: a.cycle,
+              recordedAt: a.now, createdAt: d.serverTimestamp() });
+          }
           tx.update(player.ref, { candidateDisposition: { code: disposition.code, outcome: disposition.outcome, cycle: disposition.cycle },
             updatedAt: d.serverTimestamp() });
         }

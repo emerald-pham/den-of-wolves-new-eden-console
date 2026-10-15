@@ -14,6 +14,7 @@ import {
   type WolfTargetRing,
 } from './wolfCombatMath';
 import type { PStationRepeatContext } from './wolfAttackCarryover';
+import { parseUnassignedCraftHostLoss, type UnassignedCraftHostLoss } from './shipDestruction';
 
 export type PdfEscortWingRandomInt = (upperBound: number) => number;
 
@@ -55,6 +56,7 @@ export interface PdfEscortWingState {
   readonly shortRollFighterIndexes: readonly number[];
   readonly losses: number;
   readonly mission: PdfEscortWingMissionContract;
+  readonly hostLoss?: UnassignedCraftHostLoss;
 }
 
 export interface PdfEscortWingMediumAttackResult {
@@ -161,6 +163,9 @@ function missionContract(): PdfEscortWingMissionContract {
 function freezeState(value: PdfEscortWingState): PdfEscortWingState {
   return Object.freeze({
     ...value,
+    ...(value.hostLoss ? { hostLoss: Object.freeze({ ...value.hostLoss,
+      ...(value.hostLoss.hostRepair ? { hostRepair: Object.freeze({ ...value.hostLoss.hostRepair }) } : {}),
+    }) } : {}),
     mediumActionFighterIndexes: Object.freeze([...value.mediumActionFighterIndexes]),
     shortRollFighterIndexes: Object.freeze([...value.shortRollFighterIndexes]),
     mission: Object.freeze({
@@ -211,7 +216,7 @@ export function parsePdfEscortWingState(value: unknown): PdfEscortWingState | nu
   if (!raw || !exactKeys(raw, [
     'attackCycle', 'attackId', 'capacity', 'fighters', 'launched', 'losses', 'mediumActionFighterIndexes',
     'mediumResolved', 'mission', 'revision', 'shortResolved',
-    'shortRollFighterIndexes', 'type', 'wingId',
+    'shortRollFighterIndexes', 'type', 'wingId', ...(Object.hasOwn(raw ?? {}, 'hostLoss') ? ['hostLoss'] : []),
   ]) || raw.type !== 'pdf-escort-fighter-wing-state' ||
       raw.wingId !== 'pdf-escort-fighter-wing' || raw.capacity !== CAPACITY ||
       !Number.isSafeInteger(raw.revision) || !Number.isSafeInteger(raw.fighters) ||
@@ -234,6 +239,9 @@ export function parsePdfEscortWingState(value: unknown): PdfEscortWingState | nu
   const shortResolved = raw.shortResolved as boolean;
   const mediumIndexes = raw.mediumActionFighterIndexes;
   const shortIndexes = raw.shortRollFighterIndexes;
+  const hostLoss = raw.hostLoss === undefined ? undefined : parseUnassignedCraftHostLoss(raw.hostLoss);
+  if (Object.hasOwn(raw, 'hostLoss') && (!hostLoss || hostLoss.destroyedHostShipId !== 'refinery-124' ||
+      fighters !== 0 || losses !== CAPACITY || launched || mediumResolved || shortResolved || revision < 1)) return null;
   if (revision < 0 || fighters < 0 || fighters > CAPACITY ||
       losses < 0 || losses > CAPACITY || losses !== CAPACITY - fighters ||
       mediumIndexes.some((index) => !Number.isSafeInteger(index)) ||
@@ -244,7 +252,7 @@ export function parsePdfEscortWingState(value: unknown): PdfEscortWingState | nu
       shortIndexes.some((index) => index < 0 || index >= CAPACITY) ||
       (!mediumResolved && mediumIndexes.length > 0) ||
       (!shortResolved && shortIndexes.length > 0) ||
-      (attackId === null && (revision !== 0 || launched || fighters !== CAPACITY || losses !== 0 || mediumResolved || shortResolved)) ||
+      (attackId === null && !hostLoss && (revision !== 0 || launched || fighters !== CAPACITY || losses !== 0 || mediumResolved || shortResolved)) ||
       (!launched && (mediumResolved || shortResolved)) ||
       (attackId !== null && revision === 0 && (fighters !== CAPACITY || losses !== 0)) ||
       (launched && (attackId === null || revision < 1 + Number(mediumResolved) + Number(shortResolved)))) {
@@ -267,6 +275,7 @@ export function parsePdfEscortWingState(value: unknown): PdfEscortWingState | nu
     shortRollFighterIndexes: [...shortIndexes] as number[],
     losses,
     mission,
+    ...(hostLoss ? { hostLoss } : {}),
   });
 }
 
@@ -498,6 +507,7 @@ export function authorizePdfEscortWingMission(
   state: PdfEscortWingState,
   input: Readonly<{ missionAllowed: boolean; fuelRequired: boolean }>,
 ): PdfEscortWingMissionAuthorization {
+  if (state.hostLoss) throw new Error('The P.D.F. Escort Wing was lost with its host.');
   if (input.missionAllowed !== true) {
     throw new Error('The authoritative PDF Escort Wing mission check failed.');
   }

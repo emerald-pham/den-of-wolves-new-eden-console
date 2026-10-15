@@ -1,3 +1,4 @@
+import { validatedLostShuttles } from './lostShuttles';
 import { parseCandidateCraftReservations } from './candidateAvailability';
 import { HttpsError } from 'firebase-functions/v2/https';
 import type { Transaction } from 'firebase-admin/firestore';
@@ -136,6 +137,7 @@ export function createBoardingSecurityTeamCallable(
       }
       const manifest = manifestSnapshot.data() as Data;
       let authority;
+      let lostIds: string[] = [];
       try {
         const starting = manifest.startingCraft;
         const dockings = session.get('shuttleDockings');
@@ -144,13 +146,26 @@ export function createBoardingSecurityTeamCallable(
         const consumed = Object.keys(parseCandidateCraftReservations(session.get('candidateCraftReservations')));
         if (!isRecord(starting) || !Array.isArray(starting.entries) ||
             !Array.isArray(dockings) || !Array.isArray(visits)) return failClosed();
+        lostIds = Object.keys(validatedLostShuttles(session.get('lostShuttles'), {
+          activeRoleIds: session.get('activeRoleIds') as string[], activeVesselIds: session.get('activeVesselIds') as string[],
+          currentCycle: cycle as number, shipDamage: session.get('shipDamage'), vesselActionRevisions: session.get('vesselActionRevisions'), dockings, visits,
+          control: session.get('shuttleControl'), retained, cargo: session.get('shuttleCargo'),
+          fuelled: session.get('shuttleFuelled'),
+        }));
+        for (const id of lostIds) {
+          const [departure, chain] = await Promise.all([
+            documentReader.get(dependencies.db.doc(`sessions/${sessionId}/shuttleDepartures/${id}`)),
+            documentReader.get(dependencies.db.doc(`sessions/${sessionId}/shuttleTransitChains/${id}`)),
+          ]);
+          if (departure.exists || chain.exists) return failClosed();
+        }
         const inTransit: Record<string, ShuttleTransitState> = {};
         for (const entry of starting.entries) {
           if (!isRecord(entry) || entry.kind !== 'shuttle') continue;
           if (typeof entry.id !== 'string' || !/^[\w-]{1,128}$/.test(entry.id)) return failClosed();
           const shuttleId = entry.id;
           const latest = visits.filter(value => isRecord(value) && value.shuttleId === shuttleId).at(-1);
-          if (consumed.includes(shuttleId) ||
+          if (consumed.includes(shuttleId) || lostIds.includes(shuttleId) ||
               dockings.some(value => isRecord(value) && value.shuttleId === shuttleId) ||
               isRecord(retained) && Object.hasOwn(retained, shuttleId) ||
               !isRecord(latest) || latest.action !== 'docked') continue;
@@ -176,6 +191,7 @@ export function createBoardingSecurityTeamCallable(
           startingCraftManifest: manifest.startingCraft,
           shuttleVisitLog: session.get('shuttleVisitLog'),
           retainedShuttles: session.get('retainedShuttles'),
+          lostShuttles: session.get('lostShuttles'), vesselActionRevisions: session.get('vesselActionRevisions'), shuttleFuelled: session.get('shuttleFuelled'),
           shuttleControl: session.get('shuttleControl'),
           shipDamage: session.get('shipDamage'),
           shipResources: session.get('shipResources'),
@@ -210,7 +226,7 @@ export function createBoardingSecurityTeamCallable(
         boardingEligibleTeams: authority.boardingSecurityTeamsByHost[shipId]!,
       }));
       const shuttles = startingCraft.entries.flatMap((entry) => {
-        if (!isRecord(entry) || entry.kind !== 'shuttle' || typeof entry.id !== 'string') return [];
+        if (!isRecord(entry) || entry.kind !== 'shuttle' || typeof entry.id !== 'string' || lostIds.includes(entry.id)) return [];
         const currentHostShipId = currentHostByShuttle.get(entry.id) ?? null;
         return [{
           shuttleId: entry.id,

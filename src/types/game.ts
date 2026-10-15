@@ -1,3 +1,7 @@
+import type { UnassignedCraftHostLoss } from '../../functions/src/shipDestruction';
+import type { LostShuttleEntry } from '../../functions/src/lostShuttles';
+import type { PlayerRemovalEvent } from '../../functions/src/playerRemovalEvent';
+export type PlayerRemovalLogEntry = PlayerRemovalEvent & { readonly id: string };
 import type { AwayMissionPublicState } from '../lib/awayMissionLifecycleService';
 import type { MaliadesOperationalView } from '../../functions/src/maliadesOperationalView';
 /**
@@ -464,6 +468,8 @@ export interface SmallShipState {
   readonly unrest: number;
   readonly mutiny?: ShipMutinyState;
   readonly cycle: SmallShipMaintenanceCycle;
+  readonly everAssigned?: boolean;
+  readonly loss?: UnassignedCraftHostLoss;
 }
 
 /** Public six-resource cargo ledger for the admitted base small-ship Capybara. */
@@ -1624,6 +1630,7 @@ export interface PdfEscortWingMemberView {
   readonly shortResolved: boolean;
   readonly shortRollCount: number;
   readonly losses: number;
+  readonly hostLoss?: UnassignedCraftHostLoss;
 }
 
 /** Ephemeral own-actor witness from the existing atomic member read only. */
@@ -1729,6 +1736,7 @@ export interface GameSession {
   readonly maliadesState?: MaliadesStateRecord | MaliadesOperationalView;
   readonly highwallMining?: HighwallMiningState;
   readonly retainedShuttles?: Readonly<Record<string, RetainedShuttleEntry>>;
+  readonly lostShuttles?: Readonly<Record<string, LostShuttleEntry>>;
   readonly quarantineDocking?: QuarantineDockingState;
   readonly shipUpgrades?: Readonly<Record<string, readonly string[]>>;
   readonly shipSurvivors?: Readonly<Record<string, number>>;

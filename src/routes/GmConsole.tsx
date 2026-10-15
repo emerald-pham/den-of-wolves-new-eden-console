@@ -1,3 +1,4 @@
+import type { PlayerRemovalLogEntry } from '@/types/game';
 import WolfBoardingSpecialChoicePanel from '@/components/WolfBoardingSpecialChoicePanel';
 import CandidatePreparationPanel from '@/components/CandidatePreparationPanel';
 import DiseaseOutbreakFields from '../components/DiseaseOutbreakFields';
@@ -519,6 +520,7 @@ export default function GmConsole() {
   const [castingMutationUid, setCastingMutationUid] = useState<string | null>(null);
   const [castingMutationMessage, setCastingMutationMessage] = useState<string | null>(null);
   const [events, setEvents] = useState<readonly SessionEvent[]>([]);
+  const [playerRemovals, setPlayerRemovals] = useState<readonly PlayerRemovalLogEntry[]>([]);
   const [wolfAttackWindow, setWolfAttackWindowState] = useState<WolfAttackWindow | null>(null);
   const [wolfThreatTargetGroupId, setWolfThreatTargetGroupId] = useState('');
   const [wolfThreatOptions, setWolfThreatOptions] = useState<WolfAttackThreatWindowOptions | null>(null);
@@ -1116,6 +1118,7 @@ export default function GmConsole() {
       setInstances([]);
       setConnectedPlayers([]);
       setAllPlayers([]);
+      setPlayerRemovals([]);
       setReplacementEligibilityEntries([]);
       setLoading(false);
       setCrisisMutationState(null);
@@ -1160,6 +1163,7 @@ export default function GmConsole() {
       subscribeGmCivilUnrestResolution,
       subscribeGmArrestPosseCalculation,
       subscribeSessionEvents,
+      subscribeGmPlayerRemovalEvents,
     }) => {
       if (!currentAuthorityKey()) return;
       stopInstances = subscribeGmInstances(
@@ -1390,6 +1394,13 @@ export default function GmConsole() {
           useSessionStore.getState().setGmFacilitatorRuleCall(next);
         })
         : () => undefined;
+      const stopPlayerRemovals = subscribeGmPlayerRemovalEvents(
+        sessionId,
+        next => { if (currentAuthorityKey()) setPlayerRemovals(next); },
+        () => useSessionStore.getState().setCommunicationError({
+          code: 'gm-player-removal-log-link', message: 'The private player-removal log could not be refreshed.',
+        }),
+      );
       const stopEvents = subscribeSessionEvents(
         sessionId,
         setEvents,
@@ -1451,6 +1462,8 @@ export default function GmConsole() {
         stopZealotryResponse();
         stopCivilUnrestResolution();
         stopArrestPosseCalculation();
+        stopPlayerRemovals();
+        setPlayerRemovals([]);
         stopEvents();
         stopDamageDraws();
         stopPlayers();
@@ -5778,9 +5791,21 @@ export default function GmConsole() {
               </div>
             )}
             <ul className="gm-event-log" aria-label="GM event log">
-              {events.length === 0 && damageDraws.length === 0
+              {events.length === 0 && damageDraws.length === 0 && playerRemovals.length === 0
                 ? <li>No logged events.</li>
                 : <>
+                  {playerRemovals.map(event => <li key={event.id} aria-label="Player removal">
+                    <time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleTimeString()}</time>
+                    <span><strong>Player out of play</strong> // {event.playerName} // {event.roleName} // {{
+                      'ship-destroyed': 'Ship destroyed — Awaiting escape',
+                      'fighter-ace-death': 'Fighter Ace killed in combat — Awaiting a new role',
+                      'boarding-death': 'Militia Leader killed during boarding — Awaiting a new role',
+                      'gm-removal': 'Removed from the session by a GM',
+                      'mutiny-replacement': 'Captain replaced after mutiny — Awaiting a new role',
+                      'execution': 'Executed after arrest — Eligible for a new role',
+                      'candidate-loss': 'Candidate vessel lost, left behind or cannibalised — Player actions closed',
+                    }[event.cause]}</span>
+                  </li>)}
                   {damageDraws.map((draw) => {
                     const shipName = SHIPS.find((ship) => ship.id === draw.shipId)?.name ?? draw.shipId;
                     return <li key={`damage-${draw.id}`}>

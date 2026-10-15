@@ -1,3 +1,4 @@
+import { parseLostShuttles } from './lostShuttles';
 import { fleetGroupRecord } from './fleetGroups';
 import { memberAwayMissionProjectionSafety } from './awayMissionProjectionSafety';
 import { publicSmallShipStatesForSession } from './extraShipAdmission';
@@ -159,6 +160,8 @@ export function memberSessionProjection(value: unknown, scope: MemberSessionScop
   }
   const result: Record<string, unknown> = Object.fromEntries(PUBLIC_FIELDS
     .filter(key => root[key] !== undefined).map(key => [key, root[key]]));
+  result.lostShuttles = Object.fromEntries(Object.entries(parseLostShuttles(root.lostShuttles) ?? {})
+    .filter(([, lost]) => scope.groupId === 'gm' || ships.has(lost.destroyedHostShipId)));
   result.awayMissionProjectionSafety = memberAwayMissionProjectionSafety(root.awayMissionProjectionSafety);
   const outcome = safeGameOutcome(root.gameOutcome);
   if (outcome) result.gameOutcome = outcome;

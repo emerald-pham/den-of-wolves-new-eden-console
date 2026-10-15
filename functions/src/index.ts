@@ -1,3 +1,6 @@
+import { unassignedHostCraftLoss, smallShipHostLossIsCurrent, type OtherHostCraftLoss } from './unassignedHostCraftLoss';
+import { hasInitialOnlyShuttleHistory, validatedLostShuttles, type LostShuttleState } from './lostShuttles';
+import { writePlayerRemovalAlert } from './playerRemovalAlert';
 import { holdTurnAdvancePhase } from './turnInterstitial';
 import { awayMissionPointerWriteSafetyPatch } from './awayMissionProjectionSafety';
 import { createAwayMissionProjectionMaintenance } from './awayMissionProjectionMaintenance';
@@ -520,7 +523,7 @@ import {
   PRESENCE_RECONCILIATION_INTERVAL_MS,
 } from './sessionLifecycle';
 import { CapybaraDamageDeckExhaustedError, SHIP_DAMAGE_DECKS, drawShipDamage, shipDamage, type ShipDamageState } from './shipDamage';
-import { destructionTransition, escapePodCapacityForShip } from './shipDestruction';
+import { catastropheEventIdForShip, destructionTransition, escapePodCapacityForShip } from './shipDestruction';
 import { totalFleetLossOutcome } from './totalFleetLoss';
 import { aggregateSurvivorOutcome, type SurvivorOutcome } from './survivorOutcome';
 import {
@@ -2091,10 +2094,12 @@ function playerHoldsDestroyedShip(player: DocumentSnapshot, shipId: string): boo
 
 function markPlayersForShipEscape(
   tx: Transaction,
+  sessionId: string,
   players: readonly DocumentSnapshot[],
   shipId: string,
   destructionEventId: string,
   revision: number,
+  cycle: number,
 ): void {
   for (const player of players) {
     if (!playerHoldsDestroyedShip(player, shipId)) continue;
@@ -2107,6 +2112,9 @@ function markPlayersForShipEscape(
       escapeState: escapeStateForDestruction(shipId, destructionEventId, revision),
       activeConsoleRoleId: null,
     });
+    writePlayerRemovalAlert(tx, db, { sessionId, sourceId: destructionEventId, player,
+      cause: 'ship-destroyed', shipId, cycle, incidentKey: `${destructionEventId}:${revision}`,
+      recordedAt: new Date().toISOString(), createdAt: FieldValue.serverTimestamp() });
   }
 }
 
@@ -3568,8 +3576,13 @@ function requireWolfAttackParking(
   parkedAt: string,
   requestId: string,
 ): WolfAttackParkingSnapshot {
+  const lost = lostShuttlesForSession(session);
+  const lostIds = new Set(Object.keys(lost));
+  if (departures.docs.some(doc => lostIds.has(doc.id)) || transitChains.docs.some(doc => lostIds.has(doc.id))) {
+    throw commandError('failed-precondition', 'A lost shuttle has contradictory movement authority.', 'conflict');
+  }
   const consumed = new Set(Object.keys(parseCandidateCraftReservations(session.get('candidateCraftReservations'))));
-  const initialDockings = initialShuttleDockingsForRoles(activeRoleIds).filter(docking => !consumed.has(docking.shuttleId));
+  const initialDockings = initialShuttleDockingsForRoles(activeRoleIds).filter(docking => !consumed.has(docking.shuttleId) && !lostIds.has(docking.shuttleId));
   const storedDockings = session.get('shuttleDockings');
   const retained = parseRetainedShuttles(session.get('retainedShuttles'));
   if (!retained) {
@@ -3586,7 +3599,7 @@ function requireWolfAttackParking(
       : initialDockings.map((docking) => docking.shuttleId),
   );
   const ownedCraft = roleOwnedCraftForRoles(activeRoleIds)
-    .filter((craft) => !consumed.has(craft.id))
+    .filter((craft) => !consumed.has(craft.id) && !lostIds.has(craft.id))
     .filter((craft) => craft.enabledMode === 'standard' || dockingIds.has(craft.id) || retainedIds.has(craft.id));
   const expectedShuttles = ownedCraft.filter((craft) => craft.kind === 'shuttle');
   // The locked vessel roster represents every shuttle initially docked with
@@ -3728,6 +3741,11 @@ function requireWolfAttackParking(
     const latestVisit = new Map<string, 'docked' | 'departed'>();
     shuttleVisitLog = [];
     for (const entry of rawVisitLog) {
+      if (isRecord(entry) && typeof entry.shuttleId === 'string' && lostIds.has(entry.shuttleId)) {
+        // Proven canonical initial loss history remains durable, never parked.
+        shuttleVisitLog.push(entry as unknown as PublicShuttleVisit);
+        continue;
+      }
       if (isRecord(entry) && typeof entry.shuttleId === 'string' && consumed.has(entry.shuttleId)) continue;
       if (!isRecord(entry) || typeof entry.shuttleId !== 'string' ||
           !expectedShuttleIds.has(entry.shuttleId) ||
@@ -7607,7 +7625,48 @@ function shuttleOwnerRoleForPlayer(player: DocumentSnapshot): string | undefined
   return active === 'press-officer' ? active : undefined;
 }
 
-function retainedShuttleTransitionForDestruction(
+function lostShuttlesForSession(session: DocumentSnapshot): LostShuttleState {
+  try {
+    return validatedLostShuttles(session.get('lostShuttles'), {
+      activeRoleIds: sessionActiveRoleIds(session), activeVesselIds: activeVesselIdsForSession(session),
+      currentCycle: sessionTurn(session.get('currentTurn')), shipDamage: session.get('shipDamage'),
+      vesselActionRevisions: session.get('vesselActionRevisions'),
+      dockings: session.get('shuttleDockings'), visits: session.get('shuttleVisitLog'),
+      control: session.get('shuttleControl'), retained: session.get('retainedShuttles'),
+      cargo: session.get('shuttleCargo'), fuelled: session.get('shuttleFuelled'),
+    });
+  } catch (error) {
+    throw commandError('failed-precondition', error instanceof Error ? error.message : 'Lost shuttle history is malformed.', 'conflict');
+  }
+}
+
+/** A terminal PDF projection must have the same server-authored loss evidence
+ * as its printed owner's shuttle; its shape alone is not destruction proof. */
+function pdfEscortWingStateForSession(session: DocumentSnapshot, value: unknown): PdfEscortWingState | null {
+  const state = parsePdfEscortWingState(value);
+  if (!state?.hostLoss) return state;
+  const loss = lostShuttlesForSession(session).chepu;
+  const repair = state.hostLoss.hostRepair;
+  const sameRepair = !loss?.hostRepair ? repair === undefined : !!repair &&
+    loss.hostRepair.sourceId === repair.sourceId && loss.hostRepair.requestId === repair.requestId &&
+    loss.hostRepair.revision === repair.revision && loss.hostRepair.repairedAt === repair.repairedAt;
+  return loss && loss.destroyedHostShipId === state.hostLoss.destroyedHostShipId &&
+    loss.sourceId === state.hostLoss.sourceId && loss.cycle === state.hostLoss.cycle &&
+    loss.lostAt === state.hostLoss.lostAt &&
+    sameRepair ? state : null;
+}
+
+function writeOtherHostCraftLoss(tx: Transaction, sessionId: string, other: OtherHostCraftLoss): void {
+  if (other.pdfState) tx.set(db.doc(`sessions/${sessionId}/serverState/pdfEscortWing`), other.pdfState);
+  if (other.attackPatch) tx.update(db.doc(`sessions/${sessionId}/wolfAttackState/current`), other.attackPatch);
+}
+function withoutLostCraft(value: unknown, lostIds: readonly string[]): Record<string, unknown> {
+  if (value !== undefined && !isRecord(value)) throw commandError('failed-precondition', 'Lost shuttle operational ledger is malformed.', 'conflict');
+  return Object.fromEntries(Object.entries(value ?? {}).filter(([id]) => !lostIds.includes(id)));
+}
+
+async function retainedShuttleTransitionForDestruction(
+  tx: Transaction,
   session: DocumentSnapshot,
   players: readonly DocumentSnapshot[],
   destroyedHostShipId: string,
@@ -7627,9 +7686,6 @@ function retainedShuttleTransitionForDestruction(
       'conflict',
     );
   }
-  if (!rawDockings.some((docking) => docking.shipId === destroyedHostShipId)) {
-    return undefined;
-  }
   const storedControl = session.get('shuttleControl');
   const roleHolders = players.flatMap((player) => {
     if (!player.exists || player.get('role') !== 'player' || isKickedPlayer(player)) return [];
@@ -7645,6 +7701,8 @@ function retainedShuttleTransitionForDestruction(
     )
     : parseShuttleControl(storedControl);
   const retained = parseRetainedShuttles(session.get('retainedShuttles'));
+  const lost = { ...lostShuttlesForSession(session) };
+  const lostShuttleIds: string[] = [];
   if (!control || !retained) {
     throw commandError(
       'failed-precondition',
@@ -7663,6 +7721,28 @@ function retainedShuttleTransitionForDestruction(
     const custody = control[docking.shuttleId];
     const printedOwners = roster.filter((player) =>
       shuttleOwnerRoleForPlayer(player) === craft?.ownerRoleId);
+    // No current or former player may be erased by the never-assigned rule.
+    // A present malformed custody entry and any moved history remain conflicts.
+    const anyPrintedOwner = players.some(player => player.exists && player.get('role') === 'player' &&
+      shuttleOwnerRoleForPlayer(player) === craft?.ownerRoleId);
+    if (craft && isRecord(storedControl) && !Object.hasOwn(control, docking.shuttleId) && !anyPrintedOwner &&
+        !Object.hasOwn(retained, docking.shuttleId) && !Object.hasOwn(lost, docking.shuttleId) &&
+        hasInitialOnlyShuttleHistory(docking.shuttleId, destroyedHostShipId, session.get('shuttleVisitLog'))) {
+      const cargo = session.get('shuttleCargo');
+      const fuel = session.get('shuttleFuelled');
+      if (cargo !== undefined && !isRecord(cargo) || fuel !== undefined && !isRecord(fuel) ||
+          isRecord(cargo) && Object.hasOwn(cargo, docking.shuttleId) &&
+            (!isRecord(cargo[docking.shuttleId]) || Object.entries(cargo[docking.shuttleId] as Record<string, unknown>).some(([key, value]) =>
+              !(RESOURCE_IDS as readonly string[]).includes(key) || !Number.isSafeInteger(value) || Number(value) < 0)) ||
+          isRecord(fuel) && Object.hasOwn(fuel, docking.shuttleId) && typeof fuel[docking.shuttleId] !== 'boolean') {
+        throw commandError('failed-precondition', 'Lost shuttle operational ledger is malformed.', 'conflict');
+      }
+      lost[docking.shuttleId] = { status: 'lost', shuttleId: docking.shuttleId, ownerRoleId: craft.ownerRoleId,
+        destroyedHostShipId, cycle: sessionTurn(session.get('currentTurn')),
+        sourceId: `damage-destroyed-${destroyedHostShipId}`, lostAt: retainedAt };
+      lostShuttleIds.push(docking.shuttleId);
+      continue;
+    }
     if (!craft || !custody || custody.ownerRoleId !== craft.ownerRoleId ||
         printedOwners.length !== 1 || printedOwners[0]?.id !== custody.ownerUid ||
         !rosterByUid.has(custody.holderUid)) {
@@ -7673,11 +7753,25 @@ function retainedShuttleTransitionForDestruction(
       );
     }
   }
+  let other: OtherHostCraftLoss;
+  try {
+    other = await unassignedHostCraftLoss(tx, db, { session, players, host: destroyedHostShipId,
+      cycle: sessionTurn(session.get('currentTurn')), lostAt: retainedAt, lostShuttleIds });
+  } catch (error) {
+    throw commandError('failed-precondition', error instanceof Error ? error.message : 'Craft assignment history is malformed.', 'conflict');
+  }
+  if (!rawDockings.some(docking => docking.shipId === destroyedHostShipId) && Object.keys(other.sessionPatch).length === 0) return undefined;
   return {
-    control,
+    other,
+    control, lostShuttleIds,
+    lossPatch: lostShuttleIds.length > 0 ? {
+      lostShuttles: lost,
+      shuttleCargo: withoutLostCraft(session.get('shuttleCargo'), lostShuttleIds),
+      shuttleFuelled: withoutLostCraft(session.get('shuttleFuelled'), lostShuttleIds),
+    } : {},
     ...retainShuttlesFromDestroyedHost({
       destroyedHostShipId,
-      dockings: rawDockings,
+      dockings: rawDockings.filter(docking => !lostShuttleIds.includes(docking.shuttleId)),
       control,
       retained,
       retainedAt,
@@ -11064,7 +11158,7 @@ export const dealPrivateInitialCards = auditedOnCall<{
       });
     }
     if (pdfWingCraft && pdfWingSnapshot) {
-      const pdfWingState = parsePdfEscortWingState(
+      const pdfWingState = pdfEscortWingStateForSession(authority.session,
         pdfWingSnapshot.exists ? pdfWingSnapshot.data() : undefined,
       );
       const printedHostId = startingCraftManifest.entries.find((entry) =>
@@ -12636,6 +12730,9 @@ export const assignReplacementRole = auditedOnCall<{
       navigation, navigationRevision, targetGroup?.vesselIds ?? [], candidateReveals,
       targetGroup?.memberShipIds?.[assignment.targetUid],
     );
+    if (role.kind === 'extra-ship' && role.vesselId && smallShipId(role.vesselId)) {
+      tx.update(sessionRef, { [`smallShipStates.${role.vesselId}.everAssigned`]: true });
+    }
     tx.update(targetRef, {
       replacementRoleId: assignment.replacementRoleId,
       replacementStatus: null,
@@ -13637,9 +13734,10 @@ export const resolveArrestCaseDisposition = auditedOnCall<{
       ruling: command.ruling ?? null },
   };
   return db.runTransaction(async (tx): Promise<ArrestCaseDispositionResult> => {
-    const [authority, currentCase, eligibility, receipt, audit] = await Promise.all([
+    const [authority, currentCase, eligibility, receipt, audit, target] = await Promise.all([
       requireFacilitatorInstance(tx, command.sessionId, uid, command.instanceId),
       tx.get(caseRef), tx.get(eligibilityRef), tx.get(receiptRef), tx.get(auditRef),
+      tx.get(db.doc(`sessions/${command.sessionId}/players/${command.targetUid}`)),
     ]);
     const replay = replayBoundCommand(receipt, fingerprint,
       (value): value is ArrestCaseDispositionResult => isArrestCaseDispositionResult(value, command.sessionId),
@@ -13723,6 +13821,9 @@ export const resolveArrestCaseDisposition = auditedOnCall<{
       requestId: command.requestId, updatedAt: FieldValue.serverTimestamp(),
     });
     if (command.disposition === 'executed' && eligibilityRevision !== undefined) {
+      writePlayerRemovalAlert(tx, db, { sessionId: command.sessionId, sourceId: command.requestId,
+        player: target, cause: 'execution', cycle: currentTurn,
+        recordedAt: new Date().toISOString(), createdAt: FieldValue.serverTimestamp() });
       tx.set(eligibilityRef, {
         sessionId: command.sessionId, targetUid: command.targetUid, reason: 'arrested', eligible: true,
         revision: eligibilityRevision, actorUid: uid, requestId: command.requestId,
@@ -14080,7 +14181,7 @@ function pdfFighterAceSourceState(
     throw commandError('failed-precondition', 'The selected fighter source has no explicit current-attack launch.', 'invalid-phase');
   }
   if (sourceId === 'pdf-escort-fighter-wing') {
-    const wing = parsePdfEscortWingState(pdfWing.exists ? pdfWing.data() : undefined);
+    const wing = pdfEscortWingStateForSession(session, pdfWing.exists ? pdfWing.data() : undefined);
     if (!wing || wing.attackId !== attackId || wing.attackCycle !== turn || !wing.launched || wing.fighters < 1) {
       throw commandError('failed-precondition', 'The P.D.F. fighter source is not launched and available for this attack.', 'conflict');
     }
@@ -14801,7 +14902,7 @@ export const commitPdfFighterAceCombat = auditedOnCall<{
     try { targetRing = configuredWolfTargetRingForAttack(session, state); } catch {
       throw commandError('failed-precondition', 'The current target ring is unavailable.', 'conflict');
     }
-    return { replay: undefined, session, state, current: { ...current, target, extraTarget, targetRing,
+    return { replay: undefined, session, state, player, current: { ...current, target, extraTarget, targetRing,
       permission: boundPermission, source }, eligibility, seat };
   };
   const preflight = await db.runTransaction(async (tx) => validate(tx));
@@ -14908,6 +15009,9 @@ export const commitPdfFighterAceCombat = auditedOnCall<{
       tx.set(db.doc(`sessions/${sessionId}/serverState/pdfEscortWing`), pdfStateAfter);
     }
     if (combat.aceDied) {
+      writePlayerRemovalAlert(tx, db, { sessionId, sourceId: attackId, player: current.player,
+        roleId: 'pdf-fighter-ace', cause: 'fighter-ace-death', cycle: current.current.turn,
+        recordedAt: serverTime, createdAt: FieldValue.serverTimestamp() });
       const eligibilityRevision = replacementRevision(current.eligibility) + 1;
       sessionPatch.setupRevision = setupRevision(current.session) + 1;
       tx.update(playerRef, { replacementRoleId: null, replacementStatus: 'awaiting-re-role',
@@ -17983,7 +18087,7 @@ export const readFleetGroupNavigation = auditedOnCall('readFleetGroupNavigation'
       : undefined;
     const parsedWingCounts = fighterWingCounts(session.get('fighterWingCounts'));
     const pdfWingState = needsPdfWingState
-      ? parsePdfEscortWingState(pdfWingSnapshot?.exists ? pdfWingSnapshot.data() : undefined)
+      ? pdfEscortWingStateForSession(session, pdfWingSnapshot?.exists ? pdfWingSnapshot.data() : undefined)
       : undefined;
     const dockedFighterWings = activeFighterWings.flatMap(craft => {
       const hostShipId = printedFighterWingHost(craft.id);
@@ -18855,10 +18959,11 @@ function publicMemberSessionSource(sessionSnap: DocumentSnapshot, sessionId: str
   const setup = canonicalSetupForSession(sessionSnap, activeRoleIds);
   const activeVesselIds = setup.activeVesselIds;
   const retainedShuttles = publicRetainedShuttles(sessionSnap.get('retainedShuttles'));
+  const lostShuttles = lostShuttlesForSession(sessionSnap);
   const quarantineDocking = publicQuarantineDocking(sessionSnap.get('quarantineDocking'));
   const shuttleDockings = publicShuttleDockings(
     sessionSnap.get('shuttleDockings'), activeVesselIds, activeRoleIds,
-    Object.keys(retainedShuttles),
+    [...Object.keys(retainedShuttles), ...Object.keys(lostShuttles)],
   );
   const shuttleVisitLog = publicShuttleVisitLog(
     sessionSnap.get('shuttleVisitLog'), shuttleDockings, activeVesselIds,
@@ -18933,7 +19038,7 @@ function publicMemberSessionSource(sessionSnap: DocumentSnapshot, sessionId: str
     ...(publicHighwallMining(sessionSnap.get('highwallMining'))
       ? { highwallMining: publicHighwallMining(sessionSnap.get('highwallMining')) } : {}),
     shuttleFuelled: publicShuttleFuelled(sessionSnap.get('shuttleFuelled')),
-    retainedShuttles,
+    retainedShuttles, lostShuttles,
     ...(quarantineDocking ? { quarantineDocking } : {}),
     shipUpgrades: publicShipUpgrades(sessionSnap.get('shipUpgrades'), activeVesselIds),
     shipSurvivors: activeShipSurvivors(sessionSnap.get('shipSurvivors'), activeVesselIds),
@@ -20060,6 +20165,10 @@ async function removePlayer(
       ensureInitialFleetGroup(tx, action.sessionId, activeVesselIdsForSession(session),
         activeFleetGroupMemberUids(survivingPlayers), storedGroup, survivingPlayers);
     }
+    writePlayerRemovalAlert(tx, db, { sessionId: action.sessionId,
+      sourceId: action.requestId ?? `kick-${action.targetUid}`, player: target,
+      cause: 'gm-removal', cycle: sessionTurn(session.get('currentTurn')),
+      recordedAt: new Date().toISOString(), createdAt: FieldValue.serverTimestamp() });
     tx.update(targetRef, {
       connected: false,
       ...disconnectedRoleState(),
@@ -20633,6 +20742,12 @@ async function jumpDamageConsequences(input: {
       if (crossedUnrestThreshold) unrestAlerts[shipId] = alert;
     }
   }
+
+  const newlyDestroyed = !previousDamage.destroyed && nextDamage.destroyed;
+  const destruction = newlyDestroyed ? destructionTransition(shipId, previousDamage.destroyed, false) : undefined;
+  const retainedShuttleTransition = newlyDestroyed
+    ? await retainedShuttleTransitionForDestruction(tx, session, affectedPlayers, shipId, occurredAt)
+    : undefined;
   if (nextPopulation !== beforePopulation) {
     writePressLogEvent(tx, sessionId, buildSurvivorChangePressLogEntry({
       sourceId: `ship-damage:${requestId}`,
@@ -20645,14 +20760,10 @@ async function jumpDamageConsequences(input: {
     }));
   }
 
-  const newlyDestroyed = !previousDamage.destroyed && nextDamage.destroyed;
-  const destruction = newlyDestroyed ? destructionTransition(shipId, previousDamage.destroyed, false) : undefined;
-  const retainedShuttleTransition = newlyDestroyed
-    ? retainedShuttleTransitionForDestruction(session, affectedPlayers, shipId, occurredAt)
-    : undefined;
   if (newlyDestroyed && destruction) {
-    markPlayersForShipEscape(tx, affectedPlayers, shipId, destruction.eventId, revision);
-    for (const shuttleId of retainedShuttleTransition?.retainedShuttleIds ?? []) {
+    if (retainedShuttleTransition) writeOtherHostCraftLoss(tx, sessionId, retainedShuttleTransition.other);
+    markPlayersForShipEscape(tx, sessionId, affectedPlayers, shipId, destruction.eventId, revision, sessionTurn(session.get('currentTurn')));
+    for (const shuttleId of retainedShuttleTransition ? [...retainedShuttleTransition.retainedShuttleIds, ...retainedShuttleTransition.lostShuttleIds] : []) {
       tx.delete(db.doc(`sessions/${sessionId}/shuttleDepartures/${shuttleId}`));
       tx.delete(db.doc(`sessions/${sessionId}/shuttleTransitChains/${shuttleId}`));
     }
@@ -20678,6 +20789,8 @@ async function jumpDamageConsequences(input: {
       shuttleDockings: retainedShuttleTransition.dockings,
       shuttleControl: retainedShuttleTransition.control,
       retainedShuttles: retainedShuttleTransition.retained,
+      ...retainedShuttleTransition.lossPatch,
+      ...retainedShuttleTransition.other.sessionPatch,
     } : {}),
     ...terminalPatch,
   };
@@ -25518,7 +25631,7 @@ export const declareWolfAttack = auditedOnCall<{
       action.ownerRoleId === 'refinery-124-pdf-colonel');
     let nextPdfEscortWingState: PdfEscortWingState | undefined;
     if (pdfEscortWingRegistered) {
-      const currentPdfEscortWingState = parsePdfEscortWingState(
+      const currentPdfEscortWingState = pdfEscortWingStateForSession(session,
         pdfEscortWingState.exists ? pdfEscortWingState.data() : undefined,
       );
       if (!currentPdfEscortWingState) {
@@ -26061,6 +26174,7 @@ function wolfRangeSupportAvailability(input: Readonly<{
       isRecord(action) && action.craftId === sourceId && action.kind === 'shuttle' && action.ownerRoleId === roleId);
     if (!activeRoles.includes(roleId) || !registered) return empty(roleId);
     if (!activeVessels.includes(vesselId)) return empty(roleId);
+    if (lostShuttlesForSession(session)[sourceId]) return { ...empty(roleId), applicable: true };
     const owners = currentWolfRoleOwners(players, fleetGroups, roleId, vesselId);
     if (owners.length > 1) throw commandError('failed-precondition', `The ${sourceId} source owner is ambiguous.`, 'conflict');
     const custody = wolfRangeSupportShuttleHost(session, sourceId, roleId, owners.length === 0);
@@ -26118,7 +26232,7 @@ function collectWolfEscortRangeChoices(input: Readonly<{
   if (input.range !== 'medium-range' && input.range !== 'short-range') return { status: 'not-applicable' };
   const attackId = input.attack.get('attackId');
   if (typeof attackId !== 'string' || !attackId) return { status: 'unsupported' };
-  const pdf = parsePdfEscortWingState(input.pdfWing.exists ? input.pdfWing.data() : undefined);
+  const pdf = pdfEscortWingStateForSession(input.session, input.pdfWing.exists ? input.pdfWing.data() : undefined);
   const maliades = parseMaliadesState(input.session.get('maliadesState'));
   if (!pdf || !maliades) return { status: 'unsupported' };
   const launchChoices = wolfFighterLaunchChoiceMap(input.attack, input.turn, attackId);
@@ -27150,14 +27264,16 @@ async function reconcileWolfAttackBoarding(
   }
 
   const destroyedPlayers = players;
-  const shuttleTransitions = destructionTargets.map((target) => ({
+  const shuttleTransitions = (await Promise.all(destructionTargets.map(async (target) => ({
     target,
-    transition: retainedShuttleTransitionForDestruction(session, destroyedPlayers, target, committedAt),
-  })).filter(({ transition }) => transition !== undefined);
+    transition: await retainedShuttleTransitionForDestruction(tx, session, destroyedPlayers, target, committedAt),
+  })))).filter(({ transition }) => transition !== undefined);
   let shuttleDockings = session.get('shuttleDockings');
   let shuttleControl = session.get('shuttleControl');
   let retainedShuttles = session.get('retainedShuttles');
   const retainedShuttleIds: string[] = [];
+  const lostShuttleIds: string[] = [];
+  let lostShuttles = session.get('lostShuttles') ?? {};
   for (const { target, transition } of shuttleTransitions) {
     if (!transition) continue;
     const affectedIds = (Array.isArray(session.get('shuttleDockings')) ? session.get('shuttleDockings') as Array<{ shuttleId?: unknown; shipId?: unknown }> : [])
@@ -27173,7 +27289,9 @@ async function reconcileWolfAttackBoarding(
     ];
     shuttleControl = { ...(isRecord(shuttleControl) ? shuttleControl : {}), ...transition.control };
     retainedShuttles = { ...(isRecord(retainedShuttles) ? retainedShuttles : {}), ...transition.retained };
-    retainedShuttleIds.push(...transition.retainedShuttleIds);
+    retainedShuttleIds.push(...transition.retainedShuttleIds, ...transition.lostShuttleIds);
+    lostShuttleIds.push(...transition.lostShuttleIds);
+    lostShuttles = { ...lostShuttles, ...(transition.lossPatch.lostShuttles ?? {}) };
   }
 
   const memberResults = Array.isArray(state.get('memberResults')) ? [...state.get('memberResults')] : [];
@@ -27304,10 +27422,20 @@ async function reconcileWolfAttackBoarding(
   for (const [target, securityTeams] of Object.entries(nextResources)) {
     sessionPatch[`shipResources.${target}.securityTeams`] = securityTeams;
   }
+  for (const { transition } of shuttleTransitions) {
+    if (!transition) continue;
+    Object.assign(sessionPatch, transition.other.sessionPatch);
+    if (transition.other.attackPatch) Object.assign(resolvedState, transition.other.attackPatch);
+  }
   if (shuttleTransitions.length > 0) {
     sessionPatch.shuttleDockings = shuttleDockings;
     sessionPatch.shuttleControl = shuttleControl;
     sessionPatch.retainedShuttles = retainedShuttles;
+    if (lostShuttleIds.length > 0) {
+      sessionPatch.lostShuttles = lostShuttles;
+      sessionPatch.shuttleCargo = withoutLostCraft(session.get('shuttleCargo'), lostShuttleIds);
+      sessionPatch.shuttleFuelled = withoutLostCraft(session.get('shuttleFuelled'), lostShuttleIds);
+    }
   }
   if (terminalOutcome) {
     sessionPatch.phase = 'failure';
@@ -27320,11 +27448,14 @@ async function reconcileWolfAttackBoarding(
     sessionPatch.turnStartAnnouncement = FieldValue.delete();
   }
 
+  for (const { transition } of shuttleTransitions) {
+    if (transition?.other.pdfState) tx.set(db.doc(`sessions/${sessionId}/serverState/pdfEscortWing`), transition.other.pdfState);
+  }
   for (const target of destructionTargets) {
     const destruction = destructionTransition(target, currentShipDamage[target]?.destroyed === true, false);
-    markPlayersForShipEscape(tx, destroyedPlayers, target, destruction.eventId, nextRevision);
+    markPlayersForShipEscape(tx, sessionId, destroyedPlayers, target, destruction.eventId, nextRevision, turn as number);
     for (const shuttleId of retainedShuttleIds) {
-      if (shuttleTransitions.some(({ target: host, transition }) => host === target && transition?.retainedShuttleIds.includes(shuttleId))) {
+      if (shuttleTransitions.some(({ target: host, transition }) => host === target && transition && [...transition.retainedShuttleIds, ...transition.lostShuttleIds].includes(shuttleId))) {
         tx.delete(db.doc(`sessions/${sessionId}/shuttleDepartures/${shuttleId}`));
         tx.delete(db.doc(`sessions/${sessionId}/shuttleTransitChains/${shuttleId}`));
       }
@@ -27353,6 +27484,10 @@ async function reconcileWolfAttackBoarding(
   }
 
   for (const { death, eligibility, seat } of deathAuthorities) {
+    writePlayerRemovalAlert(tx, db, { sessionId, sourceId: attackId,
+      player: players.find(player => player.id === death.actorUid)!, roleId: death.roleId,
+      cause: 'boarding-death', shipId: death.targetShipId, cycle: turn as number,
+      recordedAt: committedAt, createdAt: FieldValue.serverTimestamp() });
     const deathRequestId = `wolf-boarding-death-${attackId}-${death.actorUid}`;
     const eligibilityRevision = replacementRevision(eligibility) + 1;
     tx.update(db.doc(`sessions/${sessionId}/players/${death.actorUid}`), {
@@ -31284,7 +31419,7 @@ function requireWolfEscortActor(session: DocumentSnapshot, player: DocumentSnaps
 function wolfEscortRangeState(session: DocumentSnapshot, attack: DocumentSnapshot,
   pdfWing: DocumentSnapshot, sourceId: WolfEscortSourceId, turn: number) {
   const attackId = attack.get('attackId');
-  const pdf = parsePdfEscortWingState(pdfWing.exists ? pdfWing.data() : undefined);
+  const pdf = pdfEscortWingStateForSession(session, pdfWing.exists ? pdfWing.data() : undefined);
   const maliades = parseMaliadesState(session.get('maliadesState'));
   if (typeof attackId !== 'string' || !attackId || !pdf || !maliades) {
     throw commandError('failed-precondition', 'The current escort combat state is malformed.', 'conflict');
@@ -32459,6 +32594,7 @@ function wolfBoardingCurrentAuthority(
   try {
     supportCraft = deriveWolfBoardingSupportCraft({
       activeRoleIds, activeVesselIds, dockings,
+      lostShuttleIds: Object.keys(lostShuttlesForSession(session)),
       consumedShuttleIds: Object.keys(parseCandidateCraftReservations(session.get('candidateCraftReservations'))),
       visits: supportVisits,
       control: session.get('shuttleControl'), fuelled: session.get('shuttleFuelled'),
@@ -33705,7 +33841,7 @@ function pdfEscortWingLaunchView(
       'invalid-phase',
     );
   }
-  const state = parsePdfEscortWingState(wing.exists ? wing.data() : undefined);
+  const state = pdfEscortWingStateForSession(session, wing.exists ? wing.data() : undefined);
   if (!state) {
     throw commandError('failed-precondition', 'The authoritative PDF Escort Wing state is malformed.', 'conflict');
   }
@@ -33887,7 +34023,7 @@ export const launchPdfEscortWing = auditedOnCall<{
               : 'No current Wolf attack is accepting the P.D.F. Escort Wing launch.';
       throw commandError('failed-precondition', message, 'invalid-phase');
     }
-    const state = parsePdfEscortWingState(wing.exists ? wing.data() : undefined);
+    const state = pdfEscortWingStateForSession(session, wing.exists ? wing.data() : undefined);
     if (!state || state.attackCycle !== view.turn || !attack.exists ||
         state.attackId !== attack.get('attackId')) {
       throw commandError('failed-precondition', 'The authoritative PDF Escort Wing state is unavailable.', 'conflict');
@@ -39051,6 +39187,9 @@ export const resolveShipMutiny = auditedOnCall<{
         mutiny: resolved.mutiny,
         cycle: { ...state.cycle, revision: currentRevision + 1 },
       };
+      writePlayerRemovalAlert(tx, db, { sessionId: data.sessionId, sourceId: data.requestId,
+        player: oldCaptain, cause: 'mutiny-replacement', shipId: id, cycle: sessionTurn(session.get('currentTurn')),
+        recordedAt: serverTime, createdAt: FieldValue.serverTimestamp() });
       tx.update(oldCaptain.ref, {
         replacementRoleId: null,
         replacementStatus: 'awaiting-re-role',
@@ -39555,20 +39694,22 @@ export const addShipDamage = auditedOnCall<{
       ? await tx.get(db.collection(`sessions/${change.sessionId}/players`))
       : undefined;
     const retainedShuttleTransition = newlyDestroyed
-      ? retainedShuttleTransitionForDestruction(
-        session,
+      ? await retainedShuttleTransitionForDestruction(
+        tx, session,
         affectedPlayers?.docs ?? [],
         change.shipId,
         stableOccurredAt,
       )
       : undefined;
     if (newlyDestroyed && destruction) {
+      if (retainedShuttleTransition) writeOtherHostCraftLoss(tx, change.sessionId, retainedShuttleTransition.other);
       markPlayersForShipEscape(
-        tx,
+        tx, change.sessionId,
         affectedPlayers?.docs ?? [],
         change.shipId,
         destruction.eventId,
         currentRevision + 1,
+        sessionTurn(session.get('currentTurn')),
       );
     }
     if (!result.destroyed || newlyDestroyed) {
@@ -39586,6 +39727,8 @@ export const addShipDamage = auditedOnCall<{
           shuttleDockings: retainedShuttleTransition.dockings,
           shuttleControl: retainedShuttleTransition.control,
           retainedShuttles: retainedShuttleTransition.retained,
+        ...retainedShuttleTransition.lossPatch,
+        ...retainedShuttleTransition.other.sessionPatch,
         } : {}),
         ...vesselActionRevisionPatch(change.shipId, currentRevision + 1),
         ...terminalPatch,
@@ -39595,7 +39738,7 @@ export const addShipDamage = auditedOnCall<{
     const revision = newlyDestroyed ? currentRevision + 1 : currentRevision;
     if (result.destroyed) {
       if (!destruction) throw new Error('Missing destruction transition.');
-      for (const shuttleId of retainedShuttleTransition?.retainedShuttleIds ?? []) {
+      for (const shuttleId of retainedShuttleTransition ? [...retainedShuttleTransition.retainedShuttleIds, ...retainedShuttleTransition.lostShuttleIds] : []) {
         tx.delete(db.doc(`sessions/${change.sessionId}/shuttleDepartures/${shuttleId}`));
         tx.delete(db.doc(`sessions/${change.sessionId}/shuttleTransitChains/${shuttleId}`));
       }
@@ -40190,6 +40333,9 @@ export const setFighterWingCount = auditedOnCall<{
     requireCandidateActionAvailable(session, player, ['aegis']);
     requireActiveGameplayPhase(session);
 
+    if (lostShuttlesForSession(session).starlight) {
+      throw commandError('failed-precondition', 'The never-assigned wings were lost with AEGIS and cannot be restored by count correction.', 'conflict');
+    }
     const current = fighterWingCounts(session.get('fighterWingCounts'))[change.wingId];
     const currentRevision = current?.revision ?? 0;
     const capacity = fighterWingCapacity(session.get('shipUpgrades'));
@@ -41494,7 +41640,11 @@ export const allocateHummingbirdHarvest = auditedOnCall<{
 
 function storedSmallShipState(session: DocumentSnapshot, id: SmallShipId): SmallShipState | undefined {
   const stored = session.get('smallShipStates');
-  return isRecord(stored) ? parseSmallShipState(stored[id], id) : undefined;
+  const state = isRecord(stored) ? parseSmallShipState(stored[id], id) : undefined;
+  if (state?.loss && !smallShipHostLossIsCurrent(state.loss, { activeVesselIds: activeVesselIdsForSession(session),
+    currentCycle: sessionTurn(session.get('currentTurn')), shipDamage: session.get('shipDamage'),
+    vesselActionRevisions: session.get('vesselActionRevisions') })) return undefined;
+  return state;
 }
 
 function hasStoredSmallShipState(session: DocumentSnapshot, id: SmallShipId): boolean {
@@ -41530,6 +41680,7 @@ function requireSmallShipsDockedAtBoundary(
     if (!Object.prototype.hasOwnProperty.call(stored, id)) continue;
     requireSmallShipMode(session, id);
     const state = storedSmallShipState(session, id);
+    if (state?.loss) continue;
     if (!state || !state.hostShipId || !activeHosts.has(state.hostShipId)) {
       throw commandError(
         'failed-precondition',
@@ -41577,6 +41728,7 @@ function requireShuttlesDockedAtTeamBoundary(session: DocumentSnapshot): void {
       'conflict',
     );
   }
+  const lost = lostShuttlesForSession(session);
   const retained = parseRetainedShuttles(session.get('retainedShuttles'));
   const retainedEntries = retained ? Object.values(retained) : [];
   const control = retainedEntries.length > 0 ? parseShuttleControl(session.get('shuttleControl')) : {};
@@ -41586,7 +41738,7 @@ function requireShuttlesDockedAtTeamBoundary(session: DocumentSnapshot): void {
   const liveHosts = activeVesselIds.filter((host) => damage[host]?.destroyed !== true);
   // These rows check manifest membership only. They are never persisted or
   // interpreted as current dockings; retained custody remains unchanged.
-  const manifestRows = [...dockings, ...retainedEntries.map((entry) => ({
+  const manifestRows = [...dockings, ...Object.values(lost).map(entry => ({ shuttleId: entry.shuttleId, shipId: entry.destroyedHostShipId })), ...retainedEntries.map((entry) => ({
     shuttleId: entry.shuttleId, shipId: entry.destroyedHostShipId,
   }))];
   if (!retained || !control || !shuttleDockingsAreParked(dockings, liveHosts) ||
@@ -41791,6 +41943,7 @@ export const setSmallShipDocking = auditedOnCall<{
     await requireShipCounterAuthority(tx, data.sessionId, uid, authorityHost, data.instanceId, true);
     const replay = smallShipReceiptReply(prior, fingerprint, uid);
     if (replay) return replay;
+    if (current.loss) throw commandError('failed-precondition', 'This never-assigned small ship was lost with its host and cannot be re-admitted.', 'conflict');
     requireMissionMovementAvailable(session, [id, authorityHost]);
     if (isSmallShipInMutiny(current)) {
       throw commandError(
@@ -41861,8 +42014,14 @@ export const setSmallShipDocking = auditedOnCall<{
         nextMovement = { ...movement, coordinate: effectiveCoordinate, revision: movement.revision + 1 };
       }
     }
+    // Only first admission can establish a negative assignment fact. Redocking
+    // an old state with absent provenance must never manufacture that fact.
+    const firstRoster = !parsedCurrent ? await tx.get(db.collection(`sessions/${data.sessionId}/players`)) : undefined;
+    const firstEverAssigned = firstRoster?.docs.some(candidate => candidate.get('role') === 'player' &&
+      candidate.get('replacementRoleId') === SMALL_SHIP_CAPTAIN_ROLE_IDS[id]);
     const next: SmallShipState = {
       ...current,
+      ...(!parsedCurrent ? { everAssigned: firstEverAssigned === true } : {}),
       hostShipId: data.docked ? data.hostShipId : null,
       dockingRevision: current.dockingRevision + 1,
     };
@@ -42957,8 +43116,8 @@ export const runMaintenance = auditedOnCall<{
       ? await tx.get(db.collection(`sessions/${data.sessionId}/players`))
       : undefined;
     const retainedShuttleTransition = destruction && !currentDamage.destroyed
-      ? retainedShuttleTransitionForDestruction(
-        snapshot,
+      ? await retainedShuttleTransitionForDestruction(
+        tx, snapshot,
         affectedPlayers?.docs ?? [],
         data.shipId,
         serverTime,
@@ -42990,6 +43149,8 @@ export const runMaintenance = auditedOnCall<{
         shuttleDockings: retainedShuttleTransition.dockings,
         shuttleControl: retainedShuttleTransition.control,
         retainedShuttles: retainedShuttleTransition.retained,
+        ...retainedShuttleTransition.lossPatch,
+        ...retainedShuttleTransition.other.sessionPatch,
       } : {}),
     };
     const terminalPatch = destruction && !currentDamage.destroyed
@@ -43003,19 +43164,21 @@ export const runMaintenance = auditedOnCall<{
       'unrestAlerts',
       'populationAlerts',
       ...(retainedShuttleTransition
-        ? ['shuttleDockings', 'shuttleControl', 'retainedShuttles'] as const
+        ? ['shuttleDockings', 'shuttleControl', 'retainedShuttles', 'lostShuttles', 'shuttleCargo', 'shuttleFuelled', 'smallShipStates', 'fighterWingCounts', 'pdfEscortWing'] as const
         : []),
     ] : [];
     entries.push({ fields: captureMaintenanceUndo(field => snapshot.get(field), patch, immutableFields) });
     if (destruction && !currentDamage.destroyed) {
+      if (retainedShuttleTransition) writeOtherHostCraftLoss(tx, data.sessionId, retainedShuttleTransition.other);
       markPlayersForShipEscape(
-        tx,
+        tx, data.sessionId,
         affectedPlayers?.docs ?? [],
         data.shipId,
         destruction.eventId,
         result.cycle.revision,
+        currentTurn,
       );
-      for (const shuttleId of retainedShuttleTransition?.retainedShuttleIds ?? []) {
+      for (const shuttleId of retainedShuttleTransition ? [...retainedShuttleTransition.retainedShuttleIds, ...retainedShuttleTransition.lostShuttleIds] : []) {
         tx.delete(db.doc(`sessions/${data.sessionId}/shuttleDepartures/${shuttleId}`));
         tx.delete(db.doc(`sessions/${data.sessionId}/shuttleTransitChains/${shuttleId}`));
       }
@@ -44991,9 +45154,44 @@ export const repairAllShipDamage = auditedOnCall<{
       txSetIfSupported(tx, receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
       return stale;
     }
+    // Existing terminal craft remain lost after a legitimate GM host repair.
+    // Read and bind the original catastrophe before any correction writes.
+    const lost = lostShuttlesForSession(session);
+    const affectedLost = Object.entries(lost).filter(([, loss]) => loss.destroyedHostShipId === change.shipId);
+    const smallLosses = SMALL_SHIP_IDS.flatMap(id => {
+      const state = storedSmallShipState(session, id);
+      return state?.loss?.destroyedHostShipId === change.shipId ? [{ id, state }] : [];
+    });
+    const repairPatch: Record<string, unknown> = {};
+    let repairedPdf: PdfEscortWingState | undefined;
+    const hasPdfLoss = change.shipId === 'refinery-124' && isRecord(session.get('pdfEscortWing')) &&
+      Object.hasOwn(session.get('pdfEscortWing') as Record<string, unknown>, 'hostLoss');
+    if ((affectedLost.length || smallLosses.length || hasPdfLoss) && shipDamage(session.get('shipDamage'))[change.shipId]?.destroyed === true) {
+      const catastrophe = await tx.get(db.doc(`sessions/${change.sessionId}/damageDraws/${catastropheEventIdForShip(change.shipId)}`));
+      const pdf = hasPdfLoss ? await tx.get(db.doc(`sessions/${change.sessionId}/serverState/pdfEscortWing`)) : undefined;
+      if (!catastrophe.exists || catastrophe.get('type') !== 'ship-destroyed' || catastrophe.get('shipId') !== change.shipId) {
+        throw commandError('failed-precondition', 'Terminal craft loss has no original host catastrophe.', 'conflict');
+      }
+      const hostRepair = { sourceId: catastropheEventIdForShip(change.shipId), requestId: identity.requestId,
+        revision: currentRevision + 1, repairedAt: new Date().toISOString() };
+      for (const [id, loss] of affectedLost) repairPatch[`lostShuttles.${id}`] = { ...loss, hostRepair };
+      for (const { id, state } of smallLosses) repairPatch[`smallShipStates.${id}`] = {
+        ...state, loss: { ...state.loss, hostRepair },
+      };
+      if (pdf) {
+        const state = pdfEscortWingStateForSession(session, pdf.exists ? pdf.data() : undefined);
+        if (!state?.hostLoss || state.revision >= Number.MAX_SAFE_INTEGER) {
+          throw commandError('failed-precondition', 'Terminal PDF loss is not bound to the original catastrophe.', 'conflict');
+        }
+        repairedPdf = { ...state, revision: state.revision + 1, hostLoss: { ...state.hostLoss, hostRepair } };
+        repairPatch.pdfEscortWing = projectPdfEscortWingMemberView(repairedPdf);
+      }
+    }
     const revision = currentRevision + 1;
+    if (repairedPdf) tx.set(db.doc(`sessions/${change.sessionId}/serverState/pdfEscortWing`), repairedPdf);
     tx.update(ref, {
       [`shipDamage.${change.shipId}`]: { damagedSystemIds: [], destroyed: false },
+      ...repairPatch,
       ...vesselActionRevisionPatch(change.shipId, revision),
       updatedAt: FieldValue.serverTimestamp(),
     });

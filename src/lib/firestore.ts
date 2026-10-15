@@ -1,3 +1,7 @@
+import { parseUnassignedCraftHostLoss } from '../../functions/src/shipDestruction';
+import { parseLostShuttles } from '../../functions/src/lostShuttles';
+import { parsePlayerRemovalEvent } from '../../functions/src/playerRemovalEvent';
+import type { PlayerRemovalLogEntry } from '@/types/game';
 import { memberPhiliaRepairLedger, memberRedactedCraftUse, memberSessionProjection } from '../../functions/src/memberSession';
 import { projectedAwayMissionSafety, subscribeAwayMissionProjectionAccess, confirmAwayMissionProjectionSession,
   confirmAwayMissionProjectionPlayer, withdrawAwayMissionProjectionAuthority, hasAwayMissionOwnerAccess,
@@ -2780,6 +2784,8 @@ function smallShipStates(
       dockingRevision,
       population: parsedPopulation,
       unrest: parsedUnrest,
+      ...(raw.everAssigned === undefined ? {} : { everAssigned: raw.everAssigned as boolean }),
+      ...(raw.loss === undefined ? {} : { loss: parseUnassignedCraftHostLoss(raw.loss)! }),
       ...(mutiny ? { mutiny } : {}),
       cycle: {
         step: parsedStep,
@@ -3711,6 +3717,8 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ? [...new Set([...admittedVesselIds(data.admittedVesselIds), voyageAdmission.id])]
     : [];
   const retained = retainedShuttles(data.retainedShuttles);
+  const lost = parseLostShuttles(data.lostShuttles);
+  if (!lost) throw new Error('Lost shuttle history is malformed.');
   const quarantine = quarantineDocking(data.quarantineDocking);
   const currentHighwallMining = highwallMining(data.highwallMining);
   const currentBlacksmithRepairs = blacksmithRepairs(data.blacksmithRepairs);
@@ -3726,7 +3734,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     visibleVisits,
     hasActiveRoleIds ? activeRoleIds : undefined,
     playerCount,
-    Object.keys(retained),
+    [...Object.keys(retained), ...Object.keys(lost)],
     data.memberSessionScope !== undefined,
   );
   const emergencyWindow = pursuitEmergencyWindow(data.pursuitEmergencyWindow);
@@ -3818,6 +3826,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     warriorRepairDrones: warriorRepairDrones(data.warriorRepairDrones),
     ...(currentHighwallMining ? { highwallMining: currentHighwallMining } : {}),
     retainedShuttles: retained,
+    lostShuttles: lost,
     ...(quarantine ? { quarantineDocking: quarantine } : {}),
     shipUpgrades: shipUpgrades(data.shipUpgrades),
     shipResources: currentShipResources,
@@ -6313,6 +6322,55 @@ export function subscribeShipConfetti(
     subscribed = false;
     unsubscribe();
   };
+}
+
+/** GM-private removal incidents reuse procedureAudits, never the member feed. */
+export function subscribeGmPlayerRemovalEvents(
+  sessionId: string,
+  onEvents: (events: readonly PlayerRemovalLogEntry[]) => void,
+  onError: () => void = () => undefined,
+): Unsubscribe {
+  const key = (): string | null => {
+    const state = useSessionStore.getState(), me = state.me, instance = state.gmInstance;
+    if (state.session?.id !== sessionId || me?.sessionId !== sessionId || me.role !== 'gm' ||
+        me.connected === false || state.gmRecoveryPending || state.connection !== 'live' ||
+        state.sessionSnapshotFreshness !== 'server' || !instance || instance.uid !== me.uid ||
+        instance.sessionId !== sessionId) return null;
+    return JSON.stringify([sessionId, me.uid, me.connectionGeneration, state.identityHydrationRevision,
+      instance.id, instance.claimedAt]);
+  };
+  let active = true;
+  const originalKey = key();
+  onEvents([]);
+  if (!originalKey) return () => { active = false; onEvents([]); };
+  let stopSnapshot: Unsubscribe = () => undefined;
+  const withdraw = () => {
+    if (!active) return;
+    active = false;
+    stopSnapshot();
+    onEvents([]);
+  };
+  const stopStore = useSessionStore.subscribe(() => {
+    if (key() !== originalKey) withdraw();
+  });
+  stopSnapshot = onSnapshot(
+    query(collection(db(), `sessions/${sessionId}/procedureAudits`),
+      where('type', '==', 'player-removal'), orderBy('createdAt', 'desc'), limit(30)),
+    { includeMetadataChanges: true },
+    snapshot => {
+      if (!active || key() !== originalKey) { withdraw(); return; }
+      if (snapshot.metadata?.fromCache === true) { onEvents([]); return; }
+      onEvents(snapshot.docs.flatMap(entry => {
+        const value = entry.data();
+        const createdAt = optionalIso(value.createdAt);
+        const parsed = createdAt ? parsePlayerRemovalEvent({ ...value, createdAt }, sessionId) : null;
+        return parsed && /^player-removal-[a-f0-9]{64}$/.test(entry.id) ? [{ ...parsed, id: entry.id }] : [];
+      }));
+    },
+    () => { if (active) { withdraw(); onError(); } },
+  );
+  if (!active) stopSnapshot();
+  return () => { withdraw(); stopStore(); };
 }
 
 export function subscribeSessionEvents(

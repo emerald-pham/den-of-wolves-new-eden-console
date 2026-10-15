@@ -76,6 +76,12 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, c
       </section>
     );
   }
+  if (state?.loss) return (
+    <section className="small-ship-operations__card cic-frame" aria-label={`${vessel.name} small-ship operations`}>
+      <header><h3>{vessel.name}</h3></header>
+      <p className="small-ship-operations__status" role="status">Lost with {SHIPS.find(ship => ship.id === state.loss!.destroyedHostShipId)?.name ?? state.loss.destroyedHostShipId}. No operational craft remains.</p>
+    </section>
+  );
   const cycle = state?.cycle;
   const currentHost = state?.hostShipId ?? null;
   const selectedHost = currentHost ?? hostShipId;

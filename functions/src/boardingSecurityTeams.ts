@@ -1,3 +1,4 @@
+import { validatedLostShuttles } from './lostShuttles';
 import {
   craftStartingManifestForSetup,
   craftStartingManifestMatches,
@@ -74,6 +75,9 @@ export function boardingSecurityTeamAuthority(input: Readonly<{
   startingCraftManifest: unknown;
   shuttleVisitLog: unknown;
   retainedShuttles: unknown;
+  lostShuttles?: unknown;
+  vesselActionRevisions?: unknown;
+  shuttleFuelled?: unknown;
   shuttleControl: unknown;
   shipDamage: unknown;
   shipResources: unknown;
@@ -143,8 +147,12 @@ export function boardingSecurityTeamAuthority(input: Readonly<{
   )) {
     throw new Error('Enabled craft do not match the canonical starting manifest.');
   }
+  const lost = validatedLostShuttles(input.lostShuttles, { activeRoleIds, activeVesselIds,
+    currentCycle: input.currentCycle as number, shipDamage: input.shipDamage, vesselActionRevisions: input.vesselActionRevisions,
+    dockings: input.shuttleDockings, visits: input.shuttleVisitLog, control: input.shuttleControl,
+    retained: input.retainedShuttles, cargo: input.shuttleCargo, fuelled: input.shuttleFuelled });
   const enabledShuttleIds = expectedStartingCraft.entries
-    .filter((craft) => craft.kind === 'shuttle' && !input.consumedShuttleIds?.includes(craft.id))
+    .filter((craft) => craft.kind === 'shuttle' && !input.consumedShuttleIds?.includes(craft.id) && !Object.hasOwn(lost, craft.id))
     .map((craft) => craft.id);
   const enabledShuttles = new Map(expectedStartingCraft.entries
     .filter((craft) => craft.kind === 'shuttle').map((craft) => [craft.id, craft]));

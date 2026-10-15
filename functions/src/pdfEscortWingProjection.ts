@@ -2,6 +2,7 @@ import {
   parsePdfEscortWingState,
   type PdfEscortWingState,
 } from './pdfEscortWingState';
+import type { UnassignedCraftHostLoss } from './shipDestruction';
 
 /** The only Escort Wing state placed on the member-readable session document. */
 export interface PdfEscortWingMemberView {
@@ -16,6 +17,7 @@ export interface PdfEscortWingMemberView {
   readonly shortResolved: boolean;
   readonly shortRollCount: number;
   readonly losses: number;
+  readonly hostLoss?: UnassignedCraftHostLoss;
 }
 
 function viewFromState(state: PdfEscortWingState): PdfEscortWingMemberView {
@@ -31,6 +33,7 @@ function viewFromState(state: PdfEscortWingState): PdfEscortWingMemberView {
     shortResolved: state.shortResolved,
     shortRollCount: state.shortRollFighterIndexes.length,
     losses: state.losses,
+    ...(state.hostLoss ? { hostLoss: state.hostLoss } : {}),
   });
 }
 

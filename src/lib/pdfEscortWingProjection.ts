@@ -1,3 +1,4 @@
+import { parseUnassignedCraftHostLoss } from '../../functions/src/shipDestruction';
 import type { PdfEscortWingMemberView } from '@/types/game';
 
 const INITIAL_PDF_ESCORT_WING_VIEW: PdfEscortWingMemberView = Object.freeze({
@@ -36,7 +37,7 @@ export function parsePdfEscortWingMemberView(
   const raw = record(value);
   if (!raw || !exactKeys(raw, [
     'type', 'revision', 'cycle', 'capacity', 'fighters', 'launched', 'mediumResolved',
-    'mediumActionCount', 'shortResolved', 'shortRollCount', 'losses',
+    'mediumActionCount', 'shortResolved', 'shortRollCount', 'losses', ...(Object.hasOwn(raw ?? {}, 'hostLoss') ? ['hostLoss'] : []),
   ]) || raw.type !== 'pdf-escort-fighter-wing-view' || raw.capacity !== 4 ||
       !nonNegativeInteger(raw.revision) || !nonNegativeInteger(raw.fighters) ||
       raw.fighters > 4 || !nonNegativeInteger(raw.losses) || raw.losses > 4 ||
@@ -48,11 +49,15 @@ export function parsePdfEscortWingMemberView(
       raw.mediumResolved !== (raw.mediumActionCount > 0) ||
       raw.shortResolved !== (raw.shortRollCount > 0) ||
       (raw.cycle !== null && (!nonNegativeInteger(raw.cycle) || raw.cycle < 1)) ||
-      (raw.cycle === null && (raw.revision !== 0 || raw.fighters !== 4 || raw.losses !== 0 ||
+      (raw.cycle === null && raw.hostLoss === undefined && (raw.revision !== 0 || raw.fighters !== 4 || raw.losses !== 0 ||
         raw.launched || raw.mediumResolved || raw.shortResolved)) ||
       (!raw.launched && (raw.mediumResolved || raw.shortResolved)) ||
       (raw.cycle !== null && raw.revision === 0 && (raw.fighters !== 4 || raw.losses !== 0)) ||
       (raw.launched && (raw.revision < 1 || raw.cycle === null))) return undefined;
+
+  const hostLoss = raw.hostLoss === undefined ? undefined : parseUnassignedCraftHostLoss(raw.hostLoss);
+  if (Object.hasOwn(raw, 'hostLoss') && (!hostLoss || hostLoss.destroyedHostShipId !== 'refinery-124' ||
+      raw.fighters !== 0 || raw.losses !== 4 || raw.launched || raw.mediumResolved || raw.shortResolved || raw.revision < 1)) return undefined;
 
   return Object.freeze({
     type: 'pdf-escort-fighter-wing-view',
@@ -66,6 +71,7 @@ export function parsePdfEscortWingMemberView(
     shortResolved: raw.shortResolved,
     shortRollCount: raw.shortRollCount as number,
     losses: raw.losses as number,
+    ...(hostLoss ? { hostLoss } : {}),
   });
 }
 

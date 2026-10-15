@@ -1,3 +1,4 @@
+import { parseUnassignedCraftHostLoss } from '../../functions/src/shipDestruction';
 import type { RoleId, VesselId } from '@/types/identifiers';
 import { SHIPS, SMALL_SHIPS } from '@/data/ships';
 
@@ -60,7 +61,7 @@ function isPresentedSmallShipState(
   id: string,
   activeVesselIds: ReadonlySet<string>,
 ): boolean {
-  const rootKeys = ['id', 'hostShipId', 'dockingRevision', 'population', 'unrest', 'mutiny', 'cycle'];
+  const rootKeys = ['id', 'hostShipId', 'dockingRevision', 'population', 'unrest', 'mutiny', 'cycle', 'everAssigned', 'loss'];
   const cycleKeys = [
     'step', 'revision', 'results', 'charges', 'turn', 'rationBonus',
     'chargingSkipped', 'startedAt', 'completedAt',
@@ -83,6 +84,10 @@ function isPresentedSmallShipState(
       !Array.isArray(cycle.charges) || cycle.charges.some((charge) => typeof charge !== 'string')) {
     return false;
   }
+  if (Object.hasOwn(value, 'everAssigned') && typeof value.everAssigned !== 'boolean') return false;
+  const loss = value.loss === undefined ? undefined : parseUnassignedCraftHostLoss(value.loss);
+  if (Object.hasOwn(value, 'loss') && (!loss || value.everAssigned !== false || value.hostShipId !== null ||
+      Number(value.dockingRevision) < 2 || !activeVesselIds.has(loss.destroyedHostShipId))) return false;
   if (value.hostShipId !== null &&
       (value.dockingRevision === 0 || !activeVesselIds.has(value.hostShipId as string))) return false;
   if (cycle.turn !== undefined && (!Number.isSafeInteger(cycle.turn) || (cycle.turn as number) < 0)) return false;

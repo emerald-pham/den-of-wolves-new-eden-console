@@ -132,7 +132,7 @@ const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligi
   confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, setCandidatePlanCheckpoint, transitionCrisis, setDiseaseQuarantine, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, scavengeDestroyedShipStores, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeReplacementEligibility, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeWolfAttackMemberView, subscribeGmWolfAssignment, subscribeGmWolfActionReceipt, subscribeGmWolfSuspicionHistory, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmApproachingVesselResponse, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeGmArrestPosseCalculation, subscribeGmArrestCase, subscribeSessionEvents, subscribeDamageDraws } =
+const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeReplacementEligibility, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeWolfAttackMemberView, subscribeGmWolfAssignment, subscribeGmWolfActionReceipt, subscribeGmWolfSuspicionHistory, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmApproachingVesselResponse, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeGmArrestPosseCalculation, subscribeGmArrestCase, subscribeSessionEvents, subscribeGmPlayerRemovalEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 const { runSmallShipMaintenance } = await import('@/lib/smallShipService');
 
@@ -227,6 +227,9 @@ beforeEach(() => {
   // cache/reconnect authority explicitly override these runtime fields.
   useSessionStore.getState().setConnection('live');
   useSessionStore.getState().setSessionSnapshotFreshness('server');
+  vi.mocked(subscribeGmPlayerRemovalEvents).mockImplementation((_sessionId, onEvents) => {
+    onEvents([]); return vi.fn();
+  });
   vi.mocked(subscribeSessionEvents).mockImplementation((_sessionId, onEvents) => {
     onEvents([]);
     return vi.fn();
@@ -5395,7 +5398,7 @@ it('shows a private actual removal in the existing GM event log and withdraws it
   const module = await import('@/lib/firestore');
   const event = { id: 'player-removal-fixed', type: 'player-removal', sessionId: 's1', sourceId: 'damage-destroyed-icebreaker',
     playerUid: 'removed-player', playerName: 'A'.repeat(40), roleId: 'icebreaker-miner', roleName: 'Icebreaker Miner',
-    cause: 'ship-destroyed', shipId: 'icebreaker', cycle: 1, createdAt: '2026-10-15T06:53:19.000Z' };
+    cause: 'ship-destroyed', shipId: 'icebreaker', cycle: 1, createdAt: '2026-10-15T06:53:19.000Z' } as const;
   vi.mocked(module.subscribeGmPlayerRemovalEvents).mockImplementation((_id, onEvents) => { onEvents([event]); return vi.fn(); });
   useSessionStore.getState().setGmInstance(local); streamInstances([local]);
   renderConsole();

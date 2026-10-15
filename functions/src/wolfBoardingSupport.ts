@@ -23,6 +23,8 @@ export interface WolfBoardingCraftAuthorityInput {
   readonly playerUids: readonly string[];
   readonly retainedShuttles: unknown;
   readonly consumedShuttleIds?: readonly string[];
+  /** Only from the caller's strict terminal provenance validation. */
+  readonly lostShuttleIds?: readonly string[];
   /** Existing declaration parking admission; omitted legacy inputs stay strict. */
   readonly admittedShuttleIds?: readonly string[];
 }
@@ -109,7 +111,7 @@ export function deriveWolfBoardingSupportCraft(
   }
   const supportCraft = configuredCraft
     .filter((craft) => craft.kind === 'shuttle' && craft.boardingSupport !== undefined &&
-      !input.consumedShuttleIds?.includes(craft.id))
+      !input.consumedShuttleIds?.includes(craft.id) && !input.lostShuttleIds?.includes(craft.id))
     // Optional Union craft need an explicit starting host. A never-admitted
     // craft has no history to validate; every declared or represented craft
     // still takes the existing strict location/history/custody path below.
@@ -119,7 +121,7 @@ export function deriveWolfBoardingSupportCraft(
       input.control !== null && typeof input.control === 'object' && Object.hasOwn(input.control, craft.id));
   const supportIds = new Set(supportCraft.map(({ id }) => id));
   validateSupportVisitHistory(supportIds, input.dockings,
-    input.visits.filter(visit => !input.consumedShuttleIds?.includes(visit.shuttleId)), input.activeVesselIds, retained);
+    input.visits.filter(visit => !input.consumedShuttleIds?.includes(visit.shuttleId) && !input.lostShuttleIds?.includes(visit.shuttleId)), input.activeVesselIds, retained);
   const dockById = new Map(input.dockings.map((docking) => [docking.shuttleId, docking.shipId]));
   const rawControl = input.control === undefined
     ? initialShuttleControl(supportCraft, input.roleHolders)
