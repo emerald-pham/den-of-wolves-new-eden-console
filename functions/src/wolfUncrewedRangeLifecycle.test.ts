@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 import type { TurnPhase } from './turnZero';
 
@@ -250,6 +251,17 @@ vi.mock('firebase-admin/functions', () => ({
   getFunctions: () => ({ taskQueue: () => ({ enqueue: mock.enqueueTask }) }),
 }));
 
+const clientPort = vi.hoisted(() => ({ uid: 'normal-wing',
+  invoke: undefined as undefined | ((endpoint: string, data: Record<string, unknown>) => Promise<unknown>),
+  calls: [] as Array<{ endpoint: string; data: Record<string, unknown> }>,
+}));
+vi.mock('@/lib/firebase', () => ({ auth: () => ({ currentUser: { uid: clientPort.uid } }), functions: () => ({}) }));
+vi.mock('firebase/functions', () => ({ httpsCallable: (_functions: unknown, endpoint: string) => async (data: Record<string, unknown>) => {
+  clientPort.calls.push({ endpoint, data });
+  return { data: await clientPort.invoke!(endpoint, data) };
+} }));
+vi.mock('firebase/auth', () => ({ signInAnonymously: vi.fn() }));
+
 // Reuse the sessionComposition transaction ports. Everything below the ports
 // is the ordinary handler chain; no phase, choice, roster or receipt is injected.
 import { createSession, loginGmAccess, claimGmInstance, confirmSetup,
@@ -258,9 +270,16 @@ import { createSession, loginGmAccess, claimGmInstance, confirmSetup,
   stageWolfAttackPreparation, declareWolfAttack, advanceWolfAttackLifecycle,
   getAegisFighterWingLaunch, launchAegisFighterWing, passWolfFighterLaunchChoice,
   getWolfFighterRangeActionChoice, commitWolfFighterRangeActionChoice,
-  getWolfRangeActionChoice } from './index';
+  getWolfRangeActionChoice, getWolfBoardingDefenceChoice, commitWolfBoardingDefenceChoice,
+  getWolfBoardingSpecialChoice, commitWolfBoardingSpecialChoice } from './index';
 import { recommendedRoleIds } from './roleConfiguration';
 import { projectWolfAttackMemberView } from './wolfAttackAudience';
+import { getWolfFighterRangeActionChoice as clientReadRange, commitWolfFighterRangeActionChoice as clientCommitRange } from '@/lib/sessionService';
+import { useSessionStore } from '@/store/useSessionStore';
+import { WolfFighterRangeActionPanelView } from '@/components/WolfFighterRangeActionPanel';
+import { createElement } from 'react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import type { GameSession, Player } from '@/types/game';
 
 const roles = recommendedRoleIds(8);
 const gm = 'normal-gm', admiral = 'normal-admiral', wing = 'normal-wing';
@@ -333,9 +352,104 @@ beforeEach(() => {
   // Inert deterministic entropy chooses ordinary healthy maintenance and target
   // rolls. No outcome is supplied in any command body.
   mock.randomInt.mockImplementation((first: number, second?: number) => second === undefined ? 0 : first === 1000 ? 1001 : first);
+  clientPort.uid = wing;
+  clientPort.calls = [];
+  clientPort.invoke = async (endpoint, data) => {
+    const handler = { getWolfFighterRangeActionChoice, commitWolfFighterRangeActionChoice }[endpoint];
+    if (!handler) throw new Error('This consumer qualification admits only the two existing fighter range endpoints.');
+    return handler.run(req(data, clientPort.uid));
+  };
 });
+afterEach(cleanup);
 
 describe('normal uncrewed battle-table craft lifecycle', () => {
+  it('feeds actual connected range producers through client getter/parser and the mounted ordinary Medium/Short handlers', async () => {
+    const f = await normalPrefix();
+    await advanceWolfAttackLifecycle.run({ params: { sessionId: f.sessionId } });
+    useSessionStore.setState({ session: { ...read(f.root), id: f.sessionId } as unknown as GameSession,
+      me: { ...read(`${f.root}/players/${wing}`), sessionId: f.sessionId } as unknown as Player,
+      connection: 'live', sessionSnapshotFreshness: 'server', identityHydrationRevision: 1 });
+    const medium = await clientReadRange('medium-range', alpha);
+    let pending: ReturnType<typeof clientCommitRange> | undefined;
+    const ui = render(createElement(WolfFighterRangeActionPanelView, { view: medium,
+      onResolveMedium: actions => { pending = clientCommitRange(medium.turn, medium.revision, medium.range, alpha, actions); },
+      onResolveShort: () => { throw new Error('Short is not mounted during Medium.'); } }));
+    for (const [index, kind] of [[1, 'attack'], [2, 'target-shift']] as const) {
+      fireEvent.change(screen.getByLabelText(`Fighter ${index} action`), { target: { value: kind } });
+      fireEvent.change(screen.getByLabelText(`Fighter ${index} target`), { target: { value: medium.targets[0].instanceId } });
+    }
+    fireEvent.change(screen.getByLabelText('Fighter 2 shift'), { target: { value: '-1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve Medium actions' }));
+    const mediumReceipt = await pending!;
+    expect(mediumReceipt).toMatchObject({ choiceStatus: 'pending-resolution', selectedFighterIndexes: [0, 1], revision: medium.revision + 1 });
+    expect(read(f.statePath).currentStep).toBe('short-range');
+    expect(clientPort.calls.at(-1)?.data).toMatchObject({ sourceId: alpha, actions: [
+      { fighterIndex: 0, kind: 'attack', targetContactId: medium.targets[0].instanceId },
+      { fighterIndex: 1, kind: 'target-shift', targetContactId: medium.targets[0].instanceId, shift: -1 },
+    ] });
+    ui.unmount();
+    const short = await clientReadRange('short-range', alpha);
+    render(createElement(WolfFighterRangeActionPanelView, { view: short,
+      onResolveMedium: () => { throw new Error('Medium is not mounted during Short.'); },
+      onResolveShort: indexes => { pending = clientCommitRange(short.turn, short.revision, short.range, alpha, indexes); } }));
+    for (let index = 1; index <= 4; index++) fireEvent.click(screen.getByLabelText(`Fighter ${index} Short attack`));
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve selected Short attacks' }));
+    expect(await pending!).toMatchObject({ choiceStatus: 'pending-resolution', selectedFighterIndexes: [0, 1, 2, 3] });
+    const member = projectWolfAttackMemberView({ sessionId: f.sessionId, state: read(f.statePath), serverTime: new Date().toISOString() });
+    expect(member).toMatchObject({ currentStep: 'boarding', range: null });
+    expect(clientPort.calls.filter(({ endpoint }) => endpoint.startsWith('commit'))).toHaveLength(2);
+    expect(clientPort.calls.every(({ data }) => !('attackId' in data) && !('expectedWingRevision' in data))).toBe(true);
+  });
+
+  it('qualifies actual Long→Medium→Short receipts, crew boarding prerequisites and original finalization without stage injection', async () => {
+    const f = await normalPrefix();
+    await advanceWolfAttackLifecycle.run({ params: { sessionId: f.sessionId } });
+    const before = structuredClone(read(f.root));
+    const medium = await getWolfFighterRangeActionChoice.run(req({ sessionId: f.sessionId, sourceId: alpha, range: 'medium-range' }, wing));
+    expect(medium.fighters.map((fighter: { fighterIndex: number }) => fighter.fighterIndex)).toEqual([0, 1, 2, 3]);
+    const contact = medium.targets[0].instanceId;
+    const mediumReceipt = await commitWolfFighterRangeActionChoice.run(req({ sessionId: f.sessionId, requestId: 'normal-medium',
+      expectedTurn: 1, expectedRevision: medium.revision, sourceId: alpha, range: 'medium-range', actions: [
+        { fighterIndex: 0, kind: 'attack', targetContactId: contact },
+        { fighterIndex: 1, kind: 'target-shift', targetContactId: contact, shift: -1 },
+      ] }, wing));
+    expect(mediumReceipt).toMatchObject({ choiceStatus: 'pending-resolution', revision: medium.revision + 1, selectedFighterIndexes: [0, 1] });
+    expect(read(f.statePath)).toMatchObject({ currentStep: 'short-range', revision: mediumReceipt.revision + 1 });
+    const short = await getWolfFighterRangeActionChoice.run(req({ sessionId: f.sessionId, sourceId: alpha, range: 'short-range' }, wing));
+    const shortReceipt = await commitWolfFighterRangeActionChoice.run(req({ sessionId: f.sessionId, requestId: 'normal-short',
+      expectedTurn: 1, expectedRevision: short.revision, sourceId: alpha, range: 'short-range',
+      fighterIndexes: short.fighters.map((fighter: { fighterIndex: number }) => fighter.fighterIndex) }, wing));
+    expect(shortReceipt).toMatchObject({ choiceStatus: 'pending-resolution', revision: short.revision + 1, selectedFighterIndexes: [0, 1, 2, 3] });
+    expect(read(f.statePath).currentStep).toBe('boarding');
+    expect(read(f.statePath).rangeReceipts).toHaveLength(3);
+    for (const key of ['shipResources', 'maintenanceCycles', 'shuttleControl', 'shuttleDockings', 'shipUpgrades']) {
+      expect(read(f.root)[key]).toEqual(before[key]);
+    }
+    // The source may wait for genuine current AEGIS crew after Short. This
+    // qualification follows its actual offered choices; the native range
+    // objective must stop before these additional boarding mutations.
+    const defence = await getWolfBoardingDefenceChoice.run(req({ sessionId: f.sessionId }, admiral));
+    expect(defence).toMatchObject({ type: 'wolf-boarding-defence-choice-view', targetShipId: 'aegis', choiceStatus: 'pending' });
+    await commitWolfBoardingDefenceChoice.run(req({ sessionId: f.sessionId, requestId: 'normal-boarding-defence',
+      expectedTurn: 1, expectedRevision: defence.revision, targetShipId: defence.targetShipId,
+      securityTeams: defence.availableSecurityTeams }, admiral));
+    for (let index = 0; index < 12 && read(f.statePath).status !== 'resolved'; index++) {
+      const revision = read(f.statePath).revision;
+      await advanceWolfAttackLifecycle.run({ params: { sessionId: f.sessionId } });
+      if (read(f.statePath).status === 'resolved') break;
+      if (read(f.statePath).revision !== revision) continue;
+      const choice = await getWolfBoardingSpecialChoice.run(req({ sessionId: f.sessionId }, admiral));
+      expect(choice.type).toBe('wolf-boarding-special-choice-view');
+      expect(choice.choice).toMatchObject({ kind: 'reroll', source: 'aegis' });
+      await commitWolfBoardingSpecialChoice.run(req({ sessionId: f.sessionId, requestId: `normal-boarding-special-${index}`,
+        expectedTurn: 1, expectedRevision: choice.revision,
+        choice: { kind: 'reroll', source: choice.choice.source, targetShipId: choice.choice.targetShipId, dieIndexes: [] } }, admiral));
+    }
+    expect(read(f.statePath)).toMatchObject({ status: 'resolved', currentStep: 'resolved', attackId: shortReceipt.attackId });
+    expect((read(f.root).turnPhase as StoredDocument).airspace).toMatchObject({ state: 'lifted' });
+    expect(mock.documents.has(`${f.statePath}/audit/finalization-1`)).toBe(true);
+  });
+
   it('continues actual startup custody + declaration parking + explicit Alpha/Bravo choices from Long to Medium', async () => {
     const f = await normalPrefix();
     expect(roles).toHaveLength(8);
