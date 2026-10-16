@@ -4,8 +4,13 @@ import ts from 'typescript';
 
 it('routes every production SDK callable constructor including factories through the audited boundary', () => {
   const unwrapped: string[] = [];
+  const auditedFactories = new Map([
+    ['securityCallable.ts', 'auditedOnCall'],
+    ['castingCallableTransport.ts', 'castingCallableTransport'],
+  ]);
+  const auditedFactoryCalls = new Map<string, number>();
   for (const file of readdirSync(new URL('.', import.meta.url))) {
-    if (!file.endsWith('.ts') || file.endsWith('.test.ts') || file === 'securityCallable.ts') continue;
+    if (!file.endsWith('.ts') || file.endsWith('.test.ts')) continue;
     const source = ts.createSourceFile(file, readFileSync(new URL(file, import.meta.url), 'utf8'), ts.ScriptTarget.Latest, true);
     const constructors = new Set<string>();
     for (const node of source.statements) {
@@ -19,11 +24,24 @@ it('routes every production SDK callable constructor including factories through
     }
     const visit = (node: ts.Node) => {
       if (ts.isCallExpression(node) && constructors.has(node.expression.getText(source))) {
-        unwrapped.push(`${file}:${source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1}`);
+        let parent = node.parent;
+        while (parent && !ts.isFunctionDeclaration(parent) && !ts.isFunctionExpression(parent) && !ts.isArrowFunction(parent)) {
+          parent = parent.parent;
+        }
+        const factoryName = parent && ts.isFunctionDeclaration(parent) ? parent.name?.text : undefined;
+        if (auditedFactories.get(file) === factoryName) {
+          auditedFactoryCalls.set(file, (auditedFactoryCalls.get(file) ?? 0) + 1);
+        } else {
+          unwrapped.push(`${file}:${source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1}`);
+        }
       }
       ts.forEachChild(node, visit);
     };
     visit(source);
   }
   expect(unwrapped, 'A factory must retain the same denial boundary as an exported callable').toEqual([]);
+  expect([...auditedFactoryCalls.entries()].sort(), 'Both behavior-qualified transport factories must remain in the inventory').toEqual([
+    ['castingCallableTransport.ts', 1],
+    ['securityCallable.ts', 1],
+  ]);
 });
