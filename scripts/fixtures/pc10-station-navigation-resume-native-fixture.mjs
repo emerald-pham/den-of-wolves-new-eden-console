@@ -15,7 +15,7 @@ import { projectionFixture } from './pc10-member-projection-native-fixture.mjs';
 // transport at the ordinary route entry; no browser or gameplay acceptance.
 const require = createRequire(import.meta.url), ts = require('typescript');
 const sources = {};
-for (const path of ['src/lib/sessionService.ts', 'src/lib/sessionSnapshotAuthority.ts', 'functions/src/index.ts']) {
+for (const path of ['src/lib/sessionService.ts', 'src/lib/sessionSnapshotAuthority.ts', 'functions/src/index.ts', 'src/App.tsx']) {
   const text = await readFile(new URL(`../../${path}`, import.meta.url), 'utf8');
   sources[path] = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true);
 }
@@ -38,13 +38,21 @@ const plain = value => JSON.parse(JSON.stringify(value));
 
 export async function stationNavigationResumeFixture(options = {}) {
   const roleId = options.roleId ?? 'icebreaker-captain', f = projectionFixture({ actorRoleId: roleId, freshDemo: true });
-  f.store.setState({ me: { ...f.store.getState().me, connectionGeneration: 2,
+  f.store.setState({ me: { ...f.store.getState().me, connectionGeneration: options.initialGeneration ?? 2,
     ...(options.initialSeatNull ? { seatId: null } : {}) },
     ...(options.initialSeatNull ? { seats: [{ id: roleId, roleId, status: 'open', holderUid: null }] } : {}) });
   await f.resumeSessionOnly(); await f.receiveMemberProjection();
   const start = f.store.getState(), uid = start.me.uid, sid = start.session.id;
   const directory = await mkdtemp(join(tmpdir(), 'pc10-native-navigation-'));
   const events = new EventEmitter(), sdkRequests = [], application = [], seatClaims = [], lifecycleCommands = [];
+  const retryDeclarations = [];
+  const findRetry = node => {
+    if (ts.isVariableDeclaration(node) && node.name.getText(sources['src/App.tsx']) === 'retry' &&
+        ts.isCallExpression(node.initializer) && node.initializer.arguments[0]?.getText(sources['src/App.tsx']).includes("state.connection !== 'live'")) retryDeclarations.push(node);
+    ts.forEachChild(node, findRetry);
+  };
+  findRetry(sources['src/App.tsx']); assert.equal(retryDeclarations.length, 1);
+  const retrySource = retryDeclarations[0].initializer.arguments[0].getText(sources['src/App.tsx']);
   // Inert transport barriers reproduce the real native ordering: the own-player
   // feed can publish the server lease before HTTP delivery or SDK application.
   // The actual source resume/finally fence still owns identity hydration.
@@ -80,8 +88,8 @@ export async function stationNavigationResumeFixture(options = {}) {
     f.normalClaim = () => options.claimDuringAcceptance ? undefined : actualNormalClaim();
   }
   const authorityContext = createContext({});
-  new Script(js('const sessionSnapshotAuthorities = new Map(); const memberResumeTokens = new WeakMap();\n' +
-    ['createSessionSnapshotAuthority', 'beginMemberSessionResume', 'isCurrentMemberSessionResume',
+  new Script(js('const sessionSnapshotAuthorities = new Map(); const memberResumeTokens = new WeakMap(); const wingFirstEntries = new WeakMap(); const admiralFirstEntries = new WeakMap();\n' +
+    ['finishAdmiralFirstEntry', 'createSessionSnapshotAuthority', 'beginMemberSessionResume', 'isCurrentMemberSessionResume',
       'finishMemberSessionResume', 'memberSessionResumeBlocksFreshness', 'sessionSnapshotAuthorityFor']
       .map(name => sourceFunction('src/lib/sessionSnapshotAuthority.ts', name)).join('\n'))).runInContext(authorityContext);
   const authorityFns = new Script('({beginMemberSessionResume,isCurrentMemberSessionResume,finishMemberSessionResume,memberSessionResumeBlocksFreshness,sessionSnapshotAuthorityFor})').runInContext(authorityContext);
@@ -94,8 +102,8 @@ export async function stationNavigationResumeFixture(options = {}) {
   let bareAuthorityFns = authorityFns;
   if (options.distinctMountedAuthority) {
     const bareContext = createContext({});
-    new Script(js('const sessionSnapshotAuthorities = new Map(); const memberResumeTokens = new WeakMap();\n' +
-      ['createSessionSnapshotAuthority', 'beginMemberSessionResume', 'isCurrentMemberSessionResume',
+    new Script(js('const sessionSnapshotAuthorities = new Map(); const memberResumeTokens = new WeakMap(); const wingFirstEntries = new WeakMap(); const admiralFirstEntries = new WeakMap();\n' +
+      ['finishAdmiralFirstEntry', 'createSessionSnapshotAuthority', 'beginMemberSessionResume', 'isCurrentMemberSessionResume',
         'finishMemberSessionResume', 'memberSessionResumeBlocksFreshness', 'sessionSnapshotAuthorityFor']
         .map(name => sourceFunction('src/lib/sessionSnapshotAuthority.ts', name)).join('\n'))).runInContext(bareContext);
     bareAuthorityFns = new Script('({beginMemberSessionResume,isCurrentMemberSessionResume,finishMemberSessionResume,memberSessionResumeBlocksFreshness,sessionSnapshotAuthorityFor})').runInContext(bareContext);
@@ -210,7 +218,7 @@ export async function stationNavigationResumeFixture(options = {}) {
   f.crew.page.evaluate = async (callback, input) => {
     if (typeof input === 'string') {
       const value = await originalEvaluate(callback, input);
-      if (deferredResume && value.connectionGeneration === start.me.connectionGeneration + 1 &&
+      if ((deferredResume || options.unmatchedLeaseBeforeRetry) && value.connectionGeneration === start.me.connectionGeneration + (options.externalGenerationDelta ?? 1) &&
           value.identityHydrationRevision === start.identityHydrationRevision) earlyObservation.release(value);
       return value;
     }
@@ -246,6 +254,34 @@ export async function stationNavigationResumeFixture(options = {}) {
       forcedRoute = undefined;
       if (options.resumeBeforeClaim && !options.skipResume) await resume(sid);
       await click();
+      if (options.unmatchedLeaseBeforeRetry) {
+        // External own-player listener boundary: another already authenticated
+        // demo document's ordinary server resume commits first. The source
+        // generation allocator owns the value; local SDK hydration is untouched.
+        const current = f.store.getState();
+        let generation = current.me.connectionGeneration;
+        for (let i = 0; i < (options.externalGenerationDelta ?? 1); i++)
+          generation = nextGeneration({ get: key => key === 'connectionGeneration' ? generation : current.me[key] });
+        f.store.setState({ me: { ...current.me, connectionGeneration: generation },
+          connection: 'offline', sessionSnapshotFreshness: 'cache' });
+        options.mutateListener?.(f);
+        backgroundResume = (async () => {
+          await earlyObservation.promise;
+          await new Promise(resolve => setTimeout(resolve, 0));
+          if (options.noAutomaticRetry) return;
+          const retryContext = createContext({ useSessionStore: { getState: f.store.getState },
+            pendingStationMemberRefresh: undefined, readClosedHistoryIfReady: () => assert.fail('Not a closed session.'),
+            // The real App timer owns this call. The proof adapter never calls
+            // resume; actual client resume/finally owns reply hydration/fences.
+            connectAutomaticallyDeduplicated: async () => {
+              await resume(sid);
+              if (!options.noFreshMember) await f.receiveMemberProjection();
+            }, run: callback => callback() });
+          await new Script(js(`(${retrySource})()`)).runInContext(retryContext);
+        })();
+        void backgroundResume.catch(() => undefined);
+        return;
+      }
       if (options.unwitnessed) {
         const current = f.store.getState(); f.store.setState({ me: { ...current.me, connectionGeneration: current.me.connectionGeneration + 1 }, identityHydrationRevision: 2 });
       } else if (!options.skipResume && !options.resumeBeforeClaim) {
