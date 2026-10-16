@@ -503,8 +503,8 @@ async function resolveElection(context, options, tieDecision) {
     ['configured-close-cycle-has-not-finished'], { required: required(options, branch) }); }
   const expectedGm = { actorKind: 'gm', sessionId: context.initial.sessionId, uidHash: identity.uidHash,
     instanceId: identity.instanceId, cycle: identity.cycle, phase: identity.phase,
-    turnStatePhase: identity.turnStatePhase };
-  const region = context.gm.page.getByRole('region', { name: 'Election procedure and outcome', exact: true });
+    turnStatePhase: identity.turnStatePhase, documentTimeOrigin: identity.documentTimeOrigin };
+  const region = await electionGmRegion(context, expectedGm);
   const tieRegion = region.getByRole('region', { name: 'Facilitator tie decisions', exact: true });
   if (await tieRegion.isVisible().catch(() => false)) {
     const tieReceipt = await commitElectionTieDecision(context, options, tieDecision);
