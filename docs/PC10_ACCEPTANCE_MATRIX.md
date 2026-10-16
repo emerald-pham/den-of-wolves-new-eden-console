@@ -8,8 +8,12 @@ recovery and sparse acting-command mutiny in one game through Pursuit/debrief/
 close. P650 remains partial for its other branches. Base source `2c2acd10`
 reached all eighteen original role surfaces but stopped at the election proof
 consumer before maintenance/mission/combat; a fresh continuous run remains
-required. Station and Capybara/Nebula qualification and invalid-App-Check-token
-coverage are separate active tasks. No new whole-prompt closure, CI or release
+required. The later Base source `7a10f706` passed policy and both original secret ballots
+with reload/exact retries, then failed the genuine combat prerequisite because
+early DOM checks skipped maintenance. Real-component test-first maintenance/
+research consumer repairs are green; the continuous game remains open. Station
+and Capybara/Nebula qualification are active. Invalid-App-Check-token local SDK
+coverage passes in its [bounded report](PC10_APPCHECK_INVALID_TOKEN_REPORT.md). No new whole-prompt closure, CI or release
 is claimed by this update.
 
 The [function and role matrix](PC10_FUNCTION_ROLE_MATRIX.json) enumerates the

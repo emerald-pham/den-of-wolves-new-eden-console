@@ -2033,3 +2033,54 @@ SDK `app: INVALID`, no application-handler call and absence of supplied
 canaries from captured SDK console output and response. This is local SDK
 middleware evidence, not a production log-sink claim. P634 and final release
 remain pending reconciliation.
+
+### Base maintenance frontier and source-verified failure boundaries
+
+Fresh Base source `7a10f706` passed the normal election policy and both original
+voters' secret ballots, including same-account reload and exact SDK retries.
+The retained politics report has seven committed branches/receipts; election
+resolution is still pending its configured close window. The run then reached
+opening combat without completed maintenance: six immediate DOM preflights had
+incorrectly recorded the still-mounting maintenance workspaces as unavailable.
+Scientist research was likewise left pending by an immediate shuttle-link check.
+The combat prerequisite correctly rejected absent Cycle 1 maintenance. This
+remains a failed whole game with no combat/mission/ending credit. Artifacts are
+under `/private/tmp/pc10-completion-20261016/base-ballot-resume/`.
+
+Two real-component inert browser regressions reproduce the mounting races.
+Test-only `e54ab3ff` precedes maintenance repair `0347e342`; test-only
+`d78c8577` precedes research repair `bafe0643`. The affected maintenance/source/
+identity checks pass 23/23; the research/maintenance/combat consumer subset passes
+58/58. These checks grant no additional native gameplay credit. An older mission
+source-binding test still counted two facilitator actions removed by the
+automatic-resolution implementation `e5e36512`; its count now covers all six
+current guarded choices and explicitly rejects the obsolete controls. All
+original actor/receipt/replay guards remain. Strict Base return at
+`2026-10-16T17:10:05.341541Z` records 83 owned processes and nine row-4 listeners
+absent, with source and the full compiled Functions tree unchanged.
+
+Station's real paid-arrival prefix exposed a proof-consumer omission: it
+advanced without the ordinary Cycle 1 deferral needed to offer the first attack
+in Cycle 2. Test `06d8335f2` precedes repair `79ed47117`, with 12/12 focused checks
+green. The later empty-evidence-directory invocation setup failure occurred
+before browsers or actor admission and earns no gameplay credit. Both stopped
+runtimes returned only their owned services. Capybara's real opening-combat
+prefix stopped at a blocking unrest alert before Cycle 2; test commits
+`9cd218ad`/`55e41958` precede repair `95160b19`, with 20/20 focused checks green.
+That repair uses the original GM's ordinary dismissal and its actual server
+receipt. Fresh continuous Station and expansion qualification remain open.
+
+The F1 damage-only attempt destroyed four configured non-AEGIS ships, then hit
+its 100-draw limit while AEGIS's two hull cards recycled. Primary printed source
+supports that recycling. The test hypothesis in `355de954` was disproved, not a
+functional defect; `040e8ac2` records the source-consistent contract and assumption
+PC10-F1-A1. No gameplay source changed. Damage/candidate callable tests pass
+41/41. Native total-loss/debrief was not reached; the existing focused terminal
+authority tests and accepted native Pursuit consumer remain distinct evidence.
+Row-2 strict return records 46 owned processes/nine listeners absent.
+
+No prompt is newly done, and CI/deployment have not started. Root integrated
+the Station and expansion consumer repairs while their isolated workers retain
+frozen candidates for native qualification. L3 real elapsed-lease pause/resume
+is the next bounded proof task; its existing helper's setup accounts must be
+reported separately from actual participants.
