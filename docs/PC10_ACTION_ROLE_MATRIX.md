@@ -14,7 +14,7 @@ usability, or acceptance credit.
 
 The current Functions source binding is `243f67105437695b1a43f57e6de7e6040f64e659` (550 files; tree SHA-256 `1edae453e457850854199594d1100173bb666fc4fd4adf5e46a72a4c21d2eee6`; `index.ts` SHA-256 `84a878f4b48112a8c351f885dc6f59c195392fd1ff97d9754faffe59041c1ae2`). The client source binding is 877 files, SHA-256 `95d4ac4cdcb6f8e7010a4a00218bf32838daf2c1e9a8bfb7e8a8dd66136b30c2`. Export metadata was read from the existing compiled tree; compiled `index.js` SHA-256 is `e46ad04fcd43ecb5e2c29beb861bb8d128ef2a278f542ac63bdbc08333c05c94`. This refresh did not build or execute an emulator, browser, callable, or gameplay request.
 
-The prior function inventory was 247 exports/238 callables. Only one export was newly present there: `castingCompanionCommand`, existing published-main casting transport outside new PC10 gameplay. The prior action/role JSON was older and omitted seven callable rows now included: six already present in the function inventory plus that casting transport. These static rows earn zero gameplay/native credit. No call to those newly represented action rows occurred during the Cappy-a3 opening-combat/boarding prefix.
+The prior function inventory was 247 exports/238 callables. Only one export was newly present there: `castingCompanionCommand`, existing published-main casting transport outside new PC10 gameplay. The prior action/role JSON was older and omitted seven callable rows now included: six already present in the function inventory plus that casting transport. These static rows earn zero gameplay/native credit. The Cappy-a3 opening-combat/boarding prefix did not call `castingCompanionCommand`; no claim is made here about calls to the other six rows.
 
 ## Source-trace limits
 
