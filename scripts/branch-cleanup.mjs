@@ -110,16 +110,10 @@ async function remoteBranchSha(root, branch) {
 }
 
 async function defaultBranchName(root) {
-  const symbolic = await run('git', ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD'], {
-    cwd: root,
-    allowedExitCodes: [1],
-  });
-  const prefix = 'refs/remotes/origin/';
-  if (symbolic?.startsWith(prefix)) return symbolic.slice(prefix.length);
-
   const remoteHead = await run('git', ['ls-remote', '--symref', 'origin', 'HEAD'], { cwd: root });
-  const line = remoteHead.split('\n').find((entry) => entry.startsWith('ref: refs/heads/') && entry.endsWith('\tHEAD'));
-  return line ? line.slice('ref: refs/heads/'.length, line.length - '\tHEAD'.length) : null;
+  const names = remoteHead.split('\n').filter((entry) => entry.startsWith('ref: refs/heads/') && entry.endsWith('\tHEAD'))
+    .map((entry) => entry.slice('ref: refs/heads/'.length, entry.length - '\tHEAD'.length));
+  return names.length === 1 && isValidBranchName(names[0]) ? names[0] : null;
 }
 
 async function fetchDefaultBranch(root, branch) {
@@ -263,7 +257,10 @@ async function inspectCandidate(report, context) {
     if (checkedName === null) {
       return { reason: { code: 'remote-default-unknown', message: 'The origin default branch name is invalid.' } };
     }
-    const defaultSha = await fetchDefaultBranch(root, defaultName);
+    const [defaultSha, mainSha] = await Promise.all([
+      fetchDefaultBranch(root, defaultName),
+      fetchDefaultBranch(root, 'main'),
+    ]);
     report.defaultBranch = { name: defaultName, sha: defaultSha };
 
     const remote = await remoteBranchSha(root, branch);
@@ -284,12 +281,12 @@ async function inspectCandidate(report, context) {
       };
     }
 
-    const ancestor = await run('git', ['merge-base', '--is-ancestor', local, defaultSha], {
+    const ancestor = await run('git', ['merge-base', '--is-ancestor', local, mainSha], {
       cwd: root,
       allowedExitCodes: [1],
     });
     if (ancestor === null) {
-      return { reason: { code: 'branch-not-merged', message: `The tip of ${branch} is not an ancestor of freshly fetched origin/${defaultName}.` } };
+      return { reason: { code: 'branch-not-merged', message: `The tip of ${branch} is not an ancestor of freshly fetched origin/main.` } };
     }
 
     const worktrees = parseWorktreeList(await run('git', ['worktree', 'list', '--porcelain'], { cwd: root }));
@@ -323,7 +320,7 @@ async function inspectCandidate(report, context) {
     const pullRequest = await pullRequestReason(root, branch);
     if (pullRequest) return { reason: pullRequest };
 
-    return { local, remote, defaultName, defaultSha };
+    return { local, remote, defaultName, defaultSha, mainSha };
   } catch (error) {
     return {
       reason: {
