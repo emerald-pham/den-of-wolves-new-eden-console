@@ -17,6 +17,13 @@ a concrete decision or blocker. Let active workers encounter routine guidance
 updates at their next normal boundary; interrupt only for a material effect on
 their current work.
 
+Escalate only after actual lack of progress or a material failure: substantive
+diagnosis and an attempted repair must fail and the owner cannot identify a
+credible next step. A failed test with an obvious fix is progress. Sol may
+diagnose or take over a justified blocker when the reason and ownership
+transfer are explicit; the task coordinator handles difficult decisions
+without a mandatory extra stage.
+
 Use Sol for the independent risk reviews required by `CLAUDE.md`. If a
 Luna-owned implementation fails the same acceptance gate after two distinct,
 substantive repair attempts on separate candidate commits, transfer ownership
@@ -55,9 +62,8 @@ gap, and owns the single release. This does not add child coordinators.
 
 Obtain independent Sol review of the reconciled shared-state and authority
 changes under the risk rules in `CLAUDE.md`. Review findings return to the
-responsible implementation owner. Preserve existing test-first evidence and
-apply the risk-based verification below, exact-candidate validation, authenticated
-local/emulator gameplay proof, and the fixed completion target.
+responsible implementation owner. Preserve test-first commits, exact-candidate
+validation, authenticated local/emulator gameplay proof, and the fixed completion target.
 The October 2 owner correction makes this the future repository-wide standard;
 production-GM gameplay is not a closure dependency. Retain functional checks,
 independent review, CI and production deployment; prepared scenes alone do not
@@ -78,15 +84,6 @@ and duplicate investigation. Keep explicit collaboration messages to the
 canonical parent for requested checkpoints, blockers, approval needs and material
 changes; ordinary commentary does not replace those messages. Do not create
 coordinator goals.
-
-When returning an ownership acknowledgement, reconcile the actual state of
-child turns and preserve their completed work and next action. If yielding the
-owner turn interrupted a worker, a later source-work resume must explicitly
-restart that interrupted worker with its existing bounded assignment. Updating
-the parent status or messaging an interrupted worker does not restart it.
-Confirm that the resumed turn is running and report its first completed
-remaining check before treating the dependency as cleared; do not rerun a
-completed check or invent a live process from missing bookkeeping.
 
 When an in-progress checkpoint has a delegated owner, preserve its active work
 and obtain one concise handback at a safe boundary. Return checkpoint and release
@@ -145,91 +142,22 @@ deployed, and live-proof gaps; reuse ordinary task documentation, not a new
 measurement system or universal gate. Record ownership transfer, preserve all
 work, and give the successor exact remaining seams and active worker boundaries.
 
-## Risk-based verification for remaining checkpoints
 
-**Owner corrections, 2026-10-07 and 2026-10-08:** observe a meaningful RED before
-every functional change, implement, then observe GREEN. Risk determines test
-selection, execution breadth and regression depth, not permission to implement
-first. The October 8 instruction supersedes the October 7 implementation-first
-exception for low-risk functionality; its small claim-based actor cohorts and
-evidence reuse remain. Blanket 19/21-account, full-census and
-340-command/84-cell replay defaults remain superseded. Preserve prior evidence
-and assertions; neither correction marks a failed run passed or waives actual behavior.
-PC10's fixed 48 IDs, fresh two-browser solo game through an ending, every role
-and game function, genuine GM authority, manual progression and privacy remain.
-Trace shared role families and each unique mechanic without an endpoint-by-role
-Cartesian product; rotate actors through legitimate assignments where allowed.
+## Mandatory functional test-first; proportional test scope
 
-Choose verification from the changed behavior and credible failure risk:
-
-- **Authority, privacy and durable state:** write the smallest meaningful
-  failing regression before implementing or repairing authorization, transaction/replay,
-  conflicting writes, persistence, recovery or data-loss behavior; retain
-  separate test-first commits. Keep entitled, wrong/foreign/revoked actor,
-  stale/conflicting authority and duplicate-effect negatives that apply.
-- **Navigation and integration:** observe RED before implementation using a
-  focused behavioral test or mounted-app probe for the changed route, control,
-  authority binding or handoff, then observe GREEN. Interactive layout,
-  visibility, defaults, parsers and provider features are functional changes.
-  A proof-adapter repair needs its discriminating contract check and affected
-  mounted slice, not a new whole-game replay for each guard.
-- **Pure prose/docs:** use consistency review. Do not invent red tests or run
-  Native/Functions/browser suites for a prose-only edit. A presentation change
-  affecting interaction, layout, visibility or defaults is functionality and
-  requires observed RED before implementation.
-
-Audit the current candidate change by change and send a concise compliance
-summary before final release. Identify genuine contemporaneous RED separately
-from retrospective base-versus-fixed verification. Do not rewrite history or
-claim a later failure was observed first. Report historical timing gaps honestly,
-add meaningful regression validation, and hold release of unvalidated functionality.
-
-Record the claim, actual cohort and why fewer actors cannot prove it, affected
-regression scope, evidence reused and stop condition in the existing checkpoint
-matrix or report. No new generic framework, per-guard ledger or universal gate.
-
-| Claim | Default smallest sufficient cohort |
-|---|---|
-| Rendering, navigation or guidance | One actor per distinct configuration; a second only for an actual handoff. |
-| Authorization or private audiences | Two or three relevant actors: entitled, peer and foreign/wrong role as required. |
-| Contention, retries or reconnect | Two competitors; add a GM only when the mechanic needs one. |
-| Progression and ending | Minimum legitimate playable setup for that mechanic; cover representative shared families and every unique function/role. |
-| PC11 guidance | One actor per control family, plus a second for a real handoff; reuse unchanged PC10 gameplay evidence. |
-| Conditional PC12 offline mode | One Mac host plus two clients; a third client only for a distinct private group. Separately verify identity, persistence/recovery, conflicts and WAN-disconnected operation. |
-
-Twenty-one independent authenticated accounts are justified only for a specific
-simultaneous capacity/concurrency/privacy claim impossible with fewer, or a
-reproduced scale-dependent bug. State that reason before running it. Untested
-21-account capacity stays unclaimed and does not block unrelated behavior.
-Existing full-census and 340/84 drivers are opt-in scenarios for their specific
-claims, not defaults for UI, lifecycle, setup or single-role repairs. Distinguish
-configured roster size, actual admitted Auth actors, browser concurrency and
-human-device play. Inspect product/server prerequisites separately from helper
-limits; preserve legitimate casting, consent, seat, loyalty and privacy rules.
-A full loyalty-census composition may remain one justified targeted case.
-
-Reuse valid evidence when its behavior, dependencies and runtime contract are
-unchanged; bind it to the reconciled candidate and explain the affected scope.
-Qualify composed setup once, then exercise changed families without repeatedly
-paying for the same admission/research prefix. A process-only commit does not
-invalidate unchanged source/runtime evidence. Material changes or unresolved
-failures require focused requalification; tests never backfill gameplay.
-
-Finite-runner reuse lesson, 2026-10-07: copy the completed candidate runner's
-original-deadline waits and primary-error-preserving teardown before adapting a
-family. Carry its served GM controls and actual phase-publication wait together.
-Validate the canonical casting station first and current operational berth after
-normal start; use exact Source field/collection names. Reuse these accepted
-patterns without adding a general framework, matrix or replay gate.
-
-Stop the bounded slice at its first unexplained integration failure, retain its
-original evidence and cleanup, and diagnose only that behavior before expanding.
-Do not automatically replay the whole game or scale the cohort after one guard
-repair. Keep the existing two-substantive-failed-repair escalation rule above.
-Unresolved required behavior, authority/privacy/data-loss defects, failed required
-gates or unverified deployment stop the affected acceptance/release. Independent
-risk review, required CI/platform/rendered gates and exact-candidate/exact-main
-deployment verification remain intact; this policy adds no approval pause.
+Owner correction, 2026-10-08: every functional change requires a meaningful
+test run observed RED before implementation, followed by implementation and
+GREEN. This includes repairs and interactive layout, visibility, defaults,
+parsers and provider behavior. Risk determines test selection, execution
+breadth and regression depth; it never permits implementation-first for
+low-risk functionality. Choose the smallest affected consumer/transition or
+rendered check that can discriminate the defect, and retain the actual failure.
+Pure prose/documentation uses consistency review. Preserve separate test-first
+commits and valid small-cohort evidence; do not turn this into a blanket full
+suite, every-state or all-account matrix. A later base-versus-fixed failure
+validates a guard retrospectively but does not establish test-first chronology.
+Report missing contemporaneous evidence honestly and hold unvalidated
+functionality from release. This correction supersedes contrary earlier rules.
 
 ## Routine responsive UI acceptance
 
@@ -310,3 +238,24 @@ Existing imported patches retain honest historical evidence; never rewrite
 history or claim retrospective validation was contemporaneous RED. Flag gaps
 separately from actual behavior acceptance and use the minimum actors per claim.
 No blanket full-suite or account matrix is required by this correction.
+
+
+## Proof tooling and progress reports
+
+Before allocating a gameplay runtime, use the [proof-tooling guide](agents/proof-tooling.md)
+to run the bounded preflight and distinguish authoritative reads from projection
+waits. Consult the same guide when testing a callable's fresh actions and exact
+receipt replay after actor or vessel availability changes. A preflight establishes
+runner readiness; gameplay acceptance still requires the appropriate authenticated
+path.
+
+When reporting checkpoint progress, distinguish catalog completion from scoped
+implementation, accepted gameplay evidence, and remaining release gates. State
+counts with their denominators and evidence class; code written or tests passing
+do not establish acceptance. Keep the catalog as the completion authority rather
+than creating another persisted status tracker.
+
+Base an ETA on the remaining paths and gates and state the assumptions behind the
+range. After a repeated runner failure, give the next measurable milestone and
+revise the estimate after that milestone succeeds. Avoid renewing an unchanged
+time range while its assumptions are failing.

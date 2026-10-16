@@ -7,19 +7,15 @@ changelog policy, and truthful merge/deploy closeout.
 
 Read [`docs/AGENT_EXECUTION_POLICY.md`](docs/AGENT_EXECUTION_POLICY.md) before
 delegating work, shaping a product checkpoint, or preparing a release. It holds
-the detailed delegation, batched-PC-release, wait, and worktree rules so this
-entry file stays below instruction-size limits.
+the detailed delegation, checkpoint-ownership, worker-handback, parent-dependency,
+batched-PC-release, wait, and worktree rules so this entry file stays below
+instruction-size limits.
 
 For the remaining numbered-prompt campaign, read
 [`docs/PRODUCT_MILESTONES.md`](docs/PRODUCT_MILESTONES.md) before shaping or
 building a playtest checkpoint. Its one-sitting product checks, fixed shape,
-source-backed assumption log, owner authorization, optional feedback and
-cooldown process govern that campaign. Apply the October 8 mandatory
-functional test-first correction and the October 7
-[risk-based verification policy](docs/AGENT_EXECUTION_POLICY.md#risk-based-verification-for-remaining-checkpoints)
-for test choice, actor cohorts, evidence reuse and stopping. Observe a meaningful
-RED before every functional change, implement, then observe GREEN; risk governs
-test scope, not an implementation-first exception. Explicit owner
+source-backed assumption log, test-first commits, owner authorization, optional
+feedback, and cooldown process govern that campaign. Explicit owner
 authorization accepts a checkpoint; a completed walkthrough or written UI
 feedback is not required. Agents own gameplay and technical correctness. The
 older M1–M13 fixtures remain internal gates.
@@ -27,18 +23,6 @@ Before moving into the next checkpoint, review the owner's decisions before
 and between checkpoints and update every affected future prompt and checkpoint
 plan. Follow that guide's decision-alignment procedure under standing
 authorization; preserve an in-progress checkpoint's agreed scope.
-
-Only `gpt-6-luna` and `gpt-6.1-sol` may be delegated as subagents. Existing
-agents may finish current bounded assignments. Luna effort is discretionary;
-`max` is almost always preferred. Sol may use all supported effort levels.
-Use Sol for the independent risk reviews specified in `CLAUDE.md`; retain any
-explicit task-specific security review floor.
-
-For checkpoint ownership, implementation groups, worker handbacks, parent-only
-dependencies, and batched CI/release boundaries, follow
-[`Agent execution policy`](docs/AGENT_EXECUTION_POLICY.md). Read it before
-planning or dispatching that work; the requesting orchestrator retains release
-ownership.
 
 The roadmap facts live in the JSON catalog at
 [`docs/implementation-prompts.json`](./docs/implementation-prompts.json), with

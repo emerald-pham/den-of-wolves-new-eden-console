@@ -173,6 +173,9 @@ jobs:
       - name: Typography release-gate contract
         run: npm run test:typography:release-gate
 
+      - name: Bounded proof-tool contract preflight
+        run: npm run test:proof-preflight
+
       - name: Firebase deployment batching contract
         run: node --test scripts/deploy-firebase-surfaces.test.mjs
 
@@ -204,6 +207,10 @@ jobs:
         if: steps.change_scope.outputs.unit == 'true'
         run: npm run test:unit
 
+      - name: Install Playwright Chromium for proof-tool browser smoke
+        if: steps.change_scope.outputs.unit == 'true' && steps.change_scope.outputs.typography != 'true'
+        run: npx playwright install --with-deps chromium
+
       - name: Functions tests
         if: steps.change_scope.outputs.functions == 'true'
         run: npm run test:functions
@@ -225,6 +232,10 @@ jobs:
       - name: Install rendered typography browser
         if: steps.change_scope.outputs.typography == 'true'
         run: npx playwright install --with-deps chromium
+
+      - name: Fleetwide Red Alert selector browser smoke
+        if: steps.change_scope.outputs.unit == 'true'
+        run: npm run test:proof-redalert-browser
 
       - name: Computed-style typography gate
         if: steps.change_scope.outputs.typography == 'true'
