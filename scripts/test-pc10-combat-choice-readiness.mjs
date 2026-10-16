@@ -47,6 +47,70 @@ test('delayed member/private read/control paint stays on one original actor unti
   assert.deepEqual(f.counters(), { time: 600, paintReads: 4, choiceReads: 1, attackReads: 2 });
 });
 
+// Attempt 5: declaration/GM listener revision 1 preceded the ordinary
+// Wing read at revision 2. A newer reply is never an accepted choice.
+function newerSourceFixture({ sourceChange = {}, actorChange = {}, gmChange = {}, late = false } = {}) {
+  const f = waitFixture({ choiceRead: () => choice({ revision: 5 }) });
+  const originalGm = actor({ uidHash: 'native-gm', profileRoleId: 'gm', playerRole: 'gm',
+    assignedRoleId: null, activeConsoleRoleId: null, instanceId: 'original-instance', gmInstanceOwned: true });
+  let reinspected = false, time = 0;
+  const reads = [];
+  return { f, reads, options: { ...f.options, originalGm,
+    now: () => time,
+    inspectActor: async () => actor(reinspected ? actorChange : {}),
+    inspectGm: async () => ({ ...originalGm, ...(reinspected ? gmChange : {}) }),
+    inspectAttack: async options => {
+      reads.push(options);
+      if (!options?.serverOnly) return attack();
+      reinspected = true;
+      if (late) time = 60_000;
+      return attack({ type: 'wolf-attack-state', revision: 5, airspaceLocked: true, ...sourceChange });
+    },
+  } };
+}
+
+test('a newer original actor reply retires the obsolete choice only after one independent server source reinspection', async () => {
+  const { waitForWolfChoiceReadiness } = await moduleUnderTest();
+  const f = newerSourceFixture();
+  const result = await waitForWolfChoiceReadiness(f.options);
+  assert.equal(result.status, 'source-changed');
+  assert.deepEqual(result.expected, attack(), 'Do not replace the original expected tuple with the private reply.');
+  assert.equal(result.gameplayCredit, false);
+  assert.equal(result.choice, undefined);
+  assert.equal(f.f.counters().paintReads, 0);
+  assert.equal(f.f.counters().choiceReads, 1);
+  assert.equal(f.reads.filter(value => value?.serverOnly === true).length, 1);
+});
+
+test('newer private replies cannot retire a choice on unproved, foreign, regressed, malformed or late source data', async () => {
+  const { waitForWolfChoiceReadiness } = await moduleUnderTest();
+  for (const sourceChange of [{ revision: 4 }, { revision: 3 }, { revision: undefined },
+    { attackId: 'foreign' }, { sessionId: 'foreign' }, { turn: 2 }, { type: 'foreign' },
+    { status: 'due' }, { currentStep: 'unknown' }, { airspaceLocked: false }]) {
+    const f = newerSourceFixture({ sourceChange });
+    await assert.rejects(waitForWolfChoiceReadiness(f.options));
+    assert.equal(f.f.counters().paintReads, 0);
+  }
+  const late = newerSourceFixture({ late: true });
+  await assert.rejects(waitForWolfChoiceReadiness(late.options), /deadline/);
+});
+
+test('newer-source reinspection preserves original actor audience, GM lease and live freshness after the read', async () => {
+  const { waitForWolfChoiceReadiness } = await moduleUnderTest();
+  for (const actorChange of [{ uidHash: 'foreign' }, { fleetGroupId: 'foreign' }, { cycle: 2 },
+    { activeConsoleRoleId: 'admiral' }, { identityHydrationRevision: 8 }, { freshness: 'cache' }]) {
+    const f = newerSourceFixture({ actorChange });
+    await assert.rejects(waitForWolfChoiceReadiness(f.options));
+    assert.equal(f.f.counters().paintReads, 0);
+  }
+  for (const gmChange of [{ uidHash: 'foreign' }, { instanceId: 'foreign' },
+    { gmInstanceOwned: false }, { playerRole: 'player' }, { freshness: 'cache' }]) {
+    const f = newerSourceFixture({ gmChange });
+    await assert.rejects(waitForWolfChoiceReadiness(f.options));
+    assert.equal(f.f.counters().paintReads, 0);
+  }
+});
+
 test('an eligible source with a disabled/busy paint is not recast as a legitimate unavailable choice', async () => {
   const { waitForWolfChoiceReadiness } = await moduleUnderTest();
   const f = waitFixture({ paints: [{ status: 'blocked', reason: 'disabled' }], deadlineAt: 600 });
