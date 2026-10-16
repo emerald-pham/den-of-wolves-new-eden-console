@@ -2222,3 +2222,43 @@ invented. Arrest/deadline and committed-ruling recipient recovery remain open.
 These are scoped criterion updates:703/751 done,27 partial/21 missing, zero new
 whole closures. All48 PC10 closures and final review/render/CI/deploy remain
 with root. Earlier failures and narrower proof classes retain their limits.
+
+### October 16 owner-requested stopping point
+
+The owner requested a stopping point before another Base or Station launch.
+Source integration `c8591ac7` contains the bounded Station read repair:
+test-only `be77689a`→repair `1dd13b14`, then authority-context test-only
+`106026b2`→repair `0fd09f51`. The real installed Lite SDK adapter executes a
+single authenticated local server read for newer-choice reinspection only;
+it preserves the original App/Auth/App Check/source/deadline and leaves the
+existing closed-boarding transaction path intact.150 focused checks,7 preflight
+checks, both builds and the proof-only browser-module bundle pass. These are
+tests/preparation, not Station native acceptance.
+
+Capybara attempt7 at `75ff4b8b` failed at18:54:45.886Z after its opening-combat
+prefix: the visible population alert matched zero current source alerts
+targeted to the original GM (`0 !== 1`). The exact cause is unproved. This
+attempt remains failed; no Cycle2/Nebula/ending credit is earned. Root strict
+return at18:56:10.892393Z records127 captured owned PIDs/all nine row-3 ports
+absent, unchanged source/all463 compiled files. Proof exited1, services0 and
+Vite1 after shutdown. Exact configuration59cb0786/resource3 was released and
+the entry parked at75ff. Original `.cache` and dependency symlinks remain
+preserved under the documented one-command parking exclusions.
+
+Station attempt7 at0fd was cancelled **without service, browser or native Auth
+launch**. Its clean source/full463-file compiled tree and all nine row-1 ports
+were checked at18:57:09Z; exact configuration2b368bcb/resource1 was released
+and the entry parked. Its original18:52:47 allocation must not be reused.
+Idle root Base likewise had no new allocation or launch; all nine row-4 ports
+and463 compiled files checked at18:58:08Z, then exact configuration773e5c6d/
+resource4 was released. The runtime monitor has exited. The F3 entry remains
+parked after its already qualified return. No foreign entry, process or data
+was removed.
+
+The [current resume handoff](PC10_PC11_HANDOFF.md#october-16-requested-stopping-point)
+records source ownership and the next bounded Capybara diagnosis, followed by
+fresh finite Base/Station qualification. The read-only remaining-criteria
+sidecar was asked to stop and preserve any partial findings. There are still
+703/751 done,27 partial/21 missing, zero new whole closures; PC10, final review,
+emitted typography, CI/main/deployment and all downstream checkpoints remain
+unfinished. No new run is scheduled or authorized to start during this pause.

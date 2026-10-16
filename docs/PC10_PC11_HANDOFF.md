@@ -1,5 +1,61 @@
 # PC10 to PC11 handoff and October 10 deadline
 
+## October 16 requested stopping point
+
+The owner asked to reach a stopping point. Implementation and evidence are
+committed on `integration/pc10-implementation-20261015`; source integration
+`c8591ac7` includes the unfinished-candidate consumer and Station's bounded
+authenticated-read repair. PC10 is incomplete:703/751 done,27 partial/21
+missing, with all48 assigned closures still open. No CI-triggering push, PR,
+version bump, merge to main or deployment has been performed. PC11/PC12 and
+post-PC10 work remain unstarted.
+
+The [unfinished-candidate report](PC10_F3_UNFINISHED_CANDIDATE_REPORT.md) is
+accepted in its narrow scope. Its two actual Auth accounts/two Chrome processes
+and original-account payment/reload/retry/next-action proof do not supply an
+ending or a full F3 closure. Base's latest failed run still qualifies real
+Cycle1 research, all six paid maintenance sequences and opening combat; its
+source-interruption ordering repair is integrated but needs a new full run.
+
+Capybara attempt7 at `75ff4b8b` failed after opening combat because its visible
+population alert matched zero current source alerts targeted to the original
+GM. No exact cause is established. Its owner remains Sol; the next bounded
+step is to inspect the actual alert/GM binding, observe meaningful consumer RED
+and repair it before allocating another native run. Do not weaken the current
+source/actor checks or claim later Nebula/ending evidence.
+
+Station's read-only transaction verify-commit race has a bounded repair at
+`0fd09f51`, integrated into `c8591ac7`. Two separate RED→repair pairs are
+retained;150 focused checks,7 preflight checks and both builds pass. The newer
+choice reinspection uses the installed public Lite SDK with the original
+App/Auth/App Check and same local document; existing closed-boarding transaction
+behavior remains unchanged. Attempt7 was prepared but **cancelled before
+launch** at the owner's stopping request. It earns zero native credit. Its
+original allocation is consumed and must not be restarted, even before its
+old timestamps expire.
+
+All runs owned by this continuation are stopped. F3 strict return at18:50:30Z
+records62 captured PIDs/nine ports absent. Capybara strict return at18:56:10Z
+records127 captured PIDs/nine ports absent. Source and all463 compiled files
+are unchanged in both. Unlaunched Station and idle Base each passed their nine
+port/full compiled-tree absence checks; only their exact owned configurations
+and reservations were released. Worker entries are parked at their source
+checkpoints. Original Capybara `.cache` and both dependency symlinks are
+preserved; parking used the documented one-command exclusion of those original
+untracked paths and is not a claim that those files were deleted. Foreign
+projects/entries/services were left alone.
+
+Exact external records remain under
+`/private/tmp/pc10-completion-20261016/`: `f3-candidate-continuation-attempt2/`,
+`capybara/attempt-7/`, `station/sol-repair-attempt7-handback.md`,
+`station/unlaunched-return-attempt7.json`, and
+`root-stopping-point-runtime-check.json`. Preserve the failed artifacts and
+worktrees. Resume with fresh auto-selected configuration/project/deadlines and
+the full source/compiled/helper binding; old invocation plans cannot be reused.
+After the remaining native behaviors, root still owns48-criterion
+reconciliation, final independent reviews/emitted-build typography, catalog and
+release metadata, one reconciled CI candidate and exact-main deployment proof.
+
 ## Owner decision and sequence
 
 The owner set **October 10** as the end of the available work window and said
