@@ -1,5 +1,5 @@
 import { StrictMode } from 'react';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { acknowledgeSessionWaiver } from '@/lib/sessionWaiver';
 
@@ -146,4 +146,33 @@ it('does not move a waiting private read to another session or GM lease', async 
   restoration.resolve();
   await rejected;
   expect(sdk.call).not.toHaveBeenCalled();
+});
+
+
+it('ends a stalled Auth restoration visibly and retries the same committed debrief without replacing the GM', async () => {
+  vi.useFakeTimers();
+  try {
+    const restoration = deferred();
+    sdk.auth.authStateReady.mockReturnValue(restoration.promise);
+    sdk.call.mockResolvedValue({ data: { type: 'session-debrief', sessionId: session.id, snapshot: frozen } });
+    const { useSessionStore } = await import('@/store/useSessionStore');
+    useSessionStore.getState().setIdentity(session as never, member as never);
+    useSessionStore.getState().setGmInstance(instance);
+    const { COMMAND_RECONNECT_WINDOW_MS } = await import('@/lib/sessionService');
+    const { default: EndgameDialog } = await import('@/components/EndgameDialog');
+    render(<EndgameDialog />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(COMMAND_RECONNECT_WINDOW_MS + 1); });
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/could not read.*debrief/i);
+    expect(screen.queryByText('Reading the committed facilitator debrief…')).not.toBeInTheDocument();
+    expect(sdk.call).not.toHaveBeenCalled();
+    sdk.auth.currentUser = { uid: member.uid };
+    restoration.resolve();
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Retry facilitator debrief' })); });
+    expect(screen.getByText('Server result // Success // Cycle 4')).toBeVisible();
+    expect(sdk.call).toHaveBeenCalledWith('getSessionDebrief', { sessionId: session.id, instanceId: instance.id });
+    const { signInAnonymously } = await import('firebase/auth');
+    expect(signInAnonymously).not.toHaveBeenCalled();
+  } finally { vi.useRealTimers(); }
 });
