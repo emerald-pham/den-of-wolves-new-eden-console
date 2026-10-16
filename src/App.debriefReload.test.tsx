@@ -72,7 +72,7 @@ it('cold GM reload waits for the original authenticated live authority before re
     requests.push({ name, uid: sdk.auth.currentUser?.uid ?? null });
     if (!sdk.auth.currentUser) throw Object.assign(new Error('Sign in before reading the debrief.'), { code: 'functions/unauthenticated' });
     if (name === 'resumeSession') return { data: { session, player: member } };
-    if (name === 'listGmInstances') return { data: [instance] };
+    if (name === 'listGmInstances') return { data: { instances: [instance] } };
     if (name === 'getSessionDebrief') {
       expect(data).toEqual({ sessionId: session.id, instanceId: instance.id });
       return { data: { type: 'session-debrief', sessionId: session.id, snapshot: frozen } };
@@ -100,4 +100,50 @@ it('cold GM reload waits for the original authenticated live authority before re
   expect(screen.getByRole('button', { name: 'Close session' })).toBeEnabled();
   expect(requests.filter(value => value.name === 'getSessionDebrief').length).toBeGreaterThan(0);
   expect(requests.every(value => value.uid === member.uid)).toBe(true);
+});
+
+
+it('keeps the authenticated immutable GM reader available after closed history detaches live feeds', async () => {
+  sdk.auth.currentUser = { uid: member.uid };
+  sdk.auth.authStateReady.mockResolvedValue(undefined);
+  sdk.call.mockResolvedValue({ data: { type: 'session-debrief', sessionId: session.id, snapshot: frozen } });
+  const { useSessionStore } = await import('@/store/useSessionStore');
+  useSessionStore.getState().setIdentity({ ...session, phase: 'closed' } as never,
+    { ...member, connected: false } as never);
+  useSessionStore.getState().setGmInstance(instance);
+  // Immutable reader authority comes from the authenticated server lease,
+  // rather than an interactive gameplay feed or a connected member flag.
+  useSessionStore.getState().setConnection('offline');
+  useSessionStore.getState().setSessionSnapshotFreshness('cache');
+  const { getSessionDebrief } = await import('@/lib/sessionService');
+  await expect(getSessionDebrief()).resolves.toMatchObject({ result: 'success', cycle: 4 });
+});
+
+it('does not dispatch a restored GM private read under a different authenticated principal', async () => {
+  sdk.auth.currentUser = { uid: 'different-principal' };
+  sdk.auth.authStateReady.mockResolvedValue(undefined);
+  sdk.call.mockResolvedValue({ data: { type: 'session-debrief', sessionId: session.id, snapshot: frozen } });
+  const { useSessionStore } = await import('@/store/useSessionStore');
+  useSessionStore.getState().setIdentity(session as never, member as never);
+  useSessionStore.getState().setGmInstance(instance);
+  const { getSessionDebrief } = await import('@/lib/sessionService');
+  await expect(getSessionDebrief()).rejects.toThrow(/identity|account|GM/i);
+  expect(sdk.call).not.toHaveBeenCalled();
+});
+
+it('does not move a waiting private read to another session or GM lease', async () => {
+  const restoration = deferred();
+  sdk.auth.authStateReady.mockReturnValue(restoration.promise);
+  sdk.call.mockResolvedValue({ data: { type: 'session-debrief', sessionId: session.id, snapshot: frozen } });
+  const { useSessionStore } = await import('@/store/useSessionStore');
+  useSessionStore.getState().setIdentity(session as never, member as never);
+  useSessionStore.getState().setGmInstance(instance);
+  const { getSessionDebrief } = await import('@/lib/sessionService');
+  const result = getSessionDebrief();
+  const rejected = expect(result).rejects.toThrow(/identity|session|GM/i);
+  useSessionStore.getState().setGmInstance({ ...instance, id: 'replacement-instance' });
+  sdk.auth.currentUser = { uid: member.uid };
+  restoration.resolve();
+  await rejected;
+  expect(sdk.call).not.toHaveBeenCalled();
 });
