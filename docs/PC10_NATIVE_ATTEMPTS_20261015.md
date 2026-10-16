@@ -184,3 +184,29 @@ No rate, telemetry, audit, concurrency, gameplay or release acceptance is earned
 | --- | --- |
 | `transport-audit-native-receipt.json` | `9a4418ab8e0e54f27121df02e13b9c2e6c4378a8830f2a76c98402aa10b204f5` |
 | `runtime strict-return.json` | `0e84c639576279beeae8ff656c6011c9c008ffbb4c05ce154ebcc83f4a7727cb` |
+
+
+## Transport a2 — public Create control not visible
+
+Source `7f9b479ece1f4ded12af428a9f8deabf3d5db1b2`, fresh project
+`demo-pc10-transport-f9f3-20261016-a2`. Granular diagnostics narrow the first
+failure to `gm-a-create-session-button-visible`: no click began and no
+`createSession` POST was observed. Config verification had passed. The
+operator does not yet establish why the public control was missing; no
+product admission defect or audit result is inferred. A screenshot was
+scheduled after this failed visibility wait, so none was obtained. Sol now
+owns bounded operator diagnosis before another native retry.
+
+The exact a2 external invocation is retained as runtime `invocation-source.mjs`.
+Physical return was 06:38:43.083 UTC: all 19 captured owned PIDs were absent,
+all 22 bindings free, the exact configuration released, and the BrowserServer
+process exit receipt true. The proof session and both wrapper sessions ended.
+No configured-cohort, cadence, telemetry, audit, concurrency or release credit
+is earned; expected-cohort fields remain planned values. Fresh RAM was discarded
+without import/export or a per-UID deletion claim.
+
+| Transport a2 artifact | SHA-256 |
+| --- | --- |
+| `transport-audit-native-receipt.json` | `75d00f7d47f8c03a43cc7304b17a74ebfb6f4b898a5ae31ae442381f6fb1584d` |
+| `runtime invocation-source.mjs` | `c0dc7e7c63aa7ea61ea962a8f1672a0733b0a8c4798c08606a0a7a21161de8db` |
+| `runtime strict-return.json` | `c77e7609aa7871e1fec4e17f7e248e15904cd1b7edd3f60c5e541785f40b2b32` |
