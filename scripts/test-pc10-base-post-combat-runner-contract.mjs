@@ -77,6 +77,7 @@ test('Cycle 1 carries one current Core retarget witness to the source-timed arri
   let movementDocument = null;
   let coordinationContext = null;
   const arrivalInvocations = [];
+  const manualArrivalInvocations = [];
   const sourceMovementReads = [];
   const stopAtOpeningWolf = new Error('runner reached opening Wolf boundary');
   const gm = {
@@ -198,7 +199,7 @@ test('Cycle 1 carries one current Core retarget witness to the source-timed arri
           return { coordination: { evidence: { cases: [{ caseId: 'core:retargetShuttleTransit', status: 'pending' }] } } };
         }
         const departedAt = new Date(clockMs).toISOString();
-        movementDocument = { status: 'in-transit', requestId: arrivalWitness.departureRequestId,
+        movementDocument = { id: origin.shuttleId, status: 'in-transit', requestId: arrivalWitness.departureRequestId,
           shuttleId: origin.shuttleId, holderUid: uid, fleetGroupId: groupId,
           destinationShipId: arrivalWitness.destinationShipId, cycle: origin.cycle,
           controlRevision: origin.controlRevision, requestedAt: new Date(clockMs - 10_000).toISOString(),
@@ -213,6 +214,10 @@ test('Cycle 1 carries one current Core retarget witness to the source-timed arri
         arrivalInvocations.push({ context, at: clockMs, source: structuredClone(movementDocument) });
         return { evidence: { cases: [{ caseId: 'core:completeShuttleArrival', status: 'completed' }] } };
       },
+      onShuttleArrivalReady: async context => {
+        manualArrivalInvocations.push(context);
+        return { evidence: { cases: [{ caseId: 'core:completeShuttleArrival', status: 'completed' }] } };
+      },
     },
     governance: { team1AfterNormalStart: async () => null, pending: [] },
     terminalBefore: [], terminalAfter: [],
@@ -222,10 +227,12 @@ test('Cycle 1 carries one current Core retarget witness to the source-timed arri
   await assert.rejects(runBaseGameplay(context, integration), error => error === stopAtOpeningWolf,
     'Drive the real runner through its Cycle 1 movement handoff to the opening Wolf boundary.');
   assert.ok(coordinationContext, 'The real runner must invoke the existing Cycle 1 Coordination consumer.');
-  assert.equal(arrivalInvocations.length, 1,
-    'The arrival-only observer must execute once after the actual source retarget becomes current.');
   assert.equal(JSON.stringify(coordinationContext.shuttleOriginAuthority), JSON.stringify(origin),
     'The runner must carry the current admitted Core source origin into the ordinary Coordination consumer.');
+  assert.equal(arrivalInvocations.length, 1,
+    'The arrival-only observer must execute once after the actual source retarget becomes current.');
+  assert.equal(manualArrivalInvocations.length, 0,
+    'The auto-arrival consumer must not fall back to or cross into the separate manual-ready consumer.');
   const invocation = arrivalInvocations[0];
   assert.equal(JSON.stringify(invocation.context.shuttleOriginAuthority), JSON.stringify(origin));
   assert.equal(JSON.stringify(invocation.context.shuttleArrivalWitness), JSON.stringify(arrivalWitness),

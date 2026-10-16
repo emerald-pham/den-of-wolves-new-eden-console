@@ -2,6 +2,7 @@ import { rememberProofFailure, retainProofFailure } from './pc10-proof-failure-e
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import { writeFile } from 'node:fs/promises';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
 import { prepareMissionPrivacyThroughMountedControl, startMissionDealThroughMountedUi, resolveAndDeliverMissionThroughMountedUi } from './pc10-mission-lifecycle-consumer.mjs';
@@ -17,6 +18,87 @@ import { BASE_MISSION_ROLE_PRIORITY, assessLiveBaseAction, baseShipForRole, base
 } from './pc10-base-post-combat-choice-policy.mjs';
 import { assertBasePostCombatActorIdentity, observeBasePostCombatActor } from './pc10-base-post-combat-actor-observation.mjs';
 import { assertWolfChoiceActor } from './pc10-combat-choice-readiness.mjs';
+import { readActionState } from './pc10-pending-procedure-ui-recipes.mjs';
+
+const BASE_CORE_MOVEMENT_SHUTTLE_ID = 'endeavour';
+const BASE_CORE_MOVEMENT_ROLE_ID = 'shepherd-scientist';
+const BASE_CORE_MOVEMENT_HOST_SHIP_ID = 'shepherd';
+const BASE_CORE_MOVEMENT_SOURCE_AUTHORITY_KEYS = Object.freeze(['sessionId', 'uidHash', 'groupId', 'roleId',
+  'connectionGeneration', 'identityHydrationRevision', 'documentTimeOrigin', 'audienceHash', 'authorityHash',
+  'shuttleAuthorized']);
+const BASE_CORE_MOVEMENT_ORIGIN_KEYS = Object.freeze(['sessionId', 'uidHash', 'shuttleId', 'groupId', 'cycle',
+  'controlRevision', 'sourceAuthority']);
+const BASE_CORE_MOVEMENT_ARRIVAL_WITNESS_KEYS = Object.freeze(['status', 'endpoint', 'sessionId', 'roleId',
+  'uidHash', 'shuttleId', 'groupId', 'cycle', 'controlRevision', 'departureRequestId', 'transitRequestId',
+  'destinationShipId', 'transitRevision', 'sourceAuthority']);
+const BASE_CORE_MOVEMENT_SOURCE_KEYS = Object.freeze(['id', 'status', 'requestId', 'shuttleId', 'holderUid',
+  'fleetGroupId', 'destinationShipId', 'cycle', 'controlRevision', 'requestedAt', 'transitRequestId', 'revision',
+  'currentPosition', 'destinationPosition', 'velocity', 'departedAt', 'arrivesAt']);
+
+function baseMovementExactKeys(value, keys) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) &&
+    Object.keys(value).length === keys.length && Object.keys(value).every(key => keys.includes(key));
+}
+
+function baseMovementSameSourceAuthority(left, right) {
+  return baseMovementExactKeys(left, BASE_CORE_MOVEMENT_SOURCE_AUTHORITY_KEYS) &&
+    baseMovementExactKeys(right, BASE_CORE_MOVEMENT_SOURCE_AUTHORITY_KEYS) &&
+    BASE_CORE_MOVEMENT_SOURCE_AUTHORITY_KEYS.every(key => left[key] === right[key]);
+}
+
+function baseMovementSourceAuthorityIsCurrent(value, { sessionId, uidHash, groupId, roleId } = {}) {
+  return baseMovementExactKeys(value, BASE_CORE_MOVEMENT_SOURCE_AUTHORITY_KEYS) &&
+    value.sessionId === sessionId && value.uidHash === uidHash && /^[0-9a-f]{16}$/.test(value.uidHash ?? '') &&
+    value.groupId === groupId && value.roleId === roleId &&
+    Number.isSafeInteger(value.connectionGeneration) && value.connectionGeneration >= 1 &&
+    Number.isSafeInteger(value.identityHydrationRevision) && value.identityHydrationRevision >= 1 &&
+    Number.isFinite(value.documentTimeOrigin) && value.documentTimeOrigin > 0 &&
+    /^[0-9a-f]{64}$/.test(value.audienceHash ?? '') && /^[0-9a-f]{64}$/.test(value.authorityHash ?? '') &&
+    value.shuttleAuthorized === true;
+}
+
+function baseMovementOriginIsCurrent(origin) {
+  return baseMovementExactKeys(origin, BASE_CORE_MOVEMENT_ORIGIN_KEYS) &&
+    origin.sessionId && /^[0-9a-f]{16}$/.test(origin.uidHash ?? '') &&
+    origin.shuttleId === BASE_CORE_MOVEMENT_SHUTTLE_ID && origin.groupId && origin.cycle === 1 &&
+    Number.isSafeInteger(origin.controlRevision) && origin.controlRevision >= 0 &&
+    baseMovementSourceAuthorityIsCurrent(origin.sourceAuthority, { sessionId: origin.sessionId,
+      uidHash: origin.uidHash, groupId: origin.groupId, roleId: BASE_CORE_MOVEMENT_ROLE_ID });
+}
+
+function baseMovementRetargetWitnessMatches(witness, origin) {
+  return baseMovementExactKeys(witness, BASE_CORE_MOVEMENT_ARRIVAL_WITNESS_KEYS) &&
+    witness.status === 'completed' && witness.endpoint === 'retargetShuttleTransit' &&
+    witness.sessionId === origin.sessionId && witness.roleId === BASE_CORE_MOVEMENT_ROLE_ID &&
+    witness.uidHash === origin.uidHash && witness.shuttleId === origin.shuttleId &&
+    witness.groupId === origin.groupId && witness.cycle === origin.cycle &&
+    witness.controlRevision === origin.controlRevision &&
+    typeof witness.departureRequestId === 'string' && witness.departureRequestId.length > 0 &&
+    typeof witness.transitRequestId === 'string' && witness.transitRequestId.length > 0 &&
+    typeof witness.destinationShipId === 'string' && witness.destinationShipId.length > 0 &&
+    Number.isSafeInteger(witness.transitRevision) && witness.transitRevision >= 1 &&
+    baseMovementSameSourceAuthority(witness.sourceAuthority, origin.sourceAuthority);
+}
+
+function baseMovementSourceMatchesRetarget(movement, origin, witness) {
+  const point = value => baseMovementExactKeys(value, ['x', 'y', 'z']) &&
+    ['x', 'y', 'z'].every(key => Number.isFinite(value[key]));
+  const requestedAt = Date.parse(movement?.requestedAt ?? '');
+  const departedAt = Date.parse(movement?.departedAt ?? '');
+  const arrivesAt = Date.parse(movement?.arrivesAt ?? '');
+  return baseMovementExactKeys(movement, BASE_CORE_MOVEMENT_SOURCE_KEYS) && movement.id === origin.shuttleId &&
+    movement.status === 'in-transit' && movement.requestId === witness.departureRequestId &&
+    movement.transitRequestId === witness.transitRequestId && movement.shuttleId === origin.shuttleId &&
+    typeof movement.holderUid === 'string' && movement.holderUid.length > 0 &&
+    createHash('sha256').update(movement.holderUid).digest('hex').slice(0, 16) === origin.uidHash &&
+    movement.fleetGroupId === origin.groupId && movement.destinationShipId === witness.destinationShipId &&
+    movement.cycle === origin.cycle && movement.controlRevision === origin.controlRevision &&
+    movement.revision === witness.transitRevision && typeof movement.requestedAt === 'string' &&
+    typeof movement.departedAt === 'string' && typeof movement.arrivesAt === 'string' && Number.isFinite(requestedAt) &&
+    Number.isFinite(departedAt) && Number.isFinite(arrivesAt) && requestedAt <= departedAt &&
+    arrivesAt - departedAt === 60_000 && point(movement.currentPosition) &&
+    point(movement.destinationPosition) && point(movement.velocity);
+}
 
 function sequenceCallbacks(callbacks, label) {
   const ordered = callbacks.filter(callback => callback !== undefined);
@@ -113,7 +195,8 @@ export const BASE_COMPOSED_CALLBACK_ORDER = Object.freeze([
   'team1:pending.onCycle1Started after initial source-based supplies',
   'team1:politics.team1AfterNormalStart after research before paid maintenance',
   'team1:pending.onCycle1Maintenance after paid maintenance',
-  'coordination1:pending.onCycle1Coordination before opening Wolf',
+  'coordination1:pending.onCycle1Coordination with the current Endeavour Core source authority before opening Wolf',
+  'coordination1:wait for the exact current source arrivesAt then arm the arrival-only observer with the original retarget witness',
   'coordination1:politics.coordination1AfterOpeningWolf then pending.onCycle1AfterWolf',
   'team2:pending.onCycle2Maintenance then politics.team2AfterMaintenance',
   'coordination2:pending.onCycle2Coordination then politics.coordination2BeforeMissionDeal',
@@ -210,9 +293,9 @@ export async function runBaseGameplay(context, integration) {
       inspectCurrentRole: roleId => currentRoleReadiness(shipId, roleId, expectedCycle,
         { expectedGroupId, enterConsole }) });
   }
-  async function compose(stage, callback) {
+  async function compose(stage, callback, callbackContext = context) {
     if (typeof callback !== 'function') return undefined;
-    const result = await callback(context);
+    const result = await callback(callbackContext);
     composedStages.push({ stage, ...safeCompositionSummary(result) });
     return result;
   }
@@ -286,6 +369,100 @@ export async function runBaseGameplay(context, integration) {
     assert.equal(outcome.fromCache, false, 'The mission source read must be server-backed.');
     assert.equal(outcome.hasPendingWrites, false, 'The mission source read must have no pending writes.');
     return outcome;
+  }
+  function baseMovementCurrentHolderMatches(origin, state, readiness, expectedCycle,
+    { hostShipId, destinationShipId, inTransit = false } = {}) {
+    const control = state?.shuttleControl?.[origin?.shuttleId];
+    const dockings = state?.shuttleDockings?.filter(row => row?.shuttleId === origin?.shuttleId) ?? [];
+    const docking = dockings[0];
+    const scope = state?.currentMemberScope;
+    return baseMovementOriginIsCurrent(origin) && readiness?.status === 'eligible' &&
+      readiness.actorUidHash === origin.uidHash && readiness.actor?.uidHash === origin.uidHash &&
+      readiness.actor?.profileRoleId === BASE_CORE_MOVEMENT_ROLE_ID &&
+      readiness.actor?.activeConsoleRoleId === BASE_CORE_MOVEMENT_ROLE_ID &&
+      readiness.actor?.assignedRoleId === BASE_CORE_MOVEMENT_ROLE_ID &&
+      state?.live === true && state.sessionId === origin.sessionId && state.phase === 'active' &&
+      state.cycle === expectedCycle && origin.cycle === expectedCycle &&
+      state.holderGroupId === origin.groupId && state.currentMemberScope?.groupId === origin.groupId &&
+      Array.isArray(scope?.vesselIds) && scope.vesselIds.includes(hostShipId) &&
+      Array.isArray(scope?.craftIds) && scope.craftIds.includes(origin.shuttleId) &&
+      state.activeVesselIds?.includes(hostShipId) === true &&
+      state.shipFleetGroupIds?.[hostShipId] === origin.groupId &&
+      (destinationShipId === undefined || destinationShipId !== hostShipId &&
+        scope.vesselIds.includes(destinationShipId) && state.activeVesselIds?.includes(destinationShipId) === true &&
+        state.shipFleetGroupIds?.[destinationShipId] === origin.groupId) &&
+      control?.shuttleId === origin.shuttleId && control.ownerRoleId === BASE_CORE_MOVEMENT_ROLE_ID &&
+      control.revision === origin.controlRevision && typeof control.holderUid === 'string' &&
+      createHash('sha256').update(control.holderUid).digest('hex').slice(0, 16) === origin.uidHash &&
+      baseMovementSameSourceAuthority(state.currentDocumentAuthority, origin.sourceAuthority) &&
+      (inTransit ? dockings.length === 0 : dockings.length === 1 && docking.shipId === hostShipId &&
+        docking.inTransit !== true && docking.transit !== true && docking.status !== 'in-transit' &&
+        docking.state !== 'in-transit' && docking.dockingState !== 'in-transit');
+  }
+  async function currentBaseCoreShuttleOrigin(expectedCycle) {
+    const readiness = await currentRoleReadiness(BASE_CORE_MOVEMENT_HOST_SHIP_ID,
+      BASE_CORE_MOVEMENT_ROLE_ID, expectedCycle, { enterConsole: true });
+    if (readiness.status !== 'eligible') return { status: 'pending', blockers: readiness.blockers };
+    const state = await readActionState(readiness.surface, BASE_CORE_MOVEMENT_SHUTTLE_ID,
+      { confirmMemberProjection: true });
+    const sourceAuthority = state?.currentDocumentAuthority;
+    const control = state?.shuttleControl?.[BASE_CORE_MOVEMENT_SHUTTLE_ID];
+    const origin = { sessionId: initial.sessionId, uidHash: readiness.actorUidHash,
+      shuttleId: BASE_CORE_MOVEMENT_SHUTTLE_ID, groupId: sourceAuthority?.groupId,
+      cycle: expectedCycle, controlRevision: control?.revision, sourceAuthority };
+    const movement = await readServerSource(`shuttleDepartures/${BASE_CORE_MOVEMENT_SHUTTLE_ID}`);
+    if (!baseMovementSourceAuthorityIsCurrent(sourceAuthority, { sessionId: initial.sessionId,
+      uidHash: readiness.actorUidHash, groupId: state?.holderGroupId, roleId: BASE_CORE_MOVEMENT_ROLE_ID }) ||
+        !baseMovementCurrentHolderMatches(origin, state, readiness, expectedCycle,
+          { hostShipId: BASE_CORE_MOVEMENT_HOST_SHIP_ID }) ||
+        state.turnPhase?.turn !== expectedCycle || state.turnPhase?.progression !== 'manual' ||
+        state.turnPhase?.timerPause !== undefined || state.turnPhase?.airspace?.state !== 'lifted' ||
+        movement.value !== null) {
+      return { status: 'pending', blockers: ['current-endeavour-core-source-origin-not-ready'] };
+    }
+    return { status: 'eligible', origin };
+  }
+  async function waitForBaseShuttleArrivalWindow(origin, witness, expectedCycle) {
+    if (!baseMovementOriginIsCurrent(origin) || !baseMovementRetargetWitnessMatches(witness, origin)) {
+      return pending('cycle-1-endeavour-arrival-observer', ['exact-current-core-retarget-witness-unavailable'],
+        { shipId: BASE_CORE_MOVEMENT_HOST_SHIP_ID, roleId: BASE_CORE_MOVEMENT_ROLE_ID, cycle: expectedCycle });
+    }
+    let observedArrivesAt;
+    while (true) {
+      const readiness = await currentRoleReadiness(BASE_CORE_MOVEMENT_HOST_SHIP_ID,
+        BASE_CORE_MOVEMENT_ROLE_ID, expectedCycle, { expectedGroupId: origin.groupId, enterConsole: true });
+      if (readiness.status !== 'eligible') return pending('cycle-1-endeavour-arrival-observer', readiness.blockers,
+        { shipId: BASE_CORE_MOVEMENT_HOST_SHIP_ID, roleId: BASE_CORE_MOVEMENT_ROLE_ID, cycle: expectedCycle });
+      const state = await readActionState(readiness.surface, origin.shuttleId, { confirmMemberProjection: true });
+      const movement = await readServerSource(`shuttleDepartures/${origin.shuttleId}`);
+      const arrivesAt = Date.parse(movement.value?.arrivesAt ?? '');
+      const currentHolder = baseMovementCurrentHolderMatches(origin, state, readiness, expectedCycle,
+        { hostShipId: BASE_CORE_MOVEMENT_HOST_SHIP_ID, destinationShipId: witness.destinationShipId,
+          inTransit: true });
+      if (!currentHolder || state.turnPhase?.turn !== expectedCycle ||
+          state.turnPhase?.progression !== 'manual' || state.turnPhase?.timerPause !== undefined ||
+          state.turnPhase?.airspace?.state !== 'lifted' ||
+          !baseMovementSourceMatchesRetarget(movement.value, origin, witness) ||
+          !Number.isFinite(arrivesAt) || observedArrivesAt !== undefined && movement.value.arrivesAt !== observedArrivesAt) {
+        return pending('cycle-1-endeavour-arrival-observer', ['current-retargeted-source-or-holder-changed'],
+          { shipId: BASE_CORE_MOVEMENT_HOST_SHIP_ID, roleId: BASE_CORE_MOVEMENT_ROLE_ID, cycle: expectedCycle });
+      }
+      observedArrivesAt ??= movement.value.arrivesAt;
+      const remainingMs = arrivesAt - Date.now();
+      if (remainingMs > 60_000) return pending('cycle-1-endeavour-arrival-observer',
+        ['source-arrival-time-is-not-current'],
+        { shipId: BASE_CORE_MOVEMENT_HOST_SHIP_ID, roleId: BASE_CORE_MOVEMENT_ROLE_ID, cycle: expectedCycle });
+      if (remainingMs > 35_000) {
+        await delay(remainingMs - 35_000);
+        continue;
+      }
+      if (remainingMs < 1) return pending('cycle-1-endeavour-arrival-observer',
+        ['actual-source-arrival-window-was-missed'],
+        { shipId: BASE_CORE_MOVEMENT_HOST_SHIP_ID, roleId: BASE_CORE_MOVEMENT_ROLE_ID, cycle: expectedCycle });
+      return compose('cycle-1-source-timed-endeavour-arrival-observer', procedures.onShuttleAutoArrivalArmed,
+        { ...context, shuttleOriginAuthority: origin,
+          shuttleOriginHostShipId: BASE_CORE_MOVEMENT_HOST_SHIP_ID, shuttleArrivalWitness: witness });
+    }
   }
   async function currentMissionSession() {
     const state = await a.state();
@@ -675,7 +852,19 @@ export async function runBaseGameplay(context, integration) {
     await compose('cycle-1-after-six-paid-maintenance', procedures.onCycle1Maintenance);
     await sourceInterruptions('cycle-1-after-maintenance-source-events');
     await coordination();
-    await compose('cycle-1-coordination-before-opening-wolf', procedures.onCycle1Coordination);
+    const movementOrigin = await currentBaseCoreShuttleOrigin(1);
+    if (movementOrigin.status !== 'eligible') pending('cycle-1-endeavour-shuttle-origin', movementOrigin.blockers,
+      { shipId: BASE_CORE_MOVEMENT_HOST_SHIP_ID, roleId: BASE_CORE_MOVEMENT_ROLE_ID, cycle: 1 });
+    const coordinationContext = movementOrigin.status === 'eligible'
+      ? { ...context, shuttleOriginAuthority: movementOrigin.origin,
+        shuttleOriginHostShipId: BASE_CORE_MOVEMENT_HOST_SHIP_ID } : context;
+    const coordinationResult = await compose('cycle-1-coordination-before-opening-wolf',
+      procedures.onCycle1Coordination, coordinationContext);
+    if (movementOrigin.status === 'eligible') {
+      const retarget = coordinationResult?.coordination?.evidence?.cases?.find(row =>
+        row.caseId === 'core:retargetShuttleTransit');
+      await waitForBaseShuttleArrivalWindow(movementOrigin.origin, retarget?.shuttleArrivalWitness, 1);
+    }
     await mark('genuine offered opening Wolf composition and all natural combat procedures');
     await runBaseCombatAndDeduction(context, { combat: 'opening', expectedCycle: 1, deduction: false,
       commandAndControl: 'redirect', protectedShipPriority: ['shepherd', 'quellon'],
