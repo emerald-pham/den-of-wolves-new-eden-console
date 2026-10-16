@@ -14,7 +14,7 @@ test('the named proof preflight runs only its maintained source contracts', () =
     'node --test scripts/qualification/pc11-contract-preflight.test.mjs scripts/proof-tooling-ci.test.mjs');
 });
 
-test('the exact-head unit risk flag installs Chrome and runs the bounded selector browser smoke', () => {
+test('the exact-head unit risk flag installs Playwright Chromium and runs the bounded selector browser smoke', () => {
   const profile = classifyRiskGates([
     'src/components/FleetAlertControl.tsx',
     'scripts/proof-tooling-redalert.browser.test.mjs',
@@ -22,11 +22,11 @@ test('the exact-head unit risk flag installs Chrome and runs the bounded selecto
   ]);
   assert.equal(profile.unit, true);
 
-  const installName = ci.indexOf('- name: Install Chrome for proof-tool browser smoke');
+  const installName = ci.indexOf('- name: Install Chromium for proof-tool browser smoke');
   const browserName = ci.indexOf('- name: Fleetwide Red Alert selector browser smoke');
-  assert.ok(installName >= 0 && browserName > installName, 'Chrome setup must precede the proof smoke');
+  assert.ok(installName >= 0 && browserName > installName, 'Chromium setup must precede the proof smoke');
   assert.match(ci.slice(installName, browserName), /if: steps\.change_scope\.outputs\.unit == 'true'/);
-  assert.match(ci.slice(installName, browserName), /npx playwright install --with-deps chrome/);
+  assert.match(ci.slice(installName, browserName), /npx playwright install --with-deps chromium/);
   assert.match(ci.slice(browserName), /if: steps\.change_scope\.outputs\.unit == 'true'[\s\S]*?npm run test:proof-redalert-browser/);
 });
 
