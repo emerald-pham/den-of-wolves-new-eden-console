@@ -72,6 +72,7 @@ beforeEach(() => {
   mock.update.mockReset();
   mock.set.mockReset();
   mock.get.mockImplementation(async (path: string) => {
+    if (path === 'sessions/s1/players') return { docs: [] };
     if (path.includes('/smallShipRequests/') || path.includes('/vulcanLabourRequests/')) {
       const fields = mock.receipts[path];
       return fields ? snapshot(fields) : snapshot({}, false);
