@@ -39,6 +39,10 @@ test('same-document selection holds the unmatched listener epoch until the App r
   assert.deepEqual(f.sdkRequests, ['resumeSession'], 'Only the existing App retry requests resume.');
   assert.equal(f.application.length, 1);
   assert.equal(f.application[0].beforeGeneration, 4); assert.equal(f.application[0].replyGeneration, 5);
+  const held = saved.events.filter(event => event.kind === 'held-listener-epoch');
+  assert.equal(held.length, 1); assert.equal(held[0].current.connectionGeneration, 4);
+  assert.equal(held[0].gameplayCredit, false); assert.equal(held[0].actionCredit, false); assert.equal(held[0].acceptanceCredit, false);
+  assert.equal(saved.receipts.length, 1); assert.equal(saved.receipts[0].baseline.connectionGeneration, 4);
   assert.equal(saved.transitions.length, 1);
   assert.equal(saved.transitions[0].current.connectionGeneration, 5);
   assert.equal(saved.transitions[0].current.identityHydrationRevision, 2);
@@ -53,6 +57,9 @@ for (const [label, extra] of [
   ['wrong reply actor', { mutateReply: reply => { reply.player.uid = 'foreign-native-actor'; }, shortDeadline: true }],
   ['wrong reply generation', { mutateReply: reply => { reply.player.connectionGeneration += 1; }, shortDeadline: true }],
   ['unexpected listener generation', { externalGenerationDelta: 2, noAutomaticRetry: true, shortDeadline: true }],
+  ['changed listener account', { mutateListener: f => { f.authUid = 'foreign-native-actor'; }, noAutomaticRetry: true, shortDeadline: true }],
+  ['changed listener fleet', { mutateListener: f => f.store.setState({ me: { ...f.store.getState().me, fleetGroupId: 'fleet-2' } }), noAutomaticRetry: true, shortDeadline: true }],
+  ['changed listener station', { mutateListener: f => f.store.setState({ me: { ...f.store.getState().me, activeConsoleRoleId: 'admiral' } }), noAutomaticRetry: true, shortDeadline: true }],
   ['changed listener seat', { mutateListener: f => f.store.setState({ me: { ...f.store.getState().me, seatId: 'foreign-seat' } }), noAutomaticRetry: true, shortDeadline: true }],
 ]) test(`the invalidated listener epoch grants no authority with ${label}`, async () => {
   const { error, saved } = await exercise(extra);

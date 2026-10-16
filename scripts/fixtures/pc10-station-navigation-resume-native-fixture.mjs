@@ -83,7 +83,8 @@ export async function stationNavigationResumeFixture(options = {}) {
         return 'applied';
       },
     });
-    new Script(js(sourceFunction('src/lib/sessionService.ts', 'claimSeat') + '\n' +
+    new Script(js(sourceFunction('src/lib/sessionService.ts', 'claimSeatWithReceipt') + '\n' +
+      sourceFunction('src/lib/sessionService.ts', 'claimSeat') + '\n' +
       sourceFunction('src/lib/sessionService.ts', 'selectConsoleRole'))).runInContext(claimContext);
     actualNormalClaim = () => new Script(`selectConsoleRole(${JSON.stringify(roleId)})`).runInContext(claimContext);
     f.normalClaim = () => options.claimDuringAcceptance ? undefined : actualNormalClaim();
