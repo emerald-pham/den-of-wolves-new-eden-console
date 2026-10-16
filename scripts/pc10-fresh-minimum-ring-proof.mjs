@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import {assertSparseStationWing,runSparseStationCombat,stationBoardingRead,recoverStationLaunch,assertRecoveredStationLaunch,stationSurvivingRepairTargets,stationDeclarationRetryProjection,assertStationDeclarationRetryContext,recoverStationRateLimitedDeclaration,assertRecoveredStationDeclaration} from './pc10-station-combat-adapter.mjs';
 import {dispatchStationCrewChoice,readStationWingChoiceAuthority,readStationWingPhaseAuthority,stationWingFinalIntent} from './pc10-station-crew-dispatch.mjs';
-import {runMinimumCandidateSuccessProbe} from './pc10-minimum-candidate-success.mjs';
 import { runPursuitLimitEnding } from './pc10-full-game-cycle-ending.mjs';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -1661,6 +1660,7 @@ async function enterRole(surface,label){
   },
   async stationActivate(){
    await mark('existing tested sparse activation callback after actual liberation');assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);for(const ship of stationSurvivingRepairTargets(ships,await recordRoot()))await repair(ship);
+   const {runMinimumCandidateSuccessProbe}=await import('./pc10-minimum-candidate-success.mjs');
    const before=await recordRoot();const result=await runMinimumCandidateSuccessProbe(stationActivationContext({gm,wing:{...recipient,observe:()=>fullMember(recipient)},sessionId:sid,groupId,coordinate,recordRoot,selectGmShip:grant,deadlineAt:Math.min(Date.now()+60000,workEnd),configuredRoleCount:plan.configuredRoles}));
    evidence.stationActivation=result;assert.equal((await recordRoot()).debriefSnapshot.candidate.code,'P');claims.push('Unique real available Reactors consumed through current GM scoped grants; actual18+ capacity triggers immutable P success');
   },
