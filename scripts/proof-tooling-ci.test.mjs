@@ -14,19 +14,24 @@ test('the named proof preflight runs only its maintained source contracts', () =
     'node --test scripts/qualification/pc11-contract-preflight.test.mjs scripts/proof-tooling-ci.test.mjs');
 });
 
-test('the exact-head unit risk flag installs Playwright Chromium and runs the bounded selector browser smoke', () => {
+test('tooling and shared UI selector risks use the existing unit gate and bounded browser smoke', () => {
   const profile = classifyRiskGates([
+    '.github/workflows/ci.yml',
+    'package.json',
     'src/components/FleetAlertControl.tsx',
+    'src/routes/ShipConsoleNavigation.test.tsx',
     'scripts/proof-tooling-redalert.browser.test.mjs',
     'scripts/qualification/pc11-live-base-contract.test.mjs',
   ]);
   assert.equal(profile.unit, true);
 
+  const unitName = ci.indexOf('- name: Unit tests');
   const installName = ci.indexOf('- name: Install Playwright Chromium for proof-tool browser smoke');
   const browserName = ci.indexOf('- name: Fleetwide Red Alert selector browser smoke');
   const typographyInstallName = ci.indexOf('- name: Install rendered typography browser');
-  assert.ok(installName >= 0 && browserName > typographyInstallName && typographyInstallName > installName,
+  assert.ok(unitName >= 0 && unitName < installName && browserName > typographyInstallName && typographyInstallName > installName,
     'the proof smoke must follow an available Playwright Chromium installation');
+  assert.match(ci.slice(unitName, installName), /if: steps\.change_scope\.outputs\.unit == 'true'[\s\S]*?npm run test:unit/);
   assert.match(ci.slice(installName, browserName), /if: steps\.change_scope\.outputs\.unit == 'true' && steps\.change_scope\.outputs\.typography != 'true'/);
   assert.match(ci.slice(installName, browserName), /npx playwright install --with-deps chromium/);
   assert.match(ci.slice(browserName), /if: steps\.change_scope\.outputs\.unit == 'true'[\s\S]*?npm run test:proof-redalert-browser/);
