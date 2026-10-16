@@ -18,7 +18,7 @@ const originalActor = { hasAuth: true, sameActor: true, sessionId,
   replacementRoleId: null, replacementStatus: null, seatId: null,
   airspace: 'restricted', turnStatePhase: 'team', phaseProgression: 'manual',
   instanceId: 'private-native-gm-instance', gmInstanceOwned: true, connection: 'live', freshness: 'server' };
-const currentAttack = { sessionId, attackId: 'private-native-attack', turn: 1, revision: 26,
+const currentAttack = { id: 'current', type: 'wolf-attack-state', sessionId, attackId: 'private-native-attack', turn: 1, revision: 26,
   status: 'declared', currentStep: 'boarding', airspaceLocked: true,
   targets: [{ uid: 'private-target-uid', contactId: 'private-contact-id' }] };
 const resolvedAttack = { ...currentAttack, revision: 27, status: 'resolved', currentStep: 'resolved', airspaceLocked: false };
@@ -187,19 +187,23 @@ test('mounted GM exact SDK denial resolves through one server-only reinspection 
   assert.deepEqual(reinspectionRecord(fixture).metadata, { fromCache: false, hasPendingWrites: false });
 });
 
-test('captured live declared boarding source stays pending when the denied read sees the same locked revision', async () => {
-  const captured = { attackId: 'private-native-attack', turn: 1, revision: 33,
+test('captured live declared boarding source remains a hard stop with bounded one-read diagnostics', async () => {
+  const captured = { ...currentAttack, attackId: 'private-native-attack', turn: 1, revision: 33,
     status: 'declared', currentStep: 'boarding', airspaceLocked: true };
   const fixture = sourceReadFixture({ attack: captured, serverValue: captured });
-  const result = await fixture.run();
-  assert.equal(result.status, 'source-pending');
-  assert.equal(result.gameplayCredit, false);
-  assert.equal(result.actionCredit, false);
-  assert.equal(result.acceptanceCredit, false);
+  await assert.rejects(fixture.run(), /same newer resolved, unlocked attack/);
   assert.deepEqual(fixture.counts, { getDoc: 1, getDocFromServer: 1, getDocs: 0, sdkChoice: 1, paints: 0 });
-  assert.deepEqual(reinspectionRecord(fixture).tuple, { sameSession: null, sameAttack: true,
+  const observed = reinspectionRecord(fixture);
+  assert.deepEqual(observed.document, { exists: true, expectedType: true });
+  assert.deepEqual(observed.expectedActorAtRead, {
+    sameAccount: true, sameRole: true, sameSession: true, sameTurn: true, liveServer: true,
+  });
+  assert.deepEqual(observed.expectedGmAtRead, {
+    sameAccount: true, sameInstance: true, sameSession: true, sameTurn: true, liveServer: true,
+  });
+  assert.deepEqual(observed.tuple, { sameSession: true, sameAttack: true,
     turn: 1, revision: 33, status: 'declared', currentStep: 'boarding', airspaceLocked: true });
-  assert.deepEqual(reinspectionRecord(fixture).metadata, { fromCache: false, hasPendingWrites: false });
+  assert.deepEqual(observed.metadata, { fromCache: false, hasPendingWrites: false });
 });
 
 for (const [label, change] of [
