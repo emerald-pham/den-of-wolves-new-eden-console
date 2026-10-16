@@ -3063,6 +3063,37 @@ it.each(['permission', 'action'])('rejects an old Ace %s retry after the current
   expect([...testState.documents]).toEqual(saved);
 });
 
+it.each([
+  ['rolls', [1, 1, 1]],
+  ['dice', [1, 1, 1]],
+  ['result', { damage: 99, destroyed: true }],
+] as const)('rejects forged Ace %s before drawing or recording an action', async (field, value) => {
+  const f = admitCurrentAce('fighter-wing-alpha', 'long-range');
+  await grantPdfFighterAcePermission.run(request(f.permissionPayload(), f.officer));
+  const payload = { ...f.actionPayload(), targetId: 'contact-1', [field]: value };
+  const receiptPath = `sessions/s1/commandReceipts/${payload.requestId}`;
+  const saved = structuredClone([...testState.documents]);
+  expect(testState.documents.has(receiptPath)).toBe(false);
+  testState.get.mockClear();
+  testState.set.mockClear();
+  testState.update.mockClear();
+  testState.remove.mockClear();
+  testState.runTransaction.mockClear();
+  entropy.randomInt.mockClear();
+
+  await expect(commitPdfFighterAceCombat.run(request(payload, 'ace-current')))
+    .rejects.toMatchObject({ code: 'invalid-argument' });
+
+  expect([...testState.documents]).toEqual(saved);
+  expect(testState.documents.has(receiptPath)).toBe(false);
+  expect(testState.runTransaction).not.toHaveBeenCalled();
+  expect(testState.get).not.toHaveBeenCalled();
+  expect(testState.set).not.toHaveBeenCalled();
+  expect(testState.update).not.toHaveBeenCalled();
+  expect(testState.remove).not.toHaveBeenCalled();
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+});
+
 it('acknowledges the same committed fatal Ace action without rolling or applying death and losses again', async () => {
   const f = admitCurrentAce('fighter-wing-alpha', 'long-range');
   await grantPdfFighterAcePermission.run(request(f.permissionPayload(), f.officer));
