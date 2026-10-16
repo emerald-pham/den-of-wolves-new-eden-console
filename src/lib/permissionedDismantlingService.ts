@@ -150,9 +150,6 @@ function currentProposalBinding(command: DismantlingProposalCommand): ProposalBi
       !ID_PATTERN.test(command.targetShipId) || !ID_PATTERN.test(command.targetConsoleId)) {
     throw new Error('The dismantling request is invalid or gameplay is not active.');
   }
-  if (command.craftId === 'macaw' && command.targetShipId === 'capybara') {
-    throw new Error('The Macaw-to-Capybara self-target requires a facilitator ruling before it can be enabled.');
-  }
   const control = session.shuttleControl?.[command.craftId];
   if (!control || control.holderUid !== me.uid || !isCounter(control.revision)) {
     throw new Error('Only the current engineering-craft holder can request dismantling.');
@@ -211,7 +208,7 @@ function parseInbox(value: unknown, sessionId: string, targetShipId: string): Pe
       typeof value.targetConsoleId !== 'string' || !ID_PATTERN.test(value.targetConsoleId) ||
       !isCounter(value.targetRevision) ||
       (isMacaw(value.craftId)
-        ? value.scrapGain !== 1 || Object.hasOwn(value, 'materialGain') || targetShipId === 'capybara'
+        ? value.scrapGain !== 1 || Object.hasOwn(value, 'materialGain')
         : value.materialGain !== 3 || Object.hasOwn(value, 'scrapGain')) ||
       !(['pending', 'consented', 'declined', 'revoked', 'applied'] as const).includes(value.status as PermissionedDismantlingStatus) ||
       (value.consentId !== null && (typeof value.consentId !== 'string' || !ID_PATTERN.test(value.consentId))) ||

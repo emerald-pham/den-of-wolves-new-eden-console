@@ -4231,6 +4231,72 @@ it('shows committed aftermath from the existing private GM attack subscription',
   expect(within(receipt).getByText(/Repair storage on AEGIS/i)).toBeVisible();
 });
 
+it('summarizes collectable Scrap, including a destroyed host with retained shuttle custody', async () => {
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'active', currentTurn: 1, capybaraEnabled: true,
+    activeVesselIds: ['capybara', 'aegis', 'dione', 'icebreaker', 'shepherd', 'quellon'],
+    shuttleDockings: [],
+    shuttleControl: {
+      macaw: { shuttleId: 'macaw', ownerRoleId: 'capybara-captain', ownerUid: 'macaw-player',
+        holderUid: 'macaw-player', revision: 7 },
+      boa: { shuttleId: 'boa', ownerRoleId: 'capybara-recycler', ownerUid: 'boa-player',
+        holderUid: 'boa-player', revision: 4 },
+    },
+    retainedShuttles: {
+      macaw: { status: 'retained', shuttleId: 'macaw', ownerRoleId: 'capybara-captain',
+        holderUid: 'macaw-player', destroyedHostShipId: 'aegis', controlRevision: 7,
+        retainedAt: '2026-10-15T12:00:00.000Z' },
+      boa: { status: 'retained', shuttleId: 'boa', ownerRoleId: 'capybara-recycler',
+        holderUid: 'boa-player', destroyedHostShipId: 'icebreaker', controlRevision: 4,
+        retainedAt: '2026-10-15T12:00:00.000Z' },
+    },
+    shipDamage: {
+      aegis: { destroyed: true, damagedSystemIds: [] },
+      dione: { destroyed: true, damagedSystemIds: [] },
+      icebreaker: { destroyed: true, damagedSystemIds: [] },
+      shepherd: { destroyed: false, damagedSystemIds: [] },
+      quellon: { destroyed: false, damagedSystemIds: [] },
+    },
+  } as never);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(subscribeGmWolfAttackState).mockImplementation((_sessionId, onState) => {
+    onState({ type: 'wolf-attack-state', status: 'resolved', currentStep: 'resolved', turn: 1, attackNumber: 1,
+      revision: 4, attackId: 'wolf-attack-scrap-summary', deadlineAt: '2026-10-04T10:00:00.000Z',
+      airspaceLocked: false, calculationReceipt: { fleetDamage: [
+        { target: 'aegis', amount: 3, populationBefore: 2_500, population: 0,
+          state: { damagedSystemIds: [], destroyed: true }, draws: [] },
+        { target: 'dione', amount: 3, populationBefore: 2_500, population: 0,
+          state: { damagedSystemIds: [], destroyed: true }, draws: [] },
+        { target: 'icebreaker', amount: 2, populationBefore: 2_500, population: 0,
+          state: { damagedSystemIds: [], destroyed: true }, draws: [] },
+        { target: 'shepherd', amount: 3, populationBefore: 2_500, population: 2_000,
+          state: { damagedSystemIds: [], destroyed: false }, draws: [] },
+        { target: 'quellon', amount: 3, populationBefore: 2_500, population: 2_000,
+          state: { damagedSystemIds: [], destroyed: false }, draws: [] },
+      ], ranges: [], returningInstanceIds: [], survivingWolfShips: [] },
+      aftermath: { scrapClaims: { shepherd: { shuttleId: 'macaw', actorUid: 'macaw-player',
+        actorRoleId: 'capybara-captain', requestId: 'scrap-shepherd', scrap: 1,
+        committedAt: '2026-10-15T12:00:00.000Z' } } }, memberResults: [] } as never);
+    return vi.fn();
+  });
+
+  renderConsole();
+
+  const receipt = await screen.findByRole('region', { name: 'Private Wolf aftermath receipt' });
+  const work = within(receipt).getByRole('list', { name: 'Outstanding recovery work' });
+  expect(within(work).getByText('Collect Scrap // aegis')).toBeVisible();
+  expect(within(work).getByText('Collect Scrap // quellon')).toBeVisible();
+  expect(within(work).queryByText('Collect Scrap // dione')).not.toBeInTheDocument();
+  expect(within(work).queryByText('Collect Scrap // icebreaker')).not.toBeInTheDocument();
+  expect(within(work).queryByText('Collect Scrap // shepherd')).not.toBeInTheDocument();
+});
+
 it('stages the private composition with automatic server targeting', async () => {
   const user = userEvent.setup();
   const activeSession = useSessionStore.getState().session;

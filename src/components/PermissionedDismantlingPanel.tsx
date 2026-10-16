@@ -132,7 +132,7 @@ function ProposerPanel(props: ProposerProps) {
   const [busy, setBusy] = useState(false);
   const [applyRequestId, setApplyRequestId] = useState<string | null>(null);
   const targetShipId = command?.targetShipId ?? props.targetShipId;
-  const macawSelfTarget = props.craftId === 'macaw' && targetShipId === 'capybara';
+  const macawHostTarget = props.craftId === 'macaw' && targetShipId === 'capybara';
   const subscriptionEnabled = Boolean(command && targetShipId && props.connection === 'live' && props.canAct);
   const { inbox: latestInbox, error: inboxError } = useDismantlingInbox(
     props.sessionId, targetShipId, subscriptionEnabled,
@@ -141,7 +141,7 @@ function ProposerPanel(props: ProposerProps) {
   const damaged = new Set(props.damagedSystemIds);
   const eligibleSystems = props.targetSystems.filter((system) => !damaged.has(system.id));
   const disabled = !props.canAct || props.connection !== 'live' || !targetShipId || eligibleSystems.length === 0 ||
-    macawSelfTarget || busy;
+    busy;
 
   async function submitProposal(): Promise<void> {
     if (disabled) return;
@@ -215,8 +215,8 @@ function ProposerPanel(props: ProposerProps) {
           : 'Damage one undamaged console on this docked ship for 3 materials only after its player approves this exact request.'}
       </p>
       <p className="permissioned-dismantling__connection" role="status">{connectionMessage(props.connection)}</p>
-      {macawSelfTarget && <p className="permissioned-dismantling__guidance" role="status">
-        Macaw-to-Capybara self-target is blocked pending a facilitator ruling. Ask the facilitator to record the ruling before using that target.
+      {macawHostTarget && <p className="permissioned-dismantling__guidance" role="status">
+        A different current player on the target ship must approve this exact request; the server checks that they are active. The Macaw holder cannot approve their own proposal.
       </p>}
       {!targetShipId ? <p>No target ship is docked. Dock this craft before requesting permission.</p> : <>
         <label className="permissioned-dismantling__field">

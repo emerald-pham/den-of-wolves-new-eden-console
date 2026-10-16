@@ -106,30 +106,33 @@ it('keeps controls unavailable when the live facilitator link or current authori
   expect(screen.getByText(/offline.*reconnect/i)).toBeInTheDocument();
 });
 
-it('shows Macaw salvage as target-approved Scrap for Capybara and blocks the unresolved self-target', async () => {
+it('lets the Macaw holder request host dismantling while waiting for a distinct current Capybara player', async () => {
   const user = userEvent.setup();
   mocks.subscribe.mockImplementation((_sessionId, _shipId, handlers) => {
     handlers.onInbox({
-      ...pendingInbox, proposalId: 'macaw-proposal', craftId: 'macaw', scrapGain: 1,
+      ...pendingInbox, targetShipId: 'capybara', proposalId: 'stable-request-id', craftId: 'macaw', scrapGain: 1,
       materialGain: undefined,
     });
     return vi.fn();
   });
-  const { rerender } = render(<PermissionedDismantlingPanel mode="proposer" sessionId="s1"
-    currentPlayerUid="captain" craftId="macaw" targetShipId="dione"
-    targetSystems={[{ id: 'reactor', name: 'Reactor' }]} damagedSystemIds={[]}
+  render(<PermissionedDismantlingPanel mode="proposer" sessionId="s1"
+    currentPlayerUid="captain" craftId="macaw" targetShipId="capybara"
+    targetSystems={[{ id: 'advanced-hydroponics', name: 'Advanced Hydroponics' }]} damagedSystemIds={[]}
     connection="live" canAct />);
   const proposer = screen.getByRole('region', { name: /permissioned dismantling proposal/i });
   expect(within(proposer).getByText(/1 scrap.*capybara/i)).toBeInTheDocument();
+  expect(within(proposer).getByText(/a different current player on the target ship/i)).toBeInTheDocument();
+  await user.selectOptions(within(proposer).getByLabelText('Undamaged target console'), 'advanced-hydroponics');
+  const requestButton = within(proposer).getByRole('button', { name: /request target-player permission/i });
+  expect(requestButton).toBeEnabled();
+  await user.click(requestButton);
 
-  rerender(<PermissionedDismantlingPanel mode="proposer" sessionId="s1"
-    currentPlayerUid="captain" craftId="macaw" targetShipId="capybara"
-    targetSystems={[{ id: 'advanced-hydroponics', name: 'Advanced Hydroponics' }]}
-    damagedSystemIds={[]} connection="live" canAct />);
-  expect(within(proposer).getByText(/self-target.*facilitator ruling/i)).toBeInTheDocument();
-  expect(within(proposer).getByRole('button', { name: /request target-player permission/i })).toBeDisabled();
-  await user.click(within(proposer).getByRole('button', { name: /request target-player permission/i }));
-  expect(mocks.propose).not.toHaveBeenCalled();
+  await waitFor(() => expect(mocks.propose).toHaveBeenCalledWith({
+    proposalId: 'stable-request-id', craftId: 'macaw', targetShipId: 'capybara',
+    targetConsoleId: 'advanced-hydroponics',
+  }));
+  expect(mocks.subscribe).toHaveBeenCalledWith('s1', 'capybara', expect.any(Object));
+  expect(await within(proposer).findByText(/waiting for a current capybara player/i)).toBeInTheDocument();
 });
 
 it('shows the Macaw target player the exact one-Scrap award without converting it to materials', async () => {
