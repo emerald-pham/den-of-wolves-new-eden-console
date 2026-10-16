@@ -776,6 +776,51 @@ async function installPrePushRace(fixture, { kind, raceSha = '' }) {
   };
 }
 
+async function installReferenceTransactionRace(fixture, { kind }) {
+  const hooksPath = join(fixture.root, 'reference-hooks');
+  await mkdir(hooksPath);
+  const hookPath = join(hooksPath, 'reference-transaction');
+  const resultPath = join(fixture.root, 'reference-transaction-result.txt');
+  await fixture.runGit(['config', 'core.hooksPath', hooksPath]);
+  await writeFile(hookPath, [
+    '#!/bin/sh',
+    'if [ "$1" = "prepared" ] && [ "${BRANCH_CLEANUP_REF_RACE_KIND:-}" = "reattach" ]; then',
+    '  while read old new ref; do',
+    '    if [ "$ref" = "$BRANCH_CLEANUP_REF_RACE_REF" ]; then',
+    '      git -C "$BRANCH_CLEANUP_REF_RACE_REPO" symbolic-ref HEAD "$ref" >"$BRANCH_CLEANUP_REF_RACE_RESULT" 2>&1',
+    '      printf "%s\\n" "$?" >>"$BRANCH_CLEANUP_REF_RACE_RESULT"',
+    '    fi',
+    '  done',
+    'fi',
+    'exit 0',
+  ].join('\n') + '\n');
+  await chmod(hookPath, 0o700);
+  const prior = {
+    kind: process.env.BRANCH_CLEANUP_REF_RACE_KIND,
+    repo: process.env.BRANCH_CLEANUP_REF_RACE_REPO,
+    ref: process.env.BRANCH_CLEANUP_REF_RACE_REF,
+    result: process.env.BRANCH_CLEANUP_REF_RACE_RESULT,
+  };
+  process.env.BRANCH_CLEANUP_REF_RACE_KIND = kind;
+  process.env.BRANCH_CLEANUP_REF_RACE_REPO = fixture.repo;
+  process.env.BRANCH_CLEANUP_REF_RACE_REF = `refs/heads/${fixture.branchName}`;
+  process.env.BRANCH_CLEANUP_REF_RACE_RESULT = resultPath;
+  return {
+    resultPath,
+    restore: () => {
+      for (const [key, value] of Object.entries({
+        BRANCH_CLEANUP_REF_RACE_KIND: prior.kind,
+        BRANCH_CLEANUP_REF_RACE_REPO: prior.repo,
+        BRANCH_CLEANUP_REF_RACE_REF: prior.ref,
+        BRANCH_CLEANUP_REF_RACE_RESULT: prior.result,
+      })) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    },
+  };
+}
+
 test('remote SHA lease rejects a branch that changes during deletion', async () => {
   const fixture = await createBranchCleanupFixture();
   let restoreRace;
@@ -832,6 +877,30 @@ test('cleanup retains the local ref if the initiating checkout is reattached dur
     assert.equal(await fixture.runGit(['branch', '--show-current']), fixture.branchName);
   } finally {
     restoreRace?.();
+    await fixture.dispose();
+  }
+});
+
+test('local ref deletion cannot leave the initiating HEAD dangling when reattached in its transaction hook', async () => {
+  const fixture = await createBranchCleanupFixture();
+  let race;
+  try {
+    const targetSha = await fixture.localSha();
+    race = await installReferenceTransactionRace(fixture, { kind: 'reattach' });
+    const report = await fixture.cleanup({ apply: true });
+    const headCommit = await fixture.runGit(['rev-parse', '--verify', 'HEAD^{commit}']);
+    const headRef = await fixture.runGit(['symbolic-ref', '-q', 'HEAD']).catch(() => null);
+    assert.ok(headCommit, 'the initiating checkout HEAD must still resolve to a commit');
+    assert.ok(await readFile(race.resultPath, 'utf8'), 'the prepared transaction hook must attempt reattachment');
+    if (headRef === `refs/heads/${fixture.branchName}`) {
+      assert.equal(await fixture.localSha(), targetSha, 'a symbolic HEAD must retain its branch ref');
+    }
+    if (report.decision === 'removed') {
+      assert.equal(await fixture.localSha().catch(() => null), null);
+      assert.notEqual(headRef, `refs/heads/${fixture.branchName}`);
+    }
+  } finally {
+    race?.restore();
     await fixture.dispose();
   }
 });
