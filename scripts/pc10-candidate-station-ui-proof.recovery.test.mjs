@@ -26,10 +26,10 @@ function stationDialog(state, options) {
   };
 }
 
-function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = false, foreignReload = false, staleGeneration = false, terminalCandidate = 'P', workspaceDelay = 2, workspaceNeverReady = false, serverStatus = 200, replayEffect = false, cleanupFailure = false, resumeDelay = 0 } = {}) {
+function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = false, foreignReload = false, staleGeneration = false, terminalCandidate = 'P', workspaceDelay = 2, workspaceNeverReady = false, serverStatus = 200, replayEffect = false, cleanupFailure = false, resumeDelay = 0, phasePublicationDuringRead = false } = {}) {
   const sessionId = 'station-recovery-session';
   const roleId = 'executive-officer';
-  const coordinate = '0408';
+  const coordinate = '4888';
   const request = { sessionId, requestId: 'station-reactor-original', expectedRevision: 7,
     expectedGroupId: 'fleet-1', code: 'P', coordinate, action: 'contribute-reactor', shipId: 'aegis' };
   const result = { type: 'candidate-action-result', status: 'committed', sessionId,
@@ -44,7 +44,7 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
   let actorState = { hasAuth: true, sameActor: true, uidHash: 'same-crew-uid', sessionId,
     joinCode: 'NATIVE', playerRole: 'player', profileRoleId: roleId, profileSessionId: sessionId,
     assignedRoleId: roleId, activeConsoleRoleId: roleId, phase: 'active', cycle: 2,
-    phaseProgression: 'manual', airspace: 'restricted', turnStatePhase: 'team',
+    phaseProgression: 'manual', airspace: 'lifted', turnStatePhase: 'coordination',
     connection: 'live', freshness: 'server', documentTimeOrigin: 100 };
   // resumeSession owns the new generation; hydration restarts in the new document.
   let connectionGeneration = 1, identityHydrationRevision = 2;
@@ -87,7 +87,9 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
         if (serverStatus === 200) {
           recovery.chargeCapacity = chargeCapacity + reactorCapacity;
           recovery.revision = result.revision;
-          if (activates) { actorState.phase = 'debrief'; gmState.phase = 'debrief'; recovery.dialogOpen = true; }
+          if (activates) { actorState.phase = 'debrief';
+            if (!phasePublicationDuringRead) gmState.phase = 'debrief';
+            recovery.dialogOpen = true; }
         }
         return { status: () => serverStatus, json: async () => ({ result: structuredClone(result) }) };
       },
@@ -152,7 +154,10 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
     fullGameDemo: { status: gmState.phase === 'debrief' ? 'complete' : 'active', progression: 'manual' },
     gameOutcome: gmState.phase === 'debrief' ? { type: 'game-outcome', result: 'success',
       cause: 'candidate-complete', candidateCode: terminalCandidate, cycle: 2 } : null });
-  const gm = { page: { evaluate: async () => gmSource() }, storeModuleUrl: () => '/src/store/useSessionStore.ts',
+  const gm = { page: { evaluate: async () => {
+    if (phasePublicationDuringRead && recovery.fetchCount > 0) gmState.phase = 'debrief';
+    return gmSource();
+  } }, storeModuleUrl: () => '/src/store/useSessionStore.ts',
     observe: async () => structuredClone(gmState) };
   const tools = { record: async (stage, details) => records.push({ stage, details }),
     receipt: async (surface, endpoint, choose, options) => {
@@ -172,7 +177,7 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
 
 function stationRunnerFixture() {
   const sessionId = 'station-ending-session';
-  const coordinate = '0408';
+  const coordinate = '4888';
   const capacities = { aegis: 5, dione: 4, icebreaker: 4, shepherd: 3, quellon: 3 };
   const shipIds = Object.keys(capacities);
   const shared = { charge: 0, revision: 7, contributed: new Set(), actors: new Map(), records: [],
@@ -214,7 +219,7 @@ function stationRunnerFixture() {
     const actorState = { hasAuth: true, sameActor: true, uidHash: `crew-${shipId}-uid`, sessionId,
       joinCode: 'NATIVE', playerRole: 'player', profileRoleId: roleId, profileSessionId: sessionId,
       assignedRoleId: roleId, activeConsoleRoleId: roleId, phase: 'active', cycle: 2,
-      phaseProgression: 'manual', airspace: 'restricted', turnStatePhase: 'team',
+      phaseProgression: 'manual', airspace: 'lifted', turnStatePhase: 'coordination',
       connection: 'live', freshness: 'server', documentTimeOrigin: 1_000 + shipIds.indexOf(shipId) };
     const cap = capacities[shipId];
     const recovery = { routeHandler: undefined, request: undefined, result: undefined,
@@ -437,7 +442,7 @@ test('the actual Station ending recovers the first committed contribution and th
   for (const details of [first, activation]) {
     assert.equal(details.sessionId, fixture.context.start.sessionId);
     assert.equal(details.candidateCode, 'P');
-    assert.equal(details.coordinate, '0408');
+    assert.equal(details.coordinate, '4888');
     assert.equal(details.request.action, 'contribute-reactor');
     assert.equal(details.request.expectedGroupId, 'fleet-1');
     assert.equal(details.actor.fleetGroupId, 'fleet-1');
@@ -546,4 +551,14 @@ test('Station recovery waits for its accepted resume epoch after a listener is a
   assert.equal(fixture.records[0].details.actor.connectionGenerationAfter, 2);
   assert.equal(fixture.records[0].details.actor.identityHydrationRevisionAfter, 1);
   assert.equal(fixture.recovery.fetchCount, 1); assert.equal(fixture.recovery.fallbackCount, 1);
+});
+
+
+test('Station activation accepts its authenticated GM phase publication during the lease read', async () => {
+  const fixture = recoveryFixture({ chargeCapacity: 14, reactorCapacity: 4, activates: true, phasePublicationDuringRead: true });
+  const result = await stationProof.recoverStationReactorContribution({ ...fixture,
+    shipId: 'aegis', roleId: fixture.roleId, expectActivation: true, deadlineAt: Date.now() + 1_000 });
+  assert.equal(result.outcome, 'activated');
+  assert.equal(fixture.records[0].details.gmLease.phaseAfter, 'debrief');
+  assert.equal(fixture.recovery.dialogDismissals, 2);
 });
