@@ -6,6 +6,7 @@ import {
   assessCapybaraGameplay,
   assertCapybaraRunContext,
   capybaraStageOutcome,
+  consumeCapybaraEnding,
   projectCapybaraEvidence,
   sourceActionStageOutcome,
 } from './pc10-capybara-full-gameplay.mjs';
@@ -38,6 +39,45 @@ const validStageOutcome = (stageId, roleId, endpoint) => ({
       renderedStatus: 'public-result-visible' },
   },
 });
+
+const immutableFailureSnapshot = () => ({
+  type: 'session-debrief', version: 1, source: 'failure-review', result: 'failure',
+  cause: 'pursuit-limit', cycle: 8, occurredAt: '2026-10-16T00:00:00.000Z',
+  committedAt: '2026-10-16T00:00:01.000Z',
+  outcome: { type: 'game-outcome', result: 'failure', cause: 'pursuit-limit', cycle: 8,
+    navigationRevision: 4, occurredAt: '2026-10-16T00:00:00.000Z' },
+});
+
+const immutableFailureReply = () => ({ status: 'committed', result: {
+  type: 'session-debrief', sessionId: 'fresh-session', snapshot: immutableFailureSnapshot(),
+} });
+
+const originalEndingGm = () => ({ sameActor: true, sessionId: 'fresh-session',
+  uidHash: 'original-gm-uid-hash', playerRole: 'gm', gmInstanceOwned: true, instanceId: 'gm-instance' });
+
+function capybaraEndingFixture({ phase = 'closed', identity, reply = immutableFailureReply(), neverSettles = false,
+  timeoutMs = 30, publicSnapshot } = {}) {
+  const context = validContext(), originalGm = originalEndingGm();
+  const publicState = { sessionId: 'fresh-session', phase, cycle: 8, debriefSnapshot: publicSnapshot,
+    gameOutcome: { source: 'public-session', result: 'failure', cause: 'pursuit-limit', cycle: 8 } };
+  const calls = { ending: 0, state: 0, observe: 0, callable: [] };
+  const gm = {
+    observe: async () => { calls.observe += 1; return identity ?? originalEndingGm(); },
+    callable: async (endpoint, payload) => {
+      calls.callable.push({ endpoint, payload });
+      if (neverSettles) return new Promise(() => {});
+      return typeof reply === 'function' ? reply(endpoint, payload) : reply;
+    },
+  };
+  const a = { state: async surface => {
+    assert.equal(surface, gm); calls.state += 1; return structuredClone(publicState);
+  } };
+  const finalEnding = async suppliedContext => {
+    assert.equal(suppliedContext, context); calls.ending += 1;
+  };
+  return { context, originalGm, publicState, calls,
+    consume: () => consumeCapybaraEnding({ context, a, gm, finalEnding, originalGm, endingReadTimeoutMs: timeoutMs }) };
+}
 
 test('full-game schedule covers the added real Capybara and specialist functions at live game boundaries', () => {
   const byId = Object.fromEntries(CAPYBARA_STAGE_SCHEDULE.map(stage => [stage.id, stage]));
@@ -98,6 +138,92 @@ test('terminal debrief alone cannot turn unavailable required Capybara actions g
     coreGameplay: { status: 'passed', manualProgression: true, serverActions: true, missionDelivered: true },
     terminal: { status: 'debrief', source: 'failure-review',
       result: 'failure', cause: 'pursuit-limit', immutable: true } }).status, 'passed');
+});
+
+test('the ending consumer reads the original GM immutable debrief after the public session closes', async () => {
+  const fixture = capybaraEndingFixture();
+  assert.equal(fixture.publicState.debriefSnapshot, undefined,
+    'The ordinary session projection does not carry the EndgameDialog private snapshot.');
+  const { terminal } = await fixture.consume();
+
+  assert.deepEqual(fixture.calls.callable, [{ endpoint: 'getSessionDebrief', payload: {
+    sessionId: 'fresh-session', instanceId: 'gm-instance',
+  } }]);
+  assert.equal(fixture.calls.ending, 1, 'The real ending callback runs once and is never restarted to recover its receipt.');
+  assert.equal(fixture.calls.state, 1);
+  assert.equal(fixture.calls.observe, 1);
+  assert.deepEqual(terminal, { status: 'closed', immutable: true, source: 'failure-review',
+    result: 'failure', cause: 'pursuit-limit' });
+  assert.equal(assessCapybaraGameplay({ context: fixture.context,
+    stages: Object.fromEntries(CAPYBARA_REQUIRED_STAGES.map(id => [id, { status: 'completed' }])),
+    coreGameplay: { status: 'passed', manualProgression: true, serverActions: true, missionDelivered: true },
+    terminal }).status, 'passed');
+  assert.equal(Object.hasOwn(terminal, 'snapshot'), false, 'The private snapshot remains local to the consumer.');
+});
+
+test('the ending consumer rejects a changed original GM identity before its private read', async () => {
+  for (const identity of [
+    { ...originalEndingGm(), sameActor: false },
+    { ...originalEndingGm(), uidHash: 'replacement-uid-hash' },
+    { ...originalEndingGm(), sessionId: 'another-session' },
+    { ...originalEndingGm(), instanceId: 'replacement-instance' },
+    { ...originalEndingGm(), playerRole: 'player' },
+    { ...originalEndingGm(), gmInstanceOwned: false },
+  ]) {
+    const fixture = capybaraEndingFixture({ identity });
+    await assert.rejects(fixture.consume());
+    assert.equal(fixture.calls.callable.length, 0);
+    assert.equal(fixture.calls.ending, 1);
+  }
+});
+
+test('the ending consumer rejects denied, wrong-session, wrong-cycle, and malformed GM debrief replies', async () => {
+  const malformedReplies = [
+    { status: 'denied', code: 'permission-denied' },
+    { status: 'committed', result: { type: 'session-debrief', sessionId: 'other-session', snapshot: immutableFailureSnapshot() } },
+    { status: 'committed', result: { type: 'session-debrief', sessionId: 'fresh-session',
+      snapshot: { ...immutableFailureSnapshot(), cycle: 7 } } },
+    { status: 'committed', result: { type: 'not-a-session-debrief', sessionId: 'fresh-session', snapshot: immutableFailureSnapshot() } },
+    { status: 'committed', result: { type: 'session-debrief', sessionId: 'fresh-session',
+      snapshot: { ...immutableFailureSnapshot(), version: 2 } } },
+    { status: 'committed', result: { type: 'session-debrief', sessionId: 'fresh-session',
+      snapshot: { ...immutableFailureSnapshot(), committedAt: undefined } } },
+    { status: 'committed', result: { type: 'session-debrief', sessionId: 'fresh-session',
+      snapshot: { ...immutableFailureSnapshot(), source: 'public-label-only' } } },
+    { status: 'committed', result: { type: 'session-debrief', sessionId: 'fresh-session',
+      snapshot: { ...immutableFailureSnapshot(), extraPublicField: 'not-in-contract' } } },
+  ];
+  for (const reply of malformedReplies) {
+    const fixture = capybaraEndingFixture({ reply });
+    await assert.rejects(fixture.consume());
+    assert.equal(fixture.calls.ending, 1);
+    assert.equal(fixture.calls.callable.length, 1);
+    assert.equal(fixture.calls.callable[0].endpoint, 'getSessionDebrief');
+  }
+});
+
+test('a public closed/debrief label or game outcome cannot stand in for the private immutable read', async () => {
+  const publicOnly = { type: 'session-debrief', version: 1, source: 'failure-review',
+    result: 'failure', cause: 'pursuit-limit' };
+  const fixture = capybaraEndingFixture({ publicSnapshot: publicOnly, reply: { status: 'denied', code: 'permission-denied' } });
+  await assert.rejects(fixture.consume());
+
+  for (const status of ['debrief', 'closed']) {
+    assert.equal(assessCapybaraGameplay({ context: fixture.context,
+      stages: Object.fromEntries(CAPYBARA_REQUIRED_STAGES.map(id => [id, { status: 'completed' }])),
+      coreGameplay: { status: 'passed', manualProgression: true, serverActions: true, missionDelivered: true },
+      terminal: { status, source: 'failure-review', result: 'failure', cause: 'pursuit-limit', immutable: false },
+    }).status, 'pending');
+  }
+  assert.equal(fixture.calls.ending, 1);
+});
+
+test('a never-settling private debrief read has a finite bound and does not restart the ending', async () => {
+  const fixture = capybaraEndingFixture({ neverSettles: true, timeoutMs: 5 });
+  await assert.rejects(fixture.consume(), /timed out/i);
+  assert.equal(fixture.calls.ending, 1);
+  assert.equal(fixture.calls.callable.length, 1);
+  assert.equal(fixture.calls.callable[0].endpoint, 'getSessionDebrief');
 });
 
 test('specialist action receipt statuses require a source-approved success plus both projections', () => {
