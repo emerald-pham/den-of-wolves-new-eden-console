@@ -6,6 +6,26 @@ import { candidateShipRole, contributeStationReactors, CANDIDATE_PROOF_SHIPS } f
 import { assertWolfChoiceActor, observeWolfChoiceActor } from './pc10-combat-choice-readiness.mjs';
 import * as stationProof from './pc10-candidate-station-ui-proof.mjs';
 
+
+// FocusDialog's portal covers the candidate surface until its ordinary Continue.
+// The mounted component transition is exercised separately in its React test.
+function stationDialog(state, options) {
+  assert.equal(options.name, 'Endgame evaluation');
+  return {
+    waitFor: async ({ state: expected }) => assert.equal(state.dialogOpen, expected === 'visible'),
+    getByText: label => ({ waitFor: async () => {
+      assert.equal(state.dialogOpen, true);
+      assert.equal(label, 'Server result // Success // Cycle 2');
+    } }),
+    getByRole: (role, { name }) => role === 'heading' ? { waitFor: async () => {
+      assert.equal(state.dialogOpen, true); assert.equal(name, 'Candidate P route');
+    } } : { click: async () => {
+      assert.equal(role, 'button'); assert.equal(name, 'Continue'); assert.equal(state.dialogOpen, true);
+      state.dialogOpen = false; state.dialogDismissals++;
+    } },
+  };
+}
+
 function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = false, foreignReload = false, staleGeneration = false, terminalCandidate = 'P' } = {}) {
   const sessionId = 'station-recovery-session';
   const roleId = 'executive-officer';
@@ -19,7 +39,7 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
     ...(activates ? { outcome: 'activated' } : {}) };
   const recovery = { requestData: undefined, replayData: undefined, fetchCount: 0,
     abortCount: 0, fallbackCount: 0, reloadCount: 0, unrouteCount: 0,
-    pending: false, chargeCapacity, revision: 7, routeHandler: undefined };
+    pending: false, dialogOpen: false, dialogDismissals: 0, chargeCapacity, revision: 7, routeHandler: undefined };
   const records = [];
   let actorState = { hasAuth: true, sameActor: true, uidHash: 'same-crew-uid', sessionId,
     joinCode: 'NATIVE', playerRole: 'player', profileRoleId: roleId, profileSessionId: sessionId,
@@ -43,6 +63,7 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
     },
     reload: async () => {
       recovery.reloadCount++;
+      recovery.dialogOpen = activates;
       actorState = { ...actorState, documentTimeOrigin: actorState.documentTimeOrigin + 1,
         ...(foreignReload ? { uidHash: 'foreign-crew-uid' } : {}) };
       connectionGeneration = staleGeneration ? connectionGeneration : connectionGeneration + 1;
@@ -63,7 +84,7 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
         recovery.pending = true;
         recovery.chargeCapacity = chargeCapacity + reactorCapacity;
         recovery.revision = result.revision;
-        if (activates) { actorState.phase = 'debrief'; gmState.phase = 'debrief'; }
+        if (activates) { actorState.phase = 'debrief'; gmState.phase = 'debrief'; recovery.dialogOpen = true; }
       },
       fallback: async () => {
         recovery.fallbackCount++;
@@ -80,7 +101,10 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
         count: async () => recovery.pending ? 1 : 0,
         isVisible: async () => recovery.pending,
         waitFor: async ({ state }) => assert.equal(recovery.pending, state === 'visible'),
-        click: async () => dispatch(request),
+        click: async () => {
+          assert.equal(recovery.dialogOpen, false, 'The endgame backdrop intercepts the underlying retry.');
+          await dispatch(request);
+        },
       };
       return {
         count: async () => recovery.chargeCapacity === chargeCapacity ? 1 : 0,
@@ -90,6 +114,7 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
     },
   };
   page.getByRole = (_role, options = {}) => {
+    if (_role === 'dialog') return stationDialog(recovery, options);
     assert.deepEqual(options, { name: 'Candidate preparation and actions', exact: true });
     return panel;
   };
@@ -178,7 +203,7 @@ function stationRunnerFixture() {
       connection: 'live', freshness: 'server', documentTimeOrigin: 1_000 + shipIds.indexOf(shipId) };
     const cap = capacities[shipId];
     const recovery = { routeHandler: undefined, request: undefined, result: undefined,
-      replayRequest: undefined, pending: false };
+      replayRequest: undefined, pending: false, dialogOpen: false, dialogDismissals: 0 };
     let connectionGeneration = 1, identityHydrationRevision = 2;
     const sourceActor = () => ({ sessionId, fleetGroupId: 'fleet-1', connectionGeneration,
       identityHydrationRevision, replacementRoleId: null, replacementStatus: null,
@@ -194,7 +219,7 @@ function stationRunnerFixture() {
           shared.contributed.add(shipId);
           if (shared.charge >= 18) {
             gmState.phase = 'debrief';
-            for (const entry of shared.actors.values()) entry.state.phase = 'debrief';
+            for (const entry of shared.actors.values()) { entry.state.phase = 'debrief'; entry.recovery.dialogOpen = true; }
           }
           recovery.result = { type: 'candidate-action-result', status: 'committed', sessionId,
             requestId: data.requestId, revision: shared.revision, code: 'P', action: 'contribute-reactor',
@@ -214,7 +239,10 @@ function stationRunnerFixture() {
         if (options.name === 'Retry original candidate request') return {
           count: async () => recovery.pending ? 1 : 0,
           waitFor: async ({ state }) => assert.equal(recovery.pending, state === 'visible'),
-          click: async () => routeRequest(recovery.request),
+          click: async () => {
+            assert.equal(recovery.dialogOpen, false, 'The endgame backdrop intercepts the underlying retry.');
+            await routeRequest(recovery.request);
+          },
         };
         return {
           count: async () => shared.contributed.has(shipId) ? 0 : 1,
@@ -241,11 +269,12 @@ function stationRunnerFixture() {
       },
     };
     const page = {
-      getByRole: () => panel,
+      getByRole: (role, options) => role === 'dialog' ? stationDialog(recovery, options) : panel,
       route: async (pattern, handler) => { assert.equal(pattern, '**/us-central1/executeCandidateAction'); shared.routeCount++; recovery.routeHandler = handler; },
       unroute: async (_pattern, handler) => { assert.equal(recovery.routeHandler, handler); recovery.routeHandler = undefined; },
       reload: async () => {
         shared.reloadCount++; actorState.documentTimeOrigin++;
+        recovery.dialogOpen = actorState.phase === 'debrief';
         connectionGeneration++; identityHydrationRevision = 1;
       },
       evaluate: async () => sourceActor(),
@@ -367,6 +396,7 @@ test('Station activation replay retains the server-owned final Reactor result', 
   assert.equal(fixture.recovery.fallbackCount, 1);
   assert.equal(fixture.records[0].details.committedResult.outcome, 'activated');
   assert.equal(fixture.records[0].details.replayedResult.outcome, 'activated');
+  assert.equal(fixture.recovery.dialogDismissals, 2, 'Ordinary Continue must dismiss the original and reloaded endgame portals.');
 });
 
 test('the actual Station ending recovers the first committed contribution and the final activation boundary', async () => {
@@ -424,6 +454,8 @@ test('the actual Station ending recovers the first committed contribution and th
   assert.equal(activation.request.expectedRevision, 11);
   assert.equal(activation.committedResult.outcome, 'activated');
   assert.equal(activation.replayedResult.outcome, 'activated');
+  assert.equal(fixture.shared.actors.get('quellon-explorer')?.recovery.dialogDismissals ??
+    [...fixture.shared.actors.values()].find(entry => entry.shipId === 'quellon').recovery.dialogDismissals, 2);
 });
 
 
