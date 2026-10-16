@@ -1102,3 +1102,65 @@ test('a rejected remote lease releases every other checkout HEAD guard', async (
     await fixture.dispose();
   }
 });
+
+for (const replaceAfterDelete of [false, true]) {
+  test(`late checkout registration restores a safe ref without replacing concurrent work (${replaceAfterDelete ? 'replacement' : 'absent'})`, async () => {
+    const fixture = await createBranchCleanupFixture();
+    try {
+      const lateCheckout = join(fixture.root, 'late-checkout');
+      const hooks = join(fixture.root, 'late-registration-hooks');
+      const audit = join(fixture.root, 'late-registration-audit.jsonl');
+      await mkdir(hooks);
+      await fixture.runGit(['config', 'core.hooksPath', hooks]);
+      const originalSha = await fixture.localSha();
+      const replacementSha = await fixture.runGit(['rev-parse', 'main']);
+      assert.notEqual(replacementSha, originalSha);
+      const hook = join(hooks, 'reference-transaction');
+      await writeFile(hook, [
+        '#!/usr/bin/env node',
+        'const { spawnSync } = require("node:child_process");',
+        'const { readFileSync, appendFileSync } = require("node:fs");',
+        `const repository = ${JSON.stringify(fixture.repo)};`,
+        `const lateCheckout = ${JSON.stringify(lateCheckout)};`,
+        `const branch = ${JSON.stringify(fixture.branchName)};`,
+        `const audit = ${JSON.stringify(audit)};`,
+        'const deleting = readFileSync(0, "utf8").split("\\n").some((line) => {',
+        '  const [old, next, ref] = line.split(" ");',
+        '  return ref === `refs/heads/${branch}` && /^0+$/.test(next);',
+        '});',
+        'if (!deleting) process.exit(0);',
+        'const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")));',
+        'env.GIT_TERMINAL_PROMPT = "0";',
+        'const git = (cwd, args) => {',
+        '  const result = spawnSync("git", ["-c", "core.hooksPath=/dev/null", "-C", cwd, ...args], { env, encoding: "utf8", timeout: 5000 });',
+        '  appendFileSync(audit, JSON.stringify({ stage: process.argv[2], args, status: result.status, stderr: result.stderr }) + "\\n");',
+        '  if (result.status !== 0) process.exit(1);',
+        '};',
+        'if (process.argv[2] === "prepared") {',
+        '  git(repository, ["worktree", "add", "--detach", lateCheckout, "main"]);',
+        '  git(lateCheckout, ["switch", branch]);',
+        '}',
+        `if (process.argv[2] === "committed" && ${replaceAfterDelete}) {`,
+        `  git(repository, ["update-ref", "--no-deref", "refs/heads/" + branch, ${JSON.stringify(replacementSha)}, ${JSON.stringify('0'.repeat(originalSha.length))}]);`,
+        '}',
+      ].join('\n') + '\n');
+      await chmod(hook, 0o700);
+
+      const report = await fixture.cleanup({ apply: true });
+      const expectedSha = replaceAfterDelete ? replacementSha : originalSha;
+      assert.equal(await runGit(lateCheckout, ['rev-parse', '--verify', 'HEAD^{commit}']), expectedSha);
+      assert.equal(await fixture.localSha(), expectedSha);
+      assert.equal(report.local.sha, expectedSha);
+      expectReason(report, 'worktree-state-changed-after-delete');
+      assert.equal(report.actions.localBranchRemoved, false);
+      assert.equal(report.actions.localBranchDeletionCommitted, true);
+      assert.equal(report.actions.localBranchRestored, !replaceAfterDelete);
+      assert.equal(await fixture.remoteSha(), null);
+      const events = (await readFile(audit, 'utf8')).trim().split('\n').map((line) => JSON.parse(line));
+      assert.ok(events.length >= (replaceAfterDelete ? 3 : 2));
+      assert.ok(events.every((event) => event.status === 0), JSON.stringify(events));
+    } finally {
+      await fixture.dispose();
+    }
+  });
+}
