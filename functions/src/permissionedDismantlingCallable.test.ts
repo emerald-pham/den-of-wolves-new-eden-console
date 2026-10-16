@@ -480,15 +480,55 @@ it.each([
   expect(store.records.get(paths().consent)).toMatchObject({ status: 'granted' });
 });
 
-it('rejects Macaw-to-Capybara self-target proposals before creating a receipt or inbox row', async () => {
+it('lets the Capybara host approve exact Macaw dismantling through a different active player and replays once', async () => {
   const store = macawSeededStore();
+  const p = paths();
+  const session = store.records.get(p.session)!;
+  session.activeRoleIds = [...session.activeRoleIds as string[], 'capybara-recycler'];
+  session.shuttleDockings = [{ shuttleId: 'macaw', shipId: 'capybara', dockedAt: 'SESSION START' }];
+  session.shipDamage = { capybara: { damagedSystemIds: [], destroyed: false } };
+  store.records.set(p.targetPlayer, activePlayer('capybara-recycler'));
+
   const callables = createPermissionedDismantlingCallables(dependencies(store));
-  const before = store.committedWrites.length;
-  await expect(callables.proposePermissionedDismantling(proposeRequest({
+  const proposal = await callables.proposePermissionedDismantling(proposeRequest({
     craftId: 'macaw', targetShipId: 'capybara', targetConsoleId: 'advanced-hydroponics', expectedControlRevision: 9,
-  }))).rejects.toMatchObject({ code: 'invalid-argument' });
-  expect(store.committedWrites).toHaveLength(before);
-  expect([...store.records.keys()].some((key) => key.includes('permissionedDismantlingProposals'))).toBe(false);
+  }));
+  expect(proposal).toMatchObject({
+    status: 'proposed', craftId: 'macaw', targetShipId: 'capybara',
+    targetConsoleId: 'advanced-hydroponics', targetRevision: 0, scrapGain: 1,
+  });
+  expect(store.records.get(paths().inbox)).toMatchObject({
+    targetShipId: 'capybara', proposalId: PROPOSAL_ID, status: 'pending', scrapGain: 1,
+  });
+
+  const proposedWrites = store.committedWrites.length;
+  await expect(callables.consentToPermissionedDismantling(consentRequest('engineer')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  await expect(callables.consentToPermissionedDismantling(consentRequest('other-ship-player')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(store.committedWrites).toHaveLength(proposedWrites);
+  expect(store.records.has(paths().consent)).toBe(false);
+
+  await callables.consentToPermissionedDismantling(consentRequest('target-player'));
+  const applied = await callables.applyPermissionedDismantling(applyRequest());
+  expect(applied).toMatchObject({ status: 'applied', targetShipId: 'capybara', scrapGain: 1, scrapAfter: 4 });
+  expect(store.records.get(p.session)).toMatchObject({
+    shipDamage: { capybara: { damagedSystemIds: ['advanced-hydroponics'], destroyed: false } },
+    shipResources: { capybara: { scrap: 4 } },
+  });
+  expect(store.records.get(`sessions/${SESSION_ID}/actionAudits/${APPLY_ID}`)).toMatchObject({
+    actorUid: 'engineer', actorRoleId: 'capybara-captain', action: 'macaw-consented-dismantling',
+    targetShipId: 'capybara', targetConsoleId: 'advanced-hydroponics', scrapGain: 1,
+  });
+
+  const committedWrites = store.committedWrites.length;
+  await expect(callables.applyPermissionedDismantling(applyRequest()))
+    .resolves.toMatchObject({ status: 'replayed', requestId: APPLY_ID });
+  expect(store.records.get(p.session)).toMatchObject({
+    shipDamage: { capybara: { damagedSystemIds: ['advanced-hydroponics'], destroyed: false } },
+    shipResources: { capybara: { scrap: 4 } },
+  });
+  expect(store.committedWrites).toHaveLength(committedWrites);
 });
 
 it('binds an omitted private target revision to the server-observed proposal state and replays safely', async () => {

@@ -76,20 +76,30 @@ describe('permissioned dismantling', () => {
     })).toThrow(/active player assigned to the target ship/i);
   });
 
-  it('keeps the ambiguous Macaw-to-Capybara self-target blocked pending a facilitator ruling', () => {
+  it('allows Macaw to target the Capybara host when a different active host player approves the exact action', () => {
     const macawProposal = {
       craftId: 'macaw', targetShipId: 'capybara', targetConsoleId: 'advanced-hydroponics',
       targetRevision: 7, scrapGain: 1,
     } as const;
-    expect(() => resolvePermissionedDismantling({
+    const macawConsent = {
+      id: 'consent-capybara', status: 'granted', actorUid: 'capybara-recycler', ...macawProposal,
+    } as const;
+    const resources = { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2 };
+
+    expect(resolvePermissionedDismantling({
       proposal: macawProposal,
-      consent: { id: 'consent-macaw', status: 'granted', actorUid: 'target-player', ...macawProposal },
-      activeTargetShipPlayerUids: ['target-player'],
+      consent: macawConsent,
+      activeTargetShipPlayerUids: ['capybara-recycler'],
       currentTargetRevision: 7,
       targetDamage: { damagedSystemIds: [], destroyed: false },
-      targetResources: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2 },
+      targetResources: resources,
       macawScrap: 3,
-    })).toThrow(/Capybara self-target requires a facilitator ruling/i);
+    })).toEqual({
+      targetDamage: { damagedSystemIds: ['advanced-hydroponics'], destroyed: false },
+      targetResources: resources,
+      macawScrapAfter: 4,
+      consumedConsent: { ...macawConsent, status: 'consumed' },
+    });
   });
 
   it.each([
