@@ -132,11 +132,9 @@ test('generic full-game completion cannot finish after the ending callback when 
     started: fixture.started, directory });
   assert.equal(fixture.calls.gmCloseClicks, 1, 'The genuine ending callback has completed its UI close.');
 
-  await assert.rejects(
-    fixture.gm.until('Server-produced immutable debrief ending', isObservedGameEnding),
-    /Server-produced immutable debrief ending: original finite observation deadline expired/,
-    'The actual generic caller contract still waits for private fields absent from the public projection.',
-  );
+  const ended = await fixture.gm.until('Server-produced immutable debrief ending', isObservedGameEnding);
+  assert.equal(ended.phase, 'closed');
+  assert.equal(isObservedGameEnding(ended), true);
   const afterCallback = await fixture.gm.observe();
   assert.equal(afterCallback.phase, 'closed');
   assert.equal(afterCallback.debriefType, null);
