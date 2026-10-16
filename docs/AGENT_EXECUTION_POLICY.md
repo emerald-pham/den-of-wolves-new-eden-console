@@ -11,6 +11,19 @@ agents may finish current bounded assignments. Luna effort is discretionary;
 `max` is almost always preferred. Sol may use all supported effort levels.
 Select effort for the bounded task and keep explicit security-review floors.
 
+Workers own their task-specific documentation reading and code investigation.
+The orchestrator uses their findings and evidence, inspecting source only for
+a concrete decision or blocker. Let active workers encounter routine guidance
+updates at their next normal boundary; interrupt only for a material effect on
+their current work.
+
+Escalate only after actual lack of progress or a material failure: substantive
+diagnosis and an attempted repair must fail and the owner cannot identify a
+credible next step. A failed test with an obvious fix is progress. Sol may
+diagnose or take over a justified blocker when the reason and ownership
+transfer are explicit; the task coordinator handles difficult decisions
+without a mandatory extra stage.
+
 Use Sol for the independent risk reviews required by `CLAUDE.md`. If a
 Luna-owned implementation fails the same acceptance gate after two distinct,
 substantive repair attempts on separate candidate commits, transfer ownership
@@ -169,6 +182,10 @@ transition, emitted build or pixel contract.
 
 
 ## Batched PC releases
+
+When dependencies permit, implement and run focused checks while an upstream
+release settles. Reconcile onto its settled result before finalizing release
+metadata and validation; avoid full gates on a candidate still awaiting rebase.
 
 Treat one product checkpoint as one release candidate. Finish and reconcile all
 scoped implementation, regression repairs, release metadata, local risk gates,
