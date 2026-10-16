@@ -373,3 +373,14 @@ publication of bounded briefs, not runtime resumption. The
 [approved execution breakdown](PRODUCT_MILESTONES.md#approved-bounded-execution-tickets--2026-10-15)
 links each brief back to existing prompt IDs, with explicit blockers, exclusions
 and proportionate testing. Existing completion criteria and totals remain intact.
+
+## Explicit implementation resumption — 2026-10-15
+
+The owner invoked `implement-spec` for the published campaign specification and
+approved tickets. This resumes the agreed PC10 implementation, superseding its
+earlier pause for this task. Root retains checkpoint ownership and hands-off
+execution. Preserve old recovery data and unrelated reservations; record exact
+new resources and candidate provenance before service-backed proof. The
+[execution record](PC10_EXECUTION_RECORD.md) holds the integration branch and
+bounded initial assignments. No acceptance or closure credit follows from
+resumption alone.
