@@ -232,7 +232,7 @@ export function macawDismantlingStageOutcome(input) {
 export function assessCapybaraGameplay({ context, stages, coreGameplay, terminal }) {
   assertCapybaraRunContext(context);
   const pendingStages = CAPYBARA_REQUIRED_STAGES.filter(id => stages?.[id]?.status !== 'completed');
-  const ended = terminal?.status === 'debrief' && terminal.immutable === true &&
+  const ended = ['debrief', 'closed'].includes(terminal?.status) && terminal.immutable === true &&
     ['final-cycle', 'failure-review', 'candidate'].includes(terminal.source);
   const corePassed = coreGameplay?.status === 'passed' && coreGameplay.manualProgression === true &&
     coreGameplay.serverActions === true && coreGameplay.missionDelivered === true;
@@ -261,14 +261,120 @@ export function projectCapybaraEvidence(report) {
     noAdminGameplayWrites: true, noInjectedClock: true, noFabricatedChoices: true };
 }
 
-/** Keep the real ending-to-assessment consumer seam directly testable. */
-export async function consumeCapybaraEnding({ context, a, gm, finalEnding }) {
+const CAPYBARA_DEBRIEF_READ_TIMEOUT_MS = 15_000;
+
+function assertExactRecord(value, requiredKeys, optionalKeys, label) {
+  assert.ok(value !== null && typeof value === 'object' && !Array.isArray(value), `${label} must be an object.`);
+  const allowed = new Set([...requiredKeys, ...optionalKeys]);
+  assert.ok(requiredKeys.every(key => Object.hasOwn(value, key)), `${label} is missing required fields.`);
+  assert.ok(Object.keys(value).every(key => allowed.has(key)), `${label} has fields outside its contract.`);
+}
+
+function isDebriefTimestamp(value) {
+  return typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?Z$/.test(value) &&
+    Number.isFinite(Date.parse(value));
+}
+
+function assertImmutableCapybaraDebrief(snapshot, expectedCycle) {
+  assertExactRecord(snapshot,
+    ['type', 'version', 'source', 'result', 'cause', 'cycle', 'occurredAt', 'committedAt'],
+    ['outcome', 'survivorOutcome', 'candidate'], 'GM session debrief snapshot');
+  assert.equal(snapshot.type, 'session-debrief');
+  assert.equal(snapshot.version, 1);
+  assert.ok(['final-cycle', 'failure-review', 'candidate'].includes(snapshot.source));
+  assert.ok(['success', 'failure', 'completed'].includes(snapshot.result));
+  assert.ok(typeof snapshot.cause === 'string' && /^[\w-]{1,64}$/.test(snapshot.cause));
+  assert.ok(Number.isSafeInteger(snapshot.cycle) && snapshot.cycle >= 0);
+  assert.equal(snapshot.cycle, expectedCycle, 'The frozen GM debrief must match the closed public session cycle.');
+  assert.ok(isDebriefTimestamp(snapshot.occurredAt));
+  assert.ok(isDebriefTimestamp(snapshot.committedAt));
+
+  if (snapshot.source === 'final-cycle') {
+    assert.equal(snapshot.result, 'completed');
+    assert.equal(snapshot.cause, 'final-cycle');
+    assert.equal(Object.hasOwn(snapshot, 'outcome'), false);
+    assertExactRecord(snapshot.survivorOutcome,
+      ['type', 'cycle', 'occurredAt', 'fleetShipPopulation', 'survivingShipPopulation', 'evacuatedPopulation',
+        'escapePodCapacity', 'lostPopulation', 'smallVesselPopulation', 'admittedVesselPopulation', 'finalSurvivors',
+        'survivingShipIds', 'lostOrDestroyedShipIds'], [], 'GM survivor outcome');
+    assert.equal(snapshot.survivorOutcome.type, 'survivor-outcome');
+    assert.equal(snapshot.survivorOutcome.cycle, snapshot.cycle);
+    assert.equal(snapshot.survivorOutcome.occurredAt, snapshot.occurredAt);
+  } else {
+    assertExactRecord(snapshot.outcome,
+      ['type', 'result', 'cause', 'cycle', 'occurredAt'], ['navigationRevision', 'candidateCode'], 'GM game outcome');
+    assert.equal(snapshot.outcome.type, 'game-outcome');
+    assert.equal(snapshot.outcome.result, snapshot.result);
+    assert.equal(snapshot.outcome.cause, snapshot.cause);
+    assert.equal(snapshot.outcome.cycle, snapshot.cycle);
+    assert.equal(snapshot.outcome.occurredAt, snapshot.occurredAt);
+    if (snapshot.source === 'failure-review') assert.equal(snapshot.result, 'failure');
+    if (snapshot.source === 'candidate') {
+      assert.ok(['success', 'failure'].includes(snapshot.result));
+      assertExactRecord(snapshot.candidate, ['code', 'groups'], [], 'GM candidate summary');
+      assert.ok(['N', 'O', 'P'].includes(snapshot.candidate.code));
+      assert.ok(Array.isArray(snapshot.candidate.groups));
+    }
+  }
+  return { source: snapshot.source, result: snapshot.result, cause: snapshot.cause,
+    cycle: snapshot.cycle, version: snapshot.version };
+}
+
+async function boundedCapybaraRead(read, timeoutMs) {
+  assert.ok(Number.isFinite(timeoutMs) && timeoutMs > 0, 'A finite GM debrief read deadline is required.');
+  let timer;
+  try {
+    return await Promise.race([
+      Promise.resolve().then(read),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`Capybara GM debrief read timed out after ${timeoutMs} ms.`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Read the actual original-GM immutable receipt at the real ending consumer boundary. */
+export async function consumeCapybaraEnding({ context, a, gm, finalEnding, originalGm,
+  endingReadTimeoutMs = CAPYBARA_DEBRIEF_READ_TIMEOUT_MS }) {
+  const initial = context?.initial;
+  assert.ok(initial?.sessionId && typeof finalEnding === 'function');
+  assert.equal(originalGm?.sameActor, true, 'Capture the original authenticated GM before full-game progression.');
+  assert.equal(originalGm.sessionId, initial.sessionId);
+  assert.equal(originalGm.playerRole, 'gm');
+  assert.equal(originalGm.gmInstanceOwned, true);
+  assert.ok(originalGm.uidHash && originalGm.instanceId);
+
   await finalEnding(context);
-  const afterEnding = await a.state(gm), snapshot = afterEnding.debriefSnapshot;
-  const terminal = { status: afterEnding.phase,
-    immutable: snapshot?.type === 'session-debrief' && snapshot.version === 1,
-    source: snapshot?.source, result: snapshot?.result, cause: snapshot?.cause };
-  return { afterEnding, terminal, snapshotCycle: snapshot?.cycle, snapshotVersion: snapshot?.version };
+  const afterEnding = await a.state(gm);
+  assert.equal(afterEnding.sessionId, initial.sessionId, 'The ending must preserve the original session identity.');
+  assert.ok(['debrief', 'closed'].includes(afterEnding.phase), 'A server ending must reach debrief or closed history.');
+  assert.ok(Number.isSafeInteger(afterEnding.cycle) && afterEnding.cycle >= 0);
+
+  // sameActor is computed in the browser from raw Auth UID equality. Only its
+  // stable digest crosses to Node, and the callable remains on this GM surface.
+  const currentGm = await gm.observe();
+  assert.equal(currentGm.sameActor, true, 'The original Auth UID must still own this GM surface.');
+  assert.equal(currentGm.sessionId, initial.sessionId);
+  assert.equal(currentGm.uidHash, originalGm.uidHash);
+  assert.equal(currentGm.playerRole, 'gm');
+  assert.equal(currentGm.gmInstanceOwned, true);
+  assert.equal(currentGm.instanceId, originalGm.instanceId);
+
+  const request = { sessionId: initial.sessionId, instanceId: originalGm.instanceId };
+  const reply = await boundedCapybaraRead(() => gm.callable('getSessionDebrief', request), endingReadTimeoutMs);
+  assert.ok(reply !== null && typeof reply === 'object' && !Array.isArray(reply),
+    'GM getSessionDebrief must return a callable envelope.');
+  assert.equal(reply.status, 'committed', 'The original GM must receive an authorized immutable debrief.');
+  assertExactRecord(reply, ['status', 'result'], [], 'GM getSessionDebrief reply');
+  assertExactRecord(reply.result, ['type', 'sessionId', 'snapshot'], [], 'GM debrief response');
+  assert.equal(reply.result.type, 'session-debrief');
+  assert.equal(reply.result.sessionId, initial.sessionId);
+  const validated = assertImmutableCapybaraDebrief(reply.result.snapshot, afterEnding.cycle);
+  const terminal = { status: afterEnding.phase, immutable: true,
+    source: validated.source, result: validated.result, cause: validated.cause };
+  return { terminal, snapshotCycle: validated.cycle, snapshotVersion: validated.version };
 }
 
 /**
@@ -1512,7 +1618,7 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
     await a.save('base-gameplay-actions.json', { status: 'gameplay-committed-ending-pending', stages, checks, costs,
       missionOutcomes: delivered.publicState.outcomes?.map(({ outcome }) => outcome),
       scope: 'Fresh twenty-role Capybara-plus-Press game; seven source-backed host maintenance, actual UI actions, charged jumps, private mission decisions, actual resolved mission and custody delivery. Every disconnected or unobserved requirement remains pending.' });
-    const { terminal, snapshotCycle, snapshotVersion } = await consumeCapybaraEnding({ context, a, gm, finalEnding });
+    const { terminal, snapshotCycle, snapshotVersion } = await consumeCapybaraEnding({ context, a, gm, finalEnding, originalGm });
     if (terminal.immutable) await updateCapybaraStage('genuine-ending', { status: 'completed', roleId: 'gm',
       endpoint: 'immutable session debrief', cycle: snapshotCycle, sourceRevision: snapshotVersion });
     const coreGameplay = { status: checks.serverMissionResolutionAndCustodyDelivery === true &&
