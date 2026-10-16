@@ -68,3 +68,26 @@ the original 05:59:32.547 hard bound. All 76 captured owned processes were
 absent, all 22 IPv4/IPv6 bindings were free, and only the owned configuration was
 released. Fresh RAM emulator state was discarded without import/export; this
 is not a per-UID deletion claim. No runtime allocation remains.
+
+## October 16 source and negative-case reconciliation
+
+The relevant Ring rules, authority and consumer behavior at `1cccdb6c` remain
+unchanged on integration `56d2cf2b`. The separate original-request passage
+recovery at `522447d4` retains its narrow actor, fuel, receipt and cold-reload
+binding; it does not prove every candidate recovery path.
+
+Test-only `39b5a43d` adds fresh-request duplicate research/craft denials,
+post-completion passage rejection, ordinary-player sabotage denial, and two
+concurrent same-revision contribution requests with one commit and one debit.
+Both affected domain/callable test files pass, 60 tests total. The test database
+serializes transaction callbacks; this is source-level concurrency coverage,
+not Firestore emulator transaction-retry evidence. No product defect or repair
+was found. Existing prerequisite, fuel, actor, replay, private-receipt and Rules
+cases remain mapped in the external reconciliation report.
+
+The report at
+`/private/tmp/pc10-completion-20261016/ring-criterion-reconciliation.md` has SHA256
+`02928b2317b1f7b4e1e52cb36ba8f24d4dbbd220d4f74fc5de4422b328d63a95`.
+The failed outer observer remains failed. P559's hard prerequisite, P566's
+distinct closed-history coverage and final review/render/CI/deploy gates remain
+open; this reconciliation grants no whole-prompt closure.

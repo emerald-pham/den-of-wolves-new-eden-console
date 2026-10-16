@@ -7,6 +7,7 @@ import { organiserSitesForChart } from './starChartLookup';
 
 type Fields = Record<string, unknown>;
 const documents = new Map<string, Fields>();
+let transactionTail: Promise<void> = Promise.resolve();
 const ref = (path: string) => ({ path, id: path.split('/').at(-1)! });
 const snapshot = (path: string) => ({ ...ref(path), ref: ref(path), exists: documents.has(path),
   get: (field: string) => field.split('.').reduce<unknown>((v, k) => (v as Fields | undefined)?.[k], documents.get(path)),
@@ -22,6 +23,11 @@ const update = (target: { path: string }, fields: Fields) => {
 };
 const db = { doc: ref, collection: (path: string) => ({ path, collection: true }),
   runTransaction: async (handler: (tx: unknown) => unknown) => {
+    // Firestore commits conflicting transactions serially; keep this fake from letting stale Map writes clobber each other.
+    const previousTransaction = transactionTail;
+    let releaseTransaction!: () => void;
+    transactionTail = new Promise<void>(resolve => { releaseTransaction = resolve; });
+    await previousTransaction;
     const before = structuredClone(documents);
     let written = false;
     try {
@@ -38,6 +44,7 @@ const db = { doc: ref, collection: (path: string) => ({ path, collection: true }
         update: (target: { path: string }, fields: Fields) => { written = true; update(target, fields); },
       });
     } catch (error) { documents.clear(); for (const [key, value] of before) documents.set(key, value); throw error; }
+    finally { releaseTransaction(); }
   },
 } as unknown as Firestore;
 const die = vi.fn(() => 6);
@@ -88,6 +95,18 @@ function seedScientistRing(progress: Fields) {
   put('sessions/s1/players/captain', { role: 'player', connected: true, assignedRoleId: 'shepherd-scientist',
     seatId: 'shepherd-scientist', fleetGroupId: 'fleet-1' });
   put('sessions/s1/serverState/endeavourResearch', progress);
+  return coordinate;
+}
+
+function seedRingDiscoveryForAegis() {
+  const coordinate = Object.entries(organiserSitesForChart('A')).find(([, site]) => site.code === 'N')![0];
+  const navigation = structuredClone(documents.get('sessions/s1/serverState/navigation')!);
+  navigation.shipGalacticCoordinates = { ...(navigation.shipGalacticCoordinates as Fields), aegis: coordinate };
+  navigation.systemHistory = { ...(navigation.systemHistory as Fields), aegis: { [coordinate]: {
+    coordinate, candidateDiscovery: { id: 'admiral-ring-arrival', occurredAt: '2026-10-05T10:00:00.000Z',
+      code: 'N', title: organiserSitesForChart('A')[coordinate]!.name, source: 'arrival' },
+  } } };
+  put('sessions/s1/serverState/navigation', navigation);
   return coordinate;
 }
 
@@ -143,6 +162,50 @@ describe('ordinary candidate callable authority and durable replay', () => {
       .toMatchObject({ revision: 1, sites: { [coordinate]: { researchIds: ['reactor'] } } });
     expect(documents.get('sessions/s1/serverState/endeavourResearch')).toEqual(researchBeforeReplay);
     expect([...documents.entries()]).toEqual(beforeReplay);
+  });
+  it('serializes same-revision Ring contributions so concurrent requests debit materials once', async () => {
+    const coordinate = seedRingDiscoveryForAegis();
+    const contribution = (requestId: string) => ({ sessionId: 's1', requestId, expectedRevision: 0,
+      expectedGroupId: 'fleet-1', code: 'N', coordinate, action: 'contribute-materials', shipId: 'aegis', amount: 5 });
+    const outcomes = await Promise.all([
+      observeOutcome(handlers.execute(request(contribution('ring-material-race-a')))),
+      observeOutcome(handlers.execute(request(contribution('ring-material-race-b')))),
+    ]);
+
+    expect(outcomes.filter(outcome => outcome.kind === 'resolved')).toHaveLength(1);
+    expect(outcomes.filter(outcome => outcome.kind === 'rejected')).toHaveLength(1);
+    expect(outcomes.find(outcome => outcome.kind === 'resolved')).toMatchObject({
+      kind: 'resolved', value: { status: 'committed', action: 'contribute-materials', revision: 1 },
+    });
+    expect(outcomes.find(outcome => outcome.kind === 'rejected')).toMatchObject({
+      kind: 'rejected', error: { code: 'failed-precondition' },
+    });
+    expect(documents.get('sessions/s1/serverState/candidates')).toMatchObject({ revision: 1,
+      sites: { [coordinate]: { code: 'N', materials: 5, researchIds: [] } } });
+    expect((documents.get('sessions/s1')?.shipResources as Fields).aegis).toMatchObject({ materials: 5 });
+    expect([...documents.keys()].filter(path => path.startsWith('sessions/s1/candidateActionReceipts/'))).toHaveLength(1);
+    expect([...documents.keys()].filter(path => path.startsWith('sessions/s1/candidateCalculationAudits/'))).toHaveLength(1);
+    expect(documents.get('sessions/s1')?.debriefSnapshot).toBeUndefined();
+  });
+  it('rejects ordinary-player Ring sabotage without changing candidate progress or debrief state', async () => {
+    const coordinate = seedRingDiscoveryForAegis();
+    put('sessions/s1/serverState/candidates', { revision: 4, edition: 'home', sites: { [coordinate]: {
+      code: 'N', coordinate, groupId: 'fleet-1', materials: 10,
+      researchIds: ['reactor', 'jump-drive', 'hydroponics', 'water-reclamation', 'fuel-refinery'],
+      shuttleId: 'philia', repairedAt: '2026-10-05T11:00:00.000Z', reactors: {},
+      ships: { aegis: { type: 'candidate-action-result', status: 'committed', sessionId: 's1',
+        requestId: 'prior-ring-passage', revision: 4, code: 'N', action: 'ring-passage',
+        summary: 'Ring passage committed.', outcome: 'crossed', fuelSpent: 5, remainingFuel: 15 } },
+    } } });
+    const before = structuredClone([...documents.entries()]);
+    const sabotage = { sessionId: 's1', requestId: 'ordinary-ring-sabotage', expectedRevision: 4,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', code: 'N', coordinate, action: 'sabotage-ring' };
+
+    await expect(handlers.execute(request(sabotage, 'admiral'))).rejects.toMatchObject({
+      code: 'failed-precondition', message: expect.stringMatching(/facilitator/i),
+    });
+    expect([...documents.entries()]).toEqual(before);
+    expect(documents.get('sessions/s1')?.debriefSnapshot).toBeUndefined();
   });
   it('persists a live GM edition choice in the shared session candidate record', async () => {
     const choice = { sessionId: 's1', requestId: 'edition-behavior', expectedRevision: 0,
