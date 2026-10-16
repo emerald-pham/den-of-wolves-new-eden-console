@@ -408,20 +408,6 @@ export async function runStationEnding(context) {
   for (const shipId of start.activeVesselIds) await tools.jump(shipId, coordinate);
   await tools.select('gm');
   const timing = gm.page.getByRole('region', { name: 'Wolf attack timing controls', exact: true });
-  await tools.receipt(gm, 'setWolfAttackWindow', () =>
-    timing.getByRole('button', { name: 'Defer to Cycle 2', exact: true }).click());
-  await tools.record('actual GM deferred the first P attack window after paid Station arrivals', {
-    candidateCode: 'P', cycle: 1, coordinate, vesselCount: start.activeVesselIds.length,
-    mechanism: 'current authenticated GM timing control; Cycle 2 due controls require this explicit deferral',
-  });
-  await tools.cycle(2);
-  for (const shipId of start.activeVesselIds) await tools.maintenanceUi(shipId, candidateShipRole(context.roster, shipId), {
-    consoles: shipId === 'aegis' ? ['Fighter Bay Alpha', 'Fighter Bay Bravo', 'Command and Control', 'Missile Launchers', 'Point Defence Lasers'] : [],
-    refuels: shipId === 'icebreaker' ? { 'Shuttle Bay': 'highwall' } : {},
-    afterBegin: () => tools.gmRepair(shipId), afterRiot: () => tools.gmRepair(shipId),
-  });
-  await tools.coordination();
-  await tools.select('gm');
   await timing.getByLabel('Target fleet group', { exact: true }).selectOption((await tools.state()).shipFleetGroupIds.aegis);
   const source = timing.getByLabel('Triggered Wolf site', { exact: true });
   const sourceDeadline = Date.now() + 60_000; let sourceId;
@@ -436,8 +422,9 @@ export async function runStationEnding(context) {
   await preparation.getByLabel('Battlestation count', { exact: true }).fill('1');
   await preparation.getByLabel('Fleet Strikecarrier count', { exact: true }).fill('4');
   await tools.receipt(gm, 'stageWolfAttackPreparation', () => preparation.getByRole('button', { name: 'Save private attack draft', exact: true }).click());
-  await tools.record('actual GM Station source composition', { battlestations: 1, otherDamageCapacity: 20,
-    mechanism: 'current source option and normal audited GM draft UI' });
+  await tools.record('actual GM marked the current-cycle P arrival due and saved its source composition', {
+    candidateCode: 'P', cycle: 1, coordinate, sourceId, battlestations: 1, otherDamageCapacity: 20,
+    mechanism: 'current authenticated GM source option, timing control, and normal audited GM draft UI' });
   let waves = 0, liberated = false;
   let liberation;
   while (waves < 12 && !liberated) {
@@ -457,6 +444,13 @@ export async function runStationEnding(context) {
   }
   assert.ok(liberated, 'Only zero authoritative Station Wolves permits Reactor contribution.');
   assert.ok(liberation, 'Retain the actual finalized zero-survivor attack for Reactor recovery evidence.');
+  await tools.cycle(2);
+  for (const shipId of start.activeVesselIds) await tools.maintenanceUi(shipId, candidateShipRole(context.roster, shipId), {
+    consoles: shipId === 'aegis' ? ['Fighter Bay Alpha', 'Fighter Bay Bravo', 'Command and Control', 'Missile Launchers', 'Point Defence Lasers'] : [],
+    refuels: shipId === 'icebreaker' ? { 'Shuttle Bay': 'highwall' } : {},
+    afterBegin: () => tools.gmRepair(shipId), afterRiot: () => tools.gmRepair(shipId),
+  });
+  await tools.coordination();
   for (const shipId of start.activeVesselIds) await tools.gmRepair(shipId);
   let recoveredFirstContribution = false;
   await contributeStationReactors({ shipIds: start.activeVesselIds, contribute: async shipId => {

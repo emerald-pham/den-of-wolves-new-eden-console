@@ -177,24 +177,26 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
 
 function stationRunnerFixture({ enforceWindowSequence = false } = {}) {
   const sessionId = 'station-ending-session';
-  const coordinate = '4888';
-  const capacities = { aegis: 5, dione: 4, icebreaker: 4, shepherd: 3, quellon: 3 };
+  const coordinate = '1964';
+  const capacities = { aegis: 5, dione: 4, icebreaker: 4, shepherd: 3, quellon: 3, 'refinery-124': 2 };
   const shipIds = Object.keys(capacities);
   const shared = { charge: 0, revision: 7, contributed: new Set(), actors: new Map(), records: [],
     requestSerial: 0, routeCount: 0, reloadCount: 0, fetchCount: 0, fallbackCount: 0,
-    paidArrivalShipIds: [], windowDecisions: [] };
+    paidArrivalShipIds: [], cycleOneMaintenanceShipIds: new Set(), cycleOneDefenseRepairCounts: new Map(), windowDecisions: [],
+    selectedTargetGroupId: null, selectedSourceId: null, draftSaved: false,
+    attackDeclared: false, attackResolved: false };
   let currentCycle = 1;
   let windowStatus = 'planned';
   const sourceArrivalId = 'station-arrival-current-source';
   const gmState = { hasAuth: true, sameActor: true, uidHash: 'station-gm-uid', sessionId,
-    joinCode: 'NATIVE', playerRole: 'gm', phase: 'active', cycle: 2,
+    joinCode: 'NATIVE', playerRole: 'gm', phase: 'active', cycle: currentCycle,
     gmInstanceOwned: true, instanceId: 'original-station-gm-lease', connection: 'live',
     freshness: 'server', documentTimeOrigin: 500 };
   const gmSource = () => ({ sessionId, fleetGroupId: null, connectionGeneration: 1,
     identityHydrationRevision: 2, replacementRoleId: null, replacementStatus: null,
     seatId: null, connected: true, discoveryAuthority: null,
     instanceId: 'original-station-gm-lease', instanceClaimedAt: '2026-10-16T06:00:00.000Z',
-    playerRole: 'gm', phase: gmState.phase, cycle: 2, uidHash: 'station-gm-uid', hasAuth: true,
+    playerRole: 'gm', phase: gmState.phase, cycle: currentCycle, uidHash: 'station-gm-uid', hasAuth: true,
     sameActor: true, gmInstanceOwned: true, connection: 'live', freshness: 'server',
     documentTimeOrigin: 500, connectionGeneration: 1, identityHydrationRevision: 2,
     fullGameDemo: { status: gmState.phase === 'debrief' ? 'complete' : 'active', progression: 'manual' },
@@ -204,22 +206,34 @@ function stationRunnerFixture({ enforceWindowSequence = false } = {}) {
     getByLabel: name => name === 'Target fleet group'
       ? { selectOption: async groupId => {
         if (enforceWindowSequence) {
-          assert.equal(currentCycle, 2);
-          assert.equal(windowStatus, 'deferred',
-            'The live Cycle 2 target control is not mounted until the Cycle 1 window is deferred.');
+          assert.equal(currentCycle, 1,
+            'The current P arrival must be targeted before the consumer advances past its source cycle.');
+          assert.equal(windowStatus, 'planned');
           assert.deepEqual(shared.paidArrivalShipIds, shipIds,
-            'Defer only after the normal paid P arrivals have completed.');
+            'Select the source only after every ordinary paid P arrival has completed.');
+          assert.deepEqual([...shared.cycleOneMaintenanceShipIds], shipIds,
+            'Every active ship must finish the current paid maintenance cycle before its P arrival.');
         }
+        shared.selectedTargetGroupId = groupId;
         assert.equal(groupId, 'fleet-1');
       } }
-      : { locator: () => ({ evaluateAll: async callback => callback([
-        { disabled: false, textContent: `P // ${sourceArrivalId}`, value: sourceArrivalId },
-      ]) }), selectOption: async value => assert.equal(value, sourceArrivalId) },
+      : { locator: () => ({ evaluateAll: async callback => {
+        if (enforceWindowSequence) {
+          assert.equal(currentCycle, 1,
+            'The live source list must be read while the P arrival is current.');
+          assert.equal(shared.selectedTargetGroupId, 'fleet-1');
+          assert.deepEqual(shared.paidArrivalShipIds, shipIds);
+        }
+        return callback([{ disabled: false, textContent: 'P // Cycle 1 // 1964', value: sourceArrivalId }]);
+      } }), selectOption: async value => {
+        if (enforceWindowSequence) assert.equal(currentCycle, 1);
+        assert.equal(shared.selectedTargetGroupId, 'fleet-1');
+        shared.selectedSourceId = value;
+        assert.equal(value, sourceArrivalId);
+      } },
     getByRole: (_role, options) => ({ click: async () => {
       if (options.name === 'Defer to Cycle 2') {
-        assert.equal(currentCycle, 1);
-        assert.deepEqual(shared.paidArrivalShipIds, shipIds,
-          'The source-owned P arrival must precede deferral of the first attack window.');
+        if (enforceWindowSequence) assert.fail('The current P arrival source cannot be deferred past its arrival cycle.');
         windowStatus = 'deferred';
         shared.windowDecisions.push({ cycle: currentCycle, status: windowStatus,
           afterPaidArrivalShipIds: [...shared.paidArrivalShipIds] });
@@ -227,8 +241,9 @@ function stationRunnerFixture({ enforceWindowSequence = false } = {}) {
       }
       assert.equal(options.name, 'Mark threat source due');
       if (enforceWindowSequence) {
-        assert.equal(currentCycle, 2);
-        assert.equal(windowStatus, 'deferred');
+        assert.equal(currentCycle, 1);
+        assert.equal(shared.selectedSourceId, sourceArrivalId);
+        assert.deepEqual(shared.paidArrivalShipIds, shipIds);
       }
       windowStatus = 'due';
       shared.windowDecisions.push({ cycle: currentCycle, status: windowStatus,
@@ -237,9 +252,21 @@ function stationRunnerFixture({ enforceWindowSequence = false } = {}) {
   };
   const preparation = {
     getByLabel: name => ({ fill: async value => assert.ok(['1', '4'].includes(value), `${name} uses the source composition.`) }),
-    getByRole: (_role, options) => ({ click: async () => assert.ok([
-      'Save private attack draft', 'Declare Wolf attack',
-    ].includes(options.name)) }),
+    getByRole: (_role, options) => ({ click: async () => {
+      assert.ok(['Save private attack draft', 'Declare Wolf attack'].includes(options.name));
+      if (options.name === 'Save private attack draft') {
+        if (enforceWindowSequence) {
+          assert.equal(currentCycle, 1);
+          assert.equal(windowStatus, 'due');
+        }
+        shared.draftSaved = true;
+      } else {
+        if (enforceWindowSequence) assert.equal(currentCycle, 1);
+        assert.equal(shared.draftSaved, true);
+        assert.equal(windowStatus, 'due');
+        shared.attackDeclared = true;
+      }
+    } }),
   };
   const gm = { page: { getByRole: (_role, options) => options.name === 'Wolf attack timing controls' ? timing : preparation,
     screenshot: async () => {}, evaluate: async () => gmSource() },
@@ -354,16 +381,45 @@ function stationRunnerFixture({ enforceWindowSequence = false } = {}) {
     begin: async code => { assert.equal(code, 'P'); return start; },
     record: async (stage, details) => shared.records.push({ stage, details }),
     printedRationBudget: async ships => Object.fromEntries(Object.keys(ships).map(id => [id, { food: 1, water: 1 }])),
-    gmSupplies: async () => {}, maintenanceUi: async () => {}, coordination: async () => {},
+    gmSupplies: async () => {}, maintenanceUi: async (shipId, _roleId, { afterBegin, afterRiot } = {}) => {
+      if (currentCycle === 1) shared.cycleOneMaintenanceShipIds.add(shipId);
+      await afterBegin?.();
+      await afterRiot?.();
+    }, coordination: async () => {},
     jump: async (shipId, location) => {
       assert.equal(location, coordinate);
+      if (currentCycle === 1) {
+        assert.equal(shared.cycleOneMaintenanceShipIds.has(shipId), true,
+          'The paid source arrival must follow that ship’s real Cycle 1 maintenance.');
+        assert.equal(shared.cycleOneDefenseRepairCounts.get(shipId), 2,
+          'The paid source arrival follows two ordinary Cycle 1 defense-repair checks.');
+      }
       shared.paidArrivalShipIds.push(shipId);
     },
     cycle: async cycle => {
       assert.equal(cycle, 2);
+      if (enforceWindowSequence) {
+        assert.equal(shared.attackResolved, true,
+          'The actual current-cycle P attack must finalize before ordinary Cycle 2 begins.');
+        assert.equal(windowStatus, 'resolved');
+      }
       currentCycle = cycle;
+      gmState.cycle = cycle;
     },
-    select: async roleId => roleId === 'gm' ? gm : shared.actors.get(roleId)?.actor,
+    select: async roleId => {
+      if (roleId === 'gm' && enforceWindowSequence) {
+        assert.equal(gmState.hasAuth, true);
+        assert.equal(gmState.sameActor, true);
+        assert.equal(gmState.playerRole, 'gm');
+        assert.equal(gmState.gmInstanceOwned, true);
+        assert.equal(gmState.connection, 'live');
+        assert.equal(gmState.freshness, 'server');
+        assert.equal(gmState.cycle, currentCycle);
+        assert.equal(gmSource().sessionId, sessionId);
+        assert.equal(gmSource().instanceId, gmState.instanceId);
+      }
+      return roleId === 'gm' ? gm : shared.actors.get(roleId)?.actor;
+    },
     state: async () => ({ shipFleetGroupIds: { aegis: 'fleet-1' } }),
     receipt: async (surface, endpoint, choose, options = {}) => {
       if (endpoint === 'executeCandidateAction' && options.expectedRequest) {
@@ -377,7 +433,17 @@ function stationRunnerFixture({ enforceWindowSequence = false } = {}) {
       const result = await choose();
       return result ?? { type: 'candidate-action-result', status: 'committed', code: 'P', action: endpoint };
     },
-    candidateGeometry: async () => {}, gmRepair: async () => {}, complete: async code => assert.equal(code, 'P'),
+    candidateGeometry: async () => {}, gmRepair: async shipId => {
+      if (currentCycle === 1)
+        shared.cycleOneDefenseRepairCounts.set(shipId, (shared.cycleOneDefenseRepairCounts.get(shipId) ?? 0) + 1);
+    }, complete: async code => assert.equal(code, 'P'),
+    resolveStationAttack: () => {
+      if (enforceWindowSequence) assert.equal(currentCycle, 1);
+      assert.equal(shared.attackDeclared, true);
+      assert.equal(shared.selectedSourceId, sourceArrivalId);
+      shared.attackResolved = true;
+      windowStatus = 'resolved';
+    },
   };
   const context = { gm, crew: { observe: async () => ({ cycle: 2 }) }, directory: '/tmp/station-composition',
     roster, deadlineAt: Date.now() + 60_000, tools, start };
@@ -394,7 +460,10 @@ async function runActualStationEnding(context, liberation) {
     ['node:assert/strict', { default: assert }],
     ['node:timers/promises', { setTimeout: async () => {} }],
     ['./pc10-candidate-manual-ui-proof.mjs', { candidateGameplayTools: () => context.tools }],
-    ['./pc10-live-wolf-attack-ui-proof.mjs', { resolveLiveWolfAttack: async () => liberation }],
+    ['./pc10-live-wolf-attack-ui-proof.mjs', { resolveLiveWolfAttack: async () => {
+      context.tools.resolveStationAttack();
+      return liberation;
+    } }],
     ['./pc10-candidate-proof-helpers.mjs', { candidateShipRole, contributeStationReactors }],
     ['./pc10-proof-failure-evidence.mjs', { rememberProofFailure: () => {} }],
     ['./pc10-combat-choice-readiness.mjs', { assertWolfChoiceActor, observeWolfChoiceActor }],
@@ -460,16 +529,22 @@ test('Station activation replay retains the server-owned final Reactor result', 
   assert.equal(fixture.recovery.dialogDismissals, 2, 'Ordinary Continue must dismiss the original and reloaded endgame portals.');
 });
 
-test('the Station consumer defers the first window after paid P arrival before opening Cycle 2 controls', async () => {
+test('the Station consumer resolves the live P arrival in Cycle 1 before ordinary Cycle 2', async () => {
   const fixture = stationRunnerFixture({ enforceWindowSequence: true });
   await runActualStationEnding(fixture.context, fixture.liberation);
 
   assert.deepEqual(fixture.shared.windowDecisions.map(({ cycle, status }) => ({ cycle, status })), [
-    { cycle: 1, status: 'deferred' },
-    { cycle: 2, status: 'due' },
+    { cycle: 1, status: 'due' },
   ]);
   assert.deepEqual(fixture.shared.windowDecisions[0].afterPaidArrivalShipIds,
     Object.keys(fixture.capacities), 'All current paid P arrivals must precede the source window decision.');
+  assert.deepEqual([...fixture.shared.cycleOneMaintenanceShipIds], Object.keys(fixture.capacities));
+  assert.deepEqual([...fixture.shared.cycleOneDefenseRepairCounts.entries()],
+    Object.keys(fixture.capacities).map(shipId => [shipId, 3]),
+    'Each ship keeps both paid-maintenance repairs and the current attack repair check.');
+  assert.equal(fixture.shared.attackResolved, true);
+  assert.equal(fixture.shared.selectedTargetGroupId, 'fleet-1');
+  assert.equal(fixture.shared.selectedSourceId, 'station-arrival-current-source');
 });
 
 test('the actual Station ending recovers the first committed contribution and the final activation boundary', async () => {
@@ -491,7 +566,7 @@ test('the actual Station ending recovers the first committed contribution and th
   for (const details of [first, activation]) {
     assert.equal(details.sessionId, fixture.context.start.sessionId);
     assert.equal(details.candidateCode, 'P');
-    assert.equal(details.coordinate, '4888');
+    assert.equal(details.coordinate, '1964');
     assert.equal(details.request.action, 'contribute-reactor');
     assert.equal(details.request.expectedGroupId, 'fleet-1');
     assert.equal(details.actor.fleetGroupId, 'fleet-1');
