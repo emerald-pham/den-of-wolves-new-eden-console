@@ -1,6 +1,8 @@
-import { act, render } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { createCurrentMemberSessionReader as CreateMemberReader } from '../functions/src/memberSessionCallable';
+import { createCandidateCallables } from '../functions/src/candidatePathsCallable';
+import type { Firestore } from 'firebase-admin/firestore';
 import type { GameSession, Player } from '@/types/game';
 import type { useSessionStore as SessionStore } from '@/store/useSessionStore';
 import type * as SessionService from '@/lib/sessionService';
@@ -59,10 +61,16 @@ interface Listener {
   active: boolean;
 }
 type Reply = { data: { session: GameSession; player: Player } };
+type Fields = Record<string, unknown>;
+type CandidateSource = {
+  readonly documents: Map<string, Fields>;
+  readonly handlers: ReturnType<typeof createCandidateCallables>;
+};
 let serial = 0;
 let sessionId: string;
 let actor: Player;
 let sessionData: Record<string, unknown>;
+let candidateSource: CandidateSource | undefined;
 let listeners: Listener[];
 let joinReply: ReturnType<typeof deferred<Reply>>;
 let memberResponses: ReturnType<typeof deferred<{ data: Record<string, unknown> }>>[];
@@ -79,6 +87,79 @@ const rootPath = () => `sessions/${sessionId}`;
 const playerPath = () => `${rootPath()}/players/${actor.uid}`;
 const callCount = (name: string) => sdk.call.mock.calls.filter(call => call[0] === name).length;
 const currentPlayerReader = () => listeners.filter(reader => reader.active && reader.path === playerPath()).at(-1)!;
+
+function candidateLossSource(): CandidateSource {
+  const documents = new Map<string, Fields>();
+  const reference = (path: string, collection = false) => ({ path, id: path.split('/').at(-1)!, collection });
+  const snapshot = (path: string) => ({ ...reference(path), ref: reference(path), exists: documents.has(path),
+    get: (field: string) => field.split('.').reduce<unknown>((value, key) =>
+      (value as Fields | undefined)?.[key], documents.get(path)),
+    data: () => documents.get(path) });
+  const update = (target: { path: string }, fields: Fields) => {
+    const next = structuredClone(documents.get(target.path) ?? {});
+    for (const [path, value] of Object.entries(fields)) {
+      const parts = path.split('.'); let current = next;
+      for (const key of parts.slice(0, -1)) { current[key] ??= {}; current = current[key] as Fields; }
+      current[parts.at(-1)!] = value;
+    }
+    documents.set(target.path, next);
+  };
+  const db = { doc: (path: string) => reference(path), collection: (path: string) => reference(path, true),
+    runTransaction: async (callback: (tx: unknown) => Promise<unknown>) => {
+      const before = structuredClone([...documents.entries()]); let written = false;
+      try {
+        return await callback({
+          get: async (target: ReturnType<typeof reference>) => target.collection
+            ? { docs: [...documents.keys()].filter(path => path.startsWith(`${target.path}/`) &&
+              !path.slice(target.path.length + 1).includes('/')).map(snapshot) }
+            : snapshot(target.path),
+          set: (target: { path: string }, value: Fields) => { written = true; documents.set(target.path, structuredClone(value)); },
+          create: (target: { path: string }, value: Fields) => { written = true;
+            if (documents.has(target.path)) throw new Error('Existing immutable audit');
+            documents.set(target.path, structuredClone(value)); },
+          update: (target: { path: string }, value: Fields) => { written = true; update(target, value); },
+          delete: (target: { path: string }) => { written = true; documents.delete(target.path); },
+        });
+      } catch (error) {
+        documents.clear(); for (const [path, value] of before) documents.set(path, value);
+        throw error;
+      }
+    } } as unknown as Firestore;
+  const handlers = createCandidateCallables({ db, die: () => 6, now: () => new Date('2026-10-06T09:20:00Z'),
+    requireShipAuthority: async () => undefined, commitTerminal: async (_tx, _ref, _session, input) => input,
+    survivorOutcome: session => ({ type: 'survivor-outcome', finalSurvivors: session.get('shipSurvivors.shepherd') }),
+    serverTimestamp: () => 'server-time' });
+  const put = (path: string, value: Fields) => documents.set(path, value);
+  put('sessions/s1', { name: 'Candidate loss table', joinCode: '123456', phase: 'active', currentTurn: 6,
+    chartId: 'A', configurationLocked: true, createdAt: '2026-10-06T08:00:00.000Z', updatedAt: '2026-10-06T09:20:00.000Z',
+    activeVesselIds: ['aegis', 'shepherd'], activeRoleIds: ['admiral', 'shepherd-captain'],
+    fullGameDemo: { status: 'active', progression: 'manual' },
+    turnPhase: { turn: 6, teamPhaseEndsAt: '2026-10-06T10:00:00.000Z', openAirspaceEndsAt: '2026-10-06T13:00:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false } },
+    maintenanceCycles: { aegis: { step: 0, revision: 1, turn: 6, charges: ['jump-drive'], results: {}, refuelled: [] },
+      shepherd: { step: 0, revision: 1, turn: 6, charges: ['jump-drive'], results: {}, refuelled: [] } },
+    shipResources: Object.fromEntries(['aegis', 'shepherd'].map(ship => [ship,
+      { ore: 0, fuel: 20, materials: 10, food: 10, water: 10, securityTeams: 1 }])),
+    shipDamage: { aegis: { damagedSystemIds: [], destroyed: false }, shepherd: { damagedSystemIds: [], destroyed: false } },
+    shipSurvivors: { aegis: 5000, shepherd: 5000 }, shuttleControl: {}, shuttleDockings: [] });
+  put('sessions/s1/players/admiral', { uid: 'admiral', sessionId: 's1', displayName: 'Admiral', role: 'player', connected: true,
+    connectionGeneration: 2, assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', seatId: 'admiral', fleetGroupId: 'fleet-1',
+    joinedAt: '2026-10-06T08:00:00.000Z' });
+  put('sessions/s1/players/captain', { uid: 'captain', sessionId: 's1', displayName: 'Captain', role: 'player', connected: true,
+    connectionGeneration: 2, assignedRoleId: 'shepherd-captain', activeConsoleRoleId: 'shepherd-captain',
+    seatId: 'shepherd-captain', fleetGroupId: 'fleet-1', joinedAt: '2026-10-06T08:00:00.000Z' });
+  put('sessions/s1/players/gm', { uid: 'gm', sessionId: 's1', displayName: 'GM', role: 'gm', connected: true,
+    fleetGroupId: 'fleet-1', joinedAt: '2026-10-06T08:00:00.000Z' });
+  put('sessions/s1/gmInstances/instance1', { uid: 'gm', connected: true, lastSeenAt: '2026-10-06T09:20:00Z' });
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis', 'shepherd'],
+    memberUids: ['admiral', 'captain', 'gm'], memberShipIds: { admiral: 'aegis', captain: 'shepherd' } });
+  put('sessions/s1/serverState/navigation', { revision: 1, shipGalacticCoordinates: { aegis: '0408', shepherd: '0408' },
+    systemHistory: { aegis: { '0408': { coordinate: '0408', candidateDiscovery: { id: 'arrival1',
+      occurredAt: '2026-10-06T08:30:00.000Z', code: 'O', title: 'Deep Nebula', source: 'arrival' } } } } });
+  for (let index = 0; index < 2; index += 1) put(`sessions/s1/deepNebulaScans/scan-${index}`,
+    { type: 'deep-nebula-scan', sessionId: 's1', requestId: `scan-${index}`, shipId: 'aegis', cycle: 5, targetCoordinate: '0408' });
+  return { documents, handlers };
+}
 
 async function advance(ms = 100) {
   // SDK/React delivery and the unchanged existing 2s normal reconnect timer;
@@ -101,10 +182,12 @@ async function deliverPlayer(value: Record<string, unknown> = { ...actor }, from
   await advance();
 }
 
-async function mount(options: { demo?: boolean; press?: boolean; gm?: boolean; legacy?: boolean; cold?: boolean } = {}) {
-  const roleId = options.press ? 'press-officer' : 'executive-officer';
-  window.history.replaceState({}, '', options.demo === false || options.gm ? '/#/console'
-    : `/?demoActor=${sessionId}~${roleId}&demoJoin=123456#/demo-actors`);
+async function mount(options: { demo?: boolean; press?: boolean; gm?: boolean; legacy?: boolean; cold?: boolean;
+  path?: string; roleId?: string } = {}) {
+  const roleId = options.roleId ?? (options.press ? 'press-officer' : 'executive-officer');
+  const path = options.path ?? (options.demo === false || options.gm ? '/console' : '/demo-actors');
+  window.history.replaceState({}, '', options.demo === false || options.gm ? `/#${path}`
+    : `/?demoActor=${sessionId}~${roleId}&demoJoin=123456#${path}`);
   ({ useSessionStore } = await import('@/store/useSessionStore'));
   service = await import('@/lib/sessionService');
   const context = await import('@/lib/demoActorContext');
@@ -113,7 +196,7 @@ async function mount(options: { demo?: boolean; press?: boolean; gm?: boolean; l
   actor = { ...actor, role: options.gm ? 'gm' : 'player',
     assignedRoleId: options.gm || options.press ? null : roleId,
     seatId: options.gm || options.press ? null : roleId,
-    activeConsoleRoleId: options.press ? roleId : null };
+    activeConsoleRoleId: options.gm ? null : options.press ? roleId : actor.activeConsoleRoleId ?? null };
   if (context.activeDemoActorProfile) {
     context.rememberDemoActorAccount(context.activeDemoActorProfile, actor.uid);
     localStorage.setItem(context.demoActorRosterStorageKey(sessionId), JSON.stringify([
@@ -131,10 +214,13 @@ async function mount(options: { demo?: boolean; press?: boolean; gm?: boolean; l
   const db = { doc: reference, collection: (path: string) => reference(path, true),
     runTransaction: async (callback: (tx: unknown) => Promise<unknown>, options: unknown) => {
       expect(options).toEqual({ readOnly: true });
-      const values: Record<string, Record<string, unknown>> = {
-        [rootPath()]: { ...sessionData }, [playerPath()]: { ...actor },
-        [`${rootPath()}/fleetGroups/fleet-1`]: { id: 'fleet-1', vesselIds: ['aegis'], memberUids: [actor.uid],
-          ...(!legacy ? { memberShipIds: { [actor.uid]: 'aegis' } } : {}) },
+      const values: Record<string, Record<string, unknown>> = Object.fromEntries(candidateSource?.documents ?? []);
+      values[rootPath()] = { ...sessionData };
+      values[playerPath()] = { ...actor };
+      values[`${rootPath()}/fleetGroups/fleet-1`] = {
+        ...(candidateSource?.documents.get(`${rootPath()}/fleetGroups/fleet-1`) ?? {}),
+        id: 'fleet-1', vesselIds: ['aegis'], memberUids: [actor.uid],
+        ...(!legacy ? { memberShipIds: { [actor.uid]: 'aegis' } } : {}),
       };
       return callback({ get: async (ref: ReturnType<typeof reference>) => ref.collection
         ? { docs: Object.keys(values).filter(path => path.startsWith(`${ref.path}/`) &&
@@ -167,10 +253,16 @@ async function mount(options: { demo?: boolean; press?: boolean; gm?: boolean; l
       // original SDK is never replaced by a fixture setIdentity or live flag.
       const pending = deferred<Reply>(); resumeReplies.push(pending); return pending.promise;
     }
+    if (name === 'readCandidateWorkspace') {
+      if (!candidateSource) throw new Error('Candidate source fixture is unavailable.');
+      return candidateSource.handlers.read({ data: data as Record<string, unknown>, auth: { uid: actor.uid } })
+        .then(value => ({ data: value }));
+    }
     if (name === 'refreshPresence') {
       // The production DemoActorControls starts normal persona renewal after
       // join. Its SDK reply and own-player server callback arrive separately.
-      expect(data).toEqual({ sessionId });
+      // The same endpoint also receives the active role on a console entry.
+      expect(data).toMatchObject({ sessionId });
       const pending = deferred<{ data: { sessionId: string } }>();
       presenceReplies.push(pending); return pending.promise;
     }
@@ -216,6 +308,7 @@ async function mount(options: { demo?: boolean; press?: boolean; gm?: boolean; l
 
 beforeEach(() => {
   vi.resetModules(); vi.useFakeTimers(); vi.setSystemTime('2026-10-06T09:20:00.000Z'); localStorage.clear();
+  candidateSource = undefined;
   localStorage.setItem('dow-new-eden-motion-safety', JSON.stringify({ acknowledgedAt: Date.now(), choice: 'reduce' }));
   acknowledgeSessionWaiver();
   sessionId = `initial-actor-authority-${++serial}`;
@@ -241,6 +334,64 @@ afterEach(async () => {
   presenceReplies.forEach(pending => pending.resolve({ data: { sessionId } }));
   await act(async () => { await Promise.resolve(); });
   vi.useRealTimers();
+});
+
+async function mountCandidateLoss(path: string) {
+  candidateSource = candidateLossSource();
+  const command = { sessionId: 's1', requestId: 'candidate-loss-app', expectedRevision: 0,
+    expectedGroupId: 'fleet-1', code: 'O', coordinate: '0408', action: 'nebula-jump', shipId: 'aegis' };
+  const loss = await candidateSource.handlers.execute({ data: command, auth: { uid: 'admiral' } });
+  expect(loss).toMatchObject({ status: 'committed', outcome: 'lost', fuelSpent: 6 });
+  sessionId = 's1';
+  sessionData = { ...candidateSource.documents.get('sessions/s1')!, updatedAt: '2026-10-06T09:20:00.000Z' };
+  actor = structuredClone(candidateSource.documents.get('sessions/s1/players/admiral')!) as unknown as Player;
+  sdk.auth.currentUser = { uid: actor.uid };
+  await mount({ demo: false, path, roleId: 'admiral' });
+  for (const reply of presenceReplies) reply.resolve({ data: { sessionId } });
+  await advance();
+  await deliverPlayer({ ...actor });
+  await deliverMember(0);
+  if (memberResponses[1]) await deliverMember(1);
+  useSessionStore.getState().setMode('console');
+  return { loss, command };
+}
+
+async function deliverCandidateDiscovery() {
+  const path = `${rootPath()}/playerDiscoveries/${actor.uid}`;
+  const reader = listeners.filter(value => value.active && value.path === path).at(-1)!;
+  expect(reader).toBeDefined();
+  act(() => reader.next(snapshot(path, { groupId: 'fleet-1', shipId: 'aegis', fleetGroupVesselIds: ['aegis'],
+    currentCoordinate: '0408', knownCoordinates: ['0408'], knownSystems: {}, pursuitDistance: 1,
+    navigationLogs: [], candidateReveals: [{ code: 'O', title: 'Deep Nebula' }], revision: 2 })));
+  await advance();
+}
+
+describe('candidate-loss actor recovery through the current member surface', () => {
+  it('shows the real lost result and closes the destroyed vessel console actions', async () => {
+    const { loss } = await mountCandidateLoss('/console');
+    expect(candidateSource?.documents.get('sessions/s1/players/admiral')?.candidateDisposition)
+      .toEqual({ code: 'O', outcome: 'lost', cycle: 6 });
+    expect(useSessionStore.getState()).toMatchObject({ connection: 'live', sessionSnapshotFreshness: 'server',
+      me: { uid: actor.uid, role: 'player', activeConsoleRoleId: 'admiral' },
+      session: { shipDamage: { aegis: { destroyed: true } }, shipSurvivors: { aegis: 0 } } });
+    expect(loss).toMatchObject({ outcome: 'lost' });
+
+    await deliverCandidateDiscovery();
+    const [{ default: ShipConsole }, { MemoryRouter, Route, Routes }] = await Promise.all([
+      import('@/routes/ShipConsole'), import('react-router-dom'),
+    ]);
+    render(<MemoryRouter initialEntries={['/ships/aegis/roles/admiral']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>);
+    await advance(300);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    const discoveries = screen.getByRole('region', { name: 'Candidate discoveries' });
+    expect(within(discoveries).getAllByText('Deep Nebula')).toHaveLength(2);
+    expect(within(discoveries).getByText(/the ship was lost within the Deep Nebula/i)).toBeVisible();
+    const begin = screen.getByRole('button', { name: /begin maintenance cycle/i });
+    expect(begin).toBeDisabled();
+  });
+
 });
 
 describe('initial accepted actor confirmation before a slow member transaction', () => {

@@ -98,6 +98,22 @@ it('offers the printed condition without publishing an address first', async () 
   expect(screen.queryByText(/targetUid|damage capacity|fleet composition/i)).not.toBeInTheDocument();
 });
 
+it('keeps the assigned Commander action surface available with a retained source-loss result', async () => {
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, activeConsoleRoleId: null,
+    candidateDisposition: { code: 'O', outcome: 'lost', cycle: 6 },
+  });
+  const user = userEvent.setup();
+  render(<WolfCommanderAddressAmnestyPanel />);
+
+  expect(await screen.findByRole('heading', { name: 'Commander address and amnesty' })).toBeVisible();
+  expect(screen.getByRole('textbox', { name: 'Fleet address' })).toBeEnabled();
+  await user.type(screen.getByRole('textbox', { name: 'Fleet address' }), 'The reassigned Commander is active.');
+  await user.click(screen.getByRole('button', { name: 'Address fleet for 30 seconds' }));
+  await waitFor(() => expect(mocks.address).toHaveBeenCalledWith('The reassigned Commander is active.', 4));
+  expect(await screen.findByText(/Fleet address published for 30 seconds/i)).toBeVisible();
+});
+
 it('shows the committed address when the initial private read loses its authority checkpoint', async () => {
   mocks.get.mockRejectedValueOnce(new Error('The session or player authority changed before this private view arrived.'));
   const user = userEvent.setup();
