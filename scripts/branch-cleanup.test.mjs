@@ -454,6 +454,31 @@ test('coordination ownership compares effective fetch and push origins across UR
   }
 });
 
+test('candidate fetch and push destinations must match before cleanup mutates either repository', async () => {
+  const fixture = await createBranchCleanupFixture();
+  const unrelatedPushOrigin = join(fixture.root, 'unrelated-push.git');
+  try {
+    const targetSha = await fixture.localSha();
+    await runGit(fixture.root, ['clone', '--bare', fixture.origin, unrelatedPushOrigin]);
+    await fixture.runGit(['config', 'remote.origin.pushurl', unrelatedPushOrigin]);
+    await fixture.runGit(['update-ref', '-d', 'refs/remotes/origin/main']);
+
+    for (const apply of [false, true]) {
+      const report = await fixture.cleanup({ apply });
+      expectReason(report, 'origin-identity-unverified');
+      assert.equal(report.recovery, null);
+      assert.equal(await fixture.localSha(), targetSha);
+      assert.equal(await fixture.remoteSha(), targetSha);
+      assert.match(await runGit(fixture.repo, [
+        'ls-remote', '--heads', unrelatedPushOrigin, `refs/heads/${fixture.branchName}`,
+      ]), new RegExp(`^${targetSha}\\s`));
+      await assert.rejects(fixture.runGit(['rev-parse', '--verify', 'refs/remotes/origin/main']));
+    }
+  } finally {
+    await fixture.dispose();
+  }
+});
+
 test('malformed coordination metadata cannot be normalized into an empty ownership ledger', async () => {
   const fixture = await createBranchCleanupFixture();
   try {
