@@ -208,6 +208,7 @@ test('captured live declared boarding source remains a hard stop with bounded on
 
 for (const [label, change] of [
   ['unchanged boarding tuple', { ...currentAttack }],
+  ['wrong source type', { ...currentAttack, type: 'other-document' }],
   ['unchanged revision', { ...resolvedAttack, revision: 26 }],
   ['wrong original attack', { ...resolvedAttack, attackId: 'another-private-attack' }],
   ['wrong session', { ...resolvedAttack, sessionId: 'another-private-session' }],
@@ -221,7 +222,11 @@ for (const [label, change] of [
     await assert.rejects(fixture.run(), /same newer resolved, unlocked attack/);
     assert.equal(fixture.counts.getDoc, 1); assert.equal(fixture.counts.getDocFromServer, 1);
     assert.equal(fixture.counts.sdkChoice, 1); assert.equal(fixture.counts.paints, 0);
-    reinspectionRecord(fixture);
+    const observed = reinspectionRecord(fixture);
+    assert.deepEqual(observed.document, {
+      exists: change !== null,
+      expectedType: change === null ? null : change.type === 'wolf-attack-state',
+    });
   });
 }
 
