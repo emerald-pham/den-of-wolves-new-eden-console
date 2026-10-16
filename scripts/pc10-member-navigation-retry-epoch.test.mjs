@@ -128,3 +128,26 @@ test('a parsed matching own App reply remains pending at held 4/1 until the SDK 
     f.releaseResumeResponse(); f.releaseResumeApplication(); await running; await f.cleanup();
   }
 });
+
+for (const [label, invalid] of [
+  ['wrong generation', { mutateReply: reply => { reply.player.connectionGeneration += 1; } }],
+  ['wrong role', { mutateReply: reply => { reply.player.assignedRoleId = 'shepherd-engineer'; } }],
+  ['wrong session', { mutateReply: reply => { reply.session.id = 'foreign-session'; } }],
+  ['disconnected actor', { mutateReply: reply => { reply.player.connected = false; } }],
+  ['HTTP403', { httpStatus: 403 }],
+  ['failed request', { failResumeRequest: true }],
+]) test(`a parsed held-epoch reply with ${label} cannot wait as a matching own SDK application`, async () => {
+  const f = await stationNavigationResumeFixture({ ...options, deferResumeResponse: false,
+    deferResumeApplication: true, ...invalid });
+  let error;
+  const running = f.run().catch(value => { error = value; });
+  try {
+    await f.requestObserved(); await running;
+    assert.match(error?.message ?? '', /Original invalidated listener epoch changed without its current App retry/);
+    assert.equal(f.application.length, 0);
+    assert.equal((await packet(f)).transitions.length, 0);
+    assert.equal(f.events.eventNames().length, 0);
+  } finally {
+    f.releaseResumeResponse(); f.releaseResumeApplication(); await running; await f.cleanup();
+  }
+});
