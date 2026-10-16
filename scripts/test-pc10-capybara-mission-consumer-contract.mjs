@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { resolveAndDeliverMissionThroughMountedUi, startMissionDealThroughMountedUi } from './pc10-mission-lifecycle-consumer.mjs';
+import { prepareMissionPrivacyThroughMountedControl, resolveAndDeliverMissionThroughMountedUi, startMissionDealThroughMountedUi } from './pc10-mission-lifecycle-consumer.mjs';
 
 const sessionId = 'session-original';
 const missionId = 'mission-original';
@@ -146,4 +146,118 @@ test('a mismatched custody-delivery receipt remains pending even after a valid a
     });
     assert.equal(result.status, 'pending');
   }
+});
+
+
+function mountedPrivacySurface({ mismatchedStep = null, repairCount = 1 } = {}) {
+  const events = [];
+  let ready = false;
+  let responseListener = null;
+  const actor = { ...originalGm, sameActor: true, gmInstanceOwned: true, playerRole: 'gm',
+    connection: 'live', freshness: 'server' };
+  const status = {
+    waitFor: async () => { events.push('status-visible'); },
+    innerText: async () => ready ? 'Participant missions are prepared.' :
+      'Prepare participant missions before dealing private cards.',
+    getByText: (text, options) => ({ waitFor: async () => {
+      assert.equal(text, 'Participant missions are prepared.');
+      assert.equal(options.exact, true);
+      events.push('live-preparation-confirmed');
+      assert.equal(ready, true);
+    } }),
+  };
+  const button = {
+    count: async () => 1,
+    isVisible: async () => true,
+    isEnabled: async () => true,
+    click: async () => {
+      events.push('ordinary-prepare-button-clicked');
+      const runId = 'privacy-run-original';
+      const steps = ['hold', ...Array(repairCount).fill('repair'), 'finalize'];
+      steps.forEach((step, index) => {
+        const wrongRequest = mismatchedStep === step;
+        const missionId = step === 'repair' && index < steps.length - 2 ? `legacy-mission-${index}` : null;
+        responseListener({
+          url: () => 'http://127.0.0.1:5001/demo/us-central1/repairAwayMissionProjectionPrivacy',
+          request: () => ({ method: () => 'POST', postDataJSON: () => ({ data: {
+            sessionId: wrongRequest ? 'other-session' : sessionId,
+            instanceId: originalGm.instanceId,
+            repairRunId: runId,
+            requestId: `${runId}-${index}-${step}`,
+            step,
+          } }) }),
+          status: () => 200,
+          json: async () => ({ result: {
+            sessionId, repairRunId: runId, step, status: 'committed', epoch: 12,
+            state: step === 'finalize' ? 'ready' : 'held',
+            pointerCount: missionId ? 1 : 0, missionId,
+          } }),
+        });
+      });
+      ready = true;
+    },
+  };
+  const privacyRegion = { getByRole: (role, options) => {
+    if (role === 'status') {
+      assert.equal(options.name, 'Participant mission preparation');
+      return status;
+    }
+    assert.equal(role, 'button');
+    assert.equal(options.name, 'Prepare participant missions');
+    return button;
+  } };
+  const startRegion = { getByRole: (role, options) => {
+    assert.equal(role, 'region');
+    assert.equal(options.name, 'Participant mission privacy preparation');
+    return privacyRegion;
+  } };
+  const page = {
+    getByRole: (role, options) => {
+      assert.equal(role, 'region');
+      assert.equal(options.name, 'New-location mission start');
+      events.push('ordinary-mission-start-mounted');
+      return startRegion;
+    },
+    on: (event, listener) => { assert.equal(event, 'response'); responseListener = listener; },
+    off: (event, listener) => {
+      assert.equal(event, 'response');
+      assert.equal(responseListener, listener);
+      responseListener = null;
+    },
+  };
+  return { events, surface: { page, observe: async () => { events.push('observe-original-gm'); return { ...actor }; } } };
+}
+
+test('the mounted privacy control confirms the full hold-repair-repair-finalize cutover before deal', async () => {
+  const { events, surface } = mountedPrivacySurface({ repairCount: 2 });
+  let preparation;
+  const started = await startMissionDealThroughMountedUi({ sessionId, originalGm,
+    preparePrivacy: async () => {
+      preparation = await prepareMissionPrivacyThroughMountedControl({ surface, sessionId, originalGm });
+      return preparation;
+    },
+    deal: async () => {
+      events.push('normal-deal');
+      return { status: 'committed', sessionId, missionId };
+    },
+  });
+  assert.equal(started.status, 'dealt');
+  assert.equal(started.dealReceipt.sessionId, sessionId);
+  assert.equal(preparation.preparationRequests, 4);
+  assert.equal(events.filter(event => event === 'observe-original-gm').length, 2,
+    'The same original live owner is observed on both sides of mounted preparation.');
+  assert.ok(events.indexOf('ordinary-prepare-button-clicked') < events.indexOf('live-preparation-confirmed'));
+  assert.ok(events.indexOf('live-preparation-confirmed') < events.indexOf('normal-deal'));
+});
+
+test('the mounted privacy control cannot authorize deal from a mismatched cutover request', async () => {
+  const { events, surface } = mountedPrivacySurface({ mismatchedStep: 'repair' });
+  let dealCalls = 0;
+  const started = await startMissionDealThroughMountedUi({ sessionId, originalGm,
+    preparePrivacy: () => prepareMissionPrivacyThroughMountedControl({ surface, sessionId, originalGm }),
+    deal: async () => { dealCalls++; return { status: 'committed', sessionId, missionId }; },
+  });
+  assert.equal(started.status, 'pending');
+  assert.equal(dealCalls, 0);
+  assert.equal(events.includes('normal-deal'), false);
 });
