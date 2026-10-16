@@ -218,7 +218,8 @@ for (const { surroundingCount, refreshBetweenTabs, mode = 'research-choice' } of
         initial: { sessionId: SID, joinCode: 'PREPARED' },
         roster: [{ roleId: mode === 'repaired-ring' ? GM_ROLE : ROLE, uidHash: 'prepared-original-hash' }], projectId: PROJECT,
         ports: { functions: server.address().port } });
-      await tools.candidateGeometry(surface, 'N', stage);
+      await tools.candidateGeometry(surface, 'N', stage, { evidenceScope: mode === 'repaired-ring'
+        ? 'Prepared unchanged component, CSS, store and candidate projector only.' : undefined });
       const geometries = JSON.parse(await readFile(resolve(directory, `N-${stage}-geometry.json`), 'utf8'));
       if (mode === 'repaired-ring') {
         assert.equal(report.paths[0].repaired, true);
