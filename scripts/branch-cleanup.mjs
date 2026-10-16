@@ -48,6 +48,7 @@ async function run(command, args, { cwd, allowedExitCodes = [] } = {}) {
       encoding: 'utf8',
       maxBuffer: 8 * 1024 * 1024,
       timeout: commandTimeoutContext.getStore() ?? DEFAULT_COMMAND_TIMEOUT_MS,
+      killSignal: 'SIGKILL',
       env: {
         ...process.env,
         GIT_TERMINAL_PROMPT: '0',
@@ -498,6 +499,7 @@ async function pullRequestReason(root, branch) {
       encoding: 'utf8',
       maxBuffer: 1024 * 1024,
       timeout: commandTimeoutContext.getStore() ?? DEFAULT_COMMAND_TIMEOUT_MS,
+      killSignal: 'SIGKILL',
       env: {
         ...process.env,
         GH_PROMPT_DISABLED: '1',
