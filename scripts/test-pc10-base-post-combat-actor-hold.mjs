@@ -231,9 +231,13 @@ test('the public original-actor hold rejects any UID, document, session, role, g
   const choiceStart = source.indexOf("const result = await missionUi(roleId, mission.id");
   const choiceEnd = source.indexOf("if (delivered?.publicState.status === 'complete')", choiceStart);
   const choices = source.slice(choiceStart, choiceEnd);
-  assert.equal((choices.match(/\.click\(\)/g) ?? []).length, 8, 'Keep all eight existing mounted UI choices.');
-  assert.equal((choices.match(/commit\(\(\)\s*=>/g) ?? []).length, 8,
+  // Final assignments now trigger authoritative resolution automatically; the
+  // former facilitator-card and manual-resolution buttons are no longer offered.
+  assert.equal((choices.match(/\.click\(\)/g) ?? []).length, 6, 'Keep all six current mounted UI choices.');
+  assert.equal((choices.match(/commit\(\(\)\s*=>/g) ?? []).length, 6,
     'Reinspect the same actor immediately before each existing UI choice.');
+  assert.doesNotMatch(choices, /name: '(?:Add facilitator cards|Resolve away mission)'/);
+  assert.match(choices, /lastAssignmentReceipt/);
   assert.match(source, /assertWolfChoiceActor\(current, expectedActor\)/,
     'Each held check must retain the existing rich current-actor assertion.');
 });

@@ -31,6 +31,30 @@ describe('authoritative ship damage deck', () => {
     expect(result.state.damagedSystemIds).not.toContain('armoured-hull-i');
   });
 
+  it('keeps both remaining Aegis hull cards in the nonempty damage deck', () => {
+    const allOtherSystems = AEGIS_DAMAGE_DECK
+      .filter(({ recycleAfterResolution }) => recycleAfterResolution !== true)
+      .map(({ systemId }) => systemId);
+    let state = { damagedSystemIds: allOtherSystems, destroyed: false };
+    const drawnSystems: string[] = [];
+
+    for (let drawNumber = 0; drawNumber < 6; drawNumber += 1) {
+      const result = drawShipDamage('aegis', state, (upperBound) => drawNumber % upperBound);
+      if (result.destroyed) throw new Error('Expected one of the two remaining hull cards.');
+
+      drawnSystems.push(result.card.systemId);
+      expect(result.recycled).toBe(true);
+      expect(result.state.damagedSystemIds).toEqual(allOtherSystems);
+      state = result.state;
+    }
+
+    expect(drawnSystems).toEqual([
+      'armoured-hull-i', 'armoured-hull-ii',
+      'armoured-hull-i', 'armoured-hull-ii',
+      'armoured-hull-i', 'armoured-hull-ii',
+    ]);
+  });
+
   it('keeps the last armoured hull out of the empty deck, then destroys the ship', () => {
     const allButHull = AEGIS_DAMAGE_DECK
       .filter(({ systemId }) => systemId !== 'armoured-hull-ii')

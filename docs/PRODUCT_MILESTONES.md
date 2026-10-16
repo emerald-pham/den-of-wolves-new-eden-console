@@ -763,8 +763,8 @@ repairs within existing acceptance rather than automatic new scope.
 
 ### Further Notes
 
-The October 16 local catalog snapshot is **703/751 done (93.61%), 23 partial and
-25 missing**; the fixed PC10 target remains 48 closures to **751/751**. The earlier
+The October 16 local catalog snapshot is **703/751 done (93.61%), 27 partial and
+21 missing**; the fixed PC10 target remains 48 closures to **751/751**. The earlier
 October 15 specification snapshot of six partial and 42 missing is historical.
 This update changes no completion state. The next useful work is exact-candidate
 and criterion-level reconciliation, not another broad runtime attempt. Refresh

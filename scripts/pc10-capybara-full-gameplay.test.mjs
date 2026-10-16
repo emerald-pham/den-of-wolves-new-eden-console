@@ -358,6 +358,69 @@ test('Capybara callback composition is explicit, full-roster, and uses the canon
   assert.equal(options.capybaraEnabled, true);
 });
 
+test('cycle advance acknowledges a blocking unrest alert through the original GM control and server receipt', async () => {
+  const { acknowledgeBlockingUnrestAlerts } = await import('./pc10-capybara-full-gameplay.mjs');
+  const originalGm = originalEndingGm();
+  let visible = true;
+  let observations = 0;
+  const actions = [];
+  let resolveResponse;
+  const response = {
+    url: () => 'http://127.0.0.1:5031/demo-game/us-central1/dismissUnrestAlert',
+    request: () => ({ method: () => 'POST', postDataJSON: () => ({ data: {
+      sessionId: originalGm.sessionId, instanceId: originalGm.instanceId, shipId: 'capybara',
+    } }) }),
+    ok: () => true,
+    status: () => 200,
+    json: async () => ({ result: { dismissed: true, shipId: 'capybara' } }),
+  };
+  const dialog = {
+    isVisible: async () => visible,
+    innerText: async () => 'Immediate command attention required\nUnrest threshold exceeded\nCapybara has exceeded the maximum unrest dial rating of 7.',
+    filter: ({ hasText }) => {
+      assert.equal(hasText, 'Capybara has exceeded the maximum unrest dial rating of 7.');
+      return dialog;
+    },
+    getByRole: (role, options) => {
+      assert.equal(role, 'button');
+      assert.deepEqual(options, { name: 'Dismiss unrest alert', exact: true });
+      return { click: async (...args) => {
+        assert.equal(args.length, 0, 'The proof must use the real control without force-click options.');
+        actions.push('normal-dismiss-button');
+        visible = false;
+        assert.equal(typeof resolveResponse, 'function');
+        resolveResponse();
+      } };
+    },
+    waitFor: async ({ state }) => {
+      assert.equal(state, 'hidden');
+      assert.equal(visible, false, 'Wait for the dismissed alert to disappear from the live UI.');
+      actions.push('rendered-dismissal');
+    },
+  };
+  const page = {
+    getByRole: (role, options) => {
+      assert.equal(role, 'alertdialog');
+      assert.deepEqual(options, { name: 'Unrest threshold exceeded', exact: true });
+      return dialog;
+    },
+    waitForResponse: (matches, options) => {
+      assert.equal(options.timeout, 15_000);
+      assert.equal(matches(response), true, 'Observe the actual dismissUnrestAlert callable reply.');
+      return new Promise(resolve => {
+        resolveResponse = () => { actions.push('server-receipt'); resolve(response); };
+      });
+    },
+  };
+  const gm = { page, observe: async () => { observations += 1; return structuredClone(originalGm); } };
+
+  const receipts = await acknowledgeBlockingUnrestAlerts({ gm, originalGm });
+
+  assert.deepEqual(receipts, [{ shipId: 'capybara', shipName: 'Capybara', httpStatus: 200, dismissed: true }]);
+  assert.equal(observations, 2, 'Recheck the original GM after the server acknowledges the click.');
+  assert.deepEqual(actions, ['normal-dismiss-button', 'server-receipt', 'rendered-dismissal']);
+});
+
 test('evidence projection omits private choices, raw actor/session identifiers, and credentials', () => {
   const report = projectCapybaraEvidence({ status: 'pending', stages: {
     'boa-mission-reclamation': { status: 'completed', roleId: 'capybara-recycler', endpoint: 'chooseBoaMissionReclamationOpportunity',

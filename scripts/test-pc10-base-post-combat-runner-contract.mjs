@@ -102,6 +102,7 @@ test('Cycle 1 carries one current Core retarget witness to the source-timed arri
     const locator = {
       count: async () => 1, isVisible: async () => true, isEnabled: async () => true,
       click: async () => {}, first() { return this; },
+      or() { return this; }, waitFor: async () => {},
       getByRole() { return this; },
     };
     return { roleId, storeModuleUrl: () => '/src/store/useSessionStore.ts',
