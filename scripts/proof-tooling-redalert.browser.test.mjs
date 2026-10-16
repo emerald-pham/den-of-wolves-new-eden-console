@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { build, stop } from 'esbuild';
 import { chromium } from 'playwright';
 import test from 'node:test';
+import { withProofBrowserCleanup } from './proof-tooling-browser-lifecycle.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -68,18 +69,15 @@ async function componentScript() {
 }
 
 test('the real Fleetwide Red Alert textarea is selected by its exact textbox role in Playwright Chromium', async () => {
-  const script = await componentScript();
-  let browserServer;
-  let browser;
-  let context;
   const browserPids = new Set();
-  try {
-    browserServer = await chromium.launchServer({ headless: true });
-    for (const pid of ownedBrowserPids(browserServer.process().pid)) browserPids.add(pid);
-    browser = await chromium.connect(browserServer.wsEndpoint());
-    context = await browser.newContext();
-    await context.route('**/*', route => route.abort());
-    const page = await context.newPage();
+  await withProofBrowserCleanup(async resources => {
+    const script = await componentScript();
+    resources.browserServer = await chromium.launchServer({ headless: true });
+    for (const pid of ownedBrowserPids(resources.browserServer.process().pid)) browserPids.add(pid);
+    resources.browser = await chromium.connect(resources.browserServer.wsEndpoint());
+    resources.context = await resources.browser.newContext();
+    await resources.context.route('**/*', route => route.abort());
+    const page = await resources.context.newPage();
     page.setDefaultTimeout(5000);
     await page.setContent('<div id="root"></div>');
     await page.evaluate(() => {
@@ -102,17 +100,19 @@ test('the real Fleetwide Red Alert textarea is selected by its exact textbox rol
     assert.equal(await textbox.isVisible(), true);
     await textbox.fill('ORDINARY SOURCE ALERT');
     assert.equal(await textbox.inputValue(), 'ORDINARY SOURCE ALERT');
-    for (const pid of ownedBrowserPids(browserServer.process().pid)) browserPids.add(pid);
-  } finally {
-    if (context) await context.close();
-    if (browser) await browser.close();
-    if (browserServer) await browserServer.close();
-    stop();
+    for (const pid of ownedBrowserPids(resources.browserServer.process().pid)) browserPids.add(pid);
+  }, {
+    stopBuild: stop,
+    afterCleanup: async resources => {
+      if (resources.browserServer) {
+        for (const pid of ownedBrowserPids(resources.browserServer.process().pid)) browserPids.add(pid);
+      }
     let remaining = [...browserPids].filter(isAlive);
     for (let attempt = 0; remaining.length && attempt < 20; attempt += 1) {
       await new Promise(resolvePromise => setTimeout(resolvePromise, 50));
       remaining = remaining.filter(isAlive);
     }
     assert.deepEqual(remaining, [], 'every captured Playwright Chromium process must exit during cleanup');
-  }
+    },
+  });
 });
