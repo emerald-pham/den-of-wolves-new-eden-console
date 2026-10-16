@@ -37,6 +37,18 @@ const firestoreIndexes = JSON.parse(readFileSync('firestore.indexes.json', 'utf8
 const FIREBASE_CLI = 'firebase-tools@15.29.0';
 const execFileAsync = promisify(execFile);
 
+it('runs automatic branch closeout safeguards in every CI verification', () => {
+  expect(packageJson.scripts['branches:cleanup']).toBe('node scripts/branch-cleanup.mjs');
+  expect(packageJson.scripts['task:closeout']).toBe('node scripts/branch-cleanup.mjs --apply');
+  expect(packageJson.scripts['test:branch-cleanup']).toBe('node --test scripts/branch-cleanup.test.mjs');
+  const install = ci.indexOf('- name: Install locked root dependencies for release contracts');
+  const cleanup = ci.indexOf('- name: Branch cleanup safeguards');
+  const section = ci.slice(cleanup, ci.indexOf('\n      - name:', cleanup + 1));
+  expect(cleanup).toBeGreaterThan(install);
+  expect(section).toContain('run: npm run test:branch-cleanup');
+  expect(section).not.toMatch(/\bif:/);
+});
+
 it('classifies changed files into affected deployment surfaces', () => {
   expect(classifyChangedFiles(['src/routes/Landing.tsx']).targets).toEqual(['hosting']);
   expect(classifyChangedFiles(['firestore.rules']).targets).toEqual(['firestore']);
