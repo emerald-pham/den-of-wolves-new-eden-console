@@ -73,7 +73,7 @@ function sameStationGmLease(current, original, sessionId, phase = original.phase
 }
 
 /** Bind the generic GM observer to its current Auth/store lease, including the claim timestamp. */
-async function observeStationGmLease(surface) {
+async function observeStationGmLease(surface, { allowPActivation = false, deadline } = {}) {
   const before = await surface.observe();
   const source = await surface.page.evaluate(async moduleUrl => {
     const { auth } = await import('/src/lib/firebase.ts');
@@ -96,9 +96,18 @@ async function observeStationGmLease(surface) {
       fullGameDemo: session?.fullGameDemo ?? null, gameOutcome: session?.gameOutcome ?? null };
   }, surface.storeModuleUrl());
   const current = await surface.observe();
-  for (const key of ['hasAuth', 'sameActor', 'uidHash', 'sessionId', 'phase', 'cycle', 'playerRole',
+  for (const key of ['hasAuth', 'sameActor', 'uidHash', 'sessionId', 'cycle', 'playerRole',
     'instanceId', 'gmInstanceOwned', 'connection', 'freshness', 'documentTimeOrigin'])
     assert.deepEqual(current[key], before[key], `The original Station GM ${key} must survive its source lease read.`);
+  const publishedActivation = allowPActivation && before.phase === 'active' && current.phase === 'debrief';
+  assert.equal(current.phase, publishedActivation ? 'debrief' : before.phase,
+    'The original Station GM phase may change only for its verified P activation.');
+  if (source.phase !== current.phase && publishedActivation && source.phase === 'active') {
+    // Never combine an old active source sample with the newer debrief header.
+    // Reinspect this same lease after the one permitted forward publication.
+    remaining(deadline, 'Station consistent P debrief lease publication');
+    return observeStationGmLease(surface, { deadline });
+  }
   for (const key of ['hasAuth', 'sameActor', 'uidHash', 'sessionId', 'phase', 'cycle', 'playerRole',
     'instanceId', 'gmInstanceOwned', 'connection', 'freshness', 'documentTimeOrigin'])
     assert.deepEqual(source[key], current[key], `The current Station GM source ${key} must match its authenticated observer.`);
@@ -261,7 +270,7 @@ export async function recoverStationReactorContribution({ actor, gm, tools, ship
     // one forward phase transition. No other terminal phase is accepted.
     while (true) {
       remaining(deadline, 'Station committed phase publication');
-      const committedGm = await observeStationGmLease(gm);
+      const committedGm = await observeStationGmLease(gm, { allowPActivation: expectActivation, deadline });
       if (expectActivation && committedGm.phase === 'active') {
         sameStationGmLease(committedGm, originalGm, sessionId);
         await delay(Math.min(100, remaining(deadline, 'Station P debrief publication')));
