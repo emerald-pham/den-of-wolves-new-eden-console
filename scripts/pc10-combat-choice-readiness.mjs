@@ -342,14 +342,23 @@ export async function waitForWolfChoiceReadiness({ original, expected, inspectAc
         assert.ok(originalGm && inspectGm, 'Newer source requires the original GM authority.');
         const strictAuthority = async () => {
           budget();
-          assertWolfChoiceActor(await inspectActor(), original); budget();
-          assertWolfChoiceActor(await inspectGm(), originalGm); budget();
+          const actor = await inspectActor(); budget(); assertWolfChoiceActor(actor, original);
+          const gm = await inspectGm(); budget(); assertWolfChoiceActor(gm, originalGm);
           assert.equal(original.sessionId, expected.sessionId); assert.equal(original.cycle, expected.turn);
           assert.equal(originalGm.sessionId, expected.sessionId); assert.equal(originalGm.cycle, expected.turn);
           assert.equal(originalGm.playerRole, 'gm');
+          return {
+            actor: { sameAccount: actor.hasAuth && actor.sameActor && actor.uidHash === original.uidHash,
+              sameRole: actor.playerRole === original.playerRole && actor.profileRoleId === original.profileRoleId &&
+                actor.assignedRoleId === original.assignedRoleId && actor.activeConsoleRoleId === original.activeConsoleRoleId,
+              sameSession: actor.sessionId === expected.sessionId, sameTurn: actor.cycle === expected.turn, liveServer: live(actor) },
+            gm: { sameAccount: gm.hasAuth && gm.sameActor && gm.uidHash === originalGm.uidHash,
+              sameInstance: gm.instanceId === originalGm.instanceId && gm.gmInstanceOwned === true,
+              sameSession: gm.sessionId === expected.sessionId, sameTurn: gm.cycle === expected.turn, liveServer: live(gm) },
+          };
         };
-        await strictAuthority();
-        const current = await inspectAttack({ serverOnly: true, reason: 'newer-choice' }); budget();
+        const expectedAuthorityAtRead = await strictAuthority();
+        const current = await inspectAttack({ serverOnly: true, singleDocument: true, reason: 'newer-choice', expectedAuthorityAtRead }); budget();
         await strictAuthority();
         const steps = ['targeting', 'long-range', 'medium-range', 'short-range', 'boarding', 'resolved'];
         assert.ok(current?.type === 'wolf-attack-state' &&
@@ -591,6 +600,7 @@ export function createWolfChoiceWaiter(context, { tools, originalGm, deadlineAt 
     const inspectAttack = (options = {}) => {
       if (options.serverOnly !== true) return tools.read('gm', 'wolfAttackState/current');
       return tools.read('gm', 'wolfAttackState/current', { serverOnly: true, deadlineAt: choiceDeadline,
+        ...(options.singleDocument === true ? { singleDocument: true } : {}),
         expectedAuthorityAtRead: options.expectedAuthorityAtRead,
         onSnapshot: async outcome => {
           const observed = outcome?.status === 'ok' && outcome.value && typeof outcome.value === 'object' ? outcome.value : null;
@@ -603,6 +613,7 @@ export function createWolfChoiceWaiter(context, { tools, originalGm, deadlineAt 
             cycle: current.turn, kind: spec.kind, roleId: original.profileRoleId, uidHash: original.uidHash,
             revision: current.revision, currentStep: current.currentStep, diagnosticOnly: true,
             sourceReinspection: { readSource: 'server-only', readCount: 1,
+              ...(outcome?.readSource === 'firestore-lite-server' ? { transport: 'firestore-lite-server' } : {}),
               status: outcome?.status === 'ok' ? 'observed' : 'failed',
               code: typeof outcome?.code === 'string' && /^(?:firestore\/)?[a-z][a-z-]{0,63}$/.test(outcome.code) ? outcome.code : null,
               document: { exists: outcome?.status === 'ok' ? observed !== null : null,

@@ -80,6 +80,12 @@ test('a newer original actor reply retires the obsolete choice only after one in
   assert.equal(f.f.counters().paintReads, 0);
   assert.equal(f.f.counters().choiceReads, 1);
   assert.equal(f.reads.filter(value => value?.serverOnly === true).length, 1);
+  const reinspection = f.reads.find(value => value?.serverOnly === true);
+  assert.equal(reinspection.singleDocument, true, 'Newer-choice progress uses the single-fetch adapter mode.');
+  assert.deepEqual(reinspection.expectedAuthorityAtRead, {
+    actor: { sameAccount: true, sameRole: true, sameSession: true, sameTurn: true, liveServer: true },
+    gm: { sameAccount: true, sameInstance: true, sameSession: true, sameTurn: true, liveServer: true },
+  }, 'The exact authority checks preceding the read must also accompany its diagnostic outcome.');
 });
 
 test('newer private replies cannot retire a choice on unproved, foreign, regressed, malformed or late source data', async () => {
