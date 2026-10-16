@@ -256,6 +256,46 @@ async function selectVoterActor(context, roleId, expectedCycle) {
     uidHash: actor.uidHash, roleId, cycle: expectedCycle, phase: 'active', turnStatePhase: 'team' }, current };
 }
 
+async function electionGmRegion(context, expectedGm) {
+  const { gm } = context, { page } = gm;
+  const deadlineAt = Date.now() + 35_000;
+  const remaining = () => {
+    const milliseconds = deadlineAt - Date.now();
+    assert.ok(milliseconds > 0, 'The original election navigation deadline expired.');
+    return milliseconds;
+  };
+  const verify = async () => {
+    remaining();
+    const current = await gm.observe();
+    assertGmInstanceFence(current, expectedGm);
+    if (expectedGm.documentTimeOrigin !== undefined) assert.equal(current.documentTimeOrigin,
+      expectedGm.documentTimeOrigin, 'Election navigation retains the original GM document.');
+    remaining();
+  };
+  const route = () => new URL(page.url()).hash.slice(1).split('?')[0];
+  const follow = async control => {
+    await verify();
+    const before = route();
+    await control.click({ timeout: remaining() });
+    await page.waitForURL(url => url.hash.slice(1).split('?')[0] !== before, { timeout: remaining() });
+    await verify();
+  };
+  await verify();
+  const observer = route().match(/^\/ships\/([a-z0-9-]+)\/(?:observer|roles\/[^/]+)$/);
+  if (observer) await follow(page.getByRole('link', { name: /^(?:←\s*)?Change role$/ }).and(
+    page.locator(`a.ship-console__back[href="#/ships/${observer[1]}/roles"]`)));
+  if (/^\/ships\/[^/]+\/roles$/.test(route())) await follow(page.getByRole('link', {
+    name: /^(?:←\s*)?Back to fleet$/,
+  }).and(page.locator('main.ship-role-select a.session-mode__back[href="#/console"]')));
+  if (route() === '/console') await follow(page.getByRole('link', { name: 'GM Console', exact: true }).and(
+    page.locator('a.role-card[href="#/gm"]')));
+  assert.equal(route(), '/gm', 'Use the normal GM return controls before opening election procedures.');
+  const region = page.getByRole('region', { name: 'Election procedure and outcome', exact: true });
+  await region.waitFor({ state: 'visible', timeout: remaining() });
+  await verify();
+  return region;
+}
+
 async function configureElection(context, choice, options) {
   const branch = 'election-policy';
   if (!choice) return missingChoice('pending-politics-press', branch, options);
@@ -270,9 +310,8 @@ async function configureElection(context, choice, options) {
     cycle: 1, phase: 'active', turnStatePhase: 'team' });
   const expectedGm = { actorKind: 'gm', sessionId: context.initial.sessionId, uidHash: gmNow.uidHash,
     instanceId: gmNow.instanceId, cycle: gmNow.cycle, phase: gmNow.phase,
-    turnStatePhase: gmNow.turnStatePhase };
-  const region = context.gm.page.getByRole('region', { name: 'Election procedure and outcome', exact: true });
-  await region.waitFor();
+    turnStatePhase: gmNow.turnStatePhase, documentTimeOrigin: gmNow.documentTimeOrigin };
+  const region = await electionGmRegion(context, expectedGm);
   const form = region.getByRole('form', { name: 'Configure election procedure', exact: true });
   if (!(await form.isVisible().catch(() => false))) {
     return blockedSourceBranch('pending-politics-press', branch, ['election-procedure-already-configured-or-not-offered'],
@@ -280,34 +319,41 @@ async function configureElection(context, choice, options) {
   }
   const rawRoster = await actorRosterUids(context.crew, context.initial.sessionId);
   const rosterUidByRole = new Map(rawRoster.map(entry => [entry.roleId, entry.uid]));
-  const uidRoleSet = new Set(rawRoster.map(entry => entry.uid));
   const voterUids = voters.map(roleId => {
     const uid = rosterUidByRole.get(roleId);
     assert.ok(uid, `No current Auth account is available for voter role ${roleId}.`);
     return uid;
   });
   assert.equal(new Set(voterUids).size, voterUids.length);
-  const checkboxes = form.locator('input[type="checkbox"]');
-  const offeredUids = await checkboxes.evaluateAll(elements => elements.map(element => element.value));
-  assert.ok(offeredUids.every(uid => uidRoleSet.has(uid)), 'The GM’s visible electorate controls must map to this actual demo roster.');
-  if (voterUids.some(uid => !offeredUids.includes(uid))) return blockedSourceBranch('pending-politics-press', branch,
-    ['selected-voter-is-not-in-the-current-server-offered-eligible-electorate'], { required: required(options, branch) });
-  for (const checkbox of await checkboxes.all()) {
-    const uid = await checkbox.getAttribute('value');
-    if (voterUids.includes(uid)) await checkbox.check();
-    else if (await checkbox.isChecked()) await checkbox.uncheck();
+  const electorate = form.getByRole('group', { name: 'Eligible voters', exact: true });
+  const selected = [];
+  for (const roleId of voters) {
+    const actor = context.roster.find(entry => entry.roleId === roleId);
+    assert.ok(typeof actor.displayName === 'string' && actor.displayName.length > 0,
+      'Use the original admitted voter’s displayed name.');
+    const control = electorate.getByRole('checkbox', { name: actor.displayName, exact: true });
+    if (await control.count() !== 1) return blockedSourceBranch('pending-politics-press', branch,
+      ['selected-voter-is-not-uniquely-offered-in-the-current-electorate'], { required: required(options, branch) });
+    selected.push(control);
   }
+  assert.equal(new Set(voters.map(roleId => context.roster.find(entry => entry.roleId === roleId).displayName)).size,
+    voterUids.length, 'Visible voter labels must uniquely identify the selected original accounts.');
+  const checkboxes = electorate.getByRole('checkbox');
+  for (const checkbox of await checkboxes.all()) {
+    if (await checkbox.isChecked()) await checkbox.uncheck();
+  }
+  for (const checkbox of selected) await checkbox.check();
   const policy = choice.policy;
-  await form.getByLabel('Voting system', { exact: true }).selectOption(policy.votingSystem);
-  await form.getByLabel('Population weighting', { exact: true }).selectOption(policy.populationWeighting);
+  await form.getByRole('combobox', { name: 'Voting system', exact: true }).selectOption(policy.votingSystem);
+  await form.getByRole('combobox', { name: 'Population weighting', exact: true }).selectOption(policy.populationWeighting);
   await form.getByLabel('Open cycle', { exact: true }).fill(String(policy.openCycle));
   await form.getByLabel('Close cycle', { exact: true }).fill(String(policy.closeCycle));
   const vicePresident = form.getByLabel('Elect a Vice President', { exact: true });
   if (policy.vicePresidentEnabled) await vicePresident.check(); else await vicePresident.uncheck();
-  await form.getByLabel('Campaigning', { exact: true }).selectOption(policy.campaigning);
-  await form.getByLabel('Supply use', { exact: true }).selectOption(policy.supplyUse);
-  await form.getByLabel('Campaign instructions', { exact: true }).fill(policy.campaignInstructions);
-  await form.getByLabel('Tie rule', { exact: true }).selectOption(policy.tieRule);
+  await form.getByRole('combobox', { name: 'Campaigning', exact: true }).selectOption(policy.campaigning);
+  await form.getByRole('combobox', { name: 'Supply use', exact: true }).selectOption(policy.supplyUse);
+  await form.getByRole('textbox', { name: 'Campaign instructions', exact: true }).fill(policy.campaignInstructions);
+  await form.getByRole('combobox', { name: 'Tie rule', exact: true }).selectOption(policy.tieRule);
   const configure = form.getByRole('button', { name: 'Fix procedure before ballots', exact: true });
   const blocked = await demandButton(configure, 'pending-politics-press', branch, options);
   if (blocked) return blocked;
