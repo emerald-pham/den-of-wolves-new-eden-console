@@ -17,7 +17,7 @@ const publicPath = {
   ships: [{ shipId: 'aegis', result: 'awaiting-choice', fuelCost: 6, reactorCapacity: 0, canAct: true, blocker: '' }],
 };
 const workspace = { type: 'candidate-workspace', sessionId: 's1', groupId: 'fleet-1', cycle: 6,
-  revision: 1, paths: [publicPath] };
+  revision: 1, edition: 'home', editionLocked: true, paths: [publicPath] };
 const privateReply = { ...workspace, privateCalculations: [{ requestId: 'audit-1', code: 'O', result: 'lost',
   calculation: { privateScoutBonus: 3 } }] };
 function mutateMe(patch: Record<string, unknown>) {
