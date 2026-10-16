@@ -24,8 +24,27 @@ export function minimumRingPlan() {
   roles:['gm','shepherd-scientist','shepherd-engineer'], hardCapMs:1200000,
   unchangedEvidenceReplayed:false, sourceOnlyUntilAllocated:true };
 }
-export async function runRingWorkflow(operations) {
+export function minimumCandidateAbandonmentPlan() {
+ return { actualAuthenticatedActors:2, configuredRoles:8, browserProcesses:2, browserContexts:2,
+  roles:['gm','icebreaker-miner'], hardCapMs:900000, probeFamily:'candidate-abandonment',
+  actualHumans:0, wholeGameProof:false, endingProof:false };
+}
+export async function runRingWorkflow(operations,{intent='complete'}={}) {
+ assert.ok(['complete','abandon-after-partial'].includes(intent));
  await operations.setup();
+ if(intent==='abandon-after-partial'){
+  const paid=await operations.preparePartialCandidate();
+  assert.equal(paid.contributedMaterials,1);assert.equal(paid.candidateRevision,1);
+  assert.equal(paid.candidateCompleted,false);assert.equal(paid.phase,'active');assert.equal(paid.cycle,1);
+  const recovered=await operations.recoverPartialCandidate(paid);
+  assert.deepEqual(recovered,paid,'Exact replay must retain the original partial contribution.');
+  await operations.advance(2);
+  const next=await operations.nextAfterPartialCandidate(paid);
+  for(const key of ['sessionId','actorUidHash','requestId','candidateRevision','contributedMaterials','materialsRemaining','candidateCompleted'])assert.equal(next[key],paid[key],`Unfinished candidate continuation changed ${key}.`);
+  assert.equal(next.phase,'active');assert.equal(next.cycle,2);assert.equal(next.nextActionEnabled,true);
+  assert.equal(next.nextActorUidHash,paid.actorUidHash);
+  return {paid,recovered,next};
+ }
  for(let cycle=1;cycle<=4;cycle++) {
   await operations.researchCycle(cycle);
   if(cycle<4)await operations.advance(cycle+1);
@@ -631,9 +650,9 @@ export function finalizeRingEvidence(evidence, cleanup, originalFailure) {
 export async function runFreshMinimumRingProof({allocationPath,directory,probeFamily='ring'}) {
  assert.ok(isAbsolute(allocationPath)&&isAbsolute(directory));
  const allocation=validateRingAllocation(JSON.parse(await readFile(allocationPath,'utf8')));
- const closureOnly=probeFamily==='pursuit-closure',stationOnly=probeFamily==='station-success',sparse=closureOnly||stationOnly;assert.ok(sparse||probeFamily==='ring');
+ const closureOnly=probeFamily==='pursuit-closure',stationOnly=probeFamily==='station-success',abandonmentOnly=probeFamily==='candidate-abandonment',sparse=closureOnly||stationOnly||abandonmentOnly;assert.ok(sparse||probeFamily==='ring');
  if(sparse)assert.equal(allocation.probeFamily,probeFamily);
- const plan=closureOnly?minimumPursuitClosurePlan():stationOnly?minimumStationPlan():minimumRingPlan();
+ const plan=abandonmentOnly?minimumCandidateAbandonmentPlan():closureOnly?minimumPursuitClosurePlan():stationOnly?minimumStationPlan():minimumRingPlan();
  const {sourceRoot:root,projectId,baseUrl,ports}=allocation;
  assert.ok(!resolve(directory).startsWith(resolve(root)+'/'),'Evidence stays outside source.');
  const hash=value=>createHash('sha256').update(value).digest('hex'),short=value=>hash(value).slice(0,16);
@@ -647,10 +666,11 @@ export async function runFreshMinimumRingProof({allocationPath,directory,probeFa
  const require=createRequire(`${root}/package.json`),{chromium}=require('playwright');
  const browsers=[],surfaces=[],errors=[],calls=[],requests=[],remoteRequests=[],states=[],receipts=[],claims=[];
  let gm,owner,recipient,sid,joinCode,stage='not-started',consumed=null,primaryFailure=null;
- const startAt=Date.now(),totalEnd=startAt+plan.hardCapMs,workEnd=totalEnd-60000;
+ const startAt=Date.now(),totalEnd=abandonmentOnly?Math.min(startAt+plan.hardCapMs,allocation.hardReturn):startAt+plan.hardCapMs,workEnd=abandonmentOnly?Math.min(totalEnd-60000,allocation.proofStop):totalEnd-60000;
+ if(abandonmentOnly)assert.ok(Number.isFinite(totalEnd)&&Number.isFinite(workEnd)&&workEnd>startAt+120000,'Original parent candidate proof/return deadlines are required.');
  const actorUids=new Map(),pendingLaunches=[],preexistingUids=new Set();let stopped=false;
  const paceMaintenance=createRingMaintenancePacer();
- const roleIds=stationOnly?stationRoleIds:{Owner:'shepherd-engineer',Recipient:'shepherd-scientist'};
+ const roleIds=abandonmentOnly?{Recipient:'icebreaker-miner'}:stationOnly?stationRoleIds:{Owner:'shepherd-engineer',Recipient:'shepherd-scientist'};
  const stationCrew=[];
  const evidence={schemaVersion:1,...plan,sourceCommit,runnerSha256:allocation.runnerSha256,
   compiledIndexSha256:allocation.compiledIndexSha256,sourceBinding,actualHumans:0,actualBrowserProcesses:0,
@@ -667,7 +687,7 @@ async function snapshot(surface,label) { const value=await observeLifecycleActor
 async function register(surface,label) { const uid=await surface.page.evaluate(async()=>{const {auth}=await import('/src/lib/firebase.ts');if(!auth().currentUser)throw new Error('Normal admission has no Auth user.');return auth().currentUser.uid;});assert.ok(![...actorUids.values()].includes(uid),'Require independent normally admitted Auth identities.');actorUids.set(label,uid);evidence.actualAuthenticatedActors=actorUids.size;await writeFile(`${directory}/owned-identities.json`,JSON.stringify({sid,joinCode,actors:Object.fromEntries(actorUids)},null,2)+'\n',{mode:0o600}); }
 async function action(surface,endpoint,choose,options={}) { budget();const value=await captureLifecycleUiAction(surface,endpoint,()=>{budget();return choose();},options);receipts.push(publicLifecycleReceipt(value));return value; }
   async function surface(label) {
-    let browser=browsers[!sparse&&label.includes('Scientist')?1:0];
+    let browser=browsers[(abandonmentOnly&&label.includes('Miner'))||(!sparse&&label.includes('Scientist'))?1:0];
     if(!browser){browser=await chromium.launch({channel:'chrome',headless:true});browsers.push(browser);}
     evidence.actualBrowserProcesses=browsers.length;
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce', serviceWorkers: 'block' });
@@ -1132,8 +1152,8 @@ async function enterRole(surface,label){
  }
  const operations={
   async setup(){
-   await mark(sparse?`fresh ordinary GM plus ${stationOnly?'Wing Station':'reader Pursuit'} setup`:'fresh ordinary three-actor Ring setup');
-   gm=await launchSurface('browser-A-normal-GM');if(!sparse)owner=await launchSurface('browser-A-independent-Engineer');recipient=await launchSurface(sparse?`browser-A-independent-${stationOnly?'Wing':'Scientist'}`:'browser-B-normal-Scientist');
+   await mark(sparse?`fresh ordinary GM plus ${abandonmentOnly?'Miner unfinished candidate':stationOnly?'Wing Station':'reader Pursuit'} setup`:'fresh ordinary three-actor Ring setup');
+   gm=await launchSurface('browser-A-normal-GM');if(!sparse)owner=await launchSurface('browser-A-independent-Engineer');recipient=await launchSurface(abandonmentOnly?'browser-B-normal-Miner':sparse?`browser-A-independent-${stationOnly?'Wing':'Scientist'}`:'browser-B-normal-Scientist');
    if(stationOnly){stationCrew.push({label:'Recipient',roleId:roleIds.Recipient,surface:recipient});for(const[label,roleId]of Object.entries(roleIds).filter(([label])=>label!=='Recipient'))stationCrew.push({label,roleId,surface:await launchSurface(`browser-A-independent-${label}`)});}
    assert.equal(browsers.length,plan.browserProcesses);assert.equal(surfaces.length,plan.browserContexts);
    await gm.page.goto(baseUrl);await gm.reducedMotion();
@@ -1162,7 +1182,7 @@ async function enterRole(surface,label){
    await action(gm,'startGame',async()=>{await training.getByRole('button',{name:'Start full-game demo // Advance to Cycle 1',exact:true}).click();await training.getByRole('button',{name:'ARE YOU SURE? // START FULL-GAME DEMO // CYCLE 1',exact:true}).click();});
    await liveGm(gm,'GM1','active');
    for(const surface of surfaces)await completeOfferedCyclePresentation(surface,await snapshot(surface,'Actual Cycle1 presentation'),{clearBriefing:true});
-   if(sparse){const reader=await memberReady(recipient,'Recipient');groupId=reader.fleetGroupId;if(stationOnly){evidence.stationWingOriginal=reader;for(const actor of stationCrew){const member=await memberReady(actor.surface,actor.label);assert.equal(member.fleetGroupId,groupId);actor.original=member;}await assertStationCustody();}
+   if(sparse){const reader=await memberReady(recipient,'Recipient');groupId=reader.fleetGroupId;if(abandonmentOnly){const root=await recordRoot();ships=root.activeVesselIds;assert.equal(ships.length,6);coordinate=await readRingCoordinate(gm);claims.push('Fresh normal8-role manual setup, independent GM/Miner Auth in two browser processes; unused seats remain open.');return;}if(stationOnly){evidence.stationWingOriginal=reader;for(const actor of stationCrew){const member=await memberReady(actor.surface,actor.label);assert.equal(member.fleetGroupId,groupId);actor.original=member;}await assertStationCustody();}
     claims.push(stationOnly?'Fresh normal15-role manual setup with GM, six printed craft owners including separate Press, and a distinct Executive Officer; unused core seats open, optional Union craft absent':'Fresh normal13-role manual setup with GM and one ordinary reader; no Ring prerequisites or recovery replay');return;}
    const science=await memberReady(recipient,'Recipient'),engineer=await memberReady(owner,'Owner');assert.equal(science.fleetGroupId,engineer.fleetGroupId);groupId=science.fleetGroupId;
    const current=await recordRoot();ships=current.activeVesselIds;assert.equal(ships.length,6);assert.ok(ships.includes('aegis'));
@@ -1171,6 +1191,54 @@ async function enterRole(surface,label){
    await supply('shepherd','ore',40);await supply('aegis','materials',10);
    for(const ship of ships){const rule=MAINTENANCE_RULES[ship];await supply(ship,'food',rule.food[3]*4);await supply(ship,'water',rule.water[3]*4);await supply(ship,'fuel',30);}
    claims.push('Fresh normal manual13-role setup with only GM/Scientist/Engineering holder; required new state only, no old discovery/checkpoint requalification');
+  },
+  async preparePartialCandidate(){
+   await mark('ordinary paid arrivals followed by one Material partial Ring contribution');
+   for(const ship of ships){const rule=MAINTENANCE_RULES[ship];await supply(ship,'food',rule.food[3]);await supply(ship,'water',rule.water[3]);await supply(ship,'fuel',30);await maintain(ship);}
+   await supply('icebreaker','materials',2);await coordination(1);
+   for(const shipId of ships){await grant(shipId);const before=await recordRoot();
+    const result=await sdk(gm,'jumpShip',{sessionId:sid,instanceId:gm1Instance,shipId,destination:coordinate,requestId:crypto.randomUUID(),expectedRevision:before.vesselActionRevisions?.[shipId]??0});
+    assertRingPaidArrival(result,before,await recordRoot(),shipId);
+   }
+   assertRingNavigation(await op(()=>db.doc(`sessions/${sid}/serverState/navigation`).get()),ships,coordinate);
+   await memberReady(recipient,'Recipient');const before=await recordRoot(),initial=await workspace(recipient);
+   assert.equal(initial.view.revision,0);assert.equal(initial.path.materials,0);
+   const panel=recipient.page.getByRole('region',{name:'Candidate preparation and actions',exact:true});
+   await panel.getByLabel('Materials to contribute',{exact:true}).fill('1');
+   const capture=await action(recipient,'executeCandidateAction',()=>panel.getByRole('button',{name:'Contribute Ring materials',exact:true}).click());
+   assertRingCandidateCommit(capture.result,capture.data,initial.view);
+   assert.equal(capture.data.shipId,'icebreaker');assert.equal(capture.data.action,'contribute-materials');assert.equal(capture.data.amount,1);
+   const after=await recordRoot();assert.equal(before.shipResources.icebreaker.materials-after.shipResources.icebreaker.materials,1);
+   const current=await workspace(recipient);assert.equal(current.path.materials,1);assert.equal(current.path.repaired,false);assert.equal(current.path.completed,false);
+   const paid={sessionId:sid,actorUidHash:short(actorUids.get('Recipient')),requestId:capture.data.requestId,candidateRevision:current.view.revision,
+    contributedMaterials:current.path.materials,materialsRemaining:after.shipResources.icebreaker.materials,candidateCompleted:current.path.completed,
+    phase:after.phase,cycle:after.currentTurn,reply:capture.result};
+   evidence.partialCandidate={request:capture.data,originalResult:capture.result,paid,witness:await ringWitness()};
+   return paid;
+  },
+  async recoverPartialCandidate(paid){
+   await mark('same original Miner cold document reload and exact partial contribution replay');
+   const before=await ringWitness();await restoredMember(recipient,'Recipient');assert.deepEqual(await ringWitness(),before);
+   const replay=await sdk(recipient,'executeCandidateAction',evidence.partialCandidate.request);
+   assert.deepEqual(replay,{...paid.reply,status:'replayed'});assert.deepEqual(await ringWitness(),before);
+   const current=await workspace(recipient),root=await recordRoot();
+   const recovered={...paid,actorUidHash:(await memberReady(recipient,'Recipient')).uidHash,requestId:replay.requestId,
+    candidateRevision:current.view.revision,contributedMaterials:current.path.materials,materialsRemaining:root.shipResources.icebreaker.materials,
+    candidateCompleted:current.path.completed,phase:root.phase,cycle:root.currentTurn,reply:{...replay,status:paid.reply.status}};
+   evidence.partialCandidate.replay=replay;evidence.partialCandidate.recovered=recovered;return recovered;
+  },
+  async nextAfterPartialCandidate(paid){
+   await mark('ordinary next cycle stays active with unfinished candidate and an enabled original Miner action');
+   await coordination(2);const actor=await memberReady(recipient,'Recipient');const current=await workspace(recipient),root=await recordRoot();
+   const button=recipient.page.getByRole('region',{name:'Candidate preparation and actions',exact:true}).getByRole('button',{name:'Contribute Ring materials',exact:true});
+   await button.waitFor({state:'visible'});const nextActionEnabled=await button.isEnabled();
+   assert.equal(current.path.repaired,false);assert.equal(root.debriefSnapshot,undefined);
+   const next={...paid,actorUidHash:actor.uidHash,sessionId:actor.sessionId,candidateRevision:current.view.revision,
+    contributedMaterials:current.path.materials,materialsRemaining:root.shipResources.icebreaker.materials,candidateCompleted:current.path.completed,
+    phase:root.phase,cycle:root.currentTurn,nextActionEnabled,nextActorUidHash:actor.uidHash};
+   await recipient.page.screenshot({path:`${directory}/F3-unfinished-candidate-next-action.png`});
+   evidence.partialCandidate.next=next;claims.push('One paid unfinished Ring contribution retains exact original receipt and debit after original Miner cold reload; ordinary Cycle2/Coordination exposes the same eligible Miner next action without completing or abandoning via an invented endpoint.');
+   return next;
   },
   async stationArrivalMaintenance(){
    await mark('legitimate Station Cycle1 charged maintenance');const current=await recordRoot();ships=current.activeVesselIds;assert.equal(ships.length,6);coordinate=await readStationCoordinate(gm);
@@ -1811,7 +1879,7 @@ async function enterRole(surface,label){
   for(const user of authCensus.users)preexistingUids.add(user.uid);
   evidence.preexistingAuthCount=preexistingUids.size;
   await writeFile(`${directory}/prelaunch.json`,JSON.stringify({allocation,sourceCommit,plan,nativeLaunched:false},null,2)+'\n');
-  await Promise.race([lossAckFailure.then(error=>{throw error;}),bounded(closureOnly?runPursuitClosureWorkflow(operations):stationOnly?runStationWorkflow(operations):runRingWorkflow(operations),workEnd-Date.now(),'Ring execution work cap exhausted.',()=>{stopped=true;})]);
+  await Promise.race([lossAckFailure.then(error=>{throw error;}),bounded(closureOnly?runPursuitClosureWorkflow(operations):stationOnly?runStationWorkflow(operations):runRingWorkflow(operations,abandonmentOnly?{intent:'abandon-after-partial'}:undefined),workEnd-Date.now(),'Ring execution work cap exhausted.',()=>{stopped=true;})]);
   assertRingRuntimeClean(errors,remoteRequests);evidence.status='passed';
  }catch(error){primaryFailure=error;stopped=true;evidence.status='failed';evidence.firstFailure={stage,error:originalProofError(error)};
   if(directoryCreated)await retainProofFailure(directory,'minimum-ring',error,{stage,consumed,claims}).catch(()=>{});
