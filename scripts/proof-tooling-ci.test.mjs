@@ -11,7 +11,7 @@ const deploy = await readFile(resolve(root, '.github/workflows/deploy.yml'), 'ut
 
 test('the named proof preflight runs only its maintained source contracts', () => {
   assert.equal(packageJson.scripts['test:proof-preflight'],
-    'node --test scripts/qualification/pc11-contract-preflight.test.mjs scripts/proof-tooling-ci.test.mjs');
+    'node --test scripts/qualification/pc11-contract-preflight.test.mjs scripts/proof-tooling-ci.test.mjs scripts/proof-tooling-browser-lifecycle.test.mjs');
 });
 
 test('tooling and shared UI selector risks use the existing unit gate and bounded browser smoke', () => {
