@@ -187,6 +187,28 @@ describe('candidate source calculations and explicit choices', () => {
     expect(last.state.sites['6798']?.repairedAt).toBe(now);
     expect(last.reply.summary).toMatch(/repaired/i);
   });
+  it('rejects fresh requests that reuse a committed Ring research track or Engineering Shuttle', () => {
+    const a = authority();
+    const materials = resolveCandidateAction(a, empty(), command('contribute-materials', { shipId: 'aegis', amount: 10 }));
+    const research = resolveCandidateAction(a, materials.state, command('contribute-research', {
+      requestId: 'research-first', expectedRevision: materials.state.revision, trackIds: Object.keys(a.research),
+    }));
+    const beforeResearchRetry = structuredClone(research.state);
+    expect(() => resolveCandidateAction(a, research.state, command('contribute-research', {
+      requestId: 'research-again', expectedRevision: research.state.revision, trackIds: ['reactor'],
+    }))).toThrow(/distinct|cannot be used twice/i);
+    expect(research.state).toEqual(beforeResearchRetry);
+
+    const craft = resolveCandidateAction(a, research.state, command('commit-engineering-shuttle', {
+      requestId: 'craft-first', expectedRevision: research.state.revision, shuttleId: 'philia',
+    }));
+    expect(craft.state.sites['6798']).toMatchObject({ researchIds: Object.keys(a.research), shuttleId: 'philia' });
+    const beforeCraftRetry = structuredClone(craft.state);
+    expect(() => resolveCandidateAction(a, craft.state, command('commit-engineering-shuttle', {
+      requestId: 'craft-again', expectedRevision: craft.state.revision, shuttleId: 'philia',
+    }))).toThrow(/available|already committed/i);
+    expect(craft.state).toEqual(beforeCraftRetry);
+  });
   it('denies incomplete research, unavailable craft and a stale revision', () => {
     const a = authority();
     a.research.reactor = 2;
@@ -216,6 +238,26 @@ describe('candidate source calculations and explicit choices', () => {
       command('sabotage-ring', { expectedRevision: 4, requestId: 'close' }));
     expect(finish.groupOutcome).toMatchObject({ candidateCode: 'N', successfulShipIds: ['aegis'],
       leftBehindShipIds: ['shepherd', 'quellon', 'dione', 'icebreaker', 'refinery-124'] });
+  });
+  it('rejects a fresh Ring passage after the group outcome is committed', () => {
+    const base = authority();
+    const repaired: CandidateState = { revision: 3, sites: { '6798': {
+      code: 'N', coordinate: '6798', groupId: 'fleet-1', materials: 10,
+      researchIds: Object.keys(base.research), shuttleId: 'philia', repairedAt: now, ships: {}, reactors: {},
+    } } };
+    const crossed = resolveCandidateAction(base, repaired,
+      command('ring-passage', { expectedRevision: 3, shipId: 'aegis' }));
+    const facilitator = { ...base, actor: { ...base.actor, gm: true } };
+    const completed = resolveCandidateAction(facilitator, crossed.state,
+      command('sabotage-ring', { requestId: 'complete-ring', expectedRevision: crossed.state.revision }));
+    expect(completed.groupOutcome).toMatchObject({ result: 'success', candidateCode: 'N', successfulShipIds: ['aegis'] });
+
+    const beforeLatePassage = structuredClone(completed.state);
+    const nextShip = { ...base, actor: { ...base.actor, shipIds: ['shepherd'] } };
+    expect(() => resolveCandidateAction(nextShip, completed.state, command('ring-passage', {
+      requestId: 'late-ring-ship', expectedRevision: completed.state.revision, shipId: 'shepherd',
+    }))).toThrow(/outcome is already committed/i);
+    expect(completed.state).toEqual(beforeLatePassage);
   });
   it('permits Deluxe far-side sabotage after paid passage without the Home Wolf-stop claim', () => {
     const base = authority();
