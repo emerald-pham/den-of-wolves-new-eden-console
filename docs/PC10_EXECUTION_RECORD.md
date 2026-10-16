@@ -1613,3 +1613,18 @@ observed RED and a separate test-first commit. It does not change unrelated
 callables, campaign accounting, release metadata or owner decisions. Root
 remains responsible for the final reconciled privacy review and whole prompt
 closure; fixture-based Rules proof is labeled separately from normal gameplay.
+
+## D1/D2 verification handoff and worker cleanup
+
+The candidate worker verified 148 selected domain/callable/projection, actual
+arrival/scout consumer and UI tests on the reconciled tree. No new behavior or
+tests were necessary. Its criterion map and commands remain at
+`/tmp/pc10-implementation-notes-20261015/candidate-discovery.md`. Rules, browser,
+HTTP and ordinary gameplay gaps remain explicit; no prompt is marked done.
+
+Root removed the terminal worker checkout
+`/tmp/dow-pc10-candidate-resume-f9f3` after confirming clean tracked/untracked
+state, no matching live process, no dependency symlinks and HEAD ancestry in the
+retained integration branch. Root's owner-reviewed preservation decision keeps
+its branch ref and external evidence; its sole ignored file was reproducible
+casting-core build output. No unique source or needed recovery data was removed.
