@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { createContext, Script, SyntheticModule } from 'node:vm';
+import { createContext, Script, SyntheticModule, SourceTextModule } from 'node:vm';
+import { initializeApp, deleteApp } from 'firebase/app';
+import { Component } from '@firebase/component';
+import * as actualLite from 'firebase/firestore/lite';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
 import { createWolfChoiceWaiter } from './pc10-combat-choice-readiness.mjs';
 import { assertOriginalBaseActor } from './pc10-base-combat-deduction-contracts.mjs';
@@ -28,7 +31,8 @@ const plain = value => JSON.parse(JSON.stringify(value));
 
 function sourceReadFixture({ metadata = { fromCache: false, hasPendingWrites: false },
   attack = currentAttack, serverValue = resolvedAttack, transactionValue,
-  serverError, pendingTransactionRead = false, afterServer = () => {}, sdkReply = deniedReply } = {}) {
+  serverError, pendingTransactionRead = false, afterServer = () => {}, sdkReply = deniedReply,
+  actualApp, verifyConflict = false } = {}) {
   const counts = { getDoc: 0, getDocFromServer: 0, getDocs: 0, sdkChoice: 0, paints: 0 };
   const timeouts = [], records = [], reads = [];
   const fixture = { actor: { ...originalActor }, counts, timeouts, records, reads };
@@ -54,7 +58,7 @@ function sourceReadFixture({ metadata = { fromCache: false, hasPendingWrites: fa
       assert.equal(database.kind, 'same-authenticated-db');
       assert.equal(options.maxAttempts, 1);
       assert.deepEqual(Object.keys(options), ['maxAttempts']);
-      return callback({ get: async ref => {
+      const result = await callback({ get: async ref => {
         reads.push({ method: 'transaction.get', path: ref.path });
         assert.equal(ref.path, path);
         if (pendingTransactionRead) return new Promise(() => {});
@@ -62,6 +66,8 @@ function sourceReadFixture({ metadata = { fromCache: false, hasPendingWrites: fa
         afterServer(fixture);
         return snapshot(transactionValue === undefined ? serverValue : transactionValue, metadata);
       } });
+      if (verifyConflict) throw Object.assign(new Error('the stored version does not match the required base version'), { code: 'failed-precondition' });
+      return result;
     },
     getDocs: async ref => {
       counts.getDocs += 1; reads.push({ method: 'getDocs', path: ref.path });
@@ -92,6 +98,26 @@ function sourceReadFixture({ metadata = { fromCache: false, hasPendingWrites: fa
     const modules = new Map([['/fixture/firebase_firestore.js', sdkModule],
       ['/src/lib/firestore.ts', firestore], ['/src/store/useSessionStore.ts', store]]);
     for (const module of modules.values()) { await module.link(() => assert.fail('No fixture imports.')); await module.evaluate(); }
+    if (actualApp) {
+      const definitions = [
+        ['firebase/firestore/lite', actualLite],
+        ['/src/lib/firebase.ts', { app: () => actualApp, auth: () => ({ currentUser: { uid } }) }],
+        ['/src/lib/firebaseConfig.ts', { useEmulators: true,
+          firebaseConfig: { projectId: actualApp.options.projectId }, emulatorPorts: { firestore: 8100 } }],
+      ];
+      for (const [name, exports] of definitions) {
+        const module = new SyntheticModule(Object.keys(exports), function () {
+          for (const [key, value] of Object.entries(exports)) this.setExport(key, value);
+        }, { context: browser });
+        await module.link(() => assert.fail('No fixture imports.')); await module.evaluate(); modules.set(name, module);
+      }
+      try {
+        const source = await readFile(new URL('./pc10-combat-single-document-browser.mjs', import.meta.url), 'utf8');
+        const module = new SourceTextModule(source, { context: browser });
+        await module.link(name => { assert.ok(modules.has(name)); return modules.get(name); });
+        await module.evaluate(); modules.set('/scripts/pc10-combat-single-document-browser.mjs', module);
+      } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    }
     const script = new Script(`(${callback.toString()})(input)`, {
       importModuleDynamically: async name => { assert.ok(modules.has(name)); return modules.get(name); },
     });
@@ -113,6 +139,58 @@ function sourceReadFixture({ metadata = { fromCache: false, hasPendingWrites: fa
     run: () => createWolfChoiceWaiter(context, { tools })(gm, attack, { kind: 'boarding-special' }),
   };
 }
+
+// Attempt 6's real server failed in Commit/checkMutation, after the read,
+// because the attack changed. Execute the installed Lite SDK against an inert
+// fetch boundary; no emulators, sockets, synthetic gameplay or real token.
+async function actualSingleReadFixture(t, { status = 200, afterRead = () => {} } = {}) {
+  const projectId = 'demo-native-single-document';
+  const app = initializeApp({ projectId }, `single-read-${Math.random()}`);
+  app._container.addComponent(new Component('auth-internal', () => ({
+    getToken: async () => ({ accessToken: 'private-native-inert-token' }), getUid: () => uid,
+  }), 'PRIVATE'));
+  app._container.getProvider('auth-internal').getImmediate();
+  t.after(() => deleteApp(app));
+  const calls = [];
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    calls.push({ url, method: options.method, body: JSON.parse(options.body) });
+    assert.equal(url, `http://127.0.0.1:8100/v1/projects/${projectId}/databases/(default)/documents:batchGet`);
+    assert.equal(options.headers.Authorization, 'Bearer private-native-inert-token', 'Use this original app Auth provider.');
+    assert.deepEqual(JSON.parse(options.body), { documents: [
+      `projects/${projectId}/databases/(default)/documents/sessions/${sessionId}/wolfAttackState/current`,
+    ] });
+    afterRead();
+    return { ok: status === 200, status, statusText: 'Native inert response', json: async () => status === 200 ? [{
+      found: { name: `projects/${projectId}/databases/(default)/documents/sessions/${sessionId}/wolfAttackState/current`,
+        fields: { type: { stringValue: 'wolf-attack-state' }, attackId: { stringValue: currentAttack.attackId },
+          turn: { integerValue: '1' }, revision: { integerValue: '3' }, status: { stringValue: 'declared' },
+          currentStep: { stringValue: 'targeting' }, airspaceLocked: { booleanValue: true } },
+        createTime: '2026-10-16T18:39:02.536714Z', updateTime: '2026-10-16T18:39:02.803156Z' },
+      readTime: '2026-10-16T18:39:03Z',
+    }] : { error: { message: 'private-target-uid' } } };
+  });
+  return { ...sourceReadFixture({ actualApp: app, verifyConflict: true }), calls };
+}
+
+test('a current single-document read survives postread source movement without a verification commit', async t => {
+  let moved = false;
+  const fixture = await actualSingleReadFixture(t, { afterRead: () => { moved = true; } });
+  const observed = [];
+  const value = await fixture.adapter.read('gm', 'wolfAttackState/current', { serverOnly: true,
+    singleDocument: true, deadlineAt: Date.now() + 4000, onSnapshot: outcome => observed.push(plain(outcome)) });
+  assert.equal(value.revision, 3); assert.equal(value.currentStep, 'targeting');
+  assert.equal(moved, true); assert.equal(fixture.calls.length, 1);
+  assert.deepEqual(fixture.reads, [], 'No full SDK listener, transaction, verification commit or fallback.');
+  assert.equal(observed[0].readSource, 'firestore-lite-server');
+  assert.equal(Object.hasOwn(observed[0], 'metadata'), false, 'Do not invent full SDK snapshot metadata for Lite.');
+});
+
+test('the actual single-document SDK permission denial stays terminal without a transaction or fallback', async t => {
+  const fixture = await actualSingleReadFixture(t, { status: 403 });
+  await assert.rejects(fixture.adapter.read('gm', 'wolfAttackState/current', { serverOnly: true,
+    singleDocument: true, deadlineAt: Date.now() + 4000 }), error => error.code === 'permission-denied');
+  assert.equal(fixture.calls.length, 1); assert.deepEqual(fixture.reads, []);
+});
 
 test('the exact authenticated single reinspection uses one serialized SDK transaction read', async () => {
   const fixture = sourceReadFixture(), observed = [];
