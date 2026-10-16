@@ -5,7 +5,10 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import {
   mkdir,
   mkdtemp,
+  lstat,
+  open,
   readFile,
+  readdir,
   realpath,
   rename,
   rm,
@@ -727,7 +730,7 @@ async function restoreCurrentBranch(root, branch, expectedSha) {
   }
 }
 
-async function deleteLocalBranchWithHeadGuard(root, branch, expectedSha) {
+async function localBranchHeadTransaction(root, branch, expectedSha, { remove = false } = {}) {
   const targetRef = `refs/heads/${branch}`;
   const symbolicHead = await run('git', ['symbolic-ref', '-q', 'HEAD'], {
     cwd: root,
@@ -746,12 +749,105 @@ async function deleteLocalBranchWithHeadGuard(root, branch, expectedSha) {
     'start',
     'option no-deref',
     headGuard,
-    `delete ${targetRef} ${expectedSha}`,
+    `${remove ? 'delete' : 'verify'} ${targetRef} ${expectedSha}`,
     'prepare',
     'commit',
     '',
   ].join('\n');
   await runWithInput('git', ['update-ref', '--stdin'], transaction, { cwd: root });
+}
+
+async function registeredHeadPaths(identity) {
+  let registrations;
+  try {
+    registrations = await readdir(join(identity, 'worktrees'), { withFileTypes: true });
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+    registrations = [];
+  }
+  const paths = [join(identity, 'HEAD')];
+  for (const registration of registrations) {
+    if (registration.isSymbolicLink()) throw new Error('A worktree registration is a symbolic link.');
+    if (registration.isDirectory()) paths.push(join(identity, 'worktrees', registration.name, 'HEAD'));
+  }
+  return paths.sort();
+}
+
+function sameFile(left, right) {
+  return left.dev === right.dev && left.ino === right.ino;
+}
+
+async function releaseHeadGuards(guards) {
+  const failures = [];
+  for (const guard of [...guards].reverse()) {
+    try {
+      const current = await lstat(guard.lockPath);
+      const ownedIdentity = guard.lockIdentity ?? await guard.handle.stat();
+      if (sameFile(current, ownedIdentity)) await unlink(guard.lockPath);
+      else failures.push(`The lock at ${guard.lockPath} was replaced; it was left untouched.`);
+    } catch (error) {
+      failures.push(`Could not release the owned HEAD guard at ${guard.lockPath}: ${error.message}`);
+    } finally {
+      await guard.handle.close().catch((error) => failures.push(`Could not close ${guard.lockPath}: ${error.message}`));
+    }
+  }
+  return failures;
+}
+
+async function acquireRegisteredHeadGuards({ root, identity, branch, expectedSha }) {
+  const guards = [];
+  try {
+    const currentHead = await canonicalPath(await run('git', [
+      'rev-parse', '--path-format=absolute', '--git-path', 'HEAD',
+    ], { cwd: root }));
+    const headPaths = await registeredHeadPaths(identity);
+    if (!headPaths.includes(currentHead)) throw new Error('The initiating HEAD is not a known worktree registration.');
+
+    // Git serializes HEAD writers through HEAD.lock. Guard the other checkouts
+    // while the initiating HEAD and target ref use Git's native transaction.
+    // An existing or crash-left lock is never reclaimed by branch cleanup.
+    for (const headPath of headPaths) {
+      if (headPath === currentHead) continue;
+      const headIdentity = await lstat(headPath);
+      if (!headIdentity.isFile()) throw new Error(`The registered HEAD at ${headPath} is not a regular file.`);
+      const lockPath = `${headPath}.lock`;
+      const handle = await open(lockPath, 'wx', 0o600);
+      const guard = { headPath, lockPath, handle, lockIdentity: null, contents: null };
+      guards.push(guard);
+      guard.lockIdentity = await handle.stat();
+      guard.contents = await readFile(headPath, 'utf8');
+      const symbolic = guard.contents.match(/^ref: (refs\/heads\/[^\r\n]+)\n?$/);
+      if (symbolic) {
+        await run('git', ['check-ref-format', symbolic[1]], { cwd: root });
+        if (symbolic[1] === `refs/heads/${branch}`) {
+          throw new Error(`A registered checkout became attached to ${branch} before its HEAD could be guarded.`);
+        }
+      } else if (!SHA_PATTERN.test(guard.contents.trim())) {
+        throw new Error(`The registered HEAD at ${headPath} has unknown contents.`);
+      }
+    }
+
+    const verify = async () => {
+      const latestPaths = await registeredHeadPaths(identity);
+      if (JSON.stringify(latestPaths) !== JSON.stringify(headPaths)) {
+        throw new Error('Git worktree registrations changed while HEAD guards were held.');
+      }
+      for (const guard of guards) {
+        if (!sameFile(await lstat(guard.lockPath), guard.lockIdentity) ||
+            await readFile(guard.headPath, 'utf8') !== guard.contents) {
+          throw new Error(`The HEAD guard at ${guard.lockPath} no longer protects the inspected checkout.`);
+        }
+      }
+    };
+    await verify();
+    // Refuse unsupported transaction syntax before deleting the remote ref.
+    await localBranchHeadTransaction(root, branch, expectedSha);
+    return { verify, release: () => releaseHeadGuards(guards) };
+  } catch (error) {
+    const releaseFailures = await releaseHeadGuards(guards);
+    if (releaseFailures.length) error.message += ` ${releaseFailures.join(' ')}`;
+    throw error;
+  }
 }
 
 function reportFor(branch, apply) {
@@ -892,90 +988,108 @@ async function cleanupBranchInternal({
     return addReason(report, 'branch-tip-changed', 'The branch tip changed immediately before deletion; both refs were retained.');
   }
 
-  if (rechecked.remote) {
-    try {
-      await run('git', [
-        'push', '--porcelain',
-        `--force-with-lease=refs/heads/${targetBranch}:${rechecked.remote}`,
-        'origin', `:refs/heads/${targetBranch}`,
-      ], { cwd: root });
-      report.actions.remoteBranchRemoved = true;
-    } catch (error) {
-      let currentRemote;
+  let headGuards;
+  try {
+    headGuards = await acquireRegisteredHeadGuards({ root, identity, branch: targetBranch, expectedSha: inspected.local });
+  } catch (error) {
+    if (wasCurrentBranch && report.actions.detached) {
+      report.actions.reattached = await restoreCurrentBranch(root, targetBranch, inspected.local);
+    }
+    return addReason(report, 'worktree-head-guard-unavailable', `All registered checkout HEADs could not be guarded before deletion: ${error.message}`);
+  }
+
+  try {
+    if (rechecked.remote) {
       try {
-        currentRemote = await remoteBranchSha(root, targetBranch);
-      } catch {
-        // The failed push and unavailable follow-up both retain the local ref.
-      }
-      if (wasCurrentBranch && report.actions.detached) {
-        report.actions.reattached = await restoreCurrentBranch(root, targetBranch, inspected.local);
-      }
-      if (currentRemote === null) {
-        report.remote = { name: 'origin', exists: false, sha: null };
-        report.actions.remoteBranchRemovalUnconfirmed = true;
+        await run('git', [
+          'push', '--porcelain',
+          `--force-with-lease=refs/heads/${targetBranch}:${rechecked.remote}`,
+          'origin', `:refs/heads/${targetBranch}`,
+        ], { cwd: root });
+        report.actions.remoteBranchRemoved = true;
+      } catch (error) {
+        let currentRemote;
+        try {
+          currentRemote = await remoteBranchSha(root, targetBranch);
+        } catch {
+          // The failed push and unavailable follow-up both retain the local ref.
+        }
+        if (wasCurrentBranch && report.actions.detached) {
+          report.actions.reattached = await restoreCurrentBranch(root, targetBranch, inspected.local);
+        }
+        if (currentRemote === null) {
+          report.remote = { name: 'origin', exists: false, sha: null };
+          report.actions.remoteBranchRemovalUnconfirmed = true;
+          return addReason(
+            report,
+            'remote-delete-unconfirmed',
+            `Origin no longer has ${targetBranch}, but the deletion command did not confirm its exact-SHA lease; the local recovery ref was retained.`,
+          );
+        }
+        if (currentRemote !== undefined) report.remote = { name: 'origin', exists: true, sha: currentRemote };
         return addReason(
           report,
-          'remote-delete-unconfirmed',
-          `Origin no longer has ${targetBranch}, but the deletion command did not confirm its exact-SHA lease; the local recovery ref was retained.`,
+          currentRemote !== undefined && currentRemote !== rechecked.remote ? 'remote-tip-changed' : 'remote-delete-failed',
+          currentRemote !== undefined && currentRemote !== rechecked.remote
+            ? `Origin changed ${targetBranch} during cleanup; its exact-SHA deletion was not confirmed, so the local ref was retained.`
+            : `Origin did not confirm deletion of ${targetBranch}: ${error.message}`,
         );
       }
-      if (currentRemote !== undefined) report.remote = { name: 'origin', exists: true, sha: currentRemote };
+
+      let afterPush;
+      try {
+        afterPush = await remoteBranchSha(root, targetBranch);
+      } catch (error) {
+        return addReason(report, 'remote-metadata-unavailable', `Origin deletion could not be verified: ${error.message}`);
+      }
+      if (afterPush) {
+        return addReason(report, 'remote-branch-reappeared', `Origin still has ${targetBranch} after the leased deletion.`);
+      }
+    }
+
+    const ownership = await coordinationReason({ coordinationFile: coordinationPath, root, identity, branch: targetBranch });
+    if (ownership) return addReason(report, ownership.code, ownership.message);
+    try {
+      const attached = await branchWorktreeReason(root, targetBranch);
+      if (attached) return addReason(report, attached.code, attached.message);
+    } catch (error) {
+      return addReason(report, 'worktree-metadata-unavailable', `Git worktree registration could not be rechecked: ${error.message}`);
+    }
+
+    const finalLocalSha = await branchSha(root, targetBranch).catch(() => null);
+    if (finalLocalSha !== inspected.local) {
+      return addReason(report, 'local-tip-changed', `The local tip of ${targetBranch} changed after the recovery bundle was verified; compare-and-swap retained the new local ref.`);
+    }
+
+    try {
+      const attached = await branchWorktreeReason(root, targetBranch);
+      if (attached) return addReason(report, attached.code, attached.message);
+      await headGuards.verify();
+      await localBranchHeadTransaction(root, targetBranch, inspected.local, { remove: true });
+      report.actions.localBranchRemoved = true;
+    } catch (error) {
+      const latest = await branchSha(root, targetBranch).catch(() => null);
+      const latestHead = await currentBranch(root).catch(() => '');
+      if (error?.code === 'HEAD_REATTACHED' || latestHead === targetBranch) {
+        return addReason(report, 'branch-in-other-worktree', `The initiating checkout became attached to ${targetBranch} during local ref deletion; its branch ref was retained.`);
+      }
       return addReason(
         report,
-        currentRemote !== undefined && currentRemote !== rechecked.remote ? 'remote-tip-changed' : 'remote-delete-failed',
-        currentRemote !== undefined && currentRemote !== rechecked.remote
-          ? `Origin changed ${targetBranch} during cleanup; its exact-SHA deletion was not confirmed, so the local ref was retained.`
-          : `Origin did not confirm deletion of ${targetBranch}: ${error.message}`,
+        latest && latest !== inspected.local ? 'local-tip-changed' : 'local-delete-failed',
+        latest && latest !== inspected.local
+          ? `The local tip of ${targetBranch} changed during compare-and-swap; the new ref was retained.`
+          : `Git did not confirm deletion of ${targetBranch}: ${error.message}`,
       );
     }
 
-    let afterPush;
-    try {
-      afterPush = await remoteBranchSha(root, targetBranch);
-    } catch (error) {
-      return addReason(report, 'remote-metadata-unavailable', `Origin deletion could not be verified: ${error.message}`);
-    }
-    if (afterPush) {
-      return addReason(report, 'remote-branch-reappeared', `Origin still has ${targetBranch} after the leased deletion.`);
+    report.decision = 'removed';
+    return report;
+  } finally {
+    const releaseFailures = await headGuards.release();
+    if (releaseFailures.length) {
+      report.reasons.push({ code: 'worktree-head-guard-release-failed', message: releaseFailures.join(' ') });
     }
   }
-
-  const ownership = await coordinationReason({ coordinationFile: coordinationPath, root, identity, branch: targetBranch });
-  if (ownership) return addReason(report, ownership.code, ownership.message);
-  try {
-    const attached = await branchWorktreeReason(root, targetBranch);
-    if (attached) return addReason(report, attached.code, attached.message);
-  } catch (error) {
-    return addReason(report, 'worktree-metadata-unavailable', `Git worktree registration could not be rechecked: ${error.message}`);
-  }
-
-  const finalLocalSha = await branchSha(root, targetBranch).catch(() => null);
-  if (finalLocalSha !== inspected.local) {
-    return addReason(report, 'local-tip-changed', `The local tip of ${targetBranch} changed after the recovery bundle was verified; compare-and-swap retained the new local ref.`);
-  }
-
-  try {
-    const attached = await branchWorktreeReason(root, targetBranch);
-    if (attached) return addReason(report, attached.code, attached.message);
-    await deleteLocalBranchWithHeadGuard(root, targetBranch, inspected.local);
-    report.actions.localBranchRemoved = true;
-  } catch (error) {
-    const latest = await branchSha(root, targetBranch).catch(() => null);
-    const latestHead = await currentBranch(root).catch(() => '');
-    if (error?.code === 'HEAD_REATTACHED' || latestHead === targetBranch) {
-      return addReason(report, 'branch-in-other-worktree', `The initiating checkout became attached to ${targetBranch} during local ref deletion; its branch ref was retained.`);
-    }
-    return addReason(
-      report,
-      latest && latest !== inspected.local ? 'local-tip-changed' : 'local-delete-failed',
-      latest && latest !== inspected.local
-        ? `The local tip of ${targetBranch} changed during compare-and-swap; the new ref was retained.`
-        : `Git did not confirm deletion of ${targetBranch}: ${error.message}`,
-    );
-  }
-
-  report.decision = 'removed';
-  return report;
 }
 
 export async function cleanupBranch(options = {}) {
