@@ -356,3 +356,47 @@ Sol owns the bounded source diagnosis/repair; root retains native/release work.
 | `base-opening-combat.json` | `58d073a715eda1a0c88b1804bfe18522761848068d1f9d7d32060fc00c956ff7` |
 | `runtime invocation-source.mjs` | `887be0c116acfd8ab356b33e324f3cb0f7089b23d2c6ef79977e84e4e3cf1c8c` |
 | `runtime strict-return.json` | `e6c3f8cee42ee0cefdcd157c7ea0c156c072ea7643ac2cae3da61167233414ff` |
+
+
+## Boarding diagnostic a1 — earlier member navigation stopped the reproduction
+
+Source `5734ab19f9d58657313919c3e740642aa05622c4`, fresh project
+`demo-pc10-boarding-diag-f9f3-20261016-a1`, evidence
+`/private/tmp/pc10-boarding-diagnostic-proof-f9f3-20261016-a1`.
+
+This was a diagnostic only, with temporary logging in the compiled original
+boarding-special getter. The log would record only the exact rejecting
+transaction snapshot's existence/type/status/step/lock/revision, without IDs,
+private bodies or additional reads. No game rule or error contract changed.
+Instrumented index SHA-256 `8fd735e85f46a64f9e42b678573dfaf96887570969f0863ac3a5ea4e12f6c83d`;
+compiled tree `367270638d392392957a16263105f717bd8e1d9b48442c72c833189f73f1dd8a`.
+No acceptance credit is allowed from this runtime, even for successful steps.
+
+The smallest canonical roster satisfying the existing EO/six-ship consumer
+used thirteen roles plus GM/controller (fifteen actual Auth actors), two Chrome
+contexts, zero humans and no Press/Capybara. Normal setup and six Cycle 1
+maintenance sessions completed, followed by genuine opening combat. The run
+stopped earlier than the target denial: `Original role navigation epoch changed
+without its matching normal resume receipt and accepted hydration`, from the
+existing member-navigation proof consumer during the next role selection.
+The prior role was Shepherd Scientist; its current boarding-special/defence
+reads were source-excluded at revision 21. No target guard diagnostic was
+emitted. The original a3 boarding contradiction remains unresolved.
+
+Acquisition 07:52:18.262 UTC. Proof exited 1 and both wrappers ended. Strict
+return 08:01:30.530 UTC: all 99 captured owned PIDs absent, all 22 bindings free,
+exact configuration released. Original index `e46ad04fcd43ecb5e2c29beb861bb8d128ef2a278f542ac63bdbc08333c05c94`
+and full 463-file compiled tree
+`54f93d77000a61f24d64abbcd13fc3ef09594e1db1d110dbe3c1c3a886ffd2f7`
+were restored and verified before unfreezing the checkout. RAM was discarded
+without import/export or per-UID deletion claim. Original proof stop
+08:22:18.262 and hard return 08:32:18.262 were retained. Sol owns the next
+bounded navigation-consumer diagnosis; root retains integration/native/release.
+
+| Diagnostic a1 artifact | SHA-256 |
+| --- | --- |
+| `failure.json` | `539a2fd2bef4f15995d00a254e514d7bdcac01a7e6e49b15153ccf034641461c` |
+| `boarding-diagnostic-opening-combat.json` | `54644cb50d2f28cc4dd74bd561ad13c351d247000df5c3df197c828e01745ab8` |
+| `runtime invocation-source.mjs` | `98ae53e87bd56c1f71ab8f7b506db132630e6352b89bb8d858ebf498419f9425` |
+| `runtime diagnostic-module.mjs` | `e98ae3bfc9b91b74c8a9086f0f77fe2bbb629d2dd40d5e4c977259271fd278ad` |
+| `runtime strict-return.json` | `e7302f0b402a76f8bb0e485a9666288d3847678b66d4e9c79d272a6adfaec2cf` |

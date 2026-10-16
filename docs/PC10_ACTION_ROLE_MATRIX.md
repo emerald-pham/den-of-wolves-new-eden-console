@@ -1,27 +1,38 @@
 # PC10 action and role source map
 
-The generated [action/role matrix](./PC10_ACTION_ROLE_MATRIX.json) inventories the current Functions exports and records a source trace for every callable. It is a code-navigation aid; it does not grant gameplay, availability, UI usability, or acceptance credit.
+The generated [action/role matrix](./PC10_ACTION_ROLE_MATRIX.json) inventories
+current Functions exports and records a static source trace for each callable.
+It is a code-navigation aid; it does not grant gameplay, availability, UI
+usability, or acceptance credit.
 
 ## Coverage
 
-- 241 built SDK exports: 232 callables, 6 background triggers, and 3 scheduled triggers.
-- 42 role identities. The seven private loyalty identities are derived from the canonical `LoyaltyKind` union.
-- 9,744 callable/role eligibility cells. Every cell is explicitly unresolved until the server entitlement check is traced for that action.
-- Every callable row has fields for its user-facing action, served-UI trace, eligible actor, source locations, requirements, costs, consequences, blockers, next actor, and in-console guidance. Unverified mechanics are `status: unresolved` with a null value; guidance coverage is marked for PC11.
+- 248 compiled SDK exports: 239 callables, 6 background triggers, and 3 scheduled triggers.
+- 42 role descriptors; the seven private loyalty descriptors derive from the canonical `LoyaltyKind` union. Descriptors are not authenticated actors.
+- 10,038 callable/role eligibility cells. Each remains unresolved until the authoritative server entitlement check is mapped.
+- All callable rows include action, served-UI trace, actor, source, requirements, costs, consequences, blockers, next actor and guidance fields. Static references do not establish runtime reachability or eligibility.
+
+The current Functions source binding is `243f67105437695b1a43f57e6de7e6040f64e659` (550 files; tree SHA-256 `1edae453e457850854199594d1100173bb666fc4fd4adf5e46a72a4c21d2eee6`; `index.ts` SHA-256 `84a878f4b48112a8c351f885dc6f59c195392fd1ff97d9754faffe59041c1ae2`). The client source binding is 877 files, SHA-256 `95d4ac4cdcb6f8e7010a4a00218bf32838daf2c1e9a8bfb7e8a8dd66136b30c2`. Export metadata was read from the existing compiled tree; compiled `index.js` SHA-256 is `e46ad04fcd43ecb5e2c29beb861bb8d128ef2a278f542ac63bdbc08333c05c94`. This refresh did not build or execute an emulator, browser, callable, or gameplay request.
+
+The prior function inventory was 247 exports/238 callables. Only one export was newly present there: `castingCompanionCommand`, existing published-main casting transport outside new PC10 gameplay. The prior action/role JSON was older and omitted seven callable rows now included: six already present in the function inventory plus that casting transport. These static rows earn zero gameplay/native credit. The Cappy-a3 opening-combat/boarding prefix did not call `castingCompanionCommand`; no claim is made here about calls to the other six rows.
 
 ## Source-trace limits
 
-The current source has exact quoted client references and a static import chain to `App.tsx` for 226 callables. This identifies a candidate client path; it does not prove a control is mounted, visible, enabled, entitled, or usable. The six callables with no exact quoted client reference are:
+The current source has exact quoted client references for 235 callables and a static import chain to `App.tsx` for 234. Four have no exact quoted client reference: `resolveMaliadesMedium`, `resolveMaliadesShort`, `elevateToGm`, and `rollDice`. These are candidates for owner review, not proof of unavailability. Static imports do not establish that a control is mounted, visible, enabled, entitled, or usable. Native-only classification was not performed. Background triggers and schedules are separate from player-invoked callables. No human-device or physical-play evidence is claimed.
 
-`resolveMaliadesMedium`, `resolveMaliadesShort`, `setShipPreference`, `submitWolfSupplySabotage`, `elevateToGm`, and `rollDice`.
-
-Those rows are candidates for owner review, not proof of product unavailability. Native-only classification was not performed for this source revision. Background triggers and schedules are listed separately from player-invoked callables. No human-device or physical-play evidence is claimed.
-
-Each matrix source binding records the generated commit, Functions and client source tree hashes, compiled Functions tree hash, and entrypoint hashes. The build was run in this isolated action-matrix worktree; the parent root checkout's build status is not asserted. No emulator, browser, native callable, or gameplay request was run for this snapshot.
+`PC10_ACTION_REVIEW_ANNOTATIONS.json` is preserved unchanged. Its curated 20-row review remains explicitly bound to its recorded source `08b21c99702c2532221b8072b48f29dd22e820c1` and prior canonical snapshot SHA-256 `bdd64af30a867de22a2c0abb3513bea94fc5ef618ac909188d7072baee53f224` (232-callable baseline). This refresh does not rebind or revalidate its source anchors; review annotations apply only within their recorded binding. The previous 241/232 and 247/238 inventory snapshots remain historical records.
 
 ## Acceptance accounting
 
-The artifact preserves the fixed 48 prompt closures, A01 QR credit at zero, A02 demo credit at zero, and PC11/PC12 as not executed. The generated whole-role/fresh-game proof fields remain pending. The authoritative PC10 acceptance matrix separately records the 22 accepted lifecycle/setup/privacy claims and scoped valid historical evidence; those partial claims do not complete a role or endpoint. PC11 is the authorized follow-up for concise action-adjacent hints and longer contextual guidance. PC12 remains unexecuted as recorded. See the [PC10 acceptance matrix](./PC10_ACCEPTANCE_MATRIX.md) for the authoritative release gate.
+The artifact preserves the fixed 48 prompt closures, A01 QR credit at zero, A02 demo credit at zero, and PC11/PC12 as not executed. Whole-role/fresh-game proof fields and per-callable role eligibility remain pending. The authoritative PC10 acceptance matrix separately records scoped historical claims; they do not complete a role or endpoint. Static import inventories and role descriptors do not grant acceptance credit. See the [PC10 acceptance matrix](./PC10_ACCEPTANCE_MATRIX.md) for the release gate.
+
+Regenerate inventory after the final Functions integration:
+
+```sh
+npm run build --prefix functions
+node scripts/pc10-function-inventory.mjs docs/PC10_FUNCTION_ROLE_MATRIX.json
+node scripts/pc10-action-role-matrix.mjs docs/PC10_ACTION_ROLE_MATRIX.json
+```
 
 The subsequent three-actor manual-training actual at `278347c6` completed its
 scoped admission/preparation/start/Coordination prefix, then stopped before

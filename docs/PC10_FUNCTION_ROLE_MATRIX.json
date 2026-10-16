@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "639ad674afd383fd0690dbdb299c5ef351c43f46",
+  "sourceCommit": "2a2d64cc1b946be1558e144cd35941574f8d98ad",
   "binding": "Built SDK __endpoint exports from current Functions source; independent review and gameplay evidence remain separate.",
   "accounting": "Every callable is inventoried. Background jobs are separately traced; an inventory row alone is not acceptance.",
   "roles": [
@@ -793,6 +793,7 @@
       "name": "createSession",
       "kind": "callable",
       "clientConsumers": [
+        "src/casting/adapter.ts",
         "src/lib/sessionService.ts"
       ],
       "currentFreshGameProof": "pending",
@@ -807,6 +808,17 @@
         "src/lib/sessionService.ts",
         "src/routes/GmConsole.tsx",
         "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "castingCompanionCommand",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/casting/adapter.ts"
       ],
       "currentFreshGameProof": "pending",
       "authorityPrivacyRecoveryProof": "pending",
@@ -1508,6 +1520,7 @@
       "name": "joinSession",
       "kind": "callable",
       "clientConsumers": [
+        "src/casting/adapter.ts",
         "src/lib/demoActorProfiles.ts",
         "src/lib/sessionService.ts"
       ],
@@ -1532,6 +1545,7 @@
       "name": "loginGmAccess",
       "kind": "callable",
       "clientConsumers": [
+        "src/casting/adapter.ts",
         "src/lib/sessionService.ts"
       ],
       "currentFreshGameProof": "pending",
@@ -1555,6 +1569,7 @@
       "name": "claimGmInstance",
       "kind": "callable",
       "clientConsumers": [
+        "src/casting/adapter.ts",
         "src/lib/sessionService.ts",
         "src/routes/GmConsole.tsx",
         "src/routes/RoleSelect.tsx",
@@ -2525,6 +2540,7 @@
       "name": "refreshPresence",
       "kind": "callable",
       "clientConsumers": [
+        "src/casting/adapter.ts",
         "src/lib/demoActorProfiles.ts",
         "src/lib/sessionService.ts"
       ],
