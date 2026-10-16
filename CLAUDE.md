@@ -77,46 +77,22 @@ Preserve other tasks' claims and port reservations. A parked task needs only a c
 there is no status/heartbeat polling loop. Optional goals may stay in the chat or ordinary session record; there is
 no immutable goal file, digest comparison, one-shot provenance or repair chain, or cleanup gate.
 
-Process-gate changes are frozen through 2026-09-18. An exception needs two
-observed production-impacting failures that the proposed gate would have
-prevented; fixes to broken existing tools remain allowed. For the first five
-prompts, use the existing task timestamps for a lightweight check; do not add a
-new telemetry system.
-
 New top-level coordinators default to `gpt-6-astra` with medium reasoning.
-The top-level orchestrator thread receiving the user's request is the task and
-checkpoint owner. It owns priorities, architecture, complete bounded briefs,
-every acceptance, integration, required review, final validation, merge, push,
-deployment verification and the user handoff. Do not delegate checkpoint
-ownership to a child or create an extra coordinator layer. Only `gpt-6-luna` and
-`gpt-6.1-sol` may be delegated as subagents. Existing agents may finish current
-bounded implementation assignments without interruption; apply this model policy
-to new agents and subsequent assignments.
+Only `gpt-6-luna` and `gpt-6.1-sol` may be delegated as subagents.
 
-Workers own task-specific documentation reading and code investigation. Beyond required agent instructions, the
-orchestrator relies on concise worker findings, decisions needed, and evidence pointers; it does not duplicate their
-document reading. Inspect source material only to resolve a concrete decision or blocker. Do not interrupt an active
-worker or request a rebase solely for routine guidance updates; let the worker encounter them at its next normal update
-unless they materially affect the current work.
+One task owner, the requesting top-level orchestrator, owns priorities,
+architecture, all acceptances, implementation, repairs, review, integration,
+final validation, merge, push and deployment verification through the handoff.
+Delegated workers default to `gpt-6-luna`.
+Luna effort is discretionary; `max` is almost always preferred.
+Sol may use all supported effort levels.
 
-One task owner, the top-level orchestrator, carries a change through
-implementation, repairs, appropriate self-review and validation, merge, push,
-and deployment verification when applicable. For shaped checkpoints, one owner is accountable for every acceptance,
-integration, and release; separate Luna workers (Max almost always preferred) implement independent groups, with independent Sol review for
-shared-state and authority changes. Record groups, dependencies, isolated checkouts, and shared-file boundaries before
-building; group coupled prompts together instead of assigning one agent per prompt. Follow the linked execution policy
-and reconcile at one release boundary. Delegated workers default to `gpt-6-luna`. Luna effort is discretionary; `max` is almost always preferred.
-Sol may use all supported effort levels. Keep explicit task-specific security review floors.
-
-Delegate bounded, complete behavior groups while retaining checkpoint ownership
-in the orchestrator thread. Workers implement, verify and repair their groups,
-then return commits, evidence and remaining gaps; the orchestrator does useful
-owner work in parallel and reconciles the single release. Keep conflicting
-shared-file work with one writer. Avoid routine polling, relaying every small
-update and duplicate investigation. Preserve explicit canonical-parent
-collaboration messages and do not create coordinator goals. The linked
-execution policy governs handbacks and safe transitions from an existing
-delegated-owner assignment.
+Before delegation, checkpoint shaping or release preparation, read
+[`Agent execution policy`](docs/AGENT_EXECUTION_POLICY.md). It owns complete
+behavior groups, worker briefs and handbacks, shared-file boundaries, model
+escalation, parent acknowledgement before dependency parking, and batched CI.
+Workers own their source investigation and focused repairs; the orchestrator
+uses their evidence and investigates only concrete decisions or blockers.
 
 Use `gpt-6.1-sol` for independent review of shared session state, callable behavior
 (including authorization and rules), Firestore rules, deployment/auth
@@ -128,27 +104,11 @@ Independent risk review returns all findings together; the owner repairs them
 in a bounded follow-up limited to unresolved findings or materially changed risk.
 Do not run a compulsory Luna → Sol → Luna ownership cycle.
 
-Escalate only after actual lack of progress or a material failure: substantive
-diagnosis and an attempted repair must fail and the owner cannot identify a
-credible next step. A failed test with an obvious fix is progress. Sol may
-diagnose or take over a justified blocker when the reason and ownership
-transfer are explicit; the task coordinator handles difficult
-decisions without a mandatory extra stage.
-
-When dependencies permit, tasks may implement and run focused tests in parallel
-while an upstream release settles. Reconcile onto its settled result before
-finalizing release metadata and running final validation. Do not repeatedly run
-a full gate on a candidate already known to need another rebase.
-
-Delegated workers report requested checkpoints, blockers and material changes to
-the canonical parent through collaboration. The [execution policy](docs/AGENT_EXECUTION_POLICY.md)
-owns batched dispatch and waits; the [campaign playbook](docs/AGENT_CAMPAIGN_PLAYBOOK.md#communication-and-stopping)
-owns parent communication and stopping. Keep a concrete owner and resume path.
-For parent-only dependencies, use the execution policy's acknowledged handoff:
-send an actionable canonical-parent message, obtain acknowledgement before
-dependency parking, and record the parent's triage, action owner and resume
-condition. A sent message is not an acknowledged handoff. Include that contract
-in dispatches and use bounded follow-up without routine polling.
+Escalate only after actual lack of progress or a material failure, following
+[delegation and repair handoff](docs/AGENT_EXECUTION_POLICY.md#delegation).
+For requested checkpoints, blockers and material changes, use that policy's
+canonical-parent messages and acknowledged dependency handoff. Read it before
+dispatching or parking dependent work.
 
 ## Testing and review
 
@@ -456,3 +416,10 @@ Map skill roles to existing records without new completion states: [triage mappi
 
 ### Domain docs
 Single-context glossary and ADRs, created lazily: [domain documentation rules](docs/agents/domain.md).
+
+### Retrospectives
+
+When invoking a retrospective, include the target session ID or checkpoint.
+Without one, inspect the current session. If it contains no coding work, state
+that limitation and keep findings tied to the inspected environment; do not
+substitute another session based only on recency.

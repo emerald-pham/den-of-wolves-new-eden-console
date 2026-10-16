@@ -186,13 +186,6 @@ export function validateRiskBasedGuidance({ sources, errors }) {
       if (pattern.test(source)) errors.push(`${filePath}: ${message}`);
     }
   }
-  const claude = sourceFor(sources, 'CLAUDE.md', errors);
-  requireText('CLAUDE.md', claude,
-    /process-gate[\s\S]{0,100}frozen[\s\S]{0,120}2026-09-18[\s\S]{0,260}two[\s\S]{0,80}production-impacting failures[\s\S]{0,180}broken existing tools/i,
-    'must freeze new process gates through 2026-09-18 with the approved exception', errors);
-  requireText('CLAUDE.md', claude,
-    /first five prompts[\s\S]{0,140}existing task timestamps[\s\S]{0,120}no[\s\S]{0,60}telemetry/i,
-    'must use existing timestamps to monitor the first five prompts without new telemetry', errors);
 }
 
 // Kept as a compatibility export for callers that used the former helper.
