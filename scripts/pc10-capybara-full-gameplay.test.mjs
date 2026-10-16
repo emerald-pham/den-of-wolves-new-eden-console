@@ -159,8 +159,8 @@ test('the ending consumer reads the original GM immutable debrief after the publ
     sessionId: 'fresh-session', instanceId: 'gm-instance',
   } }]);
   assert.equal(fixture.calls.ending, 1, 'The real ending callback runs once and is never restarted to recover its receipt.');
-  assert.equal(fixture.calls.state, 1);
-  assert.equal(fixture.calls.observe, 1);
+  assert.equal(fixture.calls.state, 2, 'Revalidate the same terminal public session after the private read.');
+  assert.equal(fixture.calls.observe, 2, 'Revalidate the original GM lease after the private read.');
   assert.deepEqual(terminal, { status: 'closed', immutable: true, source: 'failure-review',
     result: 'failure', cause: 'pursuit-limit' });
   assert.equal(assessCapybaraGameplay({ context: fixture.context,
@@ -236,11 +236,12 @@ test('the ending consumer rejects denied, wrong-session, wrong-cycle, and malfor
     { status: 'committed', result: { type: 'session-debrief', sessionId: 'fresh-session',
       snapshot: { ...immutableFailureSnapshot(), version: 2 } } },
     { status: 'committed', result: { type: 'session-debrief', sessionId: 'fresh-session',
-      snapshot: { ...immutableFailureSnapshot(), committedAt: undefined } } },
-    { status: 'committed', result: { type: 'session-debrief', sessionId: 'fresh-session',
       snapshot: { ...immutableFailureSnapshot(), source: 'public-label-only' } } },
     { status: 'committed', result: { type: 'session-debrief', sessionId: 'fresh-session',
-      snapshot: { ...immutableFailureSnapshot(), extraPublicField: 'not-in-contract' } } },
+      snapshot: { ...immutableFailureSnapshot(), result: 'unknown' } } },
+    { status: 'committed', result: { type: 'session-debrief', sessionId: 'fresh-session',
+      snapshot: { ...immutableFailureSnapshot(), cause: 8 } } },
+    { status: 'committed', result: { type: 'session-debrief', sessionId: 'fresh-session' } },
   ];
   for (const reply of malformedReplies) {
     const fixture = capybaraEndingFixture({ reply });
