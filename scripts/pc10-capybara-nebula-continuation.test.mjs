@@ -30,11 +30,12 @@ test('Nebula continuation consumes the real H1 Cycle 4 Coordination session', as
   const activeVesselIds = ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'];
   const gmState = currentH1Coordination();
   Object.assign(gmState, { activeRoleIds, activeVesselIds,
-    fullGameDemo: { status: 'active', progression: 'manual' }, turnStatePhase: 'coordination' });
+    fullGameDemo: { status: 'active', progression: 'manual' }, turnStatePhase: 'coordination',
+    pressEnabled: true, capybaraEnabled: true });
   const context = {
     initial: { sessionId, joinCode: 'ordinary-join' },
     started: { sessionId, uidHash: gmState.uidHash, instanceId: gmState.instanceId },
-    roster: activeRoleIds.map((roleId, index) => ({ roleId, uidHash: `actor-${index}` })),
+    roster: [...activeRoleIds, 'press-officer'].map((roleId, index) => ({ roleId, uidHash: `actor-${index}` })),
     gm: { observe: async () => gmState },
     crew: {},
     directory: '/tmp/pc10-capybara-nebula-continuation-red',
@@ -47,7 +48,10 @@ test('Nebula continuation consumes the real H1 Cycle 4 Coordination session', as
     assert.equal(current.instanceId, gmState.instanceId);
     assert.equal(current.cycle, 4);
     assert.equal(current.airspace, 'lifted');
+    assert.equal(current.phaseProgression, 'manual');
+    assert.deepEqual([...current.activeRoleIds].sort(), [...activeRoleIds].sort());
     assert.deepEqual([...current.activeVesselIds].sort(), [...activeVesselIds].sort());
+    assert.equal(context.roster.length, 21);
     throw observed;
   } }), error => error === observed);
 });
