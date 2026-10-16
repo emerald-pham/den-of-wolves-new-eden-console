@@ -221,11 +221,28 @@ export async function waitForWolfChoiceReadiness({ original, expected, inspectAc
         assertClosedReadAuthority(readGm, readOriginalGm, expected);
         assertClosedReadWindow(readGm, priorReadGm);
         priorActor = actor; priorGm = gm; priorReadGm = readGm;
+        return {
+          actor: {
+            sameAccount: actor.hasAuth === true && actor.sameActor === true && actor.uidHash === original.uidHash,
+            sameRole: actor.playerRole === original.playerRole && actor.profileRoleId === original.profileRoleId &&
+              actor.assignedRoleId === original.assignedRoleId && actor.activeConsoleRoleId === original.activeConsoleRoleId,
+            sameSession: actor.sessionId === expected.sessionId,
+            sameTurn: actor.cycle === expected.turn,
+            liveServer: live(actor),
+          },
+          gm: {
+            sameAccount: readGm.hasAuth === true && readGm.sameActor === true && readGm.uidHash === originalGm.uidHash,
+            sameInstance: readGm.instanceId === originalGm.instanceId && readGm.gmInstanceOwned === true,
+            sameSession: readGm.sessionId === expected.sessionId,
+            sameTurn: readGm.cycle === expected.turn,
+            liveServer: live(readGm),
+          },
+        };
       };
-      await strictAuthority();
+      const expectedAuthorityAtRead = await strictAuthority();
       // Exactly one GM read of the original session path, inside this same
       // deadline. There is no SDK retry, polling, paint or mutation here.
-      const current = await inspectAttack({ serverOnly: true }); budget();
+      const current = await inspectAttack({ serverOnly: true, expectedAuthorityAtRead }); budget();
       assert.ok(current && (!Object.hasOwn(current, 'sessionId') || current.sessionId === expected.sessionId) &&
         current.attackId === expected.attackId && current.turn === expected.turn &&
         Number.isSafeInteger(current.revision) && current.revision > expected.revision &&
@@ -543,18 +560,23 @@ export function createWolfChoiceWaiter(context, { tools, originalGm, deadlineAt 
     const inspectAttack = (options = {}) => {
       if (options.serverOnly !== true) return tools.read('gm', 'wolfAttackState/current');
       return tools.read('gm', 'wolfAttackState/current', { serverOnly: true, deadlineAt: choiceDeadline,
+        expectedAuthorityAtRead: options.expectedAuthorityAtRead,
         onSnapshot: async outcome => {
           const observed = outcome?.status === 'ok' && outcome.value && typeof outcome.value === 'object' ? outcome.value : null;
           const integer = value => Number.isSafeInteger(value) ? value : null;
           const boolean = value => typeof value === 'boolean' ? value : null;
-          // Only the tuple used by the strict assertion and snapshot freshness
-          // cross into evidence. No IDs, targets, contacts or private choices.
+          // Only bounded guard discriminators, the asserted tuple and authority
+          // booleans cross into evidence. No IDs, targets, contacts or choices.
           await record?.('current combat closed boarding source reinspection', {
             cycle: current.turn, kind: spec.kind, roleId: original.profileRoleId, uidHash: original.uidHash,
             revision: current.revision, currentStep: current.currentStep, diagnosticOnly: true,
             sourceReinspection: { readSource: 'server-only', readCount: 1,
               status: outcome?.status === 'ok' ? 'observed' : 'failed',
               code: typeof outcome?.code === 'string' && /^(?:firestore\/)?[a-z][a-z-]{0,63}$/.test(outcome.code) ? outcome.code : null,
+              document: { exists: outcome?.status === 'ok' ? observed !== null : null,
+                expectedType: observed === null ? null : observed.type === 'wolf-attack-state' },
+              expectedActorAtRead: options.expectedAuthorityAtRead?.actor ?? null,
+              expectedGmAtRead: options.expectedAuthorityAtRead?.gm ?? null,
               tuple: observed ? {
                 sameSession: Object.hasOwn(observed, 'sessionId') ? observed.sessionId === expected.sessionId : null,
                 sameAttack: observed.attackId === expected.attackId, turn: integer(observed.turn), revision: integer(observed.revision),
