@@ -805,3 +805,35 @@ audience-specific rules tests, action-audit and rate-limit tests, and the
 authenticated two-browser/member-GM proof helpers. Preparation does not establish
 that any gameplay gate passed. The final audit aggregates the original 48 full
 acceptances rather than treating these brief checklists as replacement criteria.
+
+## Approved proof-tooling repair tickets — 2026-10-16
+
+The owner approved five independent repairs following the retrospective of
+session `01a1446d-0b24-7521-b204-dd366b37ee3b` (Implement PC10 Spec).
+Each brief is one verifiable tooling behavior within existing prompt support;
+publication preserves the 751-prompt endpoint, fixed checkpoint membership,
+parent acceptance, completion states and canonical prerequisite graph.
+
+| Brief | Existing prompt scope | Outcome | Blocked by briefs |
+|---|---|---|---|
+| [PT1](pc10-tickets/55-pt1.md) | 651 | Test failures retain their exit status after diagnostics | None |
+| [PT2](pc10-tickets/56-pt2.md) | 641, 642, 649, 651 | Focused PC10 consumer regressions run locally and in CI before long rehearsals | None |
+| [PT3](pc10-tickets/57-pt3.md) | 641, 642, 649, 651 | Shared role-entry results and affected consumers receive automatic type checks | None |
+| [PT4](pc10-tickets/58-pt4.md) | 660, 651 | Emulator allocation survives interleaved startup and returns only owned resources | None |
+| [PT5](pc10-tickets/59-pt5.md) | 651, 660 | Scoped runtime summaries retain detailed diagnostics on disk | None |
+
+All five briefs can start independently. Shared invocation, registry or CI
+files require edit coordination rather than additional blocking edges. PT5
+can use existing ownership records without waiting for PT4. No separate
+prefactor is required; each owner keeps any necessary preparation within its
+complete behavior and fresh-context boundary.
+
+The briefs are ready for approved tooling preparation. Parent gameplay and
+release closure prerequisites remain intact, and PC10's separate runtime
+stopping point remains in force. Reconcile retained PC10 consumers with the
+candidate without importing unrelated in-progress gameplay work. P660's
+historical done status is preserved while its bounded allocator repair is
+tracked through planning and subsequent implementation evidence.
+
+Use the existing validation paths and required risk review for actual changes.
+Publication records approval and earns no test, gameplay or release credit.
