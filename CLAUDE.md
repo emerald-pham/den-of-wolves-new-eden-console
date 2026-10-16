@@ -238,10 +238,14 @@ second roadmap authority.
 After a landed branch is pushed, its worktree is eligible for cleanup once the
 task is terminal and you have confirmed no live process uses it, no uncommitted
 or untracked files remain, and no unique unmerged work would be lost. A fixed
-48-hour retention period is not required. Cleanup is a separate deliberate
+48-hour retention period is not required. Worktree removal is a separate deliberate
 action; this policy does not authorize removing another active task or its
 branch. Preserved work needs a clear destination, and discarded work needs a
 reason. At closeout, remove eligible worktrees deliberately or record their retention owner and reason; follow [the storage procedure](docs/LOCAL_STORAGE.md), including ignored-file and live-process review.
+
+At verified task closeout, perform
+[automatic branch cleanup](docs/LOCAL_STORAGE.md#automatic-branch-closeout)
+without another owner request. Report retained branches and their reasons.
 
 ## Private source boundary
 

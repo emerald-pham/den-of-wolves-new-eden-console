@@ -30,7 +30,41 @@ the owning coordinator instead. Retention is for specific work or evidence,
 not an indefinite default. These instructions apply to current workers as well
 as newly started tasks.
 
-## Review before any deletion
+## Automatic branch closeout
+
+After verifying a task's merge and push, clean up its finished branch as part of
+normal completion, without asking the owner again. A landed
+`npm run coordination:finish -- --id <entry-id>` invokes the guarded cleanup
+after recording completion. Coordination remains optional: an unregistered task
+runs `npm run task:closeout` from its own checkout. Use `-- --branch <name>` when
+the finished branch needs to be named explicitly.
+
+`npm run branches:cleanup` previews the deletion decision without removing branches.
+Both commands target one finished branch; they leave other tasks and worktrees
+in place. A clean current checkout can detach at the verified main commit so its
+own merged branch can be removed. Ignored local files remain protected.
+
+The command fetches `origin/main`, queries origin's live default branch, and
+checks exact ancestry, open PRs, the shared coordination ledger, resource
+ownership, and registered checkouts. Same-origin owners in separate clones
+remain protected. Active or parked ownership, another checkout, unique
+commits, changed tips, or unavailable safety information retain the branch with
+a concrete reason. Metadata commands are bounded and noninteractive. Main and
+the remote default branch are protected.
+
+Before deleting refs, the command saves a private recovery bundle and manifest
+outside all registered working trees and proves restoration in an independent
+empty repository before accepting the backup. Remote deletion
+uses an exact-SHA lease; local deletion rechecks ownership and compares the exact
+expected tip after verifying merged ancestry. During deletion, Git HEAD locks
+protect other registered checkouts; existing or stale locks retain the branch,
+and cleanup never reclaims them. Repeating closeout is safe. Keep
+the reported recovery location and retention reasons in the task handoff.
+
+`npm run test:branch-cleanup` exercises these safeguards against temporary Git
+repositories. CI runs it on every verification, including tooling-only work.
+
+## Review before worktree deletion
 
 1. Inspect `git worktree list --porcelain`, current task status, and
    `npm run coordination:status`. Protect the current and main checkouts,
