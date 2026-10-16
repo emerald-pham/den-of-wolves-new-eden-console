@@ -22,7 +22,7 @@ function currentH1Coordination() {
   };
 }
 
-test('Nebula continuation consumes the real H1 Cycle 4 Coordination session', async () => {
+test('Nebula continuation boundary preserves the H1-shaped Cycle 4 Coordination snapshot', async () => {
   const activeRoleIds = ['admiral', 'executive-officer', 'wing-commander', 'dione-engineer', 'dione-captain',
     'icebreaker-engineer', 'icebreaker-captain', 'shepherd-scientist', 'shepherd-captain', 'quellon-explorer',
     'quellon-captain', 'refinery-124-engineer', 'refinery-124-captain', 'gorgoneion-captain', 'highwall-miner',
@@ -38,7 +38,7 @@ test('Nebula continuation consumes the real H1 Cycle 4 Coordination session', as
     roster: [...activeRoleIds, 'press-officer'].map((roleId, index) => ({ roleId, uidHash: `actor-${index}` })),
     gm: { observe: async () => gmState },
     crew: {},
-    directory: '/tmp/pc10-capybara-nebula-continuation-red',
+    directory: '/tmp/pc10-capybara-nebula-continuation-boundary',
   };
 
   const observed = new Error('H1 continuation checkpoint observed');
