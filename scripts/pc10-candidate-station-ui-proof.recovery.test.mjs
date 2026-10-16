@@ -6,7 +6,7 @@ import { candidateShipRole, contributeStationReactors, CANDIDATE_PROOF_SHIPS } f
 import { assertWolfChoiceActor, observeWolfChoiceActor } from './pc10-combat-choice-readiness.mjs';
 import * as stationProof from './pc10-candidate-station-ui-proof.mjs';
 
-function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = false, foreignReload = false, staleGeneration = false } = {}) {
+function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = false, foreignReload = false, staleGeneration = false, terminalCandidate = 'P' } = {}) {
   const sessionId = 'station-recovery-session';
   const roleId = 'executive-officer';
   const coordinate = '0408';
@@ -63,6 +63,7 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
         recovery.pending = true;
         recovery.chargeCapacity = chargeCapacity + reactorCapacity;
         recovery.revision = result.revision;
+        if (activates) { actorState.phase = 'debrief'; gmState.phase = 'debrief'; }
       },
       fallback: async () => {
         recovery.fallbackCount++;
@@ -106,8 +107,11 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
     identityHydrationRevision: 2, replacementRoleId: null, replacementStatus: null,
     seatId: null, connected: true, discoveryAuthority: null,
     instanceId: 'original-gm-lease', instanceClaimedAt: '2026-10-16T06:00:00.000Z',
-    playerRole: 'gm', phase: 'active', cycle: 2, uidHash: 'same-gm-uid', hasAuth: true,
-    sameActor: true, gmInstanceOwned: true, connection: 'live', freshness: 'server', documentTimeOrigin: 500 });
+    playerRole: 'gm', phase: gmState.phase, cycle: 2, uidHash: 'same-gm-uid', hasAuth: true,
+    sameActor: true, gmInstanceOwned: true, connection: 'live', freshness: 'server', documentTimeOrigin: 500,
+    fullGameDemo: { status: gmState.phase === 'debrief' ? 'complete' : 'active', progression: 'manual' },
+    gameOutcome: gmState.phase === 'debrief' ? { type: 'game-outcome', result: 'success',
+      cause: 'candidate-complete', candidateCode: terminalCandidate, cycle: 2 } : null });
   const gm = { page: { evaluate: async () => gmSource() }, storeModuleUrl: () => '/src/store/useSessionStore.ts',
     observe: async () => structuredClone(gmState) };
   const tools = { record: async (stage, details) => records.push({ stage, details }),
@@ -142,9 +146,12 @@ function stationRunnerFixture() {
     identityHydrationRevision: 2, replacementRoleId: null, replacementStatus: null,
     seatId: null, connected: true, discoveryAuthority: null,
     instanceId: 'original-station-gm-lease', instanceClaimedAt: '2026-10-16T06:00:00.000Z',
-    playerRole: 'gm', phase: 'active', cycle: 2, uidHash: 'station-gm-uid', hasAuth: true,
+    playerRole: 'gm', phase: gmState.phase, cycle: 2, uidHash: 'station-gm-uid', hasAuth: true,
     sameActor: true, gmInstanceOwned: true, connection: 'live', freshness: 'server',
-    documentTimeOrigin: 500, connectionGeneration: 1, identityHydrationRevision: 2 });
+    documentTimeOrigin: 500, connectionGeneration: 1, identityHydrationRevision: 2,
+    fullGameDemo: { status: gmState.phase === 'debrief' ? 'complete' : 'active', progression: 'manual' },
+    gameOutcome: gmState.phase === 'debrief' ? { type: 'game-outcome', result: 'success',
+      cause: 'candidate-complete', candidateCode: 'P', cycle: 2 } : null });
   const timing = {
     getByLabel: name => name === 'Target fleet group'
       ? { selectOption: async groupId => assert.equal(groupId, 'fleet-1') }
@@ -185,6 +192,10 @@ function stationRunnerFixture() {
           shared.charge += cap;
           shared.revision++;
           shared.contributed.add(shipId);
+          if (shared.charge >= 18) {
+            gmState.phase = 'debrief';
+            for (const entry of shared.actors.values()) entry.state.phase = 'debrief';
+          }
           recovery.result = { type: 'candidate-action-result', status: 'committed', sessionId,
             requestId: data.requestId, revision: shared.revision, code: 'P', action: 'contribute-reactor',
             summary: `${shared.charge}/18 Station charge capacity committed. This Reactor ship is cannibalised.`,
@@ -246,7 +257,7 @@ function stationRunnerFixture() {
         assert.equal(predicate(generic), true);
         return generic;
       } };
-    const entry = { actor, panel, recovery, shipId, roleId };
+    const entry = { actor, panel, recovery, shipId, roleId, state: actorState };
     shared.actors.set(roleId, entry);
     return entry;
   }
@@ -428,6 +439,15 @@ test('Station recovery requires a newly accepted server resume generation', asyn
   const fixture = recoveryFixture({ staleGeneration: true });
   await assert.rejects(stationProof.recoverStationReactorContribution({ ...fixture,
     shipId: 'aegis', roleId: fixture.roleId, deadlineAt: Date.now() + 1_000 }), /generation/i);
+  assert.equal(fixture.recovery.unrouteCount, 1);
+  assert.equal(fixture.recovery.fallbackCount, 0);
+});
+
+
+test('Station activation recovery refuses a different candidate terminal outcome', async () => {
+  const fixture = recoveryFixture({ chargeCapacity: 14, reactorCapacity: 4, activates: true, terminalCandidate: 'N' });
+  await assert.rejects(stationProof.recoverStationReactorContribution({ ...fixture,
+    shipId: 'aegis', roleId: fixture.roleId, expectActivation: true, deadlineAt: Date.now() + 1_000 }), /candidate|Station|phase/i);
   assert.equal(fixture.recovery.unrouteCount, 1);
   assert.equal(fixture.recovery.fallbackCount, 0);
 });
