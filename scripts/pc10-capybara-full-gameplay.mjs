@@ -1397,8 +1397,19 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
     }));
     await mark('real Team2 replaces prior five-slot combat allocation with paid Jump Drive and bays');
     await paidMaintenance(2);
-    await runSpecialist('wing-construction', 'wing-build', { roleId: 'wing-commander', wingId: 'fighter-wing-alpha' },
-      { roleId: 'wing-commander', cost: { resource: 'AEGIS materials', amount: 1, result: 'one current Alpha fighter' } });
+    const wingBuildSurface = await a.select('wing-commander');
+    let wingBuildAttempted = false;
+    for (const [wingId, wingName] of [['fighter-wing-alpha', 'Alpha'], ['fighter-wing-bravo', 'Bravo']]) {
+      const build = wingBuildSurface.page.locator('.aegis-craft').filter({ hasText: `Fighter Wing ${wingName}` })
+        .getByRole('button', { name: 'Build 1 fighter // 1 material', exact: true });
+      if (!(await build.count()) || !(await build.isVisible()) || !(await build.isEnabled())) continue;
+      wingBuildAttempted = true;
+      await runSpecialist('wing-construction', 'wing-build', { roleId: 'wing-commander', wingId },
+        { roleId: 'wing-commander', cost: { resource: 'AEGIS materials', amount: 1, result: `one current ${wingName} fighter` } });
+      break;
+    }
+    if (!wingBuildAttempted) await updateCapybaraStage('wing-construction', { status: 'pending', roleId: 'wing-commander',
+      reason: 'No current visible, enabled Fighter Wing construction control is offered during Team Phase.' });
     await mark('manual Coordination2 and actual source-owner scouting');
     await coordination();
     const macawDismantling = await performMacawDismantling();
