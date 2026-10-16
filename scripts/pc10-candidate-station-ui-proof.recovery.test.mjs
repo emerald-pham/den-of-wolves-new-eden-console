@@ -15,6 +15,7 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
   const recovery = { requestData: undefined, replayData: undefined, fetchCount: 0,
     abortCount: 0, fallbackCount: 0, reloadCount: 0, unrouteCount: 0,
     pending: false, chargeCapacity, revision: 7, routeHandler: undefined };
+  const records = [];
   let actorState = { hasAuth: true, sameActor: true, uidHash: 'same-crew-uid', sessionId,
     playerRole: 'player', profileRoleId: roleId, assignedRoleId: roleId,
     activeConsoleRoleId: roleId, fleetGroupId: 'fleet-1', seatId: roleId,
@@ -86,7 +87,8 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
     playerRole: 'gm', gmInstanceOwned: true, instanceId: 'original-gm-lease',
     instanceClaimedAt: '2026-10-16T06:00:00.000Z', connection: 'live', freshness: 'server' };
   const gm = { observe: async () => structuredClone(gmState) };
-  const tools = { receipt: async (surface, endpoint, choose, options) => {
+  const tools = { record: async (stage, details) => records.push({ stage, details }),
+    receipt: async (surface, endpoint, choose, options) => {
     assert.equal(surface, actor);
     assert.equal(endpoint, 'executeCandidateAction');
     assert.deepEqual(options.expectedRequest, request);
@@ -96,6 +98,7 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
     return { ...result, status: 'replayed' };
   } };
   return { actor, gm, tools, request, result, recovery, sessionId, roleId, coordinate,
+    records,
     liberation: { attackId: 'station-attack-9', revision: 12, threatSourceId: 'station-arrival-4',
       pStationRepeat: { status: 'stopped', sequenceId: 'station-sequence-2' } } };
 }
@@ -120,4 +123,6 @@ test('Station contribution recovers the same committed Reactor request after a c
   assert.equal(fixture.recovery.chargeCapacity, 8, 'The same Reactor capacity is counted once.');
   assert.equal(fixture.recovery.revision, 8, 'Replay leaves the committed candidate revision unchanged.');
   assert.equal(fixture.recovery.pending, false, 'The mounted retry control clears after the original receipt returns.');
+  assert.equal(fixture.records.length, 1, 'The actual source-bound recovery should be preserved in the proof record.');
+  assert.equal(fixture.records[0].details.request.requestId, fixture.request.requestId);
 });
