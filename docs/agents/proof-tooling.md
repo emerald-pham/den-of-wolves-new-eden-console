@@ -7,6 +7,27 @@ The [execution policy](../AGENT_EXECUTION_POLICY.md) owns authorization, review,
 test-first work and acceptance. [Worktree coordination](../WORKTREE_COORDINATION.md)
 owns shared resources and emulator rows.
 
+## Preflight commands
+
+Run the cheap source contracts before allocating a gameplay runtime:
+
+```bash
+npm run test:proof-preflight
+```
+
+For Red Alert controls or their proof selectors, also run the actual-component
+Playwright smoke (install the locked Playwright Chromium browser if needed):
+
+```bash
+npx playwright install chromium
+npm run test:proof-redalert-browser
+```
+
+CI runs the source preflight after dependency installation and the browser smoke
+under its existing unit-risk profile, including the exact-main verification path.
+The smoke exercises DOM selection with inert service ports and blocked network;
+it does not establish authenticated gameplay, layout or deployment behavior.
+
 ## Runtime plan and return
 
 Reuse these existing tools rather than copying their implementation into a
