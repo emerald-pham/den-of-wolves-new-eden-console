@@ -385,6 +385,31 @@ new resources and candidate provenance before service-backed proof. The
 bounded initial assignments. No acceptance or closure credit follows from
 resumption alone.
 
+## Wayfinder completion plan and specification update — 2026-10-16
+
+The owner invoked Wayfinder to inspect existing PC10 work and chose
+“Yes—chart the completion plan,” with implementation to follow separately.
+The [completion map](PC10_EXECUTION_RECORD.md#completion-wayfinding--october-16-2026)
+preserves the fixed 48-ID scope and directs exact-candidate/handback
+reconciliation, a criterion-level evidence audit, the smallest remaining
+ordinary gameplay qualifications and one verified release. The subsequent
+`to-spec` request asks to update the existing specification from that map;
+it does not ask this documentation task to launch runtime.
+
+On the proposed existing test seams, the owner clarified: “Let’s make sure
+they’re sensible. use common sense.” Apply the current risk-based policy:
+cheap discriminating consumer checks before long rehearsals, focused callable
+and rules checks for the actual authority/privacy failure, and broader gameplay
+only for the affected acceptance. Retain required full-game/two-browser and
+explicit full-table obligations without making them a default per repair.
+
+The [updated specification](PRODUCT_MILESTONES.md#campaign-resumption-specification--2026-10-15)
+and existing Z1/Z2 briefs carry the route. Z1's preparatory reconciliation can
+start while final sign-off remains blocked; P651's hard prerequisites and every
+prompt's completion state remain unchanged. The October 15 implementation
+resumption remains the execution authority; this update neither reinstates its
+earlier pause nor grants new scope, runtime resources or completion credit.
+
 ## PC10 execution and later roadmap — 2026-10-05
 
 Decision source: the owner's separate PC10 orchestrator dispatch, after the

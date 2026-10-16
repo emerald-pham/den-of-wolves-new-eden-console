@@ -198,6 +198,15 @@ this verified PC09 record.
 
 181, 215b, 223b, 233b, 576, 579, 581, 584, 585, 541, 542, 543, 544, 545, 546, 547, 548, 549, 593, 619, 550, 551, 552, 553, 554, 555, 556, 557, 558, 559, 563, 564, 565, 566, 647, 648, 649, 650, 618, 620, 629, 630, 631, 634, 635, 641, 642, 651.
 
+The [October 16 specification update](PRODUCT_MILESTONES.md#campaign-resumption-specification--2026-10-15)
+applies the completion-wayfinding route to this unchanged allocation: reconcile
+candidate/main and outstanding handbacks, map each acceptance to evidence or a
+precise gap, qualify the remaining ordinary gameplay, then validate one verified
+release. Z1's preparatory reconciliation can start before final sign-off; P651's
+canonical prerequisites remain intact. This planning update launches no runtime
+and changes no completion count. Use sensible existing test boundaries for each
+actual failure and claim; preserve explicit full-game/full-table obligations.
+
 ## Current future gameplay evidence standard — October 2
 
 The owner instructed that all future repository work use local/emulator

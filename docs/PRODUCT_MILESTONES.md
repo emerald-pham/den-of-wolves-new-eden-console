@@ -644,92 +644,132 @@ limits. This release grants no PC10 or later completion credit.
 
 ## Campaign resumption specification — 2026-10-15
 
-Triage: `ready-for-agent` for specification and handoff reconciliation under the
-[existing tracker mapping](agents/triage-labels.md). Gameplay execution retains
-the separate PC10 pause until explicit resumption; this specification does not
-mark all remaining prompts runnable. The [owner decision record](PRODUCT_MILESTONE_FEEDBACK.md#campaign-resumption-preferences-and-tracker-routing--2026-10-15)
-captures the conversation. This is a cross-cutting specification for existing
-work, not a new prompt or an additional checkpoint.
+**Updated October 16 from [PC10 completion wayfinding](PC10_EXECUTION_RECORD.md#completion-wayfinding--october-16-2026).**
+This specification refines the existing 48-ID checkpoint; it adds no prompts or
+completion credit. Under the [existing triage mapping](agents/triage-labels.md),
+`ready-for-agent` applies to preparatory candidate and evidence reconciliation.
+Final audit and release remain dependent on the full assigned acceptances and
+canonical prerequisites. The October 15 `implement-spec` invocation superseded
+the earlier execution pause; this specification update performs no implementation
+or runtime work and does not change that authorization.
 
 ### Problem Statement
 
-The owner wants progress toward the completed game without managing agents,
-repeating settled decisions, operating gameplay tests, or reviewing intermediate
-work. Work has existing prompt definitions, unfinished proof and a paused PC10
-handoff; starting another backlog or rebuilding accepted work would lose context
-and increase owner involvement.
+The owner wants the agreed game completed without managing agents, repeating
+settled decisions or operating the test table. PC10 already has substantial
+implementation and accepted evidence, but its older plans do not fully reflect
+recent repairs, unintegrated handbacks and remaining gameplay gaps. A failed
+proof selector can stop a rehearsal before the intended behavior is reached;
+neither that stop nor a passing source test establishes the gameplay outcome.
+The next task needs a precise route from preserved work to a verified release.
 
 ### Solution
 
-Reconcile the existing campaign and paused handoff, then execute authorized
-remaining scope with agents accountable for implementation, repair, proportionate
-testing, integration and verified release. Preserve agreed gameplay and
-presentation. Supply an optional playable review result and concise evidence;
-owner participation in a walkthrough is not a completion prerequisite.
+Finish the existing checkpoint in four stages: reconcile the exact candidate
+and outstanding handbacks, map every assigned criterion to accepted evidence
+or a precise gap, qualify the remaining ordinary gameplay paths, then validate
+and verify one release. Keep accepted work and source-bound evidence where
+applicable. Agents own implementation, repairs and gameplay correctness; the
+owner receives concise evidence and an optional playable tour.
 
 ### User Stories
 
-1. As the product owner, I want the existing campaign finished before new features or redesigns, so that the agreed game reaches completion.
-2. As the product owner, I want previous decisions preserved, so that I do not have to repeat settled requirements.
-3. As the product owner, I want execution to be hands-off, so that progress does not depend on my availability.
-4. As the product owner, I want agents to verify gameplay correctness, so that I do not have to operate the test table.
-5. As the product owner, I want optional playable review access, so that I can inspect the finished experience when available.
+1. As the product owner, I want the existing campaign completed before new features or redesigns, so that the agreed game reaches its endpoint.
+2. As the product owner, I want the fixed PC10 scope preserved, so that the target does not grow whenever a proof gap is found.
+3. As the product owner, I want settled decisions retained, so that I do not have to repeat requirements.
+4. As the product owner, I want agents to own verification and release, so that progress does not depend on my availability.
+5. As the product owner, I want an optional numbered playable tour, so that I can inspect the finished experience when convenient.
 6. As the product owner, I want only concrete owner-only blockers escalated, so that routine choices do not interrupt me.
-7. As the product owner, I want truthful completion counts, so that preparation and partial implementation cannot be mistaken for delivery.
-8. As the product owner, I want current prompts used as the tracker, so that planning remains in one place.
-9. As the product owner, I want sensible test boundaries, so that verification catches meaningful failures without unnecessary repeated work.
-10. As a returning player, I want interrupted actions to recover correctly, so that retries or disconnects do not lose progress or repeat costs.
-11. As an entitled player, I want the existing role and vessel workflows to compose, so that the full game can be played through ordinary controls.
-12. As an entitled player, I want private information to remain audience-restricted, so that gameplay does not expose another role's secrets.
-13. As a facilitator, I want a real authenticated setup and Cycle 0 to 1 transition, so that the walkthrough proves the actual start path.
-14. As a facilitator, I want automated calculations and committed results preserved, so that I only supply genuine choices and rulings.
-15. As a player, I want the assigned Ring, Nebula and Station outcomes to work through debrief, so that an ending is a complete gameplay path.
-16. As a player, I want terminal failure and recovery paths to remain authoritative, so that play cannot become orphaned behind a label.
-17. As a mobile or keyboard player, I want critical controls and results reachable, so that the complete game remains usable on supported layouts.
-18. As a future task owner, I want the exact candidate, failures and resume conditions preserved, so that accepted work can be continued safely.
-19. As the product owner, I want release and gameplay evidence distinguished, so that deployment success is not mistaken for functional proof.
-20. As the product owner, I want a pause respected until execution is resumed, so that planning cannot unexpectedly restart a controlled runtime.
+7. As the product owner, I want truthful completion counts, so that planning and source preparation cannot be mistaken for delivery.
+8. As a returning task owner, I want the exact candidate and current main reconciled, so that recent fixes are included before qualification.
+9. As a returning task owner, I want outstanding handbacks and their original test chronology preserved, so that useful work is integrated without inventing earlier evidence.
+10. As a returning task owner, I want temporary handback conclusions retained in existing durable acceptance records, so that a fresh session can continue reliably.
+11. As a checkpoint owner, I want every assigned criterion mapped to evidence or an exact gap, so that older pending summaries do not cause unnecessary rebuilding.
+12. As a checkpoint owner, I want setup and proof-consumer failures distinguished from product failures, so that the repair addresses the behavior actually reached.
+13. As a checkpoint owner, I want cheap consumer preflight before a long rehearsal, so that an avoidable selector failure does not consume another full prefix.
+14. As a facilitator, I want genuine authenticated setup and Cycle 0 to 1, so that acceptance exercises the actual start path.
+15. As a facilitator, I want unlimited manual full-game progression, so that the existing complete-game demonstration can be followed at a human pace.
+16. As an entitled player, I want every role and unique mechanic to work through ordinary controls, so that a complete game can be played rather than merely displayed.
+17. As a specialist, I want the existing Wing Commander, Scientist, Explorer and PDF Colonel workflows to compose with the game, so that their distinct actions have usable outcomes.
+18. As a Base-game player, I want the remaining Wing, combat, politics and debrief path qualified, so that an early successful setup does not conceal a later blocker.
+19. As a Capybara player, I want Macaw, Boa and Scrap workflows to compose with production, combat and jumps, so that the expansion works as a game.
+20. As a Base-game player, I want expansion-only state to stay outside my game, so that variant choices preserve their existing rules.
+21. As a player approaching the Nebula, I want loss, success and recovery qualified in their continuing session where required, so that the claimed journey is supported by actual play.
+22. As a player approaching the Ancient Space Station, I want contributions, repeated combat, Reactor use and activation to compose, so that Station-specific behavior is proved through its ending.
+23. As a player approaching the Ancient Ring, I want its remaining repair, contribution, passage and retry criteria resolved, so that narrow later evidence does not conceal earlier failed attempts.
+24. As a player reaching an ending, I want a clear authoritative result and debrief, so that the outcome completes the gameplay path.
+25. As an entitled returning player or GM, I want later debrief reads to work under their proper audience rules, so that reload does not lose the result or restore live authority.
+26. As a player whose ship is destroyed, I want the existing pods, evacuation, Flee and replacement paths to remain recoverable, so that nonterminal loss does not strand me.
+27. As a player encountering terminal pursuit or total fleet loss, I want the server to own the ending, so that a terminal label cannot leave the session active and orphaned.
+28. As a returning player, I want my session, seat, vessel and workflow restored under current authority, so that reconnect does not revive stale permissions.
+29. As a player retrying an interrupted action, I want an exact committed request to recover its original result, so that costs, rewards and randomness are not repeated.
+30. As a player whose role or vessel has settled, I want fresh unavailable actions refused, so that settlement cannot create new cargo, mission choices or allocations.
+31. As a player acting alongside another actor, I want stale or conflicting actions reconciled, so that one action cannot overwrite a newer authoritative outcome.
+32. As an entitled player, I want loyalty, Wolf, navigation, mission and private-note information restricted to its intended audience, so that secrets remain private.
+33. As a player, I want dice, cards, decks and hidden clues owned by the server, so that forged outcomes cannot influence play.
+34. As a player, I want existing expensive-action limits applied fairly, so that one actor cannot monopolize shared resources.
+35. As an operator, I want denial telemetry and action receipts to retain their existing private, sanitized boundaries, so that diagnosis does not expose secrets.
+36. As a player, I want costs, blockers and the next actor made clear, so that I can understand how to continue.
+37. As a mobile or keyboard player, I want critical controls, readable results and a visible return route, so that the full game remains reachable on supported layouts.
+38. As a player, I want typography and responsive behavior checked on the emitted candidate, so that source-level style checks do not miss a rendered failure.
+39. As a checkpoint owner, I want compatible claims combined and unchanged evidence reused, so that testing remains proportionate while preserving every acceptance.
+40. As a checkpoint owner, I want actor cohorts justified by the claim, so that a narrow repair does not automatically trigger a capacity rehearsal.
+41. As the product owner, I want local gameplay, rendered QA, independent review, CI and deployment reported separately, so that one kind of success does not imply another.
+42. As the product owner, I want one reconciled release verified against exact main, so that the shipped game matches the accepted candidate.
 
 ### Implementation Decisions
 
-- Retain the canonical prompt catalog, fixed checkpoint membership and existing acceptance definitions. No new prompt, schema, API or gameplay mechanic is introduced by this specification.
-- Reconcile current branch ancestry, active work, owner decisions and the paused task's exact handoff before implementation. Preserve accepted slices and outstanding proof gaps; age alone does not invalidate another task's ownership.
-- Keep one top-level checkpoint owner accountable for every acceptance and the final release. Use bounded implementation groups and required independent risk review under current repository policy.
-- Finish existing campaign scope before considering new features or redesigns. PC10 retains its fixed 48-ID target and the existing 751-prompt endpoint; historical snapshots remain historical.
-- Preserve specialist, Capybara, candidate-ending, debrief and cross-path recovery obligations already assigned to PC10. No added user story expands those prompts beyond their existing criteria.
-- Use ordinary authenticated local/emulator gameplay for functional acceptance. Preserve the existing every-role, two-browser, unlimited-timer, authentic GM start and full twenty-player obligations.
-- Owner walkthroughs and written feedback remain optional. Source-backed routine decisions belong to agents; a concrete owner-only decision retains its explicit escalation path.
-- Reconcile post-campaign sequence from current explicit owner decisions before scheduling it. This specification does not resolve conflicting historical sequence records by inventing a new checkpoint.
-- Preserve the separate PC10 pause. Specification readiness is distinct from runtime authorization, dependency readiness and completion.
+- Keep the canonical prompt catalog, fixed 48-ID membership, full existing acceptances and 751-prompt endpoint. Resolve rows by explicit prompt ID. No new gameplay mechanic, schema or API contract is specified.
+- Update the existing campaign specification and bounded reconciliation/release briefs. The existing tracker remains authoritative; readiness, execution authorization and completion remain distinct.
+- Keep one top-level checkpoint owner accountable for integration, every acceptance, required independent review and the single release. Preserve other tasks' work, resource reservations and recovery data.
+- Begin with preparatory candidate reconciliation. Check current ancestry and scope before integrating the Red Alert proof-consumer repair, candidate-settlement authority repair, App Check telemetry evidence and current main's proof-tool preflight. Retain original test-only and source commits. These are inspection inputs, not accepted candidate evidence.
+- Require the outstanding independent authority follow-up on fresh Highwall, Boa and Hummingbird actions after settlement. Preserve exact committed retries and reject new effects for unavailable actors, home vessels or current hosts under the established contract. This spec does not resolve the review by assertion.
+- Use the existing acceptance matrix and role/action records to map all 48 IDs criterion by criterion. Record source binding, accepted evidence class and the precise remaining gap. An old pending row is not proof that implementation is absent; source-tested work is not native gameplay acceptance.
+- Retain necessary conclusions from temporary handbacks in durable existing records before relying on them in a future context. Preserve failed attempts and their original claims; later narrow success cannot retroactively pass an earlier run.
+- After reconciliation, qualify Base continuation through Wing/combat, politics and debrief; Capybara composition with same-session Nebula loss/success/recovery; Station contribution/reconnect through activation and ending; then evacuation, destruction and Flee/reload/replacement. Fill only the remaining specialist, Ring, privacy, stale/reconnect and security gaps exposed by the criterion audit. This order is provisional where evidence or legitimate dependencies require adjustment.
+- Preflight the actual rendered control and navigation contracts before replaying a long prefix. A proof-adapter change needs its discriminating consumer check and affected mounted slice; introduce no generic test framework.
+- Combine compatible criteria in a legitimate continuing session. Retain the original actor, session, source/runtime and ordered actions where continuity is required. A fresh session remains a fresh session and cannot supply missing continuous-game proof.
+- Preserve authentic GM start, every-role/function coverage, the existing two-browser fresh-game ending, unlimited manual progression and explicit full twenty-player obligations. Use minimum legitimate cohorts for other claims. A twenty-one-account run requires a specific scale claim or reproduced scale-dependent defect; untested capacity stays unclaimed.
+- Preserve source-defined movement, resource, mission and audience prerequisites. GM scenario budget adjustments do not establish ordinary resource acquisition. Server-owned receipts, mutations, uncertainty and private projections retain their existing authority boundaries.
+- Repair a reproduced defect within its existing brief or return a bounded repair with the failing evidence and resume condition. Observe meaningful behavioral RED before functional implementation, then GREEN; preserve historical timing gaps honestly.
+- Close each prompt only after its whole acceptance passes across every subdivision. Preparatory reconciliation can start now; final audit sign-off retains canonical prerequisites and all assigned evidence obligations.
+- Reconcile current main, version/changelog metadata and required reviews before the batched candidate CI push. Follow the existing exact-main deployment and health/public-artifact workflow. Historical version suggestions and source-test counts are not release authority or a reliable ETA.
+- Keep the owner's walkthrough optional and carry post-PC10, PC11 and conditional PC12 forward in their existing sequence. This update launches no runtime and grants no later-phase or restricted-version authorization.
 
 ### Testing Decisions
 
-- Test observable behavior at the highest boundary that can meaningfully distinguish correct behavior from the relevant failure. Prefer existing seams; introduce no test framework or mandatory all-purpose harness.
-- For an isolated calculation or state transition, use focused existing domain tests with meaningful inputs and outcomes. Do not require two browsers to prove a pure calculation.
-- For a transaction, resource cost, replay or lifecycle repair, use existing native callable/lifecycle tests to prove committed outcomes, denied actors, retries and recovery. Use Firestore rules tests where read audiences or direct-write restrictions are involved.
-- For a route, multi-actor interaction or authenticated recovery contract, use the existing member/GM lifecycle and two-browser gameplay helpers through ordinary UI paths. A synthetic presenter state cannot prove these contracts.
-- Use responsive browser checks for affected layout, keyboard, motion, geometry and navigation behavior. Retain required typography and other release checks without repeating unrelated rendered matrices for an isolated nonvisual repair.
-- Run focused checks while repairing each behavior. Run the required reconciled checkpoint validation, full-table/game-loop/ending proof and release checks at the appropriate acceptance boundary. Repeat a broader gate only for a failure, material candidate/upstream change or unresolved concern.
-- Existing prior art includes session lifecycle and debrief callable suites, audience-specific Firestore rules suites, member/GM lifecycle proof helpers, the two-browser gameplay harness and the typography browser gate.
-- Preserve discriminating failure evidence and required test-first commits for new behavior. Validate the actual result, authorization, resource persistence and recovery rather than merely mirroring internal implementation calls.
-- Report local unit/native/HTTP/UI/rules evidence, rendered QA, independent review, CI, deployment and any actual production gameplay separately. Checkpoint closure still requires every assigned criterion and its evidence.
-- The owner's test-boundary feedback was “we need sensible test boundaries.” Apply the proportionate boundaries above rather than one expensive end-to-end check for every change.
+- Use the existing authenticated member/GM gameplay boundary as the highest integration seam for composed gameplay, actor handoffs, navigation, recovery and ending claims. Use two browsers for the existing full-game obligation or a claim that needs that handoff; an isolated one-actor repair does not inherit that cohort. Exercise ordinary controls, native handlers and HTTP/UI reads; prepared scenes and internal store assertions do not replace this boundary.
+- Add focused supporting checks only where they discriminate the actual failure more cheaply: mounted consumers for navigation/selectors, existing callable/lifecycle tests for transactions and replay, and audience-specific Firestore rules tests for reads and denied privileged writes. Prefer these existing seams to new interfaces.
+- Test observable results, committed costs, denied effects and reachable next actions. Exercise the real consumer or handler from its previous state; a fixture already at the expected outcome or a source-string match does not prove the transition.
+- For the Red Alert and Flee/navigation stops, reproduce the reached consumer failure before changing it. Verify the accessible role/name and return control against the actual mounted UI. The target gameplay remains unproved until the rehearsal reaches it.
+- For settlement repairs, cover legitimate fresh-action positives, settled actor/home/current-host denials, the transaction race where applicable and unchanged exact committed replay. Assert no new resource, randomness, selection, receipt or audit effect on denied fresh requests. Review the fixes independently before accepting them.
+- For Station and Nebula recovery, retain same-actor and current-generation checks, the original request identity, a real prior committed result, unchanged costs/revisions on replay and bounded waiting. A source-tested continuation is preparation for native qualification.
+- Distinguish App Check evidence by the transport and token condition actually exercised. Missing-token local SDK/HTTP denial and sanitized logger capture do not establish invalid-token handling or production telemetry.
+- Use the smallest cohort that proves the claim and state why it is sufficient. Preserve explicit full-table, every-role, two-browser and continuing-game obligations at their acceptance boundary; a configured roster is not a count of admitted Auth actors or simultaneous browsers.
+- Apply the owner's October 16 clarification: “Let’s make sure they’re sensible. use common sense.” Choose the cheapest existing check that can expose the actual failure, then qualify the affected product claim. These boundaries guide judgment; they do not require every repair to traverse every layer.
+- Rebind unchanged evidence only after checking relevant behavior, dependencies and runtime identity. Run focused checks during repair, then the required reconciled gameplay, responsive/accessibility, emitted-build typography, review, CI and deployment gates. Broaden or repeat for failed gates, material candidate/upstream changes or unresolved concerns.
+- Prior art includes the existing member-navigation and two-browser helpers, mounted role/candidate/ending consumers, Station contribution recovery and Capybara-to-Nebula continuation checks, native candidate/debrief callable suites, audience rules suites, denial/audit tests and rendered typography gate.
+- Stop the bounded slice at its first unexplained integration failure, retain original evidence and teardown, and diagnose that behavior before expanding. A setup failure does not establish that the target product action failed.
+- For this prose-only update, review Markdown, links, fixed membership, unchanged acceptance/status facts and generated-view consistency using existing documentation/dependency checks. It earns no functional RED/GREEN, native, CI or deployment claim.
 
 ### Out of Scope
 
-New features, redesigns, a second issue tracker, changed checkpoint allocation,
-a new triage status in the catalog, weakened acceptance or security checks,
-mandatory owner playtesting, automatic PC10 runtime restart, and ungranted
-0.9.x/1.0.0 version authorization. Post-campaign sequence conflicts remain for
-source-backed reconciliation rather than new scope in this specification.
+New features or redesigns, changed checkpoint allocation, a second issue tracker,
+new completion states, replacement acceptance criteria, blanket replay of settled
+checks, a new harness or enforcement system, mandatory owner playtesting,
+deletion of old recovery data, implementation/runtime in this update, later-phase
+execution and ungranted 0.9.x/1.0.0 releases. Discovered defects remain bounded
+repairs within existing acceptance rather than automatic new scope.
 
 ### Further Notes
 
-The checked-in catalog at specification time records 703/751 done, six partial
-and 42 missing. This is a local planning snapshot, not a fresh production or
-remote-main verification. This document earns no closure credit. Refresh the
-current catalog and exact task handoff when execution is resumed; prepared or
-unrun slices retain their original proof limits.
+The October 16 local catalog snapshot is **703/751 done (93.61%), 23 partial and
+25 missing**; the fixed PC10 target remains 48 closures to **751/751**. The earlier
+October 15 specification snapshot of six partial and 42 missing is historical.
+This update changes no completion state. The next useful work is exact-candidate
+and criterion-level reconciliation, not another broad runtime attempt. Refresh
+current ancestry, live resource ownership and the predecessor handoff before
+execution; retain unresolved review, gameplay and release gaps explicitly.
 
 ## Approved bounded execution tickets — 2026-10-15
 
@@ -739,7 +779,8 @@ acceptance or completion status, and introduce no separate ticket-status ledger.
 Each catalog row links its own briefs through planning evidence.
 
 Triage is `ready-for-agent` for the approved specification. Dependency readiness
-and runtime authorization remain separate: PC10 remains paused. Existing hard
+and runtime authorization remain separate: the original October 15 pause was
+superseded by the later implementation resumption recorded below. Existing hard
 prerequisites are inherited exactly; additional composition edges apply only
 to these briefs and do not create new Git, CI or release gates. The existing
 dependency chart continues to display all 48 canonical IDs and their unchanged
@@ -809,7 +850,7 @@ justified solely by this planning change.
 | [H1](pc10-tickets/50-h1.md) | 642 | Expansion full-table setup and Scrap loop | C4, C5 |
 | [H2](pc10-tickets/51-h2.md) | 642 | Expansion combat, jump and candidate path | C4, H1, V2 |
 | [H3](pc10-tickets/52-h3.md) | 642 | Expansion recovery and GM concurrency | C4, H2, L3, T2 |
-| [Z1](pc10-tickets/53-z1.md) | 651 | Reconcile campaign acceptance and review evidence | A1, A2, B1, B2, C1, C2, C3, C4, C5, D1, D2, E1, E2, F1, F2, F3, G1, G2, G3, H1, H2, H3, J1, J2, L1, L2, L3, N1, N2, P1, P2, Q1, Q2, Q3, R1, R2, S1, S2, T1, T2, U1, U2, V1, V2, V3, W1, W2, X1, X2, Y1, Y2, Y3 |
+| [Z1](pc10-tickets/53-z1.md) | 651 | Reconcile candidate handbacks and criterion-level acceptance; preparation can start now | Final sign-off: A1, A2, B1, B2, C1, C2, C3, C4, C5, D1, D2, E1, E2, F1, F2, F3, G1, G2, G3, H1, H2, H3, J1, J2, L1, L2, L3, N1, N2, P1, P2, Q1, Q2, Q3, R1, R2, S1, S2, T1, T2, U1, U2, V1, V2, V3, W1, W2, X1, X2, Y1, Y2, Y3 |
 | [Z2](pc10-tickets/54-z2.md) | 651 | Final candidate validation and verified release | F1, F2, F3, G1, G2, G3, H1, H2, H3, V1, V2, V3, Z1 |
 
 The context sizing used the existing workspace consumer contracts, candidate

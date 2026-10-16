@@ -20,6 +20,16 @@ New functional work requires observed RED/test commit before implementation.
 
 ## Initial frontier and writers
 
+October 16 renewed owner invocation of `implement-spec` authorizes completion
+of the existing specification, including local runtime and the single verified
+release. It supersedes the wayfinding session's planning-only boundary without
+changing any acceptance or renewing old resource reservations. Root preserves
+the existing integration branch and uncommitted approved specification update.
+The first bounded group is exact candidate/handback integration; an independent
+read-only Luna audit maps every fixed criterion to current evidence and the
+smallest remaining qualifications. Root owns runtime qualification and repairs;
+new functional repairs retain separate observed RED and implementation commits.
+
 | Group | Owner | Checkout and branch | Boundary |
 |---|---|---|---|
 | Prior-work reconciliation | Sol 6.1, high | Read-only prior product 98323a32 and operator d298f2b1 | Exact ancestry/reuse recommendations and retained proof limits; no runtime or old-data mutation. |
@@ -1752,3 +1762,153 @@ contained status/passage controls at phone, landscape and desktop sizes and
 records sampled actual Courier glyph use through Chrome CDP. This is **prepared
 component presentation only**. It does not relabel either failed native run or
 establish composed-shell/final-build typography, gameplay or production proof.
+
+
+## Completion wayfinding — October 16, 2026
+
+### Destination
+
+An evidence-backed route to finish the existing fixed 48-ID PC10 scope and
+verify its single release, preserving accepted work. The owner confirmed
+“Yes—chart the completion plan”; this session does not implement or launch
+runtime. Existing execution authorization is historical context, not a claim
+that this planning session performed acceptance.
+
+### Notes
+
+This is wayfinder planning within the existing catalog/checkpoint tracker,
+following [the repository tracker mapping](agents/issue-tracker.md). It creates
+no GitHub issues, parallel completion ledger, new prompt IDs or acceptance gates.
+The decision questions below refine existing briefs; only the catalog records
+completion. Consult wayfinder, grilling and domain-modeling when resolving
+new product decisions; use current CLAUDE and execution policy for implementation.
+Owner choices already recorded remain settled. Ask only a concrete owner-only
+question that existing sources cannot resolve.
+
+The subsequent `to-spec` request is reconciled into the
+[updated campaign specification](PRODUCT_MILESTONES.md#campaign-resumption-specification--2026-10-15)
+and the existing Z1/Z2 briefs linked below. The owner's test-seam clarification
+is to use common sense: pick checks for the actual failure and affected claim,
+with broader gameplay only where required. Preparatory Z1 reconciliation is
+immediately takeable; final P651 sign-off retains its canonical prerequisites.
+This is a specification handoff, not a resolution of the candidate, evidence
+or gameplay questions below.
+
+At inspection, assigned integration HEAD was `bb3e1c5c`, clean. After fetching,
+`origin/main` was `67147dfa`; main has 17 commits absent from integration and
+integration has 2,112 absent from main. These are ancestry counts, not effort
+or completion estimates. Main includes the proof-tool preflight/CI PR. The
+catalog records **703 done, 23 partial, 25 missing**, totaling 751. No new closure
+is earned here. Older gap maps, acceptance tables and the opening execution
+summary are historical inputs and must not override current handbacks.
+
+### Decisions so far
+
+- Destination: owner confirmed completion planning first; implementation follows
+  separately. Preserve the existing PC10 scope and accepted evidence.
+
+### Decision frontier in existing briefs
+
+**Which exact candidate and handbacks should be qualified next?**
+Owned by [campaign evidence reconciliation](pc10-tickets/53-z1.md), immediately
+takeable. Reconcile current main, root source and retained handbacks by exact
+ancestry and diff; preserve original RED/GREEN histories. Specifically inspect:
+
+- Red Alert consumer repair `172fb87d` (test-only `dc2b9278`), absent from root:
+  actual rendered textbox role/name replaces the failing exact-label locator.
+- Candidate-settlement fresh-action repair `6bd9d6a5` (test-only `ac8b9c31`),
+  absent from root: Highwall, Boa and Hummingbird must deny new effects after
+  actor/home/host settlement while preserving exact committed retries. Its
+  92 callable tests and Functions type check passed; independent follow-up
+  on the two source-review findings remains necessary.
+- Test-only App Check telemetry `81ee4bf0`, absent from root: 30 focused tests
+  pass, with real local SDK/HTTP missing-App-Check denial and sanitized logger
+  capture. This is neither invalid-token nor production telemetry proof.
+- Main's merged proof preflight/browser smoke: reuse it, preserving the
+  distinction between inert rendered-component checks and real gameplay.
+
+External receipts currently live in
+`/tmp/pc10-implementation-notes-20261015/` under
+`base-redalert-sol-source-repair.md`,
+`candidate-shuttle-fresh-fences-owner-repair.md`,
+`appcheck-http-telemetry-evidence.md`,
+`reconciled-authority-risk-review.md` and `proof-tool-ci-preflight.md`.
+Promote necessary conclusions into durable existing acceptance records before
+relying on these temporary paths in a future session. Resolve this question
+with an exact candidate, retained source/test chronology, focused validation
+and unresolved-only authority review; source preparation earns no native credit.
+
+**Which remaining criteria require new gameplay, and which already have sufficient evidence?**
+Owned by [campaign evidence reconciliation](pc10-tickets/53-z1.md); blocked on
+the candidate reconciliation above. Reconcile all 48 catalog rows against the
+current acceptance matrix, role/action matrices and latest external handbacks.
+Record criterion, accepted source, evidence boundary and precise remaining gap.
+Rebind unchanged evidence only after verifying relevant behavior/source identity.
+Do not interpret “pending” in an older table as proof implementation is absent.
+The latest inventory reports 248 exports/239 callables/42 roles; verify that
+inventory on the candidate rather than retaining historical counts. Published
+casting transport adds no new PC10 gameplay obligation.
+
+**What is the smallest remaining set of ordinary gameplay qualifications?**
+Owned by the existing [Base rehearsal](pc10-tickets/47-g1.md),
+[expansion rehearsal](pc10-tickets/50-h1.md),
+[ending proofs](pc10-tickets/41-v1.md) and
+[recovery](pc10-tickets/45-f2.md) briefs; blocked on the two questions above.
+Use this provisional order, refining it from criterion-level evidence:
+
+1. Base continuation through Wing/combat, politics and debrief. The latest
+   Base-a3 stop is a proof selector failure; the strong transaction reinspection
+   repair is already integrated. Preflight actual selectors, navigation and
+   source composition before repeating the long prefix.
+2. Capybara composition and same-session Nebula loss/success/recovery through
+   debrief. Source-tested continuation/build repairs do not establish H1–H3 or
+   V2 gameplay. Preserve the full-table obligation where its claim requires it.
+3. Station contribution/reconnect, repeated combat, Reactor and ending. Reuse
+   accepted common ending readers; qualify Station-specific authority and
+   original-actor recovery rather than assuming another ending covers it.
+4. F2 evacuation, nonterminal ship destruction, same-actor Flee/reload and
+   replacement, followed by the existing ending where compatible. Latest F2-a1
+   failed at `externalGMBack` role-selection link mismatch before target proof;
+   diagnose that consumer first. Do not call the target behavior broken based
+   solely on this setup stop. Reuse F1 domain/native-callable and UI evidence
+   where its explicit brief allows it; no new full game per ending cause.
+5. Fill only remaining Ring, specialist, privacy, stale/reconnect and security
+   criteria exposed by the reconciliation. Ring's earlier failed runs remain
+   failed; later narrow debrief reload evidence cannot retroactively pass them.
+
+Combine compatible criteria in a real continuing session. A new session must
+not be described as continuous-game proof. Use claim-based minimum cohorts;
+retain full twenty-player, every-role, authentic GM Cycle 0→1, two-browser and
+unlimited manual full-game obligations where explicitly required. Ordinary
+resource acquisition must not be inferred from GM scenario budget adjustments.
+No runtime is launched by this plan. Check live ledger/ports and current actor,
+source/build and teardown scope at execution; old reservations are not grants.
+
+**When is the reconciled checkpoint ready for its single release?**
+Owned by [final validation and verified release](pc10-tickets/54-z2.md), blocked
+on the evidence and gameplay questions above. Every assigned criterion must be
+accounted for before closing its prompt. Run required final independent reviews,
+responsive/accessibility and emitted-build typography checks, relevant tests,
+existing catalog/dependency/guidance validators and version/changelog checks.
+Reconcile current main and metadata before the batched candidate CI push.
+Historical version suggestions are not fresh version authority. Follow the
+current release workflow for exact-main deployment, health/IAM/public artifacts
+and truthful production verification. Optional solo tour is a handoff aid, not
+an owner participation gate. Local gameplay, CI, deployment, production gameplay
+and physical-device evidence remain separate claims.
+
+### Not yet specified
+
+The criterion audit will reveal whether the next Base, Capybara, Station and
+recovery attempts expose actual product defects beyond prepared consumer fixes.
+Their scope and acceptance impact cannot be invented from failed prefixes.
+Capacity/security branches beyond accepted narrow evidence likewise need exact
+acceptance mapping before selecting additional operational checks. No reliable
+completion ETA follows from source-test counts or the prior “4–6 hours” estimate.
+
+### Out of scope
+
+New mechanics/redesigns, changing the fixed 48-ID target, weakening acceptance,
+replaying settled checks without a material reason, a second tracker, old
+recovery-data deletion, and implementation/runtime in this planning session.
+Post-PC10, PC11 and conditional PC12 retain their existing sequence and scope.
