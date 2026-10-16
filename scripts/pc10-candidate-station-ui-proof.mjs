@@ -32,10 +32,10 @@ function sameStationActor(current, original, { sessionId, roleId, phase }) {
   assert.equal(current.hasAuth, true); assert.equal(current.sameActor, true);
   assert.equal(current.connection, 'live'); assert.equal(current.freshness, 'server');
   assert.ok(Number.isSafeInteger(current.connectionGeneration) &&
-    current.connectionGeneration > original.connectionGeneration,
-  'The cold Station document needs a newly accepted server resume generation.');
-  assert.ok(Number.isSafeInteger(current.identityHydrationRevision) && current.identityHydrationRevision >= 1,
-    'The new Station document must finish identity hydration.');
+    current.connectionGeneration >= original.connectionGeneration,
+  'The cold Station document cannot regress its server resume generation.');
+  assert.ok(Number.isSafeInteger(current.identityHydrationRevision) && current.identityHydrationRevision >= 0,
+    'The new Station document needs a valid local identity hydration epoch.');
   assert.equal(current.profileSessionId, original.profileSessionId,
     "The original Station actor's profile session must survive reconnect.");
   assert.equal(current.sessionId, sessionId);
@@ -281,10 +281,21 @@ export async function recoverStationReactorContribution({ actor, gm, tools, ship
       current.connection === 'live' && current.freshness === 'server' &&
       current.documentTimeOrigin !== originalActor.documentTimeOrigin,
     remaining(deadline, 'Station actor reconnection'));
-    const reloadedActor = await observeWolfChoiceActor(actor);
-    sameStationActor(reloadedActor, originalActor, { sessionId, roleId, phase: committedPhase });
-    assert.notEqual(reloadedActor.documentTimeOrigin, originalActor.documentTimeOrigin,
-      'The proof must cross a real page-document reload.');
+    let reloadedActor;
+    while (true) {
+      remaining(deadline, 'Station accepted server resume generation and document hydration');
+      const current = await observeWolfChoiceActor(actor);
+      sameStationActor(current, originalActor, { sessionId, roleId, phase: committedPhase });
+      assert.notEqual(current.documentTimeOrigin, originalActor.documentTimeOrigin,
+        'The proof must cross a real page-document reload.');
+      // A member listener can become live before the original resume reply is
+      // accepted. Wait for that reply's newer presence generation and this
+      // document's hydration instead of accepting its cached identity.
+      if (current.connectionGeneration > originalActor.connectionGeneration && current.identityHydrationRevision >= 1) {
+        reloadedActor = current; break;
+      }
+      await delay(Math.min(50, remaining(deadline, 'Station accepted server resume generation and document hydration')));
+    }
     const reloadedGm = await observeStationGmLease(gm);
     sameStationGmLease(reloadedGm, originalGm, sessionId, committedPhase);
     if (expectActivation) await dismissStationEndgame(actor, originalActor, deadline);
