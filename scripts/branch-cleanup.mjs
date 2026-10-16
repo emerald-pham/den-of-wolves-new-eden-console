@@ -242,6 +242,50 @@ async function repositoryIdentityAt(path) {
   }
 }
 
+function githubOriginIdentity(origin) {
+  const value = typeof origin === 'string' ? origin.trim() : '';
+  const match = value.match(/^(?:https?:\/\/github\.com\/|ssh:\/\/git@github\.com\/|git:\/\/github\.com\/|git@github\.com:)([^?#]+)$/i);
+  if (!match) return null;
+  const repositoryPath = match[1].replace(/\/+$/, '').replace(/\.git$/i, '');
+  const parts = repositoryPath.split('/');
+  if (parts.length !== 2 || parts.some((part) => !part || part === '.' || part === '..')) return null;
+  return `github:${parts.map((part) => part.toLowerCase()).join('/')}`;
+}
+
+async function originIdentityAt(path) {
+  try {
+    const origin = await run('git', ['config', '--get', 'remote.origin.url'], { cwd: path });
+    const githubIdentity = githubOriginIdentity(origin);
+    if (githubIdentity) return githubIdentity;
+
+    if (origin.startsWith('file://')) {
+      try {
+        return `local:${await realpath(fileURLToPath(new URL(origin)))}`;
+      } catch {
+        return null;
+      }
+    }
+    if (isAbsolute(origin) || origin.startsWith('./') || origin.startsWith('../')) {
+      try {
+        return `local:${await realpath(resolve(path, origin))}`;
+      } catch {
+        return null;
+      }
+    }
+
+    let url;
+    try {
+      url = new URL(origin);
+    } catch {
+      return null;
+    }
+    if (!['https:', 'ssh:', 'git:'].includes(url.protocol) || url.search || url.hash) return null;
+    return `url:${url.protocol}//${url.host.toLowerCase()}${url.pathname.replace(/\/+$/, '')}`;
+  } catch {
+    return null;
+  }
+}
+
 async function ledgerIdentity(entry) {
   if (typeof entry?.repositoryIdentity === 'string' && entry.repositoryIdentity.trim()) {
     return canonicalPath(entry.repositoryIdentity);
@@ -266,6 +310,8 @@ async function coordinationReason({ coordinationFile, root, identity, branch }) 
     };
   }
 
+  let currentOrigin;
+
   for (const entry of state.entries ?? []) {
     if (entry?.branchName !== branch) continue;
     const entryIdentity = await ledgerIdentity(entry);
@@ -283,13 +329,37 @@ async function coordinationReason({ coordinationFile, root, identity, branch }) 
         message: `The coordination ledger registers ${branch} in another checkout at ${entry.worktree}, but its repository identity cannot be verified.`,
       };
     }
-    if (entryIdentity !== identity) continue;
+    if (entryIdentity !== identity && (ownershipStatus || entry.status === 'complete')) {
+      currentOrigin ??= await originIdentityAt(root);
+      const ownerRoot = typeof entry.repositoryRoot === 'string' ? entry.repositoryRoot : entry.worktree;
+      const ownerOrigin = typeof ownerRoot === 'string' ? await originIdentityAt(ownerRoot) : null;
+      if (!currentOrigin || !ownerOrigin) {
+        return {
+          code: ownershipStatus ? 'coordination-ownership' : 'branch-in-other-worktree',
+          message: `The ${entry.status} ledger entry ${entry.id} registers ${branch}, but its origin could not be verified as unrelated to this checkout.`,
+        };
+      }
+      if (ownerOrigin !== currentOrigin) continue;
+      if (ownershipStatus) {
+        return {
+          code: 'coordination-ownership',
+          message: `The ${entry.status} ledger entry ${entry.id} owns ${branch} in another clone of the same origin.`,
+        };
+      }
+      if (entryWorktree && entryWorktree !== root) {
+        return {
+          code: 'branch-in-other-worktree',
+          message: `The coordination ledger still registers ${branch} in another clone of the same origin at ${entry.worktree}.`,
+        };
+      }
+    }
     if (ownershipStatus) {
       return {
         code: 'coordination-ownership',
         message: `The ${entry.status} ledger entry ${entry.id} still owns ${branch}.`,
       };
     }
+    if (entryIdentity !== identity) continue;
     if (entryWorktree && entryWorktree !== root) {
       return {
         code: 'branch-in-other-worktree',
