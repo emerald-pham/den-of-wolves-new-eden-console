@@ -176,6 +176,9 @@ jobs:
       - name: Bounded proof-tool contract preflight
         run: npm run test:proof-preflight
 
+      - name: Branch cleanup safeguards
+        run: npm run test:branch-cleanup
+
       - name: Firebase deployment batching contract
         run: node --test scripts/deploy-firebase-surfaces.test.mjs
 
