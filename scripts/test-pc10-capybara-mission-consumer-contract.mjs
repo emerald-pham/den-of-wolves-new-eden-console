@@ -149,7 +149,8 @@ test('a mismatched custody-delivery receipt remains pending even after a valid a
 });
 
 
-function mountedPrivacySurface({ mismatchedStep = null, repairCount = 1 } = {}) {
+function mountedPrivacySurface({ mismatchedStep = null, mismatchedRunStep = null,
+  mismatchedEpochStep = null, mismatchedReplySessionStep = null, repairCount = 1 } = {}) {
   const events = [];
   let ready = false;
   let responseListener = null;
@@ -176,19 +177,22 @@ function mountedPrivacySurface({ mismatchedStep = null, repairCount = 1 } = {}) 
       const steps = ['hold', ...Array(repairCount).fill('repair'), 'finalize'];
       steps.forEach((step, index) => {
         const wrongRequest = mismatchedStep === step;
+        const runIdForStep = mismatchedRunStep === step ? 'other-run' : runId;
         const missionId = step === 'repair' && index < steps.length - 2 ? `legacy-mission-${index}` : null;
         responseListener({
           url: () => 'http://127.0.0.1:5001/demo/us-central1/repairAwayMissionProjectionPrivacy',
           request: () => ({ method: () => 'POST', postDataJSON: () => ({ data: {
             sessionId: wrongRequest ? 'other-session' : sessionId,
             instanceId: originalGm.instanceId,
-            repairRunId: runId,
+            repairRunId: runIdForStep,
             requestId: `${runId}-${index}-${step}`,
             step,
           } }) }),
           status: () => 200,
           json: async () => ({ result: {
-            sessionId, repairRunId: runId, step, status: 'committed', epoch: 12,
+            sessionId: mismatchedReplySessionStep === step ? 'other-session' : sessionId,
+            repairRunId: runIdForStep, step, status: 'committed',
+            epoch: mismatchedEpochStep === step ? 13 : 12,
             state: step === 'finalize' ? 'ready' : 'held',
             pointerCount: missionId ? 1 : 0, missionId,
           } }),
@@ -250,14 +254,21 @@ test('the mounted privacy control confirms the full hold-repair-repair-finalize 
   assert.ok(events.indexOf('live-preparation-confirmed') < events.indexOf('normal-deal'));
 });
 
-test('the mounted privacy control cannot authorize deal from a mismatched cutover request', async () => {
-  const { events, surface } = mountedPrivacySurface({ mismatchedStep: 'repair' });
-  let dealCalls = 0;
-  const started = await startMissionDealThroughMountedUi({ sessionId, originalGm,
-    preparePrivacy: () => prepareMissionPrivacyThroughMountedControl({ surface, sessionId, originalGm }),
-    deal: async () => { dealCalls++; return { status: 'committed', sessionId, missionId }; },
-  });
-  assert.equal(started.status, 'pending');
-  assert.equal(dealCalls, 0);
-  assert.equal(events.includes('normal-deal'), false);
+test('the mounted privacy control cannot authorize deal from mismatched session, run, or epoch receipts', async () => {
+  for (const options of [
+    { mismatchedStep: 'repair' },
+    { mismatchedRunStep: 'repair' },
+    { mismatchedEpochStep: 'finalize' },
+    { mismatchedReplySessionStep: 'finalize' },
+  ]) {
+    const { events, surface } = mountedPrivacySurface(options);
+    let dealCalls = 0;
+    const started = await startMissionDealThroughMountedUi({ sessionId, originalGm,
+      preparePrivacy: () => prepareMissionPrivacyThroughMountedControl({ surface, sessionId, originalGm }),
+      deal: async () => { dealCalls++; return { status: 'committed', sessionId, missionId }; },
+    });
+    assert.equal(started.status, 'pending');
+    assert.equal(dealCalls, 0);
+    assert.equal(events.includes('normal-deal'), false);
+  }
 });
