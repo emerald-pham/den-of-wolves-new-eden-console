@@ -27,7 +27,7 @@ const deniedReply = { status: 'denied', code: 'functions/failed-precondition',
 const plain = value => JSON.parse(JSON.stringify(value));
 
 function sourceReadFixture({ metadata = { fromCache: false, hasPendingWrites: false },
-  serverValue = resolvedAttack, serverError, afterServer = () => {}, sdkReply = deniedReply } = {}) {
+  attack = currentAttack, serverValue = resolvedAttack, serverError, afterServer = () => {}, sdkReply = deniedReply } = {}) {
   const counts = { getDoc: 0, getDocFromServer: 0, getDocs: 0, sdkChoice: 0, paints: 0 };
   const timeouts = [], records = [], reads = [];
   const fixture = { actor: { ...originalActor }, counts, timeouts, records, reads };
@@ -39,7 +39,7 @@ function sourceReadFixture({ metadata = { fromCache: false, hasPendingWrites: fa
     collection: (db, requestedPath) => ({ db, path: requestedPath }),
     getDoc: async ref => {
       counts.getDoc += 1; reads.push({ method: 'getDoc', path: ref.path });
-      return snapshot(currentAttack, { fromCache: true, hasPendingWrites: false });
+      return snapshot(attack, { fromCache: true, hasPendingWrites: false });
     },
     getDocFromServer: async ref => {
       counts.getDocFromServer += 1; reads.push({ method: 'getDocFromServer', path: ref.path });
@@ -50,7 +50,7 @@ function sourceReadFixture({ metadata = { fromCache: false, hasPendingWrites: fa
     },
     getDocs: async ref => {
       counts.getDocs += 1; reads.push({ method: 'getDocs', path: ref.path });
-      return { docs: [snapshot(currentAttack, { fromCache: true, hasPendingWrites: false })] };
+      return { docs: [snapshot(attack, { fromCache: true, hasPendingWrites: false })] };
     },
   };
   const runBrowserCallback = async (callback, input) => {
@@ -95,7 +95,7 @@ function sourceReadFixture({ metadata = { fromCache: false, hasPendingWrites: fa
   const adapter = createTwoBrowserGameplay(context);
   const tools = { ...adapter, record: async (stage, detail) => { records.push({ stage, ...plain(detail) }); } };
   return { ...fixture, context, adapter, tools,
-    run: () => createWolfChoiceWaiter(context, { tools })(gm, currentAttack, { kind: 'boarding-special' }),
+    run: () => createWolfChoiceWaiter(context, { tools })(gm, attack, { kind: 'boarding-special' }),
   };
 }
 
@@ -184,6 +184,21 @@ test('mounted GM exact SDK denial resolves through one server-only reinspection 
   assert.deepEqual(fixture.counts, { getDoc: 1, getDocFromServer: 1, getDocs: 0, sdkChoice: 1, paints: 0 });
   assert.deepEqual(reinspectionRecord(fixture).tuple, { sameSession: true, sameAttack: true,
     turn: 1, revision: 27, status: 'resolved', currentStep: 'resolved', airspaceLocked: false });
+  assert.deepEqual(reinspectionRecord(fixture).metadata, { fromCache: false, hasPendingWrites: false });
+});
+
+test('captured live declared boarding source stays pending when the denied read sees the same locked revision', async () => {
+  const captured = { attackId: 'private-native-attack', turn: 1, revision: 33,
+    status: 'declared', currentStep: 'boarding', airspaceLocked: true };
+  const fixture = sourceReadFixture({ attack: captured, serverValue: captured });
+  const result = await fixture.run();
+  assert.equal(result.status, 'source-pending');
+  assert.equal(result.gameplayCredit, false);
+  assert.equal(result.actionCredit, false);
+  assert.equal(result.acceptanceCredit, false);
+  assert.deepEqual(fixture.counts, { getDoc: 1, getDocFromServer: 1, getDocs: 0, sdkChoice: 1, paints: 0 });
+  assert.deepEqual(reinspectionRecord(fixture).tuple, { sameSession: null, sameAttack: true,
+    turn: 1, revision: 33, status: 'declared', currentStep: 'boarding', airspaceLocked: true });
   assert.deepEqual(reinspectionRecord(fixture).metadata, { fromCache: false, hasPendingWrites: false });
 });
 
