@@ -11,12 +11,12 @@
     "dependencyWaveCount": 21
   },
   "sources": {
-    "revision": "76174836c9432223d13e103b7422f93e531c5ab9",
-    "revisionDate": "2026-10-15T20:59:34-04:00",
+    "revision": "0407766770ea55776ddf804ad6beeecfd0bbcdf8",
+    "revisionDate": "2026-10-16T15:16:02-04:00",
     "files": [
       {
         "path": "docs/implementation-prompts.json",
-        "sha256": "514282ee191611250dda73c39283e78f09fc25655cc1cbf28bcbda50fd8c4fdf"
+        "sha256": "af650a244442f173282f48ce5bf6c48951f8587b38e6073e1a0d8d4039b1ae89"
       },
       {
         "path": "docs/CHECKPOINT_COMPLETION_PLAN.md",
