@@ -56,7 +56,9 @@ Before deleting refs, the command saves a private recovery bundle and manifest
 outside all registered working trees and proves restoration in an independent
 empty repository before accepting the backup. Remote deletion
 uses an exact-SHA lease; local deletion rechecks ownership and compares the exact
-expected tip after verifying merged ancestry. Repeating closeout is safe. Keep
+expected tip after verifying merged ancestry. During deletion, Git HEAD locks
+protect other registered checkouts; existing or stale locks retain the branch,
+and cleanup never reclaims them. Repeating closeout is safe. Keep
 the reported recovery location and retention reasons in the task handoff.
 
 `npm run test:branch-cleanup` exercises these safeguards against temporary Git
