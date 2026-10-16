@@ -195,7 +195,8 @@ export const BASE_COMPOSED_CALLBACK_ORDER = Object.freeze([
   'team1:pending.onCycle1Started after initial source-based supplies',
   'team1:politics.team1AfterNormalStart after research before paid maintenance',
   'team1:pending.onCycle1Maintenance after paid maintenance',
-  'coordination1:pending.onCycle1Coordination with the current Endeavour Core source authority before opening Wolf',
+  'coordination1:pending.onCycle1Coordination with shuttle movement deferred until actor-changing Core procedures finish',
+  'coordination1:pending.onCycle1ShuttleMovement with a fresh Endeavour Core source authority for departure, begin and retarget',
   'coordination1:wait for the exact current source arrivesAt then arm the arrival-only observer with the original retarget witness',
   'coordination1:politics.coordination1AfterOpeningWolf then pending.onCycle1AfterWolf',
   'team2:pending.onCycle2Maintenance then politics.team2AfterMaintenance',
@@ -852,16 +853,17 @@ export async function runBaseGameplay(context, integration) {
     await compose('cycle-1-after-six-paid-maintenance', procedures.onCycle1Maintenance);
     await sourceInterruptions('cycle-1-after-maintenance-source-events');
     await coordination();
+    await compose('cycle-1-coordination-before-opening-wolf', procedures.onCycle1Coordination);
     const movementOrigin = await currentBaseCoreShuttleOrigin(1);
-    if (movementOrigin.status !== 'eligible') pending('cycle-1-endeavour-shuttle-origin', movementOrigin.blockers,
-      { shipId: BASE_CORE_MOVEMENT_HOST_SHIP_ID, roleId: BASE_CORE_MOVEMENT_ROLE_ID, cycle: 1 });
-    const coordinationContext = movementOrigin.status === 'eligible'
-      ? { ...context, shuttleOriginAuthority: movementOrigin.origin,
-        shuttleOriginHostShipId: BASE_CORE_MOVEMENT_HOST_SHIP_ID } : context;
-    const coordinationResult = await compose('cycle-1-coordination-before-opening-wolf',
-      procedures.onCycle1Coordination, coordinationContext);
-    if (movementOrigin.status === 'eligible') {
-      const retarget = coordinationResult?.coordination?.evidence?.cases?.find(row =>
+    if (movementOrigin.status !== 'eligible') {
+      pending('cycle-1-endeavour-shuttle-origin', movementOrigin.blockers,
+        { shipId: BASE_CORE_MOVEMENT_HOST_SHIP_ID, roleId: BASE_CORE_MOVEMENT_ROLE_ID, cycle: 1 });
+    } else {
+      const movementContext = { ...context, shuttleOriginAuthority: movementOrigin.origin,
+        shuttleOriginHostShipId: BASE_CORE_MOVEMENT_HOST_SHIP_ID };
+      const movementResult = await compose('cycle-1-shuttle-movement-after-actor-changing-coordination',
+        procedures.onCycle1ShuttleMovement, movementContext);
+      const retarget = movementResult?.evidence?.cases?.find(row =>
         row.caseId === 'core:retargetShuttleTransit');
       await waitForBaseShuttleArrivalWindow(movementOrigin.origin, retarget?.shuttleArrivalWitness, 1);
     }

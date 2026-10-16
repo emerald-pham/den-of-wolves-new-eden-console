@@ -266,7 +266,8 @@ export function createBasePendingProcedureCallbacks({
   });
 
   async function cycle1Coordination(context) {
-    const result = await core.onCoordination(stageContext(context, 'cycle-1-coordination'));
+    const result = await core.onCoordinationWithoutShuttleMovement(
+      stageContext(context, 'cycle-1-coordination-without-shuttle-movement'));
     const roll = result?.evidence?.cases?.find(row => row.caseId === 'core:rollHummingbirdHarvest');
     const allocation = roll?.status === 'completed'
       ? await allocateOnly.onCoordination(stageContext(context, 'cycle-1-after-successful-hummingbird-roll'))
@@ -285,6 +286,7 @@ export function createBasePendingProcedureCallbacks({
     onCycle1Started: combine('cycle-1-started-after-supplies', gm.onStarted, core.onStarted),
     onCycle1Maintenance: invoke(gm.onMaintenance, 'cycle-1-after-six-paid-maintenance'),
     onCycle1Coordination: cycle1Coordination,
+    onCycle1ShuttleMovement: invoke(core.onShuttleMovement, 'cycle-1-shuttle-movement-after-actor-changing-coordination'),
     onShuttleAutoArrivalArmed: invoke(core.onShuttleAutoArrivalArmed, 'shuttle-auto-arrival-observer-armed'),
     onShuttleArrivalReady: invoke(core.onShuttleArrivalReady, 'shuttle-arrival-ready'),
     onCycle1AfterWolf: invoke(core.afterWolf, 'cycle-1-after-wolf'),
