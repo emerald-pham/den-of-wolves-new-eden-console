@@ -325,14 +325,45 @@ export async function waitForWolfChoiceReadiness({ original, expected, inspectAc
       assert.equal(view.sessionId, expected.sessionId, 'Current source sessionId must match.');
       if (!view.type?.endsWith('-unavailable')) {
         assert.equal(view.turn, expected.turn, 'Normal current actor source turn is required.');
-        assert.equal(view.revision, expected.revision, 'Normal current actor source revision is required.');
+        assert.ok(Number.isSafeInteger(view.revision) && view.revision >= 1, 'Normal current actor source revision is required.');
         if (requireBoardingDiscovery) assert.equal(view.targetShipId, boardingActor.boardingDiscoveryAuthority.shipId,
           'Current boarding source ship must match original discovery.');
       }
-      for (const key of ['attackId', 'turn', 'revision']) if (Object.hasOwn(view, key))
+      for (const key of ['attackId', 'turn']) if (Object.hasOwn(view, key))
         assert.equal(view[key], expected[key], `Current actor source ${key} must match.`);
       if (Object.hasOwn(view, 'currentStep')) assert.equal(view.currentStep, expected.currentStep);
       if (Object.hasOwn(view, 'range')) assert.equal(view.range, expected.currentStep);
+      if (!view.type?.endsWith('-unavailable') && view.revision > expected.revision) {
+        // A successful private getter can observe normal source reconciliation
+        // after the prior GM listener sample. It cannot qualify the old tuple.
+        // Retire it only after one independent original-GM server read; never
+        // replace expected, retry the getter, paint a choice or renew the budget.
+        assert.equal(view.attackId, expected.attackId, 'Newer source must name the original attack.');
+        assert.ok(originalGm && inspectGm, 'Newer source requires the original GM authority.');
+        const strictAuthority = async () => {
+          budget();
+          assertWolfChoiceActor(await inspectActor(), original); budget();
+          assertWolfChoiceActor(await inspectGm(), originalGm); budget();
+          assert.equal(original.sessionId, expected.sessionId); assert.equal(original.cycle, expected.turn);
+          assert.equal(originalGm.sessionId, expected.sessionId); assert.equal(originalGm.cycle, expected.turn);
+          assert.equal(originalGm.playerRole, 'gm');
+        };
+        await strictAuthority();
+        const current = await inspectAttack({ serverOnly: true, reason: 'newer-choice' }); budget();
+        await strictAuthority();
+        const steps = ['targeting', 'long-range', 'medium-range', 'short-range', 'boarding', 'resolved'];
+        assert.ok(current?.type === 'wolf-attack-state' &&
+          (!Object.hasOwn(current, 'sessionId') || current.sessionId === expected.sessionId) &&
+          current.attackId === expected.attackId && current.turn === expected.turn &&
+          Number.isSafeInteger(current.revision) && current.revision >= view.revision &&
+          steps.includes(expected.currentStep) && steps.indexOf(current.currentStep) >= steps.indexOf(expected.currentStep) &&
+          (current.status === 'declared' && current.currentStep !== 'resolved' && current.airspaceLocked === true ||
+            current.status === 'resolved' && current.currentStep === 'resolved' && current.airspaceLocked === false),
+        'Newer actor reply requires independently proven forward progress of the original attack.');
+        return sourceChanged();
+      }
+      if (Object.hasOwn(view, 'revision'))
+        assert.equal(view.revision, expected.revision, 'Current actor source revision must match.');
     }
     if (!(await authority())) { if (resolvedSource) return sourceChanged(); await wait(); continue; }
     const painted = await inspectPaint(view); budget();
@@ -567,7 +598,8 @@ export function createWolfChoiceWaiter(context, { tools, originalGm, deadlineAt 
           const boolean = value => typeof value === 'boolean' ? value : null;
           // Only bounded guard discriminators, the asserted tuple and authority
           // booleans cross into evidence. No IDs, targets, contacts or choices.
-          await record?.('current combat closed boarding source reinspection', {
+          await record?.(options.reason === 'newer-choice' ? 'current combat newer choice source reinspection'
+            : 'current combat closed boarding source reinspection', {
             cycle: current.turn, kind: spec.kind, roleId: original.profileRoleId, uidHash: original.uidHash,
             revision: current.revision, currentStep: current.currentStep, diagnosticOnly: true,
             sourceReinspection: { readSource: 'server-only', readCount: 1,
