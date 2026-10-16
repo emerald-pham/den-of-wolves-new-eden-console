@@ -169,6 +169,7 @@ it('ends a stalled Auth restoration visibly and retries the same committed debri
     sdk.auth.currentUser = { uid: member.uid };
     restoration.resolve();
     await act(async () => { await Promise.resolve(); });
+    expect(sdk.call).not.toHaveBeenCalled();
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Retry facilitator debrief' })); });
     expect(screen.getByText('Server result // Success // Cycle 4')).toBeVisible();
     expect(sdk.call).toHaveBeenCalledWith('getSessionDebrief', { sessionId: session.id, instanceId: instance.id });
