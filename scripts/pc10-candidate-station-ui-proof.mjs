@@ -4,6 +4,7 @@ import { candidateGameplayTools } from './pc10-candidate-manual-ui-proof.mjs';
 import { resolveLiveWolfAttack } from './pc10-live-wolf-attack-ui-proof.mjs';
 import { candidateShipRole, contributeStationReactors } from './pc10-candidate-proof-helpers.mjs';
 import { rememberProofFailure } from './pc10-proof-failure-evidence.mjs';
+import { assertWolfChoiceActor, observeWolfChoiceActor } from './pc10-combat-choice-readiness.mjs';
 
 function remaining(deadlineAt, description) {
   const timeout = deadlineAt - Date.now();
@@ -21,23 +22,24 @@ function stationProjection(text) {
 }
 
 function sameStationActor(current, original, { sessionId, roleId }) {
-  for (const key of ['sessionId', 'uidHash', 'profileRoleId', 'profileSessionId', 'playerRole',
-    'assignedRoleId', 'activeConsoleRoleId', 'fleetGroupId', 'seatId', 'replacementRoleId', 'replacementStatus'])
-    assert.equal(current[key], original[key], `The original Station actor's ${key} must survive reconnect.`);
+  assertWolfChoiceActor(current, original);
+  assert.equal(current.profileSessionId, original.profileSessionId,
+    "The original Station actor's profile session must survive reconnect.");
   assert.equal(current.sessionId, sessionId);
+  assert.equal(current.profileSessionId, sessionId);
   assert.equal(current.profileRoleId, roleId);
   assert.equal(current.activeConsoleRoleId, roleId);
   assert.equal(current.playerRole, 'player');
-  assert.equal(current.hasAuth, true);
-  assert.equal(current.sameActor, true);
-  assert.equal(current.connection, 'live');
-  assert.equal(current.freshness, 'server');
+  assert.equal(current.phase, 'active');
+  assert.equal(current.cycle, original.cycle);
+  assert.equal(current.fleetGroupId, original.fleetGroupId);
   assert.ok(Number.isSafeInteger(current.connectionGeneration) && current.connectionGeneration >= 1);
 }
 
 function sameStationGmLease(current, original, sessionId) {
-  for (const key of ['sessionId', 'uidHash', 'instanceId', 'instanceClaimedAt'])
-    if (Object.hasOwn(original, key)) assert.equal(current[key], original[key], `The original GM ${key} must remain bound.`);
+  for (const key of ['sessionId', 'uidHash', 'instanceId', 'instanceClaimedAt', 'phase', 'cycle',
+    'documentTimeOrigin', 'connectionGeneration', 'identityHydrationRevision'])
+    assert.deepEqual(current[key], original[key], `The original GM ${key} must remain bound.`);
   assert.equal(current.sessionId, sessionId);
   assert.equal(current.playerRole, 'gm');
   assert.equal(current.hasAuth, true);
@@ -45,6 +47,46 @@ function sameStationGmLease(current, original, sessionId) {
   assert.equal(current.gmInstanceOwned, true);
   assert.equal(current.connection, 'live');
   assert.equal(current.freshness, 'server');
+}
+
+/** Bind the generic GM observer to its current Auth/store lease, including the claim timestamp. */
+async function observeStationGmLease(surface) {
+  const before = await surface.observe();
+  const source = await surface.page.evaluate(async moduleUrl => {
+    const { auth } = await import('/src/lib/firebase.ts');
+    const { useSessionStore } = await import(moduleUrl);
+    const originalUid = auth().currentUser?.uid;
+    const uidHash = originalUid ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
+      new TextEncoder().encode(originalUid)))).map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) : null;
+    const snapshot = useSessionStore.getState(), me = snapshot.me, session = snapshot.session, instance = snapshot.gmInstance;
+    const currentUid = auth().currentUser?.uid;
+    if (currentUid !== originalUid) throw new Error('Original GM Auth UID changed during the current source lease read.');
+    return { hasAuth: !!currentUid, sameActor: !!currentUid && me?.uid === currentUid, uidHash,
+      sessionId: session?.id ?? null, phase: session?.phase ?? null, cycle: session?.currentTurn ?? null,
+      playerRole: me?.role ?? null, instanceId: instance?.id ?? null,
+      instanceClaimedAt: instance?.claimedAt ?? null,
+      gmInstanceOwned: !!instance && instance.uid === me?.uid && instance.sessionId === session?.id,
+      connection: snapshot.connection, freshness: snapshot.sessionSnapshotFreshness,
+      documentTimeOrigin: performance.timeOrigin,
+      connectionGeneration: me?.connectionGeneration ?? null,
+      identityHydrationRevision: snapshot.identityHydrationRevision ?? null };
+  }, surface.storeModuleUrl());
+  const current = await surface.observe();
+  for (const key of ['hasAuth', 'sameActor', 'uidHash', 'sessionId', 'phase', 'cycle', 'playerRole',
+    'instanceId', 'gmInstanceOwned', 'connection', 'freshness', 'documentTimeOrigin'])
+    assert.deepEqual(current[key], before[key], `The original Station GM ${key} must survive its source lease read.`);
+  for (const key of ['hasAuth', 'sameActor', 'uidHash', 'sessionId', 'phase', 'cycle', 'playerRole',
+    'instanceId', 'gmInstanceOwned', 'connection', 'freshness', 'documentTimeOrigin'])
+    assert.deepEqual(source[key], current[key], `The current Station GM source ${key} must match its authenticated observer.`);
+  assert.equal(source.playerRole, 'gm');
+  assert.equal(source.gmInstanceOwned, true);
+  assert.equal(source.connection, 'live');
+  assert.equal(source.freshness, 'server');
+  assert.ok(source.instanceId);
+  assert.ok(source.instanceClaimedAt);
+  assert.ok(Number.isSafeInteger(source.connectionGeneration) && source.connectionGeneration >= 1);
+  assert.ok(Number.isSafeInteger(source.identityHydrationRevision) && source.identityHydrationRevision >= 0);
+  return { ...current, ...source };
 }
 
 /** Recover one real P Reactor action through the mounted exact-retry control after a cold reload. */
@@ -69,16 +111,20 @@ export async function recoverStationReactorContribution({ actor, gm, tools, ship
   assert.ok(Number.isSafeInteger(liberation.revision) && liberation.revision >= 0);
   assert.ok(typeof liberation.pStationRepeat.sequenceId === 'string' && liberation.pStationRepeat.sequenceId.length);
 
-  const originalActor = await actor.observe();
+  const originalActor = await observeWolfChoiceActor(actor);
   assert.equal(originalActor.hasAuth, true); assert.equal(originalActor.sameActor, true);
   assert.equal(originalActor.sessionId, sessionId); assert.equal(originalActor.playerRole, 'player');
+  assert.equal(originalActor.profileSessionId, sessionId);
   assert.equal(originalActor.profileRoleId, roleId); assert.equal(originalActor.activeConsoleRoleId, roleId);
   assert.equal(originalActor.connection, 'live'); assert.equal(originalActor.freshness, 'server');
   assert.ok(typeof originalActor.uidHash === 'string' && originalActor.uidHash.length);
+  assert.ok(typeof originalActor.fleetGroupId === 'string' && originalActor.fleetGroupId.length);
+  assert.equal(originalActor.phase, 'active'); assert.equal(originalActor.cycle, before.cycle);
   assert.ok(Number.isFinite(originalActor.documentTimeOrigin) && originalActor.documentTimeOrigin > 0);
   assert.ok(Number.isSafeInteger(originalActor.connectionGeneration) && originalActor.connectionGeneration >= 1);
-  const originalGm = await gm.observe();
+  const originalGm = await observeStationGmLease(gm);
   assert.equal(originalGm.sessionId, sessionId); assert.equal(originalGm.playerRole, 'gm');
+  assert.equal(originalGm.phase, 'active'); assert.equal(originalGm.cycle, before.cycle);
   assert.equal(originalGm.gmInstanceOwned, true); assert.ok(originalGm.instanceId); assert.ok(originalGm.instanceClaimedAt);
   assert.ok(originalGm.sameActor && originalGm.hasAuth && originalGm.connection === 'live' && originalGm.freshness === 'server');
 
@@ -144,15 +190,16 @@ export async function recoverStationReactorContribution({ actor, gm, tools, ship
     assert.ok(originalRequest && originalResult, 'The committed server receipt must be captured before dropping the browser acknowledgement.');
 
     await actor.page.reload({ timeout: remaining(deadline, 'Station actor cold reload') });
-    const reloadedActor = await actor.until('The same Station crew actor is live after its cold reload', current =>
+    await actor.until('The same Station crew actor is live after its cold reload', current =>
       current.sessionId === sessionId && current.uidHash === originalActor.uidHash &&
       current.profileRoleId === roleId && current.connection === 'live' && current.freshness === 'server' &&
       current.documentTimeOrigin !== originalActor.documentTimeOrigin,
     remaining(deadline, 'Station actor reconnection'));
+    const reloadedActor = await observeWolfChoiceActor(actor);
     sameStationActor(reloadedActor, originalActor, { sessionId, roleId });
     assert.notEqual(reloadedActor.documentTimeOrigin, originalActor.documentTimeOrigin,
       'The proof must cross a real page-document reload.');
-    const reloadedGm = await gm.observe();
+    const reloadedGm = await observeStationGmLease(gm);
     sameStationGmLease(reloadedGm, originalGm, sessionId);
 
     const afterCommit = stationProjection(await panel.innerText({ timeout: remaining(deadline, 'Station committed state after reload') }));
@@ -179,19 +226,29 @@ export async function recoverStationReactorContribution({ actor, gm, tools, ship
     assert.equal(await panel.getByRole('button', {
       name: new RegExp(`^Cannibalise Reactor \/\/ ${shipId} \/\/ \\d+ capacity$`),
     }).count(), 0, 'A committed Reactor cannot remain available for a second contribution.');
-    const currentGm = await gm.observe();
+    const currentGm = await observeStationGmLease(gm);
     sameStationGmLease(currentGm, originalGm, sessionId);
 
     await tools.record('actual Station Reactor receipt recovered after same-actor cold reload', {
       sessionId, candidateCode: 'P', coordinate, shipId, roleId,
       actor: { uidHash: originalActor.uidHash, playerRole: originalActor.playerRole,
         profileRoleId: originalActor.profileRoleId, assignedRoleId: originalActor.assignedRoleId,
-        activeConsoleRoleId: originalActor.activeConsoleRoleId, fleetGroupId: originalActor.fleetGroupId,
+        profileSessionId: originalActor.profileSessionId, activeConsoleRoleId: originalActor.activeConsoleRoleId,
+        phase: originalActor.phase,
+        cycle: originalActor.cycle, fleetGroupId: originalActor.fleetGroupId, seatId: originalActor.seatId,
+        replacementRoleId: originalActor.replacementRoleId, replacementStatus: originalActor.replacementStatus,
         connectionGenerationBefore: originalActor.connectionGeneration,
         connectionGenerationAfter: reloadedActor.connectionGeneration,
+        identityHydrationRevisionBefore: originalActor.identityHydrationRevision,
+        identityHydrationRevisionAfter: reloadedActor.identityHydrationRevision,
+        documentTimeOriginBefore: originalActor.documentTimeOrigin,
+        documentTimeOriginAfter: reloadedActor.documentTimeOrigin,
         documentTimeOriginChanged: reloadedActor.documentTimeOrigin !== originalActor.documentTimeOrigin },
       gmLease: { uidHash: originalGm.uidHash, instanceId: originalGm.instanceId,
         instanceClaimedAt: originalGm.instanceClaimedAt,
+        phase: originalGm.phase, cycle: originalGm.cycle, documentTimeOrigin: originalGm.documentTimeOrigin,
+        connectionGeneration: originalGm.connectionGeneration,
+        identityHydrationRevision: originalGm.identityHydrationRevision,
         sameSession: currentGm.sessionId === originalGm.sessionId, stillOwned: currentGm.gmInstanceOwned === true },
       liberation: { attackId: liberation.attackId, revision: liberation.revision,
         threatSourceId: liberation.threatSourceId ?? null, sequenceId: liberation.pStationRepeat.sequenceId,
@@ -201,7 +258,9 @@ export async function recoverStationReactorContribution({ actor, gm, tools, ship
       candidateRevisionBefore: before.revision, candidateRevisionAfter: afterReplay.revision,
       firstAckDroppedAfterServerCommit: true, repeatedEffect: false,
     });
-    return replay;
+    // The exact replay was verified and recorded above; the surrounding
+    // contribution loop consumes the original server-committed result shape.
+    return originalResult;
   } catch (error) {
     primaryError = error;
     throw error;
