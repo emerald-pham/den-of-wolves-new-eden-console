@@ -105,7 +105,8 @@ test('election configuration returns the original GM from observer through sourc
     });
     const result = await configureElection({ gm: { page, observe: async () => ({ ...original }) },
       crew: { page }, initial: { sessionId: original.sessionId }, started: original,
-      roster: choice.voterRoleIds.map(roleId => ({ roleId })) }, choice, {});
+      roster: [{ roleId: 'dione-president', displayName: 'President' },
+        { roleId: 'dione-captain', displayName: 'Captain' }] }, choice, {});
     assert.equal(result.accepted, false, 'An inert UI fixture earns no gameplay credit.');
     assert.equal(new URL(page.url()).hash, '#/gm');
     const policies = await page.evaluate(() => window.__policies);
