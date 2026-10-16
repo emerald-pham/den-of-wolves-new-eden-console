@@ -504,13 +504,14 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
       await beforeDeadline(Promise.all(candidates.map(row => row.parsed)), deadlineAt);
       assert.ok(Date.now() < deadlineAt, 'Original role navigation deadline expired.');
       const originalRequests = candidates.filter(row => !row.requestFailed && row.requestMatches && row.requestSessionId === original.sessionId);
-      const receipt = originalRequests.find(row =>
+      const matchingOwnReply = row =>
         row.httpStatus === 200 && row.reply?.sessionId === original.sessionId && row.reply.uidHash === original.uidHash &&
         row.reply.connectionGeneration === requestOrigin.connectionGeneration + 1 &&
-        row.reply.connectionGeneration === current.connectionGeneration &&
         (row.reply.connected === true || !row.reply.connectedFieldPresent && row.reply.connected === null) && !row.reply.escapeLocked &&
         stableMemberFields.every(key => row.reply.player[key] === current[observationField[key] ?? key]) &&
-        row.reply.player.role === 'player');
+        row.reply.player.role === 'player';
+      const receipt = originalRequests.find(row => matchingOwnReply(row) &&
+        row.reply.connectionGeneration === current.connectionGeneration);
       if (heldListenerEpoch && current.connectionGeneration === heldListenerEpoch.connectionGeneration &&
           current.identityHydrationRevision === original.identityHydrationRevision) {
         assert.ok(unchangedMember(current) && ['offline', 'connecting'].includes(current.connection) &&
@@ -518,11 +519,12 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
           current.currentOwnPlayerConfirmed === true &&
           candidates.every(row => !row.requestFailed && row.requestMatches && row.requestSessionId === original.sessionId &&
             (row.respondedAt === undefined || row.httpStatus === 200 && (row.bodyStatus === 'reading' ||
-              // Roster renewal also uses this page's SDK for other accounts.
-              // A parsed different actor is never an original-actor receipt;
-              // leave the exact withdrawn tuple unqualified for its own retry.
-              row.bodyStatus === 'parsed' && row.reply?.sessionId === original.sessionId &&
-                row.reply.uidHash !== original.uidHash && row.reply.player.role === 'player'))),
+              // Roster replies cannot qualify this actor. A matching own
+              // next-lease reply also stays pending until SDK hydration; the
+              // current sample may precede its asynchronous response parser.
+              row.bodyStatus === 'parsed' && (matchingOwnReply(row) ||
+                row.reply?.sessionId === original.sessionId && row.reply.uidHash !== original.uidHash &&
+                  row.reply.player.role === 'player')))),
         'Original invalidated listener epoch changed without its current App retry.');
         return false;
       }
