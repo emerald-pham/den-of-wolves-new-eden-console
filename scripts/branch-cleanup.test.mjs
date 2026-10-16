@@ -438,6 +438,47 @@ test('recovery artifacts inside the worktree are rejected before mutation', asyn
   }
 });
 
+test('a shallow repository is retained when its bundle cannot restore into an empty bare repository', async () => {
+  const fixture = await createBranchCleanupFixture();
+  try {
+    const shallowRepo = join(fixture.root, 'shallow-clone');
+    await runGit(fixture.root, [
+      'clone', '--depth=1', '--branch', fixture.branchName,
+      `file://${fixture.origin}`, shallowRepo,
+    ]);
+    const localTip = await runGit(shallowRepo, ['rev-parse', `refs/heads/${fixture.branchName}`]);
+    const report = await fixture.withFakeGh({}, () => cleanupBranch({
+      cwd: shallowRepo,
+      branch: fixture.branchName,
+      apply: true,
+      artifactDirectory: fixture.artifactDirectory,
+      coordinationFile: fixture.coordinationFile,
+    }));
+    const restoreRepository = join(fixture.root, 'restore-verifier.git');
+    await runGit(fixture.root, ['init', '--bare', restoreRepository]);
+    let restoreError = null;
+    try {
+      await runGit(restoreRepository, [
+        'fetch', report.recovery.bundlePath,
+        `refs/heads/${fixture.branchName}:refs/heads/restored`,
+      ]);
+    } catch (error) {
+      restoreError = error;
+    }
+
+    if (restoreError) {
+      expectReason(report, 'recovery-not-self-contained');
+      assert.equal(await runGit(shallowRepo, ['rev-parse', `refs/heads/${fixture.branchName}`]), localTip);
+      assert.equal(await fixture.remoteSha(), localTip);
+    } else {
+      assert.equal(report.decision, 'removed', JSON.stringify(report, null, 2));
+      assert.equal(await runGit(restoreRepository, ['rev-parse', 'refs/heads/restored']), localTip);
+    }
+  } finally {
+    await fixture.dispose();
+  }
+});
+
 async function installPrePushRace(fixture, { kind, raceSha = '' }) {
   const hooksPath = join(fixture.root, 'hooks');
   await mkdir(hooksPath);
