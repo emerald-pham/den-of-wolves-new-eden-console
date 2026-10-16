@@ -68,3 +68,48 @@ presentation hashes were unchanged. Both attempts used compiled index SHA-256
 The fresh in-memory emulator namespaces were discarded by stopping their
 owned backend processes. No import/export, per-UID deletion, cleanup of old
 namespaces, human/device capacity, CI, deployment or release is claimed.
+
+
+## Base a1 — setup/role prefix, first politics consumer failure
+
+Source `185521a1636681847825ab75ee6d33e503fac95c`, fresh project
+`demo-pc10-base-f9f3-20261016-a1`, evidence
+`/private/tmp/pc10-base-proof-f9f3-20261016-a1`.
+
+The original normally authorized GM confirmed eighteen core roles across six
+ships, prepared unlimited manual walkthrough progression before ordinary
+admission, assigned the live roster and source-supported private Wolf/Cult/
+Intelligence choices, then started Cycle 1 manually. Twenty genuine Auth
+accounts included the GM/controller; two actual Chrome contexts and zero
+humans were used, with no Press actor. All eighteen original role surfaces
+and their own private briefs were reached through ordinary controls. This is
+setup/reachability evidence, not every role function. `role-affordances.json`
+remains labeled in-progress with decisionsExecuted false.
+
+The first unexplained failure was the required Admiral directive consumer:
+`Admiral policy and defence coordination` was not visible within 35 seconds.
+The original Admiral actor was live and server-fresh at its normal ship-role
+route. The helper waited for a panel that the current station exposes under
+its ordinary Fleet directives page; the default page is Ship systems.
+That source-backed hypothesis is assigned to a separate mounted/consumer
+regression before repair. No label, wait, product state or expectation was
+silently changed during the run. Page errors and remote requests were empty.
+
+The run stopped before paid fleet maintenance, combat, mission and ending.
+No whole G1/G2/P641, candidate, cross-path recovery, CI or release is accepted.
+Its disclosed ordinary GM demo supplies do not prove resource acquisition.
+Earlier failed attempts and the separately accepted Ring callback remain at
+their original source/scope; this failure does not supersede them.
+
+Original acquisition was 05:40:46.085 UTC and physical return was
+05:50:26.202 UTC, before the original 07:05:46.085 bound. All 67 captured
+owned PIDs were absent; all 22 IPv4/IPv6 bindings were free; only the owned
+configuration was released. Source, presentation and compiled index binding
+were unchanged (the same `e46ad04f...` index recorded above). Fresh RAM state
+was discarded without import/export; no per-UID deletion claim is made.
+
+| Base a1 artifact | SHA-256 |
+| --- | --- |
+| `failure.json` | `a034f67d0fb5120188bd6b2250b6f275b0cbfb79f97e50d98a04c6f9fbde3715` |
+| `role-affordances.json` | `cc17fbc23ff6687da10d5be5cda5da5ab9cd7783d748ac7bccc019f18cbce062` |
+| runtime `strict-return.json` | `b4464e78a2413c5b03cd5060cb796db9ce656c67689200d32d0313bd3743b598` |
