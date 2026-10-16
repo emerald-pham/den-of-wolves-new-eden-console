@@ -132,13 +132,18 @@ export async function createBranchCleanupFixture({
     runGit: (args, options) => runGit(repo, args, options),
     localSha: (branch) => localSha({ repo, branchName }, branch),
     remoteSha: (branch) => remoteSha({ repo, branchName }, branch),
-    cleanup: (options = {}) => cleanupBranch({
-      cwd: repo,
-      branch: branchName,
-      artifactDirectory,
-      coordinationFile,
-      ...options,
-    }),
+    cleanup: (options = {}) => {
+      const execute = () => cleanupBranch({
+        cwd: repo,
+        branch: branchName,
+        artifactDirectory,
+        coordinationFile,
+        ...options,
+      });
+      if (process.env.BRANCH_CLEANUP_FAKE_GH_RESPONSE !== undefined ||
+          process.env.BRANCH_CLEANUP_FAKE_GH_FAIL !== undefined) return execute();
+      return withFakeGh({ ghBin }, {}, execute);
+    },
     writeCoordination: (state) => writeCoordination({ repo, coordinationFile }, state),
     withFakeGh: (options, action) => withFakeGh({ ghBin }, options, action),
     dispose: () => rm(root, { recursive: true, force: true }),
@@ -152,6 +157,7 @@ async function createUniqueCommit(fixture, branchName = 'race/new-tip') {
   await fixture.runGit(['add', uniqueFile]);
   await fixture.runGit(['commit', '-m', 'unique race tip']);
   const sha = await fixture.runGit(['rev-parse', 'HEAD']);
+  await fixture.runGit(['push', 'origin', `${sha}:refs/heads/fixture/race-object`]);
   await fixture.runGit(['switch', 'main']);
   return sha;
 }
@@ -244,6 +250,17 @@ test('active or parked ownership retains the branch, while another repository is
       repositoryIdentity: join(fixture.root, 'foreign.git'),
     }] });
     assert.equal((await fixture.cleanup()).decision, 'would-remove');
+
+    await fixture.writeCoordination({ entries: [{
+      id: 'missing-checkout-registration',
+      status: 'complete',
+      branchName: fixture.branchName,
+      worktree: join(fixture.root, 'missing-registered-checkout'),
+    }] });
+    const missingRegistration = await fixture.cleanup({ apply: true });
+    expectReason(missingRegistration, 'branch-in-other-worktree');
+    assert.equal(await fixture.localSha(), branchTip);
+    assert.equal(await fixture.remoteSha(), branchTip);
 
     const repositoryIdentity = await fixture.runGit(['rev-parse', '--path-format=absolute', '--git-common-dir']);
     for (const status of ['active', 'parked']) {
@@ -347,6 +364,7 @@ test('a tracked destination cannot overwrite ignored data during detach', async 
   try {
     const branchTip = await fixture.localSha();
     const ignoredFile = join(fixture.repo, 'local-data', 'cache.txt');
+    await mkdir(join(fixture.repo, 'local-data'), { recursive: true });
     await writeFile(ignoredFile, 'user-only ignored data\n');
     const report = await fixture.cleanup({ apply: true });
     expectReason(report, 'checkout-change-blocked');
