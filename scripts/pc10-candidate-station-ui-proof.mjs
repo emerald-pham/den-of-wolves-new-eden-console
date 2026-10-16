@@ -4,7 +4,7 @@ import { candidateGameplayTools } from './pc10-candidate-manual-ui-proof.mjs';
 import { resolveLiveWolfAttack } from './pc10-live-wolf-attack-ui-proof.mjs';
 import { candidateShipRole, contributeStationReactors } from './pc10-candidate-proof-helpers.mjs';
 import { rememberProofFailure } from './pc10-proof-failure-evidence.mjs';
-import { assertWolfChoiceActor, observeWolfChoiceActor } from './pc10-combat-choice-readiness.mjs';
+import { observeWolfChoiceActor } from './pc10-combat-choice-readiness.mjs';
 
 function remaining(deadlineAt, description) {
   const timeout = deadlineAt - Date.now();
@@ -21,12 +21,12 @@ function stationProjection(text) {
   return { cycle: Number(headers[0][1]), revision: Number(headers[0][2]), chargeCapacity: Number(charges[0][1]) };
 }
 
-function sameStationActor(current, original, { sessionId, roleId }) {
+function sameStationActor(current, original, { sessionId, roleId, phase }) {
   // A cold document resumes the same UID with a new server-owned presence
   // generation. Hydration is local to that new document; neither epoch is an
   // immutable actor identity. Keep the combat observer's within-document check.
   for (const key of ['sessionId', 'uidHash', 'profileRoleId', 'assignedRoleId', 'activeConsoleRoleId',
-    'playerRole', 'phase', 'cycle', 'fleetGroupId', 'replacementRoleId', 'replacementStatus', 'seatId',
+    'playerRole', 'cycle', 'fleetGroupId', 'replacementRoleId', 'replacementStatus', 'seatId',
     'airspace', 'turnStatePhase', 'phaseProgression'])
     assert.equal(current[key], original[key], `Original Station ${key} changed.`);
   assert.equal(current.hasAuth, true); assert.equal(current.sameActor, true);
@@ -43,14 +43,14 @@ function sameStationActor(current, original, { sessionId, roleId }) {
   assert.equal(current.profileRoleId, roleId);
   assert.equal(current.activeConsoleRoleId, roleId);
   assert.equal(current.playerRole, 'player');
-  assert.equal(current.phase, 'active');
+  assert.equal(current.phase, phase);
   assert.equal(current.cycle, original.cycle);
   assert.equal(current.fleetGroupId, original.fleetGroupId);
   assert.ok(Number.isSafeInteger(current.connectionGeneration) && current.connectionGeneration >= 1);
 }
 
-function sameStationGmLease(current, original, sessionId) {
-  for (const key of ['sessionId', 'uidHash', 'instanceId', 'instanceClaimedAt', 'phase', 'cycle',
+function sameStationGmLease(current, original, sessionId, phase = original.phase) {
+  for (const key of ['sessionId', 'uidHash', 'instanceId', 'instanceClaimedAt', 'cycle',
     'documentTimeOrigin', 'connectionGeneration', 'identityHydrationRevision'])
     assert.deepEqual(current[key], original[key], `The original GM ${key} must remain bound.`);
   assert.equal(current.sessionId, sessionId);
@@ -60,6 +60,16 @@ function sameStationGmLease(current, original, sessionId) {
   assert.equal(current.gmInstanceOwned, true);
   assert.equal(current.connection, 'live');
   assert.equal(current.freshness, 'server');
+  assert.equal(current.phase, phase);
+  if (phase === 'debrief') {
+    assert.equal(current.fullGameDemo?.status, 'complete');
+    assert.equal(current.fullGameDemo?.progression, 'manual');
+    const outcome = current.gameOutcome;
+    assert.equal(outcome?.type, 'game-outcome'); assert.equal(outcome?.result, 'success');
+    assert.equal(outcome?.cause, 'candidate-complete');
+    assert.equal(outcome?.candidateCode, 'P', 'Only the verified Station candidate can authorize its P debrief.');
+    assert.equal(outcome?.cycle, original.cycle);
+  }
 }
 
 /** Bind the generic GM observer to its current Auth/store lease, including the claim timestamp. */
@@ -82,7 +92,8 @@ async function observeStationGmLease(surface) {
       connection: snapshot.connection, freshness: snapshot.sessionSnapshotFreshness,
       documentTimeOrigin: performance.timeOrigin,
       connectionGeneration: me?.connectionGeneration ?? null,
-      identityHydrationRevision: snapshot.identityHydrationRevision ?? null };
+      identityHydrationRevision: snapshot.identityHydrationRevision ?? null,
+      fullGameDemo: session?.fullGameDemo ?? null, gameOutcome: session?.gameOutcome ?? null };
   }, surface.storeModuleUrl());
   const current = await surface.observe();
   for (const key of ['hasAuth', 'sameActor', 'uidHash', 'sessionId', 'phase', 'cycle', 'playerRole',
@@ -107,6 +118,7 @@ export async function recoverStationReactorContribution({ actor, gm, tools, ship
   coordinate, sessionId, liberation, expectActivation = false, deadlineAt }) {
   const deadline = Math.min(Number.isFinite(deadlineAt) ? deadlineAt : Date.now() + 60_000,
     Date.now() + 60_000);
+  const committedPhase = expectActivation ? 'debrief' : 'active';
   const panel = actor.page.getByRole('region', { name: 'Candidate preparation and actions', exact: true });
   const before = stationProjection(await panel.innerText({ timeout: remaining(deadline, 'Station contribution observation') }));
   const reactor = panel.getByRole('button', {
@@ -201,19 +213,33 @@ export async function recoverStationReactorContribution({ actor, gm, tools, ship
     catch (error) { if (routeFailure) throw routeFailure; throw error; }
     if (routeFailure) throw routeFailure;
     assert.ok(originalRequest && originalResult, 'The committed server receipt must be captured before dropping the browser acknowledgement.');
+    // The activation receipt and the source's P outcome jointly authorize this
+    // one forward phase transition. No other terminal phase is accepted.
+    while (true) {
+      remaining(deadline, 'Station committed phase publication');
+      const committedGm = await observeStationGmLease(gm);
+      if (expectActivation && committedGm.phase === 'active') {
+        sameStationGmLease(committedGm, originalGm, sessionId);
+        await delay(Math.min(100, remaining(deadline, 'Station P debrief publication')));
+        continue;
+      }
+      sameStationGmLease(committedGm, originalGm, sessionId, committedPhase);
+      break;
+    }
 
     await actor.page.reload({ timeout: remaining(deadline, 'Station actor cold reload') });
     await actor.until('The same Station crew actor is live after its cold reload', current =>
       current.sessionId === sessionId && current.uidHash === originalActor.uidHash &&
-      current.profileRoleId === roleId && current.connection === 'live' && current.freshness === 'server' &&
+      current.profileRoleId === roleId && current.phase === committedPhase &&
+      current.connection === 'live' && current.freshness === 'server' &&
       current.documentTimeOrigin !== originalActor.documentTimeOrigin,
     remaining(deadline, 'Station actor reconnection'));
     const reloadedActor = await observeWolfChoiceActor(actor);
-    sameStationActor(reloadedActor, originalActor, { sessionId, roleId });
+    sameStationActor(reloadedActor, originalActor, { sessionId, roleId, phase: committedPhase });
     assert.notEqual(reloadedActor.documentTimeOrigin, originalActor.documentTimeOrigin,
       'The proof must cross a real page-document reload.');
     const reloadedGm = await observeStationGmLease(gm);
-    sameStationGmLease(reloadedGm, originalGm, sessionId);
+    sameStationGmLease(reloadedGm, originalGm, sessionId, committedPhase);
 
     const afterCommit = stationProjection(await panel.innerText({ timeout: remaining(deadline, 'Station committed state after reload') }));
     assert.equal(afterCommit.chargeCapacity, before.chargeCapacity + capacity,
@@ -240,14 +266,14 @@ export async function recoverStationReactorContribution({ actor, gm, tools, ship
       name: new RegExp(`^Cannibalise Reactor \/\/ ${shipId} \/\/ \\d+ capacity$`),
     }).count(), 0, 'A committed Reactor cannot remain available for a second contribution.');
     const currentGm = await observeStationGmLease(gm);
-    sameStationGmLease(currentGm, originalGm, sessionId);
+    sameStationGmLease(currentGm, originalGm, sessionId, committedPhase);
 
     await tools.record('actual Station Reactor receipt recovered after same-actor cold reload', {
       sessionId, candidateCode: 'P', coordinate, shipId, roleId,
       actor: { uidHash: originalActor.uidHash, playerRole: originalActor.playerRole,
         profileRoleId: originalActor.profileRoleId, assignedRoleId: originalActor.assignedRoleId,
         profileSessionId: originalActor.profileSessionId, activeConsoleRoleId: originalActor.activeConsoleRoleId,
-        phase: originalActor.phase,
+        phase: originalActor.phase, phaseAfter: reloadedActor.phase,
         cycle: originalActor.cycle, fleetGroupId: originalActor.fleetGroupId, seatId: originalActor.seatId,
         replacementRoleId: originalActor.replacementRoleId, replacementStatus: originalActor.replacementStatus,
         connectionGenerationBefore: originalActor.connectionGeneration,
@@ -259,7 +285,9 @@ export async function recoverStationReactorContribution({ actor, gm, tools, ship
         documentTimeOriginChanged: reloadedActor.documentTimeOrigin !== originalActor.documentTimeOrigin },
       gmLease: { uidHash: originalGm.uidHash, instanceId: originalGm.instanceId,
         instanceClaimedAt: originalGm.instanceClaimedAt,
-        phase: originalGm.phase, cycle: originalGm.cycle, documentTimeOrigin: originalGm.documentTimeOrigin,
+        phase: originalGm.phase, phaseAfter: currentGm.phase,
+        ...(expectActivation ? { gameOutcome: currentGm.gameOutcome } : {}),
+        cycle: originalGm.cycle, documentTimeOrigin: originalGm.documentTimeOrigin,
         connectionGeneration: originalGm.connectionGeneration,
         identityHydrationRevision: originalGm.identityHydrationRevision,
         sameSession: currentGm.sessionId === originalGm.sessionId, stillOwned: currentGm.gmInstanceOwned === true },
