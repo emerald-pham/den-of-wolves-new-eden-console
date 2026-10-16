@@ -4,7 +4,7 @@ import { candidateGameplayTools } from './pc10-candidate-manual-ui-proof.mjs';
 import { resolveLiveWolfAttack } from './pc10-live-wolf-attack-ui-proof.mjs';
 import { candidateShipRole, contributeStationReactors } from './pc10-candidate-proof-helpers.mjs';
 import { rememberProofFailure } from './pc10-proof-failure-evidence.mjs';
-import { observeWolfChoiceActor } from './pc10-combat-choice-readiness.mjs';
+import { assertWolfChoiceActor, observeWolfChoiceActor } from './pc10-combat-choice-readiness.mjs';
 
 function remaining(deadlineAt, description) {
   const timeout = deadlineAt - Date.now();
@@ -113,6 +113,27 @@ async function observeStationGmLease(surface) {
   return { ...current, ...source };
 }
 
+async function dismissStationEndgame(actor, original, deadline) {
+  await actor.until('The original Station actor receives its committed debrief', current =>
+    current.hasAuth && current.sameActor && current.uidHash === original.uidHash &&
+    current.sessionId === original.sessionId && current.profileSessionId === original.profileSessionId &&
+    current.profileRoleId === original.profileRoleId && current.phase === 'debrief' &&
+    current.cycle === original.cycle && current.connection === 'live' && current.freshness === 'server',
+  remaining(deadline, 'Station terminal actor publication'));
+  const before = await observeWolfChoiceActor(actor);
+  assert.equal(before.fleetGroupId, original.fleetGroupId);
+  const dialog = actor.page.getByRole('dialog', { name: 'Endgame evaluation', exact: true });
+  await dialog.waitFor({ state: 'visible', timeout: remaining(deadline, 'Station endgame portal') });
+  await dialog.getByText(`Server result // Success // Cycle ${original.cycle}`, { exact: true })
+    .waitFor({ state: 'visible', timeout: remaining(deadline, 'Station endgame result') });
+  await dialog.getByRole('heading', { name: 'Candidate P route', exact: true })
+    .waitFor({ state: 'visible', timeout: remaining(deadline, 'Station committed P route') });
+  await dialog.getByRole('button', { name: 'Continue', exact: true })
+    .click({ timeout: remaining(deadline, 'Station ordinary endgame dismissal') });
+  await dialog.waitFor({ state: 'hidden', timeout: remaining(deadline, 'Station endgame dismissed') });
+  assertWolfChoiceActor(await observeWolfChoiceActor(actor), before);
+}
+
 /** Recover one real P Reactor action through the mounted exact-retry control after a cold reload. */
 export async function recoverStationReactorContribution({ actor, gm, tools, shipId, roleId,
   coordinate, sessionId, liberation, expectActivation = false, deadlineAt }) {
@@ -154,7 +175,7 @@ export async function recoverStationReactorContribution({ actor, gm, tools, ship
   assert.ok(originalGm.sameActor && originalGm.hasAuth && originalGm.connection === 'live' && originalGm.freshness === 'server');
 
   const routePattern = '**/us-central1/executeCandidateAction';
-  let originalRequest, originalResult, replayRequest, routeFailure;
+  let originalRequest, originalResult, replayRequest, routeFailure, firstAckDropped = false;
   const routeHandler = async route => {
     let delegated = false;
     try {
@@ -185,6 +206,7 @@ export async function recoverStationReactorContribution({ actor, gm, tools, ship
         assert.equal(originalResult.outcome, expectActivation ? 'activated' : undefined);
         assert.match(originalResult.summary, new RegExp(`^${before.chargeCapacity + capacity}\/18 Station charge capacity committed`));
         await route.abort('failed');
+        firstAckDropped = true;
         delegated = true;
         return;
       }
@@ -209,8 +231,8 @@ export async function recoverStationReactorContribution({ actor, gm, tools, ship
     routeInstalled = true;
     await reactor.click({ timeout: remaining(deadline, 'Station Reactor action') });
     const retry = panel.getByRole('button', { name: 'Retry original candidate request', exact: true });
-    try { await retry.waitFor({ state: 'visible', timeout: remaining(deadline, 'Lost Station receipt recovery control') }); }
-    catch (error) { if (routeFailure) throw routeFailure; throw error; }
+    while (!firstAckDropped && !routeFailure)
+      await delay(Math.min(100, remaining(deadline, 'Station original committed acknowledgement interruption')));
     if (routeFailure) throw routeFailure;
     assert.ok(originalRequest && originalResult, 'The committed server receipt must be captured before dropping the browser acknowledgement.');
     // The activation receipt and the source's P outcome jointly authorize this
@@ -226,6 +248,9 @@ export async function recoverStationReactorContribution({ actor, gm, tools, ship
       sameStationGmLease(committedGm, originalGm, sessionId, committedPhase);
       break;
     }
+    if (expectActivation) await dismissStationEndgame(actor, originalActor, deadline);
+    try { await retry.waitFor({ state: 'visible', timeout: remaining(deadline, 'Lost Station receipt recovery control') }); }
+    catch (error) { if (routeFailure) throw routeFailure; throw error; }
 
     await actor.page.reload({ timeout: remaining(deadline, 'Station actor cold reload') });
     await actor.until('The same Station crew actor is live after its cold reload', current =>
@@ -240,6 +265,7 @@ export async function recoverStationReactorContribution({ actor, gm, tools, ship
       'The proof must cross a real page-document reload.');
     const reloadedGm = await observeStationGmLease(gm);
     sameStationGmLease(reloadedGm, originalGm, sessionId, committedPhase);
+    if (expectActivation) await dismissStationEndgame(actor, originalActor, deadline);
 
     const afterCommit = stationProjection(await panel.innerText({ timeout: remaining(deadline, 'Station committed state after reload') }));
     assert.equal(afterCommit.chargeCapacity, before.chargeCapacity + capacity,
