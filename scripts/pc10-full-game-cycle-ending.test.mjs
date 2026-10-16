@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { runEnding } from './pc10-full-game-cycle-ending.mjs';
+import { isObservedGameEnding } from './pc10-full-game-demo-proof-helpers.mjs';
 
 function endingConsumerFixture() {
   const sessionId = 'fresh-ending-session';
@@ -120,4 +121,26 @@ test('fresh ending consumes the entitled private debrief when public observation
   const report = JSON.parse(await readFile(resolve(directory, 'final-cycle-ending.json'), 'utf8'));
   assert.deepEqual(report.terminal, { cycle: 8, result: 'completed', source: 'final-cycle', cause: 'final-cycle' });
   assert.deepEqual(report.recovered, { phase: 'closed', sameActor: true });
+});
+
+test('generic full-game completion cannot finish after the ending callback when public observation omits the private receipt', async t => {
+  const directory = await mkdtemp(resolve(tmpdir(), 'pc10-full-game-ending-handoff-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const fixture = endingConsumerFixture();
+
+  await runEnding({ gm: fixture.gm, crew: fixture.crew, initial: fixture.initial,
+    started: fixture.started, directory });
+  assert.equal(fixture.calls.gmCloseClicks, 1, 'The genuine ending callback has completed its UI close.');
+
+  await assert.rejects(
+    fixture.gm.until('Server-produced immutable debrief ending', isObservedGameEnding),
+    /Server-produced immutable debrief ending: original finite observation deadline expired/,
+    'The actual generic caller contract still waits for private fields absent from the public projection.',
+  );
+  const afterCallback = await fixture.gm.observe();
+  assert.equal(afterCallback.phase, 'closed');
+  assert.equal(afterCallback.debriefType, null);
+  assert.equal(afterCallback.debriefSource, null);
+  assert.equal(fixture.calls.gmReads.length, 2,
+    'The callback consumed and preserved the authorized private response before the generic handoff deadwait.');
 });
