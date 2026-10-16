@@ -8,7 +8,7 @@ import ts from 'typescript';
 import { build, stop } from 'esbuild';
 import { chromium } from 'playwright';
 import { withProofBrowserCleanup } from './proof-tooling-browser-lifecycle.mjs';
-import { validateElectionPlan } from './pc10-politics-press-proof.mjs';
+import { validateElectionPlan, validateElectionActionCycle } from './pc10-politics-press-proof.mjs';
 import { assertGmInstanceFence, blockedSourceBranch } from './pc10-political-crisis-arrest-proof-contracts.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -73,11 +73,11 @@ const choice = { voterRoleIds: ['dione-president', 'dione-captain'], policy: {
   campaigning: 'prohibited', supplyUse: 'prohibited', tieRule: 'current-office-remains',
   openCycle: 1, closeCycle: 1, campaignInstructions: 'No campaigning or supplies.' } };
 
-test('election configuration returns the original GM from observer through source controls', async () => {
+for (const action of ['configureElection', 'resolveElection']) test(`${action} checks the source form after returning the original GM`, async () => {
   const script = await fixtureScript();
   const source = await readFile(new URL('./pc10-politics-press-proof.mjs', import.meta.url), 'utf8');
   const tree = ts.createSourceFile('politics.mjs', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
-  const names = new Set(['required', 'missingChoice', 'demandButton', 'configureElection', 'electionGmRegion']);
+  const names = new Set(['required', 'missingChoice', 'demandButton', 'configureElection', 'resolveElection', 'currentElectionGmBlockers', 'electionGmRegion']);
   const functions = tree.statements.filter(node => ts.isFunctionDeclaration(node) && names.has(node.name?.text))
     .map(node => node.getText(tree)).join('\n');
   await withProofBrowserCleanup(async resources => {
@@ -95,22 +95,24 @@ test('election configuration returns the original GM from observer through sourc
       css.match(new RegExp(`\\.${name}__back::before\\s*\\{[^}]*\\}`))?.[0] ?? '').join('\n') });
     await page.addScriptTag({ content: script });
     await page.getByRole('link', { name: /Change role/ }).waitFor();
-    const configureElection = runInNewContext(`(()=>{${functions};return configureElection;})()`, {
-      assert, URL, validateElectionPlan, assertGmInstanceFence, blockedSourceBranch,
+    const consume = runInNewContext(`(()=>{${functions};return ${action};})()`, {
+      assert, URL, validateElectionPlan, validateElectionActionCycle, assertGmInstanceFence, blockedSourceBranch,
       actorRosterUids: async () => [{ roleId: 'dione-president', uid: 'voter-a' }, { roleId: 'dione-captain', uid: 'voter-b' }],
       observedMutation: async input => {
         assert.equal(input.endpoint, 'configurePresidentialElection');
         await input.executeUi(); return { accepted: false, boundary: 'inert-rendered-consumer' };
       },
     });
-    const result = await configureElection({ gm: { page, observe: async () => ({ ...original }) },
+    const current = { ...original, turnStatePhase: action === 'configureElection' ? 'team' : 'coordination' };
+    const result = await consume({ gm: { page, observe: async () => ({ ...current }) },
       crew: { page }, initial: { sessionId: original.sessionId }, started: original,
       roster: [{ roleId: 'dione-president', displayName: 'President' },
-        { roleId: 'dione-captain', displayName: 'Captain' }] }, choice, {});
+        { roleId: 'dione-captain', displayName: 'Captain' }] }, action === 'configureElection' ? choice : { election: choice }, {});
     assert.equal(result.accepted, false, 'An inert UI fixture earns no gameplay credit.');
     assert.equal(new URL(page.url()).hash, '#/gm');
     const policies = await page.evaluate(() => window.__policies);
-    assert.equal(policies.length, 1);
-    assert.deepEqual(policies[0], { ...choice.policy, eligibleVoterUids: ['voter-a', 'voter-b'] });
+    assert.equal(policies.length, action === 'configureElection' ? 1 : 0);
+    if (action === 'configureElection') assert.deepEqual(policies[0], { ...choice.policy, eligibleVoterUids: ['voter-a', 'voter-b'] });
+    else assert.deepEqual(Array.from(result.blockerCodes), ['source-control-not-mounted']);
   }, { stopBuild: stop });
 });
