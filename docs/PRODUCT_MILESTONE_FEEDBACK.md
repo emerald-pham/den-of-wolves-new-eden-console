@@ -338,3 +338,38 @@ followed by existing post-PC10 work. The PC09 task implements no future phase.
 The narrow Astra P605a implementation-only exception, existing DRADIS design,
 MacBook execution and 25-continuous-hour backup boundary remain unchanged.
 This decision changes sequence authorization only and grants no closure credit.
+
+## Campaign resumption preferences and tracker routing — 2026-10-15
+
+During the resumption interview, the owner confirmed finishing the existing
+checkpoint campaign before new features or redesigns and preserving previously
+agreed gameplay and presentation decisions unless explicitly changed. The owner
+corrected the proposed review involvement: “I want it hands off as possible,
+I'm busy.” Agents own verification and release under applicable authorization;
+owner walkthroughs and written feedback remain optional. Escalate only concrete
+product decisions or actions that require the owner, while continuing useful
+independent work.
+
+The owner selected the existing set of prompts as the issue tracker and requested
+its configuration and update. Engineering skills therefore route specifications
+and triage into the canonical catalog and existing checkpoint records, rather
+than introducing GitHub Issues or a parallel ticket list. This entry captures
+cross-cutting decisions and grants no prompt closure credit, new feature scope,
+version authorization or runtime restart. The separate October 15 PC10 pause
+must be reconciled with its current owner handoff before resuming execution.
+
+The owner then requested a specification through `to-spec` and clarified the
+testing expectation: “we need sensible test boundaries.” The
+[campaign resumption specification](PRODUCT_MILESTONES.md#campaign-resumption-specification--2026-10-15)
+records the existing scope, optional owner review, proportionate existing test
+seams and separate runtime-pause boundary. This is planning evidence only;
+prompt statuses, completion totals and accepted gameplay criteria are unchanged.
+
+The owner challenged whether the initial 17 groups fit a fresh context window.
+The agent acknowledged that this had not been established and identified the
+workspace, Capybara, privacy/audit and full-game groups as needing subdivision.
+The owner then said “I approve.” This is recorded as approval of revision and
+publication of bounded briefs, not runtime resumption. The
+[approved execution breakdown](PRODUCT_MILESTONES.md#approved-bounded-execution-tickets--2026-10-15)
+links each brief back to existing prompt IDs, with explicit blockers, exclusions
+and proportionate testing. Existing completion criteria and totals remain intact.

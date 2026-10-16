@@ -433,3 +433,14 @@ Fix actionable typography findings and obtain the affected independent review
 before publication.
 
 Apply the [routine responsive UI acceptance checklist](docs/AGENT_EXECUTION_POLICY.md#routine-responsive-ui-acceptance) to every UI change, including enlarged text and relevant content/state risks.
+
+## Agent skills
+
+### Issue tracker
+Engineering skills use the existing prompt catalog. Read [tracker workflow](docs/agents/issue-tracker.md) before publishing or triaging work.
+
+### Triage labels
+Map skill roles to existing records without new completion states: [triage mappings](docs/agents/triage-labels.md).
+
+### Domain docs
+Single-context glossary and ADRs, created lazily: [domain documentation rules](docs/agents/domain.md).

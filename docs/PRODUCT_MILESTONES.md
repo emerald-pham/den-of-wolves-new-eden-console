@@ -628,3 +628,180 @@ reviews pass, and [exact-main release 37261134992](https://github.com/emerald-ph
 `feec9189` with production surface and public artifact verification. See
 [the checkpoint report](PC09_PLAYTEST_REPORT.md) for exact gates and evidence
 limits. This release grants no PC10 or later completion credit.
+
+## Campaign resumption specification — 2026-10-15
+
+Triage: `ready-for-agent` for specification and handoff reconciliation under the
+[existing tracker mapping](agents/triage-labels.md). Gameplay execution retains
+the separate PC10 pause until explicit resumption; this specification does not
+mark all remaining prompts runnable. The [owner decision record](PRODUCT_MILESTONE_FEEDBACK.md#campaign-resumption-preferences-and-tracker-routing--2026-10-15)
+captures the conversation. This is a cross-cutting specification for existing
+work, not a new prompt or an additional checkpoint.
+
+### Problem Statement
+
+The owner wants progress toward the completed game without managing agents,
+repeating settled decisions, operating gameplay tests, or reviewing intermediate
+work. Work has existing prompt definitions, unfinished proof and a paused PC10
+handoff; starting another backlog or rebuilding accepted work would lose context
+and increase owner involvement.
+
+### Solution
+
+Reconcile the existing campaign and paused handoff, then execute authorized
+remaining scope with agents accountable for implementation, repair, proportionate
+testing, integration and verified release. Preserve agreed gameplay and
+presentation. Supply an optional playable review result and concise evidence;
+owner participation in a walkthrough is not a completion prerequisite.
+
+### User Stories
+
+1. As the product owner, I want the existing campaign finished before new features or redesigns, so that the agreed game reaches completion.
+2. As the product owner, I want previous decisions preserved, so that I do not have to repeat settled requirements.
+3. As the product owner, I want execution to be hands-off, so that progress does not depend on my availability.
+4. As the product owner, I want agents to verify gameplay correctness, so that I do not have to operate the test table.
+5. As the product owner, I want optional playable review access, so that I can inspect the finished experience when available.
+6. As the product owner, I want only concrete owner-only blockers escalated, so that routine choices do not interrupt me.
+7. As the product owner, I want truthful completion counts, so that preparation and partial implementation cannot be mistaken for delivery.
+8. As the product owner, I want current prompts used as the tracker, so that planning remains in one place.
+9. As the product owner, I want sensible test boundaries, so that verification catches meaningful failures without unnecessary repeated work.
+10. As a returning player, I want interrupted actions to recover correctly, so that retries or disconnects do not lose progress or repeat costs.
+11. As an entitled player, I want the existing role and vessel workflows to compose, so that the full game can be played through ordinary controls.
+12. As an entitled player, I want private information to remain audience-restricted, so that gameplay does not expose another role's secrets.
+13. As a facilitator, I want a real authenticated setup and Cycle 0 to 1 transition, so that the walkthrough proves the actual start path.
+14. As a facilitator, I want automated calculations and committed results preserved, so that I only supply genuine choices and rulings.
+15. As a player, I want the assigned Ring, Nebula and Station outcomes to work through debrief, so that an ending is a complete gameplay path.
+16. As a player, I want terminal failure and recovery paths to remain authoritative, so that play cannot become orphaned behind a label.
+17. As a mobile or keyboard player, I want critical controls and results reachable, so that the complete game remains usable on supported layouts.
+18. As a future task owner, I want the exact candidate, failures and resume conditions preserved, so that accepted work can be continued safely.
+19. As the product owner, I want release and gameplay evidence distinguished, so that deployment success is not mistaken for functional proof.
+20. As the product owner, I want a pause respected until execution is resumed, so that planning cannot unexpectedly restart a controlled runtime.
+
+### Implementation Decisions
+
+- Retain the canonical prompt catalog, fixed checkpoint membership and existing acceptance definitions. No new prompt, schema, API or gameplay mechanic is introduced by this specification.
+- Reconcile current branch ancestry, active work, owner decisions and the paused task's exact handoff before implementation. Preserve accepted slices and outstanding proof gaps; age alone does not invalidate another task's ownership.
+- Keep one top-level checkpoint owner accountable for every acceptance and the final release. Use bounded implementation groups and required independent risk review under current repository policy.
+- Finish existing campaign scope before considering new features or redesigns. PC10 retains its fixed 48-ID target and the existing 751-prompt endpoint; historical snapshots remain historical.
+- Preserve specialist, Capybara, candidate-ending, debrief and cross-path recovery obligations already assigned to PC10. No added user story expands those prompts beyond their existing criteria.
+- Use ordinary authenticated local/emulator gameplay for functional acceptance. Preserve the existing every-role, two-browser, unlimited-timer, authentic GM start and full twenty-player obligations.
+- Owner walkthroughs and written feedback remain optional. Source-backed routine decisions belong to agents; a concrete owner-only decision retains its explicit escalation path.
+- Reconcile post-campaign sequence from current explicit owner decisions before scheduling it. This specification does not resolve conflicting historical sequence records by inventing a new checkpoint.
+- Preserve the separate PC10 pause. Specification readiness is distinct from runtime authorization, dependency readiness and completion.
+
+### Testing Decisions
+
+- Test observable behavior at the highest boundary that can meaningfully distinguish correct behavior from the relevant failure. Prefer existing seams; introduce no test framework or mandatory all-purpose harness.
+- For an isolated calculation or state transition, use focused existing domain tests with meaningful inputs and outcomes. Do not require two browsers to prove a pure calculation.
+- For a transaction, resource cost, replay or lifecycle repair, use existing native callable/lifecycle tests to prove committed outcomes, denied actors, retries and recovery. Use Firestore rules tests where read audiences or direct-write restrictions are involved.
+- For a route, multi-actor interaction or authenticated recovery contract, use the existing member/GM lifecycle and two-browser gameplay helpers through ordinary UI paths. A synthetic presenter state cannot prove these contracts.
+- Use responsive browser checks for affected layout, keyboard, motion, geometry and navigation behavior. Retain required typography and other release checks without repeating unrelated rendered matrices for an isolated nonvisual repair.
+- Run focused checks while repairing each behavior. Run the required reconciled checkpoint validation, full-table/game-loop/ending proof and release checks at the appropriate acceptance boundary. Repeat a broader gate only for a failure, material candidate/upstream change or unresolved concern.
+- Existing prior art includes session lifecycle and debrief callable suites, audience-specific Firestore rules suites, member/GM lifecycle proof helpers, the two-browser gameplay harness and the typography browser gate.
+- Preserve discriminating failure evidence and required test-first commits for new behavior. Validate the actual result, authorization, resource persistence and recovery rather than merely mirroring internal implementation calls.
+- Report local unit/native/HTTP/UI/rules evidence, rendered QA, independent review, CI, deployment and any actual production gameplay separately. Checkpoint closure still requires every assigned criterion and its evidence.
+- The owner's test-boundary feedback was “we need sensible test boundaries.” Apply the proportionate boundaries above rather than one expensive end-to-end check for every change.
+
+### Out of Scope
+
+New features, redesigns, a second issue tracker, changed checkpoint allocation,
+a new triage status in the catalog, weakened acceptance or security checks,
+mandatory owner playtesting, automatic PC10 runtime restart, and ungranted
+0.9.x/1.0.0 version authorization. Post-campaign sequence conflicts remain for
+source-backed reconciliation rather than new scope in this specification.
+
+### Further Notes
+
+The checked-in catalog at specification time records 703/751 done, six partial
+and 42 missing. This is a local planning snapshot, not a fresh production or
+remote-main verification. This document earns no closure credit. Refresh the
+current catalog and exact task handoff when execution is resumed; prepared or
+unrun slices retain their original proof limits.
+
+## Approved bounded execution tickets — 2026-10-15
+
+The owner approved revising and publishing the context-bounded decomposition.
+These briefs subdivide the existing 48 PC10 IDs; they add no prompts, change no
+acceptance or completion status, and introduce no separate ticket-status ledger.
+Each catalog row links its own briefs through planning evidence.
+
+Triage is `ready-for-agent` for the approved specification. Dependency readiness
+and runtime authorization remain separate: PC10 remains paused. Existing hard
+prerequisites are inherited exactly; additional composition edges apply only
+to these briefs and do not create new Git, CI or release gates. The existing
+dependency chart continues to display all 48 canonical IDs and their unchanged
+prompt graph; this table describes the finer execution handoffs.
+
+Each brief is restricted to one role subflow, coupled transaction, audience
+family, recovery scenario or evidence/release phase. This is a bounded planning
+assessment, not a measured token guarantee: preserve room for reading, repair,
+verification and handoff. Existing suites/presenters and normal-gameplay helpers
+are reused. Missing implementation or a materially broader defect becomes a
+focused repair, rather than silently expanding a proof brief. No prefactor is
+justified solely by this planning change.
+
+| Brief | Existing prompts | Outcome | Blocked by briefs |
+|---|---|---|---|
+| [W1](pc10-tickets/01-w1.md) | 181 | Wing Commander air operations | None |
+| [W2](pc10-tickets/02-w2.md) | 181 | Wing Commander mission and rebuild results | None |
+| [S1](pc10-tickets/03-s1.md) | 215b | Scientist research and devices | None |
+| [S2](pc10-tickets/04-s2.md) | 215b | Scientist scouting and mission participation | None |
+| [X1](pc10-tickets/05-x1.md) | 223b | Explorer scouting and harvesting | None |
+| [X2](pc10-tickets/06-x2.md) | 223b | Explorer route and mission workflow | None |
+| [P1](pc10-tickets/07-p1.md) | 233b | PDF Colonel wing and craft workflow | None |
+| [P2](pc10-tickets/08-p2.md) | 233b | PDF Colonel boarding and mission workflow | None |
+| [C1](pc10-tickets/09-c1.md) | 576 | Macaw deliberate dismantling | None |
+| [C2](pc10-tickets/10-c2.md) | 579 | Boa reclamation choice and result | None |
+| [C3](pc10-tickets/11-c3.md) | 581 | Attack Scrap pickup lifecycle | None |
+| [C4A](pc10-tickets/12a-c4a.md) | 584 | Capybara full-table setup and production | None |
+| [C4B](pc10-tickets/12b-c4b.md) | 584 | Capybara Macaw, Boa and Scrap mission composition | C4A, C1, C2, C3 |
+| [C4](pc10-tickets/12-c4.md) | 584 | Capybara combat, jump and reconnect proof | C4B |
+| [C5](pc10-tickets/13-c5.md) | 585 | Base and expansion isolation | C4 |
+| [D1](pc10-tickets/14-d1.md) | 541, 542 | Private retry-safe candidate discovery | None |
+| [D2](pc10-tickets/15-d2.md) | 543, 593 | Candidate plans and preparation help | D1 |
+| [R1](pc10-tickets/16-r1.md) | 544, 545, 546 | Repair and contribute to the Ancient Ring | D1 |
+| [R2](pc10-tickets/17-r2.md) | 547, 548, 549 | Fuel and resolve Ring passage | R1 |
+| [N1](pc10-tickets/18-n1.md) | 550, 551, 552 | Nebula scouting, attempt and loss | None |
+| [N2](pc10-tickets/19-n2.md) | 553, 554 | Nebula threshold and repeat lock | N1 |
+| [A1](pc10-tickets/20-a1.md) | 555, 556 | Station arrival and repeated combat | None |
+| [A2](pc10-tickets/21-a2.md) | 557, 558, 559 | Station liberation, Reactor and activation | A1 |
+| [E1](pc10-tickets/22-e1.md) | 563, 564 | Explain results and enter debrief | D1 |
+| [E2](pc10-tickets/23-e2.md) | 565, 566 | Authoritative closure and later debrief read | E1 |
+| [L1](pc10-tickets/24-l1.md) | 618 | Session, seat and vessel reconnect | None |
+| [L2](pc10-tickets/25-l2.md) | 618 | Workflow projection reconnect | None |
+| [L3](pc10-tickets/26-l3.md) | 618 | Sparse roster and all-player clock recovery | L1, L2 |
+| [T1](pc10-tickets/27-t1.md) | 620 | Stale action reconciliation | None |
+| [T2](pc10-tickets/28-t2.md) | 620 | Stale recovery after station or roster change | T1 |
+| [Y1](pc10-tickets/29-y1.md) | 619 | Ring retry after reconnect | D1, R2 |
+| [Y2](pc10-tickets/30-y2.md) | 619 | Nebula retry after reconnect | D1, N2 |
+| [Y3](pc10-tickets/31-y3.md) | 619 | Station retry after reconnect | A2, D1 |
+| [Q1](pc10-tickets/32-q1.md) | 629 | Loyalty, Wolf and private-note audiences | None |
+| [Q2](pc10-tickets/33-q2.md) | 629 | Organiser chart and navigation audiences | None |
+| [Q3](pc10-tickets/34-q3.md) | 629 | Mission hands and hidden-outcome audiences | None |
+| [U1](pc10-tickets/35-u1.md) | 630 | Server-owned dice and combat uncertainty | None |
+| [U2](pc10-tickets/36-u2.md) | 630 | Server-owned cards, decks and clues | None |
+| [B1](pc10-tickets/37-b1.md) | 631 | Fair limits for expensive actions | None |
+| [B2](pc10-tickets/38-b2.md) | 634 | Private security-denial telemetry | U1, U2 |
+| [J1](pc10-tickets/39-j1.md) | 635 | Queryable action receipt metadata | None |
+| [J2](pc10-tickets/40-j2.md) | 635 | Private automatic-procedure receipts | J1 |
+| [V1](pc10-tickets/41-v1.md) | 647 | Ring end-to-debrief proof | A2, E2, R2, Y1 |
+| [V2](pc10-tickets/42-v2.md) | 648 | Nebula loss and success proof | E2, N2, Y2 |
+| [V3](pc10-tickets/43-v3.md) | 649 | Station arrival-to-debrief proof | A2, E2, Y3 |
+| [F1](pc10-tickets/44-f1.md) | 650 | Terminal pursuit and total-loss authority | E2 |
+| [F2](pc10-tickets/45-f2.md) | 650 | Destroyed ship, pods and evacuation recovery | E2 |
+| [F3](pc10-tickets/46-f3.md) | 650 | Interrupted control and candidate recovery | E2 |
+| [G1](pc10-tickets/47-g1.md) | 641 | Base-game authentic setup and early loop | P1, P2, S1, S2, W1, W2, X1, X2 |
+| [G2](pc10-tickets/48-g2.md) | 641 | Base-game combat through debrief | E2, G1 |
+| [G3](pc10-tickets/49-g3.md) | 641 | Base-game sparse roster and GM concurrency | G2, L3, T2 |
+| [H1](pc10-tickets/50-h1.md) | 642 | Expansion full-table setup and Scrap loop | C4, C5 |
+| [H2](pc10-tickets/51-h2.md) | 642 | Expansion combat, jump and candidate path | C4, H1, V2 |
+| [H3](pc10-tickets/52-h3.md) | 642 | Expansion recovery and GM concurrency | C4, H2, L3, T2 |
+| [Z1](pc10-tickets/53-z1.md) | 651 | Reconcile campaign acceptance and review evidence | A1, A2, B1, B2, C1, C2, C3, C4, C5, D1, D2, E1, E2, F1, F2, F3, G1, G2, G3, H1, H2, H3, J1, J2, L1, L2, L3, N1, N2, P1, P2, Q1, Q2, Q3, R1, R2, S1, S2, T1, T2, U1, U2, V1, V2, V3, W1, W2, X1, X2, Y1, Y2, Y3 |
+| [Z2](pc10-tickets/54-z2.md) | 651 | Final candidate validation and verified release | F1, F2, F3, G1, G2, G3, H1, H2, H3, V1, V2, V3, Z1 |
+
+The context sizing used the existing workspace consumer contracts, candidate
+discovery and plan projection suites, native callable and debrief suites,
+audience-specific rules tests, action-audit and rate-limit tests, and the
+authenticated two-browser/member-GM proof helpers. Preparation does not establish
+that any gameplay gate passed. The final audit aggregates the original 48 full
+acceptances rather than treating these brief checklists as replacement criteria.

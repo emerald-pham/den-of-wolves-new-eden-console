@@ -6482,6 +6482,342 @@
       "language": "All 49 fixed PC09 behavior acceptances have representative normal authenticated local/emulator and exact native proof. All ten original PC08 audit defects and the nine independent findings plus eight earlier directly blocking acceptance defects have permanent regressions. The final unchanged-budget render failure is repaired by bounded route/joined-session deferral; the same reviewer's new rejected-download finding has four permanent regressions and contained Back/reload recovery. Three pending and twelve rejected-download prepared browser cases pass without claiming ordinary authentication; the same reviewer approved the bounded loading delta in 088fdd56 after four independent rejection regressions, strict typecheck and documentation validation. The fresh complete combat/deduction/aftermath scenario includes real EO and Ace browser actors, all ranges, boarding, automatic finalization, paid repair/salvage/Doctor, arrest and two paid builds. The strict current-runtime proof passes 24 checks/505 ordinary actions, durable Alpha 4→3→2→3→4, exact Station carryover and seven actual entitled DRADIS rows, with zero captured browser console/page, HTTP, failed-request or synthetic heartbeat errors. Crisis/election passes 23 checks/91 actions; separate Commander, Detector, P-producer/repeat, DRADIS recovery, Voyage docking/needs and prepared-render artifacts are mapped in the checkpoint report. Setup allocations, accelerated disposable deadlines, simulated attendance, one recovered composed EO HTTP 500 and the crisis post-run source binding remain disclosed. Original exact destroyed-carrier, removed-holder, stale-attack and PDF comparison reproductions retain their native evidence boundary. Pre-reconnect artifacts lost in the Mac reset are not claimed inspectable. The single independent Sol 6.1 Max review approved its bounded final follow-up at ef0cb942 after 418 Functions and 75 client checks, strict Functions build/typecheck and independent SDK/AST inventory reconciliation. Fresh current Rules pass 164 tests/four files. Stable-source whole native verification passes 7,947 checks in 598 files; 44 metadata checks, the final rendered typography/full render budget and 66 rejection/font checks also pass. The complete ticker gate passes 24 viewport/font/motion cases and both normal/reduced lifecycle captures with live Press-to-Red-Alert handoff. Exact-SHA CI and production release are recorded separately. PC09 0.5.68 is now released and verified. Initial candidate CI 37254007624 failed two stale AppHeader assertions; test-only 8f6227da preserves PC08 history and verifies PC09 progress. Candidate f86c0006 passed CI 37256681113. The omitted generated dependency companion in documentation commit 486651c3 was corrected at feb71f2d. First exact-main release 37257836445 passed all CI gates, but deployment failed after 200 of 216 Function updates under mutation-rate/regional CPU startup quotas; its complete failure remains preserved. The same independent reviewer approved be309778 quota recovery after eight batching contracts, five workflow-shell probes, exact 216-target coverage and refreshable WIF inspection. Recovery uses 22 sequential groups of at most ten named Functions plus final Hosting/Firestore, with identical verified artifacts, pinned CLI, unchanged WIF/current-tip and strict ready-revision checks; no retry loop, quota/CPU/permission change or gameplay mutation. Runtime commit feec918910896ec0dca9ca9316d337b721e35764 landed on origin/main and exact-main release 37261134992 succeeded: 3,292 client and 4,660 Functions tests, 164 Rules tests, 62 font checks, builds, lint, documentation/catalog/threat contracts and mandatory typography. Earlier exact-main render/ticker gates pass; all 259 recovered web-artifact files are byte-identical to that verified artifact, and all 207 compiled Functions files match the frozen ordinary-proof runtime. All 216 selected Functions publish new ready revisions; required invoker repair and Hosting/Firestore/active-inventory/IAM verification pass. Read-only public HTTP artifact binding matches all 259 files and version 0.5.68 against the exact CI build, without authenticated gameplay or production game-data writes. All 49 closures and ten original audit repairs are complete at 703/751 and 245/293 campaign. Native-only exact comparisons and other disclosed evidence limits remain. No physical-device, 21-concurrent-browser or production-GM gameplay is claimed. PC10 revision and separate dispatch remain parent-owned; no later checkpoint was executed.",
       "source": "docs/PC09_ACCEPTANCE_MATRIX.md; docs/PC09_PLAYTEST_REPORT.md; docs/PC09_RISK_REVIEW.md; docs/PC09_TEST_CHANGE_REPORT.md; docs/PC08_BUG_AUDIT.md; docs/PC09_EXECUTION_RECORD.md; external /tmp/dow-pc09-resumed-evidence; external /tmp/pc09-combat-recovery-restored-20261004/composed-909b4f6d; external /tmp/dow-pc09-crises-auth-proof-final",
       "type": "evidence / authority / release / local-gameplay"
+    },
+    {
+      "direction": "181 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-181",
+      "language": "Owner-approved October 15 ticket decomposition. W1: Wing Commander air operations; W2: Wing Commander mission and rebuild results. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/01-w1.md; docs/pc10-tickets/02-w2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "215b -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-215B",
+      "language": "Owner-approved October 15 ticket decomposition. S1: Scientist research and devices; S2: Scientist scouting and mission participation. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/03-s1.md; docs/pc10-tickets/04-s2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "223b -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-223B",
+      "language": "Owner-approved October 15 ticket decomposition. X1: Explorer scouting and harvesting; X2: Explorer route and mission workflow. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/05-x1.md; docs/pc10-tickets/06-x2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "233b -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-233B",
+      "language": "Owner-approved October 15 ticket decomposition. P1: PDF Colonel wing and craft workflow; P2: PDF Colonel boarding and mission workflow. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/07-p1.md; docs/pc10-tickets/08-p2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "541 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-541",
+      "language": "Owner-approved October 15 ticket decomposition. D1: Private retry-safe candidate discovery. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/14-d1.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "542 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-542",
+      "language": "Owner-approved October 15 ticket decomposition. D1: Private retry-safe candidate discovery. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/14-d1.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "543 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-543",
+      "language": "Owner-approved October 15 ticket decomposition. D2: Candidate plans and preparation help. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/15-d2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "544 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-544",
+      "language": "Owner-approved October 15 ticket decomposition. R1: Repair and contribute to the Ancient Ring. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/16-r1.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "545 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-545",
+      "language": "Owner-approved October 15 ticket decomposition. R1: Repair and contribute to the Ancient Ring. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/16-r1.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "546 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-546",
+      "language": "Owner-approved October 15 ticket decomposition. R1: Repair and contribute to the Ancient Ring. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/16-r1.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "547 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-547",
+      "language": "Owner-approved October 15 ticket decomposition. R2: Fuel and resolve Ring passage. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/17-r2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "548 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-548",
+      "language": "Owner-approved October 15 ticket decomposition. R2: Fuel and resolve Ring passage. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/17-r2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "549 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-549",
+      "language": "Owner-approved October 15 ticket decomposition. R2: Fuel and resolve Ring passage. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/17-r2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "550 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-550",
+      "language": "Owner-approved October 15 ticket decomposition. N1: Nebula scouting, attempt and loss. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/18-n1.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "551 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-551",
+      "language": "Owner-approved October 15 ticket decomposition. N1: Nebula scouting, attempt and loss. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/18-n1.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "552 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-552",
+      "language": "Owner-approved October 15 ticket decomposition. N1: Nebula scouting, attempt and loss. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/18-n1.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "553 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-553",
+      "language": "Owner-approved October 15 ticket decomposition. N2: Nebula threshold and repeat lock. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/19-n2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "554 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-554",
+      "language": "Owner-approved October 15 ticket decomposition. N2: Nebula threshold and repeat lock. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/19-n2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "555 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-555",
+      "language": "Owner-approved October 15 ticket decomposition. A1: Station arrival and repeated combat. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/20-a1.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "556 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-556",
+      "language": "Owner-approved October 15 ticket decomposition. A1: Station arrival and repeated combat. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/20-a1.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "557 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-557",
+      "language": "Owner-approved October 15 ticket decomposition. A2: Station liberation, Reactor and activation. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/21-a2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "558 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-558",
+      "language": "Owner-approved October 15 ticket decomposition. A2: Station liberation, Reactor and activation. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/21-a2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "559 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-559",
+      "language": "Owner-approved October 15 ticket decomposition. A2: Station liberation, Reactor and activation. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/21-a2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "563 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-563",
+      "language": "Owner-approved October 15 ticket decomposition. E1: Explain results and enter debrief. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/22-e1.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "564 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-564",
+      "language": "Owner-approved October 15 ticket decomposition. E1: Explain results and enter debrief. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/22-e1.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "565 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-565",
+      "language": "Owner-approved October 15 ticket decomposition. E2: Authoritative closure and later debrief read. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/23-e2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "566 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-566",
+      "language": "Owner-approved October 15 ticket decomposition. E2: Authoritative closure and later debrief read. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/23-e2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "576 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-576",
+      "language": "Owner-approved October 15 ticket decomposition. C1: Macaw deliberate dismantling. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/09-c1.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "579 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-579",
+      "language": "Owner-approved October 15 ticket decomposition. C2: Boa reclamation choice and result. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/10-c2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "581 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-581",
+      "language": "Owner-approved October 15 ticket decomposition. C3: Attack Scrap pickup lifecycle. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/11-c3.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "584 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-584",
+      "language": "Owner-approved October 15 ticket decomposition. C4A: Capybara full-table setup and production; C4B: Capybara Macaw, Boa and Scrap mission composition; C4: Capybara combat, jump and reconnect proof. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/12a-c4a.md; docs/pc10-tickets/12b-c4b.md; docs/pc10-tickets/12-c4.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "585 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-585",
+      "language": "Owner-approved October 15 ticket decomposition. C5: Base and expansion isolation. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/13-c5.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "593 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-593",
+      "language": "Owner-approved October 15 ticket decomposition. D2: Candidate plans and preparation help. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/15-d2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "618 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-618",
+      "language": "Owner-approved October 15 ticket decomposition. L1: Session, seat and vessel reconnect; L2: Workflow projection reconnect; L3: Sparse roster and all-player clock recovery. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/24-l1.md; docs/pc10-tickets/25-l2.md; docs/pc10-tickets/26-l3.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "619 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-619",
+      "language": "Owner-approved October 15 ticket decomposition. Y1: Ring retry after reconnect; Y2: Nebula retry after reconnect; Y3: Station retry after reconnect. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/29-y1.md; docs/pc10-tickets/30-y2.md; docs/pc10-tickets/31-y3.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "620 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-620",
+      "language": "Owner-approved October 15 ticket decomposition. T1: Stale action reconciliation; T2: Stale recovery after station or roster change. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/27-t1.md; docs/pc10-tickets/28-t2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "629 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-629",
+      "language": "Owner-approved October 15 ticket decomposition. Q1: Loyalty, Wolf and private-note audiences; Q2: Organiser chart and navigation audiences; Q3: Mission hands and hidden-outcome audiences. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/32-q1.md; docs/pc10-tickets/33-q2.md; docs/pc10-tickets/34-q3.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "630 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-630",
+      "language": "Owner-approved October 15 ticket decomposition. U1: Server-owned dice and combat uncertainty; U2: Server-owned cards, decks and clues. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/35-u1.md; docs/pc10-tickets/36-u2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "631 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-631",
+      "language": "Owner-approved October 15 ticket decomposition. B1: Fair limits for expensive actions. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/37-b1.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "634 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-634",
+      "language": "Owner-approved October 15 ticket decomposition. B2: Private security-denial telemetry. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/38-b2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "635 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-635",
+      "language": "Owner-approved October 15 ticket decomposition. J1: Queryable action receipt metadata; J2: Private automatic-procedure receipts. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/39-j1.md; docs/pc10-tickets/40-j2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "641 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-641",
+      "language": "Owner-approved October 15 ticket decomposition. G1: Base-game authentic setup and early loop; G2: Base-game combat through debrief; G3: Base-game sparse roster and GM concurrency. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/47-g1.md; docs/pc10-tickets/48-g2.md; docs/pc10-tickets/49-g3.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "642 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-642",
+      "language": "Owner-approved October 15 ticket decomposition. H1: Expansion full-table setup and Scrap loop; H2: Expansion combat, jump and candidate path; H3: Expansion recovery and GM concurrency. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/50-h1.md; docs/pc10-tickets/51-h2.md; docs/pc10-tickets/52-h3.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "647 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-647",
+      "language": "Owner-approved October 15 ticket decomposition. V1: Ring end-to-debrief proof. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/41-v1.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "648 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-648",
+      "language": "Owner-approved October 15 ticket decomposition. V2: Nebula loss and success proof. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/42-v2.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "649 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-649",
+      "language": "Owner-approved October 15 ticket decomposition. V3: Station arrival-to-debrief proof. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/43-v3.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "650 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-650",
+      "language": "Owner-approved October 15 ticket decomposition. F1: Terminal pursuit and total-loss authority; F2: Destroyed ship, pods and evacuation recovery; F3: Interrupted control and candidate recovery. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/44-f1.md; docs/pc10-tickets/45-f2.md; docs/pc10-tickets/46-f3.md",
+      "type": "planning / execution subdivision / no closure credit"
+    },
+    {
+      "direction": "651 -> bounded execution briefs",
+      "id": "E-PC10-TICKETS-651",
+      "language": "Owner-approved October 15 ticket decomposition. Z1: Reconcile campaign acceptance and review evidence; Z2: Final candidate validation and verified release. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "source": "docs/pc10-tickets/53-z1.md; docs/pc10-tickets/54-z2.md",
+      "type": "planning / execution subdivision / no closure credit"
     }
   ],
   "plan": {
@@ -11167,7 +11503,7 @@
         "title": "Create the Wing Commander workspace."
       },
       "description": "Planned [NEW] prompt. The existing Wing Commander shell shows registered Starlight and Fighter Wing references plus the released Construction Bay rebuild action, while scouting, missions, fighter state, launches, targeting shifts, and range attacks remain deliberately non-executable. Workspace completion waits for those server-owned actions and their authoritative results; no gameplay completion is claimed yet.",
-      "evidenceIds": "E-AUDIT-181",
+      "evidenceIds": "E-AUDIT-181;E-PC10-TICKETS-181",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;178;260;262;321;322;323;328;392;396;422;449;450;451;452",
@@ -12133,7 +12469,7 @@
         "title": "Complete the Scientist workspace."
       },
       "description": "Planned [NEW] prompt. The existing role-bound Shepherd Scientist shell exposes the registered Endeavour route, while research persistence and controls, device activation, transactional private scouting, field upgrades, contribution-linked mission bonuses, complete away-mission participation, and private Wolf Agent Detector use remain owned by unfinished downstream prompts. Workspace completion waits for those server-authoritative actions and projections; no gameplay completion is claimed yet.",
-      "evidenceIds": "E-AUDIT-215B",
+      "evidenceIds": "E-AUDIT-215B;E-PC10-TICKETS-215B",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;204;211;212;213;214;267;321;325;328;391;401;410;422;508",
@@ -12369,7 +12705,7 @@
         "title": "Complete the Explorer workspace."
       },
       "description": "Planned [NEW] prompt. The existing role-bound Quellon Explorer shell exposes the registered Hummingbird route and its released private harvesting allocation, while transactional private scouting, complete shuttle arrival and route state, contribution-linked Hummingbird mission bonuses, and complete away-mission participation remain owned by unfinished downstream prompts. Workspace completion waits for those server-authoritative actions and projections; no gameplay completion is claimed yet.",
-      "evidenceIds": "E-AUDIT-223B",
+      "evidenceIds": "E-AUDIT-223B;E-PC10-TICKETS-223B",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;216;269;321;324;328;365;366;367;390;393;401;410;422",
@@ -12655,7 +12991,7 @@
         "title": "Complete the PDF Colonel workspace."
       },
       "description": "Planned [NEW] prompt. The existing role-bound P.D.F. Colonel shell presents the Refinery Fighter Bay, registered Chepu and P.D.F. Escort Fighter Wing references, and printed boarding, relay, and mission procedures. Chepu registration is still partial; boarding support, persistent Escort Wing launch/combat, authoritative role-scoped message relay, contribution-linked mission bonuses, and complete away-mission participation remain owned by unfinished downstream prompts. Workspace completion waits for those real actions and projections; no gameplay completion is claimed yet.",
-      "evidenceIds": "E-AUDIT-233B",
+      "evidenceIds": "E-AUDIT-233B;E-PC10-TICKETS-233B",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;224;231;272;273;340;395;398;401;410;422",
@@ -21140,7 +21476,7 @@
         "title": "Reveal a New Eden candidate."
       },
       "description": "Arrival-derived candidate codes and names are projected to the current fleet group with chart details withheld; scout-derived reveal and normal authenticated local/emulator gameplay proof remain outstanding.",
-      "evidenceIds": "E-AUDIT-541;E-541-ARRIVAL-GROUP-REVEAL",
+      "evidenceIds": "E-AUDIT-541;E-541-ARRIVAL-GROUP-REVEAL;E-PC10-TICKETS-541",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "318;525",
@@ -21165,7 +21501,7 @@
         "title": "Make candidate discovery retry-safe."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-542",
+      "evidenceIds": "E-AUDIT-542;E-PC10-TICKETS-542",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "541",
@@ -21188,7 +21524,7 @@
         "title": "Track candidate plans by Cycle 6."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-543",
+      "evidenceIds": "E-AUDIT-543;E-PC10-TICKETS-543",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "541;319",
@@ -21211,7 +21547,7 @@
         "title": "Validate Ancient Jump Ring prerequisites."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-544",
+      "evidenceIds": "E-AUDIT-544;E-PC10-TICKETS-544",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "541",
@@ -21234,7 +21570,7 @@
         "title": "Repair the Ancient Jump Ring."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-545",
+      "evidenceIds": "E-AUDIT-545;E-PC10-TICKETS-545",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "544;211;361;111",
@@ -21257,7 +21593,7 @@
         "title": "Prevent duplicate Ring contributions."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-546",
+      "evidenceIds": "E-AUDIT-546;E-PC10-TICKETS-546",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "545",
@@ -21280,7 +21616,7 @@
         "title": "Fuel each Ring passage."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-547",
+      "evidenceIds": "E-AUDIT-547;E-PC10-TICKETS-547",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "545;111",
@@ -21303,7 +21639,7 @@
         "title": "Resolve Ring passage."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-548",
+      "evidenceIds": "E-AUDIT-548;E-PC10-TICKETS-548",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "546;547",
@@ -21326,7 +21662,7 @@
         "title": "Record blocked Wolf pursuit through the Ring."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-549",
+      "evidenceIds": "E-AUDIT-549;E-PC10-TICKETS-549",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "548;485",
@@ -21349,7 +21685,7 @@
         "title": "Accumulate Deep Nebula scouting."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-550",
+      "evidenceIds": "E-AUDIT-550;E-PC10-TICKETS-550",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "328;332",
@@ -21372,7 +21708,7 @@
         "title": "Attempt a Deep Nebula jump."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-551",
+      "evidenceIds": "E-AUDIT-551;E-PC10-TICKETS-551",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "550;287-304",
@@ -21395,7 +21731,7 @@
         "title": "Lose a ship in the Deep Nebula."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-552",
+      "evidenceIds": "E-AUDIT-552;E-PC10-TICKETS-552",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "551;140d",
@@ -21418,7 +21754,7 @@
         "title": "Reach the Deep Nebula threshold."
       },
       "description": "Planned [DECISION] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-553",
+      "evidenceIds": "E-AUDIT-553;E-PC10-TICKETS-553",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "551;552",
@@ -21441,7 +21777,7 @@
         "title": "Prevent repeat Nebula attempts."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-554",
+      "evidenceIds": "E-AUDIT-554;E-PC10-TICKETS-554",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "551;553",
@@ -21464,7 +21800,7 @@
         "title": "Trigger Ancient Space Station arrival combat."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-555",
+      "evidenceIds": "E-AUDIT-555;E-PC10-TICKETS-555",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "493;432",
@@ -21487,7 +21823,7 @@
         "title": "Repeat Station combat while Wolves survive."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-556",
+      "evidenceIds": "E-AUDIT-556;E-PC10-TICKETS-556",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "555",
@@ -21510,7 +21846,7 @@
         "title": "Liberate the Ancient Space Station."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-557",
+      "evidenceIds": "E-AUDIT-557;E-PC10-TICKETS-557",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "556",
@@ -21533,7 +21869,7 @@
         "title": "Validate Station Reactor contributions."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-558",
+      "evidenceIds": "E-AUDIT-558;E-PC10-TICKETS-558",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "557",
@@ -21556,7 +21892,7 @@
         "title": "Power New Eden Station."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-559",
+      "evidenceIds": "E-AUDIT-559;E-PC10-TICKETS-559",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "558",
@@ -21652,7 +21988,7 @@
         "title": "Explain candidate results."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-563",
+      "evidenceIds": "E-AUDIT-563;E-PC10-TICKETS-563",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "562;541",
@@ -21675,7 +22011,7 @@
         "title": "Enter debrief once."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-564",
+      "evidenceIds": "E-AUDIT-564;E-PC10-TICKETS-564",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "563",
@@ -21698,7 +22034,7 @@
         "title": "Close the session authoritatively."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-565",
+      "evidenceIds": "E-AUDIT-565;E-PC10-TICKETS-565",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "560;564",
@@ -21721,7 +22057,7 @@
         "title": "Read debrief after closure."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-566",
+      "evidenceIds": "E-AUDIT-566;E-PC10-TICKETS-566",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "565",
@@ -21957,7 +22293,7 @@
         "title": "Resolve Macaw salvage dismantling."
       },
       "description": "Planned [DECISION] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-576",
+      "evidenceIds": "E-AUDIT-576;E-PC10-TICKETS-576",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "385;575",
@@ -22028,7 +22364,7 @@
         "title": "Resolve Boa reclamation."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet. Boa must select its one reclamation opportunity before mission cards are dealt, but the production deal callable currently creates the mission at deal time without a server-owned opportunity-selection stage. Prompt 401 must first establish authoritative mission start, eligible craft, and Mission Leader ownership before this pre-deal choice, difficulty reduction, Scrap reward, and no-critical-bonus rule can be wired and verified.",
-      "evidenceIds": "E-AUDIT-579",
+      "evidenceIds": "E-AUDIT-579;E-PC10-TICKETS-579",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "401;578",
@@ -22076,7 +22412,7 @@
         "title": "Create post-damage Scrap pickups."
       },
       "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-581",
+      "evidenceIds": "E-AUDIT-581;E-PC10-TICKETS-581",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "573;577;480",
@@ -22149,7 +22485,7 @@
         "title": "Run the Capybara vertical scenario."
       },
       "description": "Planned [PROVE] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-584",
+      "evidenceIds": "E-AUDIT-584;E-PC10-TICKETS-584",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "567;571;577;580",
@@ -22172,7 +22508,7 @@
         "title": "Run the base/expansion isolation scenario."
       },
       "description": "Planned [PROVE] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-585",
+      "evidenceIds": "E-AUDIT-585;E-PC10-TICKETS-585",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "567;584",
@@ -22416,7 +22752,7 @@
         "title": "Show candidate preparation help."
       },
       "description": "Planned [EXTEND] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-593",
+      "evidenceIds": "E-AUDIT-593;E-PC10-TICKETS-593",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "541",
@@ -23131,7 +23467,7 @@
         "title": "Reconnect every live projection."
       },
       "description": "One production GM roster listener slice now clears cached roster data on reconnect, includes metadata-only snapshots so an unchanged server roster can confirm access, replaces the full roster from current server data, and clears on listener error or unsubscribe while rejecting late callbacks. Hosting release 0.5.17 is verified by successful exact-SHA Deploy workflow 35898710844 from main SHA 2b85b40d12800329965882b17924fa2f18124d5a; live build-version.json reports 0.5.17. This verifies the deployed build marker, not a live in-session reconnect. The 0.5.20 release extends reconnect protection to connected-player rosters: cached query snapshots stay hidden until server-confirmed data arrives, and changes to session identity, member identity, UID, role, or fleet group clear and stop the old query so delayed callbacks cannot republish its roster. The six current roster consumers rebind when their entitlement fields change. Persistence review confirms the roster is not stored, while the viewer identity and group pointer are. Local Firestore regressions cover cached group data, metadata-only confirmation, and delayed old server snapshots after GM demotion or group change; a rendered ShuttleConsole regression covers role-only rebind. Sol xhigh follow-up on source SHA aaaf32e66d1085d909f6052920f3fc8589a7a3b6 found no actionable findings. Local tests and review are backed by the successful exact-SHA Deploy workflow 35918594176 on main SHA 58650658fc64749fe8c359cda9903bf3e4688997. The live build-version endpoint returned {\"version\":\"0.5.20\"}; the live root and JavaScript entry returned HTTP 200, and the deployed entry contains the exact reconnect note (SHA-256 7f211658bee331e934388bf20d3ba5ea73847b9dee61b4814f26845096bdc8d3). This verifies deployed build and copy, not a live in-session reconnect. Prompt 618 remains partial: session, seat, role, ship, shuttle, group, mission, attack, candidate, and debrief projection listeners have not been verified for cache replacement. Release 0.5.33 adds server-confirmed reconnect replacement and stale-callback protection for the eleven named live projection classes. Sol xhigh review cleared code SHA 0ee9a9ae81ed40508867643ae6af10c4fbc63864, and the affected 14-file gate passed 640 tests with typecheck, lint, and build. Exact main SHA 84e6991b26c12fea2113ace3299fff1544c3a5f7 passed Deploy workflow 36073796658, including verification, browser gates, and Hosting deployment. The live build-version endpoint returned 0.5.33; Chrome Settings rendered Build 0.5.33 and its reconnect note. On opening the existing lobby session, the saved reconnect view cleared after current server data arrived. This is live evidence for that lobby projection only. Prompt 618 remains partial until an in-game reconnect proves cache replacement for all named player, seat, role, ship, shuttle, group, mission, attack, candidate, and debrief listeners. The outstanding in-game coverage uses normal authenticated local/emulator clients under the October 2 repository-wide decision; historical deployment and production observations above retain their original evidence labels.",
-      "evidenceIds": "E-AUDIT-618;E-618-GM-ROSTER-RECONNECT;E-618-CONNECTED-ROSTER-PRIVACY",
+      "evidenceIds": "E-AUDIT-618;E-618-GM-ROSTER-RECONNECT;E-618-CONNECTED-ROSTER-PRIVACY;E-PC10-TICKETS-618",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "084;085;086;612",
@@ -23181,7 +23517,7 @@
         "title": "Make candidate retries survive reconnect."
       },
       "description": "Planned [EXTEND] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-619",
+      "evidenceIds": "E-AUDIT-619;E-PC10-TICKETS-619",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "542;612",
@@ -23204,7 +23540,7 @@
         "title": "Recover from stale revisions."
       },
       "description": "The GM fighter-wing correction slice validates a stale callable reply against the session, request, wing, actor, and current GM instance, then refreshes the entitled count, per-wing revision, and capacity when no newer snapshot or callable revision has arrived. Older overlapping replies cannot roll back a newer wing revision, and the typed target remains in the GM console for an explicit retry. This partial slice deployed to Hosting as 0.5.14 from main SHA bf4c39cc6b202a14a7581fba21205475faf95369 (workflow run 35878894037). The 0.5.16 release extends recovery to GM resource, unrest, and population applyShipCounterSteps: the callable returns only the requested counter's authoritative amount and revision, plus a target-specific alert-blocked boolean, bound to the session, actor, GM instance, request, ship, counter, and expected revision. The client fails closed on malformed or mismatched replies, preserves entered steps and shows current and proposed values separately across route unmount, blocks retry while the server reports a relevant alert, and prevents delayed stale or committed replies from rolling back newer local or Firestore state. Focused callable, service, and GM route tests cover authority and target mismatches, malformed replies, alert state, same-revision snapshot refresh, both stale-reply/snapshot orderings, and preserved drafts. Production deployment for 0.5.16 is verified from main SHA 5ce0195b22cd67aabd59f0183264a2cd0b07cc68 in successful Deploy workflow 35893425162: live Hosting build-version.json reports 0.5.16, and applyShipCounterSteps published a new ready Functions revision verified by the workflow. Twenty-nine other heterogeneous stale-revision surfaces remain open, so Prompt 620 stays partial. The 0.5.18 responsive follow-up makes the GM counter recovery controls at least 44px high and keeps the pursuit tracker inside narrow resource cards. Local rendered review covered 320x844, 1440x900, and 844x390 in full and reduced motion with no document/card overflow. Successful Deploy workflow 35903792629 from main SHA da1077551ddb7c0d818adb63d77be537d4e7c902 published Hosting; live build-version.json and a refreshed Chrome session report 0.5.18, and the served CSS asset includes both responsive rules. Prompt 620 remains partial because twenty-nine other heterogeneous stale-revision surfaces remain open. The 0.5.35 release extends stale-revision recovery to repairGorgoneionWithDrones and repairWarriorWithDrones. Their stale replies are bound to the request, actor, role, host, cycle, repair target, and expected CAS; stale transactions write no repair mutation, receipt, or event. Client services fail closed on mismatched authority or state, and both panels preserve selected targets and require an explicit retry with a fresh request ID and current CAS. Focused callable, service, panel, race-order, and authority-change tests pass; exact-HEAD Sol xhigh review and full coordination validation passed. Deploy run 36255126673 on main SHA 2d6960cb1368d2002673f496483bf7869d08c8a5 updated Hosting and both selected Functions, and the workflow verified new ready Function revisions. Live Hosting build-version.json reports 0.5.35. No ordinary authorized production stale-race exercise was available, so Prompt 620 remains partial. The 0.5.37 shuttle-cargo follow-on extends stale-revision recovery to transferShuttleCargoCommand. Stale replies are bound to the session, request, shuttle, host, cargo target, direction, amount, and expected control revision, and the client accepts recovery only while the current holder, actor role, and fleet group authority remain unchanged. Stale transactions write no cargo mutation or receipt; the service and panel preserve the selected draft and require an explicit retry with a fresh request ID and current revision. Focused callable, service, and route tests pass, as do TypeScript/build/font checks and phone, desktop, short-landscape, and reduced-motion rendering checks. Exact-head Sol xhigh review is clear. Successful WIF Deploy workflow 36271136460 on main SHA f9ccfd8651109f0adc0098b77bf7c7caa07ee6ed selected Hosting and transferShuttleCargoCommand, and verified a newly ready revision for that Function; the public Hosting build-version endpoint returned 0.5.37. No ordinary authorized live stale-race test has been performed, so Prompt 620 remains partial. The 0.5.38 Boa recycling follow-on returns a minimal request-bound stale envelope only to an actor still authorized as the active Capybara Recycler holding Boa, and only after current host, recipe, Coordination, quota, and inventory validation. Stale transactions make no inventory write, event, or receipt. The client rechecks actor, role, fleet group, holder, Capybara availability, host, and docking after await, and gates exact uncertain retries on the same live authority; it preserves the selected recipe and offers an explicit fresh-request/current-CAS retry only after a live snapshot catches up for phase, quota, and inventory. Focused callable, service, and panel tests cover stale cycle/control/ledger values, both stale-response/snapshot orders, request/recipe/CAS binding, no-write proof, and authority loss. Rendered review covers 320x844, 390x844, 1440x900, and 844x390 in full and reduced motion; controls remain at least 44px high with no horizontal overflow. Successful WIF Deploy workflow 36275867244 on main SHA 4760b7326e580ec7b32358605a5d55edded45519 selected Hosting and recycleWithBoa; the Function update succeeded, and the workflow verified a new ready revision for recycleWithBoa. Live Hosting build-version.json reports 0.5.38. No ordinary authorized production stale-race exercise has been performed, so Prompt 620 remains partial. The 0.5.39 Macaw repair follow-on is deployed from main SHA ce7d9041b9c5c454b6d4a545650e1f52f94780f9. Its callable returns only a request/session/host/selected-console/CAS/cycle stale envelope after confirming the connected player has the active Capybara Captain console, still holds Macaw, belongs to the current fleet group, is docked uniquely at the expected in-group host, and current Coordination, damage, Scrap, fuel, and repair limits allow retry. It fails closed when Capybara is disabled. Stale attempts make no repair, event, or receipt writes. The service and panel recheck the current session, Captain role, fleet-group identity, holder, host, and dock after await; selected console IDs remain checked, and retry waits for a current server snapshot of the CAS, cycle, damage, Scrap, fuel, and quota before an explicit fresh-request/current-CAS submission. A first-host retry does not require fuel, while the existing second-host fuel gate remains enforced. The client fails closed on malformed or future-cycle repair ledgers. Uncertain exact retries remain bound to their original request and authority, and editing a checkbox invalidates that request. The candidate passes 69 focused Macaw tests, 40 deployment-selector tests, typecheck, lint, Functions build, font consistency, and copy checks. Local Chrome rendering passed at 320x740, 390x844, 1440x900, and 844x390 in full and reduced motion, including return navigation and the configured console font. Exact-final-HEAD Sol xhigh review and full coordination validation passed at ce7d9041b9c5c454b6d4a545650e1f52f94780f9. WIF Deploy workflow 36283378972 on that exact main SHA deployed Hosting and only repairConsolesFromMacaw; deployment verification confirmed a new ready Function revision, and the live Hosting build-version.json endpoint reports 0.5.39. The same release removes the eager changelog bundle import by generating a hashed display-only JSON projection from canonical src/changelog.ts, loading it when Settings opens, and precaching it for offline use. Projection checks matched all 332 entries and copy strings; offline browser proof rendered all 332 after reload. P637 size checks passed at 1,783,423 raw bytes, 473,800 gzip bytes, and a 497,103-byte largest chunk against caps of 1,850,458, 491,219, and 512,000; exact-SHA ticker and render-performance browser gates also passed. No ordinary authorized production stale-race exercise was performed, so Prompt 620 remains partial. The 0.5.40 Ally repair follow-on returns a minimal request-bound stale envelope only after server checks confirm the current Joint Engineering Union holder, fleet-group membership, docked host, selected systems, and live Coordination remain valid. A stale attempt writes no repair state, event, or receipt. The client validates the response and current authority, keeps eligible selections while the session projection catches up, then offers an explicit fresh-request/current-CAS retry. Focused callable, service, panel, rules, and responsive browser checks pass. No ordinary authorized live stale-race exercise has been performed, so Prompt 620 remains partial. Exact-final Sol xhigh review and full coordination validation passed at main SHA 9d9ffae6b50418500b2bc471122134adb4635c6d. WIF Deploy workflow 36285941602 on that SHA deployed Hosting and only repairConsolesFromAlly; workflow verification confirmed a new ready revision for the Function, and live Hosting build-version.json reports 0.5.40. No ordinary authorized production stale-race exercise has been performed, so Prompt 620 remains partial. The 0.5.41 release candidate adds stale-revision recovery to Maliades repairs. The server returns a minimal request-bound stale envelope only after revalidating the active Dione Engineer, Maliades holder, current host and dock, live Team Phase, and repair state; stale transactions make no repair, event, or receipt writes. The panel rechecks authority after the reply and keeps the fixed one-damage repair pending until live current costs and revisions support an explicit fresh-request retry. Focused tests and responsive rendering checks pass. The 0.5.41 release is deployed from main SHA bc2a01811d374b9061b107ed427d4e5de28cb15a. WIF Deploy workflow 36289141173 on that exact SHA selected Hosting and only repairMaliades, verified a new ready Function revision, and live Hosting build-version.json reports 0.5.41. No ordinary authorized production stale-race exercise has been performed, so Prompt 620 remains partial. The 0.5.42 Chacau candidate returns a minimal request/session/host/selected-console/CAS/cycle stale envelope only after revalidating the connected Refinery 124 Engineer, current Chacau holder, fleet-group membership, unique in-group dock, live Coordination, and current repair authority. Stale transactions make no repair, event, or receipt writes. The client validates the bound envelope, preserves only eligible selected consoles while the live projection catches up, and offers an explicit fresh-request/current-CAS retry; both stale response/projection orders and authority loss are covered. Successful WIF Deploy workflow 36291316288 on main SHA 68a310c66edd7943695060a58a6a40405a0bc933 deployed Hosting and only repairConsolesFromChacau; the workflow verified a new ready Function revision, and live Hosting build-version.json reports 0.5.42. Exact-final Sol xhigh review and full coordination validation passed at 68a310c66edd7943695060a58a6a40405a0bc933. No ordinary authorized production stale-race exercise was performed, so Prompt 620 remains partial. The 0.5.43 Philia repair slice returns a minimal request/session/host/selection/CAS/cycle stale envelope only after revalidating the connected Dione Engineer, current Philia holder, fleet-group membership, unique in-group dock, live Coordination, and current repair eligibility. Stale transactions make no repair, event, or receipt writes. The service validates the bound reply and current role, holder, group, host, phase, and dock; the panel preserves eligible selections, waits for current repair quota/cost/inventory projection, and offers an explicit fresh-request/current-CAS retry. Focused callable, resolver, service, panel, selector, root build, and Functions build gates passed. Exact-final Sol xhigh review and full coordination validation passed at main SHA 6c99d41540d3dcafae6efbda3f02ef631a3330f0. The full profile passed lint, the full unit/Functions/rules suite, web and Functions builds, roadmap checks, font consistency, exact-SHA ticker browser smoke, P637 render-performance, and bundle-size checks. Focused rendered review passed at 320x740, 390x844, 1440x900, and 844x390 in full and reduced motion, including configured console font, control usability, no overflow, and return navigation. Successful WIF Deploy workflow 36295604207 on that exact SHA selected Hosting and only repairConsolesFromPhilia, verified a new ready Function revision, and live Hosting build-version.json reports 0.5.43. No ordinary authorized production stale-race exercise has been performed, so Prompt 620 remains partial. The 0.5.44 base Capybara Cargo Transfer follow-on adds eligible, request-bound stale-CAS recovery: after current Captain and transfer eligibility checks, the server returns only request/session/cycle/host/dock/resource/direction/amount and expected/current cargo revisions, with no inventory projection or writes. The client strictly validates the envelope, preserves the draft, waits for a live cargo projection at or above the returned revision, rechecks authority and current capacity/revision headroom, then requires explicit retry with a fresh ID and current CAS; uncertain-transport retry keeps the original ID. Focused callable, service, panel and selector tests passed, along with responsive full/reduced-motion checks at 320x740, 390x844, 1440x900 and 844x390. The full exact-SHA coordination profile passed, and Sol xhigh review approved main SHA a262e4760da7fccf53f0ae5e76dd0d4ea9cdf56c. WIF Deploy workflow [36299309787](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/36299309787) deployed Hosting and only transferBaseCapybaraCargo; deployment verification compared the pre-deploy capture with a distinct latest-ready revision, and the live build-version.json endpoint returned {\"version\":\"0.5.44\"}. No ordinary authorized live stale-race exercise or before/after cargo inventory observation has been performed, so P620 remains partial; P241c also remains partial pending its authorized production transfer and before/after inventory evidence. The 0.5.45 Blacksmith console repair slice returns a minimal request-bound stale envelope only after current actor, fleet-group, holder, unique dock, Coordination, selected-system, resource, quota, fuel, and repair-ledger checks still allow the operation. Stale transactions make no repair, event, or receipt writes. The client validates live session and authority, preserves currently eligible selections, waits for the server projection, and offers an explicit fresh-request/current-CAS retry; focused callable, service, panel, selector, and responsive checks passed. Successful WIF Deploy workflow [36301513495](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/36301513495) on main SHA 4a453b36f80de32ebfba8c86dbe979eae00b19a7 deployed Hosting and only repairConsolesFromBlacksmith; deployment verification compared the pre-deploy capture with a distinct latest-ready revision for that Function, and live Hosting build-version.json reports 0.5.45. No ordinary authorized production stale-race exercise has been performed, so P620 remains partial. The 0.5.46 slice extends recovery to upgradeEndeavourFieldTargets. The server returns a request-bound stale revision and cycle envelope only after the connected active Scientist remains the Endeavour holder with current group and host docking authority, a live Coordination window, eligible targets, and valid current research, materials, quota, fuel, and upgrade state; stale requests write no upgrade, resource, event, or receipt. The client validates request, session, target, and revision bindings, keeps still-eligible selections until current private research and purchase state arrive, then offers explicit retry with a fresh request ID and current revisions; uncertain requests keep their original ID. Focused callable, resolver, service, panel, selector, build, font, and rendered phone, desktop, and short-landscape checks passed in full and reduced motion. Exact-final Sol xhigh review and runtime coordination validation passed on source SHA 713790c65a3c3fbced37ecfe4dee138f60ec4a2c. Successful WIF Deploy workflow [36325647218](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/36325647218) on main SHA 713790c65a3c3fbced37ecfe4dee138f60ec4a2c selected Hosting and only upgradeEndeavourFieldTargets; deployment verification confirmed a new ready revision for that Function. Live Hosting build-version.json reports {\"version\":\"0.5.46\"}. No ordinary authorized live stale-race or purchase evidence has been collected, so Prompt 620 remains partial. The 0.5.47 Endeavour research slice extends stale-CAS recovery to advanceEndeavourResearchTrack. The callable returns a request-bound current cycle/control/research revision envelope only after the active Scientist, holder, group, Team Phase, track, and funding eligibility checks still pass; stale attempts make no research, resource, event, or receipt writes, and exact-ID committed replay keeps the original result. The client preserves the draft, waits for entitled current private workspace and live revisions, and requires explicit retry with a fresh request ID and current CAS; uncertain transport retries keep the original identity, and failed private refresh feedback remains until a valid current-generation workspace read succeeds. Exact-final Sol xhigh review and full coordination validation passed on SHA 590416dd15e952e50a7765ec48eef6f6e54606a9. Successful WIF Deploy workflow [36329541866](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/36329541866) on that exact main SHA selected Hosting and only advanceEndeavourResearchTrack and readEndeavourResearchWorkspace; deployed-surface verification passed the post-deploy ready-revision check for both Functions. Live Hosting build-version.json reports {\"version\":\"0.5.47\"}. No ordinary authorized production stale-race acceptance was collected, so Prompt 620 remains partial. The 0.5.48 Highwall mining slice preserves the printed miner role as control owner while allowing the connected current Highwall holder to mine after live player, holder, group, control, and legal-dock checks pass; this includes an accepted handoff to another Icebreaker role. Stale replies are minimal request-bound envelopes with no private ledger fields, dice, or writes; explicit fresh retries use a new ID and current CAS, and exact authorized replay remains available across cycle and control rollover. Exact-head Sol max review and the full coordination profile passed on source SHA 1fdb6da0602cdd3e3a7dfe5b84f60a3db569553a. Local rendered Chrome checks covered 320x740, 390x844, 1440x900, and 844x390 in full and reduced motion. Successful WIF Deploy workflow [36334002342](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/36334002342) on that exact main SHA selected Hosting and only runHighwallMining for Functions; deployed-surface verification confirmed a distinct new latest-ready revision from the pre-deploy revision. An independent cache-busted live Hosting check reported {\"version\":\"0.5.48\"}. No ordinary authorized production stale-race acceptance has been collected, so Prompt 620 remains partial. The 0.5.49 Hummingbird harvesting slice adds same-cycle request-bound stale replies for rolls and die allocation. The server returns the current private harvest only after rechecking the connected Quellon Explorer, active console role, current fleet-group membership, active Hummingbird host and unique docking, fuel, active gameplay lifecycle, current-cycle phase clock, and Coordination action phase. A stale preflight returns before sampling dice. A roll that loses its later revision check discards the sampled dice; stale roll and allocation attempts write no harvest mutation or request receipt, and stale allocation writes no cargo. Exact committed request replay remains available across a same-cycle action-phase transition. The client validates session, actor, role, host, cycle, revision, and request bindings; older replies cannot replace a newer snapshot; the selected food die is preserved while a newer pending roll arrives; uncertain transport retries retain the original request ID. Older-cycle pending rolls and allocations remain fail-closed because the recovery policy is unresolved. Focused callable, service, component, rules, selector, typecheck, Functions build, and rendered responsive/reduced-motion checks pass on the local candidate. Successful WIF Deploy workflow [36337866063](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/36337866063) on main SHA 272239dd7db12c1fa2be689fbb89ce6aa6725bb2 deployed Hosting and only rollHummingbirdHarvest and allocateHummingbirdHarvest. Both Function updates succeeded, and deployment verification confirmed a distinct new ready revision for each compared with its captured pre-deploy revision. An independent cache-busted Hosting build-version.json check reports {\"version\":\"0.5.49\"}. Older-cycle pending rolls and allocations remain fail-closed while their recovery policy is unresolved. No ordinary authorized production stale-race acceptance has been collected, so Prompt 620 remains partial. The 0.5.50 service-shuttle recharge release adds stale-revision recovery for host-console recharge. The server returns a request-bound stale envelope only for same-cycle revision changes and only after revalidating the current player, shuttle holder, fleet group, unique dock and host, fuel, Coordination phase, completed maintenance, and selected console and production eligibility. Cross-cycle requests without a committed receipt fail closed before exposing recovery state. A same-cycle stale result causes no recharge, production effect, event, or receipt. Exact committed replay verifies the current active player, holder, fleet-group membership, host docking, and request-bound result, then returns the original result without repeating the effect even after a Coordination phase or cycle transition. The client binds replies to session, request, actor, shuttle, host, target, CAS, cycle, and production choices; same-cycle stale recovery preserves the draft and offers an explicit retry with a fresh request ID only after current live revisions and eligibility catch up. Uncertain transport preserves the original request ID for exact receipt replay. Uncommitted old-cycle and otherwise unclear cases remain fail-closed. Local focused callable, service, route, rules, selector, typecheck, build, font, and responsive/reduced-motion checks pass; the rendered stale reply used a locally intercepted fixture. Exact-final-SHA Sol max review and full coordination validation passed on SHA f8703935bf201d8021b8ac0a2749e845ae8d0eb4. Successful WIF Deploy workflow [36345189613](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/36345189613) on that exact main SHA deployed Hosting and only rechargeHostConsoleFromShuttle; the workflow verifier confirmed a distinct newly ready Function revision compared with its pre-deploy capture. An independent cache-busted live Hosting build-version.json check reported {\"version\":\"0.5.50\"}. No ordinary authorized production stale-race acceptance has been collected, so Prompt 620 remains partial.",
-      "evidenceIds": "E-AUDIT-620",
+      "evidenceIds": "E-AUDIT-620;E-PC10-TICKETS-620",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "014;088",
@@ -23444,7 +23780,7 @@
         "title": "Protect private projections comprehensively."
       },
       "description": "Partial: source inspection confirms current loyalty, Wolf, organiser-chart, and mission-hand paths with focused rules/callable tests; a cached private-navigation leak was reproduced and fixed by stripping the projection from new and legacy persisted sessions. The PC01 scout-result transaction now produces private discovery notes, with requester-bound callable reads and focused privacy tests; the earlier no-producer statement is superseded by the 2026-09-28 source audit. Coverage of all hidden rolls/bonuses and ordinary live entitlement paths remains incomplete, so this prompt remains partial.",
-      "evidenceIds": "E-AUDIT-629;E-CHECKPOINT-RECORDING-AUDIT-20260928",
+      "evidenceIds": "E-AUDIT-629;E-CHECKPOINT-RECORDING-AUDIT-20260928;E-PC10-TICKETS-629",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -23467,7 +23803,7 @@
         "title": "Prove server-owned randomness."
       },
       "description": "Planned [PROVE] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-630",
+      "evidenceIds": "E-AUDIT-630;E-PC10-TICKETS-630",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "007;019;428",
@@ -23490,7 +23826,7 @@
         "title": "Rate-limit expensive callables."
       },
       "description": "The existing private per-session/authenticated-UID limiter now also protects the collection scans in confirmSetup (12/min), startGame (6/min), declareWolfAttack (6/min), and runMaintenance (30/min). Completed receipt replays return before charging; attempts that scan and then fail consume budget, while transaction authority, collision, and replay checks remain in place. Bursts are sized for deliberate setup iteration, quick one-time phase corrections, and repeated maintenance actions. Existing resumeSession, getSessionPresence, listGmInstances, and rollDice limits remain. P631 remains partial: platform maxInstances capacity saturation and its operational evidence are still outstanding.",
-      "evidenceIds": "E-631-PRESENCE-COALESCE;E-631-CALLABLE-LIMITS-PARTIAL",
+      "evidenceIds": "E-631-PRESENCE-COALESCE;E-631-CALLABLE-LIMITS-PARTIAL;E-PC10-TICKETS-631",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -23559,7 +23895,7 @@
         "title": "Record security denials privately."
       },
       "description": "Planned [EXTEND] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-634",
+      "evidenceIds": "E-AUDIT-634;E-PC10-TICKETS-634",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "019;630",
@@ -23582,7 +23918,7 @@
         "title": "Standardize action audit records."
       },
       "description": "At main SHA 26baf6c46ce1aeb146fc4c5799a91356116135da, successful WIF Deploy workflow 36259369906 selected Hosting and exactly 10 action-audit consumer Functions, verified a new ready Cloud Run revision for each against pre-deploy captures, and Hosting build-version.json reports 0.5.35. This release adds the server-random `addShipDamage` audit path: metadata is written transactionally with the private damage event and receipt, preserving active-GM authority, retry-stable entropy, and reply behavior. The standardized record excludes action payloads. Bound exact replay validates or backfills the original action, phase, and revision without rerolling; stale attempts and terminal no-ops create no audit; ambiguous legacy no-op receipts remain unaudited; orphaned or mismatched pairs fail closed. GM-authorized clients can query metadata; players cannot read it and clients cannot write it. Focused tests, 37 deployment-target tests, all 130 Firestore rule tests, full coordination validation, exact-SHA WIF deployment, and final Sol xhigh review passed. No live ship-damage action or audit query was invoked. Earlier migrated paths and their individual release evidence remain recorded in E-AUDIT-635, E-635-ACTION-AUDIT-MIGRATION, E-635-FIGHTER-WING-COUNT, and E-635-REPAIR-ALL-SHIP-DAMAGE. Mixed-authority `buildFighter` and player-originated shuttle cargo, service, recharge, and repair paths remain unmigrated, so P635 remains partial.",
-      "evidenceIds": "E-AUDIT-635;E-635-ACTION-AUDIT-MIGRATION;E-635-FIGHTER-WING-COUNT;E-635-REPAIR-ALL-SHIP-DAMAGE;E-635-ADD-SHIP-DAMAGE",
+      "evidenceIds": "E-AUDIT-635;E-635-ACTION-AUDIT-MIGRATION;E-635-FIGHTER-WING-COUNT;E-635-REPAIR-ALL-SHIP-DAMAGE;E-635-ADD-SHIP-DAMAGE;E-PC10-TICKETS-635",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "007;019;167",
@@ -23720,7 +24056,7 @@
         "title": "Run a complete base-game playthrough."
       },
       "description": "Planned [PROVE] one-GM complete base playthrough followed by optional multi-GM mutation races.",
-      "evidenceIds": "E-AUDIT-641",
+      "evidenceIds": "E-AUDIT-641;E-PC10-TICKETS-641",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "159;320;422;524;540",
@@ -23743,7 +24079,7 @@
         "title": "Run a complete Capybara playthrough."
       },
       "description": "Planned [PROVE] one-GM complete Capybara playthrough with optional independent Press and multi-GM race proof.",
-      "evidenceIds": "E-AUDIT-642",
+      "evidenceIds": "E-AUDIT-642;E-PC10-TICKETS-642",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "584",
@@ -23866,7 +24202,7 @@
         "title": "Prove Ancient Jump Ring success."
       },
       "description": "Planned [PROVE] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-647",
+      "evidenceIds": "E-AUDIT-647;E-PC10-TICKETS-647",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "548;559",
@@ -23889,7 +24225,7 @@
         "title": "Prove Deep Nebula success and loss."
       },
       "description": "Planned [PROVE] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-648",
+      "evidenceIds": "E-AUDIT-648;E-PC10-TICKETS-648",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "554",
@@ -23912,7 +24248,7 @@
         "title": "Prove Ancient Space Station success."
       },
       "description": "Planned [PROVE] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-649",
+      "evidenceIds": "E-AUDIT-649;E-PC10-TICKETS-649",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "559",
@@ -23935,7 +24271,7 @@
         "title": "Prove authoritative terminal failure and recovery paths."
       },
       "description": "Planned [PROVE] prompt: authoritative pursuit/outcome must drive terminal failure; current client presentation cannot freeze or end play.",
-      "evidenceIds": "E-AUDIT-650",
+      "evidenceIds": "E-AUDIT-650;E-PC10-TICKETS-650",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "560;565;621;622;140c;136;514",
@@ -23958,7 +24294,7 @@
         "title": "Run the final release-readiness audit."
       },
       "description": "Planned [PROVE] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-651",
+      "evidenceIds": "E-AUDIT-651;E-PC10-TICKETS-651",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "641-650",
