@@ -113,3 +113,43 @@ was discarded without import/export; no per-UID deletion claim is made.
 | `failure.json` | `a034f67d0fb5120188bd6b2250b6f275b0cbfb79f97e50d98a04c6f9fbde3715` |
 | `role-affordances.json` | `cc17fbc23ff6687da10d5be5cda5da5ab9cd7783d748ac7bccc019f18cbce062` |
 | runtime `strict-return.json` | `b4464e78a2413c5b03cd5060cb796db9ce656c67689200d32d0313bd3743b598` |
+
+
+## Base a2 — Admiral directive passed, Red Alert consumer stopped
+
+Source `ca1314943ba92d3d8b9a89a801e1ddbc3f622e93`, fresh project
+`demo-pc10-base-f9f3-20261016-a2`, evidence
+`/private/tmp/pc10-base-proof-f9f3-20261016-a2`.
+
+The same bounded eighteen-core-role, six-ship setup ran afresh, with twenty
+real Auth accounts, two Chrome contexts, zero humans and no Press. Normal
+admission, private setup, manual Cycle 1 start, eighteen role surfaces and
+private briefs passed. The disclosed ordinary GM supply budget was applied
+through visible resource controls. It is not resource-acquisition evidence.
+
+The repaired Fleet directives navigation reached the real Admiral policy
+control and `publishAdmiralDirectiveCommand` returned HTTP 200 for the
+captured action and retry observations. The next required branch stopped at
+`admiral-red-alert-control-not-mounted`. The helper checked immediate
+visibility after selecting the already-held Admiral station. Its final
+server-fresh original actor observation had the Admiral role route and
+active-console identity, while the failure screenshot still displayed the
+station chooser. That is a route/render-readiness hypothesis to reproduce
+before repair, not an established missing product control. No live wait,
+label, state or outcome was changed to continue the failed run.
+
+No paid maintenance, combat, mission or ending was reached. No whole P641,
+role-function, recovery or release acceptance is claimed. Source and
+presentation bindings remained unchanged; page errors and remote requests
+were empty. The compiled index remains the `e46ad04f...` value above.
+
+Acquisition was 06:12:22.755 UTC; physical return was 06:20:58.426 UTC,
+before the original 07:37:22.755 bound. All 67 captured owned PIDs were
+absent, all 22 bindings were free, and the exact owned configuration was
+released. RAM was discarded without import/export or per-UID deletion claim.
+
+| Base a2 artifact | SHA-256 |
+| --- | --- |
+| `failure.json` | `a5ee6ab45554becc4c3c7d91e875f1939bef7097f6aa91a0658705f7353a3662` |
+| `role-affordances.json` | `735749bf5ba7aa40928826b56c628e5fecb654a7c6758bb503ebe99b2736456b` |
+| `runtime strict-return.json` | `3eeb1ce9dc070b628f5b5e6579ef40bc6f0a221231eb40aed4fbe56ac6634f55` |
