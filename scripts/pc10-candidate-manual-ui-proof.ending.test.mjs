@@ -20,7 +20,7 @@ function endingFixture({ status = 200 } = {}) {
         : { error: { status: 'permission-denied', message: 'Private callable detail' } };
     } };
   const dialog = { waitFor: async () => {}, getByText: (text, options) => ({ waitFor: async () => {
-    assert.equal(text, 'Server result // success // Cycle 4');
+    assert.equal(text, 'Server result // Success // Cycle 4');
     assert.deepEqual(options, { exact: true });
     assert.equal(responseBodyRead, true, 'The real entitled server response must be validated before rendered readiness is credited.');
   } }) };
