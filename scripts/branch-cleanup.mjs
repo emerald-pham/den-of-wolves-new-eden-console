@@ -137,6 +137,20 @@ function parseWorktreeList(output) {
   }).filter((record) => record.path);
 }
 
+async function branchWorktreeReason(root, branch, { allowCurrentWorktree = false } = {}) {
+  const worktrees = parseWorktreeList(await run('git', ['worktree', 'list', '--porcelain'], { cwd: root }));
+  for (const worktree of worktrees) {
+    if (worktree.branch !== `refs/heads/${branch}`) continue;
+    const worktreeRoot = await canonicalPath(worktree.path);
+    if (allowCurrentWorktree && worktreeRoot === root && await currentBranch(root) === branch) continue;
+    return {
+      code: 'branch-in-other-worktree',
+      message: `The branch ${branch} is still attached to a Git checkout at ${worktree.path}${worktree.prunable ? ' (missing path)' : ''}.`,
+    };
+  }
+  return null;
+}
+
 async function repositoryIdentityAt(path) {
   try {
     const gitDirectory = await run('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: path });
@@ -239,7 +253,7 @@ async function pullRequestReason(root, branch) {
   }
 }
 
-async function inspectCandidate(report, context) {
+async function inspectCandidate(report, context, { allowCurrentWorktree = true } = {}) {
   const { root, identity, branch, coordinationFile } = context;
   try {
     const local = await branchSha(root, branch);
@@ -289,18 +303,8 @@ async function inspectCandidate(report, context) {
       return { reason: { code: 'branch-not-merged', message: `The tip of ${branch} is not an ancestor of freshly fetched origin/main.` } };
     }
 
-    const worktrees = parseWorktreeList(await run('git', ['worktree', 'list', '--porcelain'], { cwd: root }));
-    for (const worktree of worktrees) {
-      if (worktree.branch !== `refs/heads/${branch}`) continue;
-      if (await canonicalPath(worktree.path) !== root) {
-        return {
-          reason: {
-            code: 'branch-in-other-worktree',
-            message: `The branch ${branch} is registered in another Git checkout at ${worktree.path}${worktree.prunable ? ' (missing path)' : ''}.`,
-          },
-        };
-      }
-    }
+    const worktreeReason = await branchWorktreeReason(root, branch, { allowCurrentWorktree });
+    if (worktreeReason) return { reason: worktreeReason };
 
     const ownership = await coordinationReason({ coordinationFile, root, identity, branch });
     if (ownership) return { reason: ownership };
@@ -537,7 +541,7 @@ export async function cleanupBranch({
     }
   }
 
-  const finalInspection = await inspectCandidate(report, context);
+  const finalInspection = await inspectCandidate(report, context, { allowCurrentWorktree: false });
   if (finalInspection.unchanged) {
     report.decision = 'unchanged';
     report.reasons.push({ code: 'already-absent', message: `The local and origin refs for ${targetBranch} are already absent.` });
@@ -596,17 +600,11 @@ export async function cleanupBranch({
 
   const ownership = await coordinationReason({ coordinationFile: coordinationPath, root, identity, branch: targetBranch });
   if (ownership) return addReason(report, ownership.code, ownership.message);
-  let latestWorktrees;
   try {
-    latestWorktrees = parseWorktreeList(await run('git', ['worktree', 'list', '--porcelain'], { cwd: root }));
+    const attached = await branchWorktreeReason(root, targetBranch);
+    if (attached) return addReason(report, attached.code, attached.message);
   } catch (error) {
     return addReason(report, 'worktree-metadata-unavailable', `Git worktree registration could not be rechecked: ${error.message}`);
-  }
-  for (const worktree of latestWorktrees) {
-    if (worktree.branch !== `refs/heads/${targetBranch}`) continue;
-    if (await canonicalPath(worktree.path) !== root) {
-      return addReason(report, 'branch-in-other-worktree', `The branch ${targetBranch} became registered in another worktree during cleanup.`);
-    }
   }
 
   const finalLocalSha = await branchSha(root, targetBranch).catch(() => null);
@@ -615,6 +613,8 @@ export async function cleanupBranch({
   }
 
   try {
+    const attached = await branchWorktreeReason(root, targetBranch);
+    if (attached) return addReason(report, attached.code, attached.message);
     await run('git', ['update-ref', '-d', `refs/heads/${targetBranch}`, inspected.local], { cwd: root });
     report.actions.localBranchRemoved = true;
   } catch (error) {
