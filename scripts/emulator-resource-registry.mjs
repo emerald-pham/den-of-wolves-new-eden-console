@@ -1341,7 +1341,19 @@ async function main() {
   if (command === 'release-land') { console.log(JSON.stringify(await finalizeReleaseFragment(lanePath, { ...options, coordinationEntryId: options['task-id'] ?? options.id, coordinationFilePath: filePath }), null, 2)); return; }
   if (command === 'amend') { const entry = await amendCoordinationEntry(filePath, options); console.log(`Amended coordination entry ${entry.id}.`); return; }
   if (command === 'validate') { const entry = await validateCoordinationEntry(filePath, options); console.log(entry.validationReused ? `Reused passing validation for ${entry.id}.` : `Validated coordination entry ${entry.id}.`); return; }
-  if (command === 'finish') { const entry = await finishCoordinationEntry(filePath, options); console.log(`Completed coordination entry ${entry.id}.`); return; }
+  if (command === 'finish') {
+    const entry = await finishCoordinationEntry(filePath, options);
+    console.log(`Completed coordination entry ${entry.id}.`);
+    if (entry.outcome === 'landed') {
+      const { cleanupBranch } = await import('./branch-cleanup.mjs');
+      const cleanup = await cleanupBranch({
+        cwd: process.cwd(), branch: entry.finalBranchName, apply: true,
+        coordinationFile: filePath, artifactDirectory: options['artifact-dir'],
+      });
+      console.log(JSON.stringify(cleanup, null, 2));
+    }
+    return;
+  }
   throw new Error('usage: node scripts/emulator-resource-registry.mjs <status|begin|park|resume|forecast|claim|heartbeat|release-claim|lease-status|release-prepare|release-land|amend|validate|finish> [options]');
 }
 
