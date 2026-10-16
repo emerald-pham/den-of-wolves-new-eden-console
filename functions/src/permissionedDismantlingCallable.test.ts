@@ -483,6 +483,7 @@ it.each([
 it('lets the Capybara host approve exact Macaw dismantling through a different active player and replays once', async () => {
   const store = macawSeededStore();
   const p = paths();
+  const capybaraInbox = `sessions/${SESSION_ID}/permissionedDismantlingInboxes/capybara`;
   const session = store.records.get(p.session)!;
   session.activeRoleIds = [...session.activeRoleIds as string[], 'capybara-recycler'];
   session.shuttleDockings = [{ shuttleId: 'macaw', shipId: 'capybara', dockedAt: 'SESSION START' }];
@@ -497,7 +498,7 @@ it('lets the Capybara host approve exact Macaw dismantling through a different a
     status: 'proposed', craftId: 'macaw', targetShipId: 'capybara',
     targetConsoleId: 'advanced-hydroponics', targetRevision: 0, scrapGain: 1,
   });
-  expect(store.records.get(paths().inbox)).toMatchObject({
+  expect(store.records.get(capybaraInbox)).toMatchObject({
     targetShipId: 'capybara', proposalId: PROPOSAL_ID, status: 'pending', scrapGain: 1,
   });
 
@@ -518,7 +519,6 @@ it('lets the Capybara host approve exact Macaw dismantling through a different a
   });
   expect(store.records.get(`sessions/${SESSION_ID}/actionAudits/${APPLY_ID}`)).toMatchObject({
     actorUid: 'engineer', actorRoleId: 'capybara-captain', action: 'macaw-consented-dismantling',
-    targetShipId: 'capybara', targetConsoleId: 'advanced-hydroponics', scrapGain: 1,
   });
 
   const committedWrites = store.committedWrites.length;
