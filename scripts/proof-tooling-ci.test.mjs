@@ -22,10 +22,12 @@ test('the exact-head unit risk flag installs Playwright Chromium and runs the bo
   ]);
   assert.equal(profile.unit, true);
 
-  const installName = ci.indexOf('- name: Install Chromium for proof-tool browser smoke');
+  const installName = ci.indexOf('- name: Install Playwright Chromium for proof-tool browser smoke');
   const browserName = ci.indexOf('- name: Fleetwide Red Alert selector browser smoke');
-  assert.ok(installName >= 0 && browserName > installName, 'Chromium setup must precede the proof smoke');
-  assert.match(ci.slice(installName, browserName), /if: steps\.change_scope\.outputs\.unit == 'true'/);
+  const typographyInstallName = ci.indexOf('- name: Install rendered typography browser');
+  assert.ok(installName >= 0 && browserName > typographyInstallName && typographyInstallName > installName,
+    'the proof smoke must follow an available Playwright Chromium installation');
+  assert.match(ci.slice(installName, browserName), /if: steps\.change_scope\.outputs\.unit == 'true' && steps\.change_scope\.outputs\.typography != 'true'/);
   assert.match(ci.slice(installName, browserName), /npx playwright install --with-deps chromium/);
   assert.match(ci.slice(browserName), /if: steps\.change_scope\.outputs\.unit == 'true'[\s\S]*?npm run test:proof-redalert-browser/);
 });
