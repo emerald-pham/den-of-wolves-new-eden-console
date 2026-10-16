@@ -3,6 +3,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { readFileSync } from 'node:fs';
 import CandidatePreparationPanel from './CandidatePreparationPanel';
+import type { CandidatePathView } from '@/lib/candidateService';
 import { useSessionStore } from '@/store/useSessionStore';
 
 const service = vi.hoisted(() => ({ read: vi.fn(), execute: vi.fn(), create: vi.fn(), recover: vi.fn(), grant: vi.fn(), edition: vi.fn() }));
@@ -10,7 +11,7 @@ vi.mock('@/lib/sessionService', () => ({ setGmShipConsoleWriteGrant: service.gra
 vi.mock('@/lib/candidateService', () => ({ readCandidateWorkspace: service.read, executeCandidateAttempt: service.execute,
   createCandidateAttempt: service.create, recoverCandidateAttempt: service.recover,
   selectCandidateEdition: service.edition }));
-const path = (code: 'N' | 'O' | 'P', edition: 'home' | 'deluxe' = 'home') => ({ code, coordinate: code === 'N' ? '6798' : code === 'O' ? '0408' : '4888',
+const path = (code: 'N' | 'O' | 'P', edition: 'home' | 'deluxe' = 'home'): CandidatePathView => ({ code, coordinate: code === 'N' ? '6798' : code === 'O' ? '0408' : '4888',
   title: code === 'N' ? 'Ancient Jump Ring' : code === 'O' ? 'Deep Nebula' : 'Ancient Space Station',
   blockers: code === 'N' ? ['Contribute 10 materials.'] : [], nextActor: 'Each ship crew chooses its next action.',
   materials: 0, materialsRequired: edition === 'deluxe' ? 15 : 10, researchCount: 0, researchRequired: 5, shuttleCommitted: false,
