@@ -125,6 +125,17 @@ the original assumption; append the resolution so the decision is traceable.
 | Product effect | Prompt 385's accepted action is source-limited to an eligible console and exact printed cost. The allowlisted inbox is readable only by the current target-ship player and original proposer, cannot be listed or client-written, and exposes only the decision status and consent ID needed by those players—not the private consent record or raw damage/resource state. Tests cover wrong ship, inactive or self authority, missing/revoked/declined or stale consent, duplicate/replay, insufficient resources, and atomic no-change failures. |
 | Review state | New under explicit PC06 authorization. The consent lifetime, decline/revoke choices, single-open-request rule, and inbox audience are digital product decisions recorded here, not printed timing or authority rules. |
 
+### PC10-C1 — Permit Macaw dismantling on its Capybara host with distinct-player consent
+
+| Field | Record |
+|---|---|
+| ID and checkpoint | PC10-C1, P576; bounded repair of the existing Macaw dismantling action. |
+| Source passage | Capybara Expansion v1.1, Base A4 card pack, printed p. 4 (Macaw and Boa shuttle rules), with the Capybara A3 ship sheet, printed p. 1, defining the target console. The printed Macaw rule allows a target console to be damaged for one Scrap with permission from at least one player on that target ship; these pages do not exclude the Capybara host as a target. |
+| Ambiguity and alternatives | The print source does not spell out digital consent mechanics or state a separate exception for the host ship. Allowing the Macaw holder to approve their own host-target proposal would violate the existing target-player consent boundary. |
+| Chosen reading | Apply PC06-A7's existing digital consent policy: a different active player assigned to the target ship must approve this exact host-target request. The Macaw holder remains ineligible to approve it; the consent remains bound to the current target and craft-control revisions and applies once atomically. This is a source-backed digital implementation assumption, not additional wording printed on the Capybara cards. |
+| Product effect | A Macaw holder may request one-Scrap dismantling on the Capybara host; the current host player approves or declines, and only the proposer may apply a live approval. |
+| Review state | Accepted under standing source-backed ambiguity authority. The private routed source copies were checked at A4 p. 4 and A3 p. 1; no private source text is reproduced here. |
+
 ### PC06-A8 — Limit two-system mission rewards to knowledge, not travel
 
 | Field | Record |

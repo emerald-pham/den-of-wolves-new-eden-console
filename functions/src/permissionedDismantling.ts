@@ -81,9 +81,6 @@ function requireProposal(value: unknown): PermissionedDismantlingProposal {
     throw new Error('Permissioned dismantling proposal is malformed or outside its printed craft and material rules.');
   }
   if (value.craftId === MACAW_SCRAP_DISMANTLING_CRAFT_ID) {
-    if (value.targetShipId === 'capybara') {
-      throw new Error('The Macaw-to-Capybara self-target requires a facilitator ruling before it can be enabled.');
-    }
     if (value.scrapGain !== MACAW_CONSENTED_DISMANTLING_SCRAP_GAIN) {
       throw new Error('Macaw dismantling has a fixed one-Scrap gain.');
     }

@@ -417,9 +417,6 @@ function requireProposalCommand(value: unknown): ProposalCommand {
   if (!isResourceShipId(targetShipId) || !Object.hasOwn(SHIP_DAMAGE_DECKS, targetShipId)) {
     return invalid('The target ship is invalid for permissioned dismantling.');
   }
-  if (craftId === MACAW_SCRAP_DISMANTLING_CRAFT_ID && targetShipId === 'capybara') {
-    return invalid('The Macaw-to-Capybara self-target requires a facilitator ruling before it can be enabled.');
-  }
   return {
     sessionId,
     proposalId,
@@ -881,7 +878,6 @@ function applyReply(value: unknown): PermissionedDismantlingApplyReply {
       typeof value.targetConsoleId !== 'string' || !ID_PATTERN.test(value.targetConsoleId) ||
       !Number.isSafeInteger(value.targetRevision) || (value.targetRevision as number) < 1 ||
       !rewardFieldIsValid(value, craftId) ||
-      (scrapReply && value.targetShipId === 'capybara') ||
       !Number.isSafeInteger(value[afterKey]) || (value[afterKey] as number) < 0) {
     precondition('The stored permissioned-dismantling result is malformed.');
   }
@@ -920,7 +916,6 @@ function parseDismantlingInbox(
       typeof value.targetConsoleId !== 'string' || !ID_PATTERN.test(value.targetConsoleId) ||
       !Number.isSafeInteger(value.targetRevision) || (value.targetRevision as number) < 0 ||
       !rewardFieldIsValid(value, value.craftId) ||
-      (isMacawScrapProposal({ craftId: value.craftId }) && targetShipId === 'capybara') ||
       !['pending', 'consented', 'declined', 'revoked', 'applied'].includes(String(value.status)) ||
       (value.consentId !== null &&
         (typeof value.consentId !== 'string' || !ID_PATTERN.test(value.consentId))) ||
