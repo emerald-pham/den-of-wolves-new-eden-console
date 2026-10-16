@@ -198,3 +198,272 @@ test('preview is read-only and apply removes only a merged branch after verified
     await fixture.dispose();
   }
 });
+
+test('unique tips, default branches, and local/remote tip mismatches are retained', async () => {
+  const fixture = await createBranchCleanupFixture({ merge: false });
+  try {
+    const branchTip = await fixture.localSha();
+    const unique = await fixture.cleanup();
+    expectReason(unique, 'branch-not-merged');
+    assert.equal(unique.local.sha, branchTip);
+    assert.equal(await fixture.localSha(), branchTip);
+    assert.equal(await fixture.remoteSha(), branchTip);
+
+    const main = await fixture.cleanup({ branch: 'main' });
+    expectReason(main, 'protected-default-branch');
+    assert.equal(await fixture.runGit(['rev-parse', 'refs/heads/main']), main.local.sha);
+  } finally {
+    await fixture.dispose();
+  }
+
+  const mismatched = await createBranchCleanupFixture();
+  try {
+    const localTip = await mismatched.localSha();
+    const remoteTip = await createUniqueCommit(mismatched);
+    await execFileAsync('git', ['--git-dir', mismatched.origin, 'update-ref', `refs/heads/${mismatched.branchName}`, remoteTip]);
+    const report = await mismatched.cleanup({ apply: true });
+    expectReason(report, 'local-remote-tip-mismatch');
+    assert.equal(report.local.sha, localTip);
+    assert.equal(report.remote.sha, remoteTip);
+    assert.equal(await mismatched.localSha(), localTip);
+    assert.equal(await mismatched.remoteSha(), remoteTip);
+  } finally {
+    await mismatched.dispose();
+  }
+});
+
+test('active or parked ownership retains the branch, while another repository is ignored', async () => {
+  const fixture = await createBranchCleanupFixture();
+  try {
+    const branchTip = await fixture.localSha();
+    await fixture.writeCoordination({ entries: [{
+      id: 'foreign-entry',
+      status: 'active',
+      branchName: fixture.branchName,
+      worktree: join(fixture.root, 'foreign-missing-checkout'),
+      repositoryIdentity: join(fixture.root, 'foreign.git'),
+    }] });
+    assert.equal((await fixture.cleanup()).decision, 'would-remove');
+
+    const repositoryIdentity = await fixture.runGit(['rev-parse', '--path-format=absolute', '--git-common-dir']);
+    for (const status of ['active', 'parked']) {
+      await fixture.writeCoordination({ entries: [{
+        id: `${status}-owner`,
+        status,
+        branchName: fixture.branchName,
+        worktree: join(fixture.root, `${status}-missing-checkout`),
+        repositoryIdentity,
+      }] });
+      const report = await fixture.cleanup({ apply: true });
+      expectReason(report, 'coordination-ownership');
+      assert.equal(await fixture.localSha(), branchTip);
+      assert.equal(await fixture.remoteSha(), branchTip);
+    }
+  } finally {
+    await fixture.dispose();
+  }
+});
+
+test('a reserved or configured current checkout is retained', async () => {
+  const fixture = await createBranchCleanupFixture({ currentBranch: 'target' });
+  try {
+    const branchTip = await fixture.localSha();
+    await fixture.writeCoordination({
+      reservations: [{ worktree: fixture.repo, pid: 321 }],
+      configurations: [{ worktree: fixture.repo, slot: 2 }],
+    });
+    const report = await fixture.cleanup({ apply: true });
+    expectReason(report, 'checkout-in-use');
+    assert.equal(await fixture.localSha(), branchTip);
+    assert.equal(await fixture.remoteSha(), branchTip);
+    assert.equal(await fixture.runGit(['branch', '--show-current']), fixture.branchName);
+  } finally {
+    await fixture.dispose();
+  }
+});
+
+test('open pull requests and unavailable GitHub metadata retain the branch', async () => {
+  const fixture = await createBranchCleanupFixture();
+  try {
+    const branchTip = await fixture.localSha();
+    const openPr = await fixture.withFakeGh({
+      response: JSON.stringify([{ number: 44, headRefName: fixture.branchName, headRefOid: branchTip }]),
+    }, () => fixture.cleanup({ apply: true }));
+    expectReason(openPr, 'open-pull-request');
+    assert.equal(await fixture.localSha(), branchTip);
+    assert.equal(await fixture.remoteSha(), branchTip);
+
+    const unavailable = await fixture.withFakeGh({ fail: true }, () => fixture.cleanup({ apply: true }));
+    expectReason(unavailable, 'pull-request-metadata-unavailable');
+    assert.equal(await fixture.localSha(), branchTip);
+    assert.equal(await fixture.remoteSha(), branchTip);
+  } finally {
+    await fixture.dispose();
+  }
+});
+
+test('another registered checkout retains the branch, including a missing worktree path', async () => {
+  const fixture = await createBranchCleanupFixture();
+  const alternateCheckout = join(fixture.root, 'alternate-checkout');
+  try {
+    await fixture.runGit(['worktree', 'add', alternateCheckout, fixture.branchName]);
+    const attached = await fixture.cleanup({ apply: true });
+    expectReason(attached, 'branch-in-other-worktree');
+    assert.equal(await fixture.localSha(), attached.local.sha);
+    assert.equal(await fixture.remoteSha(), attached.remote.sha);
+
+    await rm(alternateCheckout, { recursive: true, force: true });
+    const missing = await fixture.cleanup({ apply: true });
+    expectReason(missing, 'branch-in-other-worktree');
+    assert.match(await fixture.runGit(['worktree', 'list', '--porcelain']), /prunable/);
+    assert.equal(await fixture.localSha(), missing.local.sha);
+  } finally {
+    await fixture.dispose();
+  }
+});
+
+test('current checkout detaches at the fetched default tip and preserves ignored files', async () => {
+  const fixture = await createBranchCleanupFixture({ currentBranch: 'target' });
+  try {
+    await mkdir(join(fixture.repo, 'local-data'), { recursive: true });
+    const ignoredFile = join(fixture.repo, 'local-data', 'private-cache.txt');
+    await writeFile(ignoredFile, 'keep this ignored file\n');
+    const expectedDefaultSha = await fixture.runGit(['rev-parse', 'refs/remotes/origin/main']);
+    const report = await fixture.cleanup({ apply: true });
+    assert.equal(report.decision, 'removed');
+    assert.equal(report.actions.detached, true);
+    assert.equal(await fixture.runGit(['rev-parse', 'HEAD']), expectedDefaultSha);
+    assert.equal(await fixture.runGit(['branch', '--show-current']), '');
+    assert.equal(await readFile(ignoredFile, 'utf8'), 'keep this ignored file\n');
+    assert.equal(await fixture.localSha().catch(() => null), null);
+    assert.equal(await fixture.remoteSha(), null);
+  } finally {
+    await fixture.dispose();
+  }
+});
+
+test('a tracked destination cannot overwrite ignored data during detach', async () => {
+  const fixture = await createBranchCleanupFixture({ currentBranch: 'target', mainCollision: true });
+  try {
+    const branchTip = await fixture.localSha();
+    const ignoredFile = join(fixture.repo, 'local-data', 'cache.txt');
+    await writeFile(ignoredFile, 'user-only ignored data\n');
+    const report = await fixture.cleanup({ apply: true });
+    expectReason(report, 'checkout-change-blocked');
+    assert.equal(await readFile(ignoredFile, 'utf8'), 'user-only ignored data\n');
+    assert.equal(await fixture.localSha(), branchTip);
+    assert.equal(await fixture.remoteSha(), branchTip);
+    assert.equal(await fixture.runGit(['branch', '--show-current']), fixture.branchName);
+  } finally {
+    await fixture.dispose();
+  }
+});
+
+test('dirty tracked or untracked target checkouts are retained', async () => {
+  const fixture = await createBranchCleanupFixture({ currentBranch: 'target' });
+  try {
+    const branchTip = await fixture.localSha();
+    await writeFile(join(fixture.repo, 'untracked.txt'), 'keep untracked data\n');
+    const report = await fixture.cleanup({ apply: true });
+    expectReason(report, 'checkout-not-clean');
+    assert.equal(await fixture.localSha(), branchTip);
+    assert.equal(await fixture.remoteSha(), branchTip);
+    assert.equal(await readFile(join(fixture.repo, 'untracked.txt'), 'utf8'), 'keep untracked data\n');
+  } finally {
+    await fixture.dispose();
+  }
+});
+
+test('recovery artifacts inside the worktree are rejected before mutation', async () => {
+  const fixture = await createBranchCleanupFixture();
+  try {
+    const localTip = await fixture.localSha();
+    const report = await fixture.cleanup({ apply: true, artifactDirectory: join(fixture.repo, 'recovery') });
+    expectReason(report, 'recovery-directory-inside-worktree');
+    assert.equal(await fixture.localSha(), localTip);
+    assert.equal(await fixture.remoteSha(), localTip);
+  } finally {
+    await fixture.dispose();
+  }
+});
+
+async function installPrePushRace(fixture, { kind, raceSha }) {
+  const hooksPath = join(fixture.root, 'hooks');
+  await mkdir(hooksPath);
+  await fixture.runGit(['config', 'core.hooksPath', hooksPath]);
+  const hook = [
+    '#!/bin/sh',
+    'if [ "${BRANCH_CLEANUP_RACE_KIND:-}" = "remote" ]; then',
+    '  git --git-dir="$BRANCH_CLEANUP_RACE_ORIGIN" update-ref "$BRANCH_CLEANUP_RACE_REF" "$BRANCH_CLEANUP_RACE_SHA"',
+    'elif [ "${BRANCH_CLEANUP_RACE_KIND:-}" = "local" ]; then',
+    '  git -C "$BRANCH_CLEANUP_RACE_REPO" update-ref "$BRANCH_CLEANUP_RACE_REF" "$BRANCH_CLEANUP_RACE_SHA"',
+    'fi',
+    'exit 0',
+  ].join('\n') + '\n';
+  await writeFile(join(hooksPath, 'pre-push'), hook);
+  await chmod(join(hooksPath, 'pre-push'), 0o700);
+  const prior = {
+    kind: process.env.BRANCH_CLEANUP_RACE_KIND,
+    origin: process.env.BRANCH_CLEANUP_RACE_ORIGIN,
+    repo: process.env.BRANCH_CLEANUP_RACE_REPO,
+    ref: process.env.BRANCH_CLEANUP_RACE_REF,
+    sha: process.env.BRANCH_CLEANUP_RACE_SHA,
+  };
+  process.env.BRANCH_CLEANUP_RACE_KIND = kind;
+  process.env.BRANCH_CLEANUP_RACE_ORIGIN = fixture.origin;
+  process.env.BRANCH_CLEANUP_RACE_REPO = fixture.repo;
+  process.env.BRANCH_CLEANUP_RACE_REF = `refs/heads/${fixture.branchName}`;
+  process.env.BRANCH_CLEANUP_RACE_SHA = raceSha;
+  return () => {
+    for (const [key, value] of Object.entries({
+      BRANCH_CLEANUP_RACE_KIND: prior.kind,
+      BRANCH_CLEANUP_RACE_ORIGIN: prior.origin,
+      BRANCH_CLEANUP_RACE_REPO: prior.repo,
+      BRANCH_CLEANUP_RACE_REF: prior.ref,
+      BRANCH_CLEANUP_RACE_SHA: prior.sha,
+    })) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  };
+}
+
+test('remote SHA lease rejects a branch that changes during deletion', async () => {
+  const fixture = await createBranchCleanupFixture();
+  let restoreRace;
+  try {
+    const localTip = await fixture.localSha();
+    const raceSha = await createUniqueCommit(fixture);
+    restoreRace = await installPrePushRace(fixture, { kind: 'remote', raceSha });
+    const report = await fixture.cleanup({ apply: true });
+    expectReason(report, 'remote-tip-changed');
+    assert.equal(report.actions.remoteBranchRemoved, false);
+    assert.equal(report.actions.localBranchRemoved, false);
+    assert.equal(await fixture.localSha(), localTip);
+    assert.equal(await fixture.remoteSha(), raceSha);
+  } finally {
+    restoreRace?.();
+    await fixture.dispose();
+  }
+});
+
+test('local tip is rechecked after the leased remote deletion', async () => {
+  const fixture = await createBranchCleanupFixture();
+  let restoreRace;
+  try {
+    const originalTip = await fixture.localSha();
+    const raceSha = await createUniqueCommit(fixture);
+    restoreRace = await installPrePushRace(fixture, { kind: 'local', raceSha });
+    const report = await fixture.cleanup({ apply: true });
+    expectReason(report, 'local-tip-changed');
+    assert.equal(report.actions.remoteBranchRemoved, true);
+    assert.equal(report.actions.localBranchRemoved, false);
+    assert.equal(await fixture.localSha(), raceSha);
+    assert.equal(await fixture.remoteSha(), null);
+    assert.equal(report.recovery.bundleSha256, await fileSha(report.recovery.bundlePath));
+    assert.notEqual(originalTip, raceSha);
+  } finally {
+    restoreRace?.();
+    await fixture.dispose();
+  }
+});
