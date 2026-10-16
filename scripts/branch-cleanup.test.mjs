@@ -354,6 +354,19 @@ test('same-origin clone owners and unresolved owner origins retain the shared br
       assert.equal(await fixture.remoteSha(), remoteTip);
     }
 
+    await fixture.writeCoordination({ entries: [{
+      id: 'same-origin-complete-checkout',
+      status: 'complete',
+      branchName: fixture.branchName,
+      worktree: sharedClone,
+      repositoryRoot: sharedClone,
+      repositoryIdentity: cloneIdentity,
+    }] });
+    const completedCheckout = await fixture.cleanup({ apply: true });
+    expectReason(completedCheckout, 'branch-in-other-worktree');
+    assert.equal(await fixture.localSha(), localTip);
+    assert.equal(await fixture.remoteSha(), remoteTip);
+
     const githubHttpsOrigin = 'https://github.com/example/den-of-wolves.git';
     const githubSshOrigin = 'git@github.com:Example/Den-of-Wolves.git';
     const localOriginUrl = `file://${fixture.origin}`;
