@@ -1597,3 +1597,19 @@ the change. RED/GREEN logs are retained outside Git under
 `/tmp/pc10-implementation-notes-20261015/refinery-ftl-{red,green}.log`.
 This is current domain/projection evidence, not a normal authenticated launch,
 whole role acceptance or deployment proof. Independent risk review remains.
+
+## Privacy frontier assignment
+
+A separate Luna Max worker owns Q1/Q2/Q3 verification and bounded repairs in
+`/tmp/dow-pc10-privacy-resume-f9f3`, branch `pc10/privacy-resume-f9f3`, based on
+integration `2f0656ea`. Scope is loyalty/Wolf/notes, organiser-chart navigation,
+and mission hands/hidden outcomes through existing projection and Firestore
+rules boundaries. It may claim one free shared emulator row atomically for
+Rules checks against a fresh local demo namespace only; no browsers, production
+services, old recovery namespaces or another task's row. Root acknowledges this
+specific Rules-only allocation. It returns the exact Rules/projection evidence
+and remaining ordinary-workflow gaps, with any functional repair requiring
+observed RED and a separate test-first commit. It does not change unrelated
+callables, campaign accounting, release metadata or owner decisions. Root
+remains responsible for the final reconciled privacy review and whole prompt
+closure; fixture-based Rules proof is labeled separately from normal gameplay.
