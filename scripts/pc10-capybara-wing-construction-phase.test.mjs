@@ -111,3 +111,10 @@ for (const [name, input] of [
   assert.equal(result.outcomes.find(row => row.id === 'wing-construction').status, 'pending');
   assert.equal(result.events.filter(value => value === 'coordination').length, 1);
 });
+
+test('Cappy selects the ordinary enabled Bravo build when Alpha is full', async () => {
+  const result = await runCycleTwo({ alpha: 6, bravo: 4 });
+  assert.deepEqual(result.clicks, [{ wingId: 'fighter-wing-bravo', phase: 'restricted', paid: true }]);
+  assert.equal(result.counts['fighter-wing-alpha'].count, 6, 'The proof must not create fighter capacity.');
+  assert.equal(result.counts['fighter-wing-bravo'].count, 4, 'Only the real server receipt could change fighter strength.');
+});
