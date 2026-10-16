@@ -479,6 +479,42 @@ test('candidate fetch and push destinations must match before cleanup mutates ei
   }
 });
 
+test('a candidate push destination changed during HEAD preflight retains both repositories', async () => {
+  const fixture = await createBranchCleanupFixture();
+  try {
+    const unrelatedPushOrigin = join(fixture.root, 'unrelated-push.git');
+    await runGit(fixture.root, ['clone', '--bare', fixture.origin, unrelatedPushOrigin]);
+    const hooks = join(fixture.root, 'origin-change-hooks');
+    await mkdir(hooks);
+    await fixture.runGit(['config', 'core.hooksPath', hooks]);
+    const hook = join(hooks, 'reference-transaction');
+    await writeFile(hook, [
+      '#!/bin/sh',
+      'if [ "$1" = "prepared" ]; then',
+      '  while read old new ref; do',
+      `    if [ "$ref" = "refs/heads/${fixture.branchName}" ]; then`,
+      `      git config remote.origin.pushurl '${unrelatedPushOrigin}'`,
+      '    fi',
+      '  done',
+      'fi',
+      'exit 0',
+    ].join('\n') + '\n');
+    await chmod(hook, 0o700);
+    const targetSha = await fixture.localSha();
+
+    const report = await fixture.cleanup({ apply: true });
+    expectReason(report, 'origin-identity-unverified');
+    assert.equal(report.actions.remoteBranchRemoved, false);
+    assert.equal(await fixture.localSha(), targetSha);
+    assert.equal(await fixture.remoteSha(), targetSha);
+    assert.match(await runGit(fixture.repo, [
+      'ls-remote', '--heads', unrelatedPushOrigin, `refs/heads/${fixture.branchName}`,
+    ]), new RegExp(`^${targetSha}\\s`));
+  } finally {
+    await fixture.dispose();
+  }
+});
+
 test('malformed coordination metadata cannot be normalized into an empty ownership ledger', async () => {
   const fixture = await createBranchCleanupFixture();
   try {
