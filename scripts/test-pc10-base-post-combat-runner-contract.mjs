@@ -76,6 +76,7 @@ test('Cycle 1 carries one current Core retarget witness to the source-timed arri
     holderUid: uid, revision: origin.controlRevision } };
   let movementDocument = null;
   let coordinationContext = null;
+  let movementContext = null;
   const arrivalInvocations = [];
   const manualArrivalInvocations = [];
   const sourceMovementReads = [];
@@ -195,9 +196,12 @@ test('Cycle 1 carries one current Core retarget witness to the source-timed arri
       onEligibleDestruction: async () => null,
       onCycle1Coordination: async context => {
         coordinationContext = context;
-        if (JSON.stringify(context.shuttleOriginAuthority) !== JSON.stringify(origin)) {
-          return { coordination: { evidence: { cases: [{ caseId: 'core:retargetShuttleTransit', status: 'pending' }] } } };
-        }
+        return { coordination: { evidence: { cases: [] } } };
+      },
+      onCycle1ShuttleMovement: async context => {
+        movementContext = context;
+        assert.equal(JSON.stringify(context.shuttleOriginAuthority), JSON.stringify(origin),
+          'The movement-only callback must receive the fresh origin after actor-changing Coordination work.');
         const departedAt = new Date(clockMs).toISOString();
         movementDocument = { id: origin.shuttleId, status: 'in-transit', requestId: arrivalWitness.departureRequestId,
           shuttleId: origin.shuttleId, holderUid: uid, fleetGroupId: groupId,
@@ -207,8 +211,8 @@ test('Cycle 1 carries one current Core retarget witness to the source-timed arri
           currentPosition: { x: 0, y: 0, z: 0 }, destinationPosition: { x: 1, y: 1, z: 1 },
           velocity: { x: 1, y: 1, z: 1 }, departedAt,
           arrivesAt: new Date(clockMs + 60_000).toISOString() };
-        return { coordination: { evidence: { cases: [{ caseId: 'core:retargetShuttleTransit',
-          status: 'completed', shuttleArrivalWitness: arrivalWitness }] } } };
+        return { evidence: { cases: [{ caseId: 'core:retargetShuttleTransit',
+          status: 'completed', shuttleArrivalWitness: arrivalWitness }] } };
       },
       onShuttleAutoArrivalArmed: async context => {
         arrivalInvocations.push({ context, at: clockMs, source: structuredClone(movementDocument) });
@@ -227,8 +231,11 @@ test('Cycle 1 carries one current Core retarget witness to the source-timed arri
   await assert.rejects(runBaseGameplay(context, integration), error => error === stopAtOpeningWolf,
     'Drive the real runner through its Cycle 1 movement handoff to the opening Wolf boundary.');
   assert.ok(coordinationContext, 'The real runner must invoke the existing Cycle 1 Coordination consumer.');
-  assert.equal(JSON.stringify(coordinationContext.shuttleOriginAuthority), JSON.stringify(origin),
-    'The runner must carry the current admitted Core source origin into the ordinary Coordination consumer.');
+  assert.equal(coordinationContext.shuttleOriginAuthority, undefined,
+    'Actor-changing Coordination work must finish before the runner captures the movement origin.');
+  assert.ok(movementContext, 'The runner must invoke the bounded Core movement-only consumer.');
+  assert.equal(JSON.stringify(movementContext.shuttleOriginAuthority), JSON.stringify(origin),
+    'The runner must carry the fresh admitted Core source origin into the movement-only consumer.');
   assert.equal(arrivalInvocations.length, 1,
     'The arrival-only observer must execute once after the actual source retarget becomes current.');
   assert.equal(manualArrivalInvocations.length, 0,
