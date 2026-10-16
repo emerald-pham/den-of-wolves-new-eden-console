@@ -400,3 +400,58 @@ bounded navigation-consumer diagnosis; root retains integration/native/release.
 | `runtime invocation-source.mjs` | `98ae53e87bd56c1f71ab8f7b506db132630e6352b89bb8d858ebf498419f9425` |
 | `runtime diagnostic-module.mjs` | `e98ae3bfc9b91b74c8a9086f0f77fe2bbb629d2dd40d5e4c977259271fd278ad` |
 | `runtime strict-return.json` | `e7302f0b402a76f8bb0e485a9666288d3847678b66d4e9c79d272a6adfaec2cf` |
+
+
+## Minimum boarding diagnostic a2 — exact guard resolved, browser reinspection stale
+
+The source-bound diagnostic used `e58ebb120abcf016f94a821904a602a399752639`,
+including the independently reviewed member-navigation repair. Its existing
+canonical thirteen-role cohort plus GM/controller used fifteen Auth accounts,
+two Chrome contexts and zero humans. No Press or Capybara was added. Normal
+admission, manual Cycle 1, six ships' maintenance and opening combat ran;
+the earlier navigation stop did not recur. This instrumented attempt grants
+**zero gameplay or checkpoint acceptance**.
+
+At `2026-10-16T08:38:45.928Z`, the temporary logger captured the exact immutable
+transaction snapshot passed to the rejecting `getWolfBoardingSpecialChoice`
+guard: document exists, expected type true, status `resolved`, step `resolved`,
+`airspaceLocked: false`, revision **26**. It contained no IDs or private body.
+The subsequent original-GM SDK `getDocFromServer` reinspection returned the
+same expected attack/turn at revision **25**, `declared`/`boarding`/locked,
+with `fromCache: false` and no pending writes. The actual failure was retained
+at `08:38:45.965Z`: the existing helper correctly refused to treat that older
+snapshot as a newer resolved attack. Alpha/Bravo, range and boarding requests
+in the prefix remain diagnostic observations, not accepted campaign proof.
+
+This is a concrete read-order mismatch. The installed browser SDK's
+`getDocFromServer` uses a snapshot listener and may reuse an already synchronized
+live target; its non-cache metadata does not prove a new post-commit RPC.
+The planned bounded repair uses the original authenticated GM's SDK read-only
+transaction, one exact document read and `maxAttempts: 1`, preserving errors,
+original deadlines, identity/lease fences and zero-credit source-change handling.
+No product boarding guard is relaxed. Original Capybara a1/a3 remain failed;
+this narrower run does not retroactively establish their omitted guard tuples.
+
+Runtime `/private/tmp/pc10-boarding-diagnostic-runtime-f9f3-20261016-a2` and
+evidence `/private/tmp/pc10-boarding-diagnostic-proof-f9f3-20261016-a2`
+retain the original invocation, diagnostic module, failures and source records.
+Start was `08:31:14.891Z`, original proof stop `09:01:14.891Z`, hard return
+`09:11:14.891Z`. Strict return was **08:39:37.758Z**: all **99** captured PIDs
+absent, all **22** bindings free, exact configuration released. Original index
+`e46ad04fcd43ecb5e2c29beb861bb8d128ef2a278f542ac63bdbc08333c05c94`
+and every file in the saved **463-file SHA-256 manifest** were restored.
+The current inventory's `treeBinding` algorithm (locale-sorted relative path,
+NUL and raw bytes) binds the original tree to
+`958d28edd6c542a5940067b2773bdabc3c6b4bb6b775174caa0c28a3c3b8d028`
+and the temporary instrumented tree to
+`510407e2db5a8f7b0779486de456e7a3912873ef98f32f7b258d627ba2c157df`.
+These algorithm-qualified bindings are separate from earlier historical tree
+hash formats. RAM was discarded; no import/export or per-UID deletion is claimed.
+
+| Diagnostic a2 artifact | SHA-256 |
+| --- | --- |
+| `failure.json` | `ff3f9b9b0614ebaf81d6b74b0d7d047ecda9a4538780d03a99bf8e135a6ef3ca` |
+| `opening combat` | `0bef19e073c38434d4158d181b042c72cd8651c0f97029947e2569ef7148df8c` |
+| `runtime invocation` | `1ff95fe4fedfae805c5a14756ccbbbffa3b0feff4ef718067255eab0fe097bb9` |
+| `strict return` | `10c7f51e7a781c38d8141ffe0b8294d12b6b5c06b6df947296fb400f1230fc40` |
+| `original compiled manifest` | `16ec29453ffe69607ffd3094677df467c179d09e79b027856045579e5e47f017` |
