@@ -668,12 +668,49 @@ export function candidateGameplayTools(context) {
       checkboxTargetShortfalls: viewports.flatMap(value => value.checkboxTargets.filter(target => target.height < 43.99).map(target => ({ width: value.width, name: target.name, height: target.height }))) });
   }
   async function complete(code) {
+    const deadlineAt = Math.min(context.deadlineAt ?? Date.now() + 60_000, Date.now() + 60_000);
+    const remaining = () => {
+      const timeout = deadlineAt - Date.now();
+      assert.ok(timeout > 0, 'Committed facilitator debrief readiness deadline expired.');
+      return timeout;
+    };
+    const expectedInstanceId = context.started?.instanceId;
+    assert.ok(typeof expectedInstanceId === 'string' && expectedInstanceId.length > 0,
+      'The original live GM instance must be bound before reading its committed debrief.');
+    const debriefResponse = gm.page.waitForResponse(response => {
+      const request = response.request();
+      if (request.method() !== 'POST' || !new URL(response.url()).pathname.endsWith('/us-central1/getSessionDebrief')) return false;
+      const body = request.postDataJSON()?.data;
+      return body && Object.keys(body).length === 2 && body.sessionId === context.initial.sessionId &&
+        body.instanceId === expectedInstanceId;
+    }, { timeout: remaining() }).then(response => ({ response }), error => ({ error }));
     await gm.until(`Immutable ${code} server ending`, value => value.phase === 'debrief' && value.fullGameDemo?.status === 'complete');
-    await gm.page.getByRole('dialog', { name: 'Endgame evaluation', exact: true }).waitFor();
-    const state = await tools.state();
-    assert.equal(state.debriefSnapshot.source, 'candidate');
-    assert.equal(state.debriefSnapshot.result, 'success');
-    assert.equal(state.debriefSnapshot.candidate.code, code);
+    const dialog = gm.page.getByRole('dialog', { name: 'Endgame evaluation', exact: true });
+    await dialog.waitFor({ state: 'visible', timeout: remaining() });
+    const observedDebrief = await debriefResponse;
+    if ('error' in observedDebrief) throw observedDebrief.error;
+    const response = observedDebrief.response;
+    if (response.status() !== 200) {
+      const failure = await response.json();
+      const code = failure?.error?.status;
+      throw new Error(`The entitled facilitator debrief read failed with HTTP ${response.status()}${typeof code === 'string' ? ` (${code})` : ''}.`);
+    }
+    const body = await response.json();
+    assert.deepEqual(Object.keys(body ?? {}).sort(), ['result'], 'The callable must return one Firebase result envelope.');
+    const receipt = body.result;
+    assert.deepEqual(Object.keys(receipt ?? {}).sort(), ['sessionId', 'snapshot', 'type']);
+    assert.equal(receipt.type, 'session-debrief');
+    assert.equal(receipt.sessionId, context.initial.sessionId);
+    const ending = receipt.snapshot;
+    assert.equal(ending?.type, 'session-debrief');
+    assert.equal(ending?.version, 1);
+    assert.equal(ending?.source, 'candidate');
+    assert.equal(ending?.result, 'success');
+    assert.equal(ending?.candidate?.code, code);
+    const resultLabel = ending.result.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+    const readableResult = `${resultLabel[0].toUpperCase()}${resultLabel.slice(1)}`;
+    await dialog.getByText(`Server result // ${readableResult} // Cycle ${ending.cycle}`, { exact: true })
+      .waitFor({ state: 'visible', timeout: remaining() });
     await gm.page.screenshot({ path: `${directory}/${code}-GM-ending.png` });
     const originalCrew = await crew.observe();
     await crew.page.reload();
@@ -684,7 +721,7 @@ export function candidateGameplayTools(context) {
     await crew.page.screenshot({ path: `${directory}/${code}-crew-ending.png` });
     await tools.save('candidate-gameplay.json', { status: 'passed', candidateCode: code, candidateEndingObserved: true,
       ...(context.admission ? { admission: context.admission } : {}), choices, receipts,
-      ending: state.debriefSnapshot, scope: 'Genuine fresh ordinary admission and manually progressed candidate path via two browser contexts. Explicit GM demo counter choices are listed.' });
+      ending, scope: 'Genuine fresh ordinary admission and manually progressed candidate path via two browser contexts. Explicit GM demo counter choices are listed.' });
   }
   return { ...tools, context, begin, record, waitState, receipt, candidateChoice, cycle, coordination, gmSupplies, printedRationBudget, gmRepair, research, jump, scout, confirmPhysicalGroups,
     candidateGroup, gmCandidateShip, candidateGeometry, complete };
