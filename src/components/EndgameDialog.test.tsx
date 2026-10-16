@@ -195,13 +195,13 @@ it('reopens the Station debrief portal on cold remount and permits retained retr
   expect(dialog).toHaveTextContent('Server result // Success // Cycle 2');
   expect(document.querySelector('[data-focus-dialog-backdrop]')).toContainElement(dialog);
   expect(screen.getByRole('button', { name: 'Retry original candidate request' })).toBeInTheDocument();
-  await user.click(within(dialog).getByRole('button', { name: 'Continue', exact: true }));
+  await user.click(within(dialog).getByRole('button', { name: 'Continue' }));
   expect(screen.queryByRole('dialog', { name: 'Endgame evaluation' })).not.toBeInTheDocument();
   first.unmount();
   render(surface());
   const reloaded = screen.getByRole('dialog', { name: 'Endgame evaluation' });
   expect(reloaded).toBeVisible();
-  await user.click(within(reloaded).getByRole('button', { name: 'Continue', exact: true }));
+  await user.click(within(reloaded).getByRole('button', { name: 'Continue' }));
   await user.click(screen.getByRole('button', { name: 'Retry original candidate request' }));
   expect(retry).toHaveBeenCalledTimes(1);
 });
