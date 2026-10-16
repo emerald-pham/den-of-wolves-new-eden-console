@@ -40,13 +40,19 @@ async function fixtureScript() {
     import {createRoot} from 'react-dom/client';
     import {HashRouter,Routes,Route,Link} from 'react-router-dom';
     import {PresidentialElectionWorkspaceView} from './src/components/PresidentialElectionWorkspace';
+    import {normalizeElectionPolicy} from './functions/src/presidentialElection';
     const ship={id:'aegis'}, roleId=null, observer=true, isGm=true, consoleRole=null;
     const me={uid:'fixture-gm',role:'gm',sessionId:'fixture-session'};
     const session={id:'fixture-session',currentTurn:1,presidentialElection:null};
     const local={uid:me.uid,sessionId:session.id};
     const connection='live',sessionSnapshotFreshness='server';
     const electionVoters=[{uid:'voter-a',displayName:'President'},{uid:'voter-b',displayName:'Captain'}];
-    const configurePresidentialElection=async policy=>{window.__policies.push(policy);};
+    const configurePresidentialElection=async policy=>{
+      window.__policyAttempted=true;
+      const voters=window.__freshVoters.map(uid=>({uid,shipId:'dione'}));
+      if(!normalizeElectionPolicy(policy,voters,1))throw Error('Choose eligible active players and a complete bounded election procedure.');
+      window.__policies.push(policy);
+    };
     const castPresidentialBallot=async()=>{},resolvePresidentialElection=async()=>{};
     createRoot(document.getElementById('root')).render(<HashRouter><Routes>
       <Route path='/ships/aegis/observer' element={<main className='ship-console'>${observerBack}</main>}/>
@@ -74,7 +80,10 @@ const choice = { voterRoleIds: ['dione-president', 'dione-captain'], policy: {
   campaigning: 'prohibited', supplyUse: 'prohibited', tieRule: 'current-office-remains',
   openCycle: 1, closeCycle: 1, campaignInstructions: 'No campaigning or supplies.' } };
 
-for (const action of ['configureElection', 'resolveElection']) test(`${action} checks the source form after returning the original GM`, async () => {
+for (const {action, staleVoters = false} of [{action:'configureElection'},{action:'resolveElection'},
+  {action:'configureElection',staleVoters:true}]) test(staleVoters
+  ? 'election policy re-enters both original voters before selecting the current eligible electorate'
+  : `${action} checks the source form after returning the original GM`, async () => {
   const script = await fixtureScript();
   const source = await readFile(new URL('./pc10-politics-press-proof.mjs', import.meta.url), 'utf8');
   const tree = ts.createSourceFile('politics.mjs', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
@@ -90,7 +99,10 @@ for (const action of ['configureElection', 'resolveElection']) test(`${action} c
       ? route.fulfill({ contentType: 'text/html', body: '<div id="root"></div>' }) : route.abort());
     const page = await resources.context.newPage(); page.setDefaultTimeout(750);
     await page.goto('http://pc10-election.invalid/#/ships/aegis/observer');
-    await page.evaluate(() => { window.__policies = []; });
+    await page.evaluate(stale => {
+      window.__policies = []; window.__freshVoters = stale ? [] : ['voter-a','voter-b'];
+      window.__voterEntries = [];
+    },staleVoters);
     const css = await readFile(resolve(root, 'src/index.css'), 'utf8');
     await page.addStyleTag({ content: ['ship-console', 'session-mode'].map(name =>
       css.match(new RegExp(`\\.${name}__back::before\\s*\\{[^}]*\\}`))?.[0] ?? '').join('\n') });
@@ -99,9 +111,20 @@ for (const action of ['configureElection', 'resolveElection']) test(`${action} c
     const consume = runInNewContext(`(()=>{${functions};return ${action};})()`, {
       assert, URL, validateElectionPlan, validateElectionActionCycle, assertGmInstanceFence, blockedSourceBranch,
       actorRosterUids: async () => [{ roleId: 'dione-president', uid: 'voter-a' }, { roleId: 'dione-captain', uid: 'voter-b' }],
+      enterSelectedRole: async (_context, roleId) => {
+        assert.ok(choice.voterRoleIds.includes(roleId));
+        const uid=roleId==='dione-president'?'voter-a':'voter-b';
+        await page.evaluate(({roleId,uid})=>{
+          window.__voterEntries.push(roleId);
+          if(!window.__freshVoters.includes(uid))window.__freshVoters.push(uid);
+        },{roleId,uid});
+        return {actor:{sameActor:true,sessionId:original.sessionId,profileRoleId:roleId,uidHash:uid}};
+      },
       observedMutation: async input => {
         assert.equal(input.endpoint, 'configurePresidentialElection');
-        await input.executeUi(); return { accepted: false, boundary: 'inert-rendered-consumer' };
+        await input.executeUi();
+        await page.waitForFunction(()=>window.__policyAttempted===true);
+        return { accepted: false, boundary: 'inert-rendered-consumer' };
       },
     });
     const current = { ...original, turnStatePhase: action === 'configureElection' ? 'team' : 'coordination' };
@@ -115,6 +138,7 @@ for (const action of ['configureElection', 'resolveElection']) test(`${action} c
     assert.equal(policies.length, action === 'configureElection' ? 1 : 0);
     if (action === 'configureElection') assert.deepEqual(policies[0], { ...choice.policy, eligibleVoterUids: ['voter-a', 'voter-b'] });
     else assert.deepEqual(Array.from(result.blockerCodes), ['source-control-not-mounted']);
+    if(staleVoters)assert.deepEqual(await page.evaluate(()=>window.__voterEntries),choice.voterRoleIds);
   }, { stopBuild: stop });
 });
 
