@@ -7,7 +7,6 @@ import { useSessionStore } from '@/store/useSessionStore';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { provePoliticsAndPress } from '../../scripts/pc10-politics-press-proof.mjs';
 
 const politicsContractMock = vi.hoisted(() => ({ enterPreparedRoleStation: vi.fn() }));
 vi.mock('../../scripts/pc10-political-crisis-arrest-proof-contracts.mjs', async importOriginal => ({
@@ -110,6 +109,12 @@ it('selects the Admiral policy page through its visible control before waiting f
       gm: { observe: async () => gm }, crew: { page },
     };
 
+    const proofModule = await vi.importActual<unknown>('../../scripts/pc10-politics-press-proof.mjs');
+    const { provePoliticsAndPress } = proofModule as {
+      provePoliticsAndPress: (proofContext: typeof context, choices: { admiralDirective: string }) => Promise<{
+        blocked: unknown[];
+      }>;
+    };
     const result = await provePoliticsAndPress(context, { admiralDirective: 'Keep the fleet coordinated.' });
 
     expect(screen.getByRole('button', { name: 'Fleet directives' })).toHaveAttribute('aria-pressed', 'true');
