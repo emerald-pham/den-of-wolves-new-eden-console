@@ -261,6 +261,16 @@ export function projectCapybaraEvidence(report) {
     noAdminGameplayWrites: true, noInjectedClock: true, noFabricatedChoices: true };
 }
 
+/** Keep the real ending-to-assessment consumer seam directly testable. */
+export async function consumeCapybaraEnding({ context, a, gm, finalEnding }) {
+  await finalEnding(context);
+  const afterEnding = await a.state(gm), snapshot = afterEnding.debriefSnapshot;
+  const terminal = { status: afterEnding.phase,
+    immutable: snapshot?.type === 'session-debrief' && snapshot.version === 1,
+    source: snapshot?.source, result: snapshot?.result, cause: snapshot?.cause };
+  return { afterEnding, terminal, snapshotCycle: snapshot?.cycle, snapshotVersion: snapshot?.version };
+}
+
 /**
  * Add the expansion pair to the canonical real-account full-game setup. The
  * callback is deliberately fail-closed: ending successfully is insufficient
@@ -1502,12 +1512,9 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
     await a.save('base-gameplay-actions.json', { status: 'gameplay-committed-ending-pending', stages, checks, costs,
       missionOutcomes: delivered.publicState.outcomes?.map(({ outcome }) => outcome),
       scope: 'Fresh twenty-role Capybara-plus-Press game; seven source-backed host maintenance, actual UI actions, charged jumps, private mission decisions, actual resolved mission and custody delivery. Every disconnected or unobserved requirement remains pending.' });
-    await finalEnding(context);
-    const afterEnding = await a.state(gm), snapshot = afterEnding.debriefSnapshot;
-    const terminal = { status: afterEnding.phase, immutable: snapshot?.type === 'session-debrief' && snapshot.version === 1,
-      source: snapshot?.source, result: snapshot?.result, cause: snapshot?.cause };
+    const { terminal, snapshotCycle, snapshotVersion } = await consumeCapybaraEnding({ context, a, gm, finalEnding });
     if (terminal.immutable) await updateCapybaraStage('genuine-ending', { status: 'completed', roleId: 'gm',
-      endpoint: 'immutable session debrief', cycle: snapshot.cycle, sourceRevision: snapshot.version });
+      endpoint: 'immutable session debrief', cycle: snapshotCycle, sourceRevision: snapshotVersion });
     const coreGameplay = { status: checks.serverMissionResolutionAndCustodyDelivery === true &&
       checks.openingCombatAndPublicAftermath === true ? 'passed' : 'pending',
       manualProgression: true, serverActions: true, missionDelivered: checks.serverMissionResolutionAndCustodyDelivery === true };
