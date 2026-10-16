@@ -3,15 +3,17 @@
 import { createHash, randomUUID } from 'node:crypto';
 import {
   mkdir,
+  mkdtemp,
   readFile,
   realpath,
   rename,
+  rm,
   unlink,
   writeFile,
 } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { homedir } from 'node:os';
-import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { coordinationFilePath, readCoordinationState } from './emulator-resource-registry.mjs';
@@ -229,6 +231,31 @@ async function coordinationReason({ coordinationFile, root, identity, branch }) 
   return null;
 }
 
+async function verifyBundleRestoresIndependently({ root, branch, targetSha, bundlePath }) {
+  let verificationDirectory;
+  try {
+    verificationDirectory = await mkdtemp(join(dirname(bundlePath), '.branch-cleanup-restore-'));
+    const emptyRepository = join(verificationDirectory, 'restore.git');
+    await run('git', ['init', '--bare', '--quiet', emptyRepository], { cwd: root });
+    await run('git', [
+      '--git-dir', emptyRepository,
+      'fetch', '--no-tags', bundlePath,
+      `refs/heads/${branch}:refs/heads/restored`,
+    ], { cwd: root });
+    const restoredSha = await run('git', [
+      '--git-dir', emptyRepository,
+      'rev-parse', '--verify', 'refs/heads/restored^{commit}',
+    ], { cwd: root });
+    if (restoredSha !== targetSha) throw new Error(`The independent restore produced ${restoredSha}, expected ${targetSha}.`);
+    await run('git', ['--git-dir', emptyRepository, 'fsck', '--full', '--no-reflogs', '--no-progress'], { cwd: root });
+    return null;
+  } catch (error) {
+    return error;
+  } finally {
+    if (verificationDirectory) await rm(verificationDirectory, { recursive: true, force: true });
+  }
+}
+
 async function pullRequestReason(root, branch) {
   try {
     const output = await execFileAsync('gh', [
@@ -373,6 +400,7 @@ async function prepareRecovery({ root, identity, branch, targetSha, defaultBranc
     }
     const bundleBytes = await readFile(bundlePath);
     const bundleSha256 = createHash('sha256').update(bundleBytes).digest('hex');
+    const independentRestoreError = await verifyBundleRestoresIndependently({ root, branch, targetSha, bundlePath });
     const manifest = {
       version: 1,
       createdAt: new Date().toISOString(),
@@ -385,6 +413,7 @@ async function prepareRecovery({ root, identity, branch, targetSha, defaultBranc
       bundle: 'recovery.bundle',
       bundleSha256,
       bundleBytes: bundleBytes.byteLength,
+      independentRestoreVerified: !independentRestoreError,
     };
     const temporaryManifest = `${manifestPath}.${randomUUID()}.tmp`;
     try {
@@ -394,8 +423,20 @@ async function prepareRecovery({ root, identity, branch, targetSha, defaultBranc
       await unlink(temporaryManifest).catch(() => undefined);
     }
     const manifestSha256 = createHash('sha256').update(await readFile(manifestPath)).digest('hex');
+    if (independentRestoreError) {
+      return {
+        recovery: {
+          directory, bundlePath, manifestPath, bundleSha256, manifestSha256,
+          independentlyRestored: false, verified: false,
+        },
+        reason: {
+          code: 'recovery-not-self-contained',
+          message: `The recovery bundle could not restore its branch into an empty bare repository: ${independentRestoreError.message}`,
+        },
+      };
+    }
     return {
-      recovery: { directory, bundlePath, manifestPath, bundleSha256, manifestSha256, verified: true },
+      recovery: { directory, bundlePath, manifestPath, bundleSha256, manifestSha256, independentlyRestored: true, verified: true },
     };
   } catch (error) {
     return {
