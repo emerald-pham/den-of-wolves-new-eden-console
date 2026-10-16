@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
+import { prepareMissionPrivacyThroughMountedControl, startMissionDealThroughMountedUi, resolveAndDeliverMissionThroughMountedUi } from './pc10-mission-lifecycle-consumer.mjs';
 import { candidateGameplayTools } from './pc10-candidate-manual-ui-proof.mjs';
 import { advanceBaseDetectorResearch, runBaseCombatAndDeduction } from './pc10-base-combat-deduction-ui-proof.mjs';
 import { completeOfferedTurnAdvance } from './pc10-full-game-demo-proof-helpers.mjs';
@@ -517,7 +518,7 @@ export async function runBaseGameplay(context, integration) {
     assertBasePostCombatActorIdentity(current, expectedActor);
     return current;
   }
-  async function missionUi(role, missionId, choose, { expectedGroupId, offered } = {}) {
+  async function missionUi(role, missionId, choose, { expectedGroupId, offered, includeActionType = false } = {}) {
     const expectedCycle = (await a.state()).cycle;
     const readyBefore = role === 'gm'
       ? await currentGmReadiness(expectedCycle)
@@ -576,7 +577,7 @@ export async function runBaseGameplay(context, integration) {
     a.actions.push({ roleId: role, name: 'commitAwayMissionLifecycleCommand', actionType: request.type,
       transport: 'actual connected UI control', exactBrowserSdkReplay: true, revision: body.result.revision,
       privateCardContentsRecorded: false });
-    return body.result;
+    return includeActionType ? { ...body.result, actionType: request.type } : body.result;
   }
   const ships = [
     ['aegis', 'executive-officer', 'AEGIS', ['Jump Drive', 'Command and Control', 'Missile Launchers', 'Point Defence Lasers'], { 'Shuttle Bay Zeta': 'starlight' }],
@@ -705,10 +706,22 @@ export async function runBaseGameplay(context, integration) {
     checks.sixChargedJumpsAndExactRetries = jumpResults.every(result => result?.status === 'jumped');
     await compose('cycle-2-after-six-charged-jumps-before-mission-deal', procedures.beforeCycle2MissionDeal);
     await mark('normal current GM source selects one actually available group opportunity, its current carrier and mounted participants');
-    let mission = null, missionPrivateComplete = false, delivered = null;
+    let mission = null, missionPrivateComplete = false, delivered = null, lastAssignmentReceipt = null;
     const candidate = await currentMissionStartCandidate(2);
     if (candidate.status === 'ready') {
-      const dealt = await uiRpc('gm', 'dealPrivateInitialCards', async page => {
+      const missionStart = await startMissionDealThroughMountedUi({ sessionId: initial.sessionId, originalGm,
+        preparePrivacy: async () => {
+          const readiness = await currentGmReadiness(2);
+          if (readiness.status !== 'eligible') return { status: 'pending', reason: 'original-owned-gm-not-live-at-current-mission-cycle' };
+          const surface = await a.select('gm', { enter: false });
+          const preparation = await prepareMissionPrivacyThroughMountedControl({ surface,
+            sessionId: initial.sessionId, originalGm: readiness.sourceGm });
+          if (preparation.status !== 'ready') return preparation;
+          const after = await currentGmReadiness(2);
+          return after.status === 'eligible' ? preparation :
+            { status: 'pending', reason: 'original-owned-gm-changed-after-mission-privacy-preparation' };
+        },
+        deal: () => uiRpc('gm', 'dealPrivateInitialCards', async page => {
         const confirmed = await confirmMissionStartCandidate(candidate, 2);
         const panel = page.getByRole('region', { name: 'New-location mission start', exact: true });
         for (const roleId of confirmed.currentTeam.participantRoleIds) {
@@ -724,8 +737,12 @@ export async function runBaseGameplay(context, integration) {
         const start = panel.getByRole('button', { name: 'Start mission', exact: true });
         assert.equal(await start.isEnabled(), true, 'Start only the exact mounted opportunity and selected current group roster.');
         await start.click();
-      }, { expectedCycle: 2 });
-      if (dealt.currentSourceBlocked) {
+      }, { expectedCycle: 2 }) });
+      const dealt = missionStart.dealReceipt;
+      if (missionStart.status !== 'dealt') {
+        pending('mission-privacy-preparation', [missionStart.reason ?? 'current-ordinary-privacy-readiness-not-confirmed'],
+          { groupId: candidate.opportunity.groupId, cycle: 2 });
+      } else if (dealt.currentSourceBlocked) {
         pending('source-mission-start', dealt.blockerCodes, { groupId: candidate.opportunity.groupId, cycle: 2 });
       } else {
         assert.equal(dealt.status, 'committed');
@@ -824,11 +841,12 @@ export async function runBaseGameplay(context, integration) {
               if (selected) { await choice.selectOption(selected); used.add(selected); }
             }
             await commit(() => panel.getByRole('button', { name: 'Submit mission assignments', exact: true }).click());
-          }, { expectedGroupId: mission.groupId, offered: async panel => {
+          }, { expectedGroupId: mission.groupId, includeActionType: true, offered: async panel => {
             const button = panel.getByRole('button', { name: 'Submit mission assignments', exact: true });
             return await button.count() === 1 && await button.isVisible() && await button.isEnabled();
           } });
           if (!result) { complete = false; break; }
+          lastAssignmentReceipt = result;
         }
         missionPrivateComplete = complete;
         checks.privateMissionCardsAndLeaderChoices = complete;
@@ -844,34 +862,22 @@ export async function runBaseGameplay(context, integration) {
     await mark('real next Team continues on source state; mission resolution requires a completed legal participant sequence');
     await advance();
     if (mission && missionPrivateComplete) {
-      const facilitatorCards = await missionUi('gm', mission.id,
-        (panel, commit) => commit(() =>
-          panel.getByRole('button', { name: 'Add facilitator cards', exact: true }).click()),
-        { offered: async panel => {
-          const button = panel.getByRole('button', { name: 'Add facilitator cards', exact: true });
-          return await button.count() === 1 && await button.isVisible() && await button.isEnabled();
-        } });
-      if (facilitatorCards) {
-        const resolved = await missionUi('gm', mission.id,
+      const lifecycle = await resolveAndDeliverMissionThroughMountedUi({
+        sessionId: initial.sessionId, missionId: mission.id,
+        missionLeaderRoleId: mission.missionLeaderRoleId, lastAssignmentReceipt,
+        deliverMission: (roleId, missionId) => missionUi(roleId, missionId,
           (panel, commit) => commit(() =>
-            panel.getByRole('button', { name: 'Resolve away mission', exact: true }).click()),
-          { offered: async panel => {
-            const button = panel.getByRole('button', { name: 'Resolve away mission', exact: true });
+            panel.getByRole('button', { name: 'Drop mission rewards at selected ship', exact: true }).click()),
+          { expectedGroupId: mission.groupId, includeActionType: true, offered: async panel => {
+            const button = panel.getByRole('button', { name: 'Drop mission rewards at selected ship', exact: true });
             return await button.count() === 1 && await button.isVisible() && await button.isEnabled();
-          } });
-        if (resolved?.publicState.status === 'resolved') {
-          delivered = await missionUi(mission.missionLeaderRoleId, mission.id,
-            (panel, commit) => commit(() =>
-              panel.getByRole('button', { name: 'Drop mission rewards at selected ship', exact: true }).click()),
-            { expectedGroupId: mission.groupId, offered: async panel => {
-              const button = panel.getByRole('button', { name: 'Drop mission rewards at selected ship', exact: true });
-              return await button.count() === 1 && await button.isVisible() && await button.isEnabled();
-            } });
-          if (delivered?.publicState.status === 'complete') checks.serverMissionResolutionAndCustodyDelivery = true;
-          else pending('mission-reward-delivery', ['current-mission-leader-or-source-control-unavailable'],
-            { groupId: mission.groupId, cycle: 3 });
-        }
-      }
+          } }),
+      });
+      if (lifecycle.status === 'completed') {
+        delivered = lifecycle.delivery;
+        checks.serverMissionResolutionAndCustodyDelivery = true;
+      } else pending('mission-resolution-and-custody-delivery', [lifecycle.reason],
+        { groupId: mission.groupId, cycle: 3 });
     } else if (mission) pending('mission-resolution-and-custody-delivery',
       ['mission-private-choices-not-fully-committed'], { groupId: mission.groupId, cycle: 3 });
     if (delivered?.publicState.status === 'complete')
