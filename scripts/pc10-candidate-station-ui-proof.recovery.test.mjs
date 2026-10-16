@@ -175,13 +175,16 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
       pStationRepeat: { status: 'stopped', sequenceId: 'station-sequence-2' } } };
 }
 
-function stationRunnerFixture() {
+function stationRunnerFixture({ enforceWindowSequence = false } = {}) {
   const sessionId = 'station-ending-session';
   const coordinate = '4888';
   const capacities = { aegis: 5, dione: 4, icebreaker: 4, shepherd: 3, quellon: 3 };
   const shipIds = Object.keys(capacities);
   const shared = { charge: 0, revision: 7, contributed: new Set(), actors: new Map(), records: [],
-    requestSerial: 0, routeCount: 0, reloadCount: 0, fetchCount: 0, fallbackCount: 0 };
+    requestSerial: 0, routeCount: 0, reloadCount: 0, fetchCount: 0, fallbackCount: 0,
+    paidArrivalShipIds: [], windowDecisions: [] };
+  let currentCycle = 1;
+  let windowStatus = 'planned';
   const sourceArrivalId = 'station-arrival-current-source';
   const gmState = { hasAuth: true, sameActor: true, uidHash: 'station-gm-uid', sessionId,
     joinCode: 'NATIVE', playerRole: 'gm', phase: 'active', cycle: 2,
@@ -199,11 +202,38 @@ function stationRunnerFixture() {
       cause: 'candidate-complete', candidateCode: 'P', cycle: 2 } : null });
   const timing = {
     getByLabel: name => name === 'Target fleet group'
-      ? { selectOption: async groupId => assert.equal(groupId, 'fleet-1') }
+      ? { selectOption: async groupId => {
+        if (enforceWindowSequence) {
+          assert.equal(currentCycle, 2);
+          assert.equal(windowStatus, 'deferred',
+            'The live Cycle 2 target control is not mounted until the Cycle 1 window is deferred.');
+          assert.deepEqual(shared.paidArrivalShipIds, shipIds,
+            'Defer only after the normal paid P arrivals have completed.');
+        }
+        assert.equal(groupId, 'fleet-1');
+      } }
       : { locator: () => ({ evaluateAll: async callback => callback([
         { disabled: false, textContent: `P // ${sourceArrivalId}`, value: sourceArrivalId },
       ]) }), selectOption: async value => assert.equal(value, sourceArrivalId) },
-    getByRole: (_role, options) => ({ click: async () => assert.equal(options.name, 'Mark threat source due') }),
+    getByRole: (_role, options) => ({ click: async () => {
+      if (options.name === 'Defer to Cycle 2') {
+        assert.equal(currentCycle, 1);
+        assert.deepEqual(shared.paidArrivalShipIds, shipIds,
+          'The source-owned P arrival must precede deferral of the first attack window.');
+        windowStatus = 'deferred';
+        shared.windowDecisions.push({ cycle: currentCycle, status: windowStatus,
+          afterPaidArrivalShipIds: [...shared.paidArrivalShipIds] });
+        return;
+      }
+      assert.equal(options.name, 'Mark threat source due');
+      if (enforceWindowSequence) {
+        assert.equal(currentCycle, 2);
+        assert.equal(windowStatus, 'deferred');
+      }
+      windowStatus = 'due';
+      shared.windowDecisions.push({ cycle: currentCycle, status: windowStatus,
+        afterPaidArrivalShipIds: [...shared.paidArrivalShipIds] });
+    } }),
   };
   const preparation = {
     getByLabel: name => ({ fill: async value => assert.ok(['1', '4'].includes(value), `${name} uses the source composition.`) }),
@@ -325,7 +355,14 @@ function stationRunnerFixture() {
     record: async (stage, details) => shared.records.push({ stage, details }),
     printedRationBudget: async ships => Object.fromEntries(Object.keys(ships).map(id => [id, { food: 1, water: 1 }])),
     gmSupplies: async () => {}, maintenanceUi: async () => {}, coordination: async () => {},
-    jump: async (_shipId, location) => assert.equal(location, coordinate), cycle: async cycle => assert.equal(cycle, 2),
+    jump: async (shipId, location) => {
+      assert.equal(location, coordinate);
+      shared.paidArrivalShipIds.push(shipId);
+    },
+    cycle: async cycle => {
+      assert.equal(cycle, 2);
+      currentCycle = cycle;
+    },
     select: async roleId => roleId === 'gm' ? gm : shared.actors.get(roleId)?.actor,
     state: async () => ({ shipFleetGroupIds: { aegis: 'fleet-1' } }),
     receipt: async (surface, endpoint, choose, options = {}) => {
@@ -421,6 +458,18 @@ test('Station activation replay retains the server-owned final Reactor result', 
   assert.equal(fixture.records[0].details.committedResult.outcome, 'activated');
   assert.equal(fixture.records[0].details.replayedResult.outcome, 'activated');
   assert.equal(fixture.recovery.dialogDismissals, 2, 'Ordinary Continue must dismiss the original and reloaded endgame portals.');
+});
+
+test('the Station consumer defers the first window after paid P arrival before opening Cycle 2 controls', async () => {
+  const fixture = stationRunnerFixture({ enforceWindowSequence: true });
+  await runActualStationEnding(fixture.context, fixture.liberation);
+
+  assert.deepEqual(fixture.shared.windowDecisions.map(({ cycle, status }) => ({ cycle, status })), [
+    { cycle: 1, status: 'deferred' },
+    { cycle: 2, status: 'due' },
+  ]);
+  assert.deepEqual(fixture.shared.windowDecisions[0].afterPaidArrivalShipIds,
+    Object.keys(fixture.capacities), 'All current paid P arrivals must precede the source window decision.');
 });
 
 test('the actual Station ending recovers the first committed contribution and the final activation boundary', async () => {
