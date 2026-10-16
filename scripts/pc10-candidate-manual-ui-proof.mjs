@@ -1201,10 +1201,45 @@ function assertH1NebulaContinuationState(context, currentGm, state) {
 async function readActorCandidateDisposition(surface) {
   return surface.page.evaluate(async moduleUrl => {
     const { useSessionStore } = await import(moduleUrl);
-    const current = useSessionStore.getState();
-    return { sessionId: current.session?.id ?? null,
-      activeConsoleRoleId: current.me?.activeConsoleRoleId ?? null,
-      candidateDisposition: current.me?.candidateDisposition ?? null };
+    const { auth } = await import('/src/lib/firebase.ts');
+    const identity = () => {
+      const current = useSessionStore.getState(), me = current.me;
+      if (!current.session || !me || me.role !== 'player' || me.connected !== true ||
+          me.sessionId !== current.session.id || current.connection !== 'live' ||
+          current.sessionSnapshotFreshness !== 'server' || auth().currentUser?.uid !== me.uid)
+        throw new Error('The original connected actor needs current server authority for its historical loss.');
+      return { sessionId: current.session.id, uid: me.uid, fleetGroupId: me.fleetGroupId,
+        connectionGeneration: me.connectionGeneration, assignedRoleId: me.assignedRoleId,
+        activeConsoleRoleId: me.activeConsoleRoleId };
+    };
+    const original = identity();
+    // playerFrom intentionally omits candidateDisposition. Read only this
+    // authenticated actor's own server document, never a member census or a
+    // fabricated store field, to retain the exact historical result cycle.
+    const source = await (await fetch('/src/lib/firestore.ts')).text();
+    const match = source.match(/from\s+["']([^"']*firebase_firestore\.js[^"']*)["']/);
+    if (!match) throw new Error('Read the actual current browser SDK import before the entitled actor read.');
+    const sdk = await import(match[1]);
+    const { db } = await import('/src/lib/firestore.ts');
+    const document = await sdk.getDocFromServer(sdk.doc(db(), `sessions/${original.sessionId}/players/${original.uid}`));
+    if (JSON.stringify(identity()) !== JSON.stringify(original))
+      throw new Error('The original actor authority changed during its historical loss read.');
+    if (!document.exists() || document.metadata?.fromCache !== false || document.metadata?.hasPendingWrites !== false)
+      throw new Error('Historical loss requires an existing server document without pending writes.');
+    const player = document.data();
+    if (player.role !== 'player' || player.connected !== true ||
+        player.fleetGroupId !== original.fleetGroupId ||
+        player.connectionGeneration !== original.connectionGeneration ||
+        player.assignedRoleId !== original.assignedRoleId ||
+        player.activeConsoleRoleId !== original.activeConsoleRoleId)
+      throw new Error('The original connected actor document no longer matches current authority.');
+    const disposition = player.candidateDisposition;
+    if (disposition != null && (typeof disposition !== 'object' || Array.isArray(disposition) ||
+        !['N', 'O', 'P'].includes(disposition.code) || typeof disposition.outcome !== 'string' ||
+        !Number.isSafeInteger(disposition.cycle) || disposition.cycle < 1))
+      throw new Error('The server historical candidate disposition is malformed.');
+    return { sessionId: original.sessionId, activeConsoleRoleId: original.activeConsoleRoleId,
+      candidateDisposition: disposition ? { code: disposition.code, outcome: disposition.outcome, cycle: disposition.cycle } : null };
   }, surface.storeModuleUrl());
 }
 
@@ -1360,9 +1395,11 @@ async function continueCapybaraNebula(context, tools, currentGm) {
   const discoveries = lossActor.page.getByRole('region', { name: 'Candidate discoveries', exact: true });
   await discoveries.waitFor({ state: 'visible', timeout: 60_000 });
   await discoveries.getByText(/lost within the Deep Nebula/i).waitFor({ state: 'visible', timeout: 60_000 });
-  const maintenanceButton = lossActor.page.getByRole('button', { name: /begin maintenance cycle/i });
+  const maintenanceButton = lossActor.page.getByRole('button', { name: 'Begin Maintenance Cycle: Cycle 5', exact: true });
   assert.equal(await maintenanceButton.count(), 1); assert.equal(await maintenanceButton.isEnabled(), false);
   const lostCandidate = lossActor.page.getByRole('region', { name: 'Candidate preparation and actions', exact: true });
+  await lostCandidate.getByText('Next actor // Each ship chooses its long jump. Scout the Nebula first if needed.', { exact: true })
+    .waitFor({ state: 'visible', timeout: 60_000 });
   const retainedLossAction = lostCandidate.getByRole('button', { name: /^Long jump into Nebula \/\/ aegis \/\/ \d+ fuel$/ });
   assert.equal(await retainedLossAction.count(), 0,
     'The real workspace removes the lost Aegis action; retain its disposition, narrative, and maintenance lock instead.');
