@@ -429,10 +429,17 @@ export function createTwoBrowserGameplay(context, { preAdmissionGmOnly = false }
         if (!match) throw new Error('Read the actual current browser SDK import before the entitled read.');
         const sdk = await import(match[1]);
         const { db } = await import('/src/lib/firestore.ts');
-        const document = await sdk.getDocFromServer(sdk.doc(db(), `sessions/${sid}/wolfAttackState/current`));
-        return { status: 'ok', value: document.exists() ? { id: document.id, ...document.data() } : null,
-          metadata: { fromCache: document.metadata?.fromCache ?? null,
-            hasPendingWrites: document.metadata?.hasPendingWrites ?? null } };
+        const database = db(), reference = sdk.doc(database, `sessions/${sid}/wolfAttackState/current`);
+        // A metadata-fresh getDocFromServer may still be satisfied by an older
+        // listener snapshot. A single SDK transaction uses the server batch-get
+        // path, remains tied to this authenticated App client, and performs no
+        // write. Never retry or fall back if the transaction aborts.
+        return await sdk.runTransaction(database, async transaction => {
+          const document = await transaction.get(reference);
+          return { status: 'ok', value: document.exists() ? { id: document.id, ...document.data() } : null,
+            metadata: { fromCache: document.metadata?.fromCache ?? null,
+              hasPendingWrites: document.metadata?.hasPendingWrites ?? null } };
+        }, { maxAttempts: 1 });
       } catch (error) {
         return { status: 'error', code: typeof error?.code === 'string' ? error.code : null };
       }
