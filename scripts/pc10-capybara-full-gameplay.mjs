@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
+import { resolveAndDeliverMissionThroughMountedUi } from './pc10-mission-lifecycle-consumer.mjs';
 import { candidateGameplayTools } from './pc10-candidate-manual-ui-proof.mjs';
 import { advanceBaseDetectorResearch, runBaseCombatAndDeduction } from './pc10-base-combat-deduction-ui-proof.mjs';
 import { completeOfferedTurnAdvance } from './pc10-full-game-demo-proof-helpers.mjs';
@@ -1378,16 +1379,24 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
     checks.privateMissionCardsAndLeaderChoices = true;
     await mark('real next Team resolves and delivers server-produced mission results');
     await advance();
-    await missionUi('gm', missionId, panel => panel.getByRole('button', { name: 'Add facilitator cards', exact: true }).click());
-    const resolved = await missionUi('gm', missionId, panel => panel.getByRole('button', { name: 'Resolve away mission', exact: true }).click());
-    assert.equal(resolved.publicState.status, 'resolved');
+    const lifecycle = await resolveAndDeliverMissionThroughMountedUi({
+      missionId,
+      missionLeaderRoleId: 'wing-commander',
+      strict: true,
+      addFacilitatorCards: () => missionUi('gm', missionId,
+        panel => panel.getByRole('button', { name: 'Add facilitator cards', exact: true }).click()),
+      resolveMission: () => missionUi('gm', missionId,
+        panel => panel.getByRole('button', { name: 'Resolve away mission', exact: true }).click()),
+      deliverMission: (roleId, currentMissionId) => missionUi(roleId, currentMissionId,
+        panel => panel.getByRole('button', { name: 'Drop mission rewards at selected ship', exact: true }).click()),
+    });
+    assert.equal(lifecycle.status, 'completed');
+    const resolved = lifecycle.resolution;
+    const delivered = lifecycle.delivery;
     const boaMissionOutcome = boaTaskOpportunityId && resolved.publicState.outcomes?.find(entry =>
       entry.opportunityId === boaTaskOpportunityId);
     const boaMissionReward = boaTaskOpportunityId && resolved.publicState.rewards?.find(entry =>
       entry.opportunityId === boaTaskOpportunityId);
-    const delivered = await missionUi('wing-commander', missionId, panel =>
-      panel.getByRole('button', { name: 'Drop mission rewards at selected ship', exact: true }).click());
-    assert.equal(delivered.publicState.status, 'complete');
     const boaDeliveredReward = boaTaskOpportunityId && delivered.publicState.rewards?.find(entry =>
       entry.opportunityId === boaTaskOpportunityId);
     if (boaTaskOpportunityId && boaMissionOutcome &&

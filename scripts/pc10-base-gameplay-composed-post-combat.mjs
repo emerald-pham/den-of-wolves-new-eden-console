@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
+import { resolveAndDeliverMissionThroughMountedUi } from './pc10-mission-lifecycle-consumer.mjs';
 import { candidateGameplayTools } from './pc10-candidate-manual-ui-proof.mjs';
 import { advanceBaseDetectorResearch, runBaseCombatAndDeduction } from './pc10-base-combat-deduction-ui-proof.mjs';
 import { completeOfferedTurnAdvance } from './pc10-full-game-demo-proof-helpers.mjs';
@@ -844,33 +845,37 @@ export async function runBaseGameplay(context, integration) {
     await mark('real next Team continues on source state; mission resolution requires a completed legal participant sequence');
     await advance();
     if (mission && missionPrivateComplete) {
-      const facilitatorCards = await missionUi('gm', mission.id,
-        (panel, commit) => commit(() =>
-          panel.getByRole('button', { name: 'Add facilitator cards', exact: true }).click()),
-        { offered: async panel => {
-          const button = panel.getByRole('button', { name: 'Add facilitator cards', exact: true });
-          return await button.count() === 1 && await button.isVisible() && await button.isEnabled();
-        } });
-      if (facilitatorCards) {
-        const resolved = await missionUi('gm', mission.id,
+      const lifecycle = await resolveAndDeliverMissionThroughMountedUi({
+        missionId: mission.id,
+        missionLeaderRoleId: mission.missionLeaderRoleId,
+        addFacilitatorCards: () => missionUi('gm', mission.id,
+          (panel, commit) => commit(() =>
+            panel.getByRole('button', { name: 'Add facilitator cards', exact: true }).click()),
+          { offered: async panel => {
+            const button = panel.getByRole('button', { name: 'Add facilitator cards', exact: true });
+            return await button.count() === 1 && await button.isVisible() && await button.isEnabled();
+          } }),
+        resolveMission: () => missionUi('gm', mission.id,
           (panel, commit) => commit(() =>
             panel.getByRole('button', { name: 'Resolve away mission', exact: true }).click()),
           { offered: async panel => {
             const button = panel.getByRole('button', { name: 'Resolve away mission', exact: true });
             return await button.count() === 1 && await button.isVisible() && await button.isEnabled();
-          } });
-        if (resolved?.publicState.status === 'resolved') {
-          delivered = await missionUi(mission.missionLeaderRoleId, mission.id,
-            (panel, commit) => commit(() =>
-              panel.getByRole('button', { name: 'Drop mission rewards at selected ship', exact: true }).click()),
-            { expectedGroupId: mission.groupId, offered: async panel => {
-              const button = panel.getByRole('button', { name: 'Drop mission rewards at selected ship', exact: true });
-              return await button.count() === 1 && await button.isVisible() && await button.isEnabled();
-            } });
-          if (delivered?.publicState.status === 'complete') checks.serverMissionResolutionAndCustodyDelivery = true;
-          else pending('mission-reward-delivery', ['current-mission-leader-or-source-control-unavailable'],
-            { groupId: mission.groupId, cycle: 3 });
-        }
+          } }),
+        deliverMission: (roleId, missionId) => missionUi(roleId, missionId,
+          (panel, commit) => commit(() =>
+            panel.getByRole('button', { name: 'Drop mission rewards at selected ship', exact: true }).click()),
+          { expectedGroupId: mission.groupId, offered: async panel => {
+            const button = panel.getByRole('button', { name: 'Drop mission rewards at selected ship', exact: true });
+            return await button.count() === 1 && await button.isVisible() && await button.isEnabled();
+          } }),
+      });
+      if (lifecycle.status === 'completed') {
+        delivered = lifecycle.delivery;
+        checks.serverMissionResolutionAndCustodyDelivery = true;
+      } else if (lifecycle.reason === 'mission-custody-delivery-not-committed') {
+        pending('mission-reward-delivery', ['current-mission-leader-or-source-control-unavailable'],
+          { groupId: mission.groupId, cycle: 3 });
       }
     } else if (mission) pending('mission-resolution-and-custody-delivery',
       ['mission-private-choices-not-fully-committed'], { groupId: mission.groupId, cycle: 3 });
