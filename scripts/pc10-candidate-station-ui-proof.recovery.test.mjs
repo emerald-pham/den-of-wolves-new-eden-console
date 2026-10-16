@@ -26,7 +26,7 @@ function stationDialog(state, options) {
   };
 }
 
-function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = false, foreignReload = false, staleGeneration = false, terminalCandidate = 'P' } = {}) {
+function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = false, foreignReload = false, staleGeneration = false, terminalCandidate = 'P', workspaceDelay = 2, workspaceNeverReady = false } = {}) {
   const sessionId = 'station-recovery-session';
   const roleId = 'executive-officer';
   const coordinate = '0408';
@@ -39,7 +39,7 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
     ...(activates ? { outcome: 'activated' } : {}) };
   const recovery = { requestData: undefined, replayData: undefined, fetchCount: 0,
     abortCount: 0, fallbackCount: 0, reloadCount: 0, unrouteCount: 0,
-    pending: false, dialogOpen: false, dialogDismissals: 0, chargeCapacity, revision: 7, routeHandler: undefined };
+    pending: false, workspacePendingReads: 0, workspaceLoadingReads: 0, dialogOpen: false, dialogDismissals: 0, chargeCapacity, revision: 7, routeHandler: undefined };
   const records = [];
   let actorState = { hasAuth: true, sameActor: true, uidHash: 'same-crew-uid', sessionId,
     joinCode: 'NATIVE', playerRole: 'player', profileRoleId: roleId, profileSessionId: sessionId,
@@ -64,6 +64,7 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
     reload: async () => {
       recovery.reloadCount++;
       recovery.dialogOpen = activates;
+      recovery.workspacePendingReads = workspaceDelay;
       actorState = { ...actorState, documentTimeOrigin: actorState.documentTimeOrigin + 1,
         ...(foreignReload ? { uidHash: 'foreign-crew-uid' } : {}) };
       connectionGeneration = staleGeneration ? connectionGeneration : connectionGeneration + 1;
@@ -94,8 +95,13 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
     await recovery.routeHandler(route);
   }
   const panel = {
-    innerText: async () => `Cycle 2 // candidate revision ${recovery.revision}\nAncient Space Station\n` +
-      `Station liberated // ${recovery.chargeCapacity}/18 charge capacity`,
+    innerText: async () => {
+      if (recovery.reloadCount && (workspaceNeverReady || recovery.workspacePendingReads-- > 0)) {
+        recovery.workspaceLoadingReads++; return 'Receiving current candidate operations…';
+      }
+      return `Cycle 2 // candidate revision ${recovery.revision}\nAncient Space Station\n` +
+        `Station liberated // ${recovery.chargeCapacity}/18 charge capacity`;
+    },
     getByRole: (_role, options = {}) => {
       if (options.name === 'Retry original candidate request') return {
         count: async () => recovery.pending ? 1 : 0,
@@ -203,7 +209,7 @@ function stationRunnerFixture() {
       connection: 'live', freshness: 'server', documentTimeOrigin: 1_000 + shipIds.indexOf(shipId) };
     const cap = capacities[shipId];
     const recovery = { routeHandler: undefined, request: undefined, result: undefined,
-      replayRequest: undefined, pending: false, dialogOpen: false, dialogDismissals: 0 };
+      replayRequest: undefined, pending: false, workspacePendingReads: 0, dialogOpen: false, dialogDismissals: 0 };
     let connectionGeneration = 1, identityHydrationRevision = 2;
     const sourceActor = () => ({ sessionId, fleetGroupId: 'fleet-1', connectionGeneration,
       identityHydrationRevision, replacementRoleId: null, replacementStatus: null,
@@ -233,8 +239,11 @@ function stationRunnerFixture() {
       await recovery.routeHandler(route);
     }
     const panel = {
-      innerText: async () => `Cycle 2 // candidate revision ${shared.revision}\nAncient Space Station\n` +
-        `Station liberated // ${shared.charge}/18 charge capacity`,
+      innerText: async () => {
+        if (recovery.workspacePendingReads-- > 0) return 'Receiving current candidate operations…';
+        return `Cycle 2 // candidate revision ${shared.revision}\nAncient Space Station\n` +
+          `Station liberated // ${shared.charge}/18 charge capacity`;
+      },
       getByRole: (_role, options = {}) => {
         if (options.name === 'Retry original candidate request') return {
           count: async () => recovery.pending ? 1 : 0,
@@ -274,7 +283,7 @@ function stationRunnerFixture() {
       unroute: async (_pattern, handler) => { assert.equal(recovery.routeHandler, handler); recovery.routeHandler = undefined; },
       reload: async () => {
         shared.reloadCount++; actorState.documentTimeOrigin++;
-        recovery.dialogOpen = actorState.phase === 'debrief';
+        recovery.dialogOpen = actorState.phase === 'debrief'; recovery.workspacePendingReads = 2;
         connectionGeneration++; identityHydrationRevision = 1;
       },
       evaluate: async () => sourceActor(),
@@ -376,6 +385,7 @@ test('Station contribution recovers the same committed Reactor request after a c
   assert.equal(fixture.recovery.chargeCapacity, 8, 'The same Reactor capacity is counted once.');
   assert.equal(fixture.recovery.revision, 8, 'Replay leaves the committed candidate revision unchanged.');
   assert.equal(fixture.recovery.pending, false, 'The mounted retry control clears after the original receipt returns.');
+  assert.equal(fixture.recovery.workspaceLoadingReads, 2, 'The consumer waits for the separate mounted workspace read.');
   assert.equal(fixture.records.length, 1, 'The actual source-bound recovery should be preserved in the proof record.');
   assert.equal(fixture.records[0].details.request.requestId, fixture.request.requestId);
 });
@@ -482,4 +492,14 @@ test('Station activation recovery refuses a different candidate terminal outcome
     shipId: 'aegis', roleId: fixture.roleId, expectActivation: true, deadlineAt: Date.now() + 1_000 }), /candidate|Station|phase/i);
   assert.equal(fixture.recovery.unrouteCount, 1);
   assert.equal(fixture.recovery.fallbackCount, 0);
+});
+
+
+test('Station recovery stops at its original deadline while the workspace read remains pending', async () => {
+  const fixture = recoveryFixture({ workspaceNeverReady: true });
+  await assert.rejects(stationProof.recoverStationReactorContribution({ ...fixture,
+    shipId: 'aegis', roleId: fixture.roleId, deadlineAt: Date.now() + 45 }), /original operation deadline/);
+  assert.equal(fixture.recovery.fetchCount, 1);
+  assert.equal(fixture.recovery.fallbackCount, 0, 'Pending workspace readiness cannot send another action.');
+  assert.equal(fixture.recovery.unrouteCount, 1);
 });
