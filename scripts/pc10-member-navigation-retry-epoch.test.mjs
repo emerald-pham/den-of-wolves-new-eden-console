@@ -85,3 +85,17 @@ test('an App retry response arriving after the original selection deadline canno
     assert.equal(f.events.eventNames().length, 0);
   } finally { f.releaseResumeResponse(); await f.finishPendingResume(); await f.cleanup(); }
 });
+
+test('another actor roster resume cannot qualify or prematurely reject the held original actor before its own App retry', async () => {
+  const { result, error, saved, f } = await exercise({ otherActorBeforeRetry: true });
+  assert.equal(error, undefined); assert.equal(result, f.crew);
+  assert.deepEqual(f.sdkRequests, ['resumeSession']); assert.equal(f.application.length, 1);
+  assert.equal(saved.receipts.length, 2);
+  const foreign = saved.receipts.find(row => row.reply?.uidHash !== saved.originalBinding.uidHash);
+  assert.ok(foreign); assert.equal(foreign.reply.player.assignedRoleId, 'shepherd-engineer');
+  assert.equal(saved.transitions.length, 1);
+  assert.equal(saved.transitions[0].receipt.reply.uidHash, saved.originalBinding.uidHash);
+  assert.equal(saved.transitions[0].current.connectionGeneration, 5);
+  assert.equal(saved.transitions[0].current.identityHydrationRevision, 2);
+  assert.equal(saved.events.filter(event => event.kind === 'held-listener-epoch').length, 1);
+});

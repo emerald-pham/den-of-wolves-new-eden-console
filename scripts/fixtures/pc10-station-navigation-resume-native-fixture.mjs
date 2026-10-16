@@ -58,7 +58,8 @@ export async function stationNavigationResumeFixture(options = {}) {
   // feed can publish the server lease before HTTP delivery or SDK application.
   // The actual source resume/finally fence still owns identity hydration.
   const barrier = () => { let release; const promise = new Promise(resolve => { release = resolve; }); return { promise, release }; };
-  const responseGate = barrier(), applicationGate = barrier(), requestObserved = barrier(), earlyObservation = barrier();
+  const responseGate = barrier(), applicationGate = barrier(), requestObserved = barrier(), earlyObservation = barrier(), foreignObservation = barrier();
+  let foreignPublished = false;
   const deferredResume = options.deferResumeResponse || options.deferResumeApplication;
   let backgroundResume;
   let actualNormalClaim, acceptanceClaims = 0;
@@ -220,6 +221,8 @@ export async function stationNavigationResumeFixture(options = {}) {
   f.crew.page.evaluate = async (callback, input) => {
     if (typeof input === 'string') {
       const value = await originalEvaluate(callback, input);
+      if (foreignPublished && value.connectionGeneration === start.me.connectionGeneration + 1 &&
+          value.identityHydrationRevision === start.identityHydrationRevision) foreignObservation.release(value);
       if ((deferredResume || options.unmatchedLeaseBeforeRetry) && value.connectionGeneration === start.me.connectionGeneration + (options.externalGenerationDelta ?? 1) &&
           value.identityHydrationRevision === start.identityHydrationRevision) earlyObservation.release(value);
       return value;
@@ -270,6 +273,28 @@ export async function stationNavigationResumeFixture(options = {}) {
         backgroundResume = (async () => {
           await earlyObservation.promise;
           await new Promise(resolve => setTimeout(resolve, 0));
+          if (options.otherActorBeforeRetry) {
+            // The source demo gateway can resume a background actor from this
+            // same page. Its source DTO identifies a different real account;
+            // it does not hydrate or change this selected actor's SDK fence.
+            const foreignPlayer = { ...f.store.getState().me, uid: 'private-native-other-actor',
+              assignedRoleId: 'shepherd-engineer', activeConsoleRoleId: 'shepherd-engineer', seatId: 'shepherd-engineer',
+              connectionGeneration: 3 };
+            const foreignContext = createContext({ uid: foreignPlayer.uid, sessionId: sid,
+              resumeResult: { seatId: foreignPlayer.seatId, connectionGeneration: foreignPlayer.connectionGeneration },
+              playerSnap: { get: key => foreignPlayer[key] }, cleanName: value => value ?? 'Native player',
+              isoOf: () => undefined, playerEscapeState: () => undefined });
+            const foreignReply = plain(new Script(js(`(${resumeReplySource})`)).runInContext(foreignContext));
+            foreignReply.session = { id: sid };
+            const request = { method: () => 'POST', url: () => 'http://127.0.0.1:5011/demo-native/us-central1/resumeSession',
+              postDataJSON: () => ({ data: { sessionId: sid } }) };
+            events.emit('request', request);
+            events.emit('response', { request: () => request, url: request.url, status: () => 200,
+              json: async () => ({ result: foreignReply }) });
+            await Promise.resolve(); foreignPublished = true;
+            await foreignObservation.promise;
+            await new Promise(resolve => setTimeout(resolve, 0));
+          }
           if (options.noAutomaticRetry) return;
           const retryContext = createContext({ useSessionStore: { getState: f.store.getState },
             pendingStationMemberRefresh: undefined, readClosedHistoryIfReady: () => assert.fail('Not a closed session.'),
@@ -326,7 +351,7 @@ export async function stationNavigationResumeFixture(options = {}) {
     },
     run: () => adapter.select(roleId, { deadlineAt: Date.now() + (options.shortDeadline ? 120 : 1500) }),
     cleanup: async () => {
-      earlyObservation.release(); responseGate.release(); applicationGate.release();
+      earlyObservation.release(); foreignObservation.release(); responseGate.release(); applicationGate.release();
       await backgroundResume?.catch(() => undefined);
       await rm(directory, { recursive: true, force: true });
     } };
