@@ -430,7 +430,7 @@ describe('candidate-loss actor recovery through the current member surface', () 
     const discoveries = screen.getByRole('region', { name: 'Candidate discoveries' });
     expect(within(discoveries).getAllByText('Deep Nebula')).toHaveLength(2);
     expect(within(discoveries).getByText(/the ship was lost within the Deep Nebula/i)).toBeVisible();
-    const begin = screen.getByRole('button', { name: 'Begin Maintenance Cycle: Cycle 6', exact: true });
+    const begin = screen.getByRole('button', { name: 'Begin Maintenance Cycle: Cycle 6' });
     expect(begin).toBeDisabled();
     expect(within(discoveries).getByText(/Next actor \/\/ Each ship chooses its long jump/i)).toBeVisible();
     expect(within(discoveries).queryByRole('button', { name: /^Long jump into Nebula \/\/ aegis \/\// }))
