@@ -1578,3 +1578,22 @@ Bravo. Functions, rules, operator, authority and cleanup gates are unchanged.
 All 48 PC10 IDs remain unfinished, 14 partial/34 missing, at 703/751 overall and
 245/293 campaign; no new closure, final rendered/typography, CI, deployment,
 release, later checkpoint or licensing credit.
+
+## Reconciled Refinery paid-jump repair
+
+The inherited product rejected a valid private `results.ftl` maintenance entry
+left by an ordinary paid jump, preventing a charged Refinery Fighter Bay from
+launching. The retained c71d0bf69 repair was not merged wholesale: its historical
+source was reused only as the narrow allowlist patch. A new current regression
+was observed failing at the public launch-authority boundary (one failed,
+45 passing), then committed alone at `4fa065af` before implementation.
+
+The minimal implementation accepts only the additional string-valued private
+FTL result. Existing role, cycle, charge, attack and operational-state authority
+still apply; malformed or unknown results remain denied. The test also proves
+that both ordinary parsed maintenance and public maintenance-event projections
+exclude the private FTL text. Focused launch/maintenance/event tests pass after
+the change. RED/GREEN logs are retained outside Git under
+`/tmp/pc10-implementation-notes-20261015/refinery-ftl-{red,green}.log`.
+This is current domain/projection evidence, not a normal authenticated launch,
+whole role acceptance or deployment proof. Independent risk review remains.
