@@ -192,10 +192,16 @@ Source `7f9b479ece1f4ded12af428a9f8deabf3d5db1b2`, fresh project
 `demo-pc10-transport-f9f3-20261016-a2`. Granular diagnostics narrow the first
 failure to `gm-a-create-session-button-visible`: no click began and no
 `createSession` POST was observed. Config verification had passed. The
-operator does not yet establish why the public control was missing; no
-product admission defect or audit result is inferred. A screenshot was
-scheduled after this failed visibility wait, so none was obtained. Sol now
-owns bounded operator diagnosis before another native retry.
+initial receipt did not establish why the public control was missing. Later
+inspection of the retained public failure screenshot found the Motion Safety
+Check modal, which makes the underlying landing inert. The operator emulated
+reduced motion but omitted the normal REDUCED MOTION choice. The earlier
+owner note incorrectly said the screenshot was absent; it is retained as
+`gm-a-public-landing-failure.png` (SHA-256
+`3be8888e34a84c04ea831f9b49d56da2d0c53d3afa78326afc49e5d19b643c00`).
+Sol repaired that ordinary choice for all three contexts in the external
+operator. Syntax passes; fresh native verification remains pending. No product
+admission defect or audit result is inferred.
 
 The exact a2 external invocation is retained as runtime `invocation-source.mjs`.
 Physical return was 06:38:43.083 UTC: all 19 captured owned PIDs were absent,
@@ -210,3 +216,42 @@ without import/export or a per-UID deletion claim.
 | `transport-audit-native-receipt.json` | `75d00f7d47f8c03a43cc7304b17a74ebfb6f4b898a5ae31ae442381f6fb1584d` |
 | `runtime invocation-source.mjs` | `c0dc7e7c63aa7ea61ea962a8f1672a0733b0a8c4798c08606a0a7a21161de8db` |
 | `runtime strict-return.json` | `c77e7609aa7871e1fec4e17f7e248e15904cd1b7edd3f60c5e541785f40b2b32` |
+
+
+## Capybara a2 — owner stop for a later source-proven proof blocker
+
+Source `c6f56fd5402c9427b9013021a47492041d9fcaf2`, fresh project
+`demo-pc10-capy-f9f3-20261016-a2`, evidence
+`/private/tmp/pc10-capybara-proof-f9f3-20261016-a2`.
+
+Normal GM setup, twenty-core-role cast plus Press, real private setup and
+manual Cycle 1 start passed with twenty-three genuine Auth identities, two
+Chrome contexts and zero humans. All twenty-one role surfaces/private briefs
+were reached. Seven normal host maintenance sessions completed, including
+Capybara production and the Recycler's Boa refuel/replay. Disclosed demo
+supplies were applied through ordinary controls; they do not prove acquisition.
+The original artifacts remain in-progress, with no full-function or whole-game
+acceptance. The run had reached the opening Wolf sequence when stopped.
+
+At 06:55:44.776 UTC, the owner stopped the proof for a concrete later source
+incompatibility: the continuation waits for `store.me.candidateDisposition`,
+while the real client `playerFrom` parser never returns that field. Nothing
+populates it later. The C5 wait therefore could not succeed. This is a
+source-proven proof-consumer blocker, not an observed C5 native failure or an
+established product defect. No O action or outcome was fabricated to create RED.
+The same-session H1/H2 proof remains incomplete. Sol now owns the next bounded
+continuation repair after two failed source candidates; the earlier Luna
+branches and independent-review history remain preserved.
+
+Acquisition was 06:40:03.810 UTC. Proof SIGINT exited 130; both owned wrapper
+sessions then ended. Strict physical return was 06:57:04.473 UTC, before the
+original 08:20:03.810 bound: all 109 captured owned PIDs absent, all 22 bindings
+free, exact owned configuration released. RAM was discarded without import/
+export or per-UID deletion claim. No CI, deployment or release credit is earned.
+
+| Capybara a2 artifact | SHA-256 |
+| --- | --- |
+| `owner-source-blocker-stop.json` | `3ea1483ffca42fb3215091172b18d495189fbdc708609104a926c757b6ca9998` |
+| `role-affordances.json` | `500a038ba4e23cfa2b8586d7977b88abe011cf9298fe8181d4f69e5cee7dccb5` |
+| `capybara-gameplay-progress.json` | `3775ec4c0cf96e937bc5d4f4cae2dca86dd7b1b87b7c87e224526cf541d8422c` |
+| `runtime strict-return.json` | `28a68fed4e1e478075104b481ac2dfdaf8b664c8279b074b8d76445173421c95` |
