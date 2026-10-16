@@ -446,10 +446,12 @@ test('recovery artifacts are excluded from every registered checkout and symlink
   try {
     await fixture.runGit(['worktree', 'add', '--detach', alternateCheckout, 'main']);
     const siblingArtifact = join(alternateCheckout, 'recovery');
+    const localTip = await fixture.localSha();
+    const remoteTip = await fixture.remoteSha();
     const sibling = await fixture.cleanup({ apply: true, artifactDirectory: siblingArtifact });
     expectReason(sibling, 'recovery-directory-inside-worktree');
-    assert.equal(await fixture.localSha(), sibling.local.sha);
-    assert.equal(await fixture.remoteSha(), sibling.remote.sha);
+    assert.equal(await fixture.localSha(), localTip);
+    assert.equal(await fixture.remoteSha(), remoteTip);
     await assert.rejects(readFile(join(siblingArtifact, 'manifest.json')));
 
     await symlink(alternateCheckout, checkoutAlias, 'dir');
@@ -462,8 +464,8 @@ test('recovery artifacts are excluded from every registered checkout and symlink
     const missingRootArtifact = join(missingCheckout, 'recovery');
     const missingRoot = await fixture.cleanup({ apply: true, artifactDirectory: missingRootArtifact });
     expectReason(missingRoot, 'recovery-directory-inside-worktree');
-    assert.equal(await fixture.localSha(), missingRoot.local.sha);
-    assert.equal(await fixture.remoteSha(), missingRoot.remote.sha);
+    assert.equal(await fixture.localSha(), localTip);
+    assert.equal(await fixture.remoteSha(), remoteTip);
     await assert.rejects(readFile(join(missingRootArtifact, 'manifest.json')));
   } finally {
     await fixture.dispose();
