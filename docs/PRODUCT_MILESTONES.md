@@ -810,6 +810,10 @@ acceptances rather than treating these brief checklists as replacement criteria.
 
 The owner approved five independent repairs following the retrospective of
 session `01a1446d-0b24-7521-b204-dd366b37ee3b` (Implement PC10 Spec).
+The owner subsequently requested the CI classification repair as the sixth
+item and a move to GitHub Issues as the seventh. The tracker migration is
+planned work: the current catalog remains authoritative until PT7 verifies
+the import and completes its cutover.
 Each brief is one verifiable tooling behavior within existing prompt support;
 publication preserves the 751-prompt endpoint, fixed checkpoint membership,
 parent acceptance, completion states and canonical prerequisite graph.
@@ -821,12 +825,20 @@ parent acceptance, completion states and canonical prerequisite graph.
 | [PT3](pc10-tickets/57-pt3.md) | 641, 642, 649, 651 | Shared role-entry results and affected consumers receive automatic type checks | None |
 | [PT4](pc10-tickets/58-pt4.md) | 660, 651 | Emulator allocation survives interleaved startup and returns only owned resources | None |
 | [PT5](pc10-tickets/59-pt5.md) | 651, 660 | Scoped runtime summaries retain detailed diagnostics on disk | None |
+| [PT6](pc10-tickets/60-pt6.md) | 651 | Generated roadmap artifacts receive the appropriate CI classification | None |
+| [PT7](pc10-tickets/61-pt7.md) | 651 | Work tracking moves to GitHub Issues with verified history and dependency preservation | None |
 
-All five briefs can start independently. Shared invocation, registry or CI
+All seven briefs can start independently. Shared invocation, registry or CI
 files require edit coordination rather than additional blocking edges. PT5
 can use existing ownership records without waiting for PT4. No separate
 prefactor is required; each owner keeps any necessary preparation within its
 complete behavior and fresh-context boundary.
+
+PT7's cutover consumes a verified source snapshot and settled tracker writes.
+Existing reader interfaces can consume a generated catalog snapshot after
+cutover; GitHub Issues becomes the writable tracking authority. Preparation
+can proceed independently, while incomplete migration keeps the existing
+tracker intact.
 
 The briefs are ready for approved tooling preparation. Parent gameplay and
 release closure prerequisites remain intact, and PC10's separate runtime

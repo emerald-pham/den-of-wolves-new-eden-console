@@ -393,3 +393,14 @@ definitions, canonical prerequisites, completion states, historical P660
 completion, campaign totals and the fixed PC10 allocation. The independent
 PC10 runtime stopping request remains in force; ticket approval supplies no
 runtime restart or gameplay/release evidence.
+
+The publication's generated roadmap artifacts selected the full application
+CI profile despite having no application deployment targets; its candidate
+verification took about 26 minutes. The owner asked whether that mismatch
+merited a ticket, then requested switching to GitHub Issues “as a seventh
+ticket item.” The expanded approved breakdown therefore adds PT6 for the
+classification mismatch and PT7 for tracker migration, each independently
+startable. PT7 records the desired future tracking authority; the current
+catalog remains authoritative until a verified import and explicit cutover
+preserve the campaign's IDs, statuses, dependencies and evidence. This entry
+records the two additional work items, not their implementation or completion.
