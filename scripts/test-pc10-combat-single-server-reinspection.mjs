@@ -8,8 +8,8 @@ import { createWolfChoiceWaiter } from './pc10-combat-choice-readiness.mjs';
 import { assertOriginalBaseActor } from './pc10-base-combat-deduction-contracts.mjs';
 
 // Native fixtures execute the actual serialized page.evaluate callback. The SDK
-// source distinguishes cache-permitted getDoc from server-only getDocFromServer;
-// inert modules below expose that distinction without any browser or network.
+// source distinguishes cache-permitted getDoc from a transaction's direct
+// server batch read; inert modules expose both paths without a browser/network.
 const sessionId = 'private-native-session', uid = 'private-native-original-gm';
 const originalActor = { hasAuth: true, sameActor: true, sessionId,
   uidHash: createHash('sha256').update(uid).digest('hex').slice(0, 16), profileRoleId: null,
@@ -27,7 +27,8 @@ const deniedReply = { status: 'denied', code: 'functions/failed-precondition',
 const plain = value => JSON.parse(JSON.stringify(value));
 
 function sourceReadFixture({ metadata = { fromCache: false, hasPendingWrites: false },
-  attack = currentAttack, serverValue = resolvedAttack, serverError, afterServer = () => {}, sdkReply = deniedReply } = {}) {
+  attack = currentAttack, serverValue = resolvedAttack, transactionValue,
+  serverError, pendingTransactionRead = false, afterServer = () => {}, sdkReply = deniedReply } = {}) {
   const counts = { getDoc: 0, getDocFromServer: 0, getDocs: 0, sdkChoice: 0, paints: 0 };
   const timeouts = [], records = [], reads = [];
   const fixture = { actor: { ...originalActor }, counts, timeouts, records, reads };
@@ -47,6 +48,20 @@ function sourceReadFixture({ metadata = { fromCache: false, hasPendingWrites: fa
       if (serverError) throw serverError;
       afterServer(fixture);
       return snapshot(serverValue, metadata);
+    },
+    runTransaction: async (database, callback, options) => {
+      reads.push({ method: 'runTransaction' });
+      assert.equal(database.kind, 'same-authenticated-db');
+      assert.equal(options.maxAttempts, 1);
+      assert.deepEqual(Object.keys(options), ['maxAttempts']);
+      return callback({ get: async ref => {
+        reads.push({ method: 'transaction.get', path: ref.path });
+        assert.equal(ref.path, path);
+        if (pendingTransactionRead) return new Promise(() => {});
+        if (serverError) throw serverError;
+        afterServer(fixture);
+        return snapshot(transactionValue === undefined ? serverValue : transactionValue, metadata);
+      } });
     },
     getDocs: async ref => {
       counts.getDocs += 1; reads.push({ method: 'getDocs', path: ref.path });
@@ -99,17 +114,45 @@ function sourceReadFixture({ metadata = { fromCache: false, hasPendingWrites: fa
   };
 }
 
-test('the exact authenticated single reinspection uses the actual serialized server-only SDK read', async () => {
+test('the exact authenticated single reinspection uses one serialized SDK transaction read', async () => {
   const fixture = sourceReadFixture(), observed = [];
   const deadlineAt = Date.now() + 4000;
   const value = await fixture.adapter.read('gm', 'wolfAttackState/current', {
     serverOnly: true, deadlineAt, onSnapshot: async outcome => { observed.push(plain(outcome)); },
   });
   assert.deepEqual(plain(value), { id: 'current', ...resolvedAttack });
-  assert.deepEqual(fixture.counts, { getDoc: 0, getDocFromServer: 1, getDocs: 0, sdkChoice: 0, paints: 0 });
+  assert.deepEqual(fixture.counts, { getDoc: 0, getDocFromServer: 0, getDocs: 0, sdkChoice: 0, paints: 0 });
+  assert.deepEqual(fixture.reads.map(({ method }) => method), ['runTransaction', 'transaction.get']);
+  assert.equal(fixture.reads[1].path, `sessions/${sessionId}/wolfAttackState/current`);
   assert.equal(observed.length, 1);
   assert.deepEqual(observed[0].metadata, { fromCache: false, hasPendingWrites: false });
   assert.ok(fixture.timeouts.every(timeout => timeout > 0 && timeout <= 4000), 'No new readiness budget.');
+});
+
+test('the strong boarding reinspection observes the current document when the server listener is stale', async () => {
+  const staleListenerValue = { ...currentAttack, revision: 25 };
+  const fixture = sourceReadFixture({ serverValue: staleListenerValue, transactionValue: currentAttack });
+  const value = await fixture.adapter.read('gm', 'wolfAttackState/current', {
+    serverOnly: true, deadlineAt: Date.now() + 4000,
+  });
+  assert.equal(value.revision, 26, 'Use the transaction batch read, not a metadata-fresh listener snapshot.');
+  assert.deepEqual(fixture.counts, { getDoc: 0, getDocFromServer: 0, getDocs: 0, sdkChoice: 0, paints: 0 });
+  assert.deepEqual(fixture.reads.map(({ method }) => method), ['runTransaction', 'transaction.get']);
+});
+
+test('the original deadline bounds a transaction read that never settles and grants no read result', async () => {
+  const fixture = sourceReadFixture({ pendingTransactionRead: true }), observed = [];
+  const deadlineAt = Date.now() + 25;
+  const result = await Promise.race([
+    fixture.adapter.read('gm', 'wolfAttackState/current', {
+      serverOnly: true, deadlineAt, onSnapshot: outcome => { observed.push(plain(outcome)); },
+    }).then(value => ({ kind: 'value', value }), error => ({ kind: 'error', error })),
+    new Promise(resolve => setTimeout(() => resolve({ kind: 'still-pending' }), 100)),
+  ]);
+  assert.equal(result.kind, 'error', 'The page read must finish or reject within its original deadline.');
+  assert.match(result.error.message, /original combat source reinspection deadline expired/i);
+  assert.deepEqual(fixture.reads.map(({ method }) => method), ['runTransaction', 'transaction.get']);
+  assert.deepEqual(observed, [], 'An unfinished read must not invoke the evidence observer.');
 });
 
 test('normal document and collection reads keep their existing cache-permitted path', async () => {
@@ -133,7 +176,8 @@ for (const [label, metadata] of [
     await assert.rejects(fixture.adapter.read('gm', 'wolfAttackState/current', {
       serverOnly: true, deadlineAt: Date.now() + 4000, onSnapshot: outcome => { observed.push(plain(outcome)); },
     }));
-    assert.equal(fixture.counts.getDocFromServer, 1); assert.equal(fixture.counts.getDoc, 0);
+    assert.equal(fixture.counts.getDocFromServer, 0); assert.equal(fixture.counts.getDoc, 0);
+    assert.deepEqual(fixture.reads.map(({ method }) => method), ['runTransaction', 'transaction.get']);
     assert.equal(observed.length, 1);
   });
 }
@@ -146,7 +190,8 @@ for (const code of ['unavailable', 'permission-denied']) {
       serverOnly: true, deadlineAt: Date.now() + 4000, onSnapshot: outcome => { observed.push(plain(outcome)); },
     }), error => error.code === code && !error.message.includes('Private SDK'));
     assert.deepEqual(observed, [{ status: 'error', code }]);
-    assert.equal(fixture.counts.getDocFromServer, 1); assert.equal(fixture.counts.getDoc, 0);
+    assert.equal(fixture.counts.getDocFromServer, 0); assert.equal(fixture.counts.getDoc, 0);
+    assert.deepEqual(fixture.reads.map(({ method }) => method), ['runTransaction', 'transaction.get']);
   });
 }
 
@@ -181,7 +226,8 @@ test('mounted GM exact SDK denial resolves through one server-only reinspection 
   assert.equal(result.status, 'source-changed'); assert.equal(result.gameplayCredit, false);
   assert.equal(result.actionCredit, false); assert.equal(result.acceptanceCredit, false);
   assert.deepEqual(result.readDenial.reply, deniedReply);
-  assert.deepEqual(fixture.counts, { getDoc: 1, getDocFromServer: 1, getDocs: 0, sdkChoice: 1, paints: 0 });
+  assert.deepEqual(fixture.counts, { getDoc: 1, getDocFromServer: 0, getDocs: 0, sdkChoice: 1, paints: 0 });
+  assert.deepEqual(fixture.reads.map(({ method }) => method), ['getDoc', 'runTransaction', 'transaction.get']);
   assert.deepEqual(reinspectionRecord(fixture).tuple, { sameSession: true, sameAttack: true,
     turn: 1, revision: 27, status: 'resolved', currentStep: 'resolved', airspaceLocked: false });
   assert.deepEqual(reinspectionRecord(fixture).metadata, { fromCache: false, hasPendingWrites: false });
@@ -192,7 +238,8 @@ test('captured live declared boarding source remains a hard stop with bounded on
     status: 'declared', currentStep: 'boarding', airspaceLocked: true };
   const fixture = sourceReadFixture({ attack: captured, serverValue: captured });
   await assert.rejects(fixture.run(), /same newer resolved, unlocked attack/);
-  assert.deepEqual(fixture.counts, { getDoc: 1, getDocFromServer: 1, getDocs: 0, sdkChoice: 1, paints: 0 });
+  assert.deepEqual(fixture.counts, { getDoc: 1, getDocFromServer: 0, getDocs: 0, sdkChoice: 1, paints: 0 });
+  assert.deepEqual(fixture.reads.map(({ method }) => method), ['getDoc', 'runTransaction', 'transaction.get']);
   const observed = reinspectionRecord(fixture);
   assert.deepEqual(observed.document, { exists: true, expectedType: true });
   assert.deepEqual(observed.expectedActorAtRead, {
@@ -220,7 +267,8 @@ for (const [label, change] of [
   test(`the actual single server read records then rejects ${label} without retry`, async () => {
     const fixture = sourceReadFixture({ serverValue: change });
     await assert.rejects(fixture.run(), /same newer resolved, unlocked attack/);
-    assert.equal(fixture.counts.getDoc, 1); assert.equal(fixture.counts.getDocFromServer, 1);
+    assert.equal(fixture.counts.getDoc, 1); assert.equal(fixture.counts.getDocFromServer, 0);
+    assert.deepEqual(fixture.reads.map(({ method }) => method), ['getDoc', 'runTransaction', 'transaction.get']);
     assert.equal(fixture.counts.sdkChoice, 1); assert.equal(fixture.counts.paints, 0);
     const observed = reinspectionRecord(fixture);
     assert.deepEqual(observed.document, {
@@ -244,7 +292,8 @@ for (const [label, drift] of [
       for (let cause = error; cause; cause = cause.cause) if (cause.code === deniedReply.code && cause.message === deniedReply.message) return true;
       return false;
     });
-    assert.equal(fixture.counts.getDocFromServer, 1); assert.equal(fixture.counts.sdkChoice, 1);
+    assert.equal(fixture.counts.getDocFromServer, 0); assert.equal(fixture.counts.sdkChoice, 1);
+    assert.deepEqual(fixture.reads.map(({ method }) => method), ['getDoc', 'runTransaction', 'transaction.get']);
     assert.equal(fixture.counts.paints, 0); reinspectionRecord(fixture);
   });
 }
@@ -262,7 +311,8 @@ for (const code of ['unavailable', 'permission-denied']) {
     await assert.rejects(fixture.run(), error => error.cause?.code === deniedReply.code && error.cause?.message === deniedReply.message);
     const record = reinspectionRecord(fixture);
     assert.equal(record.status, 'failed'); assert.equal(record.code, code); assert.equal(record.tuple, null);
-    assert.equal(fixture.counts.getDocFromServer, 1); assert.equal(fixture.counts.getDoc, 1);
+    assert.equal(fixture.counts.getDocFromServer, 0); assert.equal(fixture.counts.getDoc, 1);
+    assert.deepEqual(fixture.reads.map(({ method }) => method), ['getDoc', 'runTransaction', 'transaction.get']);
   });
 }
 
@@ -273,7 +323,8 @@ test('malformed private tuple fields remain bounded diagnostics and fail the ori
   const record = reinspectionRecord(fixture);
   assert.deepEqual(record.tuple, { sameSession: true, sameAttack: true, turn: 1,
     revision: null, status: null, currentStep: null, airspaceLocked: false });
-  assert.equal(fixture.counts.getDocFromServer, 1);
+  assert.equal(fixture.counts.getDocFromServer, 0);
+  assert.deepEqual(fixture.reads.map(({ method }) => method), ['getDoc', 'runTransaction', 'transaction.get']);
 });
 
 const baseSource = await readFile(new URL('./pc10-base-combat-deduction-ui-proof.mjs', import.meta.url), 'utf8');
