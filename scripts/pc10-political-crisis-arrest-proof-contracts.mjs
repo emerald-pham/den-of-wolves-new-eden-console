@@ -216,9 +216,28 @@ export async function enterPreparedRoleStation({ crew, initial, roster, roleId }
   const current = await crew.until(`Mounted ${roleId} station`, state => state.sameActor === true &&
     state.sessionId === initial.sessionId && state.uidHash === actor.uidHash && state.profileRoleId === roleId &&
     state.activeConsoleRoleId === roleId && state.connection === 'live' && state.freshness === 'server');
+  const mountedStation = roleId === 'press-officer'
+    ? crew.page.getByRole('region', { name: 'Press dispatch desk', exact: true })
+    : crew.page.locator('main.ship-console--gameplay');
+  await mountedStation.waitFor();
+  const mounted = await crew.until(`Original ${roleId} authority remains current after its station mounts`, state =>
+    state.sameActor === true && state.sessionId === current.sessionId && state.uidHash === current.uidHash &&
+    state.playerRole === 'player' && state.profileRoleId === roleId &&
+    state.assignedRoleId === current.assignedRoleId && state.activeConsoleRoleId === roleId &&
+    state.cycle === current.cycle && state.phase === current.phase &&
+    state.turnStatePhase === current.turnStatePhase && state.connection === 'live' && state.freshness === 'server');
+  assertPlayerActorFence(mounted, {
+    sessionId: initial.sessionId,
+    uidHash: actor.uidHash,
+    roleId,
+    assignedRoleId: current.assignedRoleId,
+    cycle: current.cycle,
+    phase: current.phase,
+    turnStatePhase: current.turnStatePhase,
+  });
   return { actor: { actorKind: 'player', sessionId: initial.sessionId, uidHash: actor.uidHash, roleId,
-    assignedRoleId: current.assignedRoleId, cycle: current.cycle, phase: current.phase,
-    turnStatePhase: current.turnStatePhase }, current };
+    assignedRoleId: mounted.assignedRoleId, cycle: mounted.cycle, phase: mounted.phase,
+    turnStatePhase: mounted.turnStatePhase }, current: mounted };
 }
 
 export function sha256(value) { return digest(value); }
