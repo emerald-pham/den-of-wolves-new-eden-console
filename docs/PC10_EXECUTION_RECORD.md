@@ -1613,3 +1613,31 @@ observed RED and a separate test-first commit. It does not change unrelated
 callables, campaign accounting, release metadata or owner decisions. Root
 remains responsible for the final reconciled privacy review and whole prompt
 closure; fixture-based Rules proof is labeled separately from normal gameplay.
+
+## D1/D2 verification handoff and worker cleanup
+
+The candidate worker verified 148 selected domain/callable/projection, actual
+arrival/scout consumer and UI tests on the reconciled tree. No new behavior or
+tests were necessary. Its criterion map and commands remain at
+`/tmp/pc10-implementation-notes-20261015/candidate-discovery.md`. Rules, browser,
+HTTP and ordinary gameplay gaps remain explicit; no prompt is marked done.
+
+Root removed the terminal worker checkout
+`/tmp/dow-pc10-candidate-resume-f9f3` after confirming clean tracked/untracked
+state, no matching live process, no dependency symlinks and HEAD ancestry in the
+retained integration branch. Root's owner-reviewed preservation decision keeps
+its branch ref and external evidence; its sole ignored file was reproducible
+casting-core build output. No unique source or needed recovery data was removed.
+
+## Wing mission verification frontier
+
+A bounded Sol 6.1 High worker owns W1/W2 acceptance mapping and the smallest
+remaining ordinary Wing mission proof in `/tmp/dow-pc10-wing-resume-f9f3`, branch
+`pc10/wing-resume-f9f3`, based on integration `e5d8d990`. Preserve accepted
+Starlight/scout/bay evidence and all old E21/E22 data. Reuse existing tested
+proof interfaces rather than building a replacement harness. Before runtime,
+return the exact minimal invocation, source/build/actor scope, realistic startup
+and teardown plan, and any genuine blocker to root for a bounded resource grant.
+No old frozen packet or former canonical-parent grant is adopted. Any new
+functional repair follows current observed-RED/test-commit-before-code rules.
+Root retains final prompt closure, integration and release ownership.
