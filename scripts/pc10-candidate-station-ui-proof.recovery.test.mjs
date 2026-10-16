@@ -540,7 +540,8 @@ test('the Station consumer resolves the live P arrival in Cycle 1 before ordinar
     Object.keys(fixture.capacities), 'All current paid P arrivals must precede the source window decision.');
   assert.deepEqual([...fixture.shared.cycleOneMaintenanceShipIds], Object.keys(fixture.capacities));
   assert.deepEqual([...fixture.shared.cycleOneDefenseRepairCounts.entries()],
-    Object.keys(fixture.capacities).map(shipId => [shipId, 2]));
+    Object.keys(fixture.capacities).map(shipId => [shipId, 3]),
+    'Each ship keeps both paid-maintenance repairs and the current attack repair check.');
   assert.equal(fixture.shared.attackResolved, true);
   assert.equal(fixture.shared.selectedTargetGroupId, 'fleet-1');
   assert.equal(fixture.shared.selectedSourceId, 'station-arrival-current-source');
