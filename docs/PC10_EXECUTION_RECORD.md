@@ -1713,3 +1713,42 @@ the ordinary GM page to trigger its actual debrief reader. It validates the
 returned snapshot, current identity and rendered GM/crew results under finite
 deadlines. Eleven focused ending/route/geometry checks pass. The original native
 run remains failed; only a new native run can qualify the corrected reader.
+
+## Second Ring failure and bounded verification integration
+
+Fresh Ring run `a2`, source `c684155b`, again completed four cycles, six paid
+destination jumps, Ring materials/research/Philia, six Fuel-5 passages and
+far-side sabotage. It **failed** after the ordinary GM reload: the proof selected
+a `getSessionDebrief` response with HTTP 401. Service logs record two missing-Auth
+reads followed by authenticated reads. This is not an accepted ending. A Sol
+owner now owns the bounded product/auth-readiness versus proof-selection
+diagnosis, a fast behavioral reproduction and any test-first repair; no blind
+third full Ring retry is authorized by this record.
+
+Preserve original evidence in `/private/tmp/pc10-ring-proof-f9f3-20261016-a2`
+and corresponding `pc10-ring-runtime-f9f3-20261016-a2` service/proof logs.
+Root retrieved the failure, stopped both original wrappers, verified all 22
+IPv4/IPv6 bindings free and no owned reservations, released only configuration
+`configuration-90c3c298-5787-4066-b4fd-27fedb874889`, and removed its local
+config/env. Fresh RAM emulators used no import/export; old data was untouched.
+The external `ring-a2-return.json` retains the physical return boundary.
+
+After return root integrated capture repair `60c56aba` and Base/Capybara
+mission-consumer repair `b82606d1`. The latter consumes actual automatic final
+assignment results and ordinary privacy preparation, including multiple repair
+passes. Mechanical extraction precedes executable behavioral RED `6518e61b`;
+the multi-repair RED is retained separately before its correction. Twenty
+focused tests, 28 existing mounted privacy tests and the reconciled 29-test
+consumer/ending/geometry cohort pass. Earlier source-text assertions are
+classified as structural guards, not behavioral RED. Native mission composition,
+movement witnesses, full Voyage, recovery and whole-game acceptance remain open.
+
+Independent review found the old repaired Ring narrow-screen screenshots had
+scrolled away after keyboard traversal. Test-first capture repair `b8a8ee50`
+preserves that traversal and adds control-visible, contemporaneous captures.
+The existing prepared real-component/CSS/store fixture passes four browser
+tests and six geometry tests. Independent pixels/hash review accepts readable,
+contained status/passage controls at phone, landscape and desktop sizes and
+records sampled actual Courier glyph use through Chrome CDP. This is **prepared
+component presentation only**. It does not relabel either failed native run or
+establish composed-shell/final-build typography, gameplay or production proof.
