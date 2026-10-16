@@ -404,6 +404,49 @@ test('same-origin clone owners and unresolved owner origins retain the shared br
   }
 });
 
+test('coordination ownership compares effective fetch and push origins across URL aliases', async () => {
+  const fixture = await createBranchCleanupFixture();
+  const owner = join(fixture.root, 'owner-clone');
+  const unrelatedPushOrigin = join(fixture.root, 'unrelated-push.git');
+  try {
+    const localTip = await fixture.localSha();
+    const remoteTip = await fixture.remoteSha();
+    await runGit(fixture.root, ['clone', `file://${fixture.origin}`, owner]);
+    await runGit(owner, ['switch', '--track', '-c', fixture.branchName, `origin/${fixture.branchName}`]);
+
+    const rewrittenOrigin = `file://${fixture.origin}`;
+    const candidateAlias = 'https://candidate-alias.invalid/example/repo.git';
+    const ownerAlias = 'https://owner-alias.invalid/example/repo.git';
+    await fixture.runGit(['remote', 'set-url', 'origin', candidateAlias]);
+    await fixture.runGit(['config', '--add', `url.${rewrittenOrigin}.insteadOf`, candidateAlias]);
+    await runGit(owner, ['remote', 'set-url', 'origin', ownerAlias]);
+    await runGit(owner, ['config', '--add', `url.${rewrittenOrigin}.insteadOf`, ownerAlias]);
+
+    const ownerIdentity = await runGit(owner, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+    await fixture.writeCoordination({ entries: [{
+      id: 'effective-alias-active-owner',
+      status: 'active',
+      branchName: fixture.branchName,
+      worktree: owner,
+      repositoryRoot: owner,
+      repositoryIdentity: ownerIdentity,
+    }] });
+    const sameEffectiveOrigin = await fixture.cleanup({ apply: true });
+    expectReason(sameEffectiveOrigin, 'coordination-ownership');
+    assert.equal(await fixture.localSha(), localTip);
+    assert.equal(await fixture.remoteSha(), remoteTip);
+
+    await runGit(fixture.root, ['init', '--bare', '--initial-branch=main', unrelatedPushOrigin]);
+    await runGit(owner, ['config', 'remote.origin.pushurl', `file://${unrelatedPushOrigin}`]);
+    const divergentPushOrigin = await fixture.cleanup({ apply: true });
+    expectReason(divergentPushOrigin, 'coordination-ownership');
+    assert.equal(await fixture.localSha(), localTip);
+    assert.equal(await fixture.remoteSha(), remoteTip);
+  } finally {
+    await fixture.dispose();
+  }
+});
+
 test('malformed coordination metadata cannot be normalized into an empty ownership ledger', async () => {
   const fixture = await createBranchCleanupFixture();
   try {
