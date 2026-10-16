@@ -92,6 +92,12 @@ function seed(): void {
   put(`sessions/s1/missionOpportunities/${ARRIVAL}`, ARRIVAL_FIELDS);
 }
 
+function settleCandidateVessel(shipId: string): void {
+  mock.documents.get('sessions/s1')!.candidateVesselOutcomes = {
+    [shipId]: { code: 'O', groupId: 'fleet-1', shipId, sourceId: 'candidate-o-3131', cycle: 2, outcome: 'crossed' },
+  };
+}
+
 describe('Boa mission reclamation callables', () => {
   beforeEach(() => {
     mock.documents.clear(); mock.get.mockClear(); mock.set.mockClear();
@@ -145,6 +151,43 @@ describe('Boa mission reclamation callables', () => {
       consequences: expect.objectContaining({ scrap: 1, criticalBonus: 0 }),
       audience: { operational: 'actor' },
     });
+  });
+
+  it.each([
+    ['the actor disposition', () => {
+      mock.documents.get(`sessions/s1/players/${ACTOR}`)!.candidateDisposition = {
+        code: 'O', outcome: 'crossed', cycle: 2,
+      };
+    }],
+    ['the Capybara home vessel', () => settleCandidateVessel('capybara')],
+    ['the current docked host', () => settleCandidateVessel('aegis')],
+  ] as const)('rejects a fresh Boa choice after %s before creating its opportunity bindings', async (_label, settle) => {
+    settle();
+    const requestId = `boa-settled-${_label.replaceAll(' ', '-')}`;
+    await expect(callables.chooseBoaMissionReclamationOpportunity(request({ ...command, requestId })))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+
+    expect(mock.create).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.documents.has(`sessions/s1/boaMissionReclamationChoices/${ARRIVAL}`)).toBe(false);
+    expect(mock.documents.has(`sessions/s1/commandReceipts/${requestId}`)).toBe(false);
+    expect(mock.documents.has(`sessions/s1/actionAudits/${requestId}`)).toBe(false);
+    expect(mock.documents.has(`sessions/s1/procedureAudits/${requestId}`)).toBe(false);
+  });
+
+  it('replays a committed Boa choice after its Recycler and home vessel settle on a peer host', async () => {
+    await callables.chooseBoaMissionReclamationOpportunity(request(command));
+    const writes = mock.create.mock.calls.length + mock.set.mock.calls.length + mock.update.mock.calls.length;
+    settleCandidateVessel('capybara');
+    mock.documents.get(`sessions/s1/players/${ACTOR}`)!.candidateDisposition = {
+      code: 'O', outcome: 'crossed', cycle: 2,
+    };
+
+    await expect(callables.chooseBoaMissionReclamationOpportunity(request(command))).resolves.toMatchObject({
+      status: 'replayed', taskOpportunityId: 'L-1',
+    });
+    expect(mock.create.mock.calls.length + mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
   });
 
   it('records 17/2 as an exact 8.5 threshold in the private Boa-choice audit', async () => {

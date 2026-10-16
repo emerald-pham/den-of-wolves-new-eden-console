@@ -25,7 +25,7 @@ const mock = vi.hoisted(() => {
     documents.set(target.path, current);
   });
   const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) => callback({ get, set, update }));
-  return { documents, get, set, update, db: { doc: ref, collection: ref, runTransaction } };
+  return { documents, get, set, update, runTransaction, db: { doc: ref, collection: ref, runTransaction } };
 });
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -49,6 +49,19 @@ const command = {
 };
 const request = (data: Fields, uid = 'holder') => ({ data, auth: { uid } }) as CallableRequest<Fields>;
 const put = (path: string, fields: Fields) => mock.documents.set(path, { ...fields });
+
+function dockHighwallWithPeer(): void {
+  const session = mock.documents.get('sessions/s1')!;
+  session.activeVesselIds = ['icebreaker', 'aegis'];
+  session.shuttleDockings = [{ shuttleId: 'highwall', shipId: 'aegis', dockedAt: 'SESSION START' }];
+  mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.vesselIds = ['icebreaker', 'aegis'];
+}
+
+function settleCandidateVessel(shipId: string): void {
+  mock.documents.get('sessions/s1')!.candidateVesselOutcomes = {
+    [shipId]: { code: 'O', groupId: 'fleet-1', shipId, sourceId: 'candidate-o-3131', cycle: 2, outcome: 'crossed' },
+  };
+}
 
 beforeEach(() => {
   mock.documents.clear(); mock.get.mockClear(); mock.set.mockClear(); mock.update.mockClear();
@@ -109,6 +122,63 @@ it('commits one material roll and exact retry without another random draw or wri
   });
   expect(cryptoMock.randomInt).not.toHaveBeenCalled();
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+});
+
+it.each([
+  ['the actor disposition', () => {
+    mock.documents.get('sessions/s1/players/holder')!.candidateDisposition = {
+      code: 'O', outcome: 'crossed', cycle: 2,
+    };
+  }],
+  ['the source home vessel', () => settleCandidateVessel('icebreaker')],
+  ['the current docked host', () => settleCandidateVessel('aegis')],
+] as const)('rejects a fresh Highwall roll after %s without drawing or writing', async (_label, settle) => {
+  dockHighwallWithPeer();
+  settle();
+  cryptoMock.randomInt.mockClear(); mock.set.mockClear(); mock.update.mockClear();
+
+  await expect(runHighwallMining.run(request({ ...command, requestId: `settled-${_label.replaceAll(' ', '-')}` })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('replays a committed Highwall roll after its home vessel settles while the shuttle stays on a peer', async () => {
+  dockHighwallWithPeer();
+  await runHighwallMining.run(request(command));
+  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
+  settleCandidateVessel('icebreaker');
+  mock.documents.get('sessions/s1/players/holder')!.candidateDisposition = {
+    code: 'O', outcome: 'crossed', cycle: 2,
+  };
+  cryptoMock.randomInt.mockClear();
+
+  await expect(runHighwallMining.run(request(command))).resolves.toMatchObject({
+    status: 'replayed', operation: { requestId: command.requestId, amount: 4 },
+  });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+});
+
+it('rechecks Highwall authority in the write transaction if the actor settles after preflight', async () => {
+  dockHighwallWithPeer();
+  let transactionCount = 0;
+  mock.runTransaction.mockImplementation(async (callback) => {
+    transactionCount += 1;
+    if (transactionCount === 2) {
+      settleCandidateVessel('icebreaker');
+      mock.documents.get('sessions/s1/players/holder')!.candidateDisposition = {
+        code: 'O', outcome: 'crossed', cycle: 2,
+      };
+    }
+    return callback({ get: mock.get, set: mock.set, update: mock.update });
+  });
+  mock.set.mockClear(); mock.update.mockClear(); cryptoMock.randomInt.mockClear();
+
+  await expect(runHighwallMining.run(request({ ...command, requestId: 'settled-during-preflight' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(cryptoMock.randomInt).toHaveBeenCalledTimes(1);
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('denies a new Highwall mining roll when its docked host is in mutiny', async () => {
