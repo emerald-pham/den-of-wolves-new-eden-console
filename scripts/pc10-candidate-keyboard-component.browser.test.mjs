@@ -26,32 +26,45 @@ const GM_CLAIMED_AT = '2026-10-06T00:01:00.000Z';
 const GROUP = 'fleet-1';
 const noMutation = `const noMutation=()=>{throw new Error('Prepared keyboard diagnosis cannot mutate gameplay.');};`;
 
-async function closePreparedFixtureResources({ context, browser, server }) {
-  const ownedProcessIds = { nodeTestRunner: process.pid, chromeBrowser: browser?.process()?.pid ?? null,
-    ephemeralServerOwner: process.pid, ephemeralServerPort: server?.address()?.port ?? null };
-  let contextClosed = !context, browserClosed = !browser, serverClosed = !server?.listening;
-  const bounded = async (operation, milliseconds = 5000) => {
+async function closePreparedFixtureResources({ context, browser, browserServer, server,
+  timeoutMs = 5000, killTimeoutMs = 2000 }) {
+  let browserProcess = null;
+  try {
+    if (typeof browserServer?.process === 'function') browserProcess = browserServer.process();
+  } catch { /* A missing server PID must not interrupt resource cleanup. */ }
+  let ephemeralServerPort = null;
+  try { ephemeralServerPort = server?.address()?.port ?? null; } catch { /* The listener may already be closed. */ }
+  const ownedProcessIds = { nodeTestRunner: process.pid, chromeBrowser: browserProcess?.pid ?? null,
+    ephemeralServerOwner: process.pid, ephemeralServerPort };
+  let contextClosed = !context, browserClosed = !browser, browserServerClosed = !browserServer;
+  let serverClosed = !server?.listening;
+  const bounded = async (operation, milliseconds = timeoutMs) => {
     let timer;
-    try { return await Promise.race([operation, new Promise(resolveTimeout => {
+    try { return await Promise.race([Promise.resolve().then(operation).then(() => true, () => false), new Promise(resolveTimeout => {
       timer = setTimeout(() => resolveTimeout(false), milliseconds);
     })]); } finally { clearTimeout(timer); }
   };
-  if (context) contextClosed = await bounded(context.close().then(() => true, () => false));
+  if (context) contextClosed = await bounded(() => context.close());
   if (browser) {
-    const browserProcess = browser.process();
-    browserClosed = await bounded(browser.close().then(() => true, () => false));
-    if (!browserClosed) {
-      browserProcess?.kill('SIGTERM');
-      browserClosed = await bounded(new Promise(resolveClosed => browserProcess?.once('close', () => resolveClosed(true))), 2000);
-    }
+    browserClosed = await bounded(() => browser.close());
+    try {
+      if (typeof browser.isConnected === 'function') browserClosed = browserClosed && !browser.isConnected();
+    } catch { browserClosed = false; }
+  }
+  if (browserServer) {
+    browserServerClosed = await bounded(() => browserServer.close());
+    if (!browserServerClosed) browserServerClosed = await bounded(() => browserServer.kill(), killTimeoutMs);
   }
   if (server?.listening) {
-    const serverClosedPromise = new Promise((resolveClosed, reject) =>
-      server.close(error => error ? reject(error) : resolveClosed(true)));
-    server.closeAllConnections();
-    serverClosed = await bounded(serverClosedPromise.then(() => true, () => false));
+    const closeHttpServer = () => new Promise((resolveClosed, reject) => {
+      try {
+        server.close(error => error ? reject(error) : resolveClosed(true));
+        server.closeAllConnections?.();
+      } catch (error) { reject(error); }
+    });
+    serverClosed = await bounded(closeHttpServer);
   }
-  return { contextClosed, browserClosed, serverClosed, ownedProcessIds };
+  return { contextClosed, browserClosed, browserServerClosed, serverClosed, ownedProcessIds };
 }
 
 test('prepared fixture cleanup closes resources exposed by the public Playwright Browser API', async () => {
@@ -64,14 +77,50 @@ test('prepared fixture cleanup closes resources exposed by the public Playwright
   };
   const context = { close: async () => { calls.push('context.close'); } };
   const browser = { close: async () => { calls.push('browser.close'); }, isConnected: () => false };
+  const browserServer = {
+    process: () => ({ pid: 1234 }),
+    close: async () => { calls.push('browserServer.close'); },
+    kill: async () => { calls.push('browserServer.kill'); },
+  };
   let receipt, cleanupError;
-  try { receipt = await closePreparedFixtureResources({ context, browser, server }); }
+  try { receipt = await closePreparedFixtureResources({ context, browser, browserServer, server }); }
   catch (error) { cleanupError = error; }
   assert.equal(cleanupError, undefined, `cleanup must reach owned resources: ${cleanupError?.message}`);
-  assert.deepEqual(calls, ['context.close', 'browser.close', 'server.close', 'server.closeAllConnections']);
+  assert.deepEqual(calls, ['context.close', 'browser.close', 'browserServer.close', 'server.close', 'server.closeAllConnections']);
   assert.equal(receipt.contextClosed, true);
   assert.equal(receipt.browserClosed, true);
+  assert.equal(receipt.browserServerClosed, true);
   assert.equal(receipt.serverClosed, true);
+  assert.equal(receipt.ownedProcessIds.chromeBrowser, 1234);
+});
+
+test('prepared fixture cleanup bounds close attempts and reaches the HTTP server after timeouts', async () => {
+  const calls = [];
+  const never = () => new Promise(() => {});
+  const browserProcess = { pid: 47102 };
+  const browserServer = {
+    process: () => browserProcess,
+    close: () => { calls.push('browserServer.close'); return never(); },
+    kill: async () => { calls.push('browserServer.kill'); },
+  };
+  const server = {
+    listening: true,
+    address: () => ({ port: 47103 }),
+    close() { calls.push('server.close'); },
+    closeAllConnections() { calls.push('server.closeAllConnections'); },
+  };
+  const startedAt = performance.now();
+  const receipt = await closePreparedFixtureResources({
+    context: { close: () => never() },
+    browser: { close: () => never(), isConnected: () => true },
+    browserServer, server, timeoutMs: 5, killTimeoutMs: 5,
+  });
+  assert.ok(performance.now() - startedAt < 500, 'all teardown waits stay bounded by the configured deadlines');
+  assert.deepEqual(calls, ['browserServer.close', 'browserServer.kill', 'server.close', 'server.closeAllConnections']);
+  assert.equal(receipt.contextClosed, false);
+  assert.equal(receipt.browserClosed, false);
+  assert.equal(receipt.browserServerClosed, true);
+  assert.equal(receipt.serverClosed, false);
 });
 
 async function bundleSource({ mode = 'research-choice' } = {}) {
@@ -190,7 +239,7 @@ for (const { surroundingCount, refreshBetweenTabs, mode = 'research-choice' } of
     const expectedRead = { data: { sessionId: SID, expectedGroupId: GROUP,
       ...(mode === 'repaired-ring' ? { instanceId: GM_INSTANCE_ID } : {}) } };
     const posted = [], traffic = [], errors = [], observations = [], refreshObservations = [];
-    let server, browser, context, origin, report, page, actualPanel, surface;
+    let server, browserServer, browser, context, origin, report, page, actualPanel, surface;
     try {
       server = createServer(async (request, response) => {
         try {
@@ -216,7 +265,8 @@ for (const { surroundingCount, refreshBetweenTabs, mode = 'research-choice' } of
       });
       await new Promise((resolveListening, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolveListening); });
       origin = `http://127.0.0.1:${server.address().port}`;
-      browser = await chromium.launch({ channel: 'chrome', headless: true });
+      browserServer = await chromium.launchServer({ channel: 'chrome', headless: true });
+      browser = await chromium.connect(browserServer.wsEndpoint());
       context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
       await context.route('**/*', route => {
         const url = route.request().url();
@@ -492,7 +542,7 @@ for (const { surroundingCount, refreshBetweenTabs, mode = 'research-choice' } of
       }, null, 2)}\n`);
       throw error;
     } finally {
-      const cleanup = await closePreparedFixtureResources({ context, browser, server });
+      const cleanup = await closePreparedFixtureResources({ context, browser, browserServer, server });
       const sourceFiles = ['src/components/CandidatePreparationPanel.tsx', 'src/components/CandidatePreparationPanel.css',
         'src/components/RoleConsoleTemplate.tsx', 'src/routes/GmConsole.tsx',
         'src/store/useSessionStore.ts', 'functions/src/candidatePaths.ts', 'functions/src/endeavourResearch.ts',
@@ -500,8 +550,7 @@ for (const { surroundingCount, refreshBetweenTabs, mode = 'research-choice' } of
       const bindings = await Promise.all(sourceFiles.map(async path => ({ path,
         sha256: createHash('sha256').update(await readFile(resolve(ROOT, path))).digest('hex') })));
       await writeFile(resolve(directory, 'owned-resource-close.json'), `${JSON.stringify({
-        ...cleanup, browserClosed: cleanup.browserClosed && !browser?.isConnected(),
-        serverClosed: cleanup.serverClosed && !server?.listening,
+        ...cleanup, serverClosed: cleanup.serverClosed && !server?.listening,
         sharedFirebaseOrRootRuntimeTouched: false, sourceBindings: bindings,
       }, null, 2)}\n`);
     }
