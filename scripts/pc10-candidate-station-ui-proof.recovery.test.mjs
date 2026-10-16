@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { createContext, SourceTextModule, SyntheticModule } from 'node:vm';
+import { createContext, runInContext, SourceTextModule, SyntheticModule } from 'node:vm';
 import { candidateShipRole, contributeStationReactors, CANDIDATE_PROOF_SHIPS } from './pc10-candidate-proof-helpers.mjs';
 import { assertWolfChoiceActor, observeWolfChoiceActor } from './pc10-combat-choice-readiness.mjs';
 import * as stationProof from './pc10-candidate-station-ui-proof.mjs';
@@ -102,7 +102,7 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
     seatId: null, connected: true, discoveryAuthority: null,
     instanceId: 'original-gm-lease', instanceClaimedAt: '2026-10-16T06:00:00.000Z',
     playerRole: 'gm', phase: 'active', cycle: 2, uidHash: 'same-gm-uid', hasAuth: true,
-    sameActor: true, gmInstanceOwned: true, connection: 'live', freshness: 'server' });
+    sameActor: true, gmInstanceOwned: true, connection: 'live', freshness: 'server', documentTimeOrigin: 500 });
   const gm = { page: { evaluate: async () => gmSource() }, storeModuleUrl: () => '/src/store/useSessionStore.ts',
     observe: async () => structuredClone(gmState) };
   const tools = { record: async (stage, details) => records.push({ stage, details }),
@@ -263,7 +263,7 @@ function stationRunnerFixture() {
         await choose();
         assert.deepEqual(entry.recovery.replayRequest, options.expectedRequest);
         entry.recovery.pending = false;
-        return { ...entry.recovery.result, status: 'replayed' };
+        return context.cloneIntoStationRealm({ ...entry.recovery.result, status: 'replayed' });
       }
       const result = await choose();
       return result ?? { type: 'candidate-action-result', status: 'committed', code: 'P', action: endpoint };
@@ -277,7 +277,8 @@ function stationRunnerFixture() {
 
 async function runActualStationEnding(context, liberation) {
   const source = await readFile(new URL('./pc10-candidate-station-ui-proof.mjs', import.meta.url), 'utf8');
-  const vmContext = createContext({});
+  const vmContext = createContext({ structuredClone });
+  context.cloneIntoStationRealm = runInContext('(value) => JSON.parse(JSON.stringify(value))', vmContext);
   const stationModule = new SourceTextModule(source, { context: vmContext,
     identifier: 'pc10-candidate-station-ui-proof.mjs' });
   const exports = new Map([
@@ -314,7 +315,8 @@ test('Station contribution recovers the same committed Reactor request after a c
     sessionId: fixture.sessionId, expectActivation: false,
     deadlineAt: Date.now() + 1_000 });
 
-  assert.deepEqual(replay, { ...fixture.result, status: 'replayed' });
+  assert.deepEqual(replay, fixture.result,
+    'The consumer receives the original committed result after the exact replay has been verified.');
   assert.deepEqual(fixture.recovery.requestData, fixture.request);
   assert.deepEqual(fixture.recovery.replayData, fixture.request);
   assert.equal(fixture.recovery.fetchCount, 1, 'The source action commits once before its acknowledgement is dropped.');
@@ -337,6 +339,7 @@ test('Station activation replay retains the server-owned final Reactor result', 
     deadlineAt: Date.now() + 1_000 });
 
   assert.equal(replay.outcome, 'activated');
+  assert.equal(replay.status, 'committed', 'The ending reducer consumes the original server commit after replay verification.');
   assert.match(replay.summary, /New Eden Station is active/);
   assert.equal(fixture.recovery.chargeCapacity, 18);
   assert.equal(fixture.recovery.revision, 8);
