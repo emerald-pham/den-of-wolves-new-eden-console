@@ -1246,9 +1246,9 @@ async function continueCapybaraNebula(context, tools, currentGm) {
     source: 'original live H1 GM, roster, fleet and session; no new start or setup mutation',
   });
 
-  // Chart A's 1413→0408 trip is a long jump (at most 12 fuel), followed by
-  // one source-priced long Nebula jump (at most 12 fuel).
-  const fuelFloor = 24;
+  // Budget the source maximum for both paid long jumps plus the three ordinary
+  // C5-C7 shuttle refuels needed by each scanner host: 12 + 3 + 12 = 27.
+  const fuelFloor = 27;
   for (const shipId of activeVesselIds) await tools.gmSupplies(shipId, 'fuel', fuelFloor);
   const rationCycles = Object.fromEntries(activeVesselIds.map(shipId => [shipId, shipId === 'aegis' ? 1 : 3]));
   const rationBudget = await tools.printedRationBudget(rationCycles);
@@ -1257,12 +1257,15 @@ async function continueCapybaraNebula(context, tools, currentGm) {
     await tools.gmSupplies(shipId, 'water', rationBudget[shipId].water);
   }
   await tools.record('explicit normal GM resource choices for the bounded continuation', {
-    fuelMinimumPerShip: fuelFloor, printedRationCycles: rationCycles,
+    fuelMinimumPerShip: fuelFloor,
+    fuelBudget: { outboundLongJumpMaximum: 12, scannerHostRefuelPerCycle: 1,
+      scannerHostRefuelCycles: [5, 6, 7], finalNebulaLongJumpMaximum: 12, requiredMinimum: 27 },
+    printedRationCycles: rationCycles,
     mechanism: 'ordinary visible GM resource buttons; no hidden inventory writes',
   });
   const afterSupplies = await tools.state();
   for (const shipId of activeVesselIds) assert.ok(afterSupplies.shipResources[shipId].fuel >= fuelFloor,
-    `${shipId} needs the source-maximum paid travel plus one long jump.`);
+    `${shipId} needs the 12-fuel outbound jump, scanner-host refuels where applicable, and 12-fuel O attempt.`);
 
   await tools.scout('shepherd-scientist', 'endeavour', coordinate);
   await tools.shareKnownSystem('shepherd-scientist', coordinate, activeVesselIds);
@@ -1324,7 +1327,14 @@ async function continueCapybaraNebula(context, tools, currentGm) {
   const lossButton = candidate.getByRole('button', { name: /^Long jump into Nebula \/\/ aegis \/\/ \d+ fuel$/ });
   const fuelBefore = current.shipResources.aegis.fuel;
   await tools.candidateGeometry(lossActor, 'O', 'paid-loss-choice');
-  assert.equal(await lossButton.count(), 1); assert.equal(await lossButton.isEnabled(), true);
+  assert.equal(await lossButton.count(), 1);
+  const lossButtonName = (await lossButton.innerText()).replace(/\s+/g, ' ').trim();
+  const lossFuelCost = Number(lossButtonName.match(/^Long jump into Nebula \/\/ aegis \/\/ (\d+) fuel$/)?.[1]);
+  assert.ok(Number.isSafeInteger(lossFuelCost) && lossFuelCost > 0,
+    'Use the actual mounted price for the first paid Nebula attempt.');
+  assert.ok(fuelBefore >= lossFuelCost,
+    `The Aegis needs ${lossFuelCost} current displayed fuel for its ordinary paid O attempt; it has ${fuelBefore}.`);
+  assert.equal(await lossButton.isEnabled(), true);
   const loss = await tools.receipt(lossActor, 'executeCandidateAction', () => lossButton.click());
   assert.equal(loss.outcome, 'lost', 'Two actual marks cannot reach Home threshold nine on a natural d6.');
   const lossCalculation = await readNebulaCandidateCalculation(context, tools, 'aegis', loss,
@@ -1333,6 +1343,7 @@ async function continueCapybaraNebula(context, tools, currentGm) {
     value.shipDamage.aegis.destroyed === true && value.shipSurvivors.aegis === 0 &&
     value.shipGalacticCoordinates.aegis === coordinate && value.phase === 'active');
   assert.equal(fuelBefore - current.shipResources.aegis.fuel, loss.fuelSpent);
+  assert.equal(loss.fuelSpent, lossFuelCost, 'The first O action must preserve its actual mounted paid price.');
   assert.equal(current.shipFleetGroupIds.aegis, groupId);
   assertNebulaFleetAtCoordinate(current, activeVesselIds, coordinate, groupId);
   await lossActor.page.reload({ timeout: 60_000 });
@@ -1353,11 +1364,12 @@ async function continueCapybaraNebula(context, tools, currentGm) {
   assert.equal(await maintenanceButton.count(), 1); assert.equal(await maintenanceButton.isEnabled(), false);
   const lostCandidate = lossActor.page.getByRole('region', { name: 'Candidate preparation and actions', exact: true });
   const retainedLossAction = lostCandidate.getByRole('button', { name: /^Long jump into Nebula \/\/ aegis \/\/ \d+ fuel$/ });
-  assert.equal(await retainedLossAction.count(), 1); assert.equal(await retainedLossAction.isEnabled(), false);
+  assert.equal(await retainedLossAction.count(), 0,
+    'The real workspace removes the lost Aegis action; retain its disposition, narrative, and maintenance lock instead.');
   await tools.record('original EO sees the locked lost Aegis after reload and normal resume', {
     shipId: 'aegis', roleId: 'executive-officer', cycle: 5,
     disposition: lossDisposition.candidateDisposition, calculation: lossCalculation,
-    maintenanceLocked: true, historicalLossRetained: true,
+    maintenanceLocked: true, historicalLossRetained: true, lostShipActionOmitted: true,
   });
   await crew.page.screenshot({ path: `${directory}/O-H1-continuation-paid-loss.png` });
 
@@ -1390,13 +1402,25 @@ async function continueCapybaraNebula(context, tools, currentGm) {
         const panel = surface.page.getByRole('region', { name: 'Candidate preparation and actions', exact: true });
         const button = panel.getByRole('button', { name: new RegExp(`^Long jump into Nebula \/\/ ${shipId} \/\/ \\d+ fuel$`) });
         assert.equal(await button.count(), 1, `${shipId} needs its current source-priced paid O action.`);
+        const buttonName = (await button.innerText()).replace(/\s+/g, ' ').trim();
+        const displayedFuelCost = Number(buttonName.match(new RegExp(`^Long jump into Nebula \/\/ ${shipId} \/\/ (\\d+) fuel$`))?.[1]);
+        assert.ok(Number.isSafeInteger(displayedFuelCost) && displayedFuelCost > 0,
+          `${shipId} must show its actual mounted O-action price.`);
+        const fuelBefore = (await tools.state()).shipResources[shipId].fuel;
+        assert.ok(fuelBefore >= displayedFuelCost,
+          `${shipId} needs ${displayedFuelCost} current displayed fuel for its ordinary paid O attempt; it has ${fuelBefore}.`);
         assert.equal(await button.isEnabled(), true, `${shipId} needs a charged, repaired drive and current fuel.`);
         const result = await tools.receipt(surface, 'executeCandidateAction', () => button.click());
         assert.equal(result.outcome, 'reached'); assert.ok(result.fuelSpent > 0);
+        assert.equal(result.fuelSpent, displayedFuelCost, `${shipId} must pay the current mounted O-action price.`);
+        const afterAttempt = await tools.waitState(`${shipId} actual paid O fuel charge`, current =>
+          current.shipResources?.[shipId]?.fuel === fuelBefore - displayedFuelCost);
+        assert.equal(fuelBefore - afterAttempt.shipResources[shipId].fuel, displayedFuelCost,
+          `${shipId} paid fuel must match the ordinary source-owned action.`);
         const calculation = await readNebulaCandidateCalculation(context, tools, shipId, result,
           { scouts: 8, priorLosses: 1, outcome: 'reached' });
         await tools.record('actual source-paid survivor reaches O on eight marks and one committed prior loss', {
-          shipId, fuelSpent: result.fuelSpent, calculation,
+          shipId, fuelSpent: result.fuelSpent, fuelBefore, displayedFuelCost, calculation,
           mechanism: 'natural server d6 plus private source scan and loss audit; no injected result',
         });
       }
