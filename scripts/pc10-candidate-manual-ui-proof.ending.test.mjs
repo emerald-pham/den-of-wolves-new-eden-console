@@ -59,7 +59,8 @@ function endingFixture({ status = 200, preDelivered = false } = {}) {
       },
       until: async (_description, predicate) => {
         const current = { phase: 'debrief', fullGameDemo: { status: 'complete', progression: 'manual' },
-          sessionId, uidHash: 'same-actor', playerRole: kind === 'gm' ? 'gm' : 'player',
+          sessionId, uidHash: 'same-actor', profileRoleId: kind === 'gm' ? null : 'crew-role',
+          playerRole: kind === 'gm' ? 'gm' : 'player',
           hasAuth: true, sameActor: true, gmInstanceOwned: kind === 'gm', instanceId: kind === 'gm' ? instanceId : null,
           debriefType: 'session-debrief', debriefVersion: 1, debriefSource: 'candidate',
           debriefResult: 'success', debriefCycle: 4,
