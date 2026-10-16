@@ -364,6 +364,7 @@ test('cycle advance acknowledges a blocking unrest alert through the original GM
   let visible = true;
   let observations = 0;
   const actions = [];
+  let resolveResponse;
   const response = {
     url: () => 'http://127.0.0.1:5031/demo-game/us-central1/dismissUnrestAlert',
     request: () => ({ method: () => 'POST', postDataJSON: () => ({ data: {
@@ -387,6 +388,8 @@ test('cycle advance acknowledges a blocking unrest alert through the original GM
         assert.equal(args.length, 0, 'The proof must use the real control without force-click options.');
         actions.push('normal-dismiss-button');
         visible = false;
+        assert.equal(typeof resolveResponse, 'function');
+        resolveResponse();
       } };
     },
     waitFor: async ({ state }) => {
@@ -401,11 +404,12 @@ test('cycle advance acknowledges a blocking unrest alert through the original GM
       assert.deepEqual(options, { name: 'Unrest threshold exceeded', exact: true });
       return dialog;
     },
-    waitForResponse: async (matches, options) => {
+    waitForResponse: (matches, options) => {
       assert.equal(options.timeout, 15_000);
       assert.equal(matches(response), true, 'Observe the actual dismissUnrestAlert callable reply.');
-      actions.push('server-receipt');
-      return response;
+      return new Promise(resolve => {
+        resolveResponse = () => { actions.push('server-receipt'); resolve(response); };
+      });
     },
   };
   const gm = { page, observe: async () => { observations += 1; return structuredClone(originalGm); } };
