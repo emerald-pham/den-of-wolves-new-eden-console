@@ -255,3 +255,33 @@ export or per-UID deletion claim. No CI, deployment or release credit is earned.
 | `role-affordances.json` | `500a038ba4e23cfa2b8586d7977b88abe011cf9298fe8181d4f69e5cee7dccb5` |
 | `capybara-gameplay-progress.json` | `3775ec4c0cf96e937bc5d4f4cae2dca86dd7b1b87b7c87e224526cf541d8422c` |
 | `runtime strict-return.json` | `28a68fed4e1e478075104b481ac2dfdaf8b664c8279b074b8d76445173421c95` |
+
+
+## Transport a3 — session creation passed; duplicated readout selector stopped setup
+
+Source `6975e3909ab538cc587cff3420bcdf4a630d419b`, fresh project
+`demo-pc10-transport-f9f3-20261016-a3`, evidence
+`/private/tmp/pc10-transport-proof-f9f3-20261016-a3`.
+
+The normal REDUCED MOTION choice removed the landing gate. The ordinary Create
+Session click resolved with one actual `createSession` POST returning HTTP 200,
+and consent completed. The proof stopped at `gm-a-session-code-visible` at
+07:09:48.761 UTC. Source inspection found two mounted SessionReadouts when
+Settings is open; the external operator used an unscoped CSS locator. This is
+a proof-consumer defect, not an established product admission defect. GM setup,
+audit, cadence and concurrent-candidate checks were not reached. Planned cohort
+fields in the receipt do not establish three admitted identities or an occupied
+seat. No new prompt completion or release credit is earned.
+
+Acquisition was 07:08:26.062 UTC. The proof and both wrapper sessions ended.
+Strict physical return was 07:17:23.883 UTC: all 25 captured owned PIDs absent,
+all 22 bindings free, exact configuration released. The BrowserServer exit and
+all three context-close receipts passed; a complete Chrome descendant census
+was not captured. Fresh RAM was discarded without import/export or a per-UID
+deletion claim. The original failed receipt and exact invocation are retained.
+
+| Transport a3 artifact | SHA-256 |
+| --- | --- |
+| `transport-audit-native-receipt.json` | `7872e7d8a91efdc2ff2b1fee1227fc96cb7c548d7d959ec94d40217894ee1bae` |
+| `runtime invocation-source.mjs` | `57710699968767f3d452ed9ccb90fe01d5db23e86dcc045ce2e8d2b298e6e13d` |
+| `runtime strict-return.json` | `3b41cfaeab15f8c2f6e9cc8720b4be083802bc1402c229a835c71a2840b62c49` |
