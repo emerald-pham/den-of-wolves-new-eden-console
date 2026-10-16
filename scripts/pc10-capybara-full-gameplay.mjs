@@ -1397,6 +1397,8 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
     }));
     await mark('real Team2 replaces prior five-slot combat allocation with paid Jump Drive and bays');
     await paidMaintenance(2);
+    await runSpecialist('wing-construction', 'wing-build', { roleId: 'wing-commander', wingId: 'fighter-wing-alpha' },
+      { roleId: 'wing-commander', cost: { resource: 'AEGIS materials', amount: 1, result: 'one current Alpha fighter' } });
     await mark('manual Coordination2 and actual source-owner scouting');
     await coordination();
     const macawDismantling = await performMacawDismantling();
@@ -1434,8 +1436,6 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
         }
         return false;
       } }, { roleId: 'shepherd-scientist' });
-    await runSpecialist('wing-construction', 'wing-build', { roleId: 'wing-commander', wingId: 'fighter-wing-alpha' },
-      { roleId: 'wing-commander', cost: { resource: 'AEGIS materials', amount: 1, result: 'one current Alpha fighter' } });
     await attemptBoaRecycle();
     await mark('manual Coordination2 and actual source-owner scouting, tactics and source-offered expansion choices');
     checks.scoutRequestsAndExactRetries = true;
