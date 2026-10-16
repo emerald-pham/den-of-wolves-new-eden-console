@@ -1010,3 +1010,59 @@ test('an existing checkout HEAD lock retains both refs and releases only newly a
     await fixture.dispose();
   }
 });
+
+test('unsupported HEAD transactions retain refs before remote deletion and release other checkout guards', async () => {
+  const fixture = await createBranchCleanupFixture();
+  try {
+    const other = join(fixture.root, 'other-checkout');
+    await fixture.runGit(['worktree', 'add', '--detach', other, 'main']);
+    const otherHead = await runGit(other, ['rev-parse', '--path-format=absolute', '--git-path', 'HEAD']);
+    const targetSha = await fixture.localSha();
+    const realGit = (await execFileAsync('which', ['git'], { encoding: 'utf8' })).stdout.trim();
+    const wrapper = join(fixture.ghBin, 'git');
+    await writeFile(wrapper, [
+      '#!/usr/bin/env node',
+      'const { spawnSync } = require("node:child_process");',
+      'const args = process.argv.slice(2);',
+      'if (args[0] === "update-ref" && args[1] === "--stdin") {',
+      '  process.stdin.resume();',
+      '  process.stdin.on("end", () => { process.stderr.write("unsupported symref-verify transaction\\n"); process.exit(1); });',
+      '} else {',
+      `  const result = spawnSync(${JSON.stringify(realGit)}, args, { stdio: 'inherit' });`,
+      '  process.exit(result.status ?? 1);',
+      '}',
+    ].join('\n') + '\n');
+    await chmod(wrapper, 0o700);
+
+    const report = await fixture.cleanup({ apply: true });
+    expectReason(report, 'worktree-head-guard-unavailable');
+    assert.equal(report.actions.remoteBranchRemoved, false);
+    assert.equal(await fixture.localSha(), targetSha);
+    assert.equal(await fixture.remoteSha(), targetSha);
+    await assert.rejects(readFile(`${otherHead}.lock`), { code: 'ENOENT' });
+  } finally {
+    await fixture.dispose();
+  }
+});
+
+test('a rejected remote lease releases every other checkout HEAD guard', async () => {
+  const fixture = await createBranchCleanupFixture();
+  let restoreRace;
+  try {
+    const other = join(fixture.root, 'other-checkout');
+    await fixture.runGit(['worktree', 'add', '--detach', other, 'main']);
+    const otherHead = await runGit(other, ['rev-parse', '--path-format=absolute', '--git-path', 'HEAD']);
+    const originalSha = await fixture.localSha();
+    const raceSha = await createUniqueCommit(fixture);
+    restoreRace = await installPrePushRace(fixture, { kind: 'remote', raceSha });
+
+    const report = await fixture.cleanup({ apply: true });
+    expectReason(report, 'remote-tip-changed');
+    assert.equal(await fixture.localSha(), originalSha);
+    assert.equal(await fixture.remoteSha(), raceSha);
+    await assert.rejects(readFile(`${otherHead}.lock`), { code: 'ENOENT' });
+  } finally {
+    restoreRace?.();
+    await fixture.dispose();
+  }
+});
