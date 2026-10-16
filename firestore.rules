@@ -493,16 +493,16 @@ service cloud.firestore {
     }
 
     function isSafePermissionedDismantlingInbox(sessionId, targetShipId) {
+      let engineeringFields = [
+        'type', 'sessionId', 'targetShipId', 'proposalId', 'proposerUid', 'craftId', 'targetConsoleId',
+        'targetRevision', 'materialGain', 'status', 'consentId', 'materialsAfter', 'updatedAt'
+      ];
+      let macawFields = [
+        'type', 'sessionId', 'targetShipId', 'proposalId', 'proposerUid', 'craftId', 'targetConsoleId',
+        'targetRevision', 'scrapGain', 'status', 'consentId', 'materialsAfter', 'scrapAfter', 'updatedAt'
+      ];
       return resource == null || (
-        resource.data.keys().hasAll([
-          'type', 'sessionId', 'targetShipId', 'proposalId', 'proposerUid', 'craftId', 'targetConsoleId',
-          'targetRevision', 'materialGain', 'status', 'consentId', 'materialsAfter', 'updatedAt'
-        ])
-        && resource.data.keys().hasOnly([
-          'type', 'sessionId', 'targetShipId', 'proposalId', 'proposerUid', 'craftId', 'targetConsoleId',
-          'targetRevision', 'materialGain', 'status', 'consentId', 'materialsAfter', 'updatedAt'
-        ])
-        && resource.data.type == 'permissioned-dismantling-inbox'
+        resource.data.type == 'permissioned-dismantling-inbox'
         && resource.data.sessionId == sessionId
         && resource.data.targetShipId == targetShipId
         && resource.data.proposalId is string
@@ -510,18 +510,29 @@ service cloud.firestore {
         && resource.data.proposerUid is string
         && resource.data.proposerUid.size() > 0
         && resource.data.proposerUid.size() <= 128
-        && resource.data.craftId in ['philia', 'blacksmith', 'chacau', 'ally']
         && resource.data.targetConsoleId is string
         && resource.data.targetConsoleId.size() > 0
         && resource.data.targetConsoleId.size() <= 128
         && resource.data.targetRevision is int
         && resource.data.targetRevision >= 0
-        && resource.data.materialGain == 3
+        && (
+          (resource.data.craftId == 'macaw'
+            && resource.data.keys().hasAll(macawFields)
+            && resource.data.keys().hasOnly(macawFields)
+            && resource.data.scrapGain == 1
+            && resource.data.materialsAfter == null
+            && (resource.data.scrapAfter == null || (resource.data.scrapAfter is int
+              && resource.data.scrapAfter >= 0)))
+          || (resource.data.craftId in ['philia', 'blacksmith', 'chacau', 'ally']
+            && resource.data.keys().hasAll(engineeringFields)
+            && resource.data.keys().hasOnly(engineeringFields)
+            && resource.data.materialGain == 3
+            && (resource.data.materialsAfter == null || (resource.data.materialsAfter is int
+              && resource.data.materialsAfter >= 0)))
+        )
         && resource.data.status in ['pending', 'consented', 'declined', 'revoked', 'applied']
         && (resource.data.consentId == null || (resource.data.consentId is string
           && resource.data.consentId.matches('^[A-Za-z0-9_-]{1,128}$')))
-        && (resource.data.materialsAfter == null || (resource.data.materialsAfter is int
-          && resource.data.materialsAfter >= 0))
         && resource.data.updatedAt is timestamp
       );
     }
