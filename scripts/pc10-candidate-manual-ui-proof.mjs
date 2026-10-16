@@ -675,8 +675,21 @@ export function candidateGameplayTools(context) {
       return timeout;
     };
     const expectedInstanceId = context.started?.instanceId;
+    const expectedUidHash = context.started?.uidHash;
     assert.ok(typeof expectedInstanceId === 'string' && expectedInstanceId.length > 0,
       'The original live GM instance must be bound before reading its committed debrief.');
+    assert.ok(typeof expectedUidHash === 'string' && expectedUidHash.length > 0,
+      'The original GM identity must be bound before reading its committed debrief.');
+    await gm.until(`Immutable ${code} server ending`, value => value.phase === 'debrief' &&
+      value.fullGameDemo?.status === 'complete' && value.sessionId === context.initial.sessionId &&
+      value.hasAuth && value.sameActor && value.uidHash === expectedUidHash && value.playerRole === 'gm' &&
+      value.gmInstanceOwned && value.instanceId === expectedInstanceId && value.connection === 'live' &&
+      value.freshness === 'server', remaining());
+    const originalGm = await gm.observe();
+    assert.equal(originalGm.hasAuth, true); assert.equal(originalGm.sameActor, true);
+    assert.equal(originalGm.sessionId, context.initial.sessionId); assert.equal(originalGm.uidHash, expectedUidHash);
+    assert.equal(originalGm.playerRole, 'gm'); assert.equal(originalGm.gmInstanceOwned, true);
+    assert.equal(originalGm.instanceId, expectedInstanceId);
     const debriefResponse = gm.page.waitForResponse(response => {
       const request = response.request();
       if (request.method() !== 'POST' || !new URL(response.url()).pathname.endsWith('/us-central1/getSessionDebrief')) return false;
@@ -684,9 +697,7 @@ export function candidateGameplayTools(context) {
       return body && Object.keys(body).length === 2 && body.sessionId === context.initial.sessionId &&
         body.instanceId === expectedInstanceId;
     }, { timeout: remaining() }).then(response => ({ response }), error => ({ error }));
-    await gm.until(`Immutable ${code} server ending`, value => value.phase === 'debrief' && value.fullGameDemo?.status === 'complete');
-    const dialog = gm.page.getByRole('dialog', { name: 'Endgame evaluation', exact: true });
-    await dialog.waitFor({ state: 'visible', timeout: remaining() });
+    await gm.page.reload({ timeout: remaining() });
     const observedDebrief = await debriefResponse;
     if ('error' in observedDebrief) throw observedDebrief.error;
     const response = observedDebrief.response;
@@ -707,17 +718,34 @@ export function candidateGameplayTools(context) {
     assert.equal(ending?.source, 'candidate');
     assert.equal(ending?.result, 'success');
     assert.equal(ending?.candidate?.code, code);
+    const restoredGm = await gm.until('The original GM session and instance are restored after the debrief read', value =>
+      value.phase === 'debrief' && value.fullGameDemo?.status === 'complete' &&
+      value.sessionId === context.initial.sessionId && value.hasAuth && value.sameActor &&
+      value.uidHash === expectedUidHash && value.playerRole === 'gm' && value.gmInstanceOwned &&
+      value.instanceId === expectedInstanceId && value.connection === 'live' && value.freshness === 'server', remaining());
+    assert.equal(restoredGm.uidHash, originalGm.uidHash); assert.equal(restoredGm.instanceId, originalGm.instanceId);
+    const dialog = gm.page.getByRole('dialog', { name: 'Endgame evaluation', exact: true });
+    await dialog.waitFor({ state: 'visible', timeout: remaining() });
     const resultLabel = ending.result.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
     const readableResult = `${resultLabel[0].toUpperCase()}${resultLabel.slice(1)}`;
     await dialog.getByText(`Server result // ${readableResult} // Cycle ${ending.cycle}`, { exact: true })
       .waitFor({ state: 'visible', timeout: remaining() });
     await gm.page.screenshot({ path: `${directory}/${code}-GM-ending.png` });
     const originalCrew = await crew.observe();
-    await crew.page.reload();
-    await crew.until(`Entitled ${code} crew ending after real reload`, value => value.phase === 'debrief' && value.sameActor);
+    await crew.page.reload({ timeout: remaining() });
+    const reloadedCrewState = await crew.until(`Same ${code} crew actor receives the public ending after reload`, value =>
+      value.phase === 'debrief' && value.sameActor && value.sessionId === context.initial.sessionId &&
+      value.uidHash === originalCrew.uidHash && value.profileRoleId === originalCrew.profileRoleId &&
+      value.connection === 'live' && value.freshness === 'server' && value.debriefType === 'session-debrief' &&
+      value.debriefVersion === 1 && value.debriefSource === 'candidate' && value.debriefResult === 'success' &&
+      value.debriefCycle === ending.cycle, remaining());
     const reloadedCrew = await crew.observe();
     for (const key of ['sessionId', 'uidHash', 'profileRoleId']) assert.equal(reloadedCrew[key], originalCrew[key]);
-    await crew.page.getByRole('dialog', { name: 'Endgame evaluation', exact: true }).waitFor();
+    assert.equal(reloadedCrewState.debriefCycle, ending.cycle);
+    const crewDialog = crew.page.getByRole('dialog', { name: 'Endgame evaluation', exact: true });
+    await crewDialog.waitFor({ state: 'visible', timeout: remaining() });
+    await crewDialog.getByText(`Server result // ${readableResult} // Cycle ${ending.cycle}`, { exact: true })
+      .waitFor({ state: 'visible', timeout: remaining() });
     await crew.page.screenshot({ path: `${directory}/${code}-crew-ending.png` });
     await tools.save('candidate-gameplay.json', { status: 'passed', candidateCode: code, candidateEndingObserved: true,
       ...(context.admission ? { admission: context.admission } : {}), choices, receipts,
