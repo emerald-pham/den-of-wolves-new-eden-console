@@ -422,28 +422,41 @@ export function createTwoBrowserGameplay(context, { preAdmissionGmOnly = false }
     budget();
     const surface = await select('gm', { enter: false, deadlineAt }); budget();
     await live(surface, deadlineAt); budget();
-    const outcome = await surface.page.evaluate(async sid => {
-      try {
-        const source = await (await fetch('/src/lib/firestore.ts')).text();
-        const match = source.match(/from\s+["']([^"']*firebase_firestore\.js[^"']*)["']/);
-        if (!match) throw new Error('Read the actual current browser SDK import before the entitled read.');
-        const sdk = await import(match[1]);
-        const { db } = await import('/src/lib/firestore.ts');
-        const database = db(), reference = sdk.doc(database, `sessions/${sid}/wolfAttackState/current`);
-        // A metadata-fresh getDocFromServer may still be satisfied by an older
-        // listener snapshot. A single SDK transaction uses the server batch-get
-        // path, remains tied to this authenticated App client, and performs no
-        // write. Never retry or fall back if the transaction aborts.
-        return await sdk.runTransaction(database, async transaction => {
-          const document = await transaction.get(reference);
-          return { status: 'ok', value: document.exists() ? { id: document.id, ...document.data() } : null,
-            metadata: { fromCache: document.metadata?.fromCache ?? null,
-              hasPendingWrites: document.metadata?.hasPendingWrites ?? null } };
-        }, { maxAttempts: 1 });
-      } catch (error) {
-        return { status: 'error', code: typeof error?.code === 'string' ? error.code : null };
-      }
-    }, initial.sessionId);
+    let timer;
+    const remainingMs = Math.max(1, deadlineAt - Date.now());
+    let outcome;
+    try {
+      outcome = await Promise.race([
+        surface.page.evaluate(async sid => {
+          try {
+            const source = await (await fetch('/src/lib/firestore.ts')).text();
+            const match = source.match(/from\s+["']([^"']*firebase_firestore\.js[^"']*)["']/);
+            if (!match) throw new Error('Read the actual current browser SDK import before the entitled read.');
+            const sdk = await import(match[1]);
+            const { db } = await import('/src/lib/firestore.ts');
+            const database = db(), reference = sdk.doc(database, `sessions/${sid}/wolfAttackState/current`);
+            // A metadata-fresh getDocFromServer may still be satisfied by an older
+            // listener snapshot. A single SDK transaction uses the server batch-get
+            // path, remains tied to this authenticated App client, and performs no
+            // write. Never retry or fall back if the transaction aborts.
+            return await sdk.runTransaction(database, async transaction => {
+              const document = await transaction.get(reference);
+              return { status: 'ok', value: document.exists() ? { id: document.id, ...document.data() } : null,
+                metadata: { fromCache: document.metadata?.fromCache ?? null,
+                  hasPendingWrites: document.metadata?.hasPendingWrites ?? null } };
+            }, { maxAttempts: 1 });
+          } catch (error) {
+            return { status: 'error', code: typeof error?.code === 'string' ? error.code : null };
+          }
+        }, initial.sessionId),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error('The original combat source reinspection deadline expired.')), remainingMs);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+    budget();
     // Retain only the already completed read. Its observer does not authorize
     // a cache fallback, a second read, or acceptance of a pending local write.
     await onSnapshot?.(outcome); budget();
