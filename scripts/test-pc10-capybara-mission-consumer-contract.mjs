@@ -21,6 +21,7 @@ function deliveryReceipt({ status = 'committed', currentSession = sessionId, cur
   revision = 9, projectionRevision = revision, missionStatus = 'complete', groupId = 'fleet-original',
   leaderUid = 'leader-original', custodyStatus = 'dropped-off', holderUid = 'leader-original', shipId = 'ship-original' } = {}) {
   return { status, sessionId: currentSession, missionId: currentMission, requestId: 'dropoff-request-original', revision,
+    actionType: 'dropOff',
     publicState: { missionId: currentMission, groupId, revision: projectionRevision, phase: missionStatus,
       status: missionStatus, missionLeaderUid: leaderUid,
       custody: { status: custodyStatus, holderUid, shipId }, outcomes: [{ opportunityId: 'ordinary-task', outcome: 'failure' }] } };
