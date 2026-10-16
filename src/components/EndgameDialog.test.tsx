@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import { useSessionStore } from '@/store/useSessionStore';
 import EndgameDialog from './EndgameDialog';
 
@@ -173,4 +173,35 @@ it('keeps Close disabled when the live GM has neither observer nor entitled debr
   expect(screen.getByRole('button', { name: 'Close session' })).toBeDisabled();
   await userEvent.click(screen.getByRole('button', { name: 'Close session' }));
   expect(debriefMocks.close).not.toHaveBeenCalled();
+});
+
+
+it('reopens the Station debrief portal on cold remount and permits retained retry after ordinary Continue', async () => {
+  const user = userEvent.setup(), retry = vi.fn();
+  useSessionStore.getState().setIdentity({ id: 'station', phase: 'active', currentTurn: 2 } as never,
+    { uid: 'same-crew', sessionId: 'station', role: 'player', fleetGroupId: 'fleet-1' } as never);
+  const surface = () => <main>
+    <button onClick={retry}>Retry original candidate request</button><EndgameDialog />
+  </main>;
+  const first = render(surface());
+  expect(screen.queryByRole('dialog', { name: 'Endgame evaluation' })).not.toBeInTheDocument();
+  const outcome = { type: 'game-outcome', result: 'success', cause: 'candidate-complete', candidateCode: 'P', cycle: 2 };
+  await act(async () => useSessionStore.getState().setSession({ id: 'station', phase: 'debrief', currentTurn: 2,
+    gameOutcome: outcome, fullGameDemo: { status: 'complete', progression: 'manual' },
+    debriefSnapshot: { type: 'session-debrief', version: 1, source: 'candidate', result: 'success',
+      cause: 'candidate-complete', cycle: 2, outcome, candidate: { code: 'P', groups: [] } } } as never));
+  const dialog = screen.getByRole('dialog', { name: 'Endgame evaluation' });
+  expect(within(dialog).getByRole('heading', { name: 'Candidate P route' })).toBeVisible();
+  expect(dialog).toHaveTextContent('Server result // Success // Cycle 2');
+  expect(document.querySelector('[data-focus-dialog-backdrop]')).toContainElement(dialog);
+  expect(screen.getByRole('button', { name: 'Retry original candidate request' })).toBeInTheDocument();
+  await user.click(within(dialog).getByRole('button', { name: 'Continue' }));
+  expect(screen.queryByRole('dialog', { name: 'Endgame evaluation' })).not.toBeInTheDocument();
+  first.unmount();
+  render(surface());
+  const reloaded = screen.getByRole('dialog', { name: 'Endgame evaluation' });
+  expect(reloaded).toBeVisible();
+  await user.click(within(reloaded).getByRole('button', { name: 'Continue' }));
+  await user.click(screen.getByRole('button', { name: 'Retry original candidate request' }));
+  expect(retry).toHaveBeenCalledTimes(1);
 });
