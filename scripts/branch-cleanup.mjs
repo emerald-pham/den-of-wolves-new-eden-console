@@ -61,6 +61,34 @@ async function run(command, args, { cwd, allowedExitCodes = [] } = {}) {
   }
 }
 
+async function runWithInput(command, args, input, { cwd } = {}) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const child = execFile(command, args, {
+      cwd,
+      encoding: 'utf8',
+      maxBuffer: 8 * 1024 * 1024,
+      timeout: commandTimeoutContext.getStore() ?? DEFAULT_COMMAND_TIMEOUT_MS,
+      killSignal: 'SIGKILL',
+      env: {
+        ...process.env,
+        GIT_TERMINAL_PROMPT: '0',
+        GCM_INTERACTIVE: 'never',
+      },
+    }, (error, stdout, stderr) => {
+      if (error) {
+        const failure = new Error(error.message, { cause: error });
+        failure.code = error.code;
+        failure.stderr = stderr;
+        rejectPromise(new CommandFailure(command, args, failure));
+      } else {
+        resolvePromise(String(stdout ?? '').trimEnd());
+      }
+    });
+    child.stdin.on('error', () => undefined);
+    child.stdin.end(input);
+  });
+}
+
 function within(parent, candidate) {
   const path = relative(parent, candidate);
   return path === '' || (!path.startsWith(`..${sep}`) && path !== '..' && !isAbsolute(path));
@@ -684,6 +712,33 @@ async function restoreCurrentBranch(root, branch, expectedSha) {
   }
 }
 
+async function deleteLocalBranchWithHeadGuard(root, branch, expectedSha) {
+  const targetRef = `refs/heads/${branch}`;
+  const symbolicHead = await run('git', ['symbolic-ref', '-q', 'HEAD'], {
+    cwd: root,
+    allowedExitCodes: [1],
+  });
+  if (symbolicHead === targetRef) {
+    const error = new Error(`HEAD was reattached to ${branch} before local ref deletion.`);
+    error.code = 'HEAD_REATTACHED';
+    throw error;
+  }
+
+  const headGuard = symbolicHead
+    ? `symref-verify HEAD ${symbolicHead}`
+    : `verify HEAD ${await run('git', ['rev-parse', '--verify', 'HEAD'], { cwd: root })}`;
+  const transaction = [
+    'start',
+    'option no-deref',
+    headGuard,
+    `delete ${targetRef} ${expectedSha}`,
+    'prepare',
+    'commit',
+    '',
+  ].join('\n');
+  await runWithInput('git', ['update-ref', '--stdin'], transaction, { cwd: root });
+}
+
 function reportFor(branch, apply) {
   return {
     version: 1,
@@ -887,10 +942,14 @@ async function cleanupBranchInternal({
   try {
     const attached = await branchWorktreeReason(root, targetBranch);
     if (attached) return addReason(report, attached.code, attached.message);
-    await run('git', ['update-ref', '-d', `refs/heads/${targetBranch}`, inspected.local], { cwd: root });
+    await deleteLocalBranchWithHeadGuard(root, targetBranch, inspected.local);
     report.actions.localBranchRemoved = true;
   } catch (error) {
     const latest = await branchSha(root, targetBranch).catch(() => null);
+    const latestHead = await currentBranch(root).catch(() => '');
+    if (error?.code === 'HEAD_REATTACHED' || latestHead === targetBranch) {
+      return addReason(report, 'branch-in-other-worktree', `The initiating checkout became attached to ${targetBranch} during local ref deletion; its branch ref was retained.`);
+    }
     return addReason(
       report,
       latest && latest !== inspected.local ? 'local-tip-changed' : 'local-delete-failed',
