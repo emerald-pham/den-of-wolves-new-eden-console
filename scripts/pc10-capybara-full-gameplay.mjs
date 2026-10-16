@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
-import { startMissionDealThroughMountedUi, resolveAndDeliverMissionThroughMountedUi } from './pc10-mission-lifecycle-consumer.mjs';
+import { prepareMissionPrivacyThroughMountedControl, startMissionDealThroughMountedUi, resolveAndDeliverMissionThroughMountedUi } from './pc10-mission-lifecycle-consumer.mjs';
 import { candidateGameplayTools } from './pc10-candidate-manual-ui-proof.mjs';
 import { advanceBaseDetectorResearch, runBaseCombatAndDeduction } from './pc10-base-combat-deduction-ui-proof.mjs';
 import { completeOfferedTurnAdvance } from './pc10-full-game-demo-proof-helpers.mjs';
@@ -676,6 +676,11 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
   const specialistDriver = createSpecialistGameplayDriver(a);
   const sourceTools = candidateGameplayTools(context);
   const { gm, initial, roster, directory } = context;
+  const originalGm = await gm.observe();
+  assert.equal(originalGm.sessionId, initial.sessionId);
+  assert.equal(originalGm.playerRole, 'gm');
+  assert.equal(originalGm.gmInstanceOwned, true);
+  assert.ok(originalGm.uidHash && originalGm.instanceId);
   const stages = [], checks = {}, costs = [];
   const capybaraStages = Object.fromEntries(CAPYBARA_REQUIRED_STAGES.map(id =>
     [id, { status: 'pending', reason: 'not-yet-observed-at-source-checkpoint' }]));
@@ -1054,8 +1059,18 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
     await panel.waitFor();
     return { surface, panel };
   }
-  async function missionUi(role, missionId, choose) {
+  async function missionUi(role, missionId, choose, { includeActionType = false } = {}) {
     const { surface, panel } = await missionPanel(role, missionId);
+    const actorBefore = await surface.observe();
+    assert.equal(actorBefore.sameActor, true);
+    assert.equal(actorBefore.sessionId, initial.sessionId);
+    assert.equal(actorBefore.connection, 'live');
+    assert.equal(actorBefore.freshness, 'server');
+    if (role === 'gm') {
+      assert.equal(actorBefore.uidHash, originalGm.uidHash);
+      assert.equal(actorBefore.instanceId, originalGm.instanceId);
+      assert.equal(actorBefore.gmInstanceOwned, true);
+    }
     const response = await observeUiReceipt({ page: surface.page,
       waitForResponse: () => surface.page.waitForResponse(response =>
         new URL(response.url()).pathname.endsWith('/us-central1/commitAwayMissionLifecycleCommand') && response.request().method() === 'POST'),
@@ -1064,14 +1079,20 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
     const body = await response.json();
     assert.equal(response.ok(), true, `Actual mission UI: ${body.error?.message ?? response.status()}`);
     const request = response.request().postDataJSON()?.data;
+    assert.equal(request?.sessionId, initial.sessionId);
     const replay = await surface.callable('commitAwayMissionLifecycleCommand', request);
     assert.equal(replay.status, 'committed');
     assert.equal(replay.result.revision, body.result.revision);
     assert.deepEqual(replay.result.publicState, body.result.publicState);
+    const actorAfter = await surface.observe();
+    for (const key of ['sameActor', 'sessionId', 'uidHash', 'profileRoleId', 'profileSessionId'])
+      assert.equal(actorAfter[key], actorBefore[key], `Original ${role} identity remains bound for the mission reply.`);
+    assert.equal(actorAfter.connection, 'live');
+    assert.equal(actorAfter.freshness, 'server');
     a.actions.push({ roleId: role, name: 'commitAwayMissionLifecycleCommand', actionType: request.type,
       transport: 'actual connected UI control', exactBrowserSdkReplay: true, revision: body.result.revision,
       privateCardContentsRecorded: false });
-    return body.result;
+    return includeActionType ? { ...body.result, actionType: request.type } : body.result;
   }
   async function selectBoaReclamationChoice() {
     const surface = await a.select('capybara-recycler');
@@ -1329,7 +1350,29 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
       { roleId: 'capybara-recycler', verify: inspectRenderedAction({ regionName: 'Boa mission reclamation',
         resultStatuses: [...SUCCESS_RESULT_STATUSES], renderedStatusCode: 'mission-choice-visible' }) });
     await mark('normal GM UI selects connected mission participants and leader');
-    const dealt = await startMissionDealThroughMountedUi({ deal: () => uiRpc('gm', 'dealPrivateInitialCards', async page => {
+    const missionStart = await startMissionDealThroughMountedUi({ sessionId: initial.sessionId, originalGm,
+      preparePrivacy: async () => {
+        const current = await gm.observe();
+        if (current.sessionId !== initial.sessionId || current.uidHash !== originalGm.uidHash ||
+            current.instanceId !== originalGm.instanceId || current.playerRole !== 'gm' ||
+            current.gmInstanceOwned !== true || current.phase !== 'active' || current.cycle !== 2 ||
+            current.connection !== 'live' || current.freshness !== 'server') {
+          return { status: 'pending', reason: 'original-owned-gm-not-live-at-current-mission-cycle' };
+        }
+        const surface = await a.select('gm', { enter: false });
+        const preparation = await prepareMissionPrivacyThroughMountedControl({ surface,
+          sessionId: initial.sessionId, originalGm });
+        if (preparation.status !== 'ready') return preparation;
+        const after = await gm.observe();
+        if (after.sessionId !== initial.sessionId || after.uidHash !== originalGm.uidHash ||
+            after.instanceId !== originalGm.instanceId || after.playerRole !== 'gm' ||
+            after.gmInstanceOwned !== true || after.phase !== 'active' || after.cycle !== 2 ||
+            after.connection !== 'live' || after.freshness !== 'server') {
+          return { status: 'pending', reason: 'original-owned-gm-changed-after-mission-privacy-preparation' };
+        }
+        return preparation;
+      },
+      deal: () => uiRpc('gm', 'dealPrivateInitialCards', async page => {
       const panel = page.getByRole('region', { name: 'New-location mission start', exact: true });
       const labelFor = role => {
         const actor = roster.find(value => value.roleId === role);
@@ -1341,6 +1384,10 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
       await panel.getByRole('combobox', { name: 'Mission Leader', exact: true }).selectOption({ label: labelFor('wing-commander') });
       await panel.getByRole('button', { name: 'Start mission', exact: true }).click();
     }) });
+    assert.equal(missionStart.status, 'dealt', `Current session mission privacy must be ready before deal: ${missionStart.reason ?? ''}`);
+    const dealt = missionStart.dealReceipt;
+    assert.equal(dealt.status, 'committed');
+    assert.equal(dealt.sessionId, initial.sessionId);
     checks.realMissionStartAndExactRetry = true;
     await mark('normal mission private requests, discard and assignment');
     const missionId = dealt.missionId;
@@ -1362,8 +1409,9 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
     await missionUi('gm', missionId, panel => panel.getByRole('button', { name: 'Open private discards', exact: true }).click());
     for (const role of participants)
       await missionUi(role, missionId, panel => panel.getByRole('button', { name: /^Discard .* secretly$/ }).first().click());
+    let lastAssignmentReceipt = null;
     for (const role of participants) {
-      await missionUi(role, missionId, async panel => {
+      lastAssignmentReceipt = await missionUi(role, missionId, async panel => {
         const choices = await panel.getByRole('combobox', { name: /^Opportunity for / }).all();
         const used = new Set();
         for (const choice of choices) {
@@ -1374,23 +1422,19 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
           if (selected) { await choice.selectOption(selected); used.add(selected); }
         }
         await panel.getByRole('button', { name: 'Submit mission assignments', exact: true }).click();
-      });
+      }, { includeActionType: true });
     }
-    checks.privateMissionCardsAndLeaderChoices = true;
+    checks.privateMissionCardsAndLeaderChoices = lastAssignmentReceipt?.status === 'committed' &&
+      lastAssignmentReceipt.actionType === 'assignCards';
     await mark('real next Team resolves and delivers server-produced mission results');
     await advance();
     const lifecycle = await resolveAndDeliverMissionThroughMountedUi({
-      missionId,
-      missionLeaderRoleId: 'wing-commander',
-      strict: true,
-      addFacilitatorCards: () => missionUi('gm', missionId,
-        panel => panel.getByRole('button', { name: 'Add facilitator cards', exact: true }).click()),
-      resolveMission: () => missionUi('gm', missionId,
-        panel => panel.getByRole('button', { name: 'Resolve away mission', exact: true }).click()),
+      sessionId, missionId, missionLeaderRoleId: 'wing-commander', lastAssignmentReceipt,
       deliverMission: (roleId, currentMissionId) => missionUi(roleId, currentMissionId,
-        panel => panel.getByRole('button', { name: 'Drop mission rewards at selected ship', exact: true }).click()),
+        panel => panel.getByRole('button', { name: 'Drop mission rewards at selected ship', exact: true }).click(),
+        { includeActionType: true }),
     });
-    assert.equal(lifecycle.status, 'completed');
+    assert.equal(lifecycle.status, 'completed', `Same-mission resolution and custody delivery must commit: ${lifecycle.reason ?? ''}`);
     const resolved = lifecycle.resolution;
     const delivered = lifecycle.delivery;
     const boaMissionOutcome = boaTaskOpportunityId && resolved.publicState.outcomes?.find(entry =>
@@ -1419,7 +1463,7 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
       reason: boaTaskOpportunityId
         ? 'The actual Boa-reclaimed task did not resolve to server success plus completed custody delivery.'
         : 'Boa reclamation was not committed for an offered pre-deal task; delivery alone does not count.' });
-    checks.serverMissionResolutionAndCustodyDelivery = true;
+    checks.serverMissionResolutionAndCustodyDelivery = lifecycle.status === 'completed';
     const research3 = await advanceBaseDetectorResearch(context, { expectedCycle: 3, evidenceName: 'base-research-cycle-3.json' });
     await updateBestCapybaraStage('scientist-research', sourceActionStageOutcome({
       branch: research3.branches?.['detector-research-cross'], requests: research3.requests,
