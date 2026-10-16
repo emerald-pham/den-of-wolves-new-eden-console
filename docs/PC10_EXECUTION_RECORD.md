@@ -1641,3 +1641,48 @@ and teardown plan, and any genuine blocker to root for a bounded resource grant.
 No old frozen packet or former canonical-parent grant is adopted. Any new
 functional repair follows current observed-RED/test-commit-before-code rules.
 Root retains final prompt closure, integration and release ownership.
+
+## Reconciled repairs and first current Ring run — October 15
+
+Integration `3a87919d` retains both worker histories: Macaw target-player consent
+on its own host and retained-shuttle attack Scrap opportunities, plus the
+privacy contract/waiver fixture corrections. The reconciled consumer check
+passed 246 tests; privacy verification passed 454 focused tests and 189 Rules
+tests. Security inventory now requires exactly one SDK constructor in each
+behavior-qualified gameplay and casting audit factory, while rejecting all
+others; its security/casting cohort passed 65 tests. Production casting
+transport is unchanged. These focused checks do not close whole prompts.
+
+The fresh Ring run bound source `e1242910` and compiled entrypoint
+`e46ad04fcd43ecb5e2c29beb861bb8d128ef2a278f542ac63bdbc08333c05c94`
+to project `demo-pc10-ring-f9f3-20261015`. Two browser processes/contexts used
+20 genuine Auth accounts (18 crew, controller and GM), with zero humans.
+Ordinary admission/manual Cycle 0→1, four research/maintenance cycles, six
+charged destination jumps, ten materials, five distinct four-cross tracks,
+Philia consumption, six Fuel-5 passages and GM far-side sabotage were observed.
+Visible GM demo resource adjustments supplied the scenario budgets; ordinary
+resource acquisition and every-role/full-game acceptance are not inferred.
+
+The run **failed** immediately after the server debrief transition: its reader
+accessed an absent `debriefSnapshot` while the rendered dialog was still
+reading the committed debrief. No ending/reload acceptance or prompt closure
+is credited. Preserve the original failure and screenshots in
+`/private/tmp/pc10-ring-proof-f9f3-20261015-a1` and service/proof logs in
+`/private/tmp/pc10-ring-runtime-f9f3-20261015`. A bounded readiness diagnosis and
+test-first repair is assigned on the reconciled worker branch; the failed run
+must never be rewritten as a pass.
+
+Root retrieved the proof result and stopped only its original Vite/CLI
+wrappers. Both exited, all 22 IPv4/IPv6 bindings were free, reservations were
+empty, and root released its exact slot-2 configuration and removed its local
+config/env. These were fresh RAM emulators without import/export; no old data
+namespace was touched. The external return receipt is
+`/tmp/pc10-implementation-notes-20261015/ring-runtime-return.json`.
+
+After a fresh empty-registry/free-port check, root explicitly granted the
+prepared Wing mission plan a new 26-minute allocation, including startup and
+strict return, on its frozen `e1242910` source/build and unchanged operator.
+Only one source-random A-1 contribution/result is in scope; first failure or
+result stops the proof. No retry grant, old namespace adoption or broad Wing
+acceptance is implied. The exact plan/bindings and first-error-preserving
+cleanup contract remain in the external `wing-mission.md` handoff.
