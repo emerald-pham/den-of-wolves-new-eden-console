@@ -29,9 +29,26 @@ export function minimumCandidateAbandonmentPlan() {
   roles:['gm','icebreaker-miner'], hardCapMs:900000, probeFamily:'candidate-abandonment',
   actualHumans:0, wholeGameProof:false, endingProof:false };
 }
-// Existing setup consumer assertion exposed unchanged for the source-real regression.
-export function candidateAbandonmentShips({session}) {
- const ships=session.activeVesselIds;assert.equal(ships.length,6);return ships;
+// Bind this sparse rehearsal to the same canonical server setup and original
+// member/group authority as the live consumer; fleet size is not independent.
+export function candidateAbandonmentShips({session,member,group,expected}) {
+ const require=createRequire(new URL('../functions/package.json',import.meta.url));
+ const {printedRosterForPlayerCount,activeVesselIdsForRoles}=require('../functions/lib/gameSetup.js');
+ const roles=[...printedRosterForPlayerCount(minimumCandidateAbandonmentPlan().configuredRoles)];
+ const vessels=[...activeVesselIdsForRoles(roles)];
+ assert.equal(session.playerCount,8);assert.deepEqual([...session.activeRoleIds].sort(),[...roles].sort(),'Current canonical eight-role setup required.');
+ assert.deepEqual([...session.activeVesselIds].sort(),[...vessels].sort(),'Active vessels must match the actual canonical source roster.');
+ assert.ok(vessels.includes('icebreaker'));assert.equal(session.phase,'active');assert.equal(session.currentTurn,1);
+ assert.equal(member.uidHash,expected.actorUidHash);assert.equal(member.sessionId,expected.sessionId);assert.equal(member.meSessionId,expected.sessionId);
+ assert.equal(member.playerRole,'player');
+ for(const key of ['assignedRoleId','activeConsoleRoleId','seatId'])assert.equal(member[key],'icebreaker-miner');
+ for(const key of ['hasAuth','sameActor','currentOwnPlayerConfirmed','currentCanonicalSeatOwned','currentMemberBerthPresent','currentMemberBerthMatches','memberScopeMatches','sdkHasServerAuthority'])assert.equal(member[key],true,`Current original Miner requires ${key}.`);
+ assert.equal(member.sdkResumePending,false);assert.equal(member.connection,'live');assert.equal(member.freshness,'server');assert.equal(member.phase,'active');assert.equal(member.cycle,1);
+ assert.ok(group);assert.equal(group.id,member.fleetGroupId);assert.ok(group.memberUids.includes(expected.actorUid));
+ assert.deepEqual([...group.vesselIds].sort(),[...vessels].sort(),'Original group must contain exactly the configured fleet.');
+ assert.equal(member.memberVesselCount,group.vesselIds.length);assert.ok(group.vesselIds.includes('icebreaker'));
+ if(group.memberShipIds!==undefined)assert.equal(group.memberShipIds[expected.actorUid],'icebreaker');
+ return [...session.activeVesselIds];
 }
 export async function runRingWorkflow(operations,{intent='complete'}={}) {
  assert.ok(['complete','abandon-after-partial'].includes(intent));
@@ -1186,7 +1203,7 @@ async function enterRole(surface,label){
    await action(gm,'startGame',async()=>{await training.getByRole('button',{name:'Start full-game demo // Advance to Cycle 1',exact:true}).click();await training.getByRole('button',{name:'ARE YOU SURE? // START FULL-GAME DEMO // CYCLE 1',exact:true}).click();});
    await liveGm(gm,'GM1','active');
    for(const surface of surfaces)await completeOfferedCyclePresentation(surface,await snapshot(surface,'Actual Cycle1 presentation'),{clearBriefing:true});
-   if(sparse){const reader=await memberReady(recipient,'Recipient');groupId=reader.fleetGroupId;if(abandonmentOnly){const root=await recordRoot();ships=candidateAbandonmentShips({session:root});coordinate=await readRingCoordinate(gm);claims.push('Fresh normal8-role manual setup, independent GM/Miner Auth in two browser processes; unused seats remain open.');return;}if(stationOnly){evidence.stationWingOriginal=reader;for(const actor of stationCrew){const member=await memberReady(actor.surface,actor.label);assert.equal(member.fleetGroupId,groupId);actor.original=member;}await assertStationCustody();}
+   if(sparse){const reader=await memberReady(recipient,'Recipient');groupId=reader.fleetGroupId;if(abandonmentOnly){const root=await recordRoot();const groupDoc=await op(()=>db.doc(`sessions/${sid}/fleetGroups/${groupId}`).get());assert.equal(groupDoc.exists,true);ships=candidateAbandonmentShips({session:root,member:reader,group:fleetGroupRecord(groupDoc.data()),expected:{sessionId:sid,actorUid:actorUids.get('Recipient'),actorUidHash:short(actorUids.get('Recipient'))}});evidence.sourceBoundSetup={activeRoleIds:root.activeRoleIds,activeVesselIds:ships,groupId,actorUidHash:reader.uidHash,memberVesselCount:reader.memberVesselCount};coordinate=await readRingCoordinate(gm);claims.push('Fresh normal8-role manual setup, independent GM/Miner Auth in two browser processes; unused seats remain open.');return;}if(stationOnly){evidence.stationWingOriginal=reader;for(const actor of stationCrew){const member=await memberReady(actor.surface,actor.label);assert.equal(member.fleetGroupId,groupId);actor.original=member;}await assertStationCustody();}
     claims.push(stationOnly?'Fresh normal15-role manual setup with GM, six printed craft owners including separate Press, and a distinct Executive Officer; unused core seats open, optional Union craft absent':'Fresh normal13-role manual setup with GM and one ordinary reader; no Ring prerequisites or recovery replay');return;}
    const science=await memberReady(recipient,'Recipient'),engineer=await memberReady(owner,'Owner');assert.equal(science.fleetGroupId,engineer.fleetGroupId);groupId=science.fleetGroupId;
    const current=await recordRoot();ships=current.activeVesselIds;assert.equal(ships.length,6);assert.ok(ships.includes('aegis'));
