@@ -10,17 +10,22 @@ evidence. Inventory and focused regression passes grant no gameplay credit.
 Regenerate it after the final Functions integration and bind each accepted row
 to the corresponding real scenario and source/runtime evidence.
 
-The current JSON binds 247 compiled exports, including 238 callables and 42
-role descriptors, to functional source `639ad674`. The six additions to the
-retained 241-export/232-callable baseline are `buildEndeavourScienceDevice`,
-`exchangeAegisFighterWings`, `recordFleetGroupRejoinAdjudication`,
-`repairAwayMissionProjectionPrivacy`, `selectCandidateEdition` and
-`transferWarriorCargo`. The original baseline stays in committed history and
-the retained evidence. This is declaration/consumer inventory; inventory
-alone grants no function or role proof, and descriptor counts are not actor
-counts. The earlier source-only taxonomy audit retains its original 233 review
-rows and 842 declaration anchors; it is not relabeled as complete current
-coverage or an enabled-control/gameplay pass.
+The refreshed static inventory binds 248 compiled exports, including 239
+callables and 42 role descriptors, to the existing compiled entrypoint
+`e46ad04f` and Functions source `243f6710`; the inventory snapshot is dated at
+source `2a2d64cc`. Compared with the retained function inventory (247 exports,
+238 callables), the sole newly present export is
+`castingCompanionCommand`, preserved published-main casting transport outside
+new PC10 gameplay. The action/role matrix also now includes seven callable rows
+that were absent from its prior 241-export/232-callable JSON: six were already
+in the function inventory and one is the casting transport above. Cappy-a3's opening-combat and boarding diagnostic prefix did not invoke
+`castingCompanionCommand`; it earns no endpoint or gameplay credit for that
+transport. This is declaration/consumer inventory; it grants no
+function or role proof, and role-descriptor counts are not actor counts. The
+original 241/232 and 247/238 snapshots remain in history. The earlier
+source-only taxonomy audit retains its original 233 review rows and 842
+declaration anchors; it is not relabeled as complete current coverage or an
+enabled-control/gameplay pass.
 
 The October 8 owner choice makes Home the N/O default in the app and canonical
 paper, with coherent labeled Deluxe alternatives. Home N: 10 Materials,
