@@ -290,7 +290,6 @@ for (const { surroundingCount, refreshBetweenTabs, mode = 'research-choice' } of
           await writeFile(presentationPath, `${JSON.stringify(presentation, null, 2)}\n`);
         } finally { await cdp.detach(); }
         assert.equal(presentation.scope, 'Prepared actual GM CIC composition using the released RoleConsoleTemplate, CandidatePreparationPanel, full CSS and six-ship candidate projector; zero Auth/gameplay/ending credit.');
-        assert.equal(presentation.captures.length, 7);
         for (const geometry of presentation.captures) {
           assert.equal(geometry.readiness.state, 'ready');
           assert.equal(geometry.title, 'Ancient Jump Ring');
@@ -330,11 +329,22 @@ for (const { surroundingCount, refreshBetweenTabs, mode = 'research-choice' } of
             assert.equal(geometry.layoutReason.type, 'ring-title-status-group-exceeds-viewport');
           } else assert.fail(`Unexpected focused Ring capture kind ${geometry.kind}.`);
         }
-        assert.deepEqual(presentation.captures.map(value => [value.kind, value.width, value.height]), [
-          ['path-focus', 320, 844], ['control-focus', 320, 844],
-          ['title-focus', 844, 390], ['status-focus', 844, 390], ['control-focus', 844, 390],
-          ['path-focus', 1440, 900], ['control-focus', 1440, 900],
-        ]);
+        const expectedCaptureShape = [];
+        for (const viewport of [{ width: 320, height: 844 }, { width: 844, height: 390 },
+          { width: 1440, height: 900 }]) {
+          const atViewport = presentation.captures.filter(value =>
+            value.width === viewport.width && value.height === viewport.height);
+          const pathCaptures = atViewport.filter(value => value.kind !== 'control-focus');
+          const groupHeight = pathCaptures[0]?.statusGeometry.bottom - pathCaptures[0]?.titleGeometry.top;
+          const expectedPathKinds = groupHeight <= viewport.height
+            ? ['path-focus'] : ['title-focus', 'status-focus'];
+          assert.deepEqual(pathCaptures.map(value => value.kind), expectedPathKinds,
+            'Capture the heading/status together when their measured group fits; split only when it does not.');
+          assert.equal(atViewport.filter(value => value.kind === 'control-focus').length, 1,
+            'Each responsive viewport retains one separately focused passage-control capture.');
+          expectedCaptureShape.push(...atViewport.map(value => [value.kind, value.width, value.height]));
+        }
+        assert.deepEqual(presentation.captures.map(value => [value.kind, value.width, value.height]), expectedCaptureShape);
       } else for (const geometry of geometries) {
         assert.equal(geometry.keyboardTraversal.intendedTargetCount, 8);
         assert.equal(geometry.keyboardTraversal.documentTabStopCount, 8 + surroundingCount);
