@@ -374,6 +374,7 @@ test('the actual Station ending recovers the first committed contribution and th
     assert.equal(details.actor.fleetGroupId, 'fleet-1');
     assert.equal(details.actor.uidHash, `crew-${details.shipId}-uid`);
     assert.equal(details.actor.profileRoleId, details.roleId);
+    assert.equal(details.actor.profileSessionId, details.sessionId);
     assert.equal(details.actor.assignedRoleId, details.roleId);
     assert.equal(details.actor.activeConsoleRoleId, details.roleId);
     assert.equal(details.actor.seatId, details.roleId);
