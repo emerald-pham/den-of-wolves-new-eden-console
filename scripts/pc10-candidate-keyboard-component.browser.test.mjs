@@ -142,7 +142,7 @@ for (const { surroundingCount, refreshBetweenTabs, mode = 'research-choice' } of
     const expectedRead = { data: { sessionId: SID, expectedGroupId: GROUP,
       ...(mode === 'repaired-ring' ? { instanceId: GM_INSTANCE_ID } : {}) } };
     const posted = [], traffic = [], errors = [], observations = [], refreshObservations = [];
-    let server, browser, origin, report, page, actualPanel, surface;
+    let server, browser, context, origin, report, page, actualPanel, surface;
     try {
       server = createServer(async (request, response) => {
         try {
@@ -169,7 +169,7 @@ for (const { surroundingCount, refreshBetweenTabs, mode = 'research-choice' } of
       await new Promise((resolveListening, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolveListening); });
       origin = `http://127.0.0.1:${server.address().port}`;
       browser = await chromium.launch({ channel: 'chrome', headless: true });
-      const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
+      context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
       await context.route('**/*', route => {
         const url = route.request().url();
         if (url.startsWith(`${origin}/`)) return route.continue();
@@ -249,7 +249,7 @@ for (const { surroundingCount, refreshBetweenTabs, mode = 'research-choice' } of
         roster: [{ roleId: mode === 'repaired-ring' ? GM_ROLE : ROLE, uidHash: 'prepared-original-hash' }], projectId: PROJECT,
         ports: { functions: server.address().port } });
       await tools.candidateGeometry(surface, 'N', stage, { evidenceScope: mode === 'repaired-ring'
-        ? 'Prepared unchanged component, CSS, store and candidate projector only.' : undefined });
+        ? 'Prepared actual GM CIC composition using the released RoleConsoleTemplate, CandidatePreparationPanel, full CSS and six-ship candidate projector; zero Auth/gameplay/ending credit.' : undefined });
       const geometries = JSON.parse(await readFile(resolve(directory, `N-${stage}-geometry.json`), 'utf8'));
       if (mode === 'repaired-ring') {
         assert.equal(report.paths[0].repaired, true);
@@ -289,30 +289,50 @@ for (const { surroundingCount, refreshBetweenTabs, mode = 'research-choice' } of
           presentation.environment.paintedFonts = { source: 'CDP CSS.getPlatformFontsForNode', nodes: paintedFonts };
           await writeFile(presentationPath, `${JSON.stringify(presentation, null, 2)}\n`);
         } finally { await cdp.detach(); }
-        assert.equal(presentation.scope, 'Prepared unchanged component, CSS, store and candidate projector only.');
-        assert.equal(presentation.captures.length, 6);
+        assert.equal(presentation.scope, 'Prepared actual GM CIC composition using the released RoleConsoleTemplate, CandidatePreparationPanel, full CSS and six-ship candidate projector; zero Auth/gameplay/ending credit.');
+        assert.equal(presentation.captures.length, 7);
         for (const geometry of presentation.captures) {
           assert.equal(geometry.readiness.state, 'ready');
           assert.equal(geometry.title, 'Ancient Jump Ring');
-          assert.equal(geometry.titleGeometry.intersectsViewport, true);
           assert.match(geometry.statusText, /Engineering Shuttle committed.*Ring repaired/);
-          assert.equal(geometry.statusGeometry.intersectsViewport, true);
           assert.equal(geometry.action.name, 'Cross Ring // aegis // five fuel');
           assert.equal(geometry.action.disabled, false);
-          assert.equal(geometry.action.intersectsViewport, true);
           assert.ok(geometry.action.typography.fontSize);
           assert.ok(geometry.action.typography.lineHeight);
           assert.ok(geometry.action.typography.fontFamily);
+          assert.equal(geometry.sourceIdentity.uidHash, 'prepared-original-hash');
+          assert.equal(geometry.sourceIdentity.sessionId, SID);
+          assert.equal(geometry.sourceIdentity.playerRole, 'gm');
+          assert.equal(geometry.sourceIdentity.profileRoleId, GM_ROLE);
+          assert.equal(geometry.sourceIdentity.instanceId, GM_INSTANCE_ID);
+          assert.equal(geometry.sourceIdentity.gmInstanceOwned, true);
+          assert.equal(geometry.sourceIdentity.cycle, 4);
+          assert.equal(geometry.sourceIdentity.reportRevision, 8);
+          assert.equal(geometry.sourceIdentity.identityHydrationRevision, 1);
           const screenshot = await readFile(resolve(directory, geometry.screenshot));
           assert.equal(screenshot.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
           if (geometry.kind === 'control-focus') {
+            assert.equal(geometry.action.intersectsViewport, true);
             assert.equal(geometry.action.focused, true);
             assert.equal(geometry.action.focusVisible, true);
-          }
+          } else if (geometry.kind === 'path-focus') {
+            assert.equal(geometry.titleGeometry.intersectsViewport, true);
+            assert.equal(geometry.statusGeometry.intersectsViewport, true);
+            assert.ok(geometry.statusGeometry.bottom - geometry.titleGeometry.top <= geometry.height);
+            assert.equal(geometry.positioning, 'combined-heading-status-centered');
+          } else if (geometry.kind === 'title-focus') {
+            assert.equal(geometry.titleGeometry.intersectsViewport, true);
+            assert.ok(geometry.layoutReason.groupHeightPx > geometry.layoutReason.viewportHeightPx);
+            assert.equal(geometry.layoutReason.type, 'ring-title-status-group-exceeds-viewport');
+          } else if (geometry.kind === 'status-focus') {
+            assert.equal(geometry.statusGeometry.intersectsViewport, true);
+            assert.ok(geometry.layoutReason.groupHeightPx > geometry.layoutReason.viewportHeightPx);
+            assert.equal(geometry.layoutReason.type, 'ring-title-status-group-exceeds-viewport');
+          } else assert.fail(`Unexpected focused Ring capture kind ${geometry.kind}.`);
         }
         assert.deepEqual(presentation.captures.map(value => [value.kind, value.width, value.height]), [
           ['path-focus', 320, 844], ['control-focus', 320, 844],
-          ['path-focus', 844, 390], ['control-focus', 844, 390],
+          ['title-focus', 844, 390], ['status-focus', 844, 390], ['control-focus', 844, 390],
           ['path-focus', 1440, 900], ['control-focus', 1440, 900],
         ]);
       } else for (const geometry of geometries) {
@@ -416,8 +436,28 @@ for (const { surroundingCount, refreshBetweenTabs, mode = 'research-choice' } of
     } finally {
       const ownedProcessIds = { nodeTestRunner: process.pid, chromeBrowser: browser?.process()?.pid ?? null,
         ephemeralServerOwner: process.pid, ephemeralServerPort: server?.address()?.port ?? null };
-      if (browser) await browser.close();
-      if (server?.listening) await new Promise((resolveClosed, reject) => server.close(error => error ? reject(error) : resolveClosed()));
+      let contextClosed = !context, browserClosed = !browser, serverClosed = !server?.listening;
+      const bounded = async (operation, milliseconds = 5000) => {
+        let timer;
+        try { return await Promise.race([operation, new Promise(resolveTimeout => {
+          timer = setTimeout(() => resolveTimeout(false), milliseconds);
+        })]); } finally { clearTimeout(timer); }
+      };
+      if (context) contextClosed = await bounded(context.close().then(() => true, () => false));
+      if (browser) {
+        const browserProcess = browser.process();
+        browserClosed = await bounded(browser.close().then(() => true, () => false));
+        if (!browserClosed) {
+          browserProcess?.kill('SIGTERM');
+          browserClosed = await bounded(new Promise(resolveClosed => browserProcess?.once('close', () => resolveClosed(true))), 2000);
+        }
+      }
+      if (server?.listening) {
+        const serverClosedPromise = new Promise((resolveClosed, reject) =>
+          server.close(error => error ? reject(error) : resolveClosed(true)));
+        server.closeAllConnections();
+        serverClosed = await bounded(serverClosedPromise.then(() => true, () => false));
+      }
       const sourceFiles = ['src/components/CandidatePreparationPanel.tsx', 'src/components/CandidatePreparationPanel.css',
         'src/components/RoleConsoleTemplate.tsx', 'src/routes/GmConsole.tsx',
         'src/store/useSessionStore.ts', 'functions/src/candidatePaths.ts', 'functions/src/endeavourResearch.ts',
@@ -425,7 +465,7 @@ for (const { surroundingCount, refreshBetweenTabs, mode = 'research-choice' } of
       const bindings = await Promise.all(sourceFiles.map(async path => ({ path,
         sha256: createHash('sha256').update(await readFile(resolve(ROOT, path))).digest('hex') })));
       await writeFile(resolve(directory, 'owned-resource-close.json'), `${JSON.stringify({
-        browserClosed: !browser?.isConnected(), serverClosed: !server?.listening,
+        contextClosed, browserClosed: browserClosed && !browser?.isConnected(), serverClosed: serverClosed && !server?.listening,
         ownedProcessIds, sharedFirebaseOrRootRuntimeTouched: false, sourceBindings: bindings,
       }, null, 2)}\n`);
     }

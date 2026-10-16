@@ -699,7 +699,9 @@ export function candidateGameplayTools(context) {
           assert.equal(await withinBudget(() => heading.count()), 1);
           assert.equal(await withinBudget(() => status.count()), 1);
           assert.equal(await withinBudget(() => action.count()), 1);
-          const captureOne = async (kind, target, screenshotName) => {
+          const captureOne = async (kind, target, screenshotName, {
+            scrollTarget = true, layoutReason = null,
+          } = {}) => {
             let nativeFocusPresses = 0;
             if (kind === 'control-focus') {
               let focused = await withinBudget(() => action.evaluate(node => document.activeElement === node));
@@ -710,7 +712,7 @@ export function candidateGameplayTools(context) {
               }
               assert.equal(focused, true, 'Native Tab must focus the repaired passage action without programmatic focus.');
             }
-            await withinBudget(() => target.scrollIntoViewIfNeeded({ timeout: remaining() }));
+            if (scrollTarget) await withinBudget(() => target.scrollIntoViewIfNeeded({ timeout: remaining() }));
             await withinBudget(() => surface.page.evaluate(() =>
               document.fonts?.ready.then(() => document.fonts.status) ?? null));
             const ready = await waitForReadySource();
@@ -724,27 +726,104 @@ export function candidateGameplayTools(context) {
               assert.equal(renderedPath.action.intersectsViewport, true);
               assert.equal(renderedPath.action.focused, true);
               assert.equal(renderedPath.action.focusVisible, true);
-            } else {
+            } else if (kind === 'path-focus') {
               assert.equal(renderedPath.titleGeometry?.intersectsViewport, true,
                 'The path-focused screenshot must show the actual Ring heading.');
               assert.equal(renderedPath.statusGeometry?.intersectsViewport, true,
                 'The path-focused screenshot must show current repair status.');
+              assert.ok(renderedPath.statusGeometry.bottom - renderedPath.titleGeometry.top <= size.height,
+                'A combined path-focused capture is valid only when the measured heading/status group fits the viewport.');
+            } else if (kind === 'title-focus' || kind === 'status-focus') {
+              assert.ok(layoutReason && layoutReason.groupHeightPx > layoutReason.viewportHeightPx,
+                'Separate title/status captures require measured content taller than the current viewport.');
+              const capturedGroupHeight = renderedPath.statusGeometry.bottom - renderedPath.titleGeometry.top;
+              assert.ok(Math.abs(capturedGroupHeight - layoutReason.groupHeightPx) < 1,
+                'The separate-capture reason must match the screenshot-bound heading/status geometry.');
+              assert.equal(kind === 'title-focus' ? renderedPath.titleGeometry?.intersectsViewport :
+                renderedPath.statusGeometry?.intersectsViewport, true,
+              'Each height-limited focused capture must show its named Ring evidence.');
             }
             const screenshot = `${directory}/${screenshotName}`;
             await withinBudget(() => surface.page.screenshot({ path: screenshot, timeout: remaining() }));
             const afterCapture = await waitForReadySource();
             assert.deepEqual(afterCapture.decision, initialReadiness.decision,
               'Source actor, cycle, report revision and repaired path must remain current after the focused screenshot.');
+            const sourceIdentity = { uidHash: afterCapture.decision.actor.uidHash,
+              playerRole: afterCapture.decision.actor.playerRole,
+              profileRoleId: afterCapture.decision.actor.profileRoleId,
+              sessionId: afterCapture.currentSource.sessionId, cycle: afterCapture.currentSource.cycle,
+              phase: afterCapture.currentSource.phase, groupId: expectedGroupId,
+              reportRevision: afterCapture.decision.revision,
+              instanceId: afterCapture.currentSource.instanceId,
+              instanceClaimedAt: afterCapture.currentSource.instanceClaimedAt,
+              gmInstanceOwned: afterCapture.currentSource.gmInstanceOwned,
+              sourceUpdatedAt: afterCapture.currentSource.sessionUpdatedAt,
+              connectionGeneration: afterCapture.currentSource.connectionGeneration,
+              identityHydrationRevision: afterCapture.currentSource.identityHydrationRevision,
+              documentTimeOrigin: afterCapture.currentSource.documentTimeOrigin };
             presentationCaptures.push({ kind, width: size.width, height: size.height,
               screenshot: screenshotName, nativeFocusPresses,
+              positioning: scrollTarget ? 'target-scrolled-into-view' : 'combined-heading-status-centered',
+              ...(layoutReason ? { layoutReason } : {}), sourceIdentity,
               readiness: afterCapture.decision, noHorizontalOverflow: snapshot.noHorizontalOverflow,
               title: renderedPath.title, titleGeometry: renderedPath.titleGeometry,
               titleTypography: renderedPath.titleTypography, statusText: renderedPath.statusText,
               statusGeometry: renderedPath.statusGeometry, statusTypography: renderedPath.statusTypography,
               action: renderedPath.action });
           };
-          await captureOne('path-focus', status,
-            `${code}-${stage}-path-focus-${size.width}x${size.height}.png`);
+          await withinBudget(() => status.scrollIntoViewIfNeeded({ timeout: remaining() }));
+          const measuredPathGroup = await withinBudget(() => surface.page.evaluate(() => {
+            const path = document.querySelector('.candidate-preparation__path');
+            const title = path?.querySelector('h3'), status = [...(path?.querySelectorAll('p') ?? [])].find(node =>
+              node.innerText.includes('Engineering Shuttle committed') && node.innerText.includes('Ring repaired'));
+            if (!title || !status) return null;
+            const titleRect = title.getBoundingClientRect(), statusRect = status.getBoundingClientRect();
+            const groupTop = Math.min(titleRect.top, statusRect.top);
+            const groupBottom = Math.max(titleRect.bottom, statusRect.bottom);
+            return { groupTop, groupBottom, groupHeightPx: groupBottom - groupTop,
+              viewportHeightPx: innerHeight, viewportWidthPx: innerWidth,
+              scrollTop: document.scrollingElement?.scrollTop ?? window.scrollY,
+              scrollHeight: document.scrollingElement?.scrollHeight ?? null };
+          }));
+          assert.ok(measuredPathGroup, 'The actual Ring heading and current repair status must define one measurable group.');
+          if (measuredPathGroup.groupHeightPx <= measuredPathGroup.viewportHeightPx) {
+            const centeredPathGroup = await withinBudget(() => surface.page.evaluate(() => {
+              const path = document.querySelector('.candidate-preparation__path');
+              const title = path?.querySelector('h3'), status = [...(path?.querySelectorAll('p') ?? [])].find(node =>
+                node.innerText.includes('Engineering Shuttle committed') && node.innerText.includes('Ring repaired'));
+              const scrollport = document.scrollingElement;
+              if (!title || !status || !scrollport) return null;
+              const titleRect = title.getBoundingClientRect(), statusRect = status.getBoundingClientRect();
+              const groupTop = Math.min(titleRect.top, statusRect.top);
+              const groupBottom = Math.max(titleRect.bottom, statusRect.bottom);
+              const groupHeightPx = groupBottom - groupTop;
+              const viewportHeightPx = innerHeight;
+              if (groupHeightPx > viewportHeightPx) return null;
+              const desiredTop = Math.max(0, (viewportHeightPx - groupHeightPx) / 2);
+              const maxScroll = Math.max(0, scrollport.scrollHeight - viewportHeightPx);
+              const targetScrollTop = Math.max(0, Math.min(maxScroll,
+                scrollport.scrollTop + groupTop - desiredTop));
+              scrollport.scrollTop = targetScrollTop;
+              const alignedTitle = title.getBoundingClientRect(), alignedStatus = status.getBoundingClientRect();
+              return { groupHeightPx, viewportHeightPx, targetScrollTop,
+                titleIntersectsViewport: alignedTitle.bottom > 0 && alignedTitle.top < viewportHeightPx,
+                statusIntersectsViewport: alignedStatus.bottom > 0 && alignedStatus.top < viewportHeightPx };
+            }));
+            assert.ok(centeredPathGroup?.titleIntersectsViewport && centeredPathGroup?.statusIntersectsViewport,
+              'Center the combined Ring heading/status group in the document scrollport when its measured height fits.');
+            await withinBudget(() => surface.page.evaluate(() => new Promise(resolvePaint => requestAnimationFrame(resolvePaint))));
+            await captureOne('path-focus', status,
+              `${code}-${stage}-path-focus-${size.width}x${size.height}.png`, { scrollTarget: false });
+          } else {
+            const layoutReason = { type: 'ring-title-status-group-exceeds-viewport',
+              groupHeightPx: measuredPathGroup.groupHeightPx,
+              viewportHeightPx: measuredPathGroup.viewportHeightPx,
+              measurement: 'Union of actual heading and committed-status getBoundingClientRect values.' };
+            await captureOne('title-focus', heading,
+              `${code}-${stage}-title-focus-${size.width}x${size.height}.png`, { layoutReason });
+            await captureOne('status-focus', status,
+              `${code}-${stage}-status-focus-${size.width}x${size.height}.png`, { layoutReason });
+          }
           await captureOne('control-focus', action,
             `${code}-${stage}-control-focus-${size.width}x${size.height}.png`);
         }
