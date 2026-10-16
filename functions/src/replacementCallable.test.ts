@@ -1,5 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
+import type { Firestore } from 'firebase-admin/firestore';
+import { createCurrentMemberSessionReader } from './memberSessionCallable';
 
 const mock = vi.hoisted(() => ({
   get: vi.fn(),
@@ -27,7 +29,7 @@ vi.mock('firebase-admin/firestore', () => ({
   Timestamp: { now: () => new Date('2026-09-12T12:00:00.000Z') },
 }));
 
-import { assignReplacementRole, setReplacementEligibility } from './index';
+import { assignReplacementRole, publishWolfCommanderAddress, setReplacementEligibility } from './index';
 
 function snapshot(fields: Record<string, unknown>, path: string, exists = true) {
   return {
@@ -93,7 +95,18 @@ beforeEach(() => {
   });
 });
 
-it('records explicit eligibility and assigns a replacement atomically', async () => {
+it('assigns and hydrates a candidate-loss actor, then accepts the replacement role action', async () => {
+  mock.target = { ...mock.target, uid: 'player-1', sessionId: 's1', fleetGroupId: 'fleet-1',
+    connectionGeneration: 2, candidateDisposition: { code: 'O', outcome: 'lost', cycle: 6 } };
+  mock.players = [
+    { id: 'gm-1', fields: mock.actor },
+    { id: 'player-1', fields: mock.target },
+  ];
+  const teamEnd = new Date(Date.now() + 60_000).toISOString();
+  mock.session.turnPhase = { turn: 2, teamPhaseEndsAt: teamEnd,
+    openAirspaceEndsAt: new Date(Date.parse(teamEnd) + 60_000).toISOString(),
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false } };
+  mock.session.fullGameDemo = { status: 'active', progression: 'manual' };
   const eligibilityResult = await setReplacementEligibility.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'eligibility-1',
     targetUid: 'player-1', reason: 'dead', expectedRevision: 0, expectedSetupRevision: 4,
@@ -126,6 +139,40 @@ it('records explicit eligibility and assigns a replacement atomically', async ()
     { replacementRoleId: 'wolf-commander', replacementStatus: null,
       activeConsoleRoleId: null, seatId: null },
   );
+  const actorPatch = mock.update.mock.calls.find(([ref]) => ref.path === 'sessions/s1/players/player-1')?.[1];
+  expect(actorPatch).not.toHaveProperty('candidateDisposition');
+  Object.assign(mock.target, actorPatch);
+  expect(mock.target.candidateDisposition).toEqual({ code: 'O', outcome: 'lost', cycle: 6 });
+
+  const records: Record<string, Record<string, unknown>> = {
+    'sessions/s1': { ...mock.session },
+    'sessions/s1/players/player-1': { ...mock.target },
+    'sessions/s1/fleetGroups/fleet-1': { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['player-1'],
+      memberShipIds: { 'player-1': 'aegis' } },
+  };
+  const memberSnapshot = (path: string) => snapshot(records[path] ?? {}, path, records[path] !== undefined);
+  const reader = createCurrentMemberSessionReader({
+    db: {
+      doc: (path: string) => ({ path }),
+      collection: (path: string) => ({ path, collection: true }),
+      runTransaction: async (callback: (tx: unknown) => unknown) => callback({
+        get: async ({ path, collection }: { path: string; collection?: boolean }) => collection
+          ? { docs: Object.keys(records).filter(key => key.startsWith(`${path}/`) &&
+            !key.slice(path.length + 1).includes('/')).map(memberSnapshot) }
+          : memberSnapshot(path),
+      }),
+    } as unknown as Firestore,
+    projectSession: (source, sessionId) => ({ ...source.data(), id: sessionId }),
+  });
+  const hydrated = await reader(request({ sessionId: 's1' }, 'player-1'));
+  expect(hydrated).toMatchObject({ type: 'current-member-session', actorUid: 'player-1', groupId: 'fleet-1',
+    currentActorBerthAuthority: { actorUid: 'player-1', replacementRoleId: 'wolf-commander',
+      activeConsoleRoleId: null, shipId: 'aegis' } });
+
+  await expect(publishWolfCommanderAddress.run(request({
+    sessionId: 's1', requestId: 'candidate-loss-replacement-address', expectedCycle: 2,
+    message: 'The assigned Commander is active after reassignment.',
+  }, 'player-1'))).resolves.toMatchObject({ status: 'committed', actorRoleId: 'wolf-commander' });
   expect(mock.set).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/roleBriefs/player-1' }),
     expect.objectContaining({ roleId: 'wolf-commander', visibleToUids: ['player-1'] }),

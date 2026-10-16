@@ -64,6 +64,7 @@ const mock = vi.hoisted(() => ({
   pressEnabled: true,
   activeConsoleRoleId: undefined as string | null | undefined,
   replacementRoleId: undefined as string | undefined,
+  candidateDisposition: undefined as unknown,
   escapeState: undefined as unknown,
   activeRoleIds: undefined as readonly string[] | undefined,
   randomInt: vi.fn(() => 3_100_000_000), randomUUID: vi.fn(() => 'damage-event'),
@@ -182,7 +183,8 @@ vi.mock('firebase-admin/firestore', () => ({
               if (path.includes('/players/')) {
                 return { exists: true, get: (key: string) => ({
                   role: mock.role, connected: mock.connected,
-                  replacementRoleId: mock.replacementRoleId, escapeState: mock.escapeState,
+                  replacementRoleId: mock.replacementRoleId, candidateDisposition: mock.candidateDisposition,
+                  escapeState: mock.escapeState,
                   activeConsoleRoleId: mock.activeConsoleRoleId,
                 } as Record<string, unknown>)[key] };
               }
@@ -355,7 +357,8 @@ vi.mock('firebase-admin/firestore', () => ({
               const fields: Record<string, unknown> = path.includes('/players/')
                 ? {
                     role: mock.role, connected: mock.connected,
-                    replacementRoleId: mock.replacementRoleId, escapeState: mock.escapeState,
+                    replacementRoleId: mock.replacementRoleId, candidateDisposition: mock.candidateDisposition,
+                    escapeState: mock.escapeState,
                     activeConsoleRoleId: mock.activeConsoleRoleId,
                   }
                 : path.includes('/private/shipConsoleWriteGrant')
@@ -533,6 +536,7 @@ beforeEach(() => {
   mock.pressEnabled = true;
   mock.activeConsoleRoleId = undefined;
   mock.replacementRoleId = undefined;
+  mock.candidateDisposition = undefined;
   mock.escapeState = undefined;
   mock.activeRoleIds = undefined;
   mock.pursuitEmergencyWindow = undefined;
@@ -1141,7 +1145,7 @@ it('creates the stable pod-capacity catastrophe from a riot destruction', async 
         },
       },
       retainedShuttles: {}, shuttleCargo: { starlight: { food: 2 } }, shuttleFuelled: { starlight: true },
-      smallShipStates: { gorgoneion: { id: 'gorgoneion', hostShipId: 'aegis' } },
+      smallShipStates: { gorgoneion: { ...emptySmallShipState('gorgoneion', 'aegis'), everAssigned: true } },
       unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
     } as Record<string, unknown>,
     receipts: {}, undo: {}, events: {}, damageDraws: {},
@@ -2055,6 +2059,25 @@ it('denies unauthenticated, disconnected, unassigned players and foreign GM inst
   mock.role = 'gm'; mock.owner = 'someone-else';
   await expect(runMaintenance.run(request(data))).rejects.toMatchObject({ code: 'permission-denied' });
   expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('denies maintenance for the original player on a candidate-lost destroyed vessel', async () => {
+  mock.role = 'player';
+  mock.activeConsoleRoleId = 'admiral';
+  mock.activeRoleIds = ['admiral'];
+  mock.activeVesselIds = ['aegis'];
+  mock.damage = { aegis: { damagedSystemIds: [], destroyed: true } };
+  mock.candidateDisposition = { code: 'O', outcome: 'lost', cycle: 6 };
+
+  await expect(runMaintenance.run(request({
+    ...data,
+    requestId: 'candidate-loss-maintenance',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/destroyed/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('denies a destroyed-ship replacement VIP before the end transition bypass', async () => {

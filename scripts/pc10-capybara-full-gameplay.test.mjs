@@ -6,6 +6,7 @@ import {
   assessCapybaraGameplay,
   assertCapybaraRunContext,
   capybaraStageOutcome,
+  consumeCapybaraEnding,
   projectCapybaraEvidence,
   sourceActionStageOutcome,
 } from './pc10-capybara-full-gameplay.mjs';
@@ -38,6 +39,54 @@ const validStageOutcome = (stageId, roleId, endpoint) => ({
       renderedStatus: 'public-result-visible' },
   },
 });
+
+const immutableFailureSnapshot = () => ({
+  type: 'session-debrief', version: 1, source: 'failure-review', result: 'failure',
+  cause: 'pursuit-limit', cycle: 8, occurredAt: '2026-10-16T00:00:00.000Z',
+  committedAt: '2026-10-16T00:00:01.000Z',
+  outcome: { type: 'game-outcome', result: 'failure', cause: 'pursuit-limit', cycle: 8,
+    navigationRevision: 4, occurredAt: '2026-10-16T00:00:00.000Z' },
+});
+
+const immutableFailureReply = () => ({ status: 'committed', result: {
+  type: 'session-debrief', sessionId: 'fresh-session', snapshot: immutableFailureSnapshot(),
+} });
+
+const originalEndingGm = () => ({ sameActor: true, sessionId: 'fresh-session',
+  uidHash: 'original-gm-uid-hash', playerRole: 'gm', gmInstanceOwned: true, instanceId: 'gm-instance' });
+
+function capybaraEndingFixture({ phase = 'closed', identity, identityAfterCallable, reply = immutableFailureReply(), neverSettles = false,
+  neverStateAt = [], neverObserveAt = [], states, timeoutMs = 30, publicSnapshot } = {}) {
+  const context = validContext(), originalGm = originalEndingGm();
+  const publicState = { sessionId: 'fresh-session', phase, cycle: 8, debriefSnapshot: publicSnapshot,
+    gameOutcome: { source: 'public-session', result: 'failure', cause: 'pursuit-limit', cycle: 8 } };
+  const calls = { ending: 0, state: 0, observe: 0, callable: [] };
+  let currentIdentity = structuredClone(identity ?? originalEndingGm());
+  const gm = {
+    observe: async () => {
+      calls.observe += 1;
+      if (neverObserveAt.includes(calls.observe)) return new Promise(() => {});
+      return structuredClone(currentIdentity);
+    },
+    callable: async (endpoint, payload) => {
+      calls.callable.push({ endpoint, payload });
+      if (neverSettles) return new Promise(() => {});
+      const response = await (typeof reply === 'function' ? reply(endpoint, payload) : reply);
+      if (identityAfterCallable) currentIdentity = structuredClone(identityAfterCallable);
+      return response;
+    },
+  };
+  const a = { state: async surface => {
+    assert.equal(surface, gm); calls.state += 1;
+    if (neverStateAt.includes(calls.state)) return new Promise(() => {});
+    return structuredClone(states?.[Math.min(calls.state - 1, states.length - 1)] ?? publicState);
+  } };
+  const finalEnding = async suppliedContext => {
+    assert.equal(suppliedContext, context); calls.ending += 1;
+  };
+  return { context, originalGm, publicState, calls,
+    consume: () => consumeCapybaraEnding({ context, a, gm, finalEnding, originalGm, endingReadTimeoutMs: timeoutMs }) };
+}
 
 test('full-game schedule covers the added real Capybara and specialist functions at live game boundaries', () => {
   const byId = Object.fromEntries(CAPYBARA_STAGE_SCHEDULE.map(stage => [stage.id, stage]));
@@ -98,6 +147,168 @@ test('terminal debrief alone cannot turn unavailable required Capybara actions g
     coreGameplay: { status: 'passed', manualProgression: true, serverActions: true, missionDelivered: true },
     terminal: { status: 'debrief', source: 'failure-review',
       result: 'failure', cause: 'pursuit-limit', immutable: true } }).status, 'passed');
+});
+
+test('the ending consumer reads the original GM immutable debrief after the public session closes', async () => {
+  const fixture = capybaraEndingFixture();
+  assert.equal(fixture.publicState.debriefSnapshot, undefined,
+    'The ordinary session projection does not carry the EndgameDialog private snapshot.');
+  const { terminal } = await fixture.consume();
+
+  assert.deepEqual(fixture.calls.callable, [{ endpoint: 'getSessionDebrief', payload: {
+    sessionId: 'fresh-session', instanceId: 'gm-instance',
+  } }]);
+  assert.equal(fixture.calls.ending, 1, 'The real ending callback runs once and is never restarted to recover its receipt.');
+  assert.equal(fixture.calls.state, 2, 'Revalidate the same terminal public session after the private read.');
+  assert.equal(fixture.calls.observe, 2, 'Revalidate the original GM lease after the private read.');
+  assert.deepEqual(terminal, { status: 'closed', immutable: true, source: 'failure-review',
+    result: 'failure', cause: 'pursuit-limit' });
+  assert.equal(assessCapybaraGameplay({ context: fixture.context,
+    stages: Object.fromEntries(CAPYBARA_REQUIRED_STAGES.map(id => [id, { status: 'completed' }])),
+    coreGameplay: { status: 'passed', manualProgression: true, serverActions: true, missionDelivered: true },
+    terminal }).status, 'passed');
+  assert.equal(Object.hasOwn(terminal, 'snapshot'), false, 'The private snapshot remains local to the consumer.');
+});
+
+test('the ending consumer rejects an actor or GM instance switch while the immutable read is in flight', async () => {
+  const identitySwitches = [
+    { ...originalEndingGm(), sameActor: false },
+    { ...originalEndingGm(), uidHash: 'replacement-gm-uid-hash' },
+    { ...originalEndingGm(), instanceId: 'replacement-gm-instance' },
+    { ...originalEndingGm(), gmInstanceOwned: false },
+  ];
+  for (const switchedIdentity of identitySwitches) {
+    let creditedTerminal;
+    const fixture = capybaraEndingFixture({ identityAfterCallable: switchedIdentity,
+      reply: async () => {
+        await new Promise(resolve => setTimeout(resolve, 5));
+        return immutableFailureReply();
+      }, timeoutMs: 100 });
+    await assert.rejects(async () => { creditedTerminal = await fixture.consume(); });
+    assert.equal(creditedTerminal, undefined, 'A stale GM response cannot credit the ending stage.');
+    assert.equal(fixture.calls.ending, 1, 'The final ending callback is never restarted.');
+    assert.equal(fixture.calls.observe, 2, 'Recheck the original actor and GM instance after the slow read.');
+    assert.equal(fixture.calls.callable.length, 1);
+  }
+});
+
+test('the ending consumer rejects a session or cycle change during the immutable read', async () => {
+  for (const stateChange of [
+    { sessionId: 'replacement-session' },
+    { cycle: 9 },
+    { phase: 'active' },
+  ]) {
+    const originalState = { sessionId: 'fresh-session', phase: 'closed', cycle: 8 };
+    const changedState = { ...originalState, ...stateChange };
+    const stateSequenceFixture = capybaraEndingFixture({ states: [originalState, changedState], timeoutMs: 100 });
+    let creditedTerminal;
+    await assert.rejects(async () => { creditedTerminal = await stateSequenceFixture.consume(); });
+    assert.equal(creditedTerminal, undefined, 'A receipt cannot outlive its original terminal session and cycle.');
+    assert.equal(stateSequenceFixture.calls.ending, 1);
+    assert.equal(stateSequenceFixture.calls.state, 2, 'Recheck the terminal session after the slow read.');
+    assert.equal(stateSequenceFixture.calls.callable.length, 1);
+  }
+});
+
+test('the ending consumer rejects a changed original GM identity before its private read', async () => {
+  for (const identity of [
+    { ...originalEndingGm(), sameActor: false },
+    { ...originalEndingGm(), uidHash: 'replacement-uid-hash' },
+    { ...originalEndingGm(), sessionId: 'another-session' },
+    { ...originalEndingGm(), instanceId: 'replacement-instance' },
+    { ...originalEndingGm(), playerRole: 'player' },
+    { ...originalEndingGm(), gmInstanceOwned: false },
+  ]) {
+    const fixture = capybaraEndingFixture({ identity });
+    await assert.rejects(fixture.consume());
+    assert.equal(fixture.calls.callable.length, 0);
+    assert.equal(fixture.calls.ending, 1);
+  }
+});
+
+test('the ending consumer rejects denied, wrong-session, wrong-cycle, and malformed GM debrief replies', async () => {
+  const malformedReplies = [
+    { status: 'denied', code: 'permission-denied' },
+    { status: 'committed', result: { type: 'session-debrief', sessionId: 'other-session', snapshot: immutableFailureSnapshot() } },
+    { status: 'committed', result: { type: 'session-debrief', sessionId: 'fresh-session',
+      snapshot: { ...immutableFailureSnapshot(), cycle: 7 } } },
+    { status: 'committed', result: { type: 'not-a-session-debrief', sessionId: 'fresh-session', snapshot: immutableFailureSnapshot() } },
+    { status: 'committed', result: { type: 'session-debrief', sessionId: 'fresh-session',
+      snapshot: { ...immutableFailureSnapshot(), version: 2 } } },
+    { status: 'committed', result: { type: 'session-debrief', sessionId: 'fresh-session',
+      snapshot: { ...immutableFailureSnapshot(), source: 'public-label-only' } } },
+    { status: 'committed', result: { type: 'session-debrief', sessionId: 'fresh-session',
+      snapshot: { ...immutableFailureSnapshot(), result: 'unknown' } } },
+    { status: 'committed', result: { type: 'session-debrief', sessionId: 'fresh-session',
+      snapshot: { ...immutableFailureSnapshot(), cause: 8 } } },
+    { status: 'committed', result: { type: 'session-debrief', sessionId: 'fresh-session' } },
+  ];
+  for (const reply of malformedReplies) {
+    const fixture = capybaraEndingFixture({ reply });
+    await assert.rejects(fixture.consume());
+    assert.equal(fixture.calls.ending, 1);
+    assert.equal(fixture.calls.callable.length, 1);
+    assert.equal(fixture.calls.callable[0].endpoint, 'getSessionDebrief');
+  }
+});
+
+test('a public closed/debrief label or game outcome cannot stand in for the private immutable read', async () => {
+  const publicOnly = { type: 'session-debrief', version: 1, source: 'failure-review',
+    result: 'failure', cause: 'pursuit-limit' };
+  const fixture = capybaraEndingFixture({ publicSnapshot: publicOnly, reply: { status: 'denied', code: 'permission-denied' } });
+  await assert.rejects(fixture.consume());
+
+  for (const status of ['debrief', 'closed']) {
+    assert.equal(assessCapybaraGameplay({ context: fixture.context,
+      stages: Object.fromEntries(CAPYBARA_REQUIRED_STAGES.map(id => [id, { status: 'completed' }])),
+      coreGameplay: { status: 'passed', manualProgression: true, serverActions: true, missionDelivered: true },
+      terminal: { status, source: 'failure-review', result: 'failure', cause: 'pursuit-limit', immutable: false },
+    }).status, 'pending');
+  }
+  assert.equal(fixture.calls.ending, 1);
+});
+
+test('a never-settling private debrief read has a finite bound and does not restart the ending', async () => {
+  const fixture = capybaraEndingFixture({ neverSettles: true, timeoutMs: 5 });
+  await assert.rejects(fixture.consume(), /timed out/i);
+  assert.equal(fixture.calls.ending, 1);
+  assert.equal(fixture.calls.callable.length, 1);
+  assert.equal(fixture.calls.callable[0].endpoint, 'getSessionDebrief');
+});
+
+test('state and original-GM observations share the finite ending-read deadline', async () => {
+  for (const blocked of [
+    { neverStateAt: [1] },
+    { neverObserveAt: [1] },
+    { neverObserveAt: [2] },
+    { neverStateAt: [2] },
+  ]) {
+    const fixture = capybaraEndingFixture({ ...blocked, timeoutMs: 5 });
+    let watchdog;
+    try {
+      await assert.rejects(Promise.race([
+        fixture.consume(),
+        new Promise((_, reject) => { watchdog = setTimeout(() => reject(new Error('test harness watchdog')), 100); }),
+      ]), /Capybara GM debrief read timed out/i);
+    } finally {
+      clearTimeout(watchdog);
+    }
+    assert.equal(fixture.calls.ending, 1);
+    assert.ok(fixture.calls.callable.length <= 1);
+  }
+});
+
+test('a callable reply arriving after the finite deadline can never become accepted later', async () => {
+  let resolveLateReply;
+  let creditedTerminal;
+  const fixture = capybaraEndingFixture({ reply: () => new Promise(resolve => { resolveLateReply = resolve; }), timeoutMs: 5 });
+  await assert.rejects(async () => { creditedTerminal = await fixture.consume(); }, /timed out/i);
+  resolveLateReply(immutableFailureReply());
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(creditedTerminal, undefined);
+  assert.equal(fixture.calls.ending, 1);
+  assert.equal(fixture.calls.callable.length, 1);
+  assert.equal(fixture.calls.observe, 1, 'No continuation accepts a late reply after timeout.');
 });
 
 test('specialist action receipt statuses require a source-approved success plus both projections', () => {

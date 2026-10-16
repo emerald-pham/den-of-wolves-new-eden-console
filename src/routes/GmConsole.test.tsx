@@ -1641,7 +1641,7 @@ it('groups connected players by command role in the GM console', async () => {
   expect(stopPlayers).toHaveBeenCalledOnce();
 });
 
-it('gives the live GM an explicit replacement adjudication panel with keyboard actions', async () => {
+it('offers a candidate-loss actor in the live GM replacement adjudication panel', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setSession({
     ...useSessionStore.getState().session!,
@@ -1659,6 +1659,7 @@ it('gives the live GM an explicit replacement adjudication panel with keyboard a
     onPlayers([{
       uid: 'u2', sessionId: 's1', displayName: 'Ari', role: 'player', seatId: 'admiral',
       assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', connected: false,
+      candidateDisposition: { code: 'O', outcome: 'lost', cycle: 6 },
       joinedAt: '2026-01-01T00:01:00.000Z',
     }]);
     return vi.fn();
@@ -1676,6 +1677,7 @@ it('gives the live GM an explicit replacement adjudication panel with keyboard a
 
   const panel = await screen.findByRole('region', { name: 'Facilitator replacement roles' });
   expect(within(panel).queryByRole('option', { name: /Gorgoneion Captain/i })).not.toBeInTheDocument();
+  expect(within(panel).getByRole('option', { name: /Ari.*offline/i })).toBeInTheDocument();
   await user.selectOptions(within(panel).getByLabelText('Player record'), 'u2');
   const record = within(panel).getByRole('button', { name: 'Record eligibility' });
   record.focus();
