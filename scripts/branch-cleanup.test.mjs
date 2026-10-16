@@ -838,7 +838,7 @@ async function installReferenceTransactionRace(fixture, { kind, worktree = fixtu
     'if [ "$1" = "prepared" ] && [ "${BRANCH_CLEANUP_REF_RACE_KIND:-}" = "reattach" ]; then',
     '  while read old new ref; do',
     '    if [ "$ref" = "$BRANCH_CLEANUP_REF_RACE_REF" ]; then',
-    '      git -C "$BRANCH_CLEANUP_REF_RACE_REPO" symbolic-ref HEAD "$ref" >"$BRANCH_CLEANUP_REF_RACE_RESULT" 2>&1',
+    '      (unset GIT_DIR GIT_COMMON_DIR GIT_WORK_TREE GIT_INDEX_FILE; git -C "$BRANCH_CLEANUP_REF_RACE_REPO" symbolic-ref HEAD "$ref") >"$BRANCH_CLEANUP_REF_RACE_RESULT" 2>&1',
     '      printf "%s\\n" "$?" >>"$BRANCH_CLEANUP_REF_RACE_RESULT"',
     '    fi',
     '  done',
