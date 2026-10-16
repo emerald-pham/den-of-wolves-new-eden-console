@@ -406,6 +406,14 @@ export async function runStationEnding(context) {
   }
   await tools.coordination();
   for (const shipId of start.activeVesselIds) await tools.jump(shipId, coordinate);
+  await tools.select('gm');
+  const timing = gm.page.getByRole('region', { name: 'Wolf attack timing controls', exact: true });
+  await tools.receipt(gm, 'setWolfAttackWindow', () =>
+    timing.getByRole('button', { name: 'Defer to Cycle 2', exact: true }).click());
+  await tools.record('actual GM deferred the first P attack window after paid Station arrivals', {
+    candidateCode: 'P', cycle: 1, coordinate, vesselCount: start.activeVesselIds.length,
+    mechanism: 'current authenticated GM timing control; Cycle 2 due controls require this explicit deferral',
+  });
   await tools.cycle(2);
   for (const shipId of start.activeVesselIds) await tools.maintenanceUi(shipId, candidateShipRole(context.roster, shipId), {
     consoles: shipId === 'aegis' ? ['Fighter Bay Alpha', 'Fighter Bay Bravo', 'Command and Control', 'Missile Launchers', 'Point Defence Lasers'] : [],
@@ -414,7 +422,6 @@ export async function runStationEnding(context) {
   });
   await tools.coordination();
   await tools.select('gm');
-  const timing = gm.page.getByRole('region', { name: 'Wolf attack timing controls', exact: true });
   await timing.getByLabel('Target fleet group', { exact: true }).selectOption((await tools.state()).shipFleetGroupIds.aegis);
   const source = timing.getByLabel('Triggered Wolf site', { exact: true });
   const sourceDeadline = Date.now() + 60_000; let sourceId;
