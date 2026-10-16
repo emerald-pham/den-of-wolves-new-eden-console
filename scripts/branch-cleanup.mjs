@@ -532,7 +532,20 @@ async function inspectCandidate(report, context, { allowCurrentWorktree = true }
     const local = await branchSha(root, branch);
     report.local = { exists: Boolean(local), sha: local };
 
-    await run('git', ['remote', 'get-url', 'origin'], { cwd: root });
+    const candidateOrigin = await originIdentityAt(root);
+    if (!candidateOrigin) {
+      return { reason: {
+        code: 'origin-identity-unverified',
+        message: 'Origin must have one matching, verifiable effective fetch and push destination before cleanup.',
+      } };
+    }
+    if (context.originIdentity && context.originIdentity !== candidateOrigin) {
+      return { reason: {
+        code: 'origin-identity-changed',
+        message: 'The verified origin destination changed during cleanup; branch refs were retained.',
+      } };
+    }
+    context.originIdentity = candidateOrigin;
     const defaultName = await defaultBranchName(root);
     if (!defaultName || !isValidBranchName(defaultName)) {
       return { reason: { code: 'remote-default-unknown', message: 'The origin default branch could not be identified safely.' } };
