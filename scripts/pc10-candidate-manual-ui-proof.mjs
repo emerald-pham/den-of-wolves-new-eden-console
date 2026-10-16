@@ -17,6 +17,72 @@ import { CANDIDATE_PROOF_SHIPS as SHIPS, candidateShipRole, candidateProofOption
   candidateEvidenceEnvelope, chooseOfferedRingEngineeringShuttle, waitForCandidateChoice } from './pc10-candidate-proof-helpers.mjs';
 
 const TRACKS = ['reactor', 'jump-drive', 'hydroponics', 'water-reclamation', 'advanced-hydroponics'];
+const H1_ACTIVE_VESSEL_IDS = Object.freeze(Object.keys(SHIPS).sort());
+const NEBULA_SCANNERS = Object.freeze([
+  { craft: 'endeavour', ownerRoleId: 'shepherd-scientist', hostShipId: 'shepherd' },
+  { craft: 'hummingbird', ownerRoleId: 'quellon-explorer', hostShipId: 'quellon' },
+]);
+
+function assertH1NebulaContinuationGm(context, current) {
+  assert.ok(current?.hasAuth && current.sameActor && current.gmInstanceOwned,
+    'Continue only through the original authenticated GM and owned instance.');
+  assert.equal(current.playerRole, 'gm');
+  assert.equal(current.sessionId, context.initial.sessionId);
+  assert.equal(context.started.sessionId, context.initial.sessionId);
+  assert.equal(current.uidHash, context.started.uidHash);
+  assert.equal(current.instanceId, context.started.instanceId);
+  assert.equal(current.connection, 'live'); assert.equal(current.freshness, 'server');
+  assert.equal(current.phase, 'active'); assert.equal(current.cycle, 4);
+  assert.equal(current.phaseProgression, 'manual'); assert.equal(current.airspace, 'lifted');
+  assert.equal(current.turnStatePhase, 'coordination');
+  assert.deepEqual(current.fullGameDemo, { status: 'active', progression: 'manual' });
+  assert.equal(current.pressEnabled, true); assert.equal(current.capybaraEnabled, true);
+  const rosterRoleIds = context.roster.map(actor => actor.roleId);
+  assert.equal(context.roster.length, 21, 'H1 must retain its twenty original role accounts plus Press.');
+  assert.equal(new Set(rosterRoleIds).size, rosterRoleIds.length, 'H1 role accounts must remain distinct.');
+  assert.ok(rosterRoleIds.includes('press-officer'));
+  assert.deepEqual([...current.activeRoleIds].sort(),
+    rosterRoleIds.filter(roleId => roleId !== 'press-officer').sort());
+  assert.deepEqual([...current.activeVesselIds].sort(), H1_ACTIVE_VESSEL_IDS,
+    'Use the complete seven-vessel H1 Capybara fleet.');
+  for (const roleId of ['executive-officer', 'shepherd-scientist', 'quellon-explorer'])
+    assert.ok(rosterRoleIds.includes(roleId), `${roleId} must remain in the original H1 roster.`);
+  return current;
+}
+
+function assertNebulaScannerReadiness(state, roster, cycle) {
+  for (const { craft, ownerRoleId, hostShipId } of NEBULA_SCANNERS) {
+    assert.ok(roster.some(actor => actor.roleId === ownerRoleId), `${ownerRoleId} must be an original admitted scanner owner.`);
+    assert.ok(state.activeVesselIds.includes(hostShipId), `${hostShipId} must remain an active scanner host.`);
+    assert.equal(state.shipDamage?.[hostShipId]?.destroyed, false, `${hostShipId} must be usable.`);
+    const maintenance = state.maintenanceCycles?.[hostShipId];
+    assert.equal(maintenance?.turn, cycle, `${hostShipId} needs its actual Cycle ${cycle} maintenance.`);
+    assert.equal(maintenance?.step, 0, `${hostShipId} maintenance must be complete before scouting.`);
+    assert.ok(maintenance?.completedAt, `${hostShipId} maintenance must have a committed completion receipt.`);
+    assert.equal(state.shuttleFuelled?.[craft], true, `${craft} must be fueled through current-cycle maintenance.`);
+    const dockings = state.shuttleDockings?.filter(entry => entry.shuttleId === craft) ?? [];
+    assert.equal(dockings.length, 1, `${craft} needs one current parked docking.`);
+    const docking = dockings[0];
+    assert.equal(docking.shipId, hostShipId, `${craft} must remain with its source-owned host.`);
+    assert.ok(typeof docking.dockedAt === 'string' && docking.dockedAt.trim().length > 0);
+    assert.notEqual(docking.inTransit, true); assert.notEqual(docking.transit, true);
+    assert.notEqual(docking.status, 'in-transit'); assert.notEqual(docking.state, 'in-transit');
+    assert.notEqual(docking.dockingState, 'in-transit');
+    const control = state.shuttleControl?.[craft];
+    assert.equal(control?.shuttleId, craft); assert.equal(control?.ownerRoleId, ownerRoleId);
+    assert.ok(typeof control?.holderUid === 'string' && control.holderUid.length > 0,
+      `${craft} current source custody must be present.`);
+  }
+}
+
+function assertNebulaFleetAtCoordinate(state, vesselIds, coordinate, groupId) {
+  assert.deepEqual([...state.activeVesselIds].sort(), [...vesselIds].sort());
+  for (const shipId of vesselIds) {
+    assert.equal(state.shipGalacticCoordinates?.[shipId], coordinate, `${shipId} must remain in Site O.`);
+    assert.equal(state.shipFleetGroupIds?.[shipId], groupId,
+      `${shipId} must remain in the original current physical group.`);
+  }
+}
 
 export function candidateGeometrySnapshot(element) {
   const visible = node => !!node.getClientRects().length && getComputedStyle(node).visibility !== 'hidden' &&
@@ -395,9 +461,52 @@ export function candidateGameplayTools(context) {
     await panel.getByLabel('Printed system coordinate', { exact: true }).fill(coordinate);
     const result = await receipt(surface, 'requestScout', () => panel.getByRole('button', { name: 'Record request', exact: true }).click());
     assert.equal(result.status, 'requested');
+    assert.equal(result.sessionId, context.initial.sessionId);
+    const gmState = await gm.observe();
+    assert.equal(result.cycle, gmState.cycle, 'The actual request must consume the current manual cycle.');
+    assert.equal(result.entitlementId, craft); assert.equal(result.ownerRoleId, roleId);
+    const currentScanner = NEBULA_SCANNERS.find(value => value.craft === craft);
+    if (currentScanner) {
+      assert.equal(result.anchorShipId, currentScanner.hostShipId);
+      assert.equal(result.receivingShipId, currentScanner.hostShipId);
+    }
     await surface.page.getByRole('region', { name: `${label} scout report`, exact: true }).getByText('Site O', { exact: true }).waitFor();
-    await record('actual entitled Nebula scouting request', { craft, cycle: (await gm.observe()).cycle,
+    await record('actual entitled Nebula scouting request', { craft, cycle: gmState.cycle,
       serverResolution: 'automatic private result; bonus never supplied by the caller' });
+    return result;
+  }
+  async function shareKnownSystem(roleId, coordinate, recipientShipIds) {
+    const surface = await tools.select(roleId), actor = await surface.observe();
+    const original = context.roster.find(value => value.roleId === roleId);
+    assert.ok(original, 'Use an actually admitted original crew role to share scanned navigation.');
+    assert.equal(actor.hasAuth, true); assert.equal(actor.sameActor, true);
+    assert.equal(actor.uidHash, original.uidHash); assert.equal(actor.profileRoleId, roleId);
+    assert.equal(actor.sessionId, context.initial.sessionId); assert.equal(actor.connection, 'live');
+    assert.equal(actor.freshness, 'server');
+    assert.ok(/^fleet-[1-9]\d*$/.test(actor.fleetGroupId ?? ''));
+    const group = surface.page.getByRole('region', { name: 'Fleet group communication', exact: true });
+    const panel = group.getByRole('region', { name: 'Share scanned system', exact: true });
+    await panel.waitFor({ state: 'visible' });
+    const select = panel.getByLabel('Scanned system to share', { exact: true });
+    const offered = await select.locator('option').evaluateAll(options => options
+      .filter(option => !option.disabled).map(option => option.value));
+    assert.ok(offered.includes(coordinate), 'Share only a coordinate offered from the current scanner actor.');
+    await select.selectOption(coordinate);
+    const expectedRecipients = [...recipientShipIds].sort();
+    const allShips = panel.getByRole('checkbox', { name: `All ships in ${actor.fleetGroupId}`, exact: true });
+    await allShips.setChecked(true);
+    const result = await receipt(surface, 'shareKnownSystemDetails', () =>
+      panel.getByRole('button', { name: 'Share scanned system', exact: true }).click(),
+    { expectedRequest: { coordinate } });
+    assert.equal(result.groupId, actor.fleetGroupId);
+    assert.equal(result.coordinate, coordinate);
+    assert.deepEqual([...(result.recipientShipIds ?? [])].sort(), expectedRecipients,
+      'The ordinary group share must cover the exact current seven-vessel group.');
+    await record('ordinary scanner-owned share of the scanned O coordinate', {
+      roleId, coordinate, groupId: result.groupId, recipientShipIds: expectedRecipients,
+      mechanism: 'mounted Fleet group communication UI and normal shareKnownSystemDetails receipt',
+    });
+    return result;
   }
   async function candidateGroup(shipId) {
     await tools.select('gm');
@@ -863,7 +972,7 @@ export function candidateGameplayTools(context) {
       sourceReadiness: initialReadiness.decision,
       checkboxTargetShortfalls: viewports.flatMap(value => value.checkboxTargets.filter(target => target.height < 43.99).map(target => ({ width: value.width, name: target.name, height: target.height }))) });
   }
-  async function complete(code) {
+  async function complete(code, { scope = 'Genuine fresh ordinary admission and manually progressed candidate path via two browser contexts. Explicit GM demo counter choices are listed.' } = {}) {
     const deadlineAt = Math.min(context.deadlineAt ?? Date.now() + 60_000, Date.now() + 60_000);
     const remaining = () => {
       const timeout = deadlineAt - Date.now();
@@ -945,9 +1054,10 @@ export function candidateGameplayTools(context) {
     await crew.page.screenshot({ path: `${directory}/${code}-crew-ending.png` });
     await tools.save('candidate-gameplay.json', { status: 'passed', candidateCode: code, candidateEndingObserved: true,
       ...(context.admission ? { admission: context.admission } : {}), choices, receipts,
-      ending, scope: 'Genuine fresh ordinary admission and manually progressed candidate path via two browser contexts. Explicit GM demo counter choices are listed.' });
+      ending, scope });
+    return ending;
   }
-  return { ...tools, context, begin, record, waitState, receipt, candidateChoice, cycle, coordination, gmSupplies, printedRationBudget, gmRepair, research, jump, scout, confirmPhysicalGroups,
+  return { ...tools, context, begin, record, waitState, receipt, candidateChoice, cycle, coordination, gmSupplies, printedRationBudget, gmRepair, research, jump, scout, shareKnownSystem, confirmPhysicalGroups,
     candidateGroup, gmCandidateShip, candidateGeometry, complete };
 }
 
@@ -1009,7 +1119,7 @@ export async function runRingEnding(context) {
 
 /** Qualify the captured paid O attempt through the existing private GM reader.
  * Scan marks remain server-only; neither the driver nor a member enumerates them. */
-export async function readNebulaCandidateCalculation(context, tools, shipId, receipt) {
+export async function readNebulaCandidateCalculation(context, tools, shipId, receipt, expected = {}) {
   assert.equal(receipt.sessionId, context.initial.sessionId);
   assert.equal(receipt.code, 'O'); assert.equal(receipt.action, 'nebula-jump');
   assert.ok(typeof receipt.requestId === 'string' && receipt.requestId.length);
@@ -1044,15 +1154,302 @@ export async function readNebulaCandidateCalculation(context, tools, shipId, rec
   assert.equal(calculations.length, 1, 'The original paid Nebula receipt needs its exact private GM calculation.');
   const audit = calculations[0];
   assert.equal(audit.result, receipt.outcome, 'The private calculation must describe the captured paid result.');
-  assert.equal(audit.calculation.scouts, 8, 'The actual paid calculation must count eight qualifying scout marks.');
-  return { requestId: audit.requestId, count: audit.calculation.scouts };
+  const calculation = audit.calculation;
+  const scouts = expected.scouts ?? 8, priorLosses = expected.priorLosses ?? 1;
+  assert.equal(calculation.scouts, scouts, 'The actual paid calculation must count only the expected server scout marks.');
+  assert.equal(calculation.priorLosses, priorLosses, 'The actual paid calculation must count only committed earlier losses.');
+  assert.equal(calculation.threshold, 9, 'Use the source Home Deep Nebula threshold.');
+  assert.ok(Number.isInteger(calculation.die) && calculation.die >= 1 && calculation.die <= 6,
+    'The calculation must retain the natural server die.');
+  assert.equal(calculation.total, calculation.die + scouts + priorLosses);
+  const calculatedOutcome = calculation.total >= calculation.threshold ? 'reached' : 'lost';
+  assert.equal(receipt.outcome, expected.outcome ?? calculatedOutcome);
+  assert.equal(receipt.outcome, calculatedOutcome, 'No forced or caller-supplied result may replace the natural source calculation.');
+  return { requestId: audit.requestId, scouts: calculation.scouts, priorLosses: calculation.priorLosses,
+    die: calculation.die, total: calculation.total, threshold: calculation.threshold, outcome: audit.result };
+}
+
+function assertH1NebulaContinuationState(context, currentGm, state) {
+  assert.equal(state.sessionId, context.initial.sessionId);
+  assert.equal(state.live, true); assert.equal(state.phase, 'active'); assert.equal(state.cycle, 4);
+  assert.deepEqual(state.fullGameDemo, { status: 'active', progression: 'manual' });
+  assert.equal(state.turnPhase?.progression, 'manual');
+  assert.equal(state.turnPhase?.airspace?.state, 'lifted');
+  assert.equal(currentGm.sessionId, state.sessionId); assert.equal(currentGm.cycle, state.cycle);
+  assert.equal(state.chartId, 'A', 'Continue the original H1 Chart A session.');
+  assert.equal(state.gameOutcome ?? null, null); assert.equal(state.debriefSnapshot ?? null, null);
+  assert.deepEqual([...state.activeVesselIds].sort(), H1_ACTIVE_VESSEL_IDS);
+  assert.deepEqual([...state.activeRoleIds].sort(), [...currentGm.activeRoleIds].sort());
+  const groupIds = new Set(H1_ACTIVE_VESSEL_IDS.map(shipId => state.shipFleetGroupIds?.[shipId]));
+  assert.equal(groupIds.size, 1, 'H1 must retain one existing physical fleet group.');
+  const groupId = [...groupIds][0]; assert.match(groupId ?? '', /^fleet-[1-9]\d*$/);
+  const coordinates = H1_ACTIVE_VESSEL_IDS.map(shipId => state.shipGalacticCoordinates?.[shipId]);
+  assert.ok(coordinates.every(value => typeof value === 'string' && /^\d{4}$/.test(value)));
+  assert.equal(new Set(coordinates).size, 1, 'All seven H1 ships must begin at their actual shared coordinate.');
+  assert.equal(coordinates[0], '1413', 'Continue from the original H1 paid-jump rendezvous.');
+  for (const shipId of H1_ACTIVE_VESSEL_IDS) {
+    assert.equal(state.shipDamage?.[shipId]?.destroyed, false, `${shipId} must be alive before the planned first loss.`);
+    assert.ok(Number.isSafeInteger(state.shipSurvivors?.[shipId]) && state.shipSurvivors[shipId] > 0,
+      `${shipId} must retain its current H1 population.`);
+  }
+  const coordinate = Object.entries(state.organiserSites ?? {}).find(([, site]) => site.code === 'O')?.[0];
+  assert.equal(coordinate, '0408', 'Use the original GM-visible Chart A Site O coordinate.');
+  assertNebulaScannerReadiness(state, context.roster, 4);
+  return { coordinate, groupId, origin: coordinates[0], activeVesselIds: [...H1_ACTIVE_VESSEL_IDS] };
+}
+
+async function readActorCandidateDisposition(surface) {
+  return surface.page.evaluate(async moduleUrl => {
+    const { useSessionStore } = await import(moduleUrl);
+    const current = useSessionStore.getState();
+    return { sessionId: current.session?.id ?? null,
+      activeConsoleRoleId: current.me?.activeConsoleRoleId ?? null,
+      candidateDisposition: current.me?.candidateDisposition ?? null };
+  }, surface.storeModuleUrl());
+}
+
+async function waitForActorCandidateDisposition(surface, expected, timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs;
+  let current;
+  while (Date.now() < deadline) {
+    current = await readActorCandidateDisposition(surface);
+    const disposition = current.candidateDisposition;
+    if (disposition?.code === expected.code && disposition?.outcome === expected.outcome &&
+        disposition?.cycle === expected.cycle) return current;
+    await delay(200);
+  }
+  throw new Error(`The same original actor did not resume its historical candidate disposition: ${JSON.stringify(current)}`);
+}
+
+async function assertNoNebulaPursuitEmergency(gm, sessionId, cycle) {
+  const current = await gm.page.evaluate(async moduleUrl => {
+    const { useSessionStore } = await import(moduleUrl);
+    const session = useSessionStore.getState().session;
+    return { sessionId: session?.id ?? null, cycle: session?.currentTurn ?? null,
+      status: session?.pursuitEmergencyWindowAuthority?.status ?? session?.pursuitEmergencyWindow?.status ?? null };
+  }, gm.storeModuleUrl());
+  assert.equal(current.sessionId, sessionId); assert.equal(current.cycle, cycle);
+  assert.equal(current.status, null,
+    'Continue only while source-normal pursuit creates no emergency; never supply a pursuit override.');
+}
+
+async function continueCapybaraNebula(context, tools, currentGm) {
+  const { gm, crew, directory } = context;
+  const start = await tools.state();
+  const { coordinate, groupId, origin, activeVesselIds } =
+    assertH1NebulaContinuationState(context, currentGm, start);
+  await assertNoNebulaPursuitEmergency(gm, start.sessionId, 4);
+  await tools.record('same H1 session continues from Cycle 4 Coordination', {
+    sessionId: start.sessionId, cycle: start.cycle, phase: start.phase,
+    gmUidHash: currentGm.uidHash, gmInstanceId: currentGm.instanceId,
+    groupId, origin, activeVesselIds,
+    source: 'original live H1 GM, roster, fleet and session; no new start or setup mutation',
+  });
+
+  // Chart A's 1413→0408 trip is a long jump (at most 12 fuel), followed by
+  // one source-priced long Nebula jump (at most 12 fuel).
+  const fuelFloor = 24;
+  for (const shipId of activeVesselIds) await tools.gmSupplies(shipId, 'fuel', fuelFloor);
+  const rationCycles = Object.fromEntries(activeVesselIds.map(shipId => [shipId, shipId === 'aegis' ? 1 : 3]));
+  const rationBudget = await tools.printedRationBudget(rationCycles);
+  for (const shipId of activeVesselIds) {
+    await tools.gmSupplies(shipId, 'food', rationBudget[shipId].food);
+    await tools.gmSupplies(shipId, 'water', rationBudget[shipId].water);
+  }
+  await tools.record('explicit normal GM resource choices for the bounded continuation', {
+    fuelMinimumPerShip: fuelFloor, printedRationCycles: rationCycles,
+    mechanism: 'ordinary visible GM resource buttons; no hidden inventory writes',
+  });
+  const afterSupplies = await tools.state();
+  for (const shipId of activeVesselIds) assert.ok(afterSupplies.shipResources[shipId].fuel >= fuelFloor,
+    `${shipId} needs the source-maximum paid travel plus one long jump.`);
+
+  await tools.scout('shepherd-scientist', 'endeavour', coordinate);
+  await tools.shareKnownSystem('shepherd-scientist', coordinate, activeVesselIds);
+  for (const shipId of activeVesselIds) await tools.jump(shipId, coordinate);
+  const atNebula = await tools.state();
+  assert.equal(atNebula.sessionId, start.sessionId); assert.equal(atNebula.cycle, 4);
+  assert.equal(atNebula.phase, 'active'); assert.equal(atNebula.turnPhase?.airspace?.state, 'lifted');
+  assert.deepEqual([...atNebula.activeVesselIds].sort(), H1_ACTIVE_VESSEL_IDS);
+  assert.ok(activeVesselIds.every(shipId => atNebula.shipGalacticCoordinates[shipId] === coordinate),
+    'Every original H1 vessel must make its own ordinary paid jump to Site O.');
+  assert.equal(new Set(activeVesselIds.map(shipId => atNebula.shipFleetGroupIds[shipId])).size, 1,
+    'Keep the original physical group intact; do not widen candidate audiences.');
+  assert.equal(atNebula.shipFleetGroupIds.aegis, groupId);
+  assertNebulaFleetAtCoordinate(atNebula, activeVesselIds, coordinate, groupId);
+  await assertNoNebulaPursuitEmergency(gm, start.sessionId, 4);
+  assertNebulaScannerReadiness(atNebula, context.roster, 4);
+  await tools.scout('quellon-explorer', 'hummingbird', coordinate);
+  await tools.record('H1 Cycle 4 records the first two natural Site O scan marks', {
+    cycle: 4, scannerCraft: ['endeavour', 'hummingbird'], coordinate, groupId,
+    ordinaryRequests: true, scanCountObservedOnlyInPrivateGmCalculation: true,
+  });
+
+  const maintain = async (shipIds, cycle) => {
+    for (const shipId of shipIds) {
+      const refuels = shipId === 'shepherd' ? { 'Shuttle Bay': 'endeavour' }
+        : shipId === 'quellon' ? { 'Shuttle Bay': 'hummingbird' } : {};
+      await tools.maintenanceUi(shipId, candidateShipRole(context.roster, shipId), {
+        refuels, afterBegin: () => tools.gmRepair(shipId), afterRiot: () => tools.gmRepair(shipId),
+      });
+    }
+    const maintained = await tools.state();
+    assert.equal(maintained.sessionId, start.sessionId); assert.equal(maintained.phase, 'active');
+    assert.equal(maintained.cycle, cycle); assert.equal(maintained.turnPhase?.airspace?.state, 'restricted');
+    for (const shipId of shipIds) {
+      assert.equal(maintained.maintenanceCycles?.[shipId]?.turn, cycle);
+      assert.equal(maintained.maintenanceCycles?.[shipId]?.step, 0);
+      assert.ok(maintained.maintenanceCycles?.[shipId]?.completedAt);
+    }
+    return maintained;
+  };
+
+  const survivors = activeVesselIds.filter(shipId => shipId !== 'aegis');
+  await tools.cycle(5);
+  await maintain(activeVesselIds, 5);
+  await tools.coordination();
+  let current = await tools.state();
+  assert.equal(current.cycle, 5); assert.equal(current.turnPhase?.airspace?.state, 'lifted');
+  await assertNoNebulaPursuitEmergency(gm, start.sessionId, 5);
+  assertNebulaFleetAtCoordinate(current, activeVesselIds, coordinate, groupId);
+  assertNebulaScannerReadiness(current, context.roster, 5);
+
+  const lossActor = await tools.select('executive-officer');
+  const originalLossActor = await lossActor.observe();
+  assert.equal(originalLossActor.hasAuth, true); assert.equal(originalLossActor.sameActor, true);
+  assert.equal(originalLossActor.uidHash, context.roster.find(actor => actor.roleId === 'executive-officer').uidHash);
+  assert.equal(originalLossActor.profileRoleId, 'executive-officer');
+  assert.equal(originalLossActor.activeConsoleRoleId, 'executive-officer');
+  const candidate = lossActor.page.getByRole('region', { name: 'Candidate preparation and actions', exact: true });
+  const lossButton = candidate.getByRole('button', { name: /^Long jump into Nebula \/\/ aegis \/\/ \d+ fuel$/ });
+  const fuelBefore = current.shipResources.aegis.fuel;
+  await tools.candidateGeometry(lossActor, 'O', 'paid-loss-choice');
+  assert.equal(await lossButton.count(), 1); assert.equal(await lossButton.isEnabled(), true);
+  const loss = await tools.receipt(lossActor, 'executeCandidateAction', () => lossButton.click());
+  assert.equal(loss.outcome, 'lost', 'Two actual marks cannot reach Home threshold nine on a natural d6.');
+  const lossCalculation = await readNebulaCandidateCalculation(context, tools, 'aegis', loss,
+    { scouts: 2, priorLosses: 0, outcome: 'lost' });
+  current = await tools.waitState('Actual original Aegis loss in the active H1 session', value =>
+    value.shipDamage.aegis.destroyed === true && value.shipSurvivors.aegis === 0 &&
+    value.shipGalacticCoordinates.aegis === coordinate && value.phase === 'active');
+  assert.equal(fuelBefore - current.shipResources.aegis.fuel, loss.fuelSpent);
+  assert.equal(current.shipFleetGroupIds.aegis, groupId);
+  assertNebulaFleetAtCoordinate(current, activeVesselIds, coordinate, groupId);
+  await lossActor.page.reload({ timeout: 60_000 });
+  await lossActor.until('Original EO identity resumes after the Aegis loss', value =>
+    value.phase === 'active' && value.sessionId === context.initial.sessionId && value.hasAuth && value.sameActor &&
+    value.uidHash === originalLossActor.uidHash && value.profileRoleId === 'executive-officer' &&
+    value.activeConsoleRoleId === 'executive-officer' && value.connection === 'live' && value.freshness === 'server', 60_000);
+  const lossDisposition = await waitForActorCandidateDisposition(lossActor,
+    { code: 'O', outcome: 'lost', cycle: 5 });
+  assert.equal(lossDisposition.sessionId, context.initial.sessionId);
+  assert.equal(lossDisposition.activeConsoleRoleId, 'executive-officer');
+  assert.deepEqual(lossDisposition.candidateDisposition, { code: 'O', outcome: 'lost', cycle: 5 },
+    'The original EO actor must retain the historical loss disposition after normal reload/resume.');
+  const discoveries = lossActor.page.getByRole('region', { name: 'Candidate discoveries', exact: true });
+  await discoveries.waitFor({ state: 'visible', timeout: 60_000 });
+  await discoveries.getByText(/lost within the Deep Nebula/i).waitFor({ state: 'visible', timeout: 60_000 });
+  const maintenanceButton = lossActor.page.getByRole('button', { name: /begin maintenance cycle/i });
+  assert.equal(await maintenanceButton.count(), 1); assert.equal(await maintenanceButton.isEnabled(), false);
+  const lostCandidate = lossActor.page.getByRole('region', { name: 'Candidate preparation and actions', exact: true });
+  const retainedLossAction = lostCandidate.getByRole('button', { name: /^Long jump into Nebula \/\/ aegis \/\/ \d+ fuel$/ });
+  assert.equal(await retainedLossAction.count(), 1); assert.equal(await retainedLossAction.isEnabled(), false);
+  await tools.record('original EO sees the locked lost Aegis after reload and normal resume', {
+    shipId: 'aegis', roleId: 'executive-officer', cycle: 5,
+    disposition: lossDisposition.candidateDisposition, calculation: lossCalculation,
+    maintenanceLocked: true, historicalLossRetained: true,
+  });
+  await crew.page.screenshot({ path: `${directory}/O-H1-continuation-paid-loss.png` });
+
+  for (let cycle = 5; cycle <= 7; cycle++) {
+    if (cycle > 5) {
+      await tools.cycle(cycle);
+      await maintain(survivors, cycle);
+      await tools.coordination();
+      current = await tools.state();
+      assert.equal(current.cycle, cycle); assert.equal(current.turnPhase?.airspace?.state, 'lifted');
+      await assertNoNebulaPursuitEmergency(gm, start.sessionId, cycle);
+      assertNebulaFleetAtCoordinate(current, activeVesselIds, coordinate, groupId);
+      assert.equal(current.shipDamage.aegis.destroyed, true);
+      for (const shipId of survivors) assert.equal(current.shipDamage?.[shipId]?.destroyed, false);
+      assertNebulaScannerReadiness(current, context.roster, cycle);
+    }
+    await tools.scout('shepherd-scientist', 'endeavour', coordinate);
+    await tools.scout('quellon-explorer', 'hummingbird', coordinate);
+    await tools.record(`Cycle ${cycle} adds two natural Site O scan marks`, {
+      cycle, scannerCraft: ['endeavour', 'hummingbird'], coordinate,
+      scanCountObservedOnlyInPrivateGmCalculation: true,
+    });
+    if (cycle === 7) {
+      for (const shipId of survivors) {
+        const surface = await tools.select(candidateShipRole(context.roster, shipId, 'captain'));
+        const actor = await surface.observe();
+        assert.equal(actor.hasAuth, true); assert.equal(actor.sameActor, true);
+        assert.equal(actor.uidHash, context.roster.find(value => value.roleId === actor.profileRoleId).uidHash);
+        assert.equal(actor.sessionId, context.initial.sessionId);
+        const panel = surface.page.getByRole('region', { name: 'Candidate preparation and actions', exact: true });
+        const button = panel.getByRole('button', { name: new RegExp(`^Long jump into Nebula \/\/ ${shipId} \/\/ \\d+ fuel$`) });
+        assert.equal(await button.count(), 1, `${shipId} needs its current source-priced paid O action.`);
+        assert.equal(await button.isEnabled(), true, `${shipId} needs a charged, repaired drive and current fuel.`);
+        const result = await tools.receipt(surface, 'executeCandidateAction', () => button.click());
+        assert.equal(result.outcome, 'reached'); assert.ok(result.fuelSpent > 0);
+        const calculation = await readNebulaCandidateCalculation(context, tools, shipId, result,
+          { scouts: 8, priorLosses: 1, outcome: 'reached' });
+        await tools.record('actual source-paid survivor reaches O on eight marks and one committed prior loss', {
+          shipId, fuelSpent: result.fuelSpent, calculation,
+          mechanism: 'natural server d6 plus private source scan and loss audit; no injected result',
+        });
+      }
+      const ending = await tools.complete('O', {
+        scope: 'Same original live H1 Cycle 4 Capybara session, GM, role roster and seven-vessel fleet continued through a normal paid Home Nebula path. Visible GM resource choices, scans, loss and private calculations are recorded.',
+      });
+      assert.equal(ending.result, 'success'); assert.equal(ending.candidate?.code, 'O');
+      assert.equal(ending.cycle, 7);
+      const finalState = await tools.state();
+      assert.equal(finalState.sessionId, context.initial.sessionId); assert.equal(finalState.phase, 'debrief');
+      assert.equal(finalState.gameOutcome?.result, 'success'); assert.equal(finalState.gameOutcome?.cause, 'candidate-complete');
+      assert.equal(finalState.shipDamage?.aegis?.destroyed, true);
+      for (const shipId of survivors) {
+        assert.equal(finalState.shipDamage?.[shipId]?.destroyed, false);
+        assert.ok(finalState.shipSurvivors?.[shipId] > 0, `${shipId} must remain a living original survivor.`);
+      }
+      const groups = ending.candidate?.groups ?? [];
+      assert.equal(groups.length, 1, 'All seven original ships must finish in their existing physical group.');
+      const finishedGroup = groups[0]; assert.equal(finishedGroup.groupId, groupId);
+      const rolls = Object.fromEntries(finishedGroup.rolls.map(row => [row.id, row.result]));
+      assert.deepEqual(Object.keys(rolls).sort(), H1_ACTIVE_VESSEL_IDS);
+      assert.equal(rolls.aegis, 'failure');
+      for (const shipId of survivors) assert.equal(rolls[shipId], 'success');
+      assert.ok(finishedGroup.losses.some(lossRow => lossRow.shipId === 'aegis' && lossRow.reason === 'lost-in-nebula'));
+      const nebulaPath = finishedGroup.path.filter(step => step.action === 'nebula-jump');
+      assert.equal(nebulaPath.length, H1_ACTIVE_VESSEL_IDS.length);
+      assert.deepEqual(nebulaPath.find(step => step.shipId === 'aegis')?.result, 'lost');
+      for (const shipId of survivors)
+        assert.equal(nebulaPath.find(step => step.shipId === shipId)?.result, 'reached');
+      await tools.record('same-session immutable O debrief retains the first loss and six survivor reaches', {
+        sessionId: context.initial.sessionId, groupId, cycle: ending.cycle,
+        originalVesselCount: H1_ACTIVE_VESSEL_IDS.length, lost: ['aegis'], survivors,
+        debriefSource: ending.source, debriefResult: ending.result,
+        mechanism: 'original live GM authenticated debrief reader plus same-actor crew reload',
+      });
+      return { status: 'passed', continuation: 'H1 Cycle 4 to H2/V2 Home Nebula', ending,
+        originalSessionId: context.initial.sessionId, groupId, activeVesselIds };
+    }
+  }
 }
 
 /** One genuine paid loss, followed by physically entitled scans and source-paid safe attempts. */
-export async function runNebulaEnding(context) {
+export async function runNebulaEnding(context, { onContinuationCheckpoint } = {}) {
   const tools = candidateGameplayTools(context);
-  const { crew, directory } = context;
+  const { gm } = context;
+  const observed = await gm.observe();
+  if (observed?.cycle !== 1) {
+    const current = assertH1NebulaContinuationGm(context, observed);
+    await onContinuationCheckpoint?.(current);
+    return continueCapybaraNebula(context, tools, current);
+  }
   const start = await tools.begin('O');
+  const { crew, directory } = context;
   const coordinate = Object.entries(start.organiserSites).find(([, site]) => site.code === 'O')?.[0];
   assert.match(coordinate, /^\d{4}$/);
   await tools.record('entitled live GM source chart selected O', { candidateCode: 'O' });
@@ -1082,13 +1479,16 @@ export async function runNebulaEnding(context) {
   await tools.candidateGeometry(actor, 'O', 'paid-loss-choice');
   const loss = await tools.receipt(actor, 'executeCandidateAction', () => button.click());
   assert.equal(loss.outcome, 'lost', 'No scouts exist yet: the actual paid server die alone cannot reach nine.');
+  const lossCalculation = await readNebulaCandidateCalculation(context, tools, 'aegis', loss,
+    { scouts: 0, priorLosses: 0, outcome: 'lost' });
   await tools.waitState('Actual paid loss while a separate group remains', value =>
     value.shipDamage.aegis.destroyed === true && value.shipSurvivors.aegis === 0 && value.phase === 'active');
   const afterLoss = await tools.state();
   assert.equal(fuelBefore - afterLoss.shipResources.aegis.fuel, loss.fuelSpent);
   assert.notEqual(afterLoss.shipFleetGroupIds.aegis, afterLoss.shipFleetGroupIds.icebreaker);
   await tools.record('actual server-dice paid Nebula loss while another group remains', {
-    shipId: 'aegis', fuelSpent: loss.fuelSpent, sessionStillActive: true, otherGroupRemains: true,
+    shipId: 'aegis', fuelSpent: loss.fuelSpent, calculation: lossCalculation,
+    sessionStillActive: true, otherGroupRemains: true,
   });
   await crew.page.screenshot({ path: `${directory}/O-paid-loss-other-group-active.png` });
   for (const shipId of start.activeVesselIds.filter(id => !['aegis', 'shepherd', 'quellon'].includes(id)))
@@ -1118,7 +1518,7 @@ export async function runNebulaEnding(context) {
       mechanism: 'original GM readCandidateWorkspace projection for the captured paid attempt; no scan or die write' });
     await tools.record('actual source-paid successful Nebula attempt', { shipId, fuelSpent: result.fuelSpent });
   }
-  await tools.complete('O');
+  return tools.complete('O');
 }
 
 export function candidateEndingFor(code) {
