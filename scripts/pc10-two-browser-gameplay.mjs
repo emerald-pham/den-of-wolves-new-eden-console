@@ -414,7 +414,7 @@ export function createTwoBrowserGameplay(context, { preAdmissionGmOnly = false }
     }, { sid: initial.sessionId, suffix, collection });
     return unwrapBrowserFirestoreReadOutcome(outcome);
   }
-  async function readCurrentWolfAttackFromServer(roleId, suffix, { deadlineAt, onSnapshot, collection = false }) {
+  async function readCurrentWolfAttackFromServer(roleId, suffix, { deadlineAt, onSnapshot, collection = false, singleDocument = false }) {
     assert.ok(roleId === 'gm' && suffix === 'wolfAttackState/current' && collection === false,
       'Server-only combat reinspection uses only the entitled GM original attack document.');
     const budget = () => assert.ok(Number.isFinite(deadlineAt) && Date.now() < deadlineAt,
@@ -427,8 +427,16 @@ export function createTwoBrowserGameplay(context, { preAdmissionGmOnly = false }
     let outcome;
     try {
       outcome = await Promise.race([
-        surface.page.evaluate(async sid => {
+        surface.page.evaluate(async ({ sid, singleDocument }) => {
           try {
+            if (singleDocument) {
+              const { readCurrentWolfAttackSingleDocument } = await import('/scripts/pc10-combat-single-document-browser.mjs');
+              const document = await readCurrentWolfAttackSingleDocument(sid);
+              // Lite getDoc always performs a server RPC and has no snapshot
+              // metadata, offline cache or pending-write overlay to report.
+              return { status: 'ok', value: document.exists() ? { id: document.id, ...document.data() } : null,
+                readSource: 'firestore-lite-server' };
+            }
             const source = await (await fetch('/src/lib/firestore.ts')).text();
             const match = source.match(/from\s+["']([^"']*firebase_firestore\.js[^"']*)["']/);
             if (!match) throw new Error('Read the actual current browser SDK import before the entitled read.');
@@ -448,7 +456,7 @@ export function createTwoBrowserGameplay(context, { preAdmissionGmOnly = false }
           } catch (error) {
             return { status: 'error', code: typeof error?.code === 'string' ? error.code : null };
           }
-        }, initial.sessionId),
+        }, { sid: initial.sessionId, singleDocument }),
         new Promise((_, reject) => {
           timer = setTimeout(() => reject(new Error('The original combat source reinspection deadline expired.')), remainingMs);
         }),
@@ -460,6 +468,11 @@ export function createTwoBrowserGameplay(context, { preAdmissionGmOnly = false }
     // Retain only the already completed read. Its observer does not authorize
     // a cache fallback, a second read, or acceptance of a pending local write.
     await onSnapshot?.(outcome); budget();
+    if (outcome?.status === 'ok' && singleDocument) {
+      assert.ok(hasExactKeys(outcome, ['status', 'value', 'readSource']) && outcome.readSource === 'firestore-lite-server',
+        'The original single-document reinspection requires its direct authenticated SDK server result.');
+      return unwrapBrowserFirestoreReadOutcome({ status: 'ok', value: outcome.value });
+    }
     if (outcome?.status === 'ok') {
       assert.ok(hasExactKeys(outcome, ['status', 'value', 'metadata']) &&
         hasExactKeys(outcome.metadata, ['fromCache', 'hasPendingWrites']) &&

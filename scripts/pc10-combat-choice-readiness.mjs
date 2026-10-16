@@ -349,7 +349,7 @@ export async function waitForWolfChoiceReadiness({ original, expected, inspectAc
           assert.equal(originalGm.playerRole, 'gm');
         };
         await strictAuthority();
-        const current = await inspectAttack({ serverOnly: true, reason: 'newer-choice' }); budget();
+        const current = await inspectAttack({ serverOnly: true, singleDocument: true, reason: 'newer-choice' }); budget();
         await strictAuthority();
         const steps = ['targeting', 'long-range', 'medium-range', 'short-range', 'boarding', 'resolved'];
         assert.ok(current?.type === 'wolf-attack-state' &&
@@ -591,6 +591,7 @@ export function createWolfChoiceWaiter(context, { tools, originalGm, deadlineAt 
     const inspectAttack = (options = {}) => {
       if (options.serverOnly !== true) return tools.read('gm', 'wolfAttackState/current');
       return tools.read('gm', 'wolfAttackState/current', { serverOnly: true, deadlineAt: choiceDeadline,
+        ...(options.singleDocument === true ? { singleDocument: true } : {}),
         expectedAuthorityAtRead: options.expectedAuthorityAtRead,
         onSnapshot: async outcome => {
           const observed = outcome?.status === 'ok' && outcome.value && typeof outcome.value === 'object' ? outcome.value : null;
@@ -603,6 +604,7 @@ export function createWolfChoiceWaiter(context, { tools, originalGm, deadlineAt 
             cycle: current.turn, kind: spec.kind, roleId: original.profileRoleId, uidHash: original.uidHash,
             revision: current.revision, currentStep: current.currentStep, diagnosticOnly: true,
             sourceReinspection: { readSource: 'server-only', readCount: 1,
+              ...(outcome?.readSource === 'firestore-lite-server' ? { transport: 'firestore-lite-server' } : {}),
               status: outcome?.status === 'ok' ? 'observed' : 'failed',
               code: typeof outcome?.code === 'string' && /^(?:firestore\/)?[a-z][a-z-]{0,63}$/.test(outcome.code) ? outcome.code : null,
               document: { exists: outcome?.status === 'ok' ? observed !== null : null,
