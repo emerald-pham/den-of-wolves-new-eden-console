@@ -56,6 +56,46 @@ export function candidateGeometrySnapshot(element) {
       x: rect.x, width: rect.width, height: rect.height,
       disabled: node.disabled === true || node.matches(':disabled'), font: getComputedStyle(node).fontFamily };
   };
+  const rectSnapshot = node => {
+    const rect = node.getBoundingClientRect();
+    const viewportWidth = typeof innerWidth === 'number' ? innerWidth : null;
+    const viewportHeight = typeof innerHeight === 'number' ? innerHeight : null;
+    const left = Number.isFinite(rect.left) ? rect.left : rect.x;
+    const top = Number.isFinite(rect.top) ? rect.top : rect.y;
+    const right = Number.isFinite(rect.right) ? rect.right : left + rect.width;
+    const bottom = Number.isFinite(rect.bottom) ? rect.bottom : top + rect.height;
+    return { x: rect.x, y: rect.y, top, right, bottom,
+      width: rect.width, height: rect.height,
+      intersectsViewport: viewportWidth === null || viewportHeight === null ? null :
+        rect.width > 0 && rect.height > 0 && right > 0 && left < viewportWidth &&
+          bottom > 0 && top < viewportHeight };
+  };
+  const typography = node => {
+    const style = getComputedStyle(node);
+    let fontLoadCheck = null;
+    try { if (typeof document.fonts?.check === 'function') fontLoadCheck = document.fonts.check(style.font); } catch {}
+    return { fontFamily: style.fontFamily, fontSize: style.fontSize, fontWeight: style.fontWeight,
+      lineHeight: style.lineHeight, fontLoadCheck,
+      fontSetStatus: document.fonts?.status ?? null,
+      fontFaceStatuses: [...(document.fonts ?? [])].map(face => ({ family: face.family, status: face.status })) };
+  };
+  const ringPathPresentation = [...element.querySelectorAll('.candidate-preparation__path')]
+    .filter(article => article.querySelector('h3')?.innerText.trim() === 'Ancient Jump Ring')
+    .map(article => {
+      const title = article.querySelector('h3');
+      const status = [...article.querySelectorAll('p')].find(node =>
+        node.innerText.includes('Ring repaired') && node.innerText.includes('Engineering Shuttle'));
+      const action = [...article.querySelectorAll('button')].find(node =>
+        node.textContent.replace(/\s+/g, ' ').trim().startsWith('Cross Ring // '));
+      return { title: title?.innerText.trim() ?? null, titleGeometry: title ? rectSnapshot(title) : null,
+        titleTypography: title ? typography(title) : null,
+        statusText: status?.innerText.replace(/\s+/g, ' ').trim() ?? null,
+        statusGeometry: status ? rectSnapshot(status) : null, statusTypography: status ? typography(status) : null,
+        action: action ? { name: action.textContent.replace(/\s+/g, ' ').trim(),
+          disabled: action.matches(':disabled') || !!action.closest('fieldset:disabled'),
+          ...rectSnapshot(action), focused: document.activeElement === action,
+          focusVisible: action.matches(':focus-visible'), typography: typography(action) } : null };
+    });
   const text = element.innerText;
   const headers = [...text.matchAll(/(?:^|\n)Cycle (\d+) \/\/ candidate revision (\d+)(?=\n|$)/g)];
   const activeIndex = panelTargets.indexOf(document.activeElement);
@@ -69,6 +109,7 @@ export function candidateGeometrySnapshot(element) {
     headerCount: headers.length, cycle: headers.length === 1 ? Number(headers[0][1]) : null,
     revision: headers.length === 1 ? Number(headers[0][2]) : null,
     pathHeadings: [...element.querySelectorAll('article h3')].filter(visible).map(node => node.innerText.trim()),
+    ringPathPresentation,
     researchGroupVisible: researchGroups.length === 1 && visible(researchGroups[0]),
     researchTrackNames: researchNames,
     researchTrackEnabledCount: researchInputs.filter(input => enabled(input)).length,
@@ -394,7 +435,10 @@ export function candidateGameplayTools(context) {
     if (await grant.isVisible()) await receipt(gm, 'setGmShipConsoleWriteGrant', () => grant.click());
     return panel;
   }
-  async function candidateGeometry(surface, code, stage, { readinessTimeoutMs = 30_000 } = {}) {
+  async function candidateGeometry(surface, code, stage, {
+    readinessTimeoutMs = 30_000,
+    evidenceScope = 'Actual native candidate screenshots; same original live actor and current candidate report readiness.',
+  } = {}) {
     assert.ok(Number.isSafeInteger(readinessTimeoutMs) && readinessTimeoutMs > 0);
     const deadlineAt = Date.now() + readinessTimeoutMs;
     const deadlineError = () => new Error('Candidate workspace source report did not finish rendering: original readiness deadline expired.');
@@ -587,6 +631,7 @@ export function candidateGameplayTools(context) {
     const previous = surface.page.viewportSize();
     const viewports = [];
     const keyboardDiagnostics = [];
+    const presentationCaptures = [];
     try {
       for (const size of [{ width: 320, height: 844 }, { width: 844, height: 390 }, { width: 1440, height: 900 }]) {
         await withinBudget(() => surface.page.setViewportSize(size));
@@ -641,15 +686,87 @@ export function candidateGameplayTools(context) {
         assert.deepEqual(afterScreenshot.decision, initialReadiness.decision,
           'Source actor, cycle, report revision, and candidate path must still match after capture.');
         keyboardDiagnostic.afterScreenshot = { ...diagnosticSample(afterScreenshot.rendered), sourceCheckpointAccepted: true };
+        if (code === 'N' && stage === 'repaired') {
+          assert.equal(afterScreenshot.rendered.ringButtons.length, 1,
+            'The current repaired source must retain one enabled Ring passage action for focused capture.');
+          const ringPath = panel.locator('.candidate-preparation__path');
+          assert.equal(await withinBudget(() => ringPath.count()), 1,
+            'One mounted candidate path must own the repaired Ring controls.');
+          const heading = ringPath.getByRole('heading', { name: 'Ancient Jump Ring', exact: true });
+          const status = ringPath.locator('p').filter({ hasText: 'Engineering Shuttle committed' });
+          const actionName = afterScreenshot.rendered.ringButtons[0].name;
+          const action = ringPath.getByRole('button', { name: actionName, exact: true });
+          assert.equal(await withinBudget(() => heading.count()), 1);
+          assert.equal(await withinBudget(() => status.count()), 1);
+          assert.equal(await withinBudget(() => action.count()), 1);
+          const captureOne = async (kind, target, screenshotName) => {
+            let nativeFocusPresses = 0;
+            if (kind === 'control-focus') {
+              let focused = await withinBudget(() => action.evaluate(node => document.activeElement === node));
+              while (!focused && nativeFocusPresses < geometry.documentTabStopCount + 1) {
+                await withinBudget(() => surface.page.keyboard.press('Tab'));
+                nativeFocusPresses++;
+                focused = await withinBudget(() => action.evaluate(node => document.activeElement === node));
+              }
+              assert.equal(focused, true, 'Native Tab must focus the repaired passage action without programmatic focus.');
+            }
+            await withinBudget(() => target.scrollIntoViewIfNeeded({ timeout: remaining() }));
+            await withinBudget(() => surface.page.evaluate(() =>
+              document.fonts?.ready.then(() => document.fonts.status) ?? null));
+            const ready = await waitForReadySource();
+            assert.deepEqual(ready.decision, initialReadiness.decision,
+              'Actor, cycle, current report revision and repaired path must remain bound at each focused capture.');
+            const snapshot = await withinBudget(() => panel.evaluate(candidateGeometrySnapshot));
+            const renderedPath = snapshot.ringPathPresentation.length === 1 ? snapshot.ringPathPresentation[0] : null;
+            assert.ok(renderedPath?.action, 'The screenshot-bound geometry must identify the mounted repaired action.');
+            if (kind === 'control-focus') {
+              assert.equal(renderedPath.action.disabled, false);
+              assert.equal(renderedPath.action.intersectsViewport, true);
+              assert.equal(renderedPath.action.focused, true);
+              assert.equal(renderedPath.action.focusVisible, true);
+            } else {
+              assert.equal(renderedPath.titleGeometry?.intersectsViewport, true,
+                'The path-focused screenshot must show the actual Ring heading.');
+              assert.equal(renderedPath.statusGeometry?.intersectsViewport, true,
+                'The path-focused screenshot must show current repair status.');
+            }
+            const screenshot = `${directory}/${screenshotName}`;
+            await withinBudget(() => surface.page.screenshot({ path: screenshot, timeout: remaining() }));
+            const afterCapture = await waitForReadySource();
+            assert.deepEqual(afterCapture.decision, initialReadiness.decision,
+              'Source actor, cycle, report revision and repaired path must remain current after the focused screenshot.');
+            presentationCaptures.push({ kind, width: size.width, height: size.height,
+              screenshot: screenshotName, nativeFocusPresses,
+              readiness: afterCapture.decision, noHorizontalOverflow: snapshot.noHorizontalOverflow,
+              title: renderedPath.title, titleGeometry: renderedPath.titleGeometry,
+              titleTypography: renderedPath.titleTypography, statusText: renderedPath.statusText,
+              statusGeometry: renderedPath.statusGeometry, statusTypography: renderedPath.statusTypography,
+              action: renderedPath.action });
+          };
+          await captureOne('path-focus', status,
+            `${code}-${stage}-path-focus-${size.width}x${size.height}.png`);
+          await captureOne('control-focus', action,
+            `${code}-${stage}-control-focus-${size.width}x${size.height}.png`);
+        }
       }
       assert.ok(viewports.every(value => value.noHorizontalOverflow && value.keyboardFocusReached), 'Actual candidate choices must fit and be keyboard reachable.');
       assert.ok(viewports.every(value => [...value.controls, ...value.checkboxTargets].every(control => control.height >= 43.99)), 'Actual candidate controls and research activation targets must retain their mandatory 44px targets.');
       remaining();
       await writeFile(`${directory}/${code}-${stage}-geometry.json`, `${JSON.stringify(viewports, null, 2)}\n`);
+      if (presentationCaptures.length) {
+        const environment = await withinBudget(() => surface.page.evaluate(() => ({ userAgent: navigator.userAgent,
+          devicePixelRatio, fontSetStatus: document.fonts?.status ?? null,
+          fontFaceStatuses: [...(document.fonts ?? [])].map(face => ({ family: face.family, status: face.status })) })));
+        await writeFile(`${directory}/${code}-${stage}-presentation-geometry.json`, `${JSON.stringify({
+          scope: evidenceScope,
+          environment, captures: presentationCaptures,
+        }, null, 2)}\n`);
+      }
     } catch (error) {
       if (viewports.length) await writeFile(`${directory}/${code}-${stage}-geometry-uncredited.json`, `${JSON.stringify({
         status: 'failed-uncredited', candidateCode: code, stage,
         failureCategory: error?.name === 'AssertionError' ? 'assertion' : 'operation-failed',
+        presentationCaptures,
         viewports: viewports.map((viewport, index) => ({ width: viewport.width, height: viewport.height,
           noHorizontalOverflow: viewport.noHorizontalOverflow, keyboardFocusReached: viewport.keyboardFocusReached,
           keyboardTraversal: viewport.keyboardTraversal,

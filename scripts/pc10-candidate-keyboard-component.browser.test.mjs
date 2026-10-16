@@ -19,10 +19,15 @@ const PROJECT = 'demo-pc10-keyboard-prepared';
 const SID = 'prepared-keyboard-session';
 const ROLE = 'shepherd-scientist';
 const UID = 'prepared-keyboard-scientist';
+const GM_ROLE = 'prepared-gm-role';
+const GM_UID = 'prepared-keyboard-gm';
+const GM_INSTANCE_ID = 'prepared-keyboard-gm-instance';
+const GM_CLAIMED_AT = '2026-10-06T00:01:00.000Z';
 const GROUP = 'fleet-1';
 const noMutation = `const noMutation=()=>{throw new Error('Prepared keyboard diagnosis cannot mutate gameplay.');};`;
 
-async function bundleSource() {
+async function bundleSource({ mode = 'research-choice' } = {}) {
+  const repairedRing = mode === 'repaired-ring';
   const entry = `
     import React from 'react';
     import { createRoot } from 'react-dom/client';
@@ -31,21 +36,29 @@ async function bundleSource() {
     import { candidateWorkspace } from './functions/src/candidatePaths';
     import './src/index.css';
     const tracks=['reactor','jump-drive','hydroponics','water-reclamation','advanced-hydroponics'];
+    const repairedRing=${JSON.stringify(repairedRing)};
+    const actorUid=repairedRing?${JSON.stringify(GM_UID)}:${JSON.stringify(UID)};
+    const roleId=repairedRing?${JSON.stringify(GM_ROLE)}:${JSON.stringify(ROLE)};
+    const gmInstance=repairedRing?{id:${JSON.stringify(GM_INSTANCE_ID)},uid:actorUid,sessionId:${JSON.stringify(SID)},
+      name:'Prepared GM',deviceLabel:'Prepared fixture',claimedAt:${JSON.stringify(GM_CLAIMED_AT)},
+      shipConsoleWriteGrant:{shipId:'shepherd',grantedAt:'2026-10-06T00:02:00.000Z'}}:null;
     const authority={sessionId:${JSON.stringify(SID)},cycle:4,phase:'active',coordination:true,
       now:'2026-10-06T00:00:00.000Z',groupId:${JSON.stringify(GROUP)},vesselIds:['shepherd'],
-      actor:{uid:${JSON.stringify(UID)},gm:false,shipIds:[],research:true,shuttleIds:['philia']},
+      actor:{uid:actorUid,gm:repairedRing,shipIds:[],research:!repairedRing,shuttleIds:repairedRing?[]:['philia']},
       discovered:[{code:'N',coordinate:'0123'}],
       ships:{shepherd:{fuel:40,materials:10,reactorCapacity:5,destroyed:false,jumpCharged:true,
         jumpDamaged:false,longJumpCost:13,atCandidate:true,jumpedThisCycle:false,coordinate:'0123'}},
       research:Object.fromEntries(tracks.map(id=>[id,4])),
-      engineeringShuttles:[{id:'philia',available:true}],hiddenScoutCount:0};
-    const report=candidateWorkspace(authority,{revision:8,sites:{'0123':{code:'N',coordinate:'0123',
-      groupId:${JSON.stringify(GROUP)},materials:10,researchIds:[],ships:{},reactors:{}}}});
+      engineeringShuttles:[{id:'philia',available:!repairedRing}],hiddenScoutCount:0};
+    const site={code:'N',coordinate:'0123',groupId:${JSON.stringify(GROUP)},materials:10,
+      researchIds:repairedRing?tracks:[],ships:{},reactors:{},
+      ...(repairedRing?{shuttleId:'philia',repairedAt:authority.now}:{})};
+    const report=candidateWorkspace(authority,{revision:8,sites:{'0123':site}});
     useSessionStore.setState({session:{id:${JSON.stringify(SID)},phase:'active',currentTurn:4,
       updatedAt:'prepared-source-key',shipFleetGroupIds:{shepherd:${JSON.stringify(GROUP)}}},
-      me:{uid:${JSON.stringify(UID)},sessionId:${JSON.stringify(SID)},role:'player',
-        assignedRoleId:${JSON.stringify(ROLE)},activeConsoleRoleId:${JSON.stringify(ROLE)},
-        fleetGroupId:${JSON.stringify(GROUP)},connectionGeneration:1},gmInstance:null,
+      me:{uid:actorUid,sessionId:${JSON.stringify(SID)},role:repairedRing?'gm':'player',
+        assignedRoleId:roleId,activeConsoleRoleId:roleId,
+        fleetGroupId:${JSON.stringify(GROUP)},connectionGeneration:1},gmInstance,
       connection:'live',sessionSnapshotFreshness:'server',identityHydrationRevision:1});
     globalThis.__pc10PreparedKeyboard={store:useSessionStore,report};
     createRoot(document.querySelector('#source-root')).render(
@@ -63,11 +76,13 @@ async function bundleSource() {
           ${noMutation}
           export const createCandidateAttempt=noMutation, executeCandidateAttempt=noMutation;
           export const recoverCandidateAttempt=()=>undefined;
+          export const selectCandidateEdition=noMutation;
           export async function readCandidateWorkspace(groupId){
             const state=globalThis.__pc10PreparedKeyboard.store.getState();
+            const instanceId=state.gmInstance?.id;
             const response=await fetch('/${PROJECT}/us-central1/readCandidateWorkspace',{
               method:'POST',headers:{'content-type':'application/json'},
-              body:JSON.stringify({data:{sessionId:state.session.id,expectedGroupId:groupId}})});
+              body:JSON.stringify({data:{sessionId:state.session.id,expectedGroupId:groupId,...(instanceId?{instanceId}:{})}})});
             if(!response.ok)throw new Error('Prepared source read failed');
             return (await response.json()).result;
           }`, loader: 'js' }));
@@ -78,16 +93,24 @@ async function bundleSource() {
   return { js, css };
 }
 
-for (const { surroundingCount, refreshBetweenTabs } of [
+for (const { surroundingCount, refreshBetweenTabs, mode = 'research-choice' } of [
   { surroundingCount: 0, refreshBetweenTabs: false },
   { surroundingCount: 39, refreshBetweenTabs: false },
   { surroundingCount: 39, refreshBetweenTabs: true },
+  { surroundingCount: 0, refreshBetweenTabs: false, mode: 'repaired-ring' },
 ]) {
-  test(`unchanged source panel native Tabs reach all targets with ${surroundingCount} surrounding fixture controls${refreshBetweenTabs ? ' and same-authority store refresh' : ''}`, async () => {
+  const stage = mode === 'repaired-ring' ? 'repaired' : 'research-choice';
+  const testName = mode === 'repaired-ring'
+    ? 'prepared repaired Ring path paints the owned GM passage control after native Tab traversal'
+    : `unchanged source panel native Tabs reach all targets with ${surroundingCount} surrounding fixture controls${refreshBetweenTabs ? ' and same-authority store refresh' : ''}`;
+  test(testName, async () => {
     const base = process.env.PC10_CANDIDATE_KEYBOARD_EVIDENCE ?? await mkdtemp(resolve(tmpdir(), 'pc10-keyboard-component-'));
-    const directory = resolve(base, `prepared-surrounding-${surroundingCount}${refreshBetweenTabs ? '-refresh' : ''}`);
+    const directory = resolve(base, mode === 'repaired-ring' ? 'prepared-repaired-ring' :
+      `prepared-surrounding-${surroundingCount}${refreshBetweenTabs ? '-refresh' : ''}`);
     await mkdir(directory, { recursive: true });
-    const bundle = await bundleSource();
+    const bundle = await bundleSource({ mode });
+    const expectedRead = { data: { sessionId: SID, expectedGroupId: GROUP,
+      ...(mode === 'repaired-ring' ? { instanceId: GM_INSTANCE_ID } : {}) } };
     const posted = [], traffic = [], errors = [], observations = [], refreshObservations = [];
     let server, browser, origin, report;
     try {
@@ -106,7 +129,7 @@ for (const { surroundingCount, refreshBetweenTabs } of [
           } else if (request.method === 'POST' && request.url === `/${PROJECT}/us-central1/readCandidateWorkspace`) {
             let text = ''; for await (const chunk of request) text += chunk;
             const payload = JSON.parse(text);
-            assert.deepEqual(payload, { data: { sessionId: SID, expectedGroupId: GROUP } });
+            assert.deepEqual(payload, expectedRead);
             posted.push(payload);
             response.setHeader('content-type', 'application/json');
             response.end(JSON.stringify({ result: report }));
@@ -131,7 +154,7 @@ for (const { surroundingCount, refreshBetweenTabs } of [
       const initialRequests = new Set();
       await page.route(`**/${PROJECT}/us-central1/readCandidateWorkspace`, async route => {
         const payload = route.request().postDataJSON();
-        assert.deepEqual(payload, { data: { sessionId: SID, expectedGroupId: GROUP } });
+        assert.deepEqual(payload, expectedRead);
         if (!report) { initialRequests.add(route.request()); await reportReady; }
         return route.continue();
       });
@@ -180,21 +203,87 @@ for (const { surroundingCount, refreshBetweenTabs } of [
         const value = target[key]; return typeof value === 'function' ? value.bind(target) : value;
       } });
       const surface = { page: fixturePage, storeModuleUrl: () => `${origin}/prepared-store.js`,
-        observe: () => page.evaluate(({ uid, sid, roleId }) => {
+        observe: () => page.evaluate(({ uid, sid, roleId, gm }) => {
           const state = globalThis.__pc10PreparedKeyboard.store.getState();
           return { hasAuth: true, sameActor: state.me.uid === uid && state.me.sessionId === sid,
             uidHash: state.me.uid === uid ? 'prepared-original-hash' : 'prepared-foreign-hash', sessionId: state.session.id,
             playerRole: state.me.role, profileRoleId: roleId, assignedRoleId: state.me.assignedRoleId,
-            activeConsoleRoleId: state.me.activeConsoleRoleId, instanceId: null, gmInstanceOwned: false,
+            activeConsoleRoleId: state.me.activeConsoleRoleId, instanceId: gm ? state.gmInstance?.id ?? null : null,
+            instanceClaimedAt: gm ? state.gmInstance?.claimedAt ?? null : null,
+            gmInstanceOwned: gm && state.gmInstance?.uid === state.me.uid && state.gmInstance?.sessionId === sid,
             connection: state.connection, freshness: state.sessionSnapshotFreshness };
-        }, { uid: UID, sid: SID, roleId: ROLE }) };
+        }, { uid: mode === 'repaired-ring' ? GM_UID : UID, sid: SID,
+          roleId: mode === 'repaired-ring' ? GM_ROLE : ROLE, gm: mode === 'repaired-ring' }) };
       const tools = candidateGameplayTools({ gm: surface, crew: surface, directory,
         initial: { sessionId: SID, joinCode: 'PREPARED' },
-        roster: [{ roleId: ROLE, uidHash: 'prepared-original-hash' }], projectId: PROJECT,
+        roster: [{ roleId: mode === 'repaired-ring' ? GM_ROLE : ROLE, uidHash: 'prepared-original-hash' }], projectId: PROJECT,
         ports: { functions: server.address().port } });
-      await tools.candidateGeometry(surface, 'N', 'research-choice');
-      const geometries = JSON.parse(await readFile(resolve(directory, 'N-research-choice-geometry.json'), 'utf8'));
-      for (const geometry of geometries) {
+      await tools.candidateGeometry(surface, 'N', stage, { evidenceScope: mode === 'repaired-ring'
+        ? 'Prepared unchanged component, CSS, store and candidate projector only.' : undefined });
+      const geometries = JSON.parse(await readFile(resolve(directory, `N-${stage}-geometry.json`), 'utf8'));
+      if (mode === 'repaired-ring') {
+        assert.equal(report.paths[0].repaired, true);
+        assert.ok(report.paths[0].ships.some(ship => ship.shipId === 'shepherd' && ship.canAct));
+        for (const geometry of geometries) {
+          assert.equal(geometry.readiness.state, 'ready');
+          assert.equal(geometry.readiness.actingShipId, 'shepherd');
+          assert.equal(geometry.readiness.repaired, true);
+          assert.equal(geometry.keyboardFocusReached, true);
+          assert.ok(geometry.keyboardTraversal.intendedTargetCount > 0);
+          assert.equal(geometry.keyboardTraversal.allEnabledTargetsReached, true);
+        }
+        const presentationPath = resolve(directory, 'N-repaired-presentation-geometry.json');
+        let presentation;
+        try { presentation = JSON.parse(await readFile(presentationPath, 'utf8')); }
+        catch { assert.fail('The repaired Ring path needs post-Tab path and focused-control screenshots with contemporaneous geometry.'); }
+        const cdp = await context.newCDPSession(page);
+        try {
+          await cdp.send('DOM.enable'); await cdp.send('CSS.enable');
+          const { root: documentNode } = await cdp.send('DOM.getDocument');
+          const paintedFonts = {};
+          for (const [name, selector] of [
+            ['title', '.candidate-preparation__path h3'],
+            ['status', '.candidate-preparation__path p:nth-of-type(2)'],
+            ['action', '.candidate-preparation__path button'],
+          ]) {
+            const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: documentNode.nodeId, selector });
+            assert.ok(nodeId > 0, `The visible prepared ${name} node must be addressable by Chrome DevTools.`);
+            const { fonts } = await cdp.send('CSS.getPlatformFontsForNode', { nodeId });
+            paintedFonts[name] = fonts.map(({ familyName, postScriptName, isCustomFont, glyphCount }) =>
+              ({ familyName, postScriptName, isCustomFont, glyphCount }));
+            assert.ok(paintedFonts[name].some(font => font.glyphCount > 0),
+              `Chrome must report the actual painted font for prepared ${name} text.`);
+          }
+          presentation.environment.paintedFonts = { source: 'CDP CSS.getPlatformFontsForNode', nodes: paintedFonts };
+          await writeFile(presentationPath, `${JSON.stringify(presentation, null, 2)}\n`);
+        } finally { await cdp.detach(); }
+        assert.equal(presentation.scope, 'Prepared unchanged component, CSS, store and candidate projector only.');
+        assert.equal(presentation.captures.length, 6);
+        for (const geometry of presentation.captures) {
+          assert.equal(geometry.readiness.state, 'ready');
+          assert.equal(geometry.title, 'Ancient Jump Ring');
+          assert.equal(geometry.titleGeometry.intersectsViewport, true);
+          assert.match(geometry.statusText, /Engineering Shuttle committed.*Ring repaired/);
+          assert.equal(geometry.statusGeometry.intersectsViewport, true);
+          assert.equal(geometry.action.name, 'Cross Ring // shepherd // five fuel');
+          assert.equal(geometry.action.disabled, false);
+          assert.equal(geometry.action.intersectsViewport, true);
+          assert.ok(geometry.action.typography.fontSize);
+          assert.ok(geometry.action.typography.lineHeight);
+          assert.ok(geometry.action.typography.fontFamily);
+          const screenshot = await readFile(resolve(directory, geometry.screenshot));
+          assert.equal(screenshot.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+          if (geometry.kind === 'control-focus') {
+            assert.equal(geometry.action.focused, true);
+            assert.equal(geometry.action.focusVisible, true);
+          }
+        }
+        assert.deepEqual(presentation.captures.map(value => [value.kind, value.width, value.height]), [
+          ['path-focus', 320, 844], ['control-focus', 320, 844],
+          ['path-focus', 844, 390], ['control-focus', 844, 390],
+          ['path-focus', 1440, 900], ['control-focus', 1440, 900],
+        ]);
+      } else for (const geometry of geometries) {
         assert.equal(geometry.keyboardTraversal.intendedTargetCount, 8);
         assert.equal(geometry.keyboardTraversal.documentTabStopCount, 8 + surroundingCount);
         assert.equal(geometry.keyboardTraversal.tabPressLimit, 9 + surroundingCount);
@@ -204,14 +293,16 @@ for (const { surroundingCount, refreshBetweenTabs } of [
       assert.equal(refreshObservations.length, refreshBetweenTabs ? 3 : 0);
       assert.ok(refreshObservations.every(value => Object.values(value).every(flag => flag === true)));
       await writeFile(resolve(directory, 'prepared-native-observations.json'), `${JSON.stringify({
-        scope: 'Prepared unchanged source component/store/projector and real Chrome Tab diagnosis; zero Auth/gameplay/ending credit.',
-        sourceRoot: ROOT, surroundingCount, preparedReadCount: posted.length,
+        scope: mode === 'repaired-ring'
+          ? 'Prepared unchanged component, CSS, store and candidate projector only; zero Auth/gameplay/ending credit.'
+          : 'Prepared unchanged source component/store/projector and real Chrome Tab diagnosis; zero Auth/gameplay/ending credit.',
+        sourceRoot: ROOT, mode, surroundingCount, preparedReadCount: posted.length,
         initialReadCount: initialRequests.size, geometries, observations, refreshObservations,
       }, null, 2)}\n`);
     } catch (error) {
       await writeFile(resolve(directory, 'prepared-native-failure.json'), `${JSON.stringify({
         scope: 'Prepared-only failure, never actual gameplay credit.', error: error.message,
-        surroundingCount, observations, errors, externalRequestCount: traffic.length,
+        mode, surroundingCount, observations, errors, externalRequestCount: traffic.length,
       }, null, 2)}\n`);
       throw error;
     } finally {
