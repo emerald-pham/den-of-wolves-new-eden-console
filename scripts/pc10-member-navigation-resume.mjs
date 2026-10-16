@@ -517,7 +517,12 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
           current.freshness === 'cache' && current.currentMemberBerthMatches === false &&
           current.currentOwnPlayerConfirmed === true &&
           candidates.every(row => !row.requestFailed && row.requestMatches && row.requestSessionId === original.sessionId &&
-            (row.respondedAt === undefined || row.httpStatus === 200 && row.bodyStatus === 'reading')),
+            (row.respondedAt === undefined || row.httpStatus === 200 && (row.bodyStatus === 'reading' ||
+              // Roster renewal also uses this page's SDK for other accounts.
+              // A parsed different actor is never an original-actor receipt;
+              // leave the exact withdrawn tuple unqualified for its own retry.
+              row.bodyStatus === 'parsed' && row.reply?.sessionId === original.sessionId &&
+                row.reply.uidHash !== original.uidHash && row.reply.player.role === 'player'))),
         'Original invalidated listener epoch changed without its current App retry.');
         return false;
       }
