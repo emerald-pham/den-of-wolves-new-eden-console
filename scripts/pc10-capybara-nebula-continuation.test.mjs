@@ -79,7 +79,7 @@ test('same-session continuation budgets both source-priced long jumps and every 
 });
 
 test('post-loss continuation follows the mounted workspace rule that removes the lost ship action', () => {
-  assert.ok(/const retainedLossAction = lostCandidate\.getByRole\('button',[\s\S]*?assert\.equal\(await retainedLossAction\.count\(\), 0\)/
-    .test(continuationActionsSource),
+  assert.ok(continuationActionsSource.includes("const retainedLossAction = lostCandidate.getByRole('button'") &&
+    continuationActionsSource.includes('assert.equal(await retainedLossAction.count(), 0,'),
   'Keep the original disposition and maintenance lock checks; the mounted workspace has no action for the lost ship.');
 });

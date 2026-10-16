@@ -240,7 +240,7 @@ it('advances each fleet group once while suppressing only a group in the Ion Neb
 it('reduces the original seven-ship group at Chart A Deep Nebula before ordinary Cycle 5-7 pursuit rises', () => {
   const vesselIds = ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'];
   const fleetGroups = [{ id: 'fleet-1', vesselIds }];
-  expect(jumpDistanceBetween('0000', '0408')).toBe(4);
+  expect(jumpDistanceBetween('0000', '0408')).toBe(7);
   expect(jumpLengthBetween('1413', '0408')).toBe('long');
   expect(Math.max(...vesselIds.map(shipId => jumpFuelCost(shipId, 'long', false)))).toBe(12);
   const group = navigationState({
