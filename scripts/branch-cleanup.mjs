@@ -231,6 +231,35 @@ async function coordinationReason({ coordinationFile, root, identity, branch }) 
   return null;
 }
 
+async function recoveryDirectoryReason({ root, coordinationFile, artifactDirectory }) {
+  try {
+    const prospectiveArtifactRoot = await resolveProspectivePath(artifactDirectory);
+    const worktrees = parseWorktreeList(await run('git', ['worktree', 'list', '--porcelain'], { cwd: root }));
+    const state = await readCoordinationState(coordinationFile);
+    const registeredPaths = [
+      ...worktrees.map((worktree) => worktree.path),
+      ...(state.entries ?? []).map((entry) => entry?.worktree),
+      ...(state.reservations ?? []).map((reservation) => reservation?.worktree),
+      ...(state.configurations ?? []).map((configuration) => configuration?.worktree),
+    ].filter((path) => typeof path === 'string' && path.trim());
+    for (const registeredPath of registeredPaths) {
+      const registeredRoot = await resolveProspectivePath(registeredPath);
+      if (within(registeredRoot, prospectiveArtifactRoot)) {
+        return {
+          code: 'recovery-directory-inside-worktree',
+          message: `Recovery artifacts must be stored outside every registered checkout; ${artifactDirectory} is inside ${registeredPath}.`,
+        };
+      }
+    }
+    return null;
+  } catch (error) {
+    return {
+      code: 'recovery-directory-unavailable',
+      message: `Recovery artifact isolation could not be verified safely: ${error.message}`,
+    };
+  }
+}
+
 async function verifyBundleRestoresIndependently({ root, branch, targetSha, bundlePath }) {
   let verificationDirectory;
   try {
@@ -362,19 +391,16 @@ async function inspectCandidate(report, context, { allowCurrentWorktree = true }
   }
 }
 
-async function prepareRecovery({ root, identity, branch, targetSha, defaultBranch, defaultSha, artifactDirectory }) {
+async function prepareRecovery({ root, identity, branch, targetSha, defaultBranch, defaultSha, coordinationFile, artifactDirectory }) {
   let directory;
   try {
+    const initialPathReason = await recoveryDirectoryReason({ root, coordinationFile, artifactDirectory });
+    if (initialPathReason) return { reason: initialPathReason };
     await mkdir(artifactDirectory, { recursive: true, mode: 0o700 });
     const actualArtifactRoot = await realpath(artifactDirectory);
-    if (within(root, actualArtifactRoot)) {
-      return {
-        reason: {
-          code: 'recovery-directory-inside-worktree',
-          message: 'Recovery artifacts must be stored outside the repository working tree.',
-        },
-      };
-    }
+    const postCreatePathReason = await recoveryDirectoryReason({ root, coordinationFile, artifactDirectory });
+    if (postCreatePathReason) return { reason: postCreatePathReason };
+    if (within(root, actualArtifactRoot)) return { reason: { code: 'recovery-directory-inside-worktree', message: 'Recovery artifacts must be stored outside the repository working tree.' } };
 
     directory = resolve(actualArtifactRoot, [
       'branch', branch.replaceAll('/', '_'),
@@ -382,6 +408,8 @@ async function prepareRecovery({ root, identity, branch, targetSha, defaultBranc
       new Date().toISOString().replaceAll(':', '-'),
       randomUUID().slice(0, 8),
     ].join('-'));
+    const beforeBundleReason = await recoveryDirectoryReason({ root, coordinationFile, artifactDirectory });
+    if (beforeBundleReason) return { reason: beforeBundleReason };
     await mkdir(directory, { recursive: false, mode: 0o700 });
     const bundlePath = resolve(directory, 'recovery.bundle');
     const manifestPath = resolve(directory, 'manifest.json');
@@ -417,6 +445,8 @@ async function prepareRecovery({ root, identity, branch, targetSha, defaultBranc
     };
     const temporaryManifest = `${manifestPath}.${randomUUID()}.tmp`;
     try {
+      const beforeManifestReason = await recoveryDirectoryReason({ root, coordinationFile, artifactDirectory });
+      if (beforeManifestReason) return { recovery: { directory, bundlePath, manifestPath, verified: false }, reason: beforeManifestReason };
       await writeFile(temporaryManifest, `${JSON.stringify(manifest, null, 2)}\n`, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
       await rename(temporaryManifest, manifestPath);
     } finally {
@@ -528,10 +558,8 @@ export async function cleanupBranch({
     ? DEFAULT_ARTIFACT_DIRECTORY
     : (isAbsolute(artifactDirectory) ? resolve(artifactDirectory) : resolve(root, artifactDirectory));
   try {
-    const prospectiveArtifactRoot = await resolveProspectivePath(proposedArtifactDirectory);
-    if (within(root, prospectiveArtifactRoot)) {
-      return addReason(report, 'recovery-directory-inside-worktree', 'Recovery artifacts must be stored outside the repository working tree.');
-    }
+    const pathReason = await recoveryDirectoryReason({ root, coordinationFile: coordinationPath, artifactDirectory: proposedArtifactDirectory });
+    if (pathReason) return addReason(report, pathReason.code, pathReason.message);
   } catch (error) {
     return addReason(report, 'recovery-directory-unavailable', `The recovery directory path could not be resolved safely: ${error.message}`);
   }
@@ -554,6 +582,7 @@ export async function cleanupBranch({
     targetSha: inspected.local,
     defaultBranch: inspected.defaultName,
     defaultSha: inspected.defaultSha,
+    coordinationFile: coordinationPath,
     artifactDirectory: proposedArtifactDirectory,
   });
   if (recoveryResult.recovery) report.recovery = recoveryResult.recovery;
