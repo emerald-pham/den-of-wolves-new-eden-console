@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import * as stationProof from './pc10-candidate-station-ui-proof.mjs';
 
@@ -38,6 +39,7 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
     },
   };
   async function dispatch(data) {
+    recovery.requestData ??= structuredClone(data);
     const route = {
       request: () => ({ method: () => 'POST', postDataJSON: () => ({ data: structuredClone(data) }) }),
       fetch: async () => {
@@ -125,4 +127,34 @@ test('Station contribution recovers the same committed Reactor request after a c
   assert.equal(fixture.recovery.pending, false, 'The mounted retry control clears after the original receipt returns.');
   assert.equal(fixture.records.length, 1, 'The actual source-bound recovery should be preserved in the proof record.');
   assert.equal(fixture.records[0].details.request.requestId, fixture.request.requestId);
+});
+
+test('Station activation replay retains the server-owned final Reactor result', async () => {
+  const fixture = recoveryFixture({ chargeCapacity: 14, reactorCapacity: 4, activates: true });
+  const replay = await stationProof.recoverStationReactorContribution({ ...fixture,
+    shipId: 'aegis', roleId: fixture.roleId, coordinate: fixture.coordinate,
+    sessionId: fixture.sessionId, expectActivation: true,
+    deadlineAt: Date.now() + 1_000 });
+
+  assert.equal(replay.outcome, 'activated');
+  assert.match(replay.summary, /New Eden Station is active/);
+  assert.equal(fixture.recovery.chargeCapacity, 18);
+  assert.equal(fixture.recovery.revision, 8);
+  assert.equal(fixture.recovery.fetchCount, 1);
+  assert.equal(fixture.recovery.fallbackCount, 1);
+  assert.equal(fixture.records[0].details.committedResult.outcome, 'activated');
+  assert.equal(fixture.records[0].details.replayedResult.outcome, 'activated');
+});
+
+test('the existing Station ending invokes recovery at real contribution and activation boundaries', async () => {
+  const source = await readFile(new URL('./pc10-candidate-station-ui-proof.mjs', import.meta.url), 'utf8');
+  const start = source.indexOf('export async function runStationEnding');
+  assert.ok(start >= 0, 'Read the actual Station runner body.');
+  const runner = source.slice(start);
+  assert.match(runner, /let liberation\b/,
+    'Retain the finalized live Station attack result for the contribution proof.');
+  assert.match(runner, /recoverStationReactorContribution\s*\(/,
+    'The ordinary Station ending must use the same-actor interrupted receipt recovery helper.');
+  assert.match(runner, /expectActivation/,
+    'The exact source-owned final activation contribution must pass through recovery too.');
 });
