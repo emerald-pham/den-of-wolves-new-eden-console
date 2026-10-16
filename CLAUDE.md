@@ -76,12 +76,6 @@ there is no status/heartbeat polling loop. Optional goals may stay in the chat o
 no immutable goal file, digest comparison, one-shot provenance or repair chain, or cleanup gate.
 
 New top-level coordinators default to `gpt-6-astra` with medium reasoning.
-Workers own task-specific documentation reading and code investigation. Beyond required agent instructions, the
-orchestrator relies on concise worker findings, decisions needed, and evidence pointers; it does not duplicate their
-document reading. Inspect source material only to resolve a concrete decision or blocker. Do not interrupt an active
-worker or request a rebase solely for routine guidance updates; let the worker encounter them at its next normal update
-unless they materially affect the current work.
-
 Delegated workers default to `gpt-6-luna`.
 Before delegating, shaping a checkpoint or preparing a release, follow the
 [Agent execution policy](docs/AGENT_EXECUTION_POLICY.md) for allowed models,
@@ -98,17 +92,8 @@ Independent risk review returns all findings together; the owner repairs them
 in a bounded follow-up limited to unresolved findings or materially changed risk.
 Do not run a compulsory Luna → Sol → Luna ownership cycle.
 
-Escalate only after actual lack of progress or a material failure: substantive
-diagnosis and an attempted repair must fail and the owner cannot identify a
-credible next step. A failed test with an obvious fix is progress. Sol may
-diagnose or take over a justified blocker when the reason and ownership
-transfer are explicit; the task coordinator handles difficult
-decisions without a mandatory extra stage.
-
-When dependencies permit, tasks may implement and run focused tests in parallel
-while an upstream release settles. Reconcile onto its settled result before
-finalizing release metadata and running final validation. Do not repeatedly run
-a full gate on a candidate already known to need another rebase.
+Escalate only after actual lack of progress or a material failure, following
+[delegation and repair handoff](docs/AGENT_EXECUTION_POLICY.md#delegation).
 
 ## Testing and review
 
@@ -406,3 +391,10 @@ Map skill roles to existing records without new completion states: [triage mappi
 
 ### Domain docs
 Single-context glossary and ADRs, created lazily: [domain documentation rules](docs/agents/domain.md).
+
+### Retrospectives
+
+When invoking a retrospective, include the target session ID or checkpoint.
+Without one, inspect the current session. If it contains no coding work, state
+that limitation and keep findings tied to the inspected environment; do not
+substitute another session based only on recency.
