@@ -1,8 +1,6 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { createCurrentMemberSessionReader as CreateMemberReader } from '../functions/src/memberSessionCallable';
-import { createCandidateCallables } from '../functions/src/candidatePathsCallable';
-import type { Firestore } from 'firebase-admin/firestore';
 import type { GameSession, Player } from '@/types/game';
 import type { useSessionStore as SessionStore } from '@/store/useSessionStore';
 import type * as SessionService from '@/lib/sessionService';
@@ -62,9 +60,44 @@ interface Listener {
 }
 type Reply = { data: { session: GameSession; player: Player } };
 type Fields = Record<string, unknown>;
+type CandidateRequest = { data: Record<string, unknown>; auth: { uid: string } };
+type CandidateHandlers = {
+  execute: (request: CandidateRequest) => Promise<Fields>;
+  read: (request: CandidateRequest) => Promise<Fields>;
+};
+type CandidateReference = { path: string; id: string; collection: boolean };
+type CandidateSnapshot = {
+  id: string;
+  ref: CandidateReference;
+  exists: boolean;
+  get: (field: string) => unknown;
+  data: () => Fields | undefined;
+};
+type CandidateCollectionSnapshot = { docs: CandidateSnapshot[] };
+type CandidateTransaction = {
+  get: (target: CandidateReference) => Promise<CandidateSnapshot | CandidateCollectionSnapshot>;
+  set: (target: { path: string }, value: Fields) => void;
+  create: (target: { path: string }, value: Fields) => void;
+  update: (target: { path: string }, value: Fields) => void;
+  delete: (target: { path: string }) => void;
+};
+type CandidateDb = {
+  doc: (path: string) => CandidateReference;
+  collection: (path: string) => CandidateReference;
+  runTransaction: (callback: (tx: CandidateTransaction) => Promise<unknown>) => Promise<unknown>;
+};
+type CandidateCallablesFactory = (options: {
+  db: CandidateDb;
+  die: () => number;
+  now: () => Date;
+  requireShipAuthority: () => Promise<void>;
+  commitTerminal: (_tx: unknown, _ref: unknown, session: { get: (field: string) => unknown }, input: Fields) => Promise<unknown>;
+  survivorOutcome: (session: { get: (field: string) => unknown }) => Fields;
+  serverTimestamp: () => string;
+}) => CandidateHandlers;
 type CandidateSource = {
   readonly documents: Map<string, Fields>;
-  readonly handlers: ReturnType<typeof createCandidateCallables>;
+  readonly handlers: CandidateHandlers;
 };
 let serial = 0;
 let sessionId: string;
@@ -88,7 +121,7 @@ const playerPath = () => `${rootPath()}/players/${actor.uid}`;
 const callCount = (name: string) => sdk.call.mock.calls.filter(call => call[0] === name).length;
 const currentPlayerReader = () => listeners.filter(reader => reader.active && reader.path === playerPath()).at(-1)!;
 
-function candidateLossSource(): CandidateSource {
+async function candidateLossSource(): Promise<CandidateSource> {
   const documents = new Map<string, Fields>();
   const reference = (path: string, collection = false) => ({ path, id: path.split('/').at(-1)!, collection });
   const snapshot = (path: string) => ({ ...reference(path), ref: reference(path), exists: documents.has(path),
@@ -104,27 +137,32 @@ function candidateLossSource(): CandidateSource {
     }
     documents.set(target.path, next);
   };
-  const db = { doc: (path: string) => reference(path), collection: (path: string) => reference(path, true),
-    runTransaction: async (callback: (tx: unknown) => Promise<unknown>) => {
+  const db: CandidateDb = { doc: (path: string) => reference(path), collection: (path: string) => reference(path, true),
+    runTransaction: async (callback) => {
       const before = structuredClone([...documents.entries()]); let written = false;
       try {
         return await callback({
-          get: async (target: ReturnType<typeof reference>) => target.collection
-            ? { docs: [...documents.keys()].filter(path => path.startsWith(`${target.path}/`) &&
-              !path.slice(target.path.length + 1).includes('/')).map(snapshot) }
-            : snapshot(target.path),
-          set: (target: { path: string }, value: Fields) => { written = true; documents.set(target.path, structuredClone(value)); },
-          create: (target: { path: string }, value: Fields) => { written = true;
+          get: async (target) => {
+            if (written) throw new Error('Firestore transaction reads must precede writes.');
+            return target.collection
+              ? { docs: [...documents.keys()].filter(path => path.startsWith(`${target.path}/`) &&
+                !path.slice(target.path.length + 1).includes('/')).map(snapshot) }
+              : snapshot(target.path);
+          },
+          set: (target, value) => { written = true; documents.set(target.path, structuredClone(value)); },
+          create: (target, value) => { written = true;
             if (documents.has(target.path)) throw new Error('Existing immutable audit');
             documents.set(target.path, structuredClone(value)); },
-          update: (target: { path: string }, value: Fields) => { written = true; update(target, value); },
-          delete: (target: { path: string }) => { written = true; documents.delete(target.path); },
+          update: (target, value) => { written = true; update(target, value); },
+          delete: (target) => { written = true; documents.delete(target.path); },
         });
       } catch (error) {
         documents.clear(); for (const [path, value] of before) documents.set(path, value);
         throw error;
       }
-    } } as unknown as Firestore;
+    } };
+  const candidateModule = await vi.importActual<unknown>('../functions/src/candidatePathsCallable');
+  const { createCandidateCallables } = candidateModule as { createCandidateCallables: CandidateCallablesFactory };
   const handlers = createCandidateCallables({ db, die: () => 6, now: () => new Date('2026-10-06T09:20:00Z'),
     requireShipAuthority: async () => undefined, commitTerminal: async (_tx, _ref, _session, input) => input,
     survivorOutcome: session => ({ type: 'survivor-outcome', finalSurvivors: session.get('shipSurvivors.shepherd') }),
@@ -337,7 +375,7 @@ afterEach(async () => {
 });
 
 async function mountCandidateLoss(path: string) {
-  candidateSource = candidateLossSource();
+  candidateSource = await candidateLossSource();
   const command = { sessionId: 's1', requestId: 'candidate-loss-app', expectedRevision: 0,
     expectedGroupId: 'fleet-1', code: 'O', coordinate: '0408', action: 'nebula-jump', shipId: 'aegis' };
   const loss = await candidateSource.handlers.execute({ data: command, auth: { uid: 'admiral' } });
