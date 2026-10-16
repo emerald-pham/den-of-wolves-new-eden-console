@@ -11,7 +11,8 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
     expectedGroupId: 'fleet-1', code: 'P', coordinate, action: 'contribute-reactor', shipId: 'aegis' };
   const result = { type: 'candidate-action-result', status: 'committed', sessionId,
     requestId: request.requestId, revision: 8, code: 'P', action: 'contribute-reactor',
-    summary: `${chargeCapacity + reactorCapacity}/18 Station charge capacity committed. This Reactor ship is cannibalised.`,
+    summary: `${chargeCapacity + reactorCapacity}/18 Station charge capacity committed. This Reactor ship is cannibalised.` +
+      (activates ? ' New Eden Station is active; its defences block future Wolf attacks.' : ''),
     ...(activates ? { outcome: 'activated' } : {}) };
   const recovery = { requestData: undefined, replayData: undefined, fetchCount: 0,
     abortCount: 0, fallbackCount: 0, reloadCount: 0, unrouteCount: 0,
