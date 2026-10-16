@@ -99,3 +99,32 @@ test('another actor roster resume cannot qualify or prematurely reject the held 
   assert.equal(saved.transitions[0].current.identityHydrationRevision, 2);
   assert.equal(saved.events.filter(event => event.kind === 'held-listener-epoch').length, 1);
 });
+
+
+test('a parsed matching own App reply remains pending at held 4/1 until the SDK applies 5/2', async () => {
+  const f = await stationNavigationResumeFixture({ ...options, deferResumeResponse: false, deferResumeApplication: true });
+  let result, error;
+  const running = f.run().then(value => { result = value; }, value => { error = value; });
+  try {
+    await f.earlyGenerationObserved();
+    const held = await Promise.race([f.parsedReplyHeldObserved().then(value => ({ value })),
+      running.then(() => ({ stopped: true }))]);
+    assert.equal(held.stopped, undefined, error?.message ?? 'The parsed reply must not release selection before SDK hydration.');
+    assert.equal(held.value.connectionGeneration, 4); assert.equal(held.value.identityHydrationRevision, 1);
+    assert.equal(result, undefined); assert.equal(error, undefined); assert.equal(f.application.length, 0);
+    assert.equal(f.authorityBinding().mountedResumePending, true);
+    assert.equal((await packet(f)).transitions.length, 0, 'A parsed reply alone grants zero station authority.');
+    f.releaseResumeApplication(); await f.finishPendingResume(); await running;
+    assert.equal(error, undefined); assert.equal(result, f.crew);
+    assert.deepEqual(f.sdkRequests, ['resumeSession']); assert.equal(f.application.length, 1);
+    const saved = await packet(f);
+    assert.equal(saved.receipts[0].bodyStatus, 'parsed');
+    assert.equal(saved.receipts[0].baseline.connectionGeneration, 4);
+    assert.equal(saved.transitions.length, 1);
+    assert.equal(saved.transitions[0].current.connectionGeneration, 5);
+    assert.equal(saved.transitions[0].current.identityHydrationRevision, 2);
+    assert.equal(saved.transitions[0].clientAcceptance.resumePending, false);
+  } finally {
+    f.releaseResumeResponse(); f.releaseResumeApplication(); await running; await f.cleanup();
+  }
+});

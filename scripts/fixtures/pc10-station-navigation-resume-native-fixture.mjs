@@ -58,8 +58,8 @@ export async function stationNavigationResumeFixture(options = {}) {
   // feed can publish the server lease before HTTP delivery or SDK application.
   // The actual source resume/finally fence still owns identity hydration.
   const barrier = () => { let release; const promise = new Promise(resolve => { release = resolve; }); return { promise, release }; };
-  const responseGate = barrier(), applicationGate = barrier(), requestObserved = barrier(), earlyObservation = barrier(), foreignObservation = barrier();
-  let foreignPublished = false;
+  const responseGate = barrier(), applicationGate = barrier(), requestObserved = barrier(), earlyObservation = barrier(), foreignObservation = barrier(), parsedReplyHeld = barrier();
+  let foreignPublished = false, ownResponsePublished = false, heldReadsAfterResponse = 0;
   const deferredResume = options.deferResumeResponse || options.deferResumeApplication;
   let backgroundResume;
   let actualNormalClaim, acceptanceClaims = 0;
@@ -164,7 +164,7 @@ export async function stationNavigationResumeFixture(options = {}) {
       const response = { request: () => request, url: request.url, status: () => options.httpStatus ?? 200,
         json: async () => options.responseBodyPending ? new Promise(() => {}) :
           options.responseError ? { error: { status: 'PERMISSION_DENIED' } } : { result: reply } };
-      if (!options.hideResponse) events.emit('response', response);
+      if (!options.hideResponse) { events.emit('response', response); ownResponsePublished = true; }
       if (options.deferResumeApplication) await applicationGate.promise;
       return { data: reply };
     },
@@ -221,6 +221,11 @@ export async function stationNavigationResumeFixture(options = {}) {
   f.crew.page.evaluate = async (callback, input) => {
     if (typeof input === 'string') {
       const value = await originalEvaluate(callback, input);
+      // A second public-consumer read proves that its preceding accept call
+      // consumed the parsed own response without accepting or rejecting 4/1.
+      if (ownResponsePublished && value.connectionGeneration === start.me.connectionGeneration + 1 &&
+          value.identityHydrationRevision === start.identityHydrationRevision && ++heldReadsAfterResponse >= 2)
+        parsedReplyHeld.release(value);
       if (foreignPublished && value.connectionGeneration === start.me.connectionGeneration + 1 &&
           value.identityHydrationRevision === start.identityHydrationRevision) foreignObservation.release(value);
       if ((deferredResume || options.unmatchedLeaseBeforeRetry) && value.connectionGeneration === start.me.connectionGeneration + (options.externalGenerationDelta ?? 1) &&
@@ -339,6 +344,7 @@ export async function stationNavigationResumeFixture(options = {}) {
     started: { fullGameDemo: { status: 'active', progression: 'manual' } },
     roster: [{ roleId, uidHash: sha(uid) }], directory });
   return { ...f, sdkRequests, application, seatClaims, lifecycleCommands, clientJoin, clientAssignRole, clientReleaseRole, directory, events, adapter,
+    parsedReplyHeldObserved: () => parsedReplyHeld.promise,
     requestObserved: () => requestObserved.promise, earlyGenerationObserved: () => earlyObservation.promise,
     releaseResumeResponse: responseGate.release, releaseResumeApplication: applicationGate.release,
     finishPendingResume: () => backgroundResume,
