@@ -438,7 +438,7 @@ test('recovery artifacts inside the worktree are rejected before mutation', asyn
   }
 });
 
-async function installPrePushRace(fixture, { kind, raceSha }) {
+async function installPrePushRace(fixture, { kind, raceSha = '' }) {
   const hooksPath = join(fixture.root, 'hooks');
   await mkdir(hooksPath);
   await fixture.runGit(['config', 'core.hooksPath', hooksPath]);
@@ -448,6 +448,8 @@ async function installPrePushRace(fixture, { kind, raceSha }) {
     '  git --git-dir="$BRANCH_CLEANUP_RACE_ORIGIN" update-ref "$BRANCH_CLEANUP_RACE_REF" "$BRANCH_CLEANUP_RACE_SHA"',
     'elif [ "${BRANCH_CLEANUP_RACE_KIND:-}" = "local" ]; then',
     '  git -C "$BRANCH_CLEANUP_RACE_REPO" update-ref "$BRANCH_CLEANUP_RACE_REF" "$BRANCH_CLEANUP_RACE_SHA"',
+    'elif [ "${BRANCH_CLEANUP_RACE_KIND:-}" = "root-reattach" ]; then',
+    '  git -C "$BRANCH_CLEANUP_RACE_REPO" symbolic-ref HEAD "$BRANCH_CLEANUP_RACE_REF"',
     'fi',
     'exit 0',
   ].join('\n') + '\n';
@@ -514,6 +516,25 @@ test('local CAS retains a replacement already merged to default after remote del
     assert.equal(await fixture.remoteSha(), null);
     assert.equal(report.recovery.bundleSha256, await fileSha(report.recovery.bundlePath));
     assert.notEqual(originalTip, raceSha);
+  } finally {
+    restoreRace?.();
+    await fixture.dispose();
+  }
+});
+
+test('cleanup retains the local ref if the initiating checkout is reattached during remote deletion', async () => {
+  const fixture = await createBranchCleanupFixture();
+  let restoreRace;
+  try {
+    const localTip = await fixture.localSha();
+    restoreRace = await installPrePushRace(fixture, { kind: 'root-reattach' });
+    const report = await fixture.cleanup({ apply: true });
+    expectReason(report, 'branch-in-other-worktree');
+    assert.equal(report.actions.remoteBranchRemoved, true);
+    assert.equal(report.actions.localBranchRemoved, false);
+    assert.equal(await fixture.localSha(), localTip);
+    assert.equal(await fixture.remoteSha(), null);
+    assert.equal(await fixture.runGit(['branch', '--show-current']), fixture.branchName);
   } finally {
     restoreRace?.();
     await fixture.dispose();
