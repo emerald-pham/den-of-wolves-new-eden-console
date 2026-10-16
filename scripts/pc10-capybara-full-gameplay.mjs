@@ -543,6 +543,67 @@ export function capybaraFullGameDemoOptions(options = {}) {
   };
 }
 
+/** Acknowledge blocking unrest dialogs through the original GM's ordinary UI. */
+export async function acknowledgeBlockingUnrestAlerts({ gm, originalGm, maxDismissals = 32 } = {}) {
+  assert.ok(gm?.page && typeof gm.observe === 'function', 'The original GM page and observer are required.');
+  assert.ok(originalGm?.sessionId && originalGm.uidHash && originalGm.instanceId,
+    'A pinned original GM identity is required to acknowledge unrest alerts.');
+  assert.ok(Number.isSafeInteger(maxDismissals) && maxDismissals > 0);
+
+  async function assertOriginalGm() {
+    const current = await gm.observe();
+    for (const key of ['sessionId', 'uidHash', 'instanceId', 'playerRole', 'gmInstanceOwned']) {
+      assert.equal(current[key], originalGm[key], `The original GM ${key} must remain current while acknowledging unrest.`);
+    }
+    assert.equal(current.playerRole, 'gm');
+    assert.equal(current.gmInstanceOwned, true);
+  }
+
+  await assertOriginalGm();
+  const page = gm.page;
+  const alert = page.getByRole('alertdialog', { name: 'Unrest threshold exceeded', exact: true });
+  const receipts = [];
+  for (let index = 0; index < maxDismissals; index += 1) {
+    if (!(await alert.isVisible())) return receipts;
+
+    const text = await alert.innerText();
+    const match = text.match(/([^\n]+?) has exceeded the maximum unrest dial rating of 7\./i);
+    assert.ok(match, 'The visible unrest dialog must identify its ship and threshold.');
+    const alertLine = match[0].trim();
+    const shipName = match[1].trim();
+    const currentAlert = alert.filter({ hasText: alertLine });
+    const responsePromise = page.waitForResponse(response =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname.endsWith('/us-central1/dismissUnrestAlert'),
+    { timeout: 15_000 });
+
+    try {
+      await alert.getByRole('button', { name: 'Dismiss unrest alert', exact: true }).click();
+    } catch (error) {
+      await responsePromise.catch(() => undefined);
+      throw error;
+    }
+
+    const response = await responsePromise;
+    const body = await response.json();
+    assert.equal(response.ok(), true, `dismissUnrestAlert: ${body.error?.message ?? response.status()}`);
+    const request = response.request();
+    const payload = request.postDataJSON()?.data;
+    assert.equal(payload?.sessionId, originalGm.sessionId);
+    assert.equal(payload?.instanceId, originalGm.instanceId);
+    assert.equal(typeof payload?.shipId, 'string');
+    assert.equal(body.result?.shipId, payload.shipId);
+    assert.equal(body.result?.dismissed, true, 'The server must commit the actual alert acknowledgement.');
+
+    await currentAlert.waitFor({ state: 'hidden', timeout: 15_000 });
+    await assertOriginalGm();
+    receipts.push({ shipId: payload.shipId, shipName, httpStatus: response.status(), dismissed: true });
+  }
+
+  assert.equal(await alert.isVisible(), false, `At most ${maxDismissals} blocking unrest alerts may need acknowledgement.`);
+  return receipts;
+}
+
 /** Lazy-loads Playwright only when an owner explicitly starts the real runner. */
 export async function runFreshCapybaraFullGameUi(options = {}) {
   const { runFreshFullGameDemoUi } = await import('./pc10-full-game-demo-ui-proof.mjs');
@@ -1103,6 +1164,11 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
     }
   }
   async function advance() {
+    const unrestAcknowledgements = await acknowledgeBlockingUnrestAlerts({ gm, originalGm });
+    for (const receipt of unrestAcknowledgements) a.actions.push({
+      roleId: 'gm', endpoint: 'dismissUnrestAlert', ...receipt,
+      transport: 'actual original-GM Dismiss unrest alert button', renderedStatus: 'alert-hidden',
+    });
     await coordination();
     const before = await gm.observe();
     await uiRpc('gm', 'advanceTurn', async page => {
