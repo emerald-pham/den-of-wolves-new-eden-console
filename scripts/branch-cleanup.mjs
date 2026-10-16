@@ -335,6 +335,24 @@ async function originIdentityAt(path) {
   }
 }
 
+async function candidateOriginReason(context) {
+  const candidateOrigin = await originIdentityAt(context.root);
+  if (!candidateOrigin) {
+    return {
+      code: 'origin-identity-unverified',
+      message: 'Origin must have one matching, verifiable effective fetch and push destination before cleanup.',
+    };
+  }
+  if (context.originIdentity && context.originIdentity !== candidateOrigin) {
+    return {
+      code: 'origin-identity-changed',
+      message: 'The verified origin destination changed during cleanup; remaining branch refs were retained.',
+    };
+  }
+  context.originIdentity = candidateOrigin;
+  return null;
+}
+
 async function ledgerIdentity(entry) {
   if (typeof entry?.repositoryIdentity === 'string' && entry.repositoryIdentity.trim()) {
     return canonicalPath(entry.repositoryIdentity);
@@ -535,20 +553,8 @@ async function inspectCandidate(report, context, { allowCurrentWorktree = true }
     const local = await branchSha(root, branch);
     report.local = { exists: Boolean(local), sha: local };
 
-    const candidateOrigin = await originIdentityAt(root);
-    if (!candidateOrigin) {
-      return { reason: {
-        code: 'origin-identity-unverified',
-        message: 'Origin must have one matching, verifiable effective fetch and push destination before cleanup.',
-      } };
-    }
-    if (context.originIdentity && context.originIdentity !== candidateOrigin) {
-      return { reason: {
-        code: 'origin-identity-changed',
-        message: 'The verified origin destination changed during cleanup; branch refs were retained.',
-      } };
-    }
-    context.originIdentity = candidateOrigin;
+    const originReason = await candidateOriginReason(context);
+    if (originReason) return { reason: originReason };
     const defaultName = await defaultBranchName(root);
     if (!defaultName || !isValidBranchName(defaultName)) {
       return { reason: { code: 'remote-default-unknown', message: 'The origin default branch could not be identified safely.' } };
@@ -999,6 +1005,8 @@ async function cleanupBranchInternal({
   }
 
   try {
+    const originReason = await candidateOriginReason(context);
+    if (originReason) return addReason(report, originReason.code, originReason.message);
     if (rechecked.remote) {
       try {
         await run('git', [
@@ -1065,6 +1073,8 @@ async function cleanupBranchInternal({
       const attached = await branchWorktreeReason(root, targetBranch);
       if (attached) return addReason(report, attached.code, attached.message);
       await headGuards.verify();
+      const localOriginReason = await candidateOriginReason(context);
+      if (localOriginReason) return addReason(report, localOriginReason.code, localOriginReason.message);
       await localBranchHeadTransaction(root, targetBranch, inspected.local, { remove: true });
       report.actions.localBranchRemoved = true;
     } catch (error) {
