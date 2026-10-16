@@ -285,3 +285,33 @@ deletion claim. The original failed receipt and exact invocation are retained.
 | `transport-audit-native-receipt.json` | `7872e7d8a91efdc2ff2b1fee1227fc96cb7c548d7d959ec94d40217894ee1bae` |
 | `runtime invocation-source.mjs` | `57710699968767f3d452ed9ccb90fe01d5db23e86dcc045ce2e8d2b298e6e13d` |
 | `runtime strict-return.json` | `3b41cfaeab15f8c2f6e9cc8720b4be083802bc1402c229a835c71a2840b62c49` |
+
+
+## Transport a4 — first GM setup passed; second GM local-grant control not observed
+
+Source `24f95fbdb2f3a3c0daee95da064b65c348986ce6`, fresh project
+`demo-pc10-transport-f9f3-20261016-a4`, evidence
+`/private/tmp/pc10-transport-proof-f9f3-20261016-a4`.
+
+The scoped Settings session-code read passed, followed by the original GM's
+local grant and eight-role setup. The second browser completed its normal
+motion choice and join/consent sequence. The first failure was
+`gm-b-settings-local-grant-present`, code
+`local-emulator-gm-settings-control-not-present`, at 07:20:17.247 UTC.
+This records the control observation failure; its cause remains under source
+diagnosis. It does not establish a product authorization defect. The candidate
+race, ordinary-role action, cadence, telemetry and audit checks were not reached.
+Expected cohort values remain planned, not proof of all actors or seats.
+
+Acquisition was 07:19:20.121 UTC. Proof and both wrappers ended; strict return
+was 07:21:12.239 UTC, all 30 captured owned PIDs absent, all 22 bindings free,
+exact configuration released. All three browser contexts and BrowserServer
+exited normally; a complete Chrome descendant census was not captured.
+RAM was discarded without import/export or per-UID deletion claim. No new
+prompt completion, CI, deployment or release credit is earned.
+
+| Transport a4 artifact | SHA-256 |
+| --- | --- |
+| `transport-audit-native-receipt.json` | `c7bab4e8c934cd178c8c7d3e5f92fbbe5ab881ded0c682ad5d3560ae9f0e54d9` |
+| `runtime invocation-source.mjs` | `6a74a629522698652ac5a6cf8dc836db51cf54ebc44da2de35c008e28825d04a` |
+| `runtime strict-return.json` | `796e54a7df693fe8acab3e19d65cca8ac72e7754c4fe532c327cf6b369444ec4` |
