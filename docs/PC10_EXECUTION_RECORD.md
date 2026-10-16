@@ -1578,3 +1578,66 @@ Bravo. Functions, rules, operator, authority and cleanup gates are unchanged.
 All 48 PC10 IDs remain unfinished, 14 partial/34 missing, at 703/751 overall and
 245/293 campaign; no new closure, final rendered/typography, CI, deployment,
 release, later checkpoint or licensing credit.
+
+## Reconciled Refinery paid-jump repair
+
+The inherited product rejected a valid private `results.ftl` maintenance entry
+left by an ordinary paid jump, preventing a charged Refinery Fighter Bay from
+launching. The retained c71d0bf69 repair was not merged wholesale: its historical
+source was reused only as the narrow allowlist patch. A new current regression
+was observed failing at the public launch-authority boundary (one failed,
+45 passing), then committed alone at `4fa065af` before implementation.
+
+The minimal implementation accepts only the additional string-valued private
+FTL result. Existing role, cycle, charge, attack and operational-state authority
+still apply; malformed or unknown results remain denied. The test also proves
+that both ordinary parsed maintenance and public maintenance-event projections
+exclude the private FTL text. Focused launch/maintenance/event tests pass after
+the change. RED/GREEN logs are retained outside Git under
+`/tmp/pc10-implementation-notes-20261015/refinery-ftl-{red,green}.log`.
+This is current domain/projection evidence, not a normal authenticated launch,
+whole role acceptance or deployment proof. Independent risk review remains.
+
+## Privacy frontier assignment
+
+A separate Luna Max worker owns Q1/Q2/Q3 verification and bounded repairs in
+`/tmp/dow-pc10-privacy-resume-f9f3`, branch `pc10/privacy-resume-f9f3`, based on
+integration `2f0656ea`. Scope is loyalty/Wolf/notes, organiser-chart navigation,
+and mission hands/hidden outcomes through existing projection and Firestore
+rules boundaries. It may claim one free shared emulator row atomically for
+Rules checks against a fresh local demo namespace only; no browsers, production
+services, old recovery namespaces or another task's row. Root acknowledges this
+specific Rules-only allocation. It returns the exact Rules/projection evidence
+and remaining ordinary-workflow gaps, with any functional repair requiring
+observed RED and a separate test-first commit. It does not change unrelated
+callables, campaign accounting, release metadata or owner decisions. Root
+remains responsible for the final reconciled privacy review and whole prompt
+closure; fixture-based Rules proof is labeled separately from normal gameplay.
+
+## D1/D2 verification handoff and worker cleanup
+
+The candidate worker verified 148 selected domain/callable/projection, actual
+arrival/scout consumer and UI tests on the reconciled tree. No new behavior or
+tests were necessary. Its criterion map and commands remain at
+`/tmp/pc10-implementation-notes-20261015/candidate-discovery.md`. Rules, browser,
+HTTP and ordinary gameplay gaps remain explicit; no prompt is marked done.
+
+Root removed the terminal worker checkout
+`/tmp/dow-pc10-candidate-resume-f9f3` after confirming clean tracked/untracked
+state, no matching live process, no dependency symlinks and HEAD ancestry in the
+retained integration branch. Root's owner-reviewed preservation decision keeps
+its branch ref and external evidence; its sole ignored file was reproducible
+casting-core build output. No unique source or needed recovery data was removed.
+
+## Wing mission verification frontier
+
+A bounded Sol 6.1 High worker owns W1/W2 acceptance mapping and the smallest
+remaining ordinary Wing mission proof in `/tmp/dow-pc10-wing-resume-f9f3`, branch
+`pc10/wing-resume-f9f3`, based on integration `e5d8d990`. Preserve accepted
+Starlight/scout/bay evidence and all old E21/E22 data. Reuse existing tested
+proof interfaces rather than building a replacement harness. Before runtime,
+return the exact minimal invocation, source/build/actor scope, realistic startup
+and teardown plan, and any genuine blocker to root for a bounded resource grant.
+No old frozen packet or former canonical-parent grant is adopted. Any new
+functional repair follows current observed-RED/test-commit-before-code rules.
+Root retains final prompt closure, integration and release ownership.
