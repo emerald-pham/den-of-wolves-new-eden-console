@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
-import { resolveAndDeliverMissionThroughMountedUi } from './pc10-mission-lifecycle-consumer.mjs';
+import { startMissionDealThroughMountedUi, resolveAndDeliverMissionThroughMountedUi } from './pc10-mission-lifecycle-consumer.mjs';
 import { candidateGameplayTools } from './pc10-candidate-manual-ui-proof.mjs';
 import { advanceBaseDetectorResearch, runBaseCombatAndDeduction } from './pc10-base-combat-deduction-ui-proof.mjs';
 import { completeOfferedTurnAdvance } from './pc10-full-game-demo-proof-helpers.mjs';
@@ -1329,7 +1329,7 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
       { roleId: 'capybara-recycler', verify: inspectRenderedAction({ regionName: 'Boa mission reclamation',
         resultStatuses: [...SUCCESS_RESULT_STATUSES], renderedStatusCode: 'mission-choice-visible' }) });
     await mark('normal GM UI selects connected mission participants and leader');
-    const dealt = await uiRpc('gm', 'dealPrivateInitialCards', async page => {
+    const dealt = await startMissionDealThroughMountedUi({ deal: () => uiRpc('gm', 'dealPrivateInitialCards', async page => {
       const panel = page.getByRole('region', { name: 'New-location mission start', exact: true });
       const labelFor = role => {
         const actor = roster.find(value => value.roleId === role);
@@ -1340,7 +1340,7 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
         await panel.getByRole('checkbox', { name: labelFor(role), exact: true }).check();
       await panel.getByRole('combobox', { name: 'Mission Leader', exact: true }).selectOption({ label: labelFor('wing-commander') });
       await panel.getByRole('button', { name: 'Start mission', exact: true }).click();
-    });
+    }) });
     checks.realMissionStartAndExactRetry = true;
     await mark('normal mission private requests, discard and assignment');
     const missionId = dealt.missionId;

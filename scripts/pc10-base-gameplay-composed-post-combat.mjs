@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
-import { resolveAndDeliverMissionThroughMountedUi } from './pc10-mission-lifecycle-consumer.mjs';
+import { startMissionDealThroughMountedUi, resolveAndDeliverMissionThroughMountedUi } from './pc10-mission-lifecycle-consumer.mjs';
 import { candidateGameplayTools } from './pc10-candidate-manual-ui-proof.mjs';
 import { advanceBaseDetectorResearch, runBaseCombatAndDeduction } from './pc10-base-combat-deduction-ui-proof.mjs';
 import { completeOfferedTurnAdvance } from './pc10-full-game-demo-proof-helpers.mjs';
@@ -709,7 +709,7 @@ export async function runBaseGameplay(context, integration) {
     let mission = null, missionPrivateComplete = false, delivered = null;
     const candidate = await currentMissionStartCandidate(2);
     if (candidate.status === 'ready') {
-      const dealt = await uiRpc('gm', 'dealPrivateInitialCards', async page => {
+      const dealt = await startMissionDealThroughMountedUi({ deal: () => uiRpc('gm', 'dealPrivateInitialCards', async page => {
         const confirmed = await confirmMissionStartCandidate(candidate, 2);
         const panel = page.getByRole('region', { name: 'New-location mission start', exact: true });
         for (const roleId of confirmed.currentTeam.participantRoleIds) {
@@ -725,7 +725,7 @@ export async function runBaseGameplay(context, integration) {
         const start = panel.getByRole('button', { name: 'Start mission', exact: true });
         assert.equal(await start.isEnabled(), true, 'Start only the exact mounted opportunity and selected current group roster.');
         await start.click();
-      }, { expectedCycle: 2 });
+      }, { expectedCycle: 2 }) });
       if (dealt.currentSourceBlocked) {
         pending('source-mission-start', dealt.blockerCodes, { groupId: candidate.opportunity.groupId, cycle: 2 });
       } else {

@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 
 /** Shared mounted-UI mission lifecycle sequence used by the bounded PC10 proof consumers. */
+export async function startMissionDealThroughMountedUi({ deal }) {
+  return deal();
+}
+
 export async function resolveAndDeliverMissionThroughMountedUi({
   missionId, missionLeaderRoleId, addFacilitatorCards, resolveMission, deliverMission, strict = false,
 }) {
