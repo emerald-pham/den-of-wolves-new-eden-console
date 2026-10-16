@@ -430,14 +430,15 @@ describe('candidate-loss actor recovery through the current member surface', () 
     const discoveries = screen.getByRole('region', { name: 'Candidate discoveries' });
     expect(within(discoveries).getAllByText('Deep Nebula')).toHaveLength(2);
     expect(within(discoveries).getByText(/the ship was lost within the Deep Nebula/i)).toBeVisible();
-    const begin = screen.getByRole('button', { name: /begin maintenance cycle/i });
+    const begin = screen.getByRole('button', { name: 'Begin Maintenance Cycle: Cycle 6', exact: true });
     expect(begin).toBeDisabled();
     expect(within(discoveries).getByText(/Next actor \/\/ Each ship chooses its long jump/i)).toBeVisible();
     expect(within(discoveries).queryByRole('button', { name: /^Long jump into Nebula \/\/ aegis \/\// }))
       .not.toBeInTheDocument();
   });
 
-  it('resumes the historical loss through the original actor SDK read after real player projection omits it', async () => {
+  it.each(['server', 'cached', 'pending', 'denied', 'foreign-auth', 'changed-actor', 'revoked'])(
+    'resumes only the original actor server loss after real player projection omits it // %s', async mode => {
     await mountCandidateLoss('/console');
     const projected = useSessionStore.getState().me!;
     expect(projected.uid).toBe('admiral');
@@ -471,8 +472,11 @@ describe('candidate-loss actor recovery through the current member surface', () 
               getDocFromServer: async ({ path }: { path: string }) => {
                 paths.push(path);
                 expect(path).toBe('sessions/s1/players/admiral');
-                return { exists: () => true, data: () => rawPlayer,
-                  metadata: { fromCache: false, hasPendingWrites: false } };
+                if (mode === 'denied') throw Object.assign(new Error('permission-denied'), { code: 'permission-denied' });
+                if (mode === 'foreign-auth') sdk.auth.currentUser = { uid: 'foreign-actor' };
+                if (mode === 'changed-actor') useSessionStore.setState({ me: { ...projected, activeConsoleRoleId: 'executive-officer' } });
+                return { exists: () => true, data: () => mode === 'revoked' ? { ...rawPlayer, connected: false } : rawPlayer,
+                  metadata: { fromCache: mode === 'cached', hasPendingWrites: mode === 'pending' } };
               },
             };
             throw new Error(`Unexpected browser module ${path}`);
@@ -481,8 +485,12 @@ describe('candidate-loss actor recovery through the current member surface', () 
       },
     };
     vi.useRealTimers();
-    const historical = await waitForActorCandidateDisposition(surface,
-      { code: 'O', outcome: 'lost', cycle: 6 }, 50);
+    const pending = waitForActorCandidateDisposition(surface, { code: 'O', outcome: 'lost', cycle: 6 }, 50);
+    if (mode !== 'server') {
+      await expect(pending).rejects.toThrow(/server|pending|permission-denied|actor|authority|connected/i);
+      return;
+    }
+    const historical = await pending;
     expect(historical).toMatchObject({ sessionId: 's1', activeConsoleRoleId: 'admiral',
       candidateDisposition: { code: 'O', outcome: 'lost', cycle: 6 } });
     expect(paths).toEqual(['sessions/s1/players/admiral']);
