@@ -2410,7 +2410,27 @@ export async function closeSession(): Promise<SessionDebriefActionResult> {
 
 /** Read the full candidate summary only when the server confirms a live facilitator lease. */
 export async function getSessionDebrief(): Promise<NonNullable<GameSession['debriefSnapshot']>> {
+  const original = currentDebriefGmAuthority();
+  // Persisted GM identity is renderable before Firebase restores the original
+  // account. Immutable history does not need an interactive gameplay feed, but
+  // its private callable must never dispatch under a missing/replacement UID.
+  let restorationTimeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      ensureAnonymousAuth(auth(), original.gmInstance.uid),
+      new Promise<never>((_, reject) => {
+        restorationTimeout = setTimeout(() => reject(new Error('GM authentication restoration timed out.')),
+          COMMAND_RECONNECT_WINDOW_MS);
+      }),
+    ]);
+  } finally {
+    clearTimeout(restorationTimeout);
+  }
   const { session, gmInstance } = currentDebriefGmAuthority();
+  if (session.id !== original.session.id || gmInstance.id !== original.gmInstance.id ||
+      gmInstance.uid !== original.gmInstance.uid || gmInstance.claimedAt !== original.gmInstance.claimedAt) {
+    throw new Error('GM debrief identity changed during authentication restoration.');
+  }
   if (session.phase !== 'debrief' && session.phase !== 'closed') {
     throw new Error('A committed debrief is required for facilitator history.');
   }

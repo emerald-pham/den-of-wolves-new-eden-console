@@ -140,6 +140,8 @@ export default function EndgameDialog() {
   const reviewRef = useRef<HTMLButtonElement | null>(null);
   const [dismissedKey, setDismissedKey] = useState<string | null>(null);
   const [gmSnapshot, setGmSnapshot] = useState<SessionDebriefSnapshot | null>(null);
+  const [readError, setReadError] = useState<string | null>(null);
+  const [readRetry, setReadRetry] = useState(0);
   const [actionPending, setActionPending] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -157,17 +159,22 @@ export default function EndgameDialog() {
   useEffect(() => {
     if (!session || !hasLiveGmInstance || (session.phase !== 'debrief' && session.phase !== 'closed')) {
       setGmSnapshot(null);
+      setReadError(null);
       return;
     }
     let current = true;
     setGmSnapshot(null);
+    setReadError(null);
     void getSessionDebrief().then(snapshot => {
       if (current) setGmSnapshot(snapshot);
     }).catch(() => {
-      if (current) setGmSnapshot(null);
+      if (current) {
+        setGmSnapshot(null);
+        setReadError('The server could not read the committed facilitator debrief. Check the GM connection and retry.');
+      }
     });
     return () => { current = false; };
-  }, [hasLiveGmInstance, gmInstance?.id, session?.id, session?.phase, session?.debriefSnapshot?.committedAt]);
+  }, [hasLiveGmInstance, gmInstance?.id, readRetry, session?.id, session?.phase, session?.debriefSnapshot?.committedAt]);
 
   if (!session || !outcomeKey) return null;
 
@@ -220,9 +227,15 @@ export default function EndgameDialog() {
             <CandidateSummary snapshot={displayedDebrief} />
             <SurvivorSummary snapshot={displayedDebrief} />
           </>}
-          {hasLiveGmInstance && session.phase === 'debrief' && !gmSnapshot && !session.debriefSnapshot && (
+          {hasLiveGmInstance && session.phase === 'debrief' && !gmSnapshot && !session.debriefSnapshot && !readError && (
             <p role="status">Reading the committed facilitator debrief…</p>
           )}
+          {readError && <>
+            <p className="endgame-debrief__error" role="alert">{readError}</p>
+            <button className="cic-action-button" type="button" onClick={() => setReadRetry(value => value + 1)}>
+              Retry facilitator debrief
+            </button>
+          </>}
           {canBegin && <button className="cic-action-button cic-action-button--confirm" type="button"
             disabled={actionPending} onClick={() => void runLifecycleAction('begin')}>
             {actionPending ? 'Freezing debrief…' : 'Freeze failure into debrief'}
