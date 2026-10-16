@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import {
   CAPYBARA_REQUIRED_STAGES,
   CAPYBARA_STAGE_SCHEDULE,
@@ -401,6 +402,7 @@ test('cycle advance acknowledges a blocking unrest alert through the original GM
   const page = {
     getByRole: (role, options) => {
       assert.equal(role, 'alertdialog');
+      if (options.name === 'Survivor population threshold reached') return { isVisible: async () => false };
       assert.deepEqual(options, { name: 'Unrest threshold exceeded', exact: true });
       return dialog;
     },
@@ -504,4 +506,95 @@ test('Macaw consent stage stays pending for absent replay, self-consent, stale p
     { applied: { ...valid.applied, scrapGain: 2 } },
   ];
   for (const patch of variants) assert.equal(macawDismantlingStageOutcome({ ...valid, ...patch }).status, 'pending');
+});
+
+// This fixture models the existing PopulationAlert control and its actual callable
+// envelope. It exercises the proof consumer; it does not claim native gameplay.
+function populationAcknowledgementFixture({ replyPatch = {}, requestPatch = {}, sourcePatch = {},
+  identityPatch = {}, retainDialog = false } = {}) {
+  const actorUid = 'original-gm-auth-uid';
+  const originalGm = { ...originalEndingGm(), cycle: 1, phase: 'active', sameActor: true,
+    connection: 'live', freshness: 'server',
+    uidHash: createHash('sha256').update(actorUid).digest('hex').slice(0, 16) };
+  let visible = true, observations = 0, resolveResponse;
+  const actions = [];
+  const source = { sessionId: originalGm.sessionId, cycle: 1, phase: 'active', live: true,
+    populationAlerts: { icebreaker: { shipId: 'icebreaker', shipName: 'Icebreaker', population: 28000,
+      targetGmInstanceIds: [originalGm.instanceId], createdAt: 'source-alert' } },
+    vesselActionRevisions: { icebreaker: 4 }, ...sourcePatch };
+  const request = { sessionId: originalGm.sessionId, instanceId: originalGm.instanceId,
+    shipId: 'icebreaker', expectedRevision: 4, requestId: 'normal-ui-request', ...requestPatch };
+  const response = {
+    url: () => 'http://127.0.0.1:5031/demo-game/us-central1/dismissPopulationAlert',
+    request: () => ({ method: () => 'POST', postDataJSON: () => ({ data: request }) }),
+    ok: () => true, status: () => 200,
+    json: async () => ({ result: { dismissed: true, actorUid, actorRoleId: null,
+      vesselId: 'icebreaker', turn: 1, phase: 'active', revision: 5,
+      idempotencyKey: 'normal-ui-request', auditId: 'dismiss-population-normal-ui-request', ...replyPatch } }),
+  };
+  const dialog = {
+    isVisible: async () => visible,
+    innerText: async () => 'Immediate command attention required\nSurvivor population threshold reached\nIcebreaker survivor population has reached 28,000. A census threshold requires GM attention.',
+    filter: ({ hasText }) => { assert.equal(hasText, 'Icebreaker survivor population has reached 28,000.'); return dialog; },
+    getByRole: (role, options) => {
+      assert.equal(role, 'button');
+      assert.deepEqual(options, { name: 'Dismiss population alert', exact: true });
+      return { click: async (...args) => {
+        assert.equal(args.length, 0, 'No forced clicks or alternate mutation path.');
+        actions.push('normal-population-dismiss');
+        if (!retainDialog) visible = false;
+        resolveResponse(response);
+      } };
+    },
+    waitFor: async ({ state }) => {
+      assert.equal(state, 'hidden');
+      assert.equal(visible, false, 'The actual source alert must leave the DOM.');
+      actions.push('rendered-dismissal');
+    },
+  };
+  const gm = {
+    observe: async () => ({ ...originalGm, ...(observations++ > 0 ? identityPatch : {}) }),
+    storeModuleUrl: () => '/src/store/useSessionStore.ts',
+    page: {
+      getByRole: (role, options) => {
+        assert.equal(role, 'alertdialog');
+        if (options.name === 'Unrest threshold exceeded') return { isVisible: async () => false };
+        assert.deepEqual(options, { name: 'Survivor population threshold reached', exact: true });
+        return dialog;
+      },
+      evaluate: async () => structuredClone(source),
+      waitForResponse: (matches, options) => {
+        assert.equal(options.timeout, 15000); assert.equal(matches(response), true);
+        return new Promise(resolve => { resolveResponse = value => { actions.push('server-receipt'); resolve(value); }; });
+      },
+    },
+  };
+  return { gm, originalGm, actions };
+}
+
+test('cycle advance consumes the normal source population alert and rejects mismatched authority, receipt or DOM', async () => {
+  const { acknowledgeBlockingUnrestAlerts } = await import('./pc10-capybara-full-gameplay.mjs');
+  const valid = populationAcknowledgementFixture();
+  const receipts = await acknowledgeBlockingUnrestAlerts(valid);
+  assert.deepEqual(receipts, [{ shipId: 'icebreaker', shipName: 'Icebreaker', population: 28000,
+    cycle: 1, revision: 5, httpStatus: 200, dismissed: true }]);
+  assert.deepEqual(valid.actions, ['normal-population-dismiss', 'server-receipt', 'rendered-dismissal']);
+  assert.equal(JSON.stringify(receipts).includes('original-gm-auth-uid'), false);
+  for (const invalid of [
+    { replyPatch: { dismissed: false } }, { replyPatch: { status: 'stale' } },
+    { replyPatch: { vesselId: 'capybara' } }, { replyPatch: { turn: 2 } },
+    { replyPatch: { actorUid: 'foreign-auth-uid' } }, { replyPatch: { revision: 4 } },
+    { replyPatch: { idempotencyKey: 'other-request' } },
+    { requestPatch: { sessionId: 'other-session' } }, { requestPatch: { instanceId: 'other-instance' } },
+    { requestPatch: { shipId: 'capybara' } }, { requestPatch: { expectedRevision: 3 } },
+    { sourcePatch: { cycle: 2 } }, { sourcePatch: { live: false } },
+    { sourcePatch: { populationAlerts: { icebreaker: { shipId: 'icebreaker', shipName: 'Icebreaker',
+      population: 28000, targetGmInstanceIds: ['other-instance'] } } } },
+    { identityPatch: { uidHash: 'other-gm' } }, { identityPatch: { instanceId: 'other-instance' } },
+    { identityPatch: { cycle: 2 } }, { identityPatch: { sameActor: false } },
+    { retainDialog: true },
+  ]) {
+    const fixture = populationAcknowledgementFixture(invalid);
+    await assert.rejects(() => acknowledgeBlockingUnrestAlerts(fixture), JSON.stringify(invalid));
+  }
 });
