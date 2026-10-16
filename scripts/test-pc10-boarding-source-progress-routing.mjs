@@ -62,13 +62,23 @@ function sourceFixture({ mode = 'base', after = {}, progressAfterReads = 2, neve
     militiaUidByTarget: {}, militiaChoices: {}, rollsLocked: true, diceCounts: { aegis: 1 },
     aegisRerollActorUid: 'native-executive', pallasRerollActorUid: 'native-executive',
     rerollChoices: { aegis: {}, pallas: {} },
-    ...(commanderTarget ? { commanderUid: 'native-commander', commanderChoice: { target: commanderTarget } } : {}),
+    ...(commanderTarget ? { commanderUid: 'native-commander', commanderChoice: { target: commanderTarget },
+      ...(initialRuling?.boardingCommanderRulingRequiredTarget !== undefined
+        ? { commanderRulingRequiredTarget: initialRuling.boardingCommanderRulingRequiredTarget } : {}),
+      ...(initialRuling?.boardingCommanderRuling
+        ? { commanderRuling: { actorUid: 'native-gm', text: initialRuling.boardingCommanderRuling.text } } : {}) } : {}),
   };
   if (notYourChoice) {
     protocol.attackedTargets = [{ target: 'shepherd', boardingParties: 4 }];
     protocol.defenceChoices = {}; protocol.crewActorUidsByTarget = { shepherd: ['native-engineer'] };
     assert.deepEqual(nextWolfBoardingStage(protocol), { kind: 'defence', actorUids: ['native-engineer'], target: 'shepherd' });
-  } else assert.deepEqual(nextWolfBoardingStage(protocol), { kind: 'complete' });
+  } else {
+    const rulingTarget = initialRuling?.boardingCommanderRulingRequiredTarget ?? commanderTarget;
+    const expectedStage = rulingTarget && !initialRuling?.boardingCommanderRuling
+      ? { kind: 'commander-ruling', target: rulingTarget }
+      : { kind: 'complete' };
+    assert.deepEqual(nextWolfBoardingStage(protocol), expectedStage);
+  }
   const commanderUid = 'native-original-commander';
   if (briefCommander) {
     protocol.commanderUid = commanderUid; protocol.commanderChoice = { target: null };
