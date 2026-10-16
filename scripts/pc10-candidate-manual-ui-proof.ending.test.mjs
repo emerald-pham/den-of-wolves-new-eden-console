@@ -46,7 +46,6 @@ function endingFixture({ status = 200, preDelivered = false } = {}) {
           const waiter = { predicate, resolve: resolveResponse, timer: null };
           waiter.timer = setTimeout(() => { waiters.delete(waiter); rejectResponse(new Error('debrief response readiness deadline expired')); }, timeout);
           waiters.add(waiter);
-          if (!preDelivered) makeResponseReady();
         }),
         screenshot: async () => {},
         reload: async () => {
@@ -62,13 +61,17 @@ function endingFixture({ status = 200, preDelivered = false } = {}) {
         const current = { phase: 'debrief', fullGameDemo: { status: 'complete', progression: 'manual' },
           sessionId, uidHash: 'same-actor', playerRole: kind === 'gm' ? 'gm' : 'player',
           hasAuth: true, sameActor: true, gmInstanceOwned: kind === 'gm', instanceId: kind === 'gm' ? instanceId : null,
+          debriefType: 'session-debrief', debriefVersion: 1, debriefSource: 'candidate',
+          debriefResult: 'success', debriefCycle: 4,
           connection: 'live', freshness: 'server' };
         if (predicate) assert.equal(predicate(current), true);
         return current;
       },
       observe: async () => ({ sessionId, uidHash: 'same-actor', profileRoleId: 'crew-role',
         playerRole: kind === 'gm' ? 'gm' : 'player', instanceId: kind === 'gm' ? instanceId : null,
-        gmInstanceOwned: kind === 'gm', hasAuth: true, sameActor: true, connection: 'live', freshness: 'server' }),
+        gmInstanceOwned: kind === 'gm', hasAuth: true, sameActor: true, debriefType: 'session-debrief',
+        debriefVersion: 1, debriefSource: 'candidate', debriefResult: 'success', debriefCycle: 4,
+        connection: 'live', freshness: 'server' }),
       storeModuleUrl: () => 'test-store-module',
     };
   }
@@ -82,7 +85,7 @@ test('candidate ending waits for the validated entitled debrief response before 
   const fixture = endingFixture();
   const tools = candidateGameplayTools({ gm: fixture.gm, crew: fixture.crew, directory,
     initial: { sessionId: fixture.sessionId, joinCode: 'ordinary-join' }, roster: [{ roleId: 'gm' }, { roleId: 'crew-role' }],
-    started: { instanceId: 'owned-gm-instance' },
+    started: { uidHash: 'same-actor', instanceId: 'owned-gm-instance' },
     deadlineAt: Date.now() + 1_000,
     projectId: 'demo-ring-proof', ports: { functions: 5021 } });
 
@@ -117,7 +120,7 @@ test('candidate ending preserves a failed entitled debrief read and does not sav
   const fixture = endingFixture({ status: 403 });
   const tools = candidateGameplayTools({ gm: fixture.gm, crew: fixture.crew, directory,
     initial: { sessionId: fixture.sessionId, joinCode: 'ordinary-join' }, roster: [{ roleId: 'gm' }, { roleId: 'crew-role' }],
-    started: { instanceId: 'owned-gm-instance' }, deadlineAt: Date.now() + 1_000,
+    started: { uidHash: 'same-actor', instanceId: 'owned-gm-instance' }, deadlineAt: Date.now() + 1_000,
     projectId: 'demo-ring-proof', ports: { functions: 5021 } });
 
   await assert.rejects(tools.complete('N'), /permission-denied/i);
