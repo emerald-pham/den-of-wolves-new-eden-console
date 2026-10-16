@@ -282,7 +282,13 @@ function requireBoaActor(
       turn !== currentCycle) {
     throw new HttpsError('permission-denied', 'Only the current active Boa Recycler may select a mission task for their fleet group.');
   }
-  requireCandidateVesselsAvailable(session, [hostShipId]);
+  if (actor.get('candidateDisposition') != null) {
+    throw new HttpsError(
+      'failed-precondition',
+      'This vessel has reached its candidate disposition. Original results remain available.',
+    );
+  }
+  requireCandidateVesselsAvailable(session, ['capybara', hostShipId]);
   return {
     session, actor, group, groupId, hostShipId,
     controlRevision: control.revision as number,

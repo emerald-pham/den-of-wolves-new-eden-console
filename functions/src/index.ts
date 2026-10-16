@@ -40874,6 +40874,7 @@ export const runHighwallMining = auditedOnCall<{
     await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'Highwall mining', []);
     const replay = highwallMiningReplay(prior, fingerprint);
     if (replay) return { replay, stale: undefined, fingerprint, authority };
+    requireCandidateActionAvailable(authority.session, authority.player, [authority.hostShipId]);
     requireUsableShip(authority.session, authority.hostShipId);
     if (event.exists) rejectLegacyEventReplay('Highwall mining');
     if (actionAudit.exists) rejectLegacyEventReplay('Highwall mining audit');
@@ -40926,6 +40927,7 @@ export const runHighwallMining = auditedOnCall<{
     await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'Highwall mining', []);
     const replay = highwallMiningReplay(prior, fingerprint);
     if (replay) return replay;
+    requireCandidateActionAvailable(authority.session, authority.player, [authority.hostShipId]);
     requireUsableShip(authority.session, authority.hostShipId);
     if (event.exists) rejectLegacyEventReplay('Highwall mining');
     if (actionAudit.exists) rejectLegacyEventReplay('Highwall mining audit');
@@ -41629,6 +41631,7 @@ export const allocateHummingbirdHarvest = auditedOnCall<{
     };
     const replay = hummingbirdHarvestReceiptReply(prior, fingerprint, uid);
     if (replay) return replay;
+    requireCandidateActionAvailable(authority.session, authority.player, [authority.hostShipId]);
     requireCurrentHummingbirdGameplayCycle(authority.session);
     requireActionPhase(authority.session, 'scouting', 'player');
     const stored = await tx.get(harvestRef);
