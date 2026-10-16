@@ -11,12 +11,12 @@
     "dependencyWaveCount": 21
   },
   "sources": {
-    "revision": "ae4115585d810b90d24f4b9d0ab32be5ea97743c",
-    "revisionDate": "2026-10-16T01:53:26-04:00",
+    "revision": "4918824d7bca7e04a1e6752c6bdea75f1187b71d",
+    "revisionDate": "2026-10-16T03:50:16-04:00",
     "files": [
       {
         "path": "docs/implementation-prompts.json",
-        "sha256": "44e02276af56db8604de1fb5b485c0664089949208792851c4fa2ec798303c91"
+        "sha256": "fb6cd015bdb1a9f33a2f57b7da79d31445be949d64b11779e81000e50a02fb27"
       },
       {
         "path": "docs/CHECKPOINT_COMPLETION_PLAN.md",
@@ -44,8 +44,8 @@
     "total": 751,
     "statusCounts": {
       "done": 703,
-      "partial": 22,
-      "missing": 26,
+      "partial": 23,
+      "missing": 25,
       "blocked": 0,
       "in-progress": 0
     }
@@ -427,8 +427,8 @@
       "dependencyLayerCount": 7,
       "statusCounts": {
         "done": 0,
-        "partial": 22,
-        "missing": 26,
+        "partial": 23,
+        "missing": 25,
         "blocked": 0,
         "in-progress": 0
       },
@@ -1625,8 +1625,8 @@
       "assignedCount": 9,
       "statusCounts": {
         "done": 0,
-        "partial": 6,
-        "missing": 3,
+        "partial": 7,
+        "missing": 2,
         "blocked": 0,
         "in-progress": 0
       },
@@ -9554,7 +9554,7 @@
       "id": "634",
       "checkpoint": "PC10",
       "title": "Record security denials privately.",
-      "status": "missing",
+      "status": "partial",
       "catalogReadiness": "blocked",
       "acceptance": "auth, App Check, schema, and rate-limit failures produce useful telemetry without credentials, hands, loyalties, or note bodies. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. Apply the October 5 PC10 owner revision in docs/PC10_EXECUTION_RECORD.md within this assigned scope; preserve actual GM authority, fresh-game evidence, unlimited manual demo progression, interrupted/repeated/recovery flows, real admission and entitled privacy. New join-QR and full-game-demo additions are separately accounted and earn no fixed catalog closures. Apply the October 8 mandatory functional test-first correction in docs/AGENT_EXECUTION_POLICY.md within this scope: observe a meaningful RED before every functional change, implement, then observe GREEN. Risk determines test selection, breadth and regression depth; it does not permit implementation-first. Interactive layout, visibility, defaults, parsers and provider features count as functionality. Pure prose/docs use consistency review. Keep small claim-based mounted cohorts and valid unaffected evidence. Blanket 21-account/full-census replays are superseded; justify any scale run by a claim impossible with fewer or a reproduced scale-dependent bug. Preserve actual functional/privacy and required review/CI/deployment gates; untested capacity stays unclaimed.",
       "prerequisites": [
