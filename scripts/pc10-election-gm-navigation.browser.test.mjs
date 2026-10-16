@@ -9,7 +9,7 @@ import { build, stop } from 'esbuild';
 import { chromium } from 'playwright';
 import { withProofBrowserCleanup } from './proof-tooling-browser-lifecycle.mjs';
 import { validateElectionPlan, validateElectionActionCycle } from './pc10-politics-press-proof.mjs';
-import { assertGmInstanceFence, blockedSourceBranch } from './pc10-political-crisis-arrest-proof-contracts.mjs';
+import { assertGmInstanceFence, blockedSourceBranch, enterPreparedRoleStation } from './pc10-political-crisis-arrest-proof-contracts.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 async function sourceJsx(path, matches) {
@@ -114,11 +114,29 @@ for (const {action, staleVoters = false} of [{action:'configureElection'},{actio
       enterSelectedRole: async (_context, roleId) => {
         assert.ok(choice.voterRoleIds.includes(roleId));
         const uid=roleId==='dione-president'?'voter-a':'voter-b';
-        await page.evaluate(({roleId,uid})=>{
-          window.__voterEntries.push(roleId);
-          if(!window.__freshVoters.includes(uid))window.__freshVoters.push(uid);
-        },{roleId,uid});
-        return {actor:{sameActor:true,sessionId:original.sessionId,profileRoleId:roleId,uidHash:uid}};
+        const current={...original,playerRole:'player',uidHash:uid,profileRoleId:roleId,
+          assignedRoleId:roleId,activeConsoleRoleId:roleId,briefMatchesActor:true,briefRoleId:roleId};
+        // Exercise the real helper and its actor/current return contract. Only
+        // its navigation/presence IO is controlled; no gameplay is claimed.
+        const link={click:async()=>{},waitFor:async()=>{}};
+        const stationCrew={
+          page:{
+            getByLabel:()=>({selectOption:async selected=>{
+              assert.equal(selected,roleId);
+              await page.evaluate(({roleId,uid})=>{
+                window.__voterEntries.push(roleId);
+                if(!window.__freshVoters.includes(uid))window.__freshVoters.push(uid);
+              },{roleId,uid});
+            }}),
+            waitForURL:async predicate=>assert.ok(predicate(new URL(
+              `http://pc10-election.invalid/?demoActor=${original.sessionId}~${roleId}`))),
+            getByRole:()=>link,
+            locator:()=>({...link,getByRole:()=>link}),
+          },
+          until:async(_label,predicate)=>{assert.ok(predicate(current));return current;},
+        };
+        return enterPreparedRoleStation({crew:stationCrew,initial:{sessionId:original.sessionId},
+          roster:[{roleId,uidHash:uid}],roleId});
       },
       observedMutation: async input => {
         assert.equal(input.endpoint, 'configurePresidentialElection');
