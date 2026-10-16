@@ -1962,10 +1962,11 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
 }
 
 async function runCasesAtCheckpoint({ family, cases, checkpoint, context, steps, gameFactory, directory,
-  onlyCaseIds, evidenceSuffix }) {
+  onlyCaseIds, excludeCaseIds, evidenceSuffix }) {
   const allowedCases = onlyCaseIds ? new Set(onlyCaseIds) : null;
+  const excludedCases = excludeCaseIds ? new Set(excludeCaseIds) : null;
   const game = gameFactory(context), selected = cases.filter(spec => spec.checkpoint === checkpoint &&
-    (!allowedCases || allowedCases.has(spec.id)));
+    (!allowedCases || allowedCases.has(spec.id)) && (!excludedCases || !excludedCases.has(spec.id)));
   const evidence = { schemaVersion: 1, family, checkpoint, sourceCommit: context.sourceCommit ?? null,
     humanPhysicalProof: false, adminGameplayWrites: false, acceleratedClock: false,
     privateTextPersisted: false, sourceRandomnessForced: false,
@@ -2070,6 +2071,16 @@ async function runCasesAtCheckpoint({ family, cases, checkpoint, context, steps,
 export function createPendingCoreCraftActionsCallback({ steps = {}, gameFactory = createTwoBrowserGameplay } = {}) {
   const run = checkpoint => context => runCasesAtCheckpoint({ family: C, cases: CORE_CRAFT_PROCEDURES,
     checkpoint, context, steps, gameFactory, directory: context.directory });
+  const runCoordinationWithoutShuttleMovement = context => runCasesAtCheckpoint({ family: C,
+    cases: CORE_CRAFT_PROCEDURES, checkpoint: 'coordination',
+    excludeCaseIds: ['core:requestShuttleDeparture', 'core:beginShuttleTransit',
+      'core:retargetShuttleTransit', 'core:completeShuttleArrival'],
+    evidenceSuffix: 'coordination-without-shuttle-movement', context, steps, gameFactory,
+    directory: context.directory });
+  const runShuttleMovement = context => runCasesAtCheckpoint({ family: C,
+    cases: CORE_CRAFT_PROCEDURES, checkpoint: 'coordination',
+    onlyCaseIds: ['core:requestShuttleDeparture', 'core:beginShuttleTransit', 'core:retargetShuttleTransit'],
+    evidenceSuffix: 'shuttle-movement', context, steps, gameFactory, directory: context.directory });
   const runSourceTimedArrival = context => runCasesAtCheckpoint({ family: C, cases: CORE_CRAFT_PROCEDURES,
     checkpoint: 'coordination', onlyCaseIds: ['core:completeShuttleArrival'], evidenceSuffix: 'shuttle-arrival-ready',
     context, steps, gameFactory, directory: context.directory });
@@ -2078,6 +2089,8 @@ export function createPendingCoreCraftActionsCallback({ steps = {}, gameFactory 
     context: { ...context, shuttleArrivalCaptureMode: 'automatic-source-effect' }, steps, gameFactory,
     directory: context.directory });
   return Object.freeze({ onStarted: run('team'), onCoordination: run('coordination'),
+    onCoordinationWithoutShuttleMovement: runCoordinationWithoutShuttleMovement,
+    onShuttleMovement: runShuttleMovement,
     beforeMissionDeal: run('before-mission-deal'), afterWolf: run('after-wolf'),
     onShuttleArrivalReady: runSourceTimedArrival, onShuttleAutoArrivalArmed: runAutomaticSourceArrival });
 }
