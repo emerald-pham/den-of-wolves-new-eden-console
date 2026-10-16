@@ -26,7 +26,7 @@ function stationDialog(state, options) {
   };
 }
 
-function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = false, foreignReload = false, staleGeneration = false, terminalCandidate = 'P', workspaceDelay = 2, workspaceNeverReady = false } = {}) {
+function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = false, foreignReload = false, staleGeneration = false, terminalCandidate = 'P', workspaceDelay = 2, workspaceNeverReady = false, serverStatus = 200, replayEffect = false, cleanupFailure = false, resumeDelay = 0 } = {}) {
   const sessionId = 'station-recovery-session';
   const roleId = 'executive-officer';
   const coordinate = '0408';
@@ -48,9 +48,14 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
     connection: 'live', freshness: 'server', documentTimeOrigin: 100 };
   // resumeSession owns the new generation; hydration restarts in the new document.
   let connectionGeneration = 1, identityHydrationRevision = 2;
-  const sourceActor = () => ({ sessionId, fleetGroupId: 'fleet-1', connectionGeneration,
-    identityHydrationRevision, replacementRoleId: null, replacementStatus: null,
-    seatId: roleId, connected: true, discoveryAuthority: null });
+  let pendingResumeReads = 0;
+  const sourceActor = () => {
+    const pendingResume = pendingResumeReads-- > 0;
+    return { sessionId, fleetGroupId: 'fleet-1',
+    connectionGeneration: pendingResume ? 1 : connectionGeneration,
+    identityHydrationRevision: pendingResume ? 0 : identityHydrationRevision, replacementRoleId: null, replacementStatus: null,
+    seatId: roleId, connected: true, discoveryAuthority: null };
+  };
   const page = {
     route: async (pattern, handler) => {
       assert.equal(pattern, '**/us-central1/executeCandidateAction');
@@ -60,11 +65,12 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
       assert.equal(recovery.routeHandler, handler);
       recovery.unrouteCount++;
       recovery.routeHandler = undefined;
+      if (cleanupFailure) throw new Error('route cleanup deliberately failed');
     },
     reload: async () => {
       recovery.reloadCount++;
       recovery.dialogOpen = activates;
-      recovery.workspacePendingReads = workspaceDelay;
+      recovery.workspacePendingReads = workspaceDelay; pendingResumeReads = resumeDelay;
       actorState = { ...actorState, documentTimeOrigin: actorState.documentTimeOrigin + 1,
         ...(foreignReload ? { uidHash: 'foreign-crew-uid' } : {}) };
       connectionGeneration = staleGeneration ? connectionGeneration : connectionGeneration + 1;
@@ -78,18 +84,21 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
       request: () => ({ method: () => 'POST', postDataJSON: () => ({ data: structuredClone(data) }) }),
       fetch: async () => {
         recovery.fetchCount++;
-        return { status: () => 200, json: async () => ({ result: structuredClone(result) }) };
+        if (serverStatus === 200) {
+          recovery.chargeCapacity = chargeCapacity + reactorCapacity;
+          recovery.revision = result.revision;
+          if (activates) { actorState.phase = 'debrief'; gmState.phase = 'debrief'; recovery.dialogOpen = true; }
+        }
+        return { status: () => serverStatus, json: async () => ({ result: structuredClone(result) }) };
       },
       abort: async () => {
         recovery.abortCount++;
         recovery.pending = true;
-        recovery.chargeCapacity = chargeCapacity + reactorCapacity;
-        recovery.revision = result.revision;
-        if (activates) { actorState.phase = 'debrief'; gmState.phase = 'debrief'; recovery.dialogOpen = true; }
       },
       fallback: async () => {
         recovery.fallbackCount++;
         recovery.replayData = structuredClone(data);
+        if (replayEffect) { recovery.chargeCapacity += reactorCapacity; recovery.revision++; }
       },
     };
     await recovery.routeHandler(route);
@@ -464,8 +473,10 @@ test('the actual Station ending recovers the first committed contribution and th
   assert.equal(activation.request.expectedRevision, 11);
   assert.equal(activation.committedResult.outcome, 'activated');
   assert.equal(activation.replayedResult.outcome, 'activated');
-  assert.equal(fixture.shared.actors.get('quellon-explorer')?.recovery.dialogDismissals ??
-    [...fixture.shared.actors.values()].find(entry => entry.shipId === 'quellon').recovery.dialogDismissals, 2);
+  assert.equal([...fixture.shared.actors.values()].find(entry => entry.shipId === 'quellon').recovery.dialogDismissals, 2);
+  assert.equal(first.actor.phaseAfter, 'active'); assert.equal(first.gmLease.phaseAfter, 'active');
+  assert.equal(activation.actor.phaseAfter, 'debrief'); assert.equal(activation.gmLease.phaseAfter, 'debrief');
+  assert.equal(activation.gmLease.gameOutcome.candidateCode, 'P');
 });
 
 
@@ -502,4 +513,37 @@ test('Station recovery stops at its original deadline while the workspace read r
   assert.equal(fixture.recovery.fetchCount, 1);
   assert.equal(fixture.recovery.fallbackCount, 0, 'Pending workspace readiness cannot send another action.');
   assert.equal(fixture.recovery.unrouteCount, 1);
+});
+
+
+test('Station recovery preserves the server error even if route cleanup also fails', async () => {
+  const fixture = recoveryFixture({ serverStatus: 500, cleanupFailure: true });
+  await assert.rejects(stationProof.recoverStationReactorContribution({ ...fixture,
+    shipId: 'aegis', roleId: fixture.roleId, deadlineAt: Date.now() + 1_000 }),
+  /source callable must commit before its acknowledgement is interrupted/);
+  assert.equal(fixture.recovery.unrouteCount, 1);
+  assert.equal(fixture.recovery.fallbackCount, 0);
+  assert.equal(fixture.recovery.chargeCapacity, 2);
+  assert.equal(fixture.records.length, 0);
+});
+
+test('Station recovery rejects any second capacity or revision effect from an exact replay', async () => {
+  const fixture = recoveryFixture({ replayEffect: true });
+  await assert.rejects(stationProof.recoverStationReactorContribution({ ...fixture,
+    shipId: 'aegis', roleId: fixture.roleId, deadlineAt: Date.now() + 1_000 }), /original committed revision|once-committed capacity/);
+  assert.equal(fixture.recovery.fetchCount, 1);
+  assert.equal(fixture.recovery.fallbackCount, 1);
+  assert.equal(fixture.recovery.unrouteCount, 1);
+  assert.equal(fixture.records.length, 0);
+});
+
+
+test('Station recovery waits for its accepted resume epoch after a listener is already live', async () => {
+  const fixture = recoveryFixture({ resumeDelay: 2 });
+  const result = await stationProof.recoverStationReactorContribution({ ...fixture,
+    shipId: 'aegis', roleId: fixture.roleId, deadlineAt: Date.now() + 1_000 });
+  assert.deepEqual(result, fixture.result);
+  assert.equal(fixture.records[0].details.actor.connectionGenerationAfter, 2);
+  assert.equal(fixture.records[0].details.actor.identityHydrationRevisionAfter, 1);
+  assert.equal(fixture.recovery.fetchCount, 1); assert.equal(fixture.recovery.fallbackCount, 1);
 });
