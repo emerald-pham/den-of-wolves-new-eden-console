@@ -75,9 +75,9 @@ export async function prepareMissionPrivacyThroughMountedControl({ surface, sess
     const replies = await Promise.all(responses);
     const sameRunId = replies[0]?.requestRunId;
     const sameEpoch = replies[0]?.epoch;
-    const expectedSteps = ['hold', 'repair', 'finalize'];
-    const validSequence = replies.length === expectedSteps.length && replies.every((reply, index) =>
-      reply?.step === expectedSteps[index]);
+    const validSequence = replies.length >= 3 && replies[0]?.step === 'hold' &&
+      replies[replies.length - 1]?.step === 'finalize' &&
+      replies.slice(1, -1).every(reply => reply?.step === 'repair');
     const validReceipts = validSequence && replies.every((reply, index) => {
       const final = index === replies.length - 1;
       const lastRepair = index === replies.length - 2;
