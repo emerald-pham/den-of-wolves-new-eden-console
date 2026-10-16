@@ -326,7 +326,7 @@ export async function stationNavigationResumeFixture(options = {}) {
     },
     run: () => adapter.select(roleId, { deadlineAt: Date.now() + (options.shortDeadline ? 120 : 1500) }),
     cleanup: async () => {
-      responseGate.release(); applicationGate.release();
+      earlyObservation.release(); responseGate.release(); applicationGate.release();
       await backgroundResume?.catch(() => undefined);
       await rm(directory, { recursive: true, force: true });
     } };

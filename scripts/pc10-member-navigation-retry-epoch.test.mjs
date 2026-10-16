@@ -20,7 +20,12 @@ async function exercise(extra = {}) {
   let result, error;
   const running = f.run().then(value => { result = value; }, value => { error = value; });
   try {
-    const invalidated = await f.earlyGenerationObserved();
+    const first = await Promise.race([f.earlyGenerationObserved().then(value => ({ value })), running.then(() => ({ stopped: true }))]);
+    if (first.stopped) {
+      assert.equal(extra.noAutomaticRetry, true, 'Only an explicitly invalid listener may stop before its read boundary.');
+      return { result, error, saved: await packet(f), f };
+    }
+    const invalidated = first.value;
     assert.equal(invalidated.connectionGeneration, 3 + (extra.externalGenerationDelta ?? 1)); assert.equal(invalidated.identityHydrationRevision, 1);
     assert.equal(invalidated.connection, 'offline'); assert.equal(invalidated.freshness, 'cache');
     assert.equal(f.application.length, 0, 'The unmatched listener epoch is not SDK hydration.');
