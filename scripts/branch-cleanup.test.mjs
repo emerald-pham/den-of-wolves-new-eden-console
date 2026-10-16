@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { delimiter, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
@@ -433,6 +433,38 @@ test('recovery artifacts inside the worktree are rejected before mutation', asyn
     expectReason(report, 'recovery-directory-inside-worktree');
     assert.equal(await fixture.localSha(), localTip);
     assert.equal(await fixture.remoteSha(), localTip);
+  } finally {
+    await fixture.dispose();
+  }
+});
+
+test('recovery artifacts are excluded from every registered checkout and symlink alias', async () => {
+  const fixture = await createBranchCleanupFixture();
+  const alternateCheckout = join(fixture.root, 'alternate-checkout');
+  const missingCheckout = join(fixture.root, 'missing-checkout');
+  const checkoutAlias = join(fixture.root, 'alternate-alias');
+  try {
+    await fixture.runGit(['worktree', 'add', '--detach', alternateCheckout, 'main']);
+    const siblingArtifact = join(alternateCheckout, 'recovery');
+    const sibling = await fixture.cleanup({ apply: true, artifactDirectory: siblingArtifact });
+    expectReason(sibling, 'recovery-directory-inside-worktree');
+    assert.equal(await fixture.localSha(), sibling.local.sha);
+    assert.equal(await fixture.remoteSha(), sibling.remote.sha);
+    await assert.rejects(readFile(join(siblingArtifact, 'manifest.json')));
+
+    await symlink(alternateCheckout, checkoutAlias, 'dir');
+    const viaAlias = await fixture.cleanup({ apply: true, artifactDirectory: join(checkoutAlias, 'recovery') });
+    expectReason(viaAlias, 'recovery-directory-inside-worktree');
+    await assert.rejects(readFile(join(alternateCheckout, 'recovery', 'manifest.json')));
+
+    await fixture.runGit(['worktree', 'add', '--detach', missingCheckout, 'main']);
+    await rm(missingCheckout, { recursive: true, force: true });
+    const missingRootArtifact = join(missingCheckout, 'recovery');
+    const missingRoot = await fixture.cleanup({ apply: true, artifactDirectory: missingRootArtifact });
+    expectReason(missingRoot, 'recovery-directory-inside-worktree');
+    assert.equal(await fixture.localSha(), missingRoot.local.sha);
+    assert.equal(await fixture.remoteSha(), missingRoot.remote.sha);
+    await assert.rejects(readFile(join(missingRootArtifact, 'manifest.json')));
   } finally {
     await fixture.dispose();
   }
