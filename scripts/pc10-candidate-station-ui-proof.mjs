@@ -22,7 +22,20 @@ function stationProjection(text) {
 }
 
 function sameStationActor(current, original, { sessionId, roleId }) {
-  assertWolfChoiceActor(current, original);
+  // A cold document resumes the same UID with a new server-owned presence
+  // generation. Hydration is local to that new document; neither epoch is an
+  // immutable actor identity. Keep the combat observer's within-document check.
+  for (const key of ['sessionId', 'uidHash', 'profileRoleId', 'assignedRoleId', 'activeConsoleRoleId',
+    'playerRole', 'phase', 'cycle', 'fleetGroupId', 'replacementRoleId', 'replacementStatus', 'seatId',
+    'airspace', 'turnStatePhase', 'phaseProgression'])
+    assert.equal(current[key], original[key], `Original Station ${key} changed.`);
+  assert.equal(current.hasAuth, true); assert.equal(current.sameActor, true);
+  assert.equal(current.connection, 'live'); assert.equal(current.freshness, 'server');
+  assert.ok(Number.isSafeInteger(current.connectionGeneration) &&
+    current.connectionGeneration > original.connectionGeneration,
+  'The cold Station document needs a newly accepted server resume generation.');
+  assert.ok(Number.isSafeInteger(current.identityHydrationRevision) && current.identityHydrationRevision >= 1,
+    'The new Station document must finish identity hydration.');
   assert.equal(current.profileSessionId, original.profileSessionId,
     "The original Station actor's profile session must survive reconnect.");
   assert.equal(current.sessionId, sessionId);
