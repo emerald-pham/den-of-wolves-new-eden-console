@@ -153,3 +153,34 @@ released. RAM was discarded without import/export or per-UID deletion claim.
 | `failure.json` | `a5ee6ab45554becc4c3c7d91e875f1939bef7097f6aa91a0658705f7353a3662` |
 | `role-affordances.json` | `735749bf5ba7aa40928826b56c628e5fecb654a7c6758bb503ebe99b2736456b` |
 | `runtime strict-return.json` | `3eeb1ce9dc070b628f5b5e6579ef40bc6f0a221231eb40aed4fbe56ac6634f55` |
+
+
+## Transport a1 — initial create/consent failure
+
+Source `fd451b6e2ceab40ea705342cc234ef8e9eb4ea98`, fresh project
+`demo-pc10-transport-f9f3-20261016-a1`. The narrowly scoped operator intended
+two real named GMs plus one ordinary member (three isolated browser contexts,
+one Chrome process, eight configured seats and one occupied core role).
+It failed before reaching that configured cohort or any audit/cadence check.
+Do not treat the operator's expected cohort fields as observed admission.
+
+The first failure was a TimeoutError in `gm-a-normal-ui-create-and-consent`,
+06:27:31.306–06:27:48.344 UTC. The safe receipt retained phase/name/code/message
+hash but no exact failed UI step or screenshot. Backend logs show no actual
+`createSession` execution. The operator's initial rendered-readiness and
+admission diagnostics require a separate source repair before another run;
+this does not establish a product create/consent defect.
+
+Browser cleanup reports all three contexts closed, BrowserServer process
+79573 exited normally, and no operational/selector promise remained pending.
+Root returned the backend at 06:28:55.473 UTC: all seven captured backend PIDs
+were absent, all 22 bindings free and the exact owned configuration released.
+A Chrome descendant census was not captured before this brief failure; the
+browser exit claim is limited to the actual BrowserServer exit receipt.
+Fresh RAM was discarded without export/import or a per-UID deletion claim.
+No rate, telemetry, audit, concurrency, gameplay or release acceptance is earned.
+
+| Transport a1 artifact | SHA-256 |
+| --- | --- |
+| `transport-audit-native-receipt.json` | `9a4418ab8e0e54f27121df02e13b9c2e6c4378a8830f2a76c98402aa10b204f5` |
+| `runtime strict-return.json` | `0e84c639576279beeae8ff656c6011c9c008ffbb4c05ce154ebcc83f4a7727cb` |
