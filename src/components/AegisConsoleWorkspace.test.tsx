@@ -1,9 +1,19 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, expect, it, vi } from 'vitest';
 import AegisConsoleWorkspace from './AegisConsoleWorkspace';
 import { useSessionStore } from '@/store/useSessionStore';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { provePoliticsAndPress } from '../../scripts/pc10-politics-press-proof.mjs';
+
+const politicsContractMock = vi.hoisted(() => ({ enterPreparedRoleStation: vi.fn() }));
+vi.mock('../../scripts/pc10-political-crisis-arrest-proof-contracts.mjs', async importOriginal => ({
+  ...await importOriginal(),
+  enterPreparedRoleStation: politicsContractMock.enterPreparedRoleStation,
+}));
 
 vi.mock('@/lib/airspaceService', () => ({ unlockPressAirspace: vi.fn() }));
 const { unlockPressAirspace } = await import('@/lib/airspaceService');
@@ -33,6 +43,90 @@ beforeEach(() => {
   useSessionStore.getState().setConnection('live');
   useSessionStore.getState().setSessionSnapshotFreshness('server');
   exchangeMock.exchange.mockReset().mockResolvedValue({ amount: 1 });
+  politicsContractMock.enterPreparedRoleStation.mockReset();
+});
+
+function mountedLocator(find: () => HTMLElement | null, user: ReturnType<typeof userEvent.setup>) {
+  return {
+    async waitFor() {
+      await waitFor(() => expect(find()).toBeInTheDocument(), { timeout: 80, interval: 5 });
+    },
+    getByRole(role: string, options: { name?: string; exact?: boolean }) {
+      return mountedLocator(() => {
+        const parent = find();
+        return parent ? within(parent).queryByRole(role as never, options as never) as HTMLElement | null : null;
+      }, user);
+    },
+    getByLabel(label: string, options: { exact?: boolean }) {
+      return mountedLocator(() => {
+        const parent = find();
+        return parent ? within(parent).queryByLabelText(label, options) as HTMLElement | null : null;
+      }, user);
+    },
+    async fill(value: string) {
+      const element = find();
+      if (!element) throw new Error('The mounted control is not present.');
+      fireEvent.change(element, { target: { value } });
+    },
+    async click() {
+      const element = find();
+      if (!element) throw new Error('The mounted control is not present.');
+      await user.click(element);
+    },
+    async isVisible() { return Boolean(find()); },
+    async isEnabled() {
+      const element = find();
+      return Boolean(element) && !(element as HTMLButtonElement).disabled;
+    },
+  };
+}
+
+it('selects the Admiral policy page through its visible control before waiting for the mounted proof region', async () => {
+  const user = userEvent.setup();
+  const evidenceDirectory = await mkdtemp(join(tmpdir(), 'pc10-politics-navigation-'));
+  try {
+    const gm = {
+      sameActor: true, sessionId: 's1', uidHash: 'gm-source-hash', cycle: 1, phase: 'active',
+      turnStatePhase: 'team', playerRole: 'gm', fullGameDemo: { status: 'active', progression: 'manual' },
+      gmInstanceOwned: true, instanceId: 'gm-instance', connection: 'live', freshness: 'server',
+    };
+    const initial = { sessionId: 's1' };
+    const roster = [{ roleId: 'admiral', uidHash: 'original-admiral-hash', displayName: 'Admiral' }];
+    politicsContractMock.enterPreparedRoleStation.mockImplementation(async ({ initial: selectedInitial, roster: selectedRoster, roleId }) => {
+      const actor = selectedRoster.find((entry: { roleId: string }) => entry.roleId === roleId);
+      if (!actor) throw new Error(`Missing original actor for ${roleId}.`);
+      return { actor: { actorKind: 'player', sessionId: selectedInitial.sessionId, uidHash: actor.uidHash,
+        roleId, assignedRoleId: roleId, cycle: 1, phase: 'active', turnStatePhase: 'team' } };
+    });
+
+    render(<AegisConsoleWorkspace roleId="admiral" galacticCoordinate="0000" fuel={3} consoleLocked />);
+    const page = {
+      getByRole(role: string, options: { name?: string; exact?: boolean }) {
+        return mountedLocator(() => screen.queryByRole(role as never, options as never) as HTMLElement | null, user);
+      },
+    };
+    const context = {
+      initial, started: gm, roster, directory: evidenceDirectory,
+      gm: { observe: async () => gm }, crew: { page },
+    };
+
+    const result = await provePoliticsAndPress(context, { admiralDirective: 'Keep the fleet coordinated.' });
+
+    expect(screen.getByRole('button', { name: 'Fleet directives' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('region', { name: 'Admiral policy and defence coordination' })).toBeVisible();
+    expect(result.blocked).toContainEqual(expect.objectContaining({ branch: 'admiral-directive',
+      blockerCodes: ['source-control-currently-disabled'] }));
+    expect(politicsContractMock.enterPreparedRoleStation).toHaveBeenCalledWith(expect.objectContaining({
+      initial, roster, roleId: 'admiral',
+    }));
+    const state = useSessionStore.getState();
+    expect(state.session).toMatchObject({ id: 's1', phase: 'active', currentTurn: 1 });
+    expect(state.me).toMatchObject({ sessionId: 's1', activeConsoleRoleId: 'admiral' });
+    expect(state.connection).toBe('live');
+    expect(state.sessionSnapshotFreshness).toBe('server');
+  } finally {
+    await rm(evidenceDirectory, { recursive: true, force: true });
+  }
 });
 
 it('routes the Admiral to the bounded fleet policy and defence coordination workspace', async () => {
