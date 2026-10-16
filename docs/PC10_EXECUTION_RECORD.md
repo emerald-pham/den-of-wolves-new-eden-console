@@ -2000,3 +2000,36 @@ CI, exact-main deployment/health and truthful closeout. The published 0.5.73
 partial/missing snapshot mismatch remains for final release metadata; it earns
 no status changes. No CI-triggering push, release or deployment has occurred in
 this continuation.
+
+### Subsequent Base ballot consumer and security handback
+
+The next fresh Base run at `91e36884` passed the repaired election policy
+configuration, then stopped at `current-voter-has-no-mounted-secret-ballot`.
+The screenshot shows the original President on the fleet screen with the
+Election header control: the consumer's immediate visibility checks raced the
+mounted header/route. Maintenance, mission and combat were still unreached.
+The failed run remains failed under
+`/private/tmp/pc10-completion-20261016/base-resume/proof/`.
+
+The actual-component regression in test-only `26bdc1a0` reproduces the early
+ballot stop for two original fixture voters using the source header control
+and Election workspace. Repair `273f2aac` waits for that normal route and actual
+form within one original 35-second navigation budget per voter. All three
+rendered election cases and twenty related contracts pass. This repairs only
+the proof consumer. It supplies no native ballot, maintenance or whole-game
+credit. The new regression protects delayed header/workspace mounting; existing
+tests and authority assertions were retained.
+
+Strict return at `2026-10-16T16:48:56.293Z` records all 76 captured owned
+processes absent, nine row-3 listeners absent, root configuration released and
+source/full compiled tree unchanged, before the original proof cutoff. The
+receipt is `base-resume/runtime/returned.json` under the same artifact root.
+The root's row-3 coordination claim was released before Capybara selected it.
+
+Test-only App Check handback `2d68e616` is now integrated. Its actual SDK/HTTP
+invalid-token case passes with the existing four transport tests; the
+[durable report](PC10_APPCHECK_INVALID_TOKEN_REPORT.md) records HTTP 401,
+SDK `app: INVALID`, no application-handler call and absence of supplied
+canaries from captured SDK console output and response. This is local SDK
+middleware evidence, not a production log-sink claim. P634 and final release
+remain pending reconciliation.
