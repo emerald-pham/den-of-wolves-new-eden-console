@@ -1,8 +1,9 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { SESSION_STORAGE_KEY, useSessionStore } from '@/store/useSessionStore';
+import ScreenFade from '@/components/ScreenFade';
 import ShipConsole from './ShipConsole';
 import type { Player, WolfAttackMemberView, WolfRangeActionChoiceView } from '@/types/game';
 import * as maintenanceService from '@/lib/maintenanceService';
@@ -85,6 +86,63 @@ vi.mock('@/lib/sameTableTradeService', () => ({
 
 vi.mock('@/lib/fleetAlertService', () => ({ setFleetRedAlert: vi.fn() }));
 vi.mock('@/lib/vipCardService', () => ({ drawVipCard: vi.fn(), transferVipCard: vi.fn() }));
+
+type PreparedRoleReadiness = {
+  sameActor: boolean;
+  sessionId: string;
+  uidHash: string;
+  playerRole: 'player' | 'gm';
+  profileRoleId: string;
+  assignedRoleId: string;
+  activeConsoleRoleId: string | null;
+  cycle: number;
+  phase: string;
+  turnStatePhase: string;
+  connection: string;
+  freshness: string;
+  briefMatchesActor: boolean;
+  briefRoleId: string;
+};
+
+type PreparedRolePageRole = 'link' | 'region';
+
+type PreparedRolePageLocator = {
+  getByRole(role: PreparedRolePageRole, options: { name: string | RegExp; exact?: boolean }): PreparedRolePageLocator;
+  waitFor(): Promise<void>;
+  click(): Promise<void>;
+  selectOption(value: string): Promise<void>;
+};
+
+type PreparedRolePage = {
+  getByLabel(label: string, options: { exact: boolean }): PreparedRolePageLocator;
+  getByRole(role: PreparedRolePageRole, options: { name: string | RegExp; exact?: boolean }): PreparedRolePageLocator;
+  locator(selector: string): PreparedRolePageLocator;
+  waitForURL(predicate: (url: URL) => boolean): Promise<void>;
+};
+
+type PreparedRoleCrew = {
+  page: PreparedRolePage;
+  until(label: string, predicate: (state: PreparedRoleReadiness) => boolean): Promise<PreparedRoleReadiness>;
+};
+
+type EnterPreparedRoleStation = (input: {
+  crew: PreparedRoleCrew;
+  initial: { sessionId: string };
+  roster: Array<{ roleId: string; uidHash: string }>;
+  roleId: string;
+}) => Promise<{
+  actor: {
+    actorKind: 'player';
+    sessionId: string;
+    uidHash: string;
+    roleId: string;
+    assignedRoleId: string;
+    cycle: number;
+    phase: string;
+    turnStatePhase: string;
+  };
+  current: PreparedRoleReadiness;
+}>;
 
 const { popShipConfetti } = await import('@/lib/sessionService');
 const { selectConsoleRole } = await import('@/lib/sessionService');
@@ -245,6 +303,198 @@ it('does not expose a target-ship dismantling inbox to a GM or player visiting a
 });
 
 afterEach(() => vi.useRealTimers());
+
+it.each([
+  ['admiral', 'aegis', 'FLEETWIDE RED ALERT'],
+  ['dione-president', 'dione', 'President workspace'],
+] as const)(
+  'waits for the actual %s station consumer to mount after its authority is current',
+  async (roleId, shipId, destinationRegion) => {
+    const state = useSessionStore.getState();
+    const session = state.session;
+    const me = state.me;
+    if (!session || !me) throw new Error('Expected the prepared player identity.');
+    state.setSession({
+      ...session,
+      phase: 'active',
+      currentTurn: 1,
+      activeRoleIds: [roleId],
+      activeVesselIds: [shipId],
+      ...(shipId === 'dione' ? { dioneEnabled: true } : {}),
+    });
+    state.setMe({
+      ...me,
+      role: 'player',
+      assignedRoleId: roleId,
+      seatId: roleId,
+      activeConsoleRoleId: null,
+      replacementStatus: null,
+      replacementRoleId: null,
+    });
+    state.setConnection('live');
+    state.setSessionSnapshotFreshness('server');
+
+    const initial = { sessionId: 's1' };
+    const actorUidHash = `prepared-${roleId}-uid-hash`;
+    const stationHref = `/ships/${shipId}/roles/${roleId}`;
+    let currentUrl = new URL('http://prepared.test/console');
+    const readinessObservations: Array<{ state: PreparedRoleReadiness; destinationMounted: boolean }> = [];
+    const user = userEvent.setup();
+
+    const createLocator = (resolve: () => HTMLElement): PreparedRolePageLocator => ({
+      getByRole(role, options) {
+        return createLocator(() => within(resolve()).getByRole(role, options));
+      },
+      async waitFor() {
+        await waitFor(() => expect(resolve()).toBeInTheDocument());
+      },
+      async click() {
+        await this.waitFor();
+        await user.click(resolve());
+      },
+      async selectOption(value) {
+        await this.waitFor();
+        await user.selectOptions(resolve() as HTMLSelectElement, value);
+      },
+    });
+
+    const page: PreparedRolePage = {
+      getByLabel: (label, options) => createLocator(() => screen.getByLabelText(label, options)),
+      getByRole: (role, options) => createLocator(() => screen.getByRole(role, options)),
+      locator: selector => createLocator(() => {
+        const element = document.querySelector<HTMLElement>(selector);
+        if (!element) throw new Error(`Expected mounted page element: ${selector}`);
+        return element;
+      }),
+      async waitForURL(predicate) {
+        await waitFor(() => expect(predicate(currentUrl)).toBe(true));
+      },
+    };
+
+    const crew: PreparedRoleCrew = {
+      page,
+      async until(label, predicate) {
+        let matched: PreparedRoleReadiness | undefined;
+        await waitFor(() => {
+          const currentState = useSessionStore.getState();
+          const currentMe = currentState.me;
+          const currentSession = currentState.session;
+          const observed: PreparedRoleReadiness = {
+            sameActor: currentMe?.uid === 'u1' && currentMe.sessionId === initial.sessionId,
+            sessionId: currentMe?.sessionId ?? '',
+            uidHash: currentMe?.uid === 'u1' ? actorUidHash : '',
+            playerRole: currentMe?.role === 'gm' ? 'gm' : 'player',
+            profileRoleId: currentMe?.assignedRoleId ?? '',
+            assignedRoleId: currentMe?.assignedRoleId ?? '',
+            activeConsoleRoleId: currentMe?.activeConsoleRoleId ?? null,
+            cycle: currentSession?.currentTurn ?? 0,
+            phase: currentSession?.phase ?? '',
+            turnStatePhase: 'team',
+            connection: currentState.connection,
+            freshness: currentState.sessionSnapshotFreshness,
+            briefMatchesActor: currentUrl.pathname === '/brief' && currentMe?.uid === 'u1',
+            briefRoleId: roleId,
+          };
+          if (!predicate(observed)) throw new Error(label);
+          matched = observed;
+        });
+        if (!matched) throw new Error(`No current source state observed for ${label}.`);
+        readinessObservations.push({
+          state: matched,
+          destinationMounted: Boolean(document.querySelector('main.ship-console--gameplay')),
+        });
+        return matched;
+      },
+    };
+
+    function LocationProbe() {
+      const location = useLocation();
+      currentUrl = new URL(`${location.pathname}${location.search}${location.hash}`, 'http://prepared.test');
+      return null;
+    }
+
+    function ActorPicker() {
+      const navigate = useNavigate();
+      return (
+        <section aria-label="Prepared actor chooser">
+          <label htmlFor="prepared-current-actor">Current actor</label>
+          <select
+            id="prepared-current-actor"
+            defaultValue={roleId}
+            onChange={() => navigate(`/console?demoActor=${initial.sessionId}~${roleId}`)}
+          >
+            <option value={roleId}>{roleId}</option>
+          </select>
+          <Link to="/stations">Enter this actor&apos;s stations</Link>
+        </section>
+      );
+    }
+
+    function Stations() {
+      return (
+        <section aria-label="Prepared role stations">
+          <Link to="/brief">Open private brief</Link>
+          <Link
+            to={stationHref}
+            onClick={() => {
+              const currentMe = useSessionStore.getState().me;
+              if (currentMe) useSessionStore.getState().setMe({ ...currentMe, activeConsoleRoleId: roleId });
+            }}
+          >
+            Open prepared command station
+          </Link>
+        </section>
+      );
+    }
+
+    const rendered = render(
+      <MemoryRouter initialEntries={['/console']}>
+        <LocationProbe />
+        <ScreenFade>
+          {location => (
+            <Routes location={location}>
+              <Route path="/console" element={<ActorPicker />} />
+              <Route path="/stations" element={<Stations />} />
+              <Route path="/brief" element={(
+                <main className="role-brief-screen">
+                  <Link to="/stations">← Back to stations</Link>
+                </main>
+              )} />
+              <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+            </Routes>
+          )}
+        </ScreenFade>
+      </MemoryRouter>,
+    );
+
+    try {
+      const proofModule = await vi.importActual<unknown>(
+        '../../scripts/pc10-political-crisis-arrest-proof-contracts.mjs',
+      ) as { enterPreparedRoleStation: EnterPreparedRoleStation };
+      const entered = await proofModule.enterPreparedRoleStation({
+        crew,
+        initial,
+        roster: [{ roleId, uidHash: actorUidHash }],
+        roleId,
+      });
+
+      expect(currentUrl.pathname).toBe(stationHref);
+      expect(readinessObservations.at(-1)).toMatchObject({ destinationMounted: true });
+      expect(entered.actor).toMatchObject({
+        sessionId: initial.sessionId,
+        uidHash: actorUidHash,
+        roleId,
+        cycle: 1,
+        phase: 'active',
+        turnStatePhase: 'team',
+      });
+      expect(screen.getByRole('main')).toHaveClass('ship-console--gameplay');
+      expect(screen.getByRole('region', { name: destinationRegion })).toBeVisible();
+    } finally {
+      rendered.unmount();
+    }
+  },
+);
 
 it('shows only the joined ship identity, nation marking, and fleet role', () => {
   render(
