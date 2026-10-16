@@ -2,6 +2,16 @@
 
 Opening: 703/751 overall; 245/293 campaign. Target: 48 assigned closures, 751/751 and 293/293. The opening scope was 14 partial and 34 missing. Current catalog accounting is 703 done, 23 partial and 25 missing; the rows below distinguish accepted subcriteria from remaining work. Added scope earns zero campaign credit.
 
+October 16 continuation: [F2 native acceptance](PC10_F2_NATIVE_REPORT.md)
+passes evacuation, nonterminal destruction, original-account Flee/replacement
+recovery and sparse acting-command mutiny in one game through Pursuit/debrief/
+close. P650 remains partial for its other branches. Base source `2c2acd10`
+reached all eighteen original role surfaces but stopped at the election proof
+consumer before maintenance/mission/combat; a fresh continuous run remains
+required. Station and Capybara/Nebula qualification and invalid-App-Check-token
+coverage are separate active tasks. No new whole-prompt closure, CI or release
+is claimed by this update.
+
 The [function and role matrix](PC10_FUNCTION_ROLE_MATRIX.json) enumerates the
 actual compiled Firebase SDK endpoints, their current client consumers, core,
 sparse-roster, replacement and private-loyalty roles. Each row separately tracks
@@ -83,12 +93,12 @@ meaningful RED, independent review and rendered/gameplay gates. See the
 | 631 | Rate-limit expensive callables. | Current limiter policy and focused fourteen-case suite; accepted abuse/isolation/retry evidence reused. | Scoped a5 source5dcd633e adds natural60second cadence: two current GMs and one ordinary member, all presence/member/instance reads200 and zero429. ThreeAuth/threecontexts/oneChrome; no capacity claim. | [Scoped report](PC10_TRANSPORT_AUDIT_NATIVE_REPORT.md); final reconciliation/review/release pending. |
 | 634 | Record security denials privately. | Audited callable boundary plus separate SDK/config AppCheck coverage. | Scoped a5 actual missingAuth/schema/authorization denials yield three matching private salted metadata logger records; canary/credential patterns absent from scoped wrapper log. Accepted rate denials reused. Emulator AppCheck enforcement is not claimed. | Partial; [scoped report](PC10_TRANSPORT_AUDIT_NATIVE_REPORT.md), final reconciliation/review/release pending. |
 | 635 | Standardize action audit records. | Queryable action metadata and separate private procedure detail; current schema/Rules and producer checks. | Existing Highwall/cargo/Water producer examples reused narrowly. Scoped a5 two-GM unmodified edition race: onecommit/onestale, exactwinnerreplay, one action/procedure pair, no loser pair, currentGM allowed/ordinary denied. | Partial; [scoped report](PC10_TRANSPORT_AUDIT_NATIVE_REPORT.md), final reconciliation/review/release pending. |
-| 641 | Run a complete base-game playthrough. | pending | pending | pending |
+| 641 | Run a complete base-game playthrough. | Connected fresh Base driver; election navigation/form proof consumer repaired after observed failure. | Partial setup/reachability: source2c2acd10 ordinary manual start and all18 original roles; whole run failed at election configuration before maintenance/mission/combat. Fresh same-session G1→G2 remains open. | Focused actual-component consumer checks pass; native composition/release pending. |
 | 642 | Run a complete Capybara playthrough. | pending | pending | pending |
 | 647 | Prove Ancient Jump Ring success. | Connected legitimate discovery/research/repair/paid passages/sabotage. | Partial: Ring3 actual N success, all six ships surviving and immutable entitled debrief accepted before the later Close failure; contribution-uniqueness negatives need mapping. Reuse the verified common Close path; N-specific closed history remains unobserved. | final scoped review/release pending; coherent Home-default/Deluxe edition rebind pending |
 | 648 | Prove Deep Nebula success and loss. | pending | pending | pending; coherent Home-default/Deluxe edition rebind pending |
 | 649 | Prove Ancient Space Station success. | pending | pending | pending |
-| 650 | Prove authoritative terminal failure and recovery paths. | Server-owned Pursuit failure through debrief/close. | Partial: genuine Pursuit failure, competing freeze/close and current narrow history/reload accepted; loss/destroyed ship/escape/evacuation/mutiny/arrest/candidate/unresolved-call branches open. | pending |
+| 650 | Prove authoritative terminal failure and recovery paths. | Server-owned failure/recovery controls and Pursuit ending. | Partial: prior Pursuit/freeze/close/history accepted; October16 source2c2acd10 additionally passes real evacuation, nonterminal destruction, original-account Flee/reload/exact replay/replacement and sparse acting-command mutiny through the same game's debrief/close. Total fleet loss, arrest/deadline, candidate abandonment and unresolved-call mapping remain open. | [F2 native report](PC10_F2_NATIVE_REPORT.md); reconciled final review/release pending. |
 | 651 | Run the final release-readiness audit. | pending | pending | pending |
 
 | Addition / gate | Acceptance | Evidence |
