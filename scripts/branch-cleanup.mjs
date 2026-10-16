@@ -16,7 +16,12 @@ import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { coordinationFilePath, readCoordinationState } from './emulator-resource-registry.mjs';
+import {
+  coordinationFilePath,
+  emptyCoordinationState,
+  parseCoordinationState,
+  pruneDeadReservations,
+} from './emulator-resource-registry.mjs';
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_ARTIFACT_DIRECTORY = resolve(
@@ -81,6 +86,71 @@ function addReason(report, code, message) {
   if (!report.reasons.some((reason) => reason.code === code)) report.reasons.push({ code, message });
   report.decision = 'retained';
   return report;
+}
+
+function isRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function nonEmptyString(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function validateCoordinationPayload(payload) {
+  if (!isRecord(payload)) throw new Error('The coordination ledger root must be a JSON object.');
+  if (payload.version !== 1 || payload.scope !== 'codex-wide' || !nonEmptyString(payload.versionAgreement)) {
+    throw new Error('The coordination ledger schema version, scope, or version agreement is unknown.');
+  }
+  for (const key of ['entries', 'reservations', 'configurations']) {
+    if (!Array.isArray(payload[key])) throw new Error(`The coordination ledger ${key} field must be an array.`);
+  }
+  for (const [index, entry] of payload.entries.entries()) {
+    if (!isRecord(entry) || !nonEmptyString(entry.id) || !['active', 'parked', 'complete'].includes(entry.status) ||
+        !nonEmptyString(entry.branchName) || !nonEmptyString(entry.worktree)) {
+      throw new Error(`Coordination entry ${index} is missing valid ownership fields.`);
+    }
+    for (const key of ['repositoryIdentity', 'repositoryRoot']) {
+      if (entry[key] !== undefined && !nonEmptyString(entry[key])) {
+        throw new Error(`Coordination entry ${index} has malformed ${key}.`);
+      }
+    }
+  }
+  for (const [index, reservation] of payload.reservations.entries()) {
+    if (!isRecord(reservation) || !nonEmptyString(reservation.worktree) || !Number.isInteger(reservation.slot) || reservation.slot < 0) {
+      throw new Error(`Coordination reservation ${index} is missing valid checkout or slot metadata.`);
+    }
+    for (const key of ['pid', 'childPid']) {
+      if (reservation[key] !== undefined && (!Number.isSafeInteger(reservation[key]) || reservation[key] < 1)) {
+        throw new Error(`Coordination reservation ${index} has malformed ${key}.`);
+      }
+    }
+    if (!Number.isSafeInteger(reservation.pid) && !Number.isSafeInteger(reservation.childPid)) {
+      throw new Error(`Coordination reservation ${index} has no valid process owner.`);
+    }
+  }
+  for (const [index, configuration] of payload.configurations.entries()) {
+    if (!isRecord(configuration) || !nonEmptyString(configuration.worktree) || !Number.isInteger(configuration.slot) || configuration.slot < 0) {
+      throw new Error(`Coordination configuration ${index} is missing valid checkout or slot metadata.`);
+    }
+  }
+}
+
+async function strictCoordinationState(coordinationFile) {
+  let contents;
+  try {
+    contents = await readFile(coordinationFile, 'utf8');
+  } catch (error) {
+    if (error?.code === 'ENOENT') return emptyCoordinationState();
+    throw error;
+  }
+  let payload;
+  try {
+    payload = JSON.parse(contents);
+  } catch (error) {
+    throw new Error(`The coordination ledger is not valid JSON: ${error.message}`, { cause: error });
+  }
+  validateCoordinationPayload(payload);
+  return pruneDeadReservations(parseCoordinationState(contents));
 }
 
 function isValidBranchName(branch) {
@@ -178,7 +248,7 @@ async function ledgerIdentity(entry) {
 async function coordinationReason({ coordinationFile, root, identity, branch }) {
   let state;
   try {
-    state = await readCoordinationState(coordinationFile);
+    state = await strictCoordinationState(coordinationFile);
   } catch (error) {
     return {
       code: 'coordination-metadata-unavailable',
@@ -232,10 +302,18 @@ async function coordinationReason({ coordinationFile, root, identity, branch }) 
 }
 
 async function recoveryDirectoryReason({ root, coordinationFile, artifactDirectory }) {
+  let state;
+  try {
+    state = await strictCoordinationState(coordinationFile);
+  } catch (error) {
+    return {
+      code: 'coordination-metadata-unavailable',
+      message: `The shared coordination ledger could not be validated safely: ${error.message}`,
+    };
+  }
   try {
     const prospectiveArtifactRoot = await resolveProspectivePath(artifactDirectory);
     const worktrees = parseWorktreeList(await run('git', ['worktree', 'list', '--porcelain'], { cwd: root }));
-    const state = await readCoordinationState(coordinationFile);
     const registeredPaths = [
       ...worktrees.map((worktree) => worktree.path),
       ...(state.entries ?? []).map((entry) => entry?.worktree),
