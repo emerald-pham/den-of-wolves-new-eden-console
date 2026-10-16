@@ -400,10 +400,19 @@ async function castSecretBallots(context, choice, options) {
   for (const roleId of choice.voterRoleIds) {
     const ballot = choice.ballotsByRole[roleId];
     const { actor } = await selectVoterActor(context, roleId, state.cycle);
-    let electionButton = context.crew.page.getByRole('button', { name: 'Election', exact: true });
-    if (await electionButton.isVisible().catch(() => false)) await electionButton.click();
+    const electionButton = context.crew.page.getByRole('button', { name: 'Election', exact: true });
+    const deadlineAt = Date.now() + 35_000;
+    const remaining = () => {
+      const milliseconds = deadlineAt - Date.now();
+      assert.ok(milliseconds > 0, 'The original secret-ballot navigation deadline expired.');
+      return milliseconds;
+    };
+    await electionButton.waitFor({ state: 'visible', timeout: remaining() });
+    await electionButton.click({ timeout: remaining() });
+    await context.crew.page.waitForURL(url => url.hash.split('?')[0] === '#/election', { timeout: remaining() });
     const form = context.crew.page.getByRole('form', { name: 'Secret election ballot', exact: true });
-    if (!(await form.isVisible().catch(() => false))) {
+    const mounted = await form.waitFor({ state: 'visible', timeout: remaining() }).then(() => true, () => false);
+    if (!mounted) {
       const blocker = blockedSourceBranch('pending-politics-press', branch,
         ['current-voter-has-no-mounted-secret-ballot'], { required: required(options, branch) });
       result.push({ roleId, ...blocker });
