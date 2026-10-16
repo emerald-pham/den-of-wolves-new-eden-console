@@ -117,3 +117,80 @@ for (const action of ['configureElection', 'resolveElection']) test(`${action} c
     else assert.deepEqual(Array.from(result.blockerCodes), ['source-control-not-mounted']);
   }, { stopBuild: stop });
 });
+
+test('secret ballots wait for each original voter’s normal Election route and real workspace', async () => {
+  const header = await sourceJsx('src/components/AppHeader.tsx', text =>
+    text.startsWith('<button className="cic-text-button"') && text.includes("navigate('/election')"));
+  const workspace = await sourceJsx('src/routes/ElectionWorkspace.tsx', text =>
+    text.startsWith('<main className="election-office">'));
+  const compiled = await build({ stdin: { resolveDir: root, loader: 'tsx', contents: `
+    import React,{useState} from 'react';
+    import {createRoot} from 'react-dom/client';
+    import {HashRouter,Routes,Route,Link,useNavigate} from 'react-router-dom';
+    import {PresidentialElectionWorkspaceView} from './src/components/PresidentialElectionWorkspace';
+    const policy=${JSON.stringify(choice.policy)};
+    const roles=['dione-president','dione-captain'];
+    window.__voterRole=null;window.__ballots=[];
+    function PresidentialElectionWorkspace(){return <PresidentialElectionWorkspaceView
+      projection={{type:'presidential-election',revision:1,state:'open',policy,candidates:[
+        {id:'candidate-president',displayName:'President'},{id:'candidate-captain',displayName:'Captain'}]}}
+      live currentUserUid={window.__voterRole} isFacilitator={false} currentCycle={1} ballotSubmitted={false}
+      onConfigurePolicy={async()=>{}} onResolveElection={async()=>{}}
+      onCastBallot={async ballot=>{window.__ballots.push({roleId:window.__voterRole,...ballot});}}/>;}
+    function App(){const navigate=useNavigate(),[headerReady,setHeaderReady]=useState(false);
+      return <><select aria-label='Current actor' defaultValue='' onChange={event=>{
+        window.__voterRole=event.target.value;
+        const url=new URL(location.href);url.searchParams.set('demoActor','fixture-session~'+event.target.value);
+        history.replaceState(history.state,'',url);navigate('/console');setHeaderReady(false);
+        setTimeout(()=>setHeaderReady(true),100);
+      }}><option value=''>Controller</option>{roles.map(role=><option key={role}>{role}</option>)}</select>
+      <header>{headerReady&&${header}}</header><Routes>
+        <Route path='/console' element={<main>Current original voter</main>}/>
+        <Route path='/election' element={${workspace}}/>
+      </Routes></>;}
+    createRoot(document.getElementById('root')).render(<HashRouter><App/></HashRouter>);
+  ` }, bundle: true, write: false, format: 'iife', platform: 'browser', jsx: 'automatic',
+  alias: { '@': resolve(root, 'src') }, plugins: [{ name: 'inert-election-ballot-ports', setup(builder) {
+    builder.onResolve({ filter: /^@\/(store\/useSessionStore|lib\/presidentialElectionService)$/ }, args =>
+      ({ path: args.path, namespace: 'ballot-port' }));
+    builder.onLoad({ filter: /.*/, namespace: 'ballot-port' }, args => ({ contents:
+      args.path.includes('useSessionStore') ? 'export const useSessionStore=()=>{throw Error("Unused container port");};' :
+        'export const castPresidentialBallot=()=>{},configurePresidentialElection=()=>{},resolvePresidentialElection=()=>{};' }));
+  } }] });
+  const source = await readFile(new URL('./pc10-politics-press-proof.mjs', import.meta.url), 'utf8');
+  const tree = ts.createSourceFile('politics.mjs', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  const names = new Set(['required','missingChoice','demandButton','castSecretBallots','selectVoterActor','currentElectionGmBlockers']);
+  const functions = tree.statements.filter(node => ts.isFunctionDeclaration(node) && names.has(node.name?.text))
+    .map(node => node.getText(tree)).join('\n');
+  await withProofBrowserCleanup(async resources => {
+    resources.browserServer = await chromium.launchServer({ channel: 'chrome', headless: true });
+    resources.browser = await chromium.connect(resources.browserServer.wsEndpoint());
+    resources.context = await resources.browser.newContext();
+    await resources.context.route('**/*', route => route.request().isNavigationRequest() &&
+      new URL(route.request().url()).hostname === 'pc10-election.invalid'
+      ? route.fulfill({ contentType: 'text/html', body: '<div id="root"></div>' }) : route.abort());
+    const page = await resources.context.newPage();page.setDefaultTimeout(750);
+    await page.goto('http://pc10-election.invalid/#/console');
+    await page.addScriptTag({content:compiled.outputFiles[0].text});
+    await page.getByLabel('Current actor',{exact:true}).waitFor();
+    const roster=[{roleId:'dione-president',uidHash:'fixture-president',displayName:'President'},
+      {roleId:'dione-captain',uidHash:'fixture-captain',displayName:'Captain'}];
+    const consume=runInNewContext(`(()=>{${functions};return castSecretBallots;})()`,{
+      assert,URL,validateElectionPlan,validateElectionActionCycle,assertGmInstanceFence,blockedSourceBranch,
+      observedMutation:async input=>{assert.equal(input.endpoint,'castPresidentialBallot');
+        await input.executeUi();return {accepted:false,boundary:'inert-rendered-consumer'};},
+    });
+    const result=await consume({initial:{sessionId:original.sessionId},started:original,roster,
+      gm:{observe:async()=>({...original})},crew:{page,until:async(_label,predicate)=>{
+        const roleId=await page.evaluate(()=>window.__voterRole),actor=roster.find(row=>row.roleId===roleId);
+        const current={...original,playerRole:'player',sameActor:true,uidHash:actor.uidHash,profileRoleId:roleId};
+        assert.ok(predicate(current));return current;
+      }}},{...choice,ballotsByRole:{'dione-president':{presidentCandidateRoleId:'dione-president'},
+        'dione-captain':{presidentCandidateRoleId:'dione-president'}}},{});
+    assert.equal(result.length,2);
+    assert.ok(result.every(receipt=>receipt.accepted===false),'Inert ports earn no gameplay credit.');
+    assert.deepEqual(await page.evaluate(()=>window.__ballots),roster.map(actor=>({roleId:actor.roleId,
+      presidentCandidateId:'candidate-president'})));
+    assert.equal(new URL(page.url()).hash,'#/election');
+  },{stopBuild:stop});
+});
