@@ -359,7 +359,7 @@ test('a reserved or configured current checkout is retained', async () => {
   try {
     const branchTip = await fixture.localSha();
     await fixture.writeCoordination({
-      reservations: [{ worktree: fixture.repo, pid: 321 }],
+      reservations: [{ worktree: fixture.repo, pid: 321, slot: 3 }],
       configurations: [{ worktree: fixture.repo, slot: 2 }],
     });
     const report = await fixture.cleanup({ apply: true });
