@@ -315,3 +315,44 @@ prompt completion, CI, deployment or release credit is earned.
 | `transport-audit-native-receipt.json` | `c7bab4e8c934cd178c8c7d3e5f92fbbe5ab881ded0c682ad5d3560ae9f0e54d9` |
 | `runtime invocation-source.mjs` | `6a74a629522698652ac5a6cf8dc836db51cf54ebc44da2de35c008e28825d04a` |
 | `runtime strict-return.json` | `796e54a7df693fe8acab3e19d65cca8ac72e7754c4fe532c327cf6b369444ec4` |
+
+
+## Capybara a3 — original boarding choice closed while attack remained locked
+
+Source `7d167e43d7fa423e0aa4a9373b74c82d94e472b0`, fresh project
+`demo-pc10-capy-f9f3-20261016-a3`, evidence
+`/private/tmp/pc10-capybara-proof-f9f3-20261016-a3`.
+
+Normal twenty-core-role plus Press admission and private setup passed with
+twenty-three genuine Auth identities, two Chrome contexts and zero humans.
+All seven host Cycle 1 maintenance sessions completed, including Capybara
+production and Boa refuel/replay. All twenty-one role surfaces were reached.
+Demo supplies were disclosed ordinary GM choices, not acquisition evidence.
+The opening combat recorded actual Alpha/Bravo launches, enrichment and
+Command and Control choices before the boarding failure.
+
+The original EO boarding-special choice was eligible at revision 33. After
+its actual UI commit and exact retry, its private choice read was denied at
+revision 34 (`functions/failed-precondition`, boarding not currently open).
+A single original-GM server read then found the same attack, Cycle 1, revision
+34, still declared/boarding/locked, with correct document type, server origin
+and no pending writes. The proof accepted only a newer resolved/unlocked
+attack and stopped. This is a precise proof/protocol mismatch to diagnose;
+it does not establish a gameplay defect or authorize weakening identity,
+lease, attack, revision or window guards. The earlier a1 failure remains.
+No later Capybara actions, candidate continuation, ending or whole-game proof
+are accepted. The Nebula continuation repair has not yet been reached natively.
+
+Acquisition was 07:22:08.627 UTC; proof exited 1 and both wrappers ended. Strict
+physical return was 07:41:22.900 UTC: all 122 captured owned PIDs absent, all
+22 bindings free and exact configuration released, before the original
+09:02:08.627 hard bound. RAM was discarded without import/export or per-UID
+deletion claim. No new prompt completion, CI, deployment or release credit.
+Sol owns the bounded source diagnosis/repair; root retains native/release work.
+
+| Capybara a3 artifact | SHA-256 |
+| --- | --- |
+| `failure.json` | `e8940e0a8b8fee540ceb385bb8eb81a6c2ac34eba313305c403341c07f6e3edc` |
+| `base-opening-combat.json` | `58d073a715eda1a0c88b1804bfe18522761848068d1f9d7d32060fc00c956ff7` |
+| `runtime invocation-source.mjs` | `887be0c116acfd8ab356b33e324f3cb0f7089b23d2c6ef79977e84e4e3cf1c8c` |
+| `runtime strict-return.json` | `e6c3f8cee42ee0cefdcd157c7ea0c156c072ea7643ac2cae3da61167233414ff` |
