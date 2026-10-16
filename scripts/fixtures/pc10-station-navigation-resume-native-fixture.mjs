@@ -39,6 +39,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
 export async function stationNavigationResumeFixture(options = {}) {
   const roleId = options.roleId ?? 'icebreaker-captain', f = projectionFixture({ actorRoleId: roleId, freshDemo: true });
   f.store.setState({ me: { ...f.store.getState().me, connectionGeneration: options.initialGeneration ?? 2,
+    ...(options.initialActiveRole ? { activeConsoleRoleId: roleId } : {}),
     ...(options.initialSeatNull ? { seatId: null } : {}) },
     ...(options.initialSeatNull ? { seats: [{ id: roleId, roleId, status: 'open', holderUid: null }] } : {}) });
   await f.resumeSessionOnly(); await f.receiveMemberProjection();

@@ -8,7 +8,7 @@ import { stationNavigationResumeFixture } from './fixtures/pc10-station-navigati
 // generation4/hydration1 before its own automatic retry. Exercise the actual
 // public selection, App retry predicate, SDK resume/finally, feed and acceptance.
 // This does not qualify runtime/gameplay or accept the unmatched intermediate.
-const options = { roleId: 'quellon-engineer', initialGeneration: 3, sourceResumeReply: true,
+const options = { roleId: 'quellon-engineer', initialGeneration: 3, initialActiveRole: true, sourceResumeReply: true,
   unmatchedLeaseBeforeRetry: true, deferResumeResponse: true };
 async function packet(f) {
   const files = await readdir(join(f.directory, 'member-navigation'));
