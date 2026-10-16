@@ -2140,3 +2140,25 @@ These scoped native prefixes advance P215b, P584, P642 and P649 to partial;
 there are still703/751 done, now27partial/21missing. No whole PC10 prompt is
 closed. The exact remaining native loops and final review/render/CI/deploy gates
 remain with root.
+
+### Voter-entry contract correction and Ring negatives
+
+The fresh Base at `56d2cf2b` normally re-entered its first original election
+voter, then stopped at an assertion reading live-snapshot fields from the
+role-entry helper's actor-metadata object. It did not submit election policy
+or reach the later maintenance/combat/mission sequence. Its failure is retained
+under `base-voter-resume`; strict return at18:13:34.750Z confirms79 owned PIDs
+and nine row-4 ports absent, with all463 compiled files and source unchanged.
+No full-game acceptance is earned.
+
+Test-only `1c0bebda` replaces the inaccurate helper-result fixture with the real
+role-entry helper, reproducing two assertion failures. Consumer-only `d64e0097`
+checks its returned live snapshot and binds that snapshot to the original actor
+metadata. All13 affected political/browser checks pass; app/backend authority
+is unchanged. The earlier native HTTP400's precise cause remains unproved.
+
+Ring test-only `39b5a43d` is integrated after the Base runtime returned. Its60
+passing cases close the direct source-assertion gaps identified by the bounded
+reconciliation; see the [scoped report](PC10_RING_N_SCOPED_REPORT.md). Serialized
+test transactions are not emulator contention proof. No whole prompt, CI,
+deployment or release is claimed by these additions.
