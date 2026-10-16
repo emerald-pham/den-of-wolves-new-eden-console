@@ -474,7 +474,7 @@ describe('candidate-loss actor recovery through the current member surface', () 
                 expect(path).toBe('sessions/s1/players/admiral');
                 if (mode === 'denied') throw Object.assign(new Error('permission-denied'), { code: 'permission-denied' });
                 if (mode === 'foreign-auth') sdk.auth.currentUser = { uid: 'foreign-actor' };
-                if (mode === 'changed-actor') useSessionStore.setState({ me: { ...projected, activeConsoleRoleId: 'executive-officer' } });
+                if (mode === 'changed-actor') act(() => useSessionStore.setState({ me: { ...projected, activeConsoleRoleId: 'executive-officer' } }));
                 return { exists: () => true, data: () => mode === 'revoked' ? { ...rawPlayer, connected: false } : rawPlayer,
                   metadata: { fromCache: mode === 'cached', hasPendingWrites: mode === 'pending' } };
               },
