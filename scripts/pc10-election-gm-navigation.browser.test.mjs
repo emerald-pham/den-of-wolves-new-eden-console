@@ -67,7 +67,8 @@ async function fixtureScript() {
 
 const original = { hasAuth: true, sameActor: true, playerRole: 'gm', gmInstanceOwned: true,
   sessionId: 'fixture-session', uidHash: 'fixture-original-gm', instanceId: 'fixture-instance',
-  cycle: 1, phase: 'active', turnStatePhase: 'team', connection: 'live', freshness: 'server', documentTimeOrigin: 1 };
+  cycle: 1, phase: 'active', turnStatePhase: 'team', connection: 'live', freshness: 'server', documentTimeOrigin: 1,
+  fullGameDemo: { status: 'active', progression: 'manual' } };
 const choice = { voterRoleIds: ['dione-president', 'dione-captain'], policy: {
   votingSystem: 'plurality', populationWeighting: 'equal', vicePresidentEnabled: false,
   campaigning: 'prohibited', supplyUse: 'prohibited', tieRule: 'current-office-remains',
