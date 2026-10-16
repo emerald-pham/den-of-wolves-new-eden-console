@@ -425,6 +425,29 @@ test('hanging GitHub metadata is bounded and runs without interactive prompts', 
   }
 });
 
+test('an unconfirmed remote deletion timeout retains local recovery when origin is already absent', async () => {
+  const fixture = await createBranchCleanupFixture();
+  let restoreRace;
+  try {
+    const localTip = await fixture.localSha();
+    restoreRace = await installPrePushRace(fixture, { kind: 'remote-delete-hang' });
+    const startedAt = Date.now();
+    const report = await fixture.cleanup({ apply: true, commandTimeoutMs: 150 });
+    const elapsedMs = Date.now() - startedAt;
+    expectReason(report, 'remote-delete-unconfirmed');
+    assert.ok(elapsedMs < 1500, `Timed-out remote deletion took ${elapsedMs}ms to return.`);
+    assert.equal(report.actions.remoteBranchRemoved, false);
+    assert.equal(report.actions.remoteBranchRemovalUnconfirmed, true);
+    assert.equal(report.actions.localBranchRemoved, false);
+    assert.equal(report.recovery.verified, true);
+    assert.equal(await fixture.localSha(), localTip);
+    assert.equal(await fixture.remoteSha(), null);
+  } finally {
+    restoreRace?.();
+    await fixture.dispose();
+  }
+});
+
 test('another registered checkout retains the branch, including a missing worktree path', async () => {
   const fixture = await createBranchCleanupFixture();
   const alternateCheckout = join(fixture.root, 'alternate-checkout');
@@ -598,6 +621,9 @@ async function installPrePushRace(fixture, { kind, raceSha = '' }) {
     '  git -C "$BRANCH_CLEANUP_RACE_REPO" update-ref "$BRANCH_CLEANUP_RACE_REF" "$BRANCH_CLEANUP_RACE_SHA"',
     'elif [ "${BRANCH_CLEANUP_RACE_KIND:-}" = "root-reattach" ]; then',
     '  git -C "$BRANCH_CLEANUP_RACE_REPO" symbolic-ref HEAD "$BRANCH_CLEANUP_RACE_REF"',
+    'elif [ "${BRANCH_CLEANUP_RACE_KIND:-}" = "remote-delete-hang" ]; then',
+    '  git --git-dir="$BRANCH_CLEANUP_RACE_ORIGIN" update-ref -d "$BRANCH_CLEANUP_RACE_REF"',
+    '  exec sleep 3',
     'fi',
     'exit 0',
   ].join('\n') + '\n';
