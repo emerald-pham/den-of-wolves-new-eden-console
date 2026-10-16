@@ -1686,3 +1686,30 @@ Only one source-random A-1 contribution/result is in scope; first failure or
 result stops the proof. No retry grant, old namespace adoption or broad Wing
 acceptance is implied. The exact plan/bindings and first-error-preserving
 cleanup contract remain in the external `wing-mission.md` handoff.
+
+## Bounded authority review repairs and ending-reader correction
+
+Independent Sol review found two P1 blockers in the resumed Macaw host path:
+overlapping Firestore ancestor/descendant update fields, and rules that rejected
+the server's Scrap-shaped inbox. Meaningful test-only RED commits `b8d64c0e2`
+(real installed Firestore SDK) and `d4b62c19a` (three real Rules denials) precede
+repairs `243f67105` and `2db0f8099`. Host apply now persists one combined inventory
+and fingerprints that same inventory; rules accept only the exact sanitized
+Macaw schema while retaining engineering inbox and audience restrictions.
+Callable 29, service/panel 17 and Rules 196 checks pass; Functions compilation
+and type checking pass. Independent follow-up closed both original findings
+with no new actionable finding in the bounded repair. Final merge `d2a9590f`
+preserves both workers and the canonical integration ancestry. The external
+`bounded-authority-review.md` receipt records exact scope, blobs and limits;
+this is not whole-checkpoint review or ordinary host gameplay acceptance.
+
+The Ring proof reader also expected the GM-only debrief in an observer-backed
+session store, while the actual dialog reads it into component-local state.
+Test-only RED `75ae09f73` preceded the authoritative reader repair. A further
+pre-delivered-response RED `4dc144a5` prevented accepting a listener that could
+miss the response before it began waiting. Final `76143d81` verifies the
+original live GM/session/instance, arms the exact reader observer, and reloads
+the ordinary GM page to trigger its actual debrief reader. It validates the
+returned snapshot, current identity and rendered GM/crew results under finite
+deadlines. Eleven focused ending/route/geometry checks pass. The original native
+run remains failed; only a new native run can qualify the corrected reader.
