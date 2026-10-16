@@ -285,14 +285,17 @@ test('live origin HEAD is protected while cleanup ancestry always uses freshly f
 
 test('active or parked ownership retains the branch, while another repository is ignored', async () => {
   const fixture = await createBranchCleanupFixture();
+  const unrelatedRepository = await createBranchCleanupFixture({ branchName: fixture.branchName });
   try {
     const branchTip = await fixture.localSha();
+    const unrelatedIdentity = await unrelatedRepository.runGit(['rev-parse', '--path-format=absolute', '--git-common-dir']);
     await fixture.writeCoordination({ entries: [{
       id: 'foreign-entry',
       status: 'active',
       branchName: fixture.branchName,
-      worktree: join(fixture.root, 'foreign-missing-checkout'),
-      repositoryIdentity: join(fixture.root, 'foreign.git'),
+      worktree: unrelatedRepository.repo,
+      repositoryRoot: unrelatedRepository.repo,
+      repositoryIdentity: unrelatedIdentity,
     }] });
     assert.equal((await fixture.cleanup()).decision, 'would-remove');
 
@@ -321,6 +324,68 @@ test('active or parked ownership retains the branch, while another repository is
       assert.equal(await fixture.localSha(), branchTip);
       assert.equal(await fixture.remoteSha(), branchTip);
     }
+  } finally {
+    await Promise.all([fixture.dispose(), unrelatedRepository.dispose()]);
+  }
+});
+
+test('same-origin clone owners and unresolved owner origins retain the shared branch', async () => {
+  const fixture = await createBranchCleanupFixture();
+  const sharedClone = join(fixture.root, 'shared-origin-clone');
+  try {
+    const localTip = await fixture.localSha();
+    const remoteTip = await fixture.remoteSha();
+    await runGit(fixture.root, ['clone', `file://${fixture.origin}`, sharedClone]);
+    await runGit(sharedClone, ['switch', '--track', '-c', fixture.branchName, `origin/${fixture.branchName}`]);
+    const cloneIdentity = await runGit(sharedClone, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+
+    for (const status of ['active', 'parked']) {
+      await fixture.writeCoordination({ entries: [{
+        id: `same-origin-${status}`,
+        status,
+        branchName: fixture.branchName,
+        worktree: sharedClone,
+        repositoryRoot: sharedClone,
+        repositoryIdentity: cloneIdentity,
+      }] });
+      const report = await fixture.cleanup({ apply: true });
+      expectReason(report, 'coordination-ownership');
+      assert.equal(await fixture.localSha(), localTip);
+      assert.equal(await fixture.remoteSha(), remoteTip);
+    }
+
+    const githubHttpsOrigin = 'https://github.com/example/den-of-wolves.git';
+    const githubSshOrigin = 'git@github.com:Example/Den-of-Wolves.git';
+    const localOriginUrl = `file://${fixture.origin}`;
+    await fixture.runGit(['remote', 'set-url', 'origin', githubHttpsOrigin]);
+    await fixture.runGit(['config', '--add', `url.${localOriginUrl}.insteadOf`, githubHttpsOrigin]);
+    await runGit(sharedClone, ['remote', 'set-url', 'origin', githubSshOrigin]);
+    await runGit(sharedClone, ['config', '--add', `url.${localOriginUrl}.insteadOf`, githubSshOrigin]);
+    await fixture.writeCoordination({ entries: [{
+      id: 'github-equivalent-origin-owner',
+      status: 'active',
+      branchName: fixture.branchName,
+      worktree: sharedClone,
+      repositoryRoot: sharedClone,
+      repositoryIdentity: cloneIdentity,
+    }] });
+    const equivalentGitHubOrigins = await fixture.cleanup({ apply: true });
+    expectReason(equivalentGitHubOrigins, 'coordination-ownership');
+    assert.equal(await fixture.localSha(), localTip);
+    assert.equal(await fixture.remoteSha(), remoteTip);
+
+    await fixture.writeCoordination({ entries: [{
+      id: 'unresolved-origin-owner',
+      status: 'parked',
+      branchName: fixture.branchName,
+      worktree: join(fixture.root, 'unavailable-owner-checkout'),
+      repositoryRoot: join(fixture.root, 'unavailable-owner-repository'),
+      repositoryIdentity: join(fixture.root, 'unavailable-owner.git'),
+    }] });
+    const unresolvedOrigin = await fixture.cleanup({ apply: true });
+    expectReason(unresolvedOrigin, 'coordination-ownership');
+    assert.equal(await fixture.localSha(), localTip);
+    assert.equal(await fixture.remoteSha(), remoteTip);
   } finally {
     await fixture.dispose();
   }
