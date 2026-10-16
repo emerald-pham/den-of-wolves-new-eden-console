@@ -3,8 +3,45 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
+import ts from 'typescript';
 
 const read = () => readFile(new URL('./pc10-base-gameplay-composed-post-combat.mjs', import.meta.url), 'utf8');
+
+test('a post-combat population alert is acknowledged before the next ordinary GM procedure', async () => {
+  const source = await read();
+  const tree = ts.createSourceFile('base.mjs', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  const run = tree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'runBaseGameplay');
+  const body = run.body.statements.find(ts.isTryStatement).tryBlock.statements;
+  const first = body.findIndex(node => node.getText(tree).startsWith('await runBaseCombatAndDeduction(context'));
+  const next = body.findIndex((node, index) => index > first && node.getText(tree) === 'await advance();');
+  assert.ok(first >= 0 && next > first, 'Exercise the actual opening-combat continuation.');
+  const interruptions = run.body.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'sourceInterruptions');
+  const events = [];
+  let populationAlertVisible = false;
+  const ordinaryGmAction = name => {
+    assert.equal(populationAlertVisible, false,
+      `${name} is blocked until the original GM acknowledges the combat population alert.`);
+    events.push(name);
+  };
+  const procedures = {
+    onEligibleAlert: async () => { assert.ok(populationAlertVisible); events.push('normal-alert-acknowledgement'); populationAlertVisible = false; },
+    onEligibleMutiny: async () => ordinaryGmAction('source-mutiny-check'),
+    onEligibleDestruction: async () => ordinaryGmAction('source-destruction-check'),
+    onCycle1AfterWolf: async () => ordinaryGmAction('source-after-combat'),
+  };
+  const governance = { coordination1AfterOpeningWolf: async () => ordinaryGmAction('election-resolution') };
+  const execute = runInNewContext(`(async()=>{${interruptions.getText(tree)};${
+    body.slice(first, next + 1).map(node => node.getText(tree)).join('\n')}})`, {
+    context: {}, checks: {}, procedures, governance,
+    runBaseCombatAndDeduction: async () => { populationAlertVisible = true; events.push('source-combat-result'); },
+    compose: async (_stage, callback) => callback(),
+    advance: async () => ordinaryGmAction('normal-next-cycle'),
+  });
+  await execute();
+  assert.ok(events.indexOf('normal-alert-acknowledgement') < events.indexOf('election-resolution'));
+  assert.equal(events.filter(event => event === 'normal-alert-acknowledgement').length, 1);
+  assert.equal(events.at(-1), 'normal-next-cycle');
+});
 
 test('post-Wolf paid actions and the four separate research choices recheck the current source before credit', async () => {
   const source = await read();
