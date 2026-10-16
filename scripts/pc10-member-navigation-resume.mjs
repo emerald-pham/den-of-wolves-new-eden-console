@@ -203,7 +203,7 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
     samples: [], events: [], transitions: [], ...(transition === 'station-navigation' ? {} : { transition }),
     noSdkOrGameplayActionIssued: true };
   const requests = new Map(), listeners = [];
-  let baseline, closed = false, writes = Promise.resolve(), lastAcceptedObservation = null;
+  let baseline, closed = false, writes = Promise.resolve(), lastAcceptedObservation = null, heldListenerEpoch = null;
   let preparationPositiveSeen = false, preparationDocumentTimeOrigin = null;
   const safeObservation = current => observation(current, transition === 'casting-assignment');
   const inspectPreparationReload = current => {
@@ -265,7 +265,7 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
         ...(name === 'refreshPresence' ? { activeConsoleRoleId: safeId(data?.activeConsoleRoleId) } : {}) };
       append(detail);
       if (name === 'resumeSession' && baseline && Date.now() < deadlineAt) {
-        const receipt = { requestedAt: new Date().toISOString(), baseline: safeObservation(baseline),
+        const receipt = { requestedAt: new Date().toISOString(), baseline: safeObservation(heldListenerEpoch ?? baseline),
           requestSessionId: safeId(data?.sessionId),
           requestMatches: !!data && Object.keys(data).length === 1 && Object.hasOwn(data, 'sessionId') && wireId(data.sessionId),
           endpoint: name };
@@ -468,25 +468,64 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
       if (documentReload) assert.ok(Number.isFinite(current.documentTimeOrigin) &&
         current.documentTimeOrigin > original.documentTimeOrigin,
         'Original reload must publish a new document before accepting its SDK resume.');
+      // A background demo document can commit this account's next server
+      // lease without hydrating this mounted document. That listener delivery
+      // withdraws authority; it cannot be accepted as a navigation resume.
+      // Hold only this exact +1 invalidation while App's existing reconnect
+      // owns recovery, inside the original deadline. No proof SDK call occurs.
+      const unchangedMember = value => value.hasAuth === true && value.sameActor === true && value.connected === true &&
+        stableObservationFields.every(key => value[key] === original[key]) &&
+        value.seatId === original.seatId && value.activeConsoleRoleId === original.activeConsoleRoleId;
+      if (!documentReload && !heldListenerEpoch && requests.size === 0 &&
+          Number.isFinite(original.documentTimeOrigin) && original.documentTimeOrigin > 0 &&
+          original.profileRoleId === roleId && original.assignedRoleId === roleId && original.playerRole === 'player' &&
+          original.seatId === roleId && original.activeConsoleRoleId === roleId &&
+          original.escapeLocked === false && original.replacementRoleId === null && original.replacementStatus === null &&
+          original.connection === 'live' && original.freshness === 'server' &&
+          original.currentMemberBerthPresent === true && original.currentMemberBerthMatches === true &&
+          original.currentOwnPlayerConfirmed === true &&
+          Number.isSafeInteger(original.connectionGeneration) && original.connectionGeneration >= 1 &&
+          Number.isSafeInteger(original.identityHydrationRevision) && original.identityHydrationRevision >= 1 &&
+          unchangedMember(current) && current.connectionGeneration === original.connectionGeneration + 1 &&
+          current.identityHydrationRevision === original.identityHydrationRevision &&
+          current.connection === 'offline' && current.freshness === 'cache' &&
+          current.currentMemberBerthPresent === true && current.currentMemberBerthMatches === false &&
+          current.currentOwnPlayerConfirmed === true) {
+        heldListenerEpoch = safeObservation(current);
+        append({ kind: 'held-listener-epoch', current: heldListenerEpoch,
+          gameplayCredit: false, actionCredit: false, acceptanceCredit: false });
+        return false;
+      }
+      const requestOrigin = heldListenerEpoch ?? original;
       const candidates = [...requests.values()].filter(row => row.baseline.documentTimeOrigin === original.documentTimeOrigin &&
         row.baseline.uidHash === original.uidHash && row.baseline.sessionId === original.sessionId &&
-        row.baseline.connectionGeneration === original.connectionGeneration &&
+        row.baseline.connectionGeneration === requestOrigin.connectionGeneration &&
         row.baseline.identityHydrationRevision === original.identityHydrationRevision);
       await beforeDeadline(Promise.all(candidates.map(row => row.parsed)), deadlineAt);
       assert.ok(Date.now() < deadlineAt, 'Original role navigation deadline expired.');
       const originalRequests = candidates.filter(row => !row.requestFailed && row.requestMatches && row.requestSessionId === original.sessionId);
       const receipt = originalRequests.find(row =>
         row.httpStatus === 200 && row.reply?.sessionId === original.sessionId && row.reply.uidHash === original.uidHash &&
-        row.reply.connectionGeneration === original.connectionGeneration + 1 &&
+        row.reply.connectionGeneration === requestOrigin.connectionGeneration + 1 &&
         row.reply.connectionGeneration === current.connectionGeneration &&
         (row.reply.connected === true || !row.reply.connectedFieldPresent && row.reply.connected === null) && !row.reply.escapeLocked &&
         stableMemberFields.every(key => row.reply.player[key] === current[observationField[key] ?? key]) &&
         row.reply.player.role === 'player');
+      if (heldListenerEpoch && current.connectionGeneration === heldListenerEpoch.connectionGeneration &&
+          current.identityHydrationRevision === original.identityHydrationRevision) {
+        assert.ok(unchangedMember(current) && ['offline', 'connecting'].includes(current.connection) &&
+          current.freshness === 'cache' && current.currentMemberBerthMatches === false &&
+          current.currentOwnPlayerConfirmed === true &&
+          candidates.every(row => !row.requestFailed && row.requestMatches && row.requestSessionId === original.sessionId &&
+            (row.respondedAt === undefined || row.httpStatus === 200 && row.bodyStatus === 'reading')),
+        'Original invalidated listener epoch changed without its current App retry.');
+        return false;
+      }
       // The own-player feed may publish the new lease before HTTP delivery or
       // SDK applySession. Only that exact captured ordinary request may wait;
       // no authority is accepted until the receipt and hydration checks below.
       // HTTP200 body parsing can also begin during the await above.
-      if (current.connectionGeneration === original.connectionGeneration + 1 &&
+      if (current.connectionGeneration === requestOrigin.connectionGeneration + 1 &&
           current.identityHydrationRevision === (documentReload ? 0 : original.identityHydrationRevision) &&
           current.hasAuth === true && current.sameActor === true &&
           stableObservationFields.every(key => (documentReload && key === 'documentTimeOrigin') ||
@@ -542,9 +581,11 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
         'Original resumed station pointers require canonical current ownership.');
       current = settled;
       record.transitions.push({ status: 'accepted-normal-resume-bound', at: new Date().toISOString(),
-        before: safeObservation(original), current: safeObservation(current), receipt: {
+        before: safeObservation(original), current: safeObservation(current),
+        ...(heldListenerEpoch ? { retryOrigin: heldListenerEpoch } : {}), receipt: {
           requestedAt: receipt.requestedAt, respondedAt: receipt.respondedAt, requestSessionId: receipt.requestSessionId,
           httpStatus: receipt.httpStatus, reply: receipt.reply }, clientAcceptance: safeObservation(current).clientAcceptance });
+      heldListenerEpoch = null;
       baseline = safeObservation(current); record.currentBinding = baseline; await persist(); return current;
       } catch (error) {
         throw preserveP181AuthorityRejection(error,
