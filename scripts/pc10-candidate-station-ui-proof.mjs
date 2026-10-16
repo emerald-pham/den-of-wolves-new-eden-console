@@ -134,6 +134,28 @@ async function dismissStationEndgame(actor, original, deadline) {
   assertWolfChoiceActor(await observeWolfChoiceActor(actor), before);
 }
 
+async function waitForStationWorkspace({ actor, panel, gm, originalGm, acceptedActor, sessionId, phase,
+  revision, chargeCapacity, deadline }) {
+  while (true) {
+    remaining(deadline, 'Station mounted workspace readiness');
+    const current = await observeWolfChoiceActor(actor);
+    assertWolfChoiceActor(current, acceptedActor);
+    assert.equal(current.documentTimeOrigin, acceptedActor.documentTimeOrigin);
+    assert.equal(current.profileSessionId, sessionId);
+    sameStationGmLease(await observeStationGmLease(gm), originalGm, sessionId, phase);
+    const text = await panel.innerText({ timeout: remaining(deadline, 'Station mounted workspace read') });
+    if (text.includes('Receiving current candidate operations…')) {
+      await delay(Math.min(50, remaining(deadline, 'Station mounted workspace readiness')));
+      continue;
+    }
+    const projected = stationProjection(text);
+    assert.equal(projected.cycle, acceptedActor.cycle);
+    assert.equal(projected.revision, revision, 'The mounted Station read must contain the original committed revision.');
+    assert.equal(projected.chargeCapacity, chargeCapacity, 'The mounted Station read must contain the once-committed capacity.');
+    return projected;
+  }
+}
+
 /** Recover one real P Reactor action through the mounted exact-retry control after a cold reload. */
 export async function recoverStationReactorContribution({ actor, gm, tools, shipId, roleId,
   coordinate, sessionId, liberation, expectActivation = false, deadlineAt }) {
@@ -267,7 +289,10 @@ export async function recoverStationReactorContribution({ actor, gm, tools, ship
     sameStationGmLease(reloadedGm, originalGm, sessionId, committedPhase);
     if (expectActivation) await dismissStationEndgame(actor, originalActor, deadline);
 
-    const afterCommit = stationProjection(await panel.innerText({ timeout: remaining(deadline, 'Station committed state after reload') }));
+    const workspace = { actor, panel, gm, originalGm, acceptedActor: reloadedActor, sessionId,
+      phase: committedPhase, revision: originalResult.revision,
+      chargeCapacity: before.chargeCapacity + capacity, deadline };
+    const afterCommit = await waitForStationWorkspace(workspace);
     assert.equal(afterCommit.chargeCapacity, before.chargeCapacity + capacity,
       'The committed Reactor capacity must be visible exactly once after reconnect.');
     assert.equal(afterCommit.revision, originalResult.revision);
@@ -285,7 +310,7 @@ export async function recoverStationReactorContribution({ actor, gm, tools, ship
     assert.deepEqual(replayRequest, originalRequest);
     assert.equal(replay.revision, afterCommit.revision, 'Exact replay cannot create another candidate revision.');
     await retry.waitFor({ state: 'hidden', timeout: remaining(deadline, 'Station original request receipt clear') });
-    const afterReplay = stationProjection(await panel.innerText({ timeout: remaining(deadline, 'Station state after exact replay') }));
+    const afterReplay = await waitForStationWorkspace(workspace);
     assert.equal(afterReplay.chargeCapacity, afterCommit.chargeCapacity, 'Exact replay cannot spend the Reactor twice.');
     assert.equal(afterReplay.revision, afterCommit.revision, 'Exact replay cannot increment the candidate revision twice.');
     assert.equal(await panel.getByRole('button', {
