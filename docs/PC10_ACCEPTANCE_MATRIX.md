@@ -1,6 +1,6 @@
 # PC10 acceptance matrix
 
-Opening: 703/751 overall; 245/293 campaign. Target: 48 assigned closures, 751/751 and 293/293. The opening scope was 14 partial and 34 missing. Current catalog accounting is 703 done, 23 partial and 25 missing; the rows below distinguish accepted subcriteria from remaining work. Added scope earns zero campaign credit.
+Opening: 703/751 overall; 245/293 campaign. Target: 48 assigned closures, 751/751 and 293/293. The opening scope was 14 partial and 34 missing. Current catalog accounting is 703 done, 27 partial and 21 missing; the rows below distinguish accepted subcriteria from remaining work. Added scope earns zero campaign credit.
 
 October 16 continuation: [F2 native acceptance](PC10_F2_NATIVE_REPORT.md)
 passes evacuation, nonterminal destruction, original-account Flee/replacement
@@ -1926,3 +1926,14 @@ Physical return at 21:39:17.547 UTC closed all owned runtime/data/claims after a
 Source clock/DOM repairs have14 independently reviewed cases overlapping the worker's same14; historical failures/chronology stay preserved. Native success does not uniquely establish fingerprint-only historical causes or same-run lag. Physical return23:39:17.852UTC after155466ms consumed the grant;16attempt7075ms binding readiness preceded the unchanged first strict22-binding pass. Root next-three-boundary source inspection under the standing parent direction found no justified repair and earns no native Back/Bravo/phase-advance credit. This docs-only update follows exact nativec49: no successor-native/build claim or repeated build/risk suite.
 
 Bravo launch, build/exchange/rebuild, range/aftermath, missions, new recovery/scale, whole fresh-game/every-role/function ending, final usability/typography and release remain open. All751 IDs/definitions/statuses,48 unfinished14partial34missing,703/751overall245/293campaign and nine objectives are unchanged; no catalog closure/CI/deployment/release credit.
+
+### October16 additional scoped native acceptance
+
+[Selected natural L3 lease/clock recovery](PC10_L3_NATIVE_REPORT.md) passes.
+The latest Base prefix earns one real Scientist research mark; expansion earns
+seven-ship Cycle1 maintenance and Capybara production/Boa refuel; Station earns
+six paid P arrivals. See the execution record's latest boundaries for the three
+failed whole runs and their focused consumer repairs. P215b/P584/P642/P649 are
+partial. Counts are703done/27partial/21missing; no whole closure or release is
+claimed. Old pending row text is historical routing, not a replacement for the
+full catalog acceptance or these scoped results.
