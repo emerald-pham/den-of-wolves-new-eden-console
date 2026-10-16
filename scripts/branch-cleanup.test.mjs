@@ -314,6 +314,46 @@ test('active or parked ownership retains the branch, while another repository is
   }
 });
 
+test('malformed coordination metadata cannot be normalized into an empty ownership ledger', async () => {
+  const fixture = await createBranchCleanupFixture();
+  try {
+    const localTip = await fixture.localSha();
+    const remoteTip = await fixture.remoteSha();
+    const validState = {
+      version: 1,
+      scope: 'codex-wide',
+      versionAgreement: 'fixture',
+      entries: [],
+      reservations: [],
+      configurations: [],
+    };
+    const malformedStates = [
+      ['entries type', { ...validState, entries: { discarded: true } }],
+      ['reservation type', { ...validState, reservations: 'discarded' }],
+      ['configuration worktree', { ...validState, configurations: [{ slot: 2 }] }],
+      ['missing owner id', {
+        ...validState,
+        entries: [{ status: 'active', branchName: fixture.branchName, worktree: fixture.repo }],
+      }],
+      ['malformed owner branch', {
+        ...validState,
+        entries: [{ id: 'bad-branch-owner', status: 'active', branchName: 42, worktree: fixture.repo }],
+      }],
+      ['unknown schema', { ...validState, version: 99 }],
+    ];
+    for (const [label, state] of malformedStates) {
+      await writeFile(fixture.coordinationFile, `${JSON.stringify(state)}\n`);
+      const report = await fixture.cleanup({ apply: true });
+      assert.equal(report.decision, 'retained', `${label}: ${JSON.stringify(report, null, 2)}`);
+      assert.ok(report.reasons.some((reason) => reason.code === 'coordination-metadata-unavailable'), label);
+      assert.equal(await fixture.localSha(), localTip, label);
+      assert.equal(await fixture.remoteSha(), remoteTip, label);
+    }
+  } finally {
+    await fixture.dispose();
+  }
+});
+
 test('a reserved or configured current checkout is retained', async () => {
   const fixture = await createBranchCleanupFixture({ currentBranch: 'target' });
   try {
