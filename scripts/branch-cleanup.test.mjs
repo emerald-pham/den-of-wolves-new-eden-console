@@ -238,6 +238,39 @@ test('unique tips, default branches, and local/remote tip mismatches are retaine
   }
 });
 
+test('live origin HEAD is protected while cleanup ancestry always uses freshly fetched origin/main', async () => {
+  const defaultFixture = await createBranchCleanupFixture();
+  try {
+    await execFileAsync('git', [
+      '--git-dir', defaultFixture.origin,
+      'symbolic-ref', 'HEAD', `refs/heads/${defaultFixture.branchName}`,
+    ]);
+    const protectedRemoteDefault = await defaultFixture.cleanup();
+    expectReason(protectedRemoteDefault, 'protected-default-branch');
+    assert.equal(protectedRemoteDefault.defaultBranch.name, defaultFixture.branchName);
+  } finally {
+    await defaultFixture.dispose();
+  }
+
+  const nonMainDefault = await createBranchCleanupFixture();
+  try {
+    const mainMergeTip = await nonMainDefault.runGit(['rev-parse', 'main^1']);
+    await nonMainDefault.runGit(['branch', 'release', mainMergeTip]);
+    await nonMainDefault.runGit(['push', 'origin', 'release']);
+    await execFileAsync('git', ['--git-dir', nonMainDefault.origin, 'symbolic-ref', 'HEAD', 'refs/heads/release']);
+    await nonMainDefault.runGit(['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/release']);
+
+    const mergedIntoMain = await nonMainDefault.cleanup();
+    assert.equal(mergedIntoMain.decision, 'would-remove', JSON.stringify(mergedIntoMain, null, 2));
+    assert.equal(mergedIntoMain.defaultBranch.name, 'release');
+    await assert.rejects(execFileAsync('git', [
+      'merge-base', '--is-ancestor', nonMainDefault.branchName, 'refs/remotes/origin/release',
+    ], { cwd: nonMainDefault.repo }));
+  } finally {
+    await nonMainDefault.dispose();
+  }
+});
+
 test('active or parked ownership retains the branch, while another repository is ignored', async () => {
   const fixture = await createBranchCleanupFixture();
   try {
