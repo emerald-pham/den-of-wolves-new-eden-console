@@ -3693,3 +3693,70 @@ describe('permissioned dismantling target inbox', () => {
     await assertFails(getDoc(doc(as('captain'), inboxPath)));
   });
 });
+
+describe('Macaw Scrap permissioned dismantling inbox', () => {
+  const inboxPath = `${SESSION}/permissionedDismantlingInboxes/capybara`;
+
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await updateDoc(doc(db, SESSION), {
+        activeRoleIds: ['icebreaker-captain', 'capybara-recycler'],
+        activeVesselIds: ['icebreaker', 'capybara'],
+      });
+      await setDoc(doc(db, `${SESSION}/players/capybara-player`), {
+        uid: 'capybara-player', role: 'player', connected: true,
+        assignedRoleId: 'capybara-recycler', replacementRoleId: null,
+        replacementStatus: null, escapeState: null,
+      });
+      await setDoc(doc(db, `${SESSION}/players/engineer`), {
+        uid: 'engineer', role: 'player', connected: true,
+      });
+      await setDoc(doc(db, inboxPath), {
+        type: 'permissioned-dismantling-inbox', sessionId: 's1', targetShipId: 'capybara',
+        proposalId: 'proposal-1', proposerUid: 'engineer', craftId: 'macaw',
+        targetConsoleId: 'advanced-hydroponics', targetRevision: 0, scrapGain: 1,
+        status: 'pending', consentId: null, materialsAfter: null, scrapAfter: null,
+        updatedAt: new Date('2026-10-15T17:00:00.000Z'),
+      });
+    });
+  });
+
+  it.each([
+    ['pending', { status: 'pending', consentId: null, scrapAfter: null }],
+    ['consented', { status: 'consented', consentId: 'consent-1', scrapAfter: null }],
+    ['applied', { status: 'applied', consentId: 'consent-1', scrapAfter: 4 }],
+  ] as const)('allows only the current Capybara player and proposer to read a %s Macaw inbox', async (_status, fields) => {
+    if (fields.status !== 'pending') {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await updateDoc(doc(ctx.firestore(), inboxPath), fields);
+      });
+    }
+
+    await assertSucceeds(getDoc(doc(as('capybara-player'), inboxPath)));
+    await assertSucceeds(getDoc(doc(as('engineer'), inboxPath)));
+    await assertFails(getDoc(doc(as('captain'), inboxPath)));
+    await assertFails(getDoc(doc(as('commissar'), inboxPath)));
+    await assertFails(getDoc(doc(as('alice'), inboxPath)));
+    await assertFails(getDoc(doc(as('bob'), inboxPath)));
+    await assertFails(getDoc(doc(as('gm1'), inboxPath)));
+    await assertFails(getDoc(doc(as('observer'), inboxPath)));
+    await assertFails(getDocs(collection(as('capybara-player'), `${SESSION}/permissionedDismantlingInboxes`)));
+    await assertFails(setDoc(doc(as('capybara-player'), inboxPath), { forged: true }));
+    await assertFails(updateDoc(doc(as('capybara-player'), inboxPath), { status: 'applied' }));
+  });
+
+  it.each([
+    ['private consent details', { privateConsentUid: 'capybara-player' }],
+    ['engineering-only material grant', { materialGain: 3 }],
+    ['incorrect printed Scrap gain', { scrapGain: 2 }],
+    ['negative post-apply Scrap', { status: 'applied', consentId: 'consent-1', scrapAfter: -1 }],
+  ] as const)('fails closed for %s in the Macaw projection', async (_label, fields) => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), inboxPath), fields);
+    });
+
+    await assertFails(getDoc(doc(as('capybara-player'), inboxPath)));
+    await assertFails(getDoc(doc(as('engineer'), inboxPath)));
+  });
+});

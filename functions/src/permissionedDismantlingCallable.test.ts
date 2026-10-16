@@ -1,4 +1,6 @@
-import { expect, it } from 'vitest';
+import { Firestore } from '@google-cloud/firestore';
+import { createHash } from 'node:crypto';
+import { afterAll, expect, it } from 'vitest';
 import { createPermissionedDismantlingCallables } from './permissionedDismantlingCallable';
 import { SHIP_DAMAGE_DECKS } from './shipDamage';
 import { startTurnPhase } from './turnZero';
@@ -10,6 +12,11 @@ const SESSION_ID = 's1';
 const PROPOSAL_ID = 'proposal-1';
 const CONSENT_ID = 'consent-1';
 const APPLY_ID = 'apply-1';
+const firestoreUpdateValidator = new Firestore({ projectId: 'pc10-offline-update-map-validation' });
+
+afterAll(async () => {
+  await firestoreUpdateValidator.terminate();
+});
 
 function pathSet(target: Fields, dottedPath: string, value: unknown): void {
   const parts = dottedPath.split('.');
@@ -24,6 +31,7 @@ function pathSet(target: Fields, dottedPath: string, value: unknown): void {
 class FakeStore {
   readonly records = new Map<string, Fields>();
   readonly committedWrites: Write[] = [];
+  validateUpdateMapsWithFirestore = false;
 
   doc(path: string) {
     return { path, id: path.split('/').at(-1) ?? '' };
@@ -49,6 +57,9 @@ class FakeStore {
         staged.push({ kind: 'create', path: ref.path, data: structuredClone(data) });
       },
       update: (ref: { readonly path: string }, data: Fields) => {
+        if (this.validateUpdateMapsWithFirestore) {
+          firestoreUpdateValidator.batch().update(firestoreUpdateValidator.doc(ref.path), data);
+        }
         staged.push({ kind: 'update', path: ref.path, data: structuredClone(data) });
       },
     };
@@ -511,12 +522,28 @@ it('lets the Capybara host approve exact Macaw dismantling through a different a
   expect(store.records.has(paths().consent)).toBe(false);
 
   await callables.consentToPermissionedDismantling(consentRequest('target-player'));
+  store.validateUpdateMapsWithFirestore = true;
   const applied = await callables.applyPermissionedDismantling(applyRequest());
   expect(applied).toMatchObject({ status: 'applied', targetShipId: 'capybara', scrapGain: 1, scrapAfter: 4 });
   expect(store.records.get(p.session)).toMatchObject({
     shipDamage: { capybara: { damagedSystemIds: ['advanced-hydroponics'], destroyed: false } },
     shipResources: { capybara: { scrap: 4 } },
   });
+  const expectedCapybaraFingerprint = createHash('sha256').update(JSON.stringify({
+    damagedSystemIds: ['advanced-hydroponics'],
+    destroyed: false,
+    resources: {
+      ore: 0,
+      fuel: 3,
+      food: 9,
+      water: 4,
+      materials: 0,
+      securityTeams: 2,
+      scrap: 4,
+    },
+  })).digest('hex');
+  expect(store.records.get(`sessions/${SESSION_ID}/permissionedDismantlingTargetStates/capybara`))
+    .toMatchObject({ revision: 1, fingerprint: expectedCapybaraFingerprint });
   expect(store.records.get(`sessions/${SESSION_ID}/actionAudits/${APPLY_ID}`)).toMatchObject({
     actorUid: 'engineer', actorRoleId: 'capybara-captain', action: 'macaw-consented-dismantling',
   });
