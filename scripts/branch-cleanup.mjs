@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash, randomUUID } from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import {
   mkdir,
   mkdtemp,
@@ -24,6 +25,9 @@ import {
 } from './emulator-resource-registry.mjs';
 
 const execFileAsync = promisify(execFile);
+const commandTimeoutContext = new AsyncLocalStorage();
+const DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
+const MAX_COMMAND_TIMEOUT_MS = 300_000;
 const DEFAULT_ARTIFACT_DIRECTORY = resolve(
   homedir(), '.codex', 'recovery-bundles', 'den-of-wolves-branch-cleanup',
 );
@@ -43,6 +47,12 @@ async function run(command, args, { cwd, allowedExitCodes = [] } = {}) {
       cwd,
       encoding: 'utf8',
       maxBuffer: 8 * 1024 * 1024,
+      timeout: commandTimeoutContext.getStore() ?? DEFAULT_COMMAND_TIMEOUT_MS,
+      env: {
+        ...process.env,
+        GIT_TERMINAL_PROMPT: '0',
+        GCM_INTERACTIVE: 'never',
+      },
     });
     return String(result.stdout ?? '').trimEnd();
   } catch (error) {
@@ -368,7 +378,19 @@ async function pullRequestReason(root, branch) {
     const output = await execFileAsync('gh', [
       'pr', 'list', '--state', 'open', '--head', branch,
       '--json', 'number,headRefName,headRefOid',
-    ], { cwd: root, encoding: 'utf8', maxBuffer: 1024 * 1024 });
+    ], {
+      cwd: root,
+      encoding: 'utf8',
+      maxBuffer: 1024 * 1024,
+      timeout: commandTimeoutContext.getStore() ?? DEFAULT_COMMAND_TIMEOUT_MS,
+      env: {
+        ...process.env,
+        GH_PROMPT_DISABLED: '1',
+        GH_NO_UPDATE_NOTIFIER: '1',
+        GIT_TERMINAL_PROMPT: '0',
+        GCM_INTERACTIVE: 'never',
+      },
+    });
     const pullRequests = JSON.parse(String(output.stdout ?? ''));
     if (!Array.isArray(pullRequests)) throw new Error('GitHub returned a non-list pull request response.');
     if (pullRequests.length > 0) {
@@ -585,7 +607,12 @@ function reportFor(branch, apply) {
     defaultBranch: null,
     local: { exists: false, sha: null },
     remote: { name: 'origin', exists: false, sha: null },
-    actions: { detached: false, remoteBranchRemoved: false, localBranchRemoved: false },
+    actions: {
+      detached: false,
+      remoteBranchRemoved: false,
+      remoteBranchRemovalUnconfirmed: false,
+      localBranchRemoved: false,
+    },
     reasons: [],
     recovery: null,
   };
@@ -595,7 +622,7 @@ function reportFor(branch, apply) {
  * Preview or remove one terminal local branch and its matching origin ref.
  * Worktree directories and repository files are never removed by this command.
  */
-export async function cleanupBranch({
+async function cleanupBranchInternal({
   cwd = process.cwd(),
   branch,
   apply = false,
@@ -717,7 +744,7 @@ export async function cleanupBranch({
       ], { cwd: root });
       report.actions.remoteBranchRemoved = true;
     } catch (error) {
-      let currentRemote = null;
+      let currentRemote;
       try {
         currentRemote = await remoteBranchSha(root, targetBranch);
       } catch {
@@ -726,11 +753,21 @@ export async function cleanupBranch({
       if (wasCurrentBranch && report.actions.detached) {
         report.actions.reattached = await restoreCurrentBranch(root, targetBranch, inspected.local);
       }
+      if (currentRemote === null) {
+        report.remote = { name: 'origin', exists: false, sha: null };
+        report.actions.remoteBranchRemovalUnconfirmed = true;
+        return addReason(
+          report,
+          'remote-delete-unconfirmed',
+          `Origin no longer has ${targetBranch}, but the deletion command did not confirm its exact-SHA lease; the local recovery ref was retained.`,
+        );
+      }
+      if (currentRemote !== undefined) report.remote = { name: 'origin', exists: true, sha: currentRemote };
       return addReason(
         report,
-        currentRemote !== rechecked.remote ? 'remote-tip-changed' : 'remote-delete-failed',
-        currentRemote !== rechecked.remote
-          ? `Origin changed ${targetBranch} during deletion; its exact-SHA lease rejected the removal.`
+        currentRemote !== undefined && currentRemote !== rechecked.remote ? 'remote-tip-changed' : 'remote-delete-failed',
+        currentRemote !== undefined && currentRemote !== rechecked.remote
+          ? `Origin changed ${targetBranch} during cleanup; its exact-SHA deletion was not confirmed, so the local ref was retained.`
           : `Origin did not confirm deletion of ${targetBranch}: ${error.message}`,
       );
     }
@@ -778,6 +815,14 @@ export async function cleanupBranch({
 
   report.decision = 'removed';
   return report;
+}
+
+export async function cleanupBranch(options = {}) {
+  const commandTimeoutMs = options.commandTimeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS;
+  if (!Number.isSafeInteger(commandTimeoutMs) || commandTimeoutMs < 1 || commandTimeoutMs > MAX_COMMAND_TIMEOUT_MS) {
+    throw new RangeError(`commandTimeoutMs must be an integer between 1 and ${MAX_COMMAND_TIMEOUT_MS}.`);
+  }
+  return commandTimeoutContext.run(commandTimeoutMs, () => cleanupBranchInternal(options));
 }
 
 function parseArguments(args) {
