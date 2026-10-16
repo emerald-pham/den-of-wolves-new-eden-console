@@ -2162,3 +2162,63 @@ passing cases close the direct source-assertion gaps identified by the bounded
 reconciliation; see the [scoped report](PC10_RING_N_SCOPED_REPORT.md). Serialized
 test transactions are not emulator contention proof. No whole prompt, CI,
 deployment or release is claimed by these additions.
+
+### Post-combat Base alert and qualified unfinished-candidate continuation
+
+Fresh Base `aa1ff968` passed election policy, both original secret ballots with
+cold reload/exact retry, real Cycle1 Scientist research, all six paid ship
+maintenance sequences and genuine opening Wolf combat/public aftermath. Its
+whole game then failed when the GM election-resolution control was covered by
+the real Icebreaker population alert. The saved screenshot shows the normal
+population-alert dialog; this is not evidence of a new product dialog defect.
+The existing alert-handling callback ran after governance. Observed RED in
+test-only `8b206ea1` precedes consumer-only ordering repair `c86f9f5b`, which
+runs the source interruptions before governance. The corrected related Node
+invocation passes11/11; an earlier invocation without its required VM flag is
+retained as an import/setup failure, not gameplay RED. One source-origin
+Scientist shuttle action remains explicitly pending. The failed whole run is
+retained under `base-entry-snapshot-resume`; strict return at18:37:43.655693Z
+records129 captured owned PIDs/all nine row-4 ports absent, unchanged source
+and all463 compiled files. A new finite frozen Base attempt is still required.
+
+Capybara attempt6 (`8163758d`) completed ordinary23-Auth admission, all seven
+ships' Cycle1 maintenance, original-account entry to all20 core role surfaces
+plus optional Press, and genuine opening combat/public aftermath. Role entry
+does not prove every distinct mechanic. It stopped before Cycle2 because the
+ordinary Icebreaker population alert was outside the unrest-only consumer.
+After two prior substantive consumer repairs, bounded implementation ownership
+transferred to Sol under the execution policy. Test-only `014eeca9` precedes
+consumer-only `75ff4b8b`: the original GM uses the ordinary population dismissal
+with its exact vessel/turn/revision/request receipt. Twenty-one consumer and
+eighteen related checks, seven preflight checks and web/Functions builds pass.
+Attempt6 remains failed; strict return18:22:20.485Z records123 owned PIDs/nine
+row-3 ports absent and unchanged source/all463 compiled files. Attempt7 is a
+fresh isolated allocation; no Nebula, ending or whole-game credit is inferred.
+
+Station attempt6 (`49936be6`) reached the genuine current-cycle P source,
+ordinary private draft and real attack declaration after six paid arrivals and
+maintenance. It stopped on an authenticated read's `failed-precondition` before
+combat outcome, liberation, Reactor contributions or ending. Strict return at
+18:43:44.257167Z records80 captured owned PIDs/nine row-2 ports absent, unchanged
+source/all463 compiled files; only its configuration/resource was released.
+The retained Firestore log identifies a transaction verify-commit version race;
+it does not establish Rules denial or missing Auth. The Sol owner is repairing
+the bounded proof read adapter under meaningful RED; no source authority or
+combat result is changed.
+
+The [selected F3 unfinished-candidate check](PC10_F3_UNFINISHED_CANDIDATE_REPORT.md)
+passes at `b000cbe3`: one actual Material payment, same original Miner cold
+document reload/exact replay without repeated cost, and ordinary next-cycle
+eligible action while the Ring remains unfinished. Two Auth accounts/two Chrome
+processes/two contexts/eight configured roles/zero humans are distinct. Proof
+exited zero; strict return18:50:30.151886Z records62 owned PIDs/nine row-1 ports
+absent and unchanged source/all463 compiled files. Its earlier literal-six
+setup attempt remains failed with no paid target credit. Source-real test-only
+`0c3dc55e` precedes canonical five-vessel/actor/group repair `b000cbe3`; eight
+focused tests pass. The two F3 digital interpretations are now explicitly
+recorded as PC10-F3-A1/A2; no abandon endpoint, refund or pending-call state is
+invented. Arrest/deadline and committed-ruling recipient recovery remain open.
+
+These are scoped criterion updates:703/751 done,27 partial/21 missing, zero new
+whole closures. All48 PC10 closures and final review/render/CI/deploy remain
+with root. Earlier failures and narrower proof classes retain their limits.
