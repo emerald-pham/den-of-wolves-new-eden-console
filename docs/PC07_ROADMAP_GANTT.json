@@ -11,12 +11,12 @@
     "dependencyWaveCount": 21
   },
   "sources": {
-    "revision": "fac0bd822952a95ab0c5157d6d02c9a0351cf16a",
-    "revisionDate": "2026-10-16T01:32:32-04:00",
+    "revision": "ae4115585d810b90d24f4b9d0ab32be5ea97743c",
+    "revisionDate": "2026-10-16T01:53:26-04:00",
     "files": [
       {
         "path": "docs/implementation-prompts.json",
-        "sha256": "52e07aedd6de35a052afe2a24c7f8421938eb8cc1a3f58b53f60104395434fd4"
+        "sha256": "44e02276af56db8604de1fb5b485c0664089949208792851c4fa2ec798303c91"
       },
       {
         "path": "docs/CHECKPOINT_COMPLETION_PLAN.md",
@@ -44,8 +44,8 @@
     "total": 751,
     "statusCounts": {
       "done": 703,
-      "partial": 21,
-      "missing": 27,
+      "partial": 22,
+      "missing": 26,
       "blocked": 0,
       "in-progress": 0
     }
@@ -427,8 +427,8 @@
       "dependencyLayerCount": 7,
       "statusCounts": {
         "done": 0,
-        "partial": 21,
-        "missing": 27,
+        "partial": 22,
+        "missing": 26,
         "blocked": 0,
         "in-progress": 0
       },
@@ -1625,8 +1625,8 @@
       "assignedCount": 9,
       "statusCounts": {
         "done": 0,
-        "partial": 5,
-        "missing": 4,
+        "partial": 6,
+        "missing": 3,
         "blocked": 0,
         "in-progress": 0
       },
@@ -9634,7 +9634,7 @@
       "id": "641",
       "checkpoint": "PC10",
       "title": "Run a complete base-game playthrough.",
-      "status": "missing",
+      "status": "partial",
       "catalogReadiness": "ready",
       "acceptance": "six core ships and one facilitator progress from lobby through maintenance, jump, scout, mission, combat, deduction, crisis, and debrief without manual arithmetic or transcription; repeat the mutation races with optional additional GMs. Cover complete configured-role behavior and prove progression with the minimum legitimate playable roster, representative shared role families, each unique mechanic and dropout/recovery across non-GM roles; simultaneous full-table capacity is a separate justified claim. Automatic Wolf assignment preserves the real-roster policy, including zero eligible Wolves; no extra GM or Press participant is required. Resolved choices and random results, safe drafts, current station authority and all-player-disconnection timer pause/resume survive reconnect without reset or duplicate effects. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. Apply the October 5 PC10 owner revision in docs/PC10_EXECUTION_RECORD.md within this assigned scope; preserve actual GM authority, fresh-game evidence, unlimited manual demo progression, interrupted/repeated/recovery flows, real admission and entitled privacy. New join-QR and full-game-demo additions are separately accounted and earn no fixed catalog closures. The reconciled PC10 acceptance matrix traces every role/function through legitimate shared role families and each unique mechanic, a fresh game and ending across two browsers, claim-based overlapping actions/reconnect/retries/privacy, and availability/cost/blocker/next-actor usability. Report automated actors and actual browser concurrency separately from human/device playtesting; prepared-state tours alone are insufficient and later PC11 guidance completeness is not implied. Apply the October 8 mandatory functional test-first correction in docs/AGENT_EXECUTION_POLICY.md within this scope: observe a meaningful RED before every functional change, implement, then observe GREEN. Risk determines test selection, breadth and regression depth; it does not permit implementation-first. Interactive layout, visibility, defaults, parsers and provider features count as functionality. Pure prose/docs use consistency review. Keep small claim-based mounted cohorts and valid unaffected evidence. Blanket 21-account/full-census replays are superseded; justify any scale run by a claim impossible with fewer or a reproduced scale-dependent bug. Preserve actual functional/privacy and required review/CI/deployment gates; untested capacity stays unclaimed.",
       "prerequisites": [
@@ -9726,7 +9726,7 @@
       "prerequisites": [
         {
           "id": "641",
-          "status": "missing",
+          "status": "partial",
           "checkpoint": "PC10",
           "inChart": true
         },
@@ -13335,7 +13335,7 @@
       "to": "651",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "partial"
     },
     {
       "from": "642",
