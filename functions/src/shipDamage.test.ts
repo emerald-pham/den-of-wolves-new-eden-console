@@ -31,30 +31,28 @@ describe('authoritative ship damage deck', () => {
     expect(result.state.damagedSystemIds).not.toContain('armoured-hull-i');
   });
 
-  it('finishes the last two hull cards after every other Aegis system is damaged', () => {
+  it('keeps both remaining Aegis hull cards in the nonempty damage deck', () => {
     const allOtherSystems = AEGIS_DAMAGE_DECK
       .filter(({ recycleAfterResolution }) => recycleAfterResolution !== true)
       .map(({ systemId }) => systemId);
+    let state = { damagedSystemIds: allOtherSystems, destroyed: false };
+    const drawnSystems: string[] = [];
 
-    const firstHull = drawShipDamage('aegis', {
-      damagedSystemIds: allOtherSystems, destroyed: false,
-    }, () => 0);
-    if (firstHull.destroyed) throw new Error('Expected the first remaining hull card.');
+    for (let drawNumber = 0; drawNumber < 6; drawNumber += 1) {
+      const result = drawShipDamage('aegis', state, (upperBound) => drawNumber % upperBound);
+      if (result.destroyed) throw new Error('Expected one of the two remaining hull cards.');
 
-    expect(firstHull.card.systemId).toBe('armoured-hull-i');
-    expect(firstHull.recycled).toBe(false);
-    expect(firstHull.state.damagedSystemIds).toContain('armoured-hull-i');
+      drawnSystems.push(result.card.systemId);
+      expect(result.recycled).toBe(true);
+      expect(result.state.damagedSystemIds).toEqual(allOtherSystems);
+      state = result.state;
+    }
 
-    const lastHull = drawShipDamage('aegis', firstHull.state, () => 0);
-    if (lastHull.destroyed) throw new Error('Expected the last remaining hull card.');
-
-    expect(lastHull.card.systemId).toBe('armoured-hull-ii');
-    expect(lastHull.recycled).toBe(false);
-    expect(lastHull.state.damagedSystemIds).toContain('armoured-hull-ii');
-
-    const exhausted = drawShipDamage('aegis', lastHull.state, () => 0);
-    expect(exhausted.destroyed).toBe(true);
-    expect(exhausted.state.destroyed).toBe(true);
+    expect(drawnSystems).toEqual([
+      'armoured-hull-i', 'armoured-hull-ii',
+      'armoured-hull-i', 'armoured-hull-ii',
+      'armoured-hull-i', 'armoured-hull-ii',
+    ]);
   });
 
   it('keeps the last armoured hull out of the empty deck, then destroys the ship', () => {
