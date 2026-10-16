@@ -13,6 +13,11 @@ export function rememberProofFailure(error, detail) {
   if (error === null || !['object', 'function'].includes(typeof error)) return;
   const held = observations.get(error) ?? []; held.push(detail); observations.set(error, held);
 }
+// Read retained evidence only; callers cannot append to the held array.
+export function heldProofFailureObservations(error) {
+  if (error === null || !['object', 'function'].includes(typeof error)) return [];
+  return [...(observations.get(error) ?? [])];
+}
 export function originalProofError(error, seen = new WeakSet()) {
   if (error === null || !['object', 'function'].includes(typeof error)) return { fullInspect: fullInspect(error) };
   if (seen.has(error)) return { circular: true, fullInspect: fullInspect(error) };
