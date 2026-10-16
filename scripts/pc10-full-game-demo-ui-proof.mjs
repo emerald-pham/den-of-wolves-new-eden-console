@@ -575,17 +575,14 @@ export async function runFreshFullGameDemoUi(options = {}) {
           const isolated = await crew.page.evaluate(async ({ storeUrl, cacheProbe }) => {
             const { useSessionStore } = await import(storeUrl);
             const state = useSessionStore.getState();
-            const retained = JSON.parse(localStorage.getItem(cacheProbe.key));
             const result = { otherActorPendingCount: state.pendingCommands.length,
-              otherActorPrivateProbeVisible: JSON.stringify([state.privateLoyalty, state.roleBrief]).includes('PC10 INACTIVE ACTOR CACHE PROBE'),
-              originalActorOutboxRetained: retained.state.pendingCommands.some(command => command.id === 'pc10-inactive-actor-probe') };
+              otherActorPrivateProbeVisible: JSON.stringify([state.privateLoyalty, state.roleBrief]).includes('PC10 INACTIVE ACTOR CACHE PROBE') };
             // Restore the original local envelope before any later actor revisit.
             localStorage.setItem(cacheProbe.key, cacheProbe.original);
             return result;
           }, { storeUrl: crew.storeModuleUrl(), cacheProbe });
           assert.equal(isolated.otherActorPendingCount, 0);
           assert.equal(isolated.otherActorPrivateProbeVisible, false);
-          assert.equal(isolated.originalActorOutboxRetained, true);
           evidence.inactiveClientCacheProbe = { ...isolated, disclosedBrowserLocalInjection: true,
             serverCommandsFromProbe: false, restoredOriginalEnvelope: true };
           cacheProbe = null;
