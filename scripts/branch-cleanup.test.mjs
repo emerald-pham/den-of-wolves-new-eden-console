@@ -50,13 +50,17 @@ async function writeCoordination(fixture, state) {
   return identity;
 }
 
-async function withFakeGh(fixture, { response = '[]', fail = false } = {}, action) {
+async function withFakeGh(fixture, { response = '[]', fail = false, hang = false, auditPath = '' } = {}, action) {
   const oldPath = process.env.PATH;
   const oldResponse = process.env.BRANCH_CLEANUP_FAKE_GH_RESPONSE;
   const oldFailure = process.env.BRANCH_CLEANUP_FAKE_GH_FAIL;
+  const oldHang = process.env.BRANCH_CLEANUP_FAKE_GH_HANG;
+  const oldAuditPath = process.env.BRANCH_CLEANUP_FAKE_GH_AUDIT;
   process.env.PATH = `${fixture.ghBin}${delimiter}${oldPath ?? ''}`;
   process.env.BRANCH_CLEANUP_FAKE_GH_RESPONSE = response;
   process.env.BRANCH_CLEANUP_FAKE_GH_FAIL = fail ? '1' : '';
+  process.env.BRANCH_CLEANUP_FAKE_GH_HANG = hang ? '1' : '';
+  process.env.BRANCH_CLEANUP_FAKE_GH_AUDIT = auditPath;
   try {
     return await action();
   } finally {
@@ -66,6 +70,10 @@ async function withFakeGh(fixture, { response = '[]', fail = false } = {}, actio
     else process.env.BRANCH_CLEANUP_FAKE_GH_RESPONSE = oldResponse;
     if (oldFailure === undefined) delete process.env.BRANCH_CLEANUP_FAKE_GH_FAIL;
     else process.env.BRANCH_CLEANUP_FAKE_GH_FAIL = oldFailure;
+    if (oldHang === undefined) delete process.env.BRANCH_CLEANUP_FAKE_GH_HANG;
+    else process.env.BRANCH_CLEANUP_FAKE_GH_HANG = oldHang;
+    if (oldAuditPath === undefined) delete process.env.BRANCH_CLEANUP_FAKE_GH_AUDIT;
+    else process.env.BRANCH_CLEANUP_FAKE_GH_AUDIT = oldAuditPath;
   }
 }
 
@@ -116,6 +124,10 @@ export async function createBranchCleanupFixture({
     'if [ "${BRANCH_CLEANUP_FAKE_GH_FAIL:-}" = "1" ]; then',
     '  echo "fixture GitHub metadata failure" >&2',
     '  exit 1',
+    'fi',
+    'if [ "${BRANCH_CLEANUP_FAKE_GH_HANG:-}" = "1" ]; then',
+    '  printf "%s:%s\\n" "${GH_PROMPT_DISABLED:-}" "${GIT_TERMINAL_PROMPT:-}" > "${BRANCH_CLEANUP_FAKE_GH_AUDIT:-/dev/null}"',
+    '  exec sleep 3',
     'fi',
     'printf "%s\\n" "${BRANCH_CLEANUP_FAKE_GH_RESPONSE:-[]}"',
   ].join('\n') + '\n');
@@ -387,6 +399,27 @@ test('open pull requests and unavailable GitHub metadata retain the branch', asy
     expectReason(unavailable, 'pull-request-metadata-unavailable');
     assert.equal(await fixture.localSha(), branchTip);
     assert.equal(await fixture.remoteSha(), branchTip);
+  } finally {
+    await fixture.dispose();
+  }
+});
+
+test('hanging GitHub metadata is bounded and runs without interactive prompts', async () => {
+  const fixture = await createBranchCleanupFixture();
+  try {
+    const localTip = await fixture.localSha();
+    const auditPath = join(fixture.root, 'gh-environment.txt');
+    const startedAt = Date.now();
+    const report = await fixture.withFakeGh({ hang: true, auditPath }, () => fixture.cleanup({
+      apply: true,
+      commandTimeoutMs: 150,
+    }));
+    const elapsedMs = Date.now() - startedAt;
+    expectReason(report, 'pull-request-metadata-unavailable');
+    assert.ok(elapsedMs < 1500, `GitHub metadata command took ${elapsedMs}ms despite its timeout.`);
+    assert.equal(await readFile(auditPath, 'utf8'), '1:0\n');
+    assert.equal(await fixture.localSha(), localTip);
+    assert.equal(await fixture.remoteSha(), localTip);
   } finally {
     await fixture.dispose();
   }
