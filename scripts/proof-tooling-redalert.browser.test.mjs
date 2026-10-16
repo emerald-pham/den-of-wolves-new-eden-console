@@ -68,7 +68,7 @@ async function componentScript() {
   return result.outputFiles[0].text;
 }
 
-test('the real Fleetwide Red Alert textarea is selected by its exact textbox role in Playwright Chromium', async () => {
+test('the real Fleetwide Red Alert control completes one inert command in Playwright Chromium', async () => {
   const browserPids = new Set();
   await withProofBrowserCleanup(async resources => {
     const script = await componentScript();
@@ -93,13 +93,19 @@ test('the real Fleetwide Red Alert textarea is selected by its exact textbox rol
 
     const section = page.getByRole('region', { name: 'FLEETWIDE RED ALERT', exact: true });
     await section.waitFor();
-    assert.equal(await section.getByLabel('ALERT MESSAGE', { exact: true }).count(), 0,
-      'the source regression leaves the nested textarea unavailable to the label locator');
     const textbox = section.getByRole('textbox', { name: 'ALERT MESSAGE', exact: true });
     assert.equal(await textbox.count(), 1);
     assert.equal(await textbox.isVisible(), true);
-    await textbox.fill('ORDINARY SOURCE ALERT');
+    await textbox.fill('ordinary source alert');
     assert.equal(await textbox.inputValue(), 'ORDINARY SOURCE ALERT');
+    await page.getByRole('button', { name: 'OPEN RED ALERT COMMAND COVER', exact: true }).click();
+    const raiseButton = page.getByRole('button', { name: 'RAISE FLEETWIDE RED ALERT', exact: true });
+    assert.equal(await raiseButton.isEnabled(), true);
+    await raiseButton.click();
+    await page.waitForFunction(() => window.__proofCalls.length === 1);
+    assert.deepEqual(await page.evaluate(() => window.__proofCalls), [
+      { active: true, text: 'ORDINARY SOURCE ALERT' },
+    ]);
     for (const pid of ownedBrowserPids(resources.browserServer.process().pid)) browserPids.add(pid);
   }, {
     stopBuild: stop,
