@@ -631,15 +631,47 @@ export function requireGameStartRequest(data: {
   instanceId?: unknown;
   requestId?: unknown;
   expectedSetupRevision?: unknown;
-}): { sessionId: string; instanceId: string; requestId: string; expectedSetupRevision: number } {
+  fullGameDemo?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedSetupRevision: number;
+  fullGameDemo?: true;
+} {
   if (!Number.isSafeInteger(data.expectedSetupRevision) || (data.expectedSetupRevision as number) < 0) {
     throw new HttpsError('invalid-argument', 'expectedSetupRevision must be a non-negative integer.');
+  }
+  if (data.fullGameDemo !== undefined && typeof data.fullGameDemo !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'fullGameDemo must be boolean.');
   }
   return {
     sessionId: requiredId(data.sessionId, 'sessionId'),
     instanceId: requiredId(data.instanceId, 'instanceId'),
     requestId: requiredId(data.requestId, 'requestId'),
     expectedSetupRevision: data.expectedSetupRevision as number,
+    ...(data.fullGameDemo === true ? { fullGameDemo: true as const } : {}),
+  };
+}
+
+export function requireFullGameDemoPhaseAdvanceRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedTurn?: unknown;
+}): { sessionId: string; instanceId: string; requestId: string; expectedTurn: number } {
+  const keys = Object.keys(data as Record<string, unknown>);
+  if (keys.some((key) => !['sessionId', 'instanceId', 'requestId', 'expectedTurn'].includes(key))) {
+    throw new HttpsError('invalid-argument', 'A full-game demo phase action accepts only its expected current turn.');
+  }
+  if (!Number.isSafeInteger(data.expectedTurn) || (data.expectedTurn as number) < 1) {
+    throw new HttpsError('invalid-argument', 'expectedTurn must be a positive integer.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedTurn: data.expectedTurn as number,
   };
 }
 
@@ -923,7 +955,7 @@ export function requireGmClaimRequest(data: {
     instanceId: requiredId(data.instanceId, 'instanceId'),
     name: requiredText(data.name, 'name', 40),
     deviceLabel: requiredText(data.deviceLabel, 'deviceLabel', 160),
-    ...(recovering ? { resume: true as const, expectedClaimedAt } : {}),
+    ...(expectedClaimedAt !== undefined ? { resume: true as const, expectedClaimedAt } : {}),
   };
 }
 

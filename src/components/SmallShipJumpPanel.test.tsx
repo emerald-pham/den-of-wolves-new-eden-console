@@ -89,6 +89,18 @@ it('shows Team Phase readiness and withholds charge when the cycle is full', () 
   expect(onCharge).not.toHaveBeenCalled();
 });
 
+it.each(['warrior', 'vulcan'] as const)('describes %s jump without inventing a reactor charge requirement', (smallShipId) => {
+  renderPanel({ smallShipId, selectedDestination: '5143', projection: {
+    ...coordinationProjection, smallShipId, requiresCharge: false, charged: false,
+    cycleStep: 0, cycleCharges: [],
+  } });
+  const execute = screen.getByRole('button', { name: 'Execute jump' });
+  expect(execute).toBeEnabled();
+  expect(execute).toHaveAccessibleDescription(/does not consume a reactor charge.*one jump per cycle/i);
+  expect(screen.queryByText(/occupies one of the craft.*console charge slots/i)).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Charge Jump Drive' })).not.toBeInTheDocument();
+});
+
 it('keeps uncertain charge and movement recovery as explicit retry actions', () => {
   const onRetryCharge = vi.fn();
   const onRetryJump = vi.fn();

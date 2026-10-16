@@ -7,10 +7,11 @@ security, testing, emulator, release, and deployment rules.
 
 For the remaining numbered-prompt campaign, the owner-facing
 [playtest checkpoints](PRODUCT_MILESTONES.md) govern shaping, frozen scope,
-source-backed assumptions, test-first commits, nontechnical reports, owner
+source-backed assumptions, nontechnical reports, owner
 feedback, and cooldown. Use this playbook to coordinate work inside a shape. Before the next checkpoint,
 complete the [owner-decision alignment](PRODUCT_MILESTONES.md#owner-decisions-before-the-next-checkpoint).
-The [execution policy](AGENT_EXECUTION_POLICY.md) owns batched release and ownership-transfer details.
+The [execution policy](AGENT_EXECUTION_POLICY.md) owns batched release, ownership
+and October 7 risk-based verification, cohorts, evidence reuse and stopping.
 
 ## Start with current facts
 
@@ -80,10 +81,13 @@ completion chain, or ancestry-only merge requirement.
 
 1. Start with the shaped checkpoint, any due cooldown, and a ready prompt in
    its scope. Continue independent shaped work around blocked prompts.
-2. For new behavior, commit its failing test before the implementation commit.
-   Never weaken, skip, or delete an existing test to pass; leave a suspect
-   existing test intact and flag it. Never change an existing test in the same
-   commit as the code it covers. Use focused and rendered checks for UI work.
+2. Choose tests and actor cohorts using the execution policy's risk-based
+   verification. Authority/privacy and durable-state repairs retain meaningful
+   failing-test-first commits; low-risk documentation/copy uses direct checks,
+   and integration uses a small affected mounted slice. Never weaken, skip or
+   delete an existing test to pass; leave a suspect test intact and flag it.
+   Never change an existing test in the same commit as the code it covers.
+   Reuse valid unaffected evidence and justify any scale-specific cohort.
 3. If the change is in the risk-review set, run one independent review and
    collect all findings. The owner performs a bounded repair and reviews the
    resulting diff.

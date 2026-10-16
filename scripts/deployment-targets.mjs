@@ -4,6 +4,7 @@ import pc06DeploymentConsumers from './pc06-deployment-consumers.json' with { ty
 import pc07DeploymentConsumers from './pc07-deployment-consumers.json' with { type: 'json' };
 import pc08DeploymentConsumers from './pc08-deployment-consumers.json' with { type: 'json' };
 import pc09DeploymentConsumers from './pc09-deployment-consumers.json' with { type: 'json' };
+import pc10DeploymentConsumers from './pc10-deployment-consumers.json' with { type: 'json' };
 import mobileGmHotfixDeploymentConsumers from './mobile-gm-hotfix-deployment-consumers.json' with { type: 'json' };
 import {
   classifyRiskGates,
@@ -77,9 +78,18 @@ const MALIADE_REPAIR_STALE_REPLY_TYPE = `export interface MaliadesRepairCallable
 const MALIADE_CALLABLE_MARKERS = Object.freeze([
   // One file owns three exported Functions, so path-only selection is too broad.
   // The content-aware selector below deploys one isolated export and rejects mixed diffs.
-  ['resolveMaliadesMedium', 'export const resolveMaliadesMedium = onCall(CALLABLE_RUNTIME_OPTIONS, async request =>\n'],
-  ['resolveMaliadesShort', 'export const resolveMaliadesShort = onCall(CALLABLE_RUNTIME_OPTIONS, async request =>\n'],
-  ['repairMaliades', 'export const repairMaliades = onCall(CALLABLE_RUNTIME_OPTIONS, async request => {'],
+  ['resolveMaliadesMedium', [
+    'export const resolveMaliadesMedium = onCall(CALLABLE_RUNTIME_OPTIONS, async request =>\n',
+    "export const resolveMaliadesMedium = auditedOnCall('resolveMaliadesMedium', CALLABLE_RUNTIME_OPTIONS, async request =>\n",
+  ]],
+  ['resolveMaliadesShort', [
+    'export const resolveMaliadesShort = onCall(CALLABLE_RUNTIME_OPTIONS, async request =>\n',
+    "export const resolveMaliadesShort = auditedOnCall('resolveMaliadesShort', CALLABLE_RUNTIME_OPTIONS, async request =>\n",
+  ]],
+  ['repairMaliades', [
+    'export const repairMaliades = onCall(CALLABLE_RUNTIME_OPTIONS, async request => {',
+    "export const repairMaliades = auditedOnCall('repairMaliades', CALLABLE_RUNTIME_OPTIONS, async request => {",
+  ]],
 ]);
 const MALIADE_REPAIR_REQUEST_ADDITIONS = Object.freeze([
   [
@@ -133,6 +143,53 @@ function mobileGmHotfixTransitionConsumers(file, previous, current) {
 
 // PC09 audits new exports, re-exports and transitive runtime consumers without
 // altering the historical release mappings.
+/** Exact PC10 source transitions retain named SDK endpoint coverage. The
+ * final checkpoint inventory supplies the reviewed transitive consumer set;
+ * unknown source drift never inherits that coverage. */
+export function pc10TransitionConsumers(file, previous, current, manifest = pc10DeploymentConsumers) {
+  const audit = manifest.modules[file];
+  if (!audit) return null;
+  const digest = source => createHash('sha256').update(source).digest('hex');
+  if (digest(previous) !== audit.before) return null;
+  if (digest(current) !== audit.after) {
+    throw new Error(`Cannot safely map PC10 ${file} outside its exact source consumer audit.`);
+  }
+  if (!Array.isArray(audit.consumers) || audit.consumers.length === 0 ||
+      new Set(audit.consumers).size !== audit.consumers.length ||
+      audit.consumers.some(name => typeof name !== 'string' || name === 'functions' || !/^[A-Za-z][A-Za-z0-9_]*$/.test(name))) {
+    throw new Error(`Invalid PC10 named deployment consumer audit for ${file}.`);
+  }
+  return [...audit.consumers];
+}
+
+// PC10 and the standalone hotfix share a baseline for some modules. Select
+// the exact reviewed destination before invoking its strict audit; neither
+// family may shadow the other or lend its consumers to unaudited source.
+function pc10AndMobileGmTransitionConsumers(file, previous, current) {
+  const digest = source => createHash('sha256').update(source).digest('hex');
+  const previousDigest = digest(previous);
+  const currentDigest = digest(current);
+  const audits = [
+    {
+      name: 'PC10',
+      audit: pc10DeploymentConsumers.modules[file],
+      select: () => pc10TransitionConsumers(file, previous, current),
+    },
+    {
+      name: 'mobile GM hotfix',
+      audit: file === 'functions/src/index.ts'
+        ? mobileGmHotfixDeploymentConsumers.index : mobileGmHotfixDeploymentConsumers.modules[file],
+      select: () => mobileGmHotfixTransitionConsumers(file, previous, current),
+    },
+  ].filter(row => row.audit?.before === previousDigest);
+  if (audits.length === 0) return null;
+  const exact = audits.filter(row => row.audit.after === currentDigest);
+  if (exact.length !== 1) {
+    throw new Error(`Cannot safely map ${audits.map(row => row.name).join(' / ')} ${file} outside its exact source consumer audit.`);
+  }
+  return exact[0].select();
+}
+
 function pc09TransitionConsumers(file, previous, current) {
   const audit = file === 'functions/src/index.ts'
     ? pc09DeploymentConsumers.index : pc09DeploymentConsumers.modules[file];
@@ -625,7 +682,13 @@ function functionExports(source) {
       }
     }
     const block = lines.slice(declaration.line, end).join('\n');
-    if (/=\s*onCall\s*</.test(block) || /=\s*onCall\s*\(/.test(block) || /=\s*onRequest\s*</.test(block) || /=\s*onRequest\s*\(/.test(block) || /=\s*onSchedule\s*</.test(block) || /=\s*onSchedule\s*\(/.test(block)) {
+    const auditedCallable = /=\s*auditedOnCall(?:<[\s\S]*?>)?\s*\(\s*(['"])([A-Za-z][\w]{0,99})\1\s*,/.exec(block);
+    if (auditedCallable) {
+      if (auditedCallable[2] !== declaration.name) {
+        throw new Error('Cannot safely map auditedOnCall callable identity does not match exported name.');
+      }
+      exports.set(declaration.name, block);
+    } else if (/=\s*onCall\s*</.test(block) || /=\s*onCall\s*\(/.test(block) || /=\s*onRequest\s*</.test(block) || /=\s*onRequest\s*\(/.test(block) || /=\s*onSchedule\s*</.test(block) || /=\s*onSchedule\s*\(/.test(block)) {
       exports.set(declaration.name, block);
     }
   }
@@ -1238,17 +1301,20 @@ function canonicalMaliadesRepairPrefix(prefix) {
 
 function maliadesCallableSections(source) {
   if (typeof source !== 'string') throw new Error('Cannot safely map Maliades callable changes without source at both revisions.');
-  const positions = MALIADE_CALLABLE_MARKERS.map(([name, marker]) => {
-    const first = source.indexOf(marker);
-    if (first < 0 || source.indexOf(marker, first + marker.length) >= 0) {
+  const positions = MALIADE_CALLABLE_MARKERS.map(([name, markers]) => {
+    const matches = markers.flatMap((marker) => {
+      const first = source.indexOf(marker);
+      return first < 0 || source.indexOf(marker, first + marker.length) >= 0 ? [] : [[first, marker]];
+    });
+    if (matches.length !== 1) {
       throw new Error(`Cannot safely map Maliades callable changes without one ${name} export.`);
     }
-    return [name, first];
+    return [name, matches[0][0]];
   });
   if (positions.some(([, position], index) => index > 0 && position <= positions[index - 1][1])) {
     throw new Error('Cannot safely map Maliades callable changes after export order changed.');
   }
-  const exports = [...source.matchAll(/export const (\w+) = onCall\b/g)].map((match) => match[1]);
+  const exports = [...source.matchAll(/export const (\w+) = (?:auditedOnCall|onCall)\b/g)].map((match) => match[1]);
   if (exports.join('|') !== MALIADE_CALLABLE_MARKERS.map(([name]) => name).join('|') || !/\}\);\n?$/.test(source)) {
     throw new Error('Cannot safely map Maliades callable changes after the export surface changed.');
   }
@@ -1436,19 +1502,20 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
       selected.add('castingCompanionCommand');
       continue;
     }
-    if (file !== 'functions/src/index.ts' && mobileGmHotfixDeploymentConsumers.modules[file]) {
+    if (pc10DeploymentConsumers.modules[file] ||
+        (file !== 'functions/src/index.ts' && mobileGmHotfixDeploymentConsumers.modules[file])) {
       const readAt = revision => {
         if (sourceAtRevision) return sourceAtRevision(revision, file);
         try {
           return execFileSync('git', ['show', `${revision}:${file}`], {
-            cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 32 * 1024 * 1024,
+            encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 32 * 1024 * 1024,
           });
         } catch {
           if (revision === before) return '';
-          throw new Error(`Cannot safely determine mobile GM hotfix module source ${file}.`);
+          throw new Error(`Cannot safely determine PC10 / mobile GM hotfix module source ${file}.`);
         }
       };
-      const consumers = mobileGmHotfixTransitionConsumers(file, readAt(before), readAt(after));
+      const consumers = pc10AndMobileGmTransitionConsumers(file, readAt(before), readAt(after));
       if (consumers) {
         for (const name of consumers) selected.add(name);
         continue;

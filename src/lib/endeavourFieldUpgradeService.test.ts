@@ -96,6 +96,16 @@ beforeEach(() => {
   setScientist();
 });
 
+it('keeps permanently completed research available to the ordinary field-purchase consumer', () => {
+  const completed: EndeavourResearchWorkspace = { ...workspace, progress: { reactor: 4 }, tracks: [
+    { trackId: 'reactor', name: 'Reactor', crossedBoxes: 5, totalBoxes: 5, currentMaterialCost: 4, complete: true },
+  ] };
+  expect(availableEndeavourFieldUpgradeOptions(makeSession(), 'fleet-1', completed)).toContainEqual(
+    expect.objectContaining({ shipId: 'shepherd', systemId: 'reactor', materialCost: 4 }));
+  expect(availableEndeavourFieldUpgradeOptions(makeSession({ shipUpgrades: { shepherd: ['reactor'] } }),
+    'fleet-1', completed).some((option) => option.shipId === 'shepherd')).toBe(false);
+});
+
 it('offers only current-group active, canonical, not-yet-upgraded consoles at the private current research cost', () => {
   const session = makeSession({
     playerDiscovery: {

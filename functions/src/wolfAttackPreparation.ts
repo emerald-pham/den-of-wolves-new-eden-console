@@ -37,7 +37,7 @@ export type WolfAttackPreparationModifierId = typeof WOLF_ATTACK_PREPARATION_MOD
 
 export const WOLF_ATTACK_TARGET_MODES = ['manual', 'pre-rolled'] as const;
 export type WolfAttackTargetMode = typeof WOLF_ATTACK_TARGET_MODES[number];
-export type WolfAttackCompositionKind = WolfThreatSiteCode | 'commander' | 'p-station-repeat';
+export type WolfAttackCompositionKind = WolfThreatSiteCode | 'K' | 'commander' | 'p-station-repeat';
 
 export interface WolfAttackPreparationCompositionRule {
   readonly kind: WolfAttackCompositionKind;
@@ -101,6 +101,7 @@ export function wolfAttackCompositionForRule(
   if (rule.kind === 'L' || rule.kind === 'M' || rule.kind === 'P') {
     return wolfThreatComposition(rule.kind, shipIds);
   }
+  if (rule.kind === 'K') return scheduledWolfAttackComposition(turn, shipIds);
   if (rule.kind === 'p-station-repeat') {
     const counts: Record<WolfShipId, number> = {
       'wolf-fighter-wing': 0,
@@ -183,7 +184,7 @@ export function wolfAttackPreparationState(value: unknown): WolfAttackPreparatio
   const compositionKind = value.compositionKind;
   const targetGroupId = value.targetGroupId;
   const targetGroupPursuit = value.targetGroupPursuit;
-  const validKind = compositionKind === 'L' || compositionKind === 'M' ||
+  const validKind = compositionKind === 'K' || compositionKind === 'L' || compositionKind === 'M' ||
     compositionKind === 'P' || compositionKind === 'commander' || compositionKind === 'p-station-repeat';
   if ((compositionKind !== undefined && !validKind) ||
       (compositionKind === undefined && (targetGroupId !== undefined || targetGroupPursuit !== undefined)) ||

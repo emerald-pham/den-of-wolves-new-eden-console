@@ -1,0 +1,39 @@
+.demo-actor-controls {
+  position: relative;
+  z-index: 2;
+  width: min(72rem, calc(100% - 2rem));
+  margin: calc(var(--app-header-height, 4.25rem) + 1rem) auto 0;
+  padding: 1rem;
+  color: var(--cic-ink);
+  font-family: var(--cic-mono);
+  font-size: .8rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.demo-actor-controls p { margin: 0 0 .75rem; }
+.demo-actor-controls__row { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+.demo-actor-controls select {
+  min-height: 44px;
+  min-width: 0;
+  max-width: 100%;
+  flex: 1 1 20rem;
+  border: 1px solid var(--cic-rule);
+  border-radius: 0;
+  padding: .5rem;
+  background: var(--cic-void);
+  color: var(--cic-ink);
+  font: inherit;
+}
+.demo-actor-controls select:focus-visible { outline: 2px solid var(--cic-amber); outline-offset: 2px; }
+.demo-actor-controls__row .cic-text-button { min-height: 44px; display: inline-flex; align-items: center; }
+.demo-actor-controls__error { color: var(--cic-danger); }
+.demo-actor-manager { position: relative; z-index: 1; width: min(72rem, 100%); margin: 0 auto; padding: 1rem 1rem 4rem; }
+html:not(:has(.demo-actor-controls)) .demo-actor-manager {
+  margin-block-start: calc(var(--app-header-height, 4.25rem) + max(1rem, env(safe-area-inset-top)));
+}
+.demo-actor-manager__panel { padding: clamp(1rem, 3vw, 2rem); overflow-wrap: anywhere; }
+.demo-actor-manager__panel h1 { margin: 1rem 0; font-family: var(--cic-mono); font-size: clamp(1.25rem, 4vw, 1.75rem); }
+.demo-actor-manager__actions { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin: 1rem 0; }
+.demo-actor-manager__actors { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); gap: .75rem; margin: 1rem 0; padding: 0; list-style: none; }
+.demo-actor-manager__actors button { width: 100%; min-height: 44px; text-align: left; overflow-wrap: anywhere; }
+.demo-actor-manager__panel .cic-text-button { min-height: 44px; display: inline-flex; align-items: center; }

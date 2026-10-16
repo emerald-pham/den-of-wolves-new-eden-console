@@ -1,21 +1,42 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSessionStore } from '@/store/useSessionStore';
 import { listPendingScoutRequests, resolvePendingScoutRequest, listGmScoutResolutionLog } from '@/lib/scoutResultService';
 import { GmScoutRevealPanel, GmScoutResolutionLog, type GmScoutResolutionLogView, type PendingScoutRequestView } from './ScoutResultPanels';
 
 /** Live GM adapter; the reveal panel remains usable with synthetic review fixtures. */
 export default function GmScoutRevealController() {
-  const sessionId = useSessionStore((state) => state.session?.id);
-  const uid = useSessionStore((state) => state.me?.uid);
-  const role = useSessionStore((state) => state.me?.role);
-  const instanceId = useSessionStore((state) => state.gmInstance?.id);
+  const session = useSessionStore((state) => state.session);
+  const me = useSessionStore((state) => state.me);
+  const instance = useSessionStore((state) => state.gmInstance);
   const connection = useSessionStore((state) => state.connection);
   const freshness = useSessionStore((state) => state.sessionSnapshotFreshness);
+  if (!session || !me?.uid || me.role !== 'gm' || !instance?.id) return null;
+  if (me.sessionId !== session.id || instance.sessionId !== session.id || instance.uid !== me.uid ||
+      connection !== 'live' || freshness !== 'server') {
+    return <p role="status">Reconnect to receive the current scouting result log.</p>;
+  }
+  if (session.phase !== 'active') {
+    const awaitingStart = session.phase === 'lobby' || session.phase === 'casting' || session.phase === 'briefing';
+    return <p role="status">{awaitingStart
+      ? 'Awaiting GM start // scouting results open during active gameplay.'
+      : 'Game ended // live scout recovery is unavailable.'}</p>;
+  }
+  const audience = JSON.stringify([session.id, me.sessionId, me.uid, instance.id, instance.sessionId, instance.uid, instance.claimedAt]);
+  return <GmScoutRevealWorkspace key={audience} />;
+}
+
+function GmScoutRevealWorkspace() {
   const [log, setLog] = useState<readonly GmScoutResolutionLogView[]>([]);
   const [requests, setRequests] = useState<readonly PendingScoutRequestView[]>([]);
   const [refreshCount, setRefreshCount] = useState(0);
   const [revealingRequestId, setRevealingRequestId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState('');
+  const mounted = useRef(false);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   useEffect(() => {
     let disposed = false;
@@ -23,8 +44,6 @@ export default function GmScoutRevealController() {
     setRequests([]);
     setLog([]);
     setFeedback('');
-    if (!sessionId || !uid || role !== 'gm' || !instanceId ||
-        connection !== 'live' || freshness !== 'server') return;
     const load = async () => {
       try {
         const [pending, results] = await Promise.all([listPendingScoutRequests(), listGmScoutResolutionLog()]);
@@ -40,12 +59,7 @@ export default function GmScoutRevealController() {
     };
     void load();
     return () => { disposed = true; if (timer) clearTimeout(timer); };
-  }, [sessionId, uid, role, instanceId, connection, freshness, refreshCount]);
-
-  if (!sessionId || !uid || role !== 'gm' || !instanceId) return null;
-  if (connection !== 'live' || freshness !== 'server') {
-    return <p role="status">Reconnect to receive the current scouting result log.</p>;
-  }
+  }, [refreshCount]);
 
   async function reveal(requestId: string): Promise<void> {
     if (revealingRequestId) return;
@@ -53,13 +67,14 @@ export default function GmScoutRevealController() {
     setFeedback('');
     try {
       const result = await resolvePendingScoutRequest(requestId);
+      if (!mounted.current) return;
       setFeedback(`System ${result.targetCoordinate} // ${result.systemFact.title} revealed to its requester.`);
       const [pending, results] = await Promise.all([listPendingScoutRequests(), listGmScoutResolutionLog()]);
-      setRequests(pending); setLog(results);
+      if (mounted.current) { setRequests(pending); setLog(results); }
     } catch {
-      setFeedback('Reveal not confirmed. Refresh the queue and retry this request.');
+      if (mounted.current) setFeedback('Reveal not confirmed. Refresh the queue and retry this request.');
     } finally {
-      setRevealingRequestId(null);
+      if (mounted.current) setRevealingRequestId(null);
     }
   }
 

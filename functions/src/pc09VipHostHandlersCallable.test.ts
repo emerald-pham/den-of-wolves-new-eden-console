@@ -1,3 +1,4 @@
+import type * as NodeCrypto from 'node:crypto';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
@@ -51,7 +52,7 @@ const mock = vi.hoisted(() => {
   return { documents, get, set, update, db };
 });
 
-vi.mock('node:crypto', () => entropy);
+vi.mock('node:crypto', async (importOriginal) => ({ ...await importOriginal<typeof NodeCrypto>(), ...(entropy) }));
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => mock.db,
@@ -64,7 +65,7 @@ vi.mock('firebase-admin/firestore', () => ({
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
 vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error { constructor(readonly code: string, message: string) { super(message); } },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 vi.mock('firebase-functions/v2/firestore', () => ({
   onDocumentWritten: (_path: string, handler: (event: unknown) => unknown) => ({ run: handler }),

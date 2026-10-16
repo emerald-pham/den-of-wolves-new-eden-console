@@ -32,6 +32,9 @@ export default function ScoutReportController({ refreshKey, entitlementId = 'end
   useEffect(() => {
     let disposed = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let authorityRetries = 0;
+    let privateRecoveryStopped = false;
+    const originalMember = useSessionStore.getState().me;
     setReports([]);
     setReport(null);
     setResult(null);
@@ -42,8 +45,29 @@ export default function ScoutReportController({ refreshKey, entitlementId = 'end
     setResult(null);
     setNote(null);
     setStatus('');
+    const retryStaleAuthority = (error: unknown): boolean => {
+      const current = useSessionStore.getState();
+      if (disposed || authorityRetries >= 2 || !originalMember ||
+          !(error instanceof Error) ||
+          error.message !== 'Scouting authority changed. Reconnect and refresh the station.' ||
+          current.session?.id !== sessionId || current.connection !== 'live' ||
+          current.sessionSnapshotFreshness !== 'server' ||
+          (['uid', 'sessionId', 'role', 'fleetGroupId', 'connectionGeneration',
+            'assignedRoleId', 'seatId', 'activeConsoleRoleId', 'replacementRoleId',
+            'replacementStatus'] as const).some(key => current.me?.[key] !== originalMember[key])) {
+        return false;
+      }
+      // Discard the rejected read and obtain a new index/result/note through
+      // the existing service guards. Never accept the old asynchronous reply.
+      authorityRetries += 1;
+      setResult(null);
+      setNote(null);
+      setStatus('');
+      return true;
+    };
     const load = async () => {
       let pending = false;
+      let retrying = false;
       try {
         const reports = await listMyScoutReports();
         if (disposed) return;
@@ -53,7 +77,10 @@ export default function ScoutReportController({ refreshKey, entitlementId = 'end
           ownReports[0] ?? null;
         setReport(latest);
         pending = ownReports.some(item => item.status === 'pending');
-        if (!latest || latest.status === 'pending') return;
+        // Keep a different pending request's index current without restarting
+        // an exhausted private recovery chain. Refresh or selection starts a
+        // new effect and reads through the original authority guards again.
+        if (!latest || latest.status === 'pending' || privateRecoveryStopped) return;
         const privateResult = await readPrivateScoutResult(latest.requestId);
         if (disposed) return;
         setResult(privateResult);
@@ -61,16 +88,28 @@ export default function ScoutReportController({ refreshKey, entitlementId = 'end
           try {
             const savedNote = await readMyScoutDiscoveryNote(latest.noteId);
             if (!disposed) setNote(savedNote);
-          } catch {
-            if (!disposed) setStatus('The saved note is unavailable for this ship or fleet group.');
+          } catch (error) {
+            if (!disposed) {
+              retrying = retryStaleAuthority(error);
+              if (!retrying) {
+                privateRecoveryStopped = true;
+                setStatus('The saved note is unavailable for this ship or fleet group.');
+              }
+            }
           }
         }
-      } catch {
-        if (!disposed) setStatus('Scout reports could not load. Reconnect and refresh this station.');
+      } catch (error) {
+        if (!disposed) {
+          retrying = retryStaleAuthority(error);
+          if (!retrying) {
+            privateRecoveryStopped = true;
+            setStatus('Scout reports could not load. Reconnect and refresh this station.');
+          }
+        }
       } finally {
         if (!disposed) {
-          setLoading(false);
-          if (pending) timer = setTimeout(() => void load(), 1_000);
+          setLoading(retrying);
+          if (pending || retrying) timer = setTimeout(() => void load(), 1_000);
         }
       }
     };

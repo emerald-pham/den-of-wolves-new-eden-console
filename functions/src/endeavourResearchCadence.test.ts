@@ -147,6 +147,8 @@ describe('Endeavour research cadence', () => {
       ],
     };
     expect(parseEndeavourResearchCadenceState(valid)).toEqual(valid);
+    expect(parseEndeavourResearchCadenceState({ cycle: 2, revision: 5, choices: [] }))
+      .toEqual({ cycle: 2, revision: 5, choices: [] });
     for (const malformed of [
       null, 0, [], new Date(),
       { ...valid, extra: true },
@@ -155,7 +157,7 @@ describe('Endeavour research cadence', () => {
       { cycle: 0, revision: 1, choices: valid.choices },
       { cycle: 0, revision: 5, choices: [] },
       { cycle: 2, revision: 0, choices: [valid.choices[0]] },
-      { cycle: 2, revision: 5, choices: [] },
+      { cycle: 2, revision: 0, choices: [] },
       { cycle: 2, revision: 1, choices: [
         { trackId: 'reactor', funding: 'standard', oreCost: 0 },
         { trackId: 'jump-drive', funding: 'standard', oreCost: 0 },

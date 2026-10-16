@@ -27,12 +27,18 @@ function pureSourceModule(file) {
   const source = readFileSync(path, 'utf8');
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const exports = {}; sourceModules.set(path, exports);
-  runInNewContext(output, { exports, Date, Map, Set, JSON, Number, Object, Array, Error,
-    require: name => { if(name.startsWith('@/assets/')) { readFileSync(resolve(root,'src',name.slice(2))); return {default:name}; } assert.ok(name.startsWith('.'), `Unexpected native fixture dependency: ${name}`); return pureSourceModule(resolve(dirname(path), `${name}.ts`)); } });
+  runInNewContext(output, { exports, Date, Map, Set, JSON, Number, Object, Array, Error, URL,
+    require: name => {
+      if (name.startsWith('@/assets/')) { readFileSync(resolve(root, 'src', name.slice(2))); return { default: name }; }
+      if (name.startsWith('@/')) return pureSourceModule(resolve(root, 'src', `${name.slice(2)}.ts`));
+      assert.ok(name.startsWith('.'), `Unexpected native fixture dependency: ${name}`);
+      return pureSourceModule(resolve(dirname(path), `${name}.ts`));
+    } });
   return exports;
 }
 const sdk = await pureSourceModule('src/lib/sessionSnapshotAuthority.ts');
 const fleet = await pureSourceModule('functions/src/fleetGroups.ts');
+const demoContext = pureSourceModule('src/lib/demoActorContext.ts');
 const member = overrides => ({ hasAuth: true, sameActor: true, uidHash: hash(uid), documentTimeOrigin: 100,
   sessionId: sid, meSessionId: sid, profileRoleId: null, profileSessionId: null,
   playerRole: 'player', assignedRoleId: roleId, activeConsoleRoleId: roleId, seatId: roleId,
@@ -40,7 +46,7 @@ const member = overrides => ({ hasAuth: true, sameActor: true, uidHash: hash(uid
   kicked: false, connected: true, currentOwnPlayerConfirmed: true, connectionGeneration: 2,
   identityHydrationRevision: 3, connection: 'live', freshness: 'server', cycle: 1, phase: 'active',
   setupConfirmed: true, fullGameDemo: null, currentCanonicalSeatOwned: true, memberScopeMatches: true,
-  sdkHasServerAuthority: true, invalidFields: [], currentOwnBerthConfirmed: true, ...overrides });
+  sdkHasServerAuthority: true, sdkResumePending: false, invalidFields: [], currentOwnBerthConfirmed: true, ...overrides });
 const rawGroup = { id: 'fleet-1', vesselIds: ['aegis', 'dione'], memberUids: [uid], memberShipIds: { [uid]: 'dione' } };
 
 class Page extends EventEmitter {
@@ -68,11 +74,12 @@ test('changed normal navigation epoch accepts exact passive resume receipt and c
   assert.equal(accepted?.identityHydrationRevision, 4);
   assert.equal(accepted?.currentOwnBerthConfirmed, true);
   assert.ok(!Object.hasOwn(accepted, 'currentMemberBerthPresent'));
-  assert.ok(!Object.hasOwn(accepted, 'clientAcceptance'));
+  assert.deepEqual(accepted.clientAcceptance, { hasServerAuthority: true, resumePending: false });
 });
 
 test('changed navigation rejects lost clean authority, original identity, seat, berth and invalid receipt', async () => {
   for (const changes of [{ connection: 'offline' }, { freshness: 'cache' }, { sdkHasServerAuthority: false },
+    { sdkResumePending: true }, { sdkResumePending: undefined },
     { currentOwnPlayerConfirmed: false }, { currentCanonicalSeatOwned: false }, { memberScopeMatches: false },
     { currentOwnBerthConfirmed: false }, { fullGameDemo: { status: 'active' } }, { invalidFields: ['seatId'] }]) {
     assert.equal(await navigationCase(changes), false);
@@ -129,10 +136,11 @@ function stateFixture(role = 'player') {
     gmAccessAuthenticatedAt: role === 'gm' ? '2026-10-08T00:00:00.000Z' : null,
     gmRecoveryPending: false, pendingCommands: [], roleBrief: null, gmAwayMissionHandPointers: [], gmLoyaltyCensusStatus: 'loading' };
 }
-function nativeSurface(state) {
+function nativeSurface(state, profile = demoContext.activeDemoActorProfile) {
   const authority = sdk.sessionSnapshotAuthorityFor(sid, uid); authority.hasServerSessionAuthority = true;
   const modules = { '/src/lib/firebase.ts': { auth: () => ({ currentUser: { uid } }) },
-    '/src/store/useSessionStore.ts': { useSessionStore: { getState: () => state } }, '/src/lib/sessionSnapshotAuthority.ts': sdk };
+    '/src/store/useSessionStore.ts': { useSessionStore: { getState: () => state } }, '/src/lib/sessionSnapshotAuthority.ts': sdk,
+    '/src/lib/demoActorContext.ts': { ...demoContext, activeDemoActorProfile: profile } };
   const page = new Page();
   page.evaluate = async (callback, argument) => {
     const source = callback.toString().replace(/\bimport\s*\(/g, 'load(');
@@ -149,10 +157,45 @@ test('actual active member and lifecycle callbacks execute against actual publis
   assert.equal(observed.uidHash, hash(uid)); assert.equal(observed.sdkHasServerAuthority, true);
   assert.equal(observed.memberScopeMatches, true); assert.equal(observed.currentCanonicalSeatOwned, true);
   assert.equal(observed.connectionGeneration, 2); assert.equal(observed.identityHydrationRevision, 3);
+  assert.equal(demoContext.activeDemoActorProfile, null);
+  assert.equal(observed.profileRoleId, null); assert.equal(observed.profileSessionId, null);
+  assert.equal(observed.fullGameDemo, null); assert.equal(observed.sdkResumePending, false);
   assert.deepEqual(observed.invalidFields, []);
   const lifecycle = await observeLifecycleActor(surface, sid);
   assert.equal(lifecycle.sameActor, true); assert.equal(lifecycle.privateAudienceMatches, true); assert.equal(lifecycle.foreignPendingCount, 0);
   assert.equal(lifecycle.generation, 2); assert.equal(lifecycle.hydrationRevision, 3);
+  assert.equal(lifecycle.profileRoleId, null);
+});
+
+test('published ordinary SDK observer retains the actual resume fence until the matching accepted reply', async () => {
+  const surface = nativeSurface(stateFixture());
+  const authority = sdk.sessionSnapshotAuthorityFor(sid, uid);
+  const token = sdk.beginMemberSessionResume(authority);
+  try {
+    let observed = await observeFullGameDemoPresentationMember(surface, { knownRoleIds: [roleId] });
+    assert.equal(observed.sdkHasServerAuthority, true); assert.equal(observed.sdkResumePending, true);
+    sdk.finishMemberSessionResume(authority, token, false);
+    sdk.finishMemberSessionResume(authority, Symbol('foreign-resume'), true);
+    observed = await observeFullGameDemoPresentationMember(surface, { knownRoleIds: [roleId] });
+    assert.equal(observed.sdkResumePending, true);
+    assert.equal(await navigationCase({ sdkResumePending: observed.sdkResumePending }), false);
+    sdk.finishMemberSessionResume(authority, token, true);
+    observed = await observeFullGameDemoPresentationMember(surface, { knownRoleIds: [roleId] });
+    assert.equal(observed.sdkResumePending, false);
+    assert.ok(await navigationCase({ sdkResumePending: observed.sdkResumePending }));
+  } finally { sdk.finishMemberSessionResume(authority, token, true); }
+});
+
+test('published demo context cannot make a profiled actor satisfy ordinary member or passive-resume acceptance', async () => {
+  for (const selector of [`${sid}~${roleId}`, `foreign-session~${roleId}`, `${sid}~controller`]) {
+    const profile = demoContext.demoActorProfileFromUrl(`http://127.0.0.1:5183/?demoActor=${selector}`);
+    assert.ok(profile);
+    const surface = nativeSurface(stateFixture(), profile);
+    const observed = await observeFullGameDemoPresentationMember(surface, { knownRoleIds: [roleId, 'controller'] });
+    assert.equal(observed.profileRoleId, profile.roleId); assert.equal(observed.profileSessionId, profile.sessionId);
+    assert.equal(adapter.pc11MemberReadiness(observed, { sessionId: sid, uidHash: hash(uid), roleId, stage: 'station' }), false);
+    assert.equal(await navigationCase({ profileRoleId: observed.profileRoleId, profileSessionId: observed.profileSessionId }), false);
+  }
 });
 
 test('real lifecycle capture and diagnostics consume normal callable request/reply fixtures without issuing SDK actions', async () => {

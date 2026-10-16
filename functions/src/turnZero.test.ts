@@ -5,6 +5,8 @@ import {
   pauseActiveTurnPhase,
   resumePausedTurnPhase,
   startTurnPhase,
+  turnPhaseDeadlinePassed,
+  turnPhaseState,
   turnStateForPhase,
   turnStateState,
   updateTurnStateForPhase,
@@ -121,7 +123,7 @@ it('records a complete turn entity across the existing Team-to-Coordination boun
     phase: 'coordination',
     phaseRevision: 2,
     startedAt: '2026-09-07T12:10:00.000Z',
-    endsAt: '2026-09-07T12:30:00.000Z',
+    endsAt: '2026-09-07T12:35:00.000Z',
   });
 });
 
@@ -141,4 +143,29 @@ it('rejects an incomplete or impossible turn entity without inventing a fallback
     startedAt: '2026-09-07T12:10:00.000Z',
     endsAt: '2026-09-07T12:30:00.000Z',
   })).toBeUndefined();
+});
+
+it('keeps a manual full-game phase open indefinitely without relying on its compatibility deadlines', () => {
+  const startedAt = Date.parse('2026-09-07T12:00:00.000Z');
+  const manual = startTurnPhase(1, startedAt, { progression: 'manual' });
+  const decadesLater = Date.parse('2099-01-01T00:00:00.000Z');
+
+  expect(manual.progression).toBe('manual');
+  expect(isTurnPhaseTimerActive(manual, decadesLater)).toBe(false);
+  expect(turnPhaseDeadlinePassed(manual, 'team', decadesLater)).toBe(false);
+  expect(turnPhaseDeadlinePassed(manual, 'open', decadesLater)).toBe(false);
+  expect(turnPhaseDeadlinePassed(phase, 'team', Date.parse('2026-09-07T12:05:00.000Z'))).toBe(true);
+  expect(turnPhaseDeadlinePassed(phase, 'open', Date.parse('2026-09-07T12:19:59.999Z'))).toBe(false);
+});
+
+it('does not allow emergency pause or ordinary timer extension on manual phases', () => {
+  const manual = startTurnPhase(1, Date.parse('2026-09-07T12:00:00.000Z'), { progression: 'manual' });
+
+  expect(extendActiveTurnPhase(manual, 'restricted', Date.parse('2099-01-01T00:00:00.000Z'))).toBeUndefined();
+  expect(pauseActiveTurnPhase(manual, Date.parse('2099-01-01T00:00:00.000Z'))).toBeUndefined();
+});
+
+it('parses only the explicit manual progression marker', () => {
+  expect(turnPhaseState({ ...phase, progression: 'manual' })).toMatchObject({ progression: 'manual' });
+  expect(turnPhaseState({ ...phase, progression: 'automatic' })).toBeUndefined();
 });

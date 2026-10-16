@@ -145,3 +145,17 @@ it('keeps the deterministic parking projection stable across transaction retries
 
   expect(resolveAirspaceClosureShuttleParking(input)).toEqual(resolveAirspaceClosureShuttleParking(input));
 });
+
+
+it('parks remaining craft after Ring consumption without restoring the consumed Engineering Shuttle', () => {
+  const result = resolveAirspaceClosureShuttleParking({
+    ...base, activeRoleIds: [...roles, 'dione-engineer'], transits: [transit()],
+    dockings: [...base.dockings, { shuttleId: 'maliades', shipId: 'dione', dockedAt: 'SESSION START' }],
+    consumedShuttleIds: ['philia'], closedAt: new Date(departedAt + 30_000).toISOString(),
+    visitLog: [{ id: 'old-philia', shuttleId: 'philia', shipId: 'dione', action: 'docked',
+      occurredAt: new Date(departedAt - 120_000).toISOString() }],
+  } as Parameters<typeof resolveAirspaceClosureShuttleParking>[0]);
+  expect(result.dockings.some(docking => docking.shuttleId === 'philia')).toBe(false);
+  expect(result.visitLog.some(visit => visit.shuttleId === 'philia')).toBe(false);
+  expect(result.clearedTransitIds).toEqual(['starlight']);
+});

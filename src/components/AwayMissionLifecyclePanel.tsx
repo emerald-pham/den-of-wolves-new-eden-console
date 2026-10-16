@@ -1,5 +1,6 @@
 import { useId, useMemo, useState } from 'react';
 import './AwayMissionLifecyclePanel.css';
+import type { MissionRewardChoice, MissionRewardChoiceOptions, MissionRewardSelection } from '@/lib/missionRewardChoices';
 
 interface PublicOpportunity {
   readonly id: string;
@@ -14,6 +15,9 @@ interface PrivateMissionCard {
 }
 
 interface PrivateMissionState {
+  readonly rewardOptions?: readonly MissionRewardChoiceOptions[];
+  readonly rewardChoices?: readonly MissionRewardSelection[];
+  readonly extraCardRecipientUids?: readonly string[];
   readonly assignmentCommitted?: boolean;
   readonly missionId: string;
   readonly participantUid: string;
@@ -70,6 +74,7 @@ export interface AwayMissionLifecycleActions {
   readonly resolve: () => Promise<unknown>;
   readonly exploreSystems?: (opportunityId: string, targetCoordinates: readonly string[]) => Promise<unknown>;
   readonly dropOff: (shipId: string) => Promise<unknown>;
+  readonly chooseRewardTargets?: (opportunityId: string, choice: MissionRewardChoice) => Promise<unknown>;
 }
 
 export interface AwayMissionLifecyclePanelProps {
@@ -101,6 +106,9 @@ export default function AwayMissionLifecyclePanel({
   const [reclamatorOpportunityId, setReclamatorOpportunityId] = useState('');
   const [dropOffShipId, setDropOffShipId] = useState('');
   const [explorationTargets, setExplorationTargets] = useState<Record<string, readonly [string, string]>>({});
+  const [researchTargets, setResearchTargets] = useState<Record<string, readonly string[]>>({});
+  const [consoleActions, setConsoleActions] = useState<Record<string, 'upgrade' | 'repair'>>({});
+  const [consoleTargets, setConsoleTargets] = useState<Record<string, readonly string[]>>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -114,7 +122,11 @@ export default function AwayMissionLifecyclePanel({
     Object.entries(placements).filter(([, opportunityId]) => opportunityId).map(([, opportunityId]) => opportunityId),
   ), [placements]);
   const requestOptions = isMissionLeader ? publicState.requestCounts : [];
+  const recipientOptions = isMissionLeader ? ownPrivateState?.extraCardRecipientUids ?? requestOptions.map(({ participantUid }) => participantUid) : [];
   const legalDropOffIds = isMissionLeader ? publicState.legalDropOffShipIds : [];
+  const rewardOptions = isMissionLeader && actorUid === publicState.missionLeaderUid ? ownPrivateState?.rewardOptions ?? [] : [];
+  const rewardChoices = isMissionLeader && actorUid === publicState.missionLeaderUid ? ownPrivateState?.rewardChoices ?? [] : [];
+  const pendingTargets = rewardOptions.some(option => !rewardChoices.some(choice => choice.opportunityId === option.opportunityId));
 
   const run = async (operation: () => Promise<unknown>) => {
     if (busy) return;
@@ -160,6 +172,11 @@ export default function AwayMissionLifecyclePanel({
         </div>
         <p className="gm-console__status" role="status">{publicState.status} // {publicState.phase}</p>
       </header>
+
+      <p className="away-mission-lifecycle__muted">
+        HOUSE RULE // finite mission deck. Undealt cards are used first; resolved mission discards are recycled only when needed.
+        Discards from unresolved missions and private hands remain unavailable; extra requests beyond available cards stay undrawn.
+      </p>
 
       <div className="away-mission-lifecycle__grid" aria-label="Mission opportunities">
         {publicState.opportunities.map((opportunity) => (
@@ -336,7 +353,7 @@ export default function AwayMissionLifecyclePanel({
         </section>
       )}
 
-      {isMissionLeader && requestOptions.length > 0 && (
+      {isMissionLeader && recipientOptions.length > 0 && (
         <section aria-label="Blind extra card requests">
           <h3>Private requests // counts only</h3>
           <ul>
@@ -350,7 +367,7 @@ export default function AwayMissionLifecyclePanel({
                 Participant for extra card
                 <select value={recipientUid} onChange={(event) => setRecipientUid(event.target.value)}>
                   <option value="">Choose participant</option>
-                  {requestOptions.map(({ participantUid }) => <option key={participantUid} value={participantUid}>{participantUid}</option>)}
+                  {recipientOptions.map(participantUid => <option key={participantUid} value={participantUid}>{participantUid}</option>)}
                 </select>
               </label>
               <label>
@@ -388,6 +405,60 @@ export default function AwayMissionLifecyclePanel({
       {publicState.status === 'resolved' && isMissionLeader && legalDropOffIds.length > 0 && (
         <section aria-label="Mission reward custody">
           <p className="gm-console__status">Mission Leader custody // {publicState.custody.holderUid}</p>
+          {rewardOptions.map(option => {
+            const action = consoleActions[option.opportunityId] ?? option.consoleActions[0]?.action ?? 'upgrade';
+            const count = option.researchSelections || option.consoleActions.find(candidate => candidate.action === action)?.amount || 0;
+            const selected = option.researchSelections ? researchTargets[option.opportunityId] ?? [] : consoleTargets[option.opportunityId] ?? [];
+            const available = option.consoleTargets.filter(target => action === 'upgrade' ? target.canUpgrade : target.canRepair);
+            const complete = Array.from({ length: count }, (_, index) => selected[index]).every(Boolean) &&
+              (option.researchSelections > 0 || new Set(selected.filter(Boolean)).size === count);
+            const stored = rewardChoices.some(choice => choice.opportunityId === option.opportunityId);
+            return (
+              <fieldset key={option.opportunityId} disabled={busy} className="away-mission-lifecycle__actions">
+                <legend>Private reward targets // {option.opportunityId}</legend>
+                {stored && <p>Targets selected. Drop off the rewards to apply them.</p>}
+                {option.consoleActions.length > 1 && <label>
+                  Reward action for {option.opportunityId}
+                  <select value={action} onChange={event => {
+                    setConsoleActions(current => ({ ...current, [option.opportunityId]: event.target.value as 'upgrade' | 'repair' }));
+                    setConsoleTargets(current => ({ ...current, [option.opportunityId]: [] }));
+                  }}>
+                    {option.consoleActions.map(candidate => <option key={candidate.action} value={candidate.action}>
+                      {candidate.action === 'upgrade' ? 'Upgrade' : 'Repair'} {candidate.amount} console{candidate.amount === 1 ? '' : 's'}
+                    </option>)}
+                  </select>
+                </label>}
+                {Array.from({ length: count }, (_, index) => <label key={index}>
+                  {option.researchSelections ? 'Research' : 'Console'} target {index + 1} for {option.opportunityId}
+                  <select value={selected[index] ?? ''} onChange={event => {
+                    const value = event.target.value;
+                    const update = (current: Record<string, readonly string[]>) => {
+                      const next = [...(current[option.opportunityId] ?? [])]; next[index] = value;
+                      return { ...current, [option.opportunityId]: next };
+                    };
+                    if (option.researchSelections) setResearchTargets(update); else setConsoleTargets(update);
+                  }}>
+                    <option value="">Choose target</option>
+                    {option.researchSelections ? option.researchTracks.map(track => <option key={track.trackId} value={track.trackId}>{track.name}</option>) :
+                      available.map(target => {
+                        const key = `${target.shipId}:${target.systemId}`;
+                        return <option key={key} value={key} disabled={selected.some((chosen, slot) => slot !== index && chosen === key)}>
+                          {target.shipId.toUpperCase()} // {target.name}
+                        </option>;
+                      })}
+                  </select>
+                </label>)}
+                <button type="button" aria-label={`Select reward targets ${option.opportunityId}`} disabled={busy || !complete || !actions.chooseRewardTargets}
+                  onClick={() => void run(() => actions.chooseRewardTargets!(option.opportunityId, option.researchSelections ?
+                    { kind: 'research', trackIds: selected.slice(0, count) } :
+                    { kind: 'consoles', action, targets: selected.slice(0, count).map(key => {
+                      const [shipId, systemId] = key.split(':') as [string, string]; return { shipId, systemId };
+                    }) }))}>
+                  Select reward targets
+                </button>
+              </fieldset>
+            );
+          })}
           <div className="away-mission-lifecycle__actions">
             <label>
               Ship for reward drop-off
@@ -395,7 +466,7 @@ export default function AwayMissionLifecyclePanel({
                 {legalDropOffIds.map((shipId) => <option key={shipId} value={shipId}>{shipId.toUpperCase()}</option>)}
               </select>
             </label>
-            <button type="button" aria-label="Drop mission rewards at selected ship" disabled={busy || !chosenDropOffShipId}
+            <button type="button" aria-label="Drop mission rewards at selected ship" disabled={busy || !chosenDropOffShipId || pendingTargets}
               onClick={() => void run(() => actions.dropOff(chosenDropOffShipId))}>
               Drop mission rewards at selected ship
             </button>

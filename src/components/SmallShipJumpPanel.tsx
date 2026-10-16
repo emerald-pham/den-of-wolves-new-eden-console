@@ -9,7 +9,7 @@ export interface SmallShipJumpPanelDestination {
 
 export interface SmallShipJumpPanelProjection {
   readonly viewer: 'captain' | 'gm';
-  readonly smallShipId: 'gorgoneion' | 'capybara-small';
+  readonly smallShipId: 'gorgoneion' | 'capybara-small' | 'warrior' | 'vulcan';
   readonly hostShipId: string | null;
   readonly currentCoordinate: string | null;
   readonly movementRevision: number;
@@ -21,13 +21,14 @@ export interface SmallShipJumpPanelProjection {
   readonly cycleTurn?: number | null;
   readonly cycleCharges?: readonly string[];
   readonly charged?: boolean;
+  readonly requiresCharge?: boolean;
   readonly hostFuel?: number | null;
   readonly knownDestinations?: readonly SmallShipJumpPanelDestination[];
   readonly arrivalCoordinates?: readonly string[];
 }
 
 export interface SmallShipJumpPanelProps {
-  readonly smallShipId: 'gorgoneion' | 'capybara-small';
+  readonly smallShipId: 'gorgoneion' | 'capybara-small' | 'warrior' | 'vulcan';
   readonly projection?: SmallShipJumpPanelProjection | undefined;
   readonly accessibleName?: string;
   readonly authorityLabel?: string;
@@ -48,7 +49,7 @@ export interface SmallShipJumpPanelProps {
 }
 
 function vesselName(smallShipId: SmallShipJumpPanelProps['smallShipId']): string {
-  return smallShipId === 'gorgoneion' ? 'Gorgoneion' : 'Base Capybara';
+  return ({ gorgoneion: 'Gorgoneion', 'capybara-small': 'Base Capybara', warrior: 'Warrior', vulcan: 'Vulcan' })[smallShipId];
 }
 
 export default function SmallShipJumpPanel({
@@ -76,12 +77,14 @@ export default function SmallShipJumpPanel({
   const destination = destinations.find((choice) => choice.coordinate === selectedDestination);
   const hasHostFuel = destination !== undefined && (projection?.hostFuel ?? -1) >= destination.fuelCost;
   const charges = projection?.cycleCharges ?? [];
-  const canCharge = projection?.viewer === 'captain' && projection.hostShipId !== null &&
+  const requiresCharge = !(['warrior', 'vulcan'].includes(smallShipId) && projection?.requiresCharge === false);
+  const canCharge = requiresCharge && projection?.viewer === 'captain' && projection.hostShipId !== null &&
     projection.phase === 'team' && projection.cycleStep === 4 &&
     projection.cycleTurn === projection.currentTurn && projection.charged === false &&
     Number.isSafeInteger(projection.cycleRevision) && charges.length < 2 && !charges.includes('jump-drive');
   const canJump = projection?.viewer === 'captain' && projection.phase === 'coordination' &&
-    projection.hostShipId !== null && projection.currentCoordinate !== null && projection.charged === true &&
+    projection.hostShipId !== null && projection.currentCoordinate !== null &&
+    (requiresCharge ? projection.charged === true : projection.cycleStep === 0 && projection.cycleTurn === projection.currentTurn) &&
     destination !== undefined && hasHostFuel && Number.isSafeInteger(projection.cycleRevision);
 
   return (
@@ -91,10 +94,10 @@ export default function SmallShipJumpPanel({
         <h3>Small-craft FTL procedure</h3>
       </header>
       <p>
-        Charge during Team Phase, then jump during Coordination. Route choices come only from this Captain’s known chart nodes.
+        {requiresCharge ? 'Charge during Team Phase, then jump during Coordination.' : 'Finish current Team maintenance, then jump during Coordination. This Jump Drive does not need a reactor charge.'} Route choices come only from this Captain’s known chart nodes.
         Host fuel is spent only after the server validates the route and confirms it remains known to this Captain. The host pays 1 / 1 / 2 fuel for a short / medium / long jump.
       </p>
-      <p id={`${id}-jump-help`}>A successful jump consumes the Jump Drive charge; the craft may make only one jump per cycle. Successful jump detaches the craft at its arrival coordinate. Re-docking requires an active host at that same coordinate.</p>
+      <p id={`${id}-jump-help`}>{requiresCharge ? 'A successful jump consumes the Jump Drive charge;' : 'A successful jump does not consume a reactor charge;'} the craft may make only one jump per cycle. Successful jump detaches the craft at its arrival coordinate. Re-docking requires an active host at that same coordinate.</p>
       {loading && <p className="console-workspace__status" role="status">Loading current server movement projection…</p>}
       {error && <p className="console-workspace__error" role="alert">{error}</p>}
       {resultMessage && <p className="console-workspace__status" role="status" aria-label={resultStatusLabel}>{resultMessage}</p>}
@@ -108,16 +111,16 @@ export default function SmallShipJumpPanel({
             <div><dt>Docked host</dt><dd>{projection.hostShipId ?? 'Detached'}</dd></div>
             <div><dt>Host fuel</dt><dd>{projection.hostFuel ?? 'No docked host'}</dd></div>
             <div><dt>Cycle / phase</dt><dd>{projection.currentTurn} // {projection.phase}</dd></div>
-            <div><dt>Jump Drive</dt><dd>{projection.charged ? 'Charged this cycle' : 'Not charged this cycle'}</dd></div>
+            <div><dt>Jump Drive</dt><dd>{requiresCharge ? projection.charged ? 'Charged this cycle' : 'Not charged this cycle' : 'No reactor charge required'}</dd></div>
           </dl>
-          <p id={`${id}-charge-help`}>The Captain charges the drive at maintenance step 4 during Team Phase, while docked. It occupies one of the craft’s two console charge slots.</p>
+          {requiresCharge && <p id={`${id}-charge-help`}>The Captain charges the drive at maintenance step 4 during Team Phase, while docked. It occupies one of the craft’s two console charge slots.</p>}
           {canCharge && (
             <button type="button" className="console-workspace__button" disabled={busy || pendingCharge} aria-describedby={`${id}-charge-help`} onClick={onCharge}>
               Charge Jump Drive
             </button>
           )}
-          {(pendingCharge || pendingJump) && <p id={`${id}-retry-help`}>Retry the same saved action to confirm its outcome. An already recorded action returns its result without spending again.</p>}
-          {pendingCharge && (
+          {((requiresCharge && pendingCharge) || pendingJump) && <p id={`${id}-retry-help`}>Retry the same saved action to confirm its outcome. An already recorded action returns its result without spending again.</p>}
+          {requiresCharge && pendingCharge && (
             <button type="button" className="console-workspace__button" disabled={busy} aria-describedby={`${id}-retry-help`} onClick={onRetryCharge}>
               Retry exact charge
             </button>
@@ -127,7 +130,7 @@ export default function SmallShipJumpPanel({
               Known destination
               <select
                 value={selectedDestination}
-                disabled={busy || pendingJump || projection.phase !== 'coordination' || projection.charged !== true}
+                disabled={busy || pendingJump || projection.phase !== 'coordination' || (requiresCharge ? projection.charged !== true : projection.cycleStep !== 0 || projection.cycleTurn !== projection.currentTurn)}
                 onChange={(event) => onDestinationChange(event.currentTarget.value)}
               >
                 <option value="">Select a known destination</option>

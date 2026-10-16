@@ -28,7 +28,7 @@ vi.mock('firebase-admin/firestore', () => ({
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
 vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error { constructor(readonly code: string, message: string) { super(message); } },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
@@ -79,6 +79,12 @@ it('records a facilitator execution during the next Team Phase and opens arreste
     eligible: true, reason: 'arrested', revision: 1, requestId: 'disposition-1',
   });
   expect(mock.documents.get('sessions/s1/commandReceipts/disposition-1')?.result).toEqual(result);
+  expect([...mock.documents.values()].filter(value => value.type === 'player-removal')).toEqual([expect.objectContaining({ playerUid: 'u2', roleId: 'admiral', cause: 'execution', sourceId: 'disposition-1', playerName: expect.any(String), roleName: expect.any(String) })]);
+  const audit = structuredClone([...mock.documents].filter(([, value]) => value.type === 'player-removal'));
+  mock.set.mockClear(); mock.update.mockClear();
+  await expect(resolveArrestCaseDisposition.run(request())).resolves.toEqual(result);
+  expect([...mock.documents].filter(([, value]) => value.type === 'player-removal')).toEqual(audit);
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('allows release during the deadline Team Phase without creating replacement eligibility', async () => {
@@ -87,6 +93,150 @@ it('allows release during the deadline Team Phase without creating replacement e
   expect(mock.documents.get('sessions/s1/arrestCases/u2')).toMatchObject({ status: 'released' });
   expect(mock.documents.has('sessions/s1/replacementEligibility/u2')).toBe(false);
 });
+
+it.each(['released', 'executed'] as const)(
+  'allows a same-cycle %s during the current Team Phase without waiting for the next cycle', async (disposition) => {
+    mock.documents.clear();
+    provision(3);
+
+    const result = await resolveArrestCaseDisposition.run(request({
+      ...baseData, requestId: `same-cycle-${disposition}`, expectedCycle: 3, disposition,
+    }));
+
+    expect(result).toMatchObject({ turn: 3, deadlineCycle: 4, deadlineMet: true, disposition });
+    expect(mock.documents.get('sessions/s1/arrestCases/u2')).toMatchObject({
+      status: disposition, turn: 3, deadlineCycle: 4, revision: 2,
+    });
+    if (disposition === 'executed') {
+      expect(mock.documents.get('sessions/s1/replacementEligibility/u2')).toMatchObject({
+        eligible: true, reason: 'arrested', revision: 1,
+      });
+      expect(mock.documents.get('sessions/s1')?.setupRevision).toBe(3);
+    } else {
+      expect(mock.documents.has('sessions/s1/replacementEligibility/u2')).toBe(false);
+    }
+  },
+);
+
+it('allows ordinary disposition during same-cycle Coordination before the next-Team deadline', async () => {
+  mock.documents.clear();
+  provision(3);
+  const session = mock.documents.get('sessions/s1')!;
+  const turnPhase = session.turnPhase as Record<string, unknown>;
+  put('sessions/s1', {
+    ...session,
+    turnPhase: {
+      ...turnPhase,
+      teamPhaseEndsAt: '2000-01-01T00:00:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    },
+  });
+
+  const result = await resolveArrestCaseDisposition.run(request({
+    ...baseData, requestId: 'coordination-release', expectedCycle: 3, disposition: 'released',
+  }));
+
+  expect(result).toMatchObject({ turn: 3, deadlineCycle: 4, deadlineMet: true, disposition: 'released' });
+  expect(mock.documents.get('sessions/s1/arrestCases/u2')).toMatchObject({
+    status: 'released', turn: 3, deadlineCycle: 4, revision: 2,
+  });
+});
+
+it('rejects same-cycle disposition when lifted airspace still has a future Team clock', async () => {
+  mock.documents.clear();
+  provision(3);
+  const session = mock.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, turnPhase: { ...(session.turnPhase as Fields),
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false } } });
+  await expect(resolveArrestCaseDisposition.run(request({
+    ...baseData, requestId: 'incoherent-phase-release', expectedCycle: 3, disposition: 'released',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get('sessions/s1/arrestCases/u2')?.status).toBe('pending-resolution');
+  expect(mock.documents.has('sessions/s1/commandReceipts/incoherent-phase-release')).toBe(false);
+  expect(mock.documents.has('sessions/s1/arrestCases/u2/audit/incoherent-phase-release')).toBe(false);
+});
+
+it.each(['absent', 'foreign-cycle', 'paused'] as const)(
+  'rejects a fresh same-cycle disposition when current phase authority is %s', async (scenario) => {
+    mock.documents.clear();
+    provision(3);
+    const session = mock.documents.get('sessions/s1')!;
+    const phase = session.turnPhase as Record<string, unknown>;
+    put('sessions/s1', {
+      ...session,
+      turnPhase: scenario === 'absent' ? undefined : scenario === 'foreign-cycle' ? { ...phase, turn: 2 } : {
+        ...phase,
+        timerPause: {
+          window: 'restricted', remainingMs: 60_000, pausedAt: new Date().toISOString(),
+          reason: 'turn-interstitial',
+        },
+      },
+    });
+
+    const requestId = `invalid-phase-${scenario}`;
+    await expect(resolveArrestCaseDisposition.run(request({
+      ...baseData, requestId, expectedCycle: 3, disposition: 'released',
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.documents.get('sessions/s1/arrestCases/u2')?.status).toBe('pending-resolution');
+    expect(mock.documents.has(`sessions/s1/commandReceipts/${requestId}`)).toBe(false);
+    expect(mock.documents.has(`sessions/s1/arrestCases/u2/audit/${requestId}`)).toBe(false);
+  },
+);
+
+it('does not treat a held next-Team phase as deadline expiry for a reasoned ruling', async () => {
+  mock.documents.clear();
+  provision(4);
+  const session = mock.documents.get('sessions/s1')!;
+  const phase = session.turnPhase as Record<string, unknown>;
+  put('sessions/s1', {
+    ...session,
+    turnPhase: {
+      ...phase,
+      timerPause: {
+        window: 'restricted', remainingMs: 60_000, pausedAt: new Date().toISOString(),
+        reason: 'turn-interstitial',
+      },
+    },
+  });
+
+  await expect(resolveArrestCaseDisposition.run(request({
+    ...baseData, requestId: 'paused-deadline-ruling', expectedCycle: 4,
+    disposition: 'facilitator-resolution', ruling: 'The table agrees on a final ruling.',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get('sessions/s1/arrestCases/u2')?.status).toBe('pending-resolution');
+  expect(mock.documents.has('sessions/s1/commandReceipts/paused-deadline-ruling')).toBe(false);
+});
+
+it.each([
+  { currentTurn: 3, state: 'lifted', disposition: 'released' },
+  { currentTurn: 4, state: 'restricted', disposition: 'executed' },
+] as const)(
+  'keeps unpaused manual phase authority despite compatibility timestamps ($currentTurn/$state)', async ({ currentTurn, state, disposition }) => {
+    mock.documents.clear();
+    provision(currentTurn);
+    const session = mock.documents.get('sessions/s1')!;
+    const phase = session.turnPhase as Record<string, unknown>;
+    put('sessions/s1', {
+      ...session,
+      turnPhase: {
+        ...phase,
+        teamPhaseEndsAt: '2000-01-01T00:00:00.000Z',
+        openAirspaceEndsAt: '2000-01-02T00:00:00.000Z',
+        progression: 'manual',
+        airspace: { state, tickerActive: true, pressAccess: false },
+      },
+    });
+
+    const result = await resolveArrestCaseDisposition.run(request({
+      ...baseData, requestId: `manual-phase-${currentTurn}-${state}`, expectedCycle: currentTurn, disposition,
+    }));
+
+    expect(result).toMatchObject({
+      turn: currentTurn, deadlineCycle: 4, deadlineMet: true, disposition,
+    });
+    expect(mock.documents.get('sessions/s1/arrestCases/u2')?.status).toBe(disposition);
+  },
+);
 
 it('rejects early resolution and permits only a reasoned facilitator resolution after the deadline', async () => {
   await expect(resolveArrestCaseDisposition.run(request({ ...baseData, expectedCycle: 3 })))
@@ -111,4 +261,15 @@ it('replays exactly and rejects wrong facilitator or stale case revision', async
   expect(mock.update).not.toHaveBeenCalled();
   await expect(resolveArrestCaseDisposition.run(request({ ...baseData, requestId: 'other', expectedRevision: 9 }, 'u8')))
     .rejects.toMatchObject({ code: 'permission-denied' });
+});
+
+it('rejects a revoked facilitator lease before applying a same-cycle disposition', async () => {
+  mock.documents.clear();
+  provision(3);
+  put('sessions/s1/gmInstances/gm-1', { uid: 'u1', connected: false, lastSeenAt: new Date() });
+
+  await expect(resolveArrestCaseDisposition.run(request({
+    ...baseData, requestId: 'revoked-same-cycle', expectedCycle: 3, disposition: 'released',
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.documents.get('sessions/s1/arrestCases/u2')?.status).toBe('pending-resolution');
 });

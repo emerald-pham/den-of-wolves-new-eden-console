@@ -199,6 +199,21 @@ it('applies Capybara Storage to every in-scope store, including Scrap and docked
   });
 });
 
+it('does not invent a minimum loss for damaged storage holding one or zero resources', () => {
+  const result = advanceMaintenance(input({
+    action: 'storage',
+    cycle: { step: 1, revision: 0, results: {}, charges: [], refuelled: [] },
+    resources: { ore: 1, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0 },
+    damage: { damagedSystemIds: ['storage'], destroyed: false },
+    dockings: [{ shipId: 'aegis', shuttleId: 'starlight' }],
+    cargo: { starlight: { food: 1, water: 0 } },
+  }));
+
+  expect(result.resources).toEqual({ ore: 1, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0 });
+  expect(result.cargo).toEqual({ starlight: { food: 1, water: 0 } });
+  expect(result.cycle.results['1']).toMatch(/no resources/i);
+});
+
 it('uses the printed Capybara Storage and Reactor policy', () => {
   expect(MAINTENANCE_RULES.capybara).toEqual({
     food: [0, 3, 7, 11], water: [0, 2, 5, 8], reactor: 3, damagedPenalty: 3,

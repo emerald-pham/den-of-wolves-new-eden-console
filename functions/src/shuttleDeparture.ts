@@ -3,6 +3,7 @@ import type { FleetGroupRecord } from './fleetGroups';
 import type { ShuttleControlEntry } from './shuttleControl';
 import type { AuthoritativeShuttleDocking } from './shuttleDocking';
 import type { TurnPhase } from './turnZero';
+import { turnPhaseDeadlinePassed } from './turnZero';
 
 export interface ShuttleDepartureRequestState {
   readonly status: 'requested';
@@ -23,7 +24,7 @@ export function shuttleMovementWindowOpen(
   phase: TurnPhase,
   now: number,
 ): boolean {
-  if (phase.timerPause || now >= Date.parse(phase.openAirspaceEndsAt)) return false;
+  if (phase.timerPause || turnPhaseDeadlinePassed(phase, 'open', now)) return false;
   if (phase.airspace.state === 'lifted') return true;
   return shuttleId === 'snn-press-shuttle' && phase.airspace.pressAccess;
 }

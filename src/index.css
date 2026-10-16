@@ -104,6 +104,13 @@ body {
   transition: opacity 100ms ease;
 }
 
+/* The shared fleet-group panel precedes each route's own content, so route
+   padding cannot clear the fixed header and compact DRADIS for it. */
+html:has(.ship-plot[data-aboard='true'][data-expanded='false'])
+  .screen-fade__content > .fleet-group-workspace {
+  margin-block-start: calc(var(--console-plot-top) + var(--ship-plot-widget-size) + 1rem);
+}
+
 .screen-fade[data-phase='out'] .screen-fade__content {
   opacity: 0;
 }
@@ -610,6 +617,8 @@ body {
 .settings-button {
   width: 2.5rem;
   height: 2.5rem;
+  min-width: 44px;
+  min-height: 44px;
   display: grid;
   place-items: center;
   padding: 0;
@@ -690,6 +699,66 @@ body {
 .settings-dialog__disconnect {
   width: 100%;
   margin-top: 1.25rem;
+}
+
+.session-join-qr {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: 0.45rem;
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border-left: 2px solid var(--cic-cyan-dim);
+  text-align: center;
+}
+
+.session-join-qr h3 {
+  margin: 0;
+  color: var(--cic-cyan);
+  font: 0.72rem/1.4 var(--cic-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.session-join-qr__image {
+  display: block;
+  width: min(9rem, 52vw);
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  padding: 0.4rem;
+  border: 1px solid var(--cic-rule);
+  background: var(--cic-ink);
+  image-rendering: pixelated;
+}
+
+.session-join-qr p {
+  margin: 0;
+  font: 0.68rem/1.4 var(--cic-mono);
+}
+
+.session-join-qr__link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cic-cyan);
+  font: 0.68rem/1.45 var(--cic-mono);
+  text-decoration-color: var(--cic-amber-dim);
+  text-underline-offset: 0.15em;
+}
+
+.session-join-qr h3,
+.session-join-qr p,
+.session-join-qr__link {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.session-join-qr__link:focus-visible {
+  outline: 2px solid var(--cic-amber);
+  outline-offset: 2px;
 }
 
 .focus-dialog-backdrop {
@@ -784,6 +853,74 @@ body {
 @media (max-width: 42rem), (max-height: 42rem) {
   .focus-dialog-backdrop { place-items: start center; }
   .focus-dialog { margin-block: 0; }
+
+  .settings-backdrop {
+    grid-template-columns: minmax(0, 1fr);
+    place-items: start center;
+    padding: max(env(safe-area-inset-top), min(1rem, 2.5vw))
+      max(env(safe-area-inset-right), min(1rem, 2.5vw))
+      max(env(safe-area-inset-bottom), min(1rem, 2.5vw))
+      max(env(safe-area-inset-left), min(1rem, 2.5vw));
+  }
+
+  .settings-dialog {
+    margin-block: 0;
+    min-width: 0;
+    padding: min(1.25rem, 4vw);
+  }
+
+  .settings-dialog__header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+  }
+
+  .settings-dialog__header h2 {
+    min-width: 0;
+    grid-row: 2;
+    overflow-wrap: normal;
+  }
+
+  .settings-dialog__close {
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .session-join-qr {
+    padding: min(0.9rem, 3vw);
+  }
+
+  .session-join-qr h3 {
+    overflow-wrap: normal;
+  }
+
+  .settings-dialog .settings-dialog__gm-access a {
+    display: block;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .settings-dialog .settings-changelog__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .settings-dialog button:not(.settings-dialog__close) {
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .settings-dialog > .session-readouts {
+    flex-direction: column;
+  }
+
+  .settings-dialog > .session-readouts > * {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
+  }
 }
 
 
@@ -1921,11 +2058,10 @@ body {
   white-space: nowrap;
 }
 
-.gm-casting-board__assign select,
-
-
 .gm-casting-board__assign select {
-  min-width: 12rem;
+  min-width: min(12rem, 100%);
+  max-width: 100%;
+  min-height: 44px;
   padding: 0.45rem 0.55rem;
 }
 
@@ -2817,6 +2953,7 @@ body {
 
 .settings-dialog__gm-access-form {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.55rem;
   margin-top: 1rem;
 }
@@ -2830,6 +2967,8 @@ body {
 
 .settings-dialog__gm-access-form input {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 44px;
   border: 1px solid var(--cic-rule);
   border-radius: var(--cic-radius);
@@ -2848,6 +2987,10 @@ body {
 
 
 .settings-dialog__gm-access a {
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
   color: var(--cic-cyan);
   text-decoration: underline;
   text-decoration-color: var(--cic-amber-dim);
@@ -2971,8 +3114,13 @@ body {
   margin-bottom: clamp(2rem, 5vw, 4rem);
 }
 
+.fleet-roster__header .role-select__title {
+  overflow-wrap: anywhere;
+}
+
 .fleet-roster__filter {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.45rem;
   max-width: 28rem;
   margin-top: 1.5rem;
@@ -2983,6 +3131,9 @@ body {
 }
 
 .fleet-roster__filter input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 44px;
   padding: 0.65rem 0.8rem;
   border: 1px solid var(--cic-rule);
@@ -6180,14 +6331,27 @@ body {
    opening document area. The complete console scrolls past them without
    leaving controls or identity labels over the active workspace. */
 @media (max-width: 42rem), (max-height: 42rem) {
+  .app-header > .session-readouts {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    min-width: 0;
+    max-width: 100%;
+  }
+
   .ship-plot[data-aboard='true'][data-expanded='false'] {
     position: absolute;
+  }
+
+  html:has(.ship-plot[data-aboard='true'][data-expanded='false'])
+    .screen-fade__content > .private-loyalty-flow {
+    padding-top: calc(var(--console-plot-top) + var(--ship-plot-widget-size) + 1rem);
   }
 
   .ship-console,
   .ship-console:not(.shuttle-console),
   .shuttle-console {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     align-content: start;
     gap: 1rem;
     overflow: visible;
@@ -6201,9 +6365,14 @@ body {
     bottom: auto;
     left: auto;
     width: 100%;
+    min-width: 0;
     max-height: none;
     overflow: visible;
     background: var(--cic-void);
+  }
+
+  .ship-console .ship-console__back {
+    max-width: 100%;
   }
 
   .ship-console .ship-console__instruments {
@@ -6345,6 +6514,14 @@ body {
   flex-basis: 100%;
   margin: 0;
   color: var(--cic-cyan);
+  font: 0.875rem/1.5 var(--cic-mono);
+  overflow-wrap: anywhere;
+}
+.maintenance-controls__damage-guidance {
+  flex-basis: 100%;
+  max-width: 72ch;
+  margin: 0;
+  color: var(--cic-muted);
   font: 0.875rem/1.5 var(--cic-mono);
   overflow-wrap: anywhere;
 }

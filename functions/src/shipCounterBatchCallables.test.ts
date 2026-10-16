@@ -5,6 +5,7 @@ const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), role: 'gm', owner: 'u1', connected: true,
   fuel: 6, unrest: 7, population: 16_000,
   phase: 'active',
+  candidateVesselOutcomes: undefined as unknown,
   revision: 0,
   receipts: {} as Record<string, Record<string, unknown>>,
   audits: {} as Record<string, Record<string, unknown>>,
@@ -59,6 +60,7 @@ beforeEach(() => {
   mock.role = 'gm'; mock.owner = 'u1'; mock.connected = true;
   mock.fuel = 6; mock.unrest = 7; mock.population = 16_000;
   mock.phase = 'active'; mock.revision = 0;
+  mock.candidateVesselOutcomes = undefined;
   mock.retry = false; mock.retryFuel = undefined;
   mock.unrestAlerts = {}; mock.populationAlerts = {};
   mock.update.mockReset();
@@ -81,6 +83,7 @@ beforeEach(() => {
       : {
         activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'],
         phase: mock.phase,
+        candidateVesselOutcomes: mock.candidateVesselOutcomes,
         vesselActionRevisions: { dione: mock.revision, capybara: mock.revision },
         shipResources: { dione: { fuel: mock.fuel } },
         shipUnrest: { dione: mock.unrest, capybara: mock.unrest },
@@ -90,6 +93,26 @@ beforeEach(() => {
       };
     return { exists: true, get: (key: string) => fields[key] };
   });
+});
+
+it.each(['crossed', 'reached', 'lost', 'left-behind', 'cannibalised', 'settled'])(
+  'denies a fresh normal GM counter batch on a %s vessel in an active split fleet', async outcome => {
+    mock.candidateVesselOutcomes = { dione: { code: 'N', groupId: 'fleet-1', shipId: 'dione',
+      sourceId: 'candidate-1', cycle: 6, outcome } };
+    await expect(applyShipCounterSteps.run(request({ sessionId: 's1', instanceId: 'gm1', shipId: 'dione',
+      counter: 'resource', resourceId: 'fuel', steps: [1], requestId: 'fresh-settled' })))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+it('recovers the original GM counter receipt after candidate settlement and still denies a new request', async () => {
+  const original = request({ sessionId: 's1', instanceId: 'gm1', shipId: 'dione',
+    counter: 'resource', resourceId: 'fuel', steps: [1], requestId: 'original-settled' });
+  const result = await applyShipCounterSteps.run(original);
+  mock.candidateVesselOutcomes = { dione: { code: 'N', groupId: 'fleet-1', shipId: 'dione',
+    sourceId: 'candidate-1', cycle: 6, outcome: 'crossed' } };
+  await expect(applyShipCounterSteps.run(original)).resolves.toEqual(result);
+  await expect(applyShipCounterSteps.run(request({ ...original.data, requestId: 'new-settled' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
 });
 
 it('applies rapid resource steps in their click order inside one transaction', async () => {

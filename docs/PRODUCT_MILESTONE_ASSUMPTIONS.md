@@ -454,9 +454,10 @@ broader future diegetic-rules PC11 does not enlarge this repair.
 |---|---|
 | ID and checkpoint | PC07-A3, P346–350; recorded 2026-10-03 under PC07 authorization. |
 | Source | Facilitator Guide v1.1 printed p. 16, Split Fleet, requires group-local pursuit and communication but does not specify the pursuit score after groups rejoin. |
-| Chosen reading | When current server positions permit rejoining, retain the highest input pursuit score. The lowest numeric fleet identifier survives, with membership merged atomically and input/result scores recorded in the private GM audit. |
-| Alternatives and limits | Averaging, choosing the lowest score, or asking the GM each time would add a rule or operator step. This conservative digital tie-breaker cannot grant a pursuit reduction just by regrouping. Existing individual chart knowledge and historical identities remain intact. |
+| Original PC07 app reading (superseded) | The 2026-10-03 implementation retained the highest input pursuit score when current server positions permitted rejoining. The lowest numeric fleet identifier survived, with membership merged atomically and input/result scores recorded in the private GM audit. |
+| Alternatives and limits | The printed rule did not specify a numeric result. The prior highest-score tie-breaker was an implementation assumption, not an author-confirmed policy; the October 8 owner-approved house rule authorizes no formula for differing inputs. The existing survivor, membership, chart knowledge and history behavior remain in place, with a live-GM decision required only when inputs differ. |
 | Effect | Exact retries produce no second membership rewrite, message or pursuit result. [The split-fleet note](PC07_SPLIT_SHARING_ASSUMPTIONS.md) explains the connected route audience and knowledge boundaries. |
+| October 8 owner-rule qualification | This earlier PC07 assumption was not author-confirmed. The later owner-approved house rule requires differing pursuit inputs to remain separate until a current live GM records a decision before merge; it does not approve highest-score or another formula. Equal inputs retain their shared value as a narrow app reading of the ordinary rejoin case. The pursuit movement interpretation remains unresolved. |
 
 ### PC07-A4 — A taxi pilot remains at its launch ship
 
@@ -560,3 +561,42 @@ broader future diegetic-rules PC11 does not enlarge this repair.
 | Source | The named Maliades component supplies an optional Medium attack/target adjustment and up to two Short attacks, with their printed self-risk and three-damage destruction. Its incomplete digital sequencing does not specify a persisted pass marker. Source routing remains in the private library and PC08_RANGE_ASSUMPTIONS. |
 | Chosen reading | The current Engineer and Maliades holder may explicitly decline all actions at either range. Persist that zero-action choice for the current attack and revision; it participates in the same locked range batch as the other sources. |
 | Alternatives and limits | A pass consumes no dice, causes no self-damage, and cannot bypass another source's pending choice. A disconnected or away assigned owner stays pending; only a genuinely unavailable holder receives an audited automatic zero-action result. The explicit durable marker is a digital extension, not quoted printed pass text. |
+
+### PC10-D1 — Protected virtual crew for the two-browser solo demo
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC10-D1, PC10-A02; current owner clarification of the authorized single-player full-game demo. No fixed catalog item is invented or credited. |
+| Authority | The owner requires one person to operate the full game across two browsers without manually creating a set of browser profiles. The ordinary seat-backed readiness and source Wolf assignment already support sparse actual rosters. |
+| Chosen design | Permanently label a fresh training session before any non-GM participant joins. Keep the GM on Browser A. Browser B automatically manages a disclosed crew of genuine Firebase Auth personas, with ordinary admission, casting, seats and explicit actor decisions. Each selected persona has a fixed named app and isolated persisted state/outbox; switching reloads the document. |
+| Limits | Virtual personas are simulated participants, not proof of physical attendance, independent humans or devices. Links contain only ordinary join information and nonsensitive local profile references. Normal games retain normal readiness, authority, consent and privacy. Mutually exclusive rosters, replacements and terminal outcomes require separate fresh-game branches. |
+
+### PC10-D2 — Explicit simulated arrest attendance in the protected demo
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC10-D2, PC10-A02; bounded demo extension under the owner's approval of isolated simulated crew controls. No additional fixed closure. |
+| Printed source | Base Player Guide v1.1 arrest procedure and Facilitator Guide v1.1 arrest/prisoner guidance, routed privately to the core-rules and facilitation derivatives. All seven preserved primary binaries match the private provenance inventory. The existing threshold, defenders, private suspicion and next-Team-Phase deadline remain the source behavior. |
+| Chosen design | In an active manual training session only, the current authenticated GM explicitly chooses named virtual posse members and presses “Simulate attendance.” The exact request, result, private case and private attendance audit are labeled simulated. It uses the same current private calculation, distinct connected roster, source arithmetic, deadline and replay rules. |
+| Limits | The demo rejects unlabeled physical attestations; a normal game rejects the simulation field. Normal results retain their existing shape, and their private audit records the GM physical-attestation evidence class. This does not assert that the program verified real people or physical attendance, expose suspicion, create roster members, grant ordinary actors GM authority or bypass consent. |
+
+
+### PC10-A3 — Connected Warrior and Vulcan abilities
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC10-A3, PC10-A02; the owner assigned completion of four existing extra-role abilities. No catalog closure or new role is invented. |
+| Printed source | Base Alpha/Bravo v1.1 A4 duplex, physical PDF pages 27 (Warrior) and 29 (Vulcan), inspected as full-page images. Primary binary checksum matches the private source provenance inventory. |
+| Chosen reading | Both printed Jump Drives have no reactor-charge connection and use docked-host fuel at the existing short/medium/long rates. Keep current-cycle completed maintenance, Coordination, known-route, host, actor, docking and movement checks; preserve every other craft's required charge. Warrior uses the existing six-resource docked cargo contract with an independent ledger. Vulcan's one current-cycle laser charge powers its two printed close ranges through the existing explicit source-choice and shared dice-lock pipeline. |
+| Authority and limits | The normal current Captain replacement, genuine ordinary UID, server admission, current host/group audience, cost, revision, exact-replay and revocation contracts control these actions. A range use/pass is an explicit digital choice; it draws no early dice. Native fixtures prove code contracts only. Fresh browser play, rendered geometry, integration, independent review and deployment remain root-owned; physical human facts remain unproved. |
+
+### PC10-D3 — Never-assigned craft lost with their host; private GM removal alerts
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC10-D3, existing PC10/P181 functionality; no new catalog item or completion credit. |
+| Owner ruling | On 2026-10-15 at 06:53:19 UTC the owner ruled that never-assigned craft are lost with their destroyed host and that incidents taking players out of play must alert the GM console log (Sentinel_e6710999796481919e074c454c8e3008). This supersedes the unapproved never-owned preservation candidate; that candidate and its evidence remain historical. |
+| Preserved printed boundary | Facilitator Guide v1.1, “Destroyed Ships,” printed p. 18 / PDF p. 20, covers players' craft and escape. The privately archived primary and provenance checksum were verified. Its owned/borrowed craft behavior remains unchanged; the never-assigned fate is the owner's explicit ruling, not a claim of additional printed wording. |
+| Chosen implementation | A strictly proven never-assigned shuttle loses docking, operational cargo/fuel and transit pointers without refund, retaining terminal identity and original history. Never-assigned, unlaunched AEGIS/PDF fighters become zero through their existing count/state contracts. A genuinely first-admitted optional small ship records permanent assignment provenance; only explicit never-assigned provenance permits terminal loss, with no operational admission or revival. Missing legacy history stays ambiguous and fails closed. Ordinary host repair acknowledges existing loss against the original catastrophe and repair receipt; it does not restore craft. |
+| GM alert contract | Actual ship-escape displacement, character deaths, Captain replacement, execution, candidate vessel loss and permanent GM removal write bounded incident/victim records atomically to the existing GM-only procedure audit channel. The existing GM Event log subscribes under current GM authority. An empty craft loss creates no player-removal alert; escape-pending is named as awaiting escape, not death. Exact retries are idempotent; later genuine incidents retain distinct identity. |
+| Limits | No synthetic owner, new actor, custody, refund, free ability or permission expansion. Existing owned/borrowed/launched fates remain source-specific. Ordinary casting remains locked; no new recovery or role-admission route is introduced. Tests use inert source-shaped handlers and consumers; native Short progression, rules enforcement, GM rendered geometry and independent integration review remain separate gates. The deterministic GM Kick render case is not evidence for an in-game casualty. |

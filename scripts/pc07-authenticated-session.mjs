@@ -1,9 +1,84 @@
 import assert from 'node:assert/strict';
-import {randomUUID} from 'node:crypto';
+import {randomUUID,createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
 import {localGmAccessConfiguration,grantLocalGmAccess} from './local-gm-access.mjs';
 import {buildPc07ExplicitLoyaltyAssignments} from './pc07-explicit-loyalty-setup.mjs';
+import {createFixtureHeartbeatController} from './fixture-heartbeats.mjs';
+import {createPc10CallableTrace,observePc10CallableTrace} from './pc10-proof-diagnostics.mjs';
+export {createFixtureHeartbeatController} from './fixture-heartbeats.mjs';
+
+/** Proof metadata has no credentials, freeform values, or operational/private projections. */
+export function buildFixtureCallableObservation({name,transport,actorUid,sessionId,startedAt,completedAt,status,reply}={}) {
+ assert.match(name??'',/^[A-Za-z][\w]{0,99}$/);
+ assert.ok(['authenticated-emulator-HTTP','independent-browser-SDK'].includes(transport));
+ const hash=(kind,value)=>typeof value==='string'&&/^[\w-]{1,128}$/.test(value)
+  ?createHash('sha256').update(`security-denial-${kind}\0${value}`).digest('hex'):null;
+ const result=reply?.result??reply?.data;
+ const player=result?.player;
+ const generation=result?.connectionGeneration??player?.connectionGeneration;
+ const codes=['UNAUTHENTICATED','PERMISSION_DENIED','INVALID_ARGUMENT','RESOURCE_EXHAUSTED',
+  'FAILED_PRECONDITION','NOT_FOUND','ABORTED','UNAVAILABLE','DEADLINE_EXCEEDED','INTERNAL'];
+ return {name,transport,startedAt,completedAt,durationMs:completedAt-startedAt,status,
+  actorHash:hash('actor',actorUid??result?.actorUid??player?.uid),
+  sessionHash:hash('session',sessionId??result?.sessionId??result?.session?.id),
+  groupHash:hash('group',result?.groupId??player?.fleetGroupId),
+  connectionGeneration:Number.isSafeInteger(generation)&&generation>=1?generation:null,
+  denialCode:codes.includes(reply?.error?.status)?reply.error.status:null,
+  denialCategory:['rate-limit-state-invalid','rate-limited'].includes(reply?.error?.details?.commandError)
+   ?reply.error.details.commandError:null};
+}
+
+/** Diagnose a failed fixture before its own data is removed; always retain that failure. */
+export async function finishFailedPc07Fixture(error,{observeFailure,cleanup}) {
+ try{if(observeFailure)await observeFailure();}
+ catch{error.pc07FailureObservationUnavailable=true;}
+ try{await cleanup();error.pc07FailureCleanupComplete=true;}
+ catch(cleanupError){error.pc07FailureCleanupUnavailable=true;error.pc07FailureCleanupError=cleanupError;}
+ throw error;
+}
+
+/** A native proof request must fail observably instead of waiting indefinitely.
+ * There is no transport retry; production callable limits are unchanged. */
+export async function performFixtureCallable({origin,project,actor,name,data,timeoutMs=60_000,onCallableIssued,onCallableObservation}) {
+ const signal=AbortSignal.timeout(timeoutMs);
+ const startedAt=Date.now();
+ const trace=createPc10CallableTrace({name,transport:'authenticated-emulator-HTTP',data,
+  actorUid:actor.localId,startedAt});
+ let terminalObservationSent=false;
+ if(trace&&onCallableIssued)onCallableIssued({...trace});
+ try{
+  const response=await fetch(`${origin}/${project}/us-central1/${name}`,{
+   method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${actor.idToken}`},
+   body:JSON.stringify({data}),signal,
+  });
+  if(trace)observePc10CallableTrace(trace,{stage:'headers',at:Date.now(),status:response.status});
+  const reply={status:response.status,...await response.json()};
+  const completedAt=Date.now();
+  if(trace)observePc10CallableTrace(trace,{stage:'body',at:completedAt,reply});
+  terminalObservationSent=true;
+  if(onCallableObservation)onCallableObservation({...trace,...buildFixtureCallableObservation({name,
+   transport:'authenticated-emulator-HTTP',actorUid:actor.localId,sessionId:data?.sessionId,
+   startedAt,completedAt,status:reply.status,reply})});
+  return reply;
+ }catch(error){
+  const failure=signal.aborted
+   ?new Error(`Local fixture callable ${name} exceeded ${timeoutMs}ms without a reply.`):error;
+  if(trace&&!terminalObservationSent){
+   observePc10CallableTrace(trace,{stage:trace.headersReceivedAt!==null&&!signal.aborted?'body-unavailable':'failed',at:Date.now()});
+   try{if(onCallableObservation)onCallableObservation({...trace});}
+   catch{failure.pc07CallableObservationUnavailable=true;}
+  }
+  throw failure;
+ }
+}
+
+/** Actual browser clients must control their own presence in disconnect proof.
+ * A synthetic keep-alive must not silently keep an offline browser connected. */
+export function shouldMaintainFixturePresence({ browserControlled, browserOwnsPresence = false,
+ serializeFixtureCalls = false } = {}) {
+ return !browserControlled || (!browserOwnsPresence && !serializeFixtureCalls);
+}
 
 /** Join actual browser clients into selected printed core seats before assigning the other actors. */
 export async function joinConfiguredBrowserPlayers({roles,players,joinCode,browserRoleId,joinBrowserPlayer,joinBrowserPlayers}={}) {
@@ -37,7 +112,7 @@ export async function joinConfiguredBrowserPlayers({roles,players,joinCode,brows
 }
 
 /** Normal local Auth/HTTP setup. Tokens stay in memory and never enter evidence. */
-export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBriefing=true,keepAlive=false,serializeFixtureCalls=false,expansion='base',capybaraEnabled=expansion==='capybara',browserRoleId,joinBrowserPlayer,joinBrowserPlayers,joinPressPlayer,activeRoleIdsOverride,unionCraftStartingHosts={},explicitLoyaltySetup}={}) {
+export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBriefing=true,keepAlive=false,serializeFixtureCalls=false,browserOwnsPresence=false,expansion='base',capybaraEnabled=expansion==='capybara',fullGameManual=false,chartId='A',turnLimit=6,browserRoleId,joinBrowserPlayer,joinBrowserPlayers,joinPressPlayer,activeRoleIdsOverride,unionCraftStartingHosts={},explicitLoyaltySetup,onCallableIssued,onCallableObservation,beforeCleanup,beforeFailureCleanup,beforeFailureDeletion}={}) {
  const env=Object.fromEntries((await readFile('.env.emulators.local','utf8')).trim().split('\n').map(line=>line.split('=')));
  const project=process.env.VITE_FIREBASE_PROJECT_ID;
  const config=localGmAccessConfiguration('serve',{...env,VITE_LOCAL_GM_ACCESS:'1',VITE_FIREBASE_PROJECT_ID:project});
@@ -52,8 +127,8 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
  async function actor(){const r=await fetch(`http://127.0.0.1:${config.authPort}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=${project}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({returnSecureToken:true})});assert.equal(r.status,200);return r.json();}
  const disconnected=new Set();
  let pendingFixtureCall=Promise.resolve();
- async function performCall(actor,name,data){const r=await fetch(`http://127.0.0.1:${functionsPort}/${project}/us-central1/${name}`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${actor.idToken}`},body:JSON.stringify({data})});const reply={status:r.status,...await r.json()};
-  if(r.status===200){if(name==='disconnectFromSession')disconnected.add(actor.localId);if(name==='resumeSession')disconnected.delete(actor.localId);}
+ async function performCall(actor,name,data){const reply=await performFixtureCallable({origin:`http://127.0.0.1:${functionsPort}`,project,actor,name,data,onCallableIssued,onCallableObservation});
+  if(reply.status===200){if(name==='disconnectFromSession')disconnected.add(actor.localId);if(name==='resumeSession')disconnected.delete(actor.localId);}
   return reply;}
  function call(actor,name,data){
   if(!serializeFixtureCalls)return performCall(actor,name,data);
@@ -69,24 +144,26 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
  const created=ok(await call(gm,'createSession',{requestId:randomUUID(),joinCodeVersion:2,name}),'create');
  const sessionId=created.session.id,session=db.doc(`sessions/${sessionId}`),instanceId='pc07-local-proof';
  const heartbeatPlayers=new Map(),heartbeatFailures=[];
- let gmHeartbeat,playerHeartbeat,gmHeartbeatPending=Promise.resolve(),playerHeartbeatPending=Promise.resolve();
- function queueGmHeartbeat(){
+ let gmHeartbeatPending=Promise.resolve(),playerHeartbeatPending=Promise.resolve();
+ function queueGmHeartbeat(running){
   gmHeartbeatPending=gmHeartbeatPending.catch(error=>{
    heartbeatFailures.push({actor:'gm-heartbeat-loop',message:String(error?.message??error)});
   }).then(async()=>{
-   if(disconnected.has(gm.localId))return;
+   if(!running()||disconnected.has(gm.localId))return;
    try{
     const reply=await call(gm,'refreshPresence',{sessionId,instanceId});
     if(reply.status!==200)heartbeatFailures.push({actor:'gm',status:reply.status,
      message:String(reply.error?.message??'presence refresh failed')});
    }catch(error){heartbeatFailures.push({actor:'gm',message:String(error?.message??error)});}
   });
+  return gmHeartbeatPending;
  }
- function queuePlayerHeartbeats(){
+ function queuePlayerHeartbeats(running){
   playerHeartbeatPending=playerHeartbeatPending.catch(error=>{
    heartbeatFailures.push({actor:'player-heartbeat-loop',message:String(error?.message??error)});
   }).then(async()=>{
    for(const {actor:player,label} of heartbeatPlayers.values()){
+    if(!running())return;
     if(disconnected.has(player.localId))continue;
     try{
      const reply=await call(player,'refreshPresence',{sessionId});
@@ -95,21 +172,30 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
     }catch(error){heartbeatFailures.push({actor:label,message:String(error?.message??error)});}
    }
   });
+  return playerHeartbeatPending;
  }
- function startHeartbeat(){if(!keepAlive||gmHeartbeat)return;
-  gmHeartbeat=setInterval(queueGmHeartbeat,10000);
-  playerHeartbeat=setInterval(queuePlayerHeartbeats,10000);
- }
+ const heartbeats=createFixtureHeartbeatController({gmTick:queueGmHeartbeat,playerTick:queuePlayerHeartbeats});
+ function startHeartbeat(){if(keepAlive)heartbeats.start();}
+ let failureContext;
  try{
   const appOrigin=process.env.PC07_LOCAL_GM_ORIGIN??'http://127.0.0.1:5174';
   await grantLocalGmAccess(config,{method:'POST',host:new URL(appOrigin).host,origin:appOrigin,remoteAddress:'127.0.0.1',token:gm.idToken});
   ok(await call(gm,'claimGmInstance',{sessionId,instanceId,name:'Local facilitator',deviceLabel:'PC07 HTTP proof'}),'GM claim');
   startHeartbeat();
   const roles=activeRoleIdsOverride??recommendedRoleIds(playerCount);
+  const seatClaimRequests={};
+  failureContext={db,project,sessionId,instanceId,gm,players,roles,seatClaimRequests};
   const explicitAssignments=explicitLoyaltySetup
    ?buildPc07ExplicitLoyaltyAssignments(roles,explicitLoyaltySetup):null;
-  const confirmed=ok(await call(gm,'confirmSetup',{sessionId,instanceId,requestId:randomUUID(),expectedSetupRevision:created.session.setupRevision??0,playerCount,chartId:'A',lockChart:true,expansion,turnLimit:6,dioneEnabled:playerCount>=12,capybaraEnabled,universalArbourEnabled:false,wolfCultEnabled:explicitLoyaltySetup!==undefined,activeRoleIds:roles}),'confirm');
+  const confirmed=ok(await call(gm,'confirmSetup',{sessionId,instanceId,requestId:randomUUID(),expectedSetupRevision:created.session.setupRevision??0,playerCount,chartId,lockChart:true,expansion,turnLimit,dioneEnabled:playerCount>=12,capybaraEnabled,universalArbourEnabled:false,wolfCultEnabled:explicitLoyaltySetup!==undefined,activeRoleIds:roles}),'confirm');
   let setupRevision=(await session.get()).get('setupRevision')??confirmed.setupRevision??created.session.setupRevision??0;
+  if(fullGameManual){
+   // The actual live GM permanently prepares the fresh training session
+   // before any ordinary player joins. No chart or timer state is seeded.
+   const prepared=ok(await call(gm,'prepareFullGameDemo',{sessionId,instanceId,requestId:randomUUID(),expectedSetupRevision:setupRevision}),'prepare full-game demo');
+   assert.equal(prepared.status,'committed');
+   assert.deepEqual(prepared.fullGameDemo,{status:'preparing',progression:'manual'});
+  }
   const unionCraftSetupProof=[];
   for(const [craftId,hostShipId]of Object.entries(unionCraftStartingHosts)){
    const expectedSetupRevision=setupRevision;
@@ -142,9 +228,11 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
    if(!browserIndexes.has(i))ok(await call(player,'joinSession',{joinCode:created.session.joinCode,displayName:`Local actor ${i+1}`}), 'join');
    ok(await call(gm,'assignRole',{sessionId,instanceId,requestId:randomUUID(),targetUid:player.localId,roleId:roles[i]}),'cast');
    const current=ok(await call(player,'resumeSession',{sessionId}),'resume');
-   ok(await call(player,'claimSeat',{sessionId,seatId:roles[i],requestId:randomUUID(),expectedSetupRevision:current.session.setupRevision}),'seat');
+   const seatClaimRequest={sessionId,seatId:roles[i],requestId:randomUUID(),expectedSetupRevision:current.session.setupRevision};
+   ok(await call(player,'claimSeat',seatClaimRequest),'seat');
+   seatClaimRequests[roles[i]]=Object.freeze(seatClaimRequest);
    ok(await call(player,'refreshPresence',{sessionId,activeConsoleRoleId:roles[i]}),'console');
-   if(!serializeFixtureCalls||!browserIndexes.has(i)){
+   if(shouldMaintainFixturePresence({browserControlled:browserIndexes.has(i),browserOwnsPresence,serializeFixtureCalls})){
     heartbeatPlayers.set(player.localId,{actor:player,label:`player-${i+1}`});
    }
   }
@@ -165,27 +253,45 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
    }
   }
   const press=joinPressPlayer?await joinPressPlayer(created.session.joinCode):undefined;
+  failureContext.press=press;
   if(press){ok(await call(press,'refreshPresence',{sessionId,activeConsoleRoleId:'press-officer'}),'Press claim');
-   heartbeatPlayers.set(press.localId,{actor:press,label:'press'});}
+   if(shouldMaintainFixturePresence({browserControlled:true,browserOwnsPresence,serializeFixtureCalls})){
+    heartbeatPlayers.set(press.localId,{actor:press,label:'press'});}}
   const current=ok(await call(gm,'resumeSession',{sessionId,instanceId}),'GM resume');
-  ok(await call(gm,'startGame',{sessionId,instanceId,requestId:randomUUID(),expectedSetupRevision:current.session.setupRevision}),'start');
+  ok(await call(gm,'startGame',{sessionId,instanceId,requestId:randomUUID(),expectedSetupRevision:current.session.setupRevision,
+   ...(fullGameManual?{fullGameDemo:true}:{})}),'start');
   const hold=(await session.get()).get('turnPhase').timerPause;
-  if(clearBriefing)ok(await call(players[0],'clearTurnAdvanceInterstitial',{sessionId,expectedCycle:1,expectedPausedAt:hold.pausedAt,requestId:randomUUID()}),'briefing clear');
+  if(fullGameManual){
+   assert.equal(hold,undefined,'A fresh unlimited manual demo has no timed briefing hold.');
+  }else if(clearBriefing)ok(await call(players[0],'clearTurnAdvanceInterstitial',{sessionId,expectedCycle:1,expectedPausedAt:hold.pausedAt,requestId:randomUUID()}),'briefing clear');
   const loyaltyActors=explicitLoyaltySetup?{
    wolfAgent:players[roles.indexOf(explicitLoyaltySetup.wolfAgentRoleId)],
    wolfCult:players[roles.indexOf(explicitLoyaltySetup.wolfCultRoleId)],
    intelligenceAgent:players[roles.indexOf(explicitLoyaltySetup.intelligenceAgentRoleId)],
   }:undefined;
-  return{db,config,project,gm,players,press,roles,unionCraftSetupProof,explicitLoyaltySetupProof,
+  return{db,config,project,gm,players,press,roles,seatClaimRequests:Object.freeze(seatClaimRequests),unionCraftSetupProof,explicitLoyaltySetupProof,
    loyaltyActors,heartbeatFailures,sessionId,session,instanceId,call,ok,
-   byRole:role=>players[roles.indexOf(role)],byLoyalty:kind=>loyaltyActors?.[kind],cleanup:async()=>{
-    clearInterval(gmHeartbeat);clearInterval(playerHeartbeat);
-    await Promise.all([gmHeartbeatPending,playerHeartbeatPending]);
+   byRole:role=>players[roles.indexOf(role)],byLoyalty:kind=>loyaltyActors?.[kind],
+   stopHeartbeats:()=>heartbeats.stop(),restartHeartbeats:startHeartbeat,cleanup:()=>heartbeats.withCleanupLifetime(async()=>{
+    try{if(beforeCleanup)await beforeCleanup();}
+    catch(error){
+     try{await heartbeats.stop();}
+     catch(stopError){error.pc07CleanupHeartbeatStopUnavailable=true;error.pc07CleanupHeartbeatStopError=stopError;}
+     throw error;
+    }
+    await heartbeats.stop();
     await db.recursiveDelete(session);
-   }};
+   })};
  }catch(error){
-  clearInterval(gmHeartbeat);clearInterval(playerHeartbeat);
-  await Promise.all([gmHeartbeatPending,playerHeartbeatPending]);
-  await db.recursiveDelete(session);throw error;
+  return finishFailedPc07Fixture(error,{
+   observeFailure:beforeFailureCleanup&&failureContext?()=>beforeFailureCleanup(failureContext,error):undefined,
+   cleanup:async()=>{
+    await heartbeats.stop();
+    // This release barrier is independent of the best-effort observer. A
+    // rejected or pending browser close must never authorize SID deletion.
+    if(beforeFailureDeletion)await beforeFailureDeletion();
+    await db.recursiveDelete(session);
+   },
+  });
  }
 }

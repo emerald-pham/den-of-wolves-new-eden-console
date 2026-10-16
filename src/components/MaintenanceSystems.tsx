@@ -70,6 +70,12 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const maintenancePhaseBlocked = session?.turnPhase !== undefined &&
     phaseForSession(session)?.airspace.state !== 'restricted';
   const maintenanceRollbackHelpId = `${shipId}-maintenance-rollback-phase-help`;
+  const damageAssignmentHelpId = `${shipId}-damage-assignment-help`;
+  const damageAssignmentGuidance = shipId === 'aegis'
+    ? 'The server picks 1 card at random from the cards still in the AEGIS damage deck. A non-armoured hit moves Survivors down 1 step on the printed track if anyone remains. Armoured Hull absorbs a hit without survivor loss and cycles back into the deck while at least 1 other card remains. An empty deck on a required draw destroys the ship.'
+    : shipId === 'capybara'
+      ? 'The server picks 1 card at random from the cards still in the Capybara damage deck. A non-armoured hit moves Survivors down 1 step on the printed track if anyone remains. Expansion rules leave an empty-deck draw unresolved; ask the facilitator to rule.'
+      : `The server picks 1 card at random from the cards still in the ${name} damage deck. A non-armoured hit moves Survivors down 1 step on the printed track if anyone remains. If a card is required when the deck is empty, ${name} is destroyed.`;
   const blocked = !access.writable || pending || !session || !me || connection !== 'live' || awaitingMaintenanceStart;
   const disabled = (at: number) => blocked || step !== at ||
     (at === 0 && cycle?.turn === currentTurn) || (damage?.destroyed === true && at !== 7) ||
@@ -349,8 +355,12 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
         <span id={maintenanceRollbackHelpId} className="turn-start-announcement__sr">
           Roll back maintenance step is available only during Team Phase.
         </span>
+        <p id={damageAssignmentHelpId} className="maintenance-controls__damage-guidance">
+          {damageAssignmentGuidance}
+        </p>
         {(['Assign damage', 'Repair all damage', 'Roll back maintenance step'] as const).map(label => <button key={label} className="cic-action-button"
-          aria-describedby={label === 'Roll back maintenance step' && maintenancePhaseBlocked ? maintenanceRollbackHelpId : undefined}
+          aria-describedby={label === 'Assign damage' ? damageAssignmentHelpId
+            : label === 'Roll back maintenance step' && maintenancePhaseBlocked ? maintenanceRollbackHelpId : undefined}
           disabled={!access.writable || pending || connection !== 'live' || session?.phase === 'closed' ||
             (label === 'Assign damage' ? damage?.destroyed === true : label === 'Repair all damage' ? !damage?.destroyed && !damage?.damagedSystemIds.length : revision === 0 || maintenancePhaseBlocked)}
           onClick={() => {

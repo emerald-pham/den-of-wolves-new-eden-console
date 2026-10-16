@@ -219,7 +219,7 @@ export function resolveEndeavourFieldUpgrades(input: Readonly<{
       ...target,
       trackId,
       materialCost: track.currentMaterialCost,
-      crossedBox: track.crossedBoxes,
+      crossedBox: track.crossedBoxes - 1,
     }));
   }
 

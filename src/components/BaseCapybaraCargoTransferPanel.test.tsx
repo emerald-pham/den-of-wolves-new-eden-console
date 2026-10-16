@@ -8,10 +8,12 @@ import type {
 } from '@/lib/baseCapybaraCargoService';
 import type { GameSession } from '@/types/game';
 
-const mocks = vi.hoisted(() => ({ transfer: vi.fn() }));
-vi.mock('@/lib/baseCapybaraCargoService', () => ({ transferBaseCapybaraCargo: mocks.transfer }));
+const mocks = vi.hoisted(() => ({ transfer: vi.fn(), warriorTransfer: vi.fn() }));
+vi.mock('@/lib/baseCapybaraCargoService', () => ({
+  transferBaseCapybaraCargo: mocks.transfer, transferWarriorCargo: mocks.warriorTransfer,
+}));
 
-import BaseCapybaraCargoTransferPanel from './BaseCapybaraCargoTransferPanel';
+import BaseCapybaraCargoTransferPanel, { SmallShipCargoTransferPanel } from './BaseCapybaraCargoTransferPanel';
 
 function installSession(overrides: Partial<GameSession> = {}): void {
   useSessionStore.getState().reset();
@@ -53,11 +55,28 @@ function installSession(overrides: Partial<GameSession> = {}): void {
 
 beforeEach(() => {
   mocks.transfer.mockReset();
+  mocks.warriorTransfer.mockReset();
   vi.stubGlobal('crypto', { randomUUID: vi.fn(() => 'capybara-cargo-stable-id') });
   installSession();
 });
 
 afterEach(() => vi.unstubAllGlobals());
+
+it.each(['capybara-small', 'warrior'] as const)('describes %s cargo with its own craft name and amount-control help', (smallShipId) => {
+  if (smallShipId === 'warrior') {
+    installSession({ smallShipStates: { warrior: {
+      id: 'warrior', hostShipId: 'aegis', dockingRevision: 2, population: 700, unrest: 0,
+      cycle: { step: 0, revision: 0, results: {}, charges: [] },
+    } }, warriorCargo: { revision: 4, inventory: { securityTeams: 1, ore: 2, fuel: 3, food: 4, water: 5, materials: 6 } } });
+    const state = useSessionStore.getState();
+    state.setIdentity(state.session!, { ...state.me!, replacementRoleId: 'warrior-captain' });
+  }
+  render(<SmallShipCargoTransferPanel smallShipId={smallShipId} />);
+  const craftName = smallShipId === 'warrior' ? 'Warrior' : 'Capybara';
+  const description = new RegExp(`source must hold the full amount.*onto ${craftName}.*${craftName} cargo to its current host`, 'i');
+  expect(screen.getByRole('button', { name: 'Transfer cargo' })).toHaveAccessibleDescription(description);
+  expect(screen.getByLabelText('Positive whole amount')).toHaveAccessibleDescription(description);
+});
 
 it('shows the six cargo tracks and submits an exact current-host transfer', async () => {
   mocks.transfer.mockResolvedValue({

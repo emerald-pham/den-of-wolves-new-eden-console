@@ -38,6 +38,13 @@ it('reads live membership and state atomically with no caller-selected audience'
   await expect(read(request({ sessionId: 's1', groupId: 'fleet-1' }))).rejects.toMatchObject({ code: 'invalid-argument' });
   await expect(read(request({ sessionId: 's1', viewerShipId: 'aegis' }))).rejects.toMatchObject({ code: 'invalid-argument' });
 });
+it('uses a lock-free consistent transaction for the member projection', async () => {
+  const transaction = vi.spyOn(db, 'runTransaction');
+  try {
+    await read(request());
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), { readOnly: true });
+  } finally { transaction.mockRestore(); }
+});
 it('denies wrong actor, disconnected actor, kicked actor and malformed membership', async () => {
   await expect(read(request(undefined, 'stranger'))).rejects.toMatchObject({ code: 'permission-denied' });
   for (const patch of [{ connected: false }, { kickedAt: 'now' }, { fleetGroupId: 'fleet-1' }]) {
@@ -99,4 +106,115 @@ it('uses the required public parser on the same transaction snapshot instead of 
   expect(response.session.shipResources).toEqual({ shepherd: { fuel: 3 } });
   expect(response.session).not.toHaveProperty('fleetTicker');
   expect(response.session).not.toHaveProperty('missionCraftCommitments');
+});
+
+it('returns only entitled immutable history for an existing disconnected member after closure', async () => {
+  records['sessions/s1'] = {
+    ...records['sessions/s1'], phase: 'closed', chartId: 'C',
+    setup: { chartId: 'C', hiddenChartRoute: 'secret' }, loyalty: { hidden: true }, hand: ['private-card'],
+    fullGameDemo: { status: 'complete', progression: 'manual' },
+    gameOutcome: { type: 'game-outcome', result: 'success', cause: 'candidate-complete', candidateCode: 'N',
+      cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z', groupId: 'foreign', sourceId: 'secret', leftBehindShipIds: ['aegis'] },
+    debriefSnapshot: {
+      type: 'session-debrief', version: 1, source: 'candidate', result: 'success', cause: 'candidate-complete',
+      cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z', committedAt: '2026-10-05T12:01:00.000Z',
+      outcome: { type: 'game-outcome', result: 'success', cause: 'candidate-complete', candidateCode: 'N',
+        cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' },
+      candidate: { code: 'N', groups: [
+        { groupId: 'fleet-2', requirements: [{ id: 'paid-crossing', status: 'met' }],
+          rolls: [{ id: 'passage', face: 4, result: 'success', audience: 'members' },
+            { id: 'nebula-bonus', face: 2, result: 'success', audience: 'gm' }],
+          losses: [{ shipId: 'shepherd', reason: 'candidate-loss', audience: 'members' },
+            { shipId: 'aegis', reason: 'foreign-loss', audience: 'members' }],
+          humanCalls: [{ id: 'opposite-side-sabotage', cycle: 4, audience: 'members' }] },
+        { groupId: 'fleet-1', requirements: [{ id: 'foreign-route', status: 'met' }], rolls: [], losses: [], humanCalls: [] },
+      ] },
+    },
+  };
+  records['sessions/s1/players/u1'] = { ...records['sessions/s1/players/u1'], connected: false };
+
+  const response = await read(request());
+  expect(response.session).toMatchObject({ phase: 'closed', fullGameDemo: { status: 'complete', progression: 'manual' },
+    gameOutcome: { result: 'success', cause: 'candidate-complete', candidateCode: 'N' },
+    debriefSnapshot: { result: 'success', candidate: { groups: [{
+      requirements: [{ id: 'paid-crossing', status: 'met' }], rolls: [{ id: 'passage', face: 4, result: 'success' }],
+      losses: [{ shipId: 'shepherd', reason: 'candidate-loss' }],
+      humanCalls: [{ id: 'opposite-side-sabotage', cycle: 4 }],
+    }] } } });
+  for (const key of ['chartId', 'setup', 'loyalty', 'hand', 'shipResources', 'shipDamage']) {
+    expect(response.session).not.toHaveProperty(key);
+  }
+  expect(JSON.stringify(response.session)).not.toMatch(/foreign|sourceId|nebula-bonus|aegis|fleet-1|hiddenChartRoute/);
+});
+
+it('reads closed history without parsing retained operational setup or scanning raw session state', async () => {
+  records['sessions/s1'] = {
+    ...records['sessions/s1'], phase: 'closed', chartId: 'corrupt-private-chart', setup: { invalid: true },
+    debriefSnapshot: { type: 'session-debrief', version: 1, source: 'final-cycle', result: 'completed',
+      cause: 'final-cycle', cycle: 2, occurredAt: '2026-10-05T12:00:00.000Z', committedAt: '2026-10-05T12:01:00.000Z' },
+  };
+  records['sessions/s1/players/u1']!.connected = false;
+  projectSession.mockImplementation(() => { throw new Error('closed history must not parse operational setup'); });
+
+  const response = await read(request());
+
+  expect(response.session).toMatchObject({ phase: 'closed', debriefSnapshot: { result: 'completed' } });
+  expect(response.session).not.toHaveProperty('setup');
+  expect(response.session).not.toHaveProperty('chartId');
+  expect(projectSession).not.toHaveBeenCalled();
+});
+
+it('retains a valid full-game preparation marker in the current member projection', async () => {
+  records['sessions/s1']!.fullGameDemo = { status: 'preparing', progression: 'manual' };
+
+  expect((await read(request())).session.fullGameDemo).toEqual({ status: 'preparing', progression: 'manual' });
+});
+
+it.each(['held', 'ready'] as const)('returns the server-owned K privacy epoch to the current member (%s)', async state => {
+  records['sessions/s1']!.awayMissionProjectionSafety = { policyVersion: 1, epoch: 3, state, writeRevision: 17 };
+
+  const response = await read(request());
+
+  expect(response.actorUid).toBe('u1');
+  expect(response.session.shipResources).toEqual({ shepherd: { fuel: 3 } });
+  expect(response.session.awayMissionProjectionSafety).toEqual({ policyVersion: 1, epoch: 3, state });
+  expect(JSON.stringify(response.session)).not.toContain('writeRevision');
+});
+
+it('keeps current GM readiness independent of a held K privacy epoch and denies foreign membership', async () => {
+  records['sessions/s1']!.awayMissionProjectionSafety = { policyVersion: 1, epoch: 3, state: 'held', writeRevision: 17 };
+  records['sessions/s1/players/u1']!.role = 'gm';
+
+  const response = await read(request());
+
+  expect(response.session.shipResources).toEqual({ aegis: { fuel: 90 }, shepherd: { fuel: 3 } });
+  expect(response.session).not.toHaveProperty('missionCraftCommitments');
+  await expect(read(request(undefined, 'stranger'))).rejects.toMatchObject({ code: 'permission-denied' });
+});
+
+it.each([
+  ['missing', undefined], ['null', null], ['wrong policy', { policyVersion: 2, epoch: 3, state: 'ready', writeRevision: 17 }],
+  ['zero epoch', { policyVersion: 1, epoch: 0, state: 'ready', writeRevision: 17 }],
+  ['unsafe epoch', { policyVersion: 1, epoch: Number.MAX_SAFE_INTEGER + 1, state: 'ready', writeRevision: 17 }],
+  ['wrong state', { policyVersion: 1, epoch: 3, state: 'READY', writeRevision: 17 }],
+  ['missing generation', { policyVersion: 1, epoch: 3, state: 'ready' }],
+  ['negative generation', { policyVersion: 1, epoch: 3, state: 'ready', writeRevision: -1 }],
+  ['extra private field', { policyVersion: 1, epoch: 3, state: 'ready', writeRevision: 17, audit: 'secret' }],
+] as const)('returns an explicit fail-closed privacy marker for %s stored safety state', async (_label, marker) => {
+  if (marker !== undefined) records['sessions/s1']!.awayMissionProjectionSafety = marker;
+  const response = await read(request());
+  expect(response.session.shipResources).toEqual({ shepherd: { fuel: 3 } });
+  expect(response.session.awayMissionProjectionSafety).toBeNull();
+  expect(JSON.stringify(response.session)).not.toMatch(/writeRevision|secret/);
+});
+
+it('denies closed history to disconnected outsiders, stale-group readers, and kicked members', async () => {
+  records['sessions/s1']!.phase = 'closed';
+  records['sessions/s1/players/u1']!.connected = false;
+  await expect(read(request(undefined, 'stranger'))).rejects.toMatchObject({ code: 'permission-denied' });
+  records['sessions/s1/players/u1']!.fleetGroupId = 'fleet-1';
+  await expect(read(request())).rejects.toMatchObject({ code: 'permission-denied' });
+  records['sessions/s1/players/u1']!.fleetGroupId = 'fleet-2';
+  records['sessions/s1/players/u1']!.kickedAt = '2026-10-05T12:00:00.000Z';
+  await expect(read(request())).rejects.toMatchObject({ code: 'permission-denied' });
 });

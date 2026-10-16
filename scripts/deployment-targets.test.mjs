@@ -171,7 +171,7 @@ const MALIADE_REPAIR_STALE_REPLY_TYPE = `export interface MaliadesRepairCallable
 const MALIADE_CALLABLE_AFTER = readFileSync(
   new URL('../functions/src/maliadesCallable.ts', import.meta.url), 'utf8',
 );
-const MALIADE_REPAIR_EXPORT_START = 'export const repairMaliades = onCall(CALLABLE_RUNTIME_OPTIONS, async request => {';
+const MALIADE_REPAIR_EXPORT_START = "export const repairMaliades = auditedOnCall('repairMaliades', CALLABLE_RUNTIME_OPTIONS, async request => {";
 function replaceMaliadeFixtureOnce(source, before, after, label) {
   const count = source.split(before).length - 1;
   assert.equal(count, 1, `Maliades selector fixture expects one ${label}`);
@@ -615,7 +615,7 @@ test('maps an isolated service-shuttle recharge index diff only to its callable'
 
 test('maps an isolated Endeavour field-upgrade callable diff to Hosting and only its Function', () => {
   const after = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
-  const marker = 'export const upgradeEndeavourFieldTargets = onCall<';
+  const marker = 'export const upgradeEndeavourFieldTargets = auditedOnCall<';
   const start = after.indexOf(marker);
   assert.notEqual(start, -1);
   const lineEnd = after.indexOf('\n', start);
@@ -634,12 +634,12 @@ test('maps an isolated Endeavour field-upgrade callable diff to Hosting and only
 
 test('fails closed for Endeavour callable changes mixed with another export or an untracked helper', () => {
   const after = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
-  const marker = 'export const upgradeEndeavourFieldTargets = onCall<';
+  const marker = 'export const upgradeEndeavourFieldTargets = auditedOnCall<';
   const start = after.indexOf(marker);
   assert.notEqual(start, -1);
   const lineEnd = after.indexOf('\n', start);
   const before = `${after.slice(0, lineEnd + 1)}    // baseline marker\n${after.slice(lineEnd + 1)}`;
-  const otherCallableMarker = 'export const createSession = onCall<';
+  const otherCallableMarker = 'export const createSession = auditedOnCall<';
   const otherStart = after.indexOf(otherCallableMarker);
   assert.notEqual(otherStart, -1);
   const otherLineEnd = after.indexOf('\n', otherStart);
@@ -672,7 +672,7 @@ test('fails closed for Endeavour callable changes mixed with another export or a
 
 test('fails closed when a new Endeavour callable is added alongside an untracked helper', () => {
   const after = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
-  const marker = 'export const upgradeEndeavourFieldTargets = onCall<';
+  const marker = 'export const upgradeEndeavourFieldTargets = auditedOnCall<';
   const start = after.indexOf(marker);
   assert.notEqual(start, -1);
   const close = after.indexOf('\n});', start);
@@ -990,9 +990,9 @@ test('fails closed on a post-receipt Philia/helper mix even with a verified old 
     targets: ['hosting', 'functions'],
     isAncestor,
     sourceAtRevision: (revision, file) => {
-      assert.equal(file, 'functions/src/index.ts');
-      if (revision === after) return currentIndex;
-      return execFileSync('git', ['show', `${revision}:${file}`], { encoding: 'utf8' });
+      if (revision === after && file === 'functions/src/index.ts') return currentIndex;
+      const sourceRevision = revision === after ? receipt : revision;
+      return execFileSync('git', ['show', `${sourceRevision}:${file}`], { encoding: 'utf8' });
     },
   }), /Cannot safely map a Philia repair index change mixed with another callable or untracked source edit/);
 });
@@ -1042,7 +1042,7 @@ test('maps each exact Maliades event field and envelope pair to its exported cal
   }
 
   const indexSource = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
-  assert.match(indexSource, /export const launchDioneMaliades\s*=\s*onCall/);
+  assert.match(indexSource, /export const launchDioneMaliades\s*=\s*auditedOnCall<[\s\S]*?>\('launchDioneMaliades',/);
   assert.match(indexSource, /export\s*\{\s*repairMaliades,\s*resolveMaliadesMedium,\s*resolveMaliadesShort,\s*\}\s*from '\.\/maliadesCallable';/s);
 });
 
@@ -1066,9 +1066,9 @@ test('maps Maliades source modules to the exact callables that consume them', ()
   const callableSource = readFileSync(new URL('../functions/src/maliadesCallable.ts', import.meta.url), 'utf8');
   assert.match(indexSource, /type WolfAttackStageState,[\s\S]*from '\.\/wolfAttackDeclaration';/);
   assert.match(indexSource, /const stageState: WolfAttackStageState = \{/);
-  assert.match(indexSource, /export const declareWolfAttack\s*=\s*onCall/);
-  assert.match(indexSource, /export const getDioneMaliadesLaunch\s*=\s*onCall/);
-  assert.match(indexSource, /export const launchDioneMaliades\s*=\s*onCall/);
+  assert.match(indexSource, /export const declareWolfAttack\s*=\s*auditedOnCall<[\s\S]*?>\('declareWolfAttack',/);
+  assert.match(indexSource, /export const getDioneMaliadesLaunch\s*=\s*auditedOnCall<[\s\S]*?>\('getDioneMaliadesLaunch',/);
+  assert.match(indexSource, /export const launchDioneMaliades\s*=\s*auditedOnCall<[\s\S]*?>\('launchDioneMaliades',/);
   assert.match(indexSource, /beginMaliadesAttack,[\s\S]*launchMaliades,[\s\S]*parseMaliadesState,[\s\S]*from '\.\/maliadesState';/);
   assert.match(callableSource, /repairMaliades as repairMaliadesState,[\s\S]*type MaliadesMediumChoice,[\s\S]*from '\.\/maliadesState';/);
   assert.match(indexSource, /export\s*\{\s*repairMaliades,\s*resolveMaliadesMedium,\s*resolveMaliadesShort,\s*\}\s*from '\.\/maliadesCallable';/s);
@@ -1148,9 +1148,9 @@ test('maps PDF Escort Wing server modules to their exact deployed callable consu
   }
 
   const indexSource = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
-  assert.match(indexSource, /export const declareWolfAttack\s*=\s*onCall/);
-  assert.match(indexSource, /export const getPdfEscortWingLaunch\s*=\s*onCall/);
-  assert.match(indexSource, /export const launchPdfEscortWing\s*=\s*onCall/);
+  assert.match(indexSource, /export const declareWolfAttack\s*=\s*auditedOnCall<[\s\S]*?>\('declareWolfAttack',/);
+  assert.match(indexSource, /export const getPdfEscortWingLaunch\s*=\s*auditedOnCall<[\s\S]*?>\('getPdfEscortWingLaunch',/);
+  assert.match(indexSource, /export const launchPdfEscortWing\s*=\s*auditedOnCall<[\s\S]*?>\('launchPdfEscortWing',/);
   assert.match(indexSource, /projectPdfEscortWingMemberView/);
 });
 
@@ -1159,7 +1159,7 @@ test('maps away-mission server modules only to their audited deployed callable c
   assert.deepEqual(selectedFunctions(selected), functionTargets(['dealPrivateInitialCards']));
 
   const indexSource = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
-  assert.match(indexSource, /export const dealPrivateInitialCards\s*=\s*onCall/);
+  assert.match(indexSource, /export const dealPrivateInitialCards\s*=\s*auditedOnCall<[\s\S]*?>\('dealPrivateInitialCards',/);
   assert.throws(
     () => selectorFor(['functions/src/missionLifecycle.ts']),
     /Functions changed but no named callable deployment could be proven/,
@@ -1603,11 +1603,46 @@ test('includes unchanged callable bodies affected by PC05 index-local authority 
 
 test('fails closed when PC05 shared index code changes beyond the audited candidate', () => {
   const beforeSource = execFileSync('git', ['show', '7782840d:functions/src/index.ts'], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
-  const afterSource = readFileSync('functions/src/index.ts', 'utf8') + '\n// unaudited shared helper change\n';
+  const afterSource = execFileSync('git', ['show', `${PC05_REVIEWED_CANDIDATE}:functions/src/index.ts`], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }) + '\n// unaudited shared helper change\n';
   assert.throws(() => deploymentSelector({ before: 'base', after: 'candidate',
     files: ['functions/src/index.ts'], targets: ['functions'], isAncestor: () => false,
     sourceAtRevision: (revision) => revision === 'base' ? beforeSource : afterSource,
   }), /Cannot safely map PC05 shared index changes/);
+});
+
+test('maps an isolated exact auditedOnCall export mutation and retains direct onCall support', () => {
+  const before = [
+    "export const upgradeEndeavourFieldTargets = auditedOnCall<{ sessionId?: unknown }>('upgradeEndeavourFieldTargets', async () => { return 'before'; });",
+    "export const legacyCallable = onCall(async () => { return 'unchanged'; });",
+  ].join('\n');
+  const after = before.replace("return 'before';", "return 'after';");
+  const selected = deploymentSelector({
+    before: 'base', after: 'candidate', files: ['functions/src/index.ts'],
+    targets: ['hosting', 'functions'], isAncestor: () => false,
+    sourceAtRevision: revision => revision === 'base' ? before : after,
+  });
+  assert.deepEqual(selectedFunctions(selected), functionTargets(['upgradeEndeavourFieldTargets']));
+});
+
+test('fails closed when auditedOnCall identity does not match its exported name', () => {
+  const before = "export const upgradeEndeavourFieldTargets = auditedOnCall('upgradeEndeavourFieldTargets', async () => 'before');";
+  const after = before.replace("('upgradeEndeavourFieldTargets',", "('differentCallableIdentity',");
+  assert.notEqual(after, before);
+  assert.throws(() => deploymentSelector({
+    before: 'base', after: 'candidate', files: ['functions/src/index.ts'],
+    targets: ['hosting', 'functions'], isAncestor: () => false,
+    sourceAtRevision: revision => revision === 'base' ? before : after,
+  }), /auditedOnCall callable identity does not match exported name/);
+});
+
+test('fails closed when an exact auditedOnCall mutation is mixed with an untracked index helper', () => {
+  const before = "export const upgradeEndeavourFieldTargets = auditedOnCall<{ sessionId?: unknown }>('upgradeEndeavourFieldTargets', async () => { return 'before'; });";
+  const after = `${before.replace("return 'before';", "return 'after';")}\nfunction untrackedEndeavourHelper() { return 'changed'; }\n`;
+  assert.throws(() => deploymentSelector({
+    before: 'base', after: 'candidate', files: ['functions/src/index.ts'],
+    targets: ['hosting', 'functions'], isAncestor: () => false,
+    sourceAtRevision: revision => revision === 'base' ? before : after,
+  }), /Cannot safely map an Endeavour field-upgrade index change mixed with another callable or untracked source edit/i);
 });
 
 // These gates prove a historical PC06 source transition. New checkpoint code is

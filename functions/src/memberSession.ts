@@ -1,4 +1,6 @@
+import { parseLostShuttles } from './lostShuttles';
 import { fleetGroupRecord } from './fleetGroups';
+import { memberAwayMissionProjectionSafety } from './awayMissionProjectionSafety';
 import { publicSmallShipStatesForSession } from './extraShipAdmission';
 import { parseVoyage33MaintenanceState } from './voyage33Maintenance';
 import { parseVoyage33Admission, VOYAGE_33_ID } from './voyageAdmission';
@@ -12,6 +14,7 @@ import { parseBaseCapybaraCargoState } from './baseCapybaraCargoTransfer';
 import { parseBoaRecyclingLedger } from './boaRecycling';
 import { parseMaliadesState } from './maliadesState';
 import { maliadesOperationalView } from './maliadesOperationalView';
+import { safeGameOutcome, safeSurvivorOutcome, sessionDebriefProjection } from './sessionDebrief';
 
 export interface MemberSessionScope {
   readonly groupId: string;
@@ -50,7 +53,7 @@ const PUBLIC_FIELDS = [
   'fleetPartitionRevision',
   'wolfCultEnabled', 'pressEnabled', 'pressClaimed', 'pressAvailabilityRevision', 'gmControlsLocked',
   'turnPhase', 'turnState', 'turnStartAnnouncement', 'pursuitEmergencyWindow', 'gameOutcome',
-  'survivorOutcome', 'fleetRedAlert', 'fleetTicker', 'pressDispatch', 'debriefMode', 'singlePlayerDemo',
+  'survivorOutcome', 'fleetRedAlert', 'fleetTicker', 'pressDispatch', 'debriefMode', 'singlePlayerDemo', 'fullGameDemo',
   'presidentialElection', 'presidentialOffices', 'currentMemberBallotSubmitted',
   'createdAt', 'updatedAt', 'ownerUid', 'dradisContactTriggeredAt',
 ] as const;
@@ -70,13 +73,24 @@ const REPAIR_DETAIL_FIELDS: Readonly<Record<string, string>> = {
 };
 const VESSEL_DETAIL_FIELDS: Readonly<Record<string, string>> = {
   fighterWingCounts: 'aegis', pdfEscortWing: 'aegis', admiralDirectives: 'aegis',
-  presidentWorkspace: 'dione', politicalCapital: 'dione', baseCapybaraCargo: 'capybara-small',
+  presidentWorkspace: 'dione', politicalCapital: 'dione', baseCapybaraCargo: 'capybara-small', warriorCargo: 'warrior',
   gorgoneionRepairDrones: 'gorgoneion', warriorRepairDrones: 'warrior',
   voyage33Admission: VOYAGE_33_ID, voyage33Maintenance: VOYAGE_33_ID,
   resolvedCrisisOutcome: 'dione',
 };
 function selectedMap(value: unknown, ids: ReadonlySet<string>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(record(value)).filter(([id]) => ids.has(id)));
+}
+
+/** Manual rehearsal progress is public; credentials, actors and arbitrary state never are. */
+export function publicFullGameDemoState(value: unknown): {
+  status: 'preparing' | 'active' | 'complete'; progression: 'manual';
+} | undefined {
+  const demo = record(value);
+  if (Object.keys(demo).length !== 2 || !Object.keys(demo).every(key => ['status', 'progression'].includes(key)) ||
+      typeof demo.status !== 'string' || !['preparing', 'active', 'complete'].includes(demo.status) ||
+      demo.progression !== 'manual') return undefined;
+  return { status: demo.status as 'preparing' | 'active' | 'complete', progression: 'manual' };
 }
 
 /** The member receipt keeps the usage count while omitting other-group host details. */
@@ -146,6 +160,27 @@ export function memberSessionProjection(value: unknown, scope: MemberSessionScop
   }
   const result: Record<string, unknown> = Object.fromEntries(PUBLIC_FIELDS
     .filter(key => root[key] !== undefined).map(key => [key, root[key]]));
+  result.lostShuttles = Object.fromEntries(Object.entries(parseLostShuttles(root.lostShuttles) ?? {})
+    .filter(([, lost]) => scope.groupId === 'gm' || ships.has(lost.destroyedHostShipId)));
+  result.awayMissionProjectionSafety = memberAwayMissionProjectionSafety(root.awayMissionProjectionSafety);
+  const outcome = safeGameOutcome(root.gameOutcome);
+  if (outcome) result.gameOutcome = outcome;
+  else delete result.gameOutcome;
+  const survivorOutcome = safeSurvivorOutcome(root.survivorOutcome);
+  if (survivorOutcome) result.survivorOutcome = {
+    ...survivorOutcome,
+    survivingShipIds: (survivorOutcome.survivingShipIds as string[]).filter(id => ships.has(id)),
+    lostOrDestroyedShipIds: (survivorOutcome.lostOrDestroyedShipIds as string[]).filter(id => ships.has(id)),
+  };
+  else delete result.survivorOutcome;
+  const debriefSnapshot = sessionDebriefProjection(root.debriefSnapshot, {
+    groupId: scope.groupId, vesselIds: [...ships],
+  });
+  if (debriefSnapshot) result.debriefSnapshot = debriefSnapshot;
+  else delete result.debriefSnapshot;
+  const fullGameDemo = publicFullGameDemoState(root.fullGameDemo);
+  if (fullGameDemo) result.fullGameDemo = fullGameDemo;
+  else delete result.fullGameDemo;
   if (typeof scope.presidentialBallotSubmitted === 'boolean') {
     result.currentMemberBallotSubmitted = scope.presidentialBallotSubmitted;
   } else if (typeof root.currentMemberBallotSubmitted === 'boolean') {
@@ -361,7 +396,9 @@ function publicElectionView(value: unknown): Record<string, unknown> | undefined
 /** Additional PC07 feed fields use the same domain parsers as their write authorities. */
 export function parsedMemberSessionDetails(value: unknown, activeVesselIds: readonly string[]): Record<string, unknown> {
   const root = record(value);
+  const fullGameDemo = publicFullGameDemoState(root.fullGameDemo);
   const result: Record<string, unknown> = {
+    ...(fullGameDemo ? { fullGameDemo } : {}),
     universalArbourEnabled: root.universalArbourEnabled === true,
     wolfCultEnabled: root.wolfCultEnabled === true,
     shuttleControl: parseShuttleControl(root.shuttleControl) ?? {},
@@ -376,6 +413,7 @@ export function parsedMemberSessionDetails(value: unknown, activeVesselIds: read
     ['presidentWorkspace', presidentWorkspaceState],
     ['politicalCapital', politicalCapitalState],
     ['baseCapybaraCargo', parseBaseCapybaraCargoState],
+    ['warriorCargo', parseBaseCapybaraCargoState],
     ['boaRecycling', parseBoaRecyclingLedger],
     ['maliadesState', parseMaliadesState],
     ['gorgoneionRepairDrones', parseGorgoneionRepairDronesState],

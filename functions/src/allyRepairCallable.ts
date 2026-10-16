@@ -1,5 +1,8 @@
+import { writeStandardActionAudit } from './actionAudit';
+import { auditedOnCall } from './securityCallable';
+import { requireCandidateVesselsAvailable, requireCandidateCraftAvailable } from './candidateAvailability';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError, } from 'firebase-functions/v2/https';
 import { decideActionAuthorization } from './actionMetadata';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
 import { fleetGroupRecord } from './fleetGroups';
@@ -7,7 +10,7 @@ import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import { isPresenceStale } from './sessionLifecycle';
 import { parseShuttleControl } from './shuttleControl';
 import { shuttleDockingsAreParked } from './craftOwnership';
-import { turnPhaseState } from './turnZero';
+import { turnPhaseDeadlinePassed, turnPhaseState } from './turnZero';
 import { serviceRechargeDamageState, serviceRechargeResourceState } from './serviceShuttleRecharge';
 import { isResourceShipId } from './resources';
 import { SHIP_DAMAGE_DECKS } from './shipDamage';
@@ -201,7 +204,7 @@ function replayReply(
   return { ...stored, status: 'replayed' };
 }
 
-export const repairConsolesFromAlly = onCall<{
+export const repairConsolesFromAlly = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedControlRevision?: unknown;
@@ -209,7 +212,7 @@ export const repairConsolesFromAlly = onCall<{
   expectedCycle?: unknown;
   expectedHostShipId?: unknown;
   systemIds?: unknown;
-}>(CALLABLE_RUNTIME_OPTIONS, async (request) => {
+}>('repairConsolesFromAlly', CALLABLE_RUNTIME_OPTIONS, async (request) => {
   const uid = requireUid(request.auth);
   const command = validateRequest(request.data);
   const fingerprint = fingerprintFor(uid, command);
@@ -250,6 +253,8 @@ export const repairConsolesFromAlly = onCall<{
     }
     const replay = replayReply(receipt, fingerprint);
     if (replay) return replay;
+    requireCandidateCraftAvailable(session, ['ally']);
+    requireCandidateVesselsAvailable(session, ['ally', command.expectedHostShipId]);
     if (event.exists) {
       throw new HttpsError('failed-precondition', 'This Ally repair request has an unbound event receipt.');
     }
@@ -266,9 +271,8 @@ export const repairConsolesFromAlly = onCall<{
     const authorization = decideActionAuthorization({
       action: 'transfer', actorScope: 'player', turnPhase: session.get('turnPhase'),
     });
-    const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (!authorization.allowed || phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
-        !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
+        turnPhaseDeadlinePassed(phase, 'open')) {
       throw new HttpsError('failed-precondition', 'Ally repair is available only during a live Coordination window.');
     }
 
@@ -361,6 +365,15 @@ export const repairConsolesFromAlly = onCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeStandardActionAudit(tx, db, {
+      sessionId: command.sessionId, actorUid: uid, actorRoleId: actualPlayerRole(actor) ?? null, action: 'ally-repair',
+      phase: 'active', requestId: command.requestId, revision: result.ledger.revision,
+      outcome: 'committed', resolutionSource: 'server-calculated', createdAt: FieldValue.serverTimestamp(),
+    }, {
+      sourceId: 'ally-repair', requiredChoices: [{ actor: 'player', kind: 'consoles', value: command.systemIds }],
+      calculation: { materialsSpent: result.repairedSystemIds.length * ALLY_REPAIR_COST },
+      consequences: { hostShipId: result.hostShipId, systemIds: result.repairedSystemIds, materialsRemaining: result.materials, damage: result.damage }, audience: { operational: 'actor' },
+    });
     tx.set(receiptRef, {
       fingerprint,
       result: reply,

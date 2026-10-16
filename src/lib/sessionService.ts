@@ -1,6 +1,7 @@
 import type { AegisEnrichedWarheadView, AegisEnrichedWarheadResult } from '@/types/game';
 import { commissarPurgeAuthorityIsCurrent } from './commissarPurgeAuthority';
-import { signInAnonymously } from 'firebase/auth';
+import { ensureAnonymousAuth } from './anonymousAuth';
+import { expectedDemoActorUid } from './demoActorContext';
 import { httpsCallable } from 'firebase/functions';
 import { auth, functions } from './firebase';
 import { selectGmAccessAuthenticated, useSessionStore } from '@/store/useSessionStore';
@@ -69,11 +70,21 @@ import type { CounterStep } from './counterPreview';
 import type { DiseaseOutbreakDetails, CrisisDeliveryPressure, CrisisKind, CrisisStateName, ZealotryResponseAction, CivilUnrestResolution } from '@/types/crisis';
 import { normalizeShuttleManifest } from '@/data/shuttles';
 import { normalizePressDispatch } from './pressDispatchState';
-import { parseArrestPosseCalculation } from './firestore';
+import { closedMemberSessionFrom, parseArrestPosseCalculation, parseSessionDebriefProjection } from './firestore';
 import {
   acceptCallableSessionAuthority,
+  beginMemberSessionResume,
+  beginWingFirstEntry,
+  beginAdmiralFirstEntry,
+  finishMemberSessionResume,
+  finishWingFirstEntry,
+  finishAdmiralFirstEntry,
+  pendingAdmiralFirstEntry,
+  isCurrentMemberSessionResume,
   sessionSnapshotAuthorityFor,
   sessionSnapshotAuthorityVersion,
+  type WingFirstEntryProjectionPending,
+  type AdmiralFirstEntryProjectionPending,
 } from './sessionSnapshotAuthority';
 import {
   captureSessionAuthority,
@@ -85,6 +96,7 @@ import {
 import {
   turnLimitForSession,
   turnPhaseState,
+  turnStateState,
   turnStateForPhaseContext,
   replaceTurnStateOnPhase,
 } from './turnPhase';
@@ -358,6 +370,7 @@ interface PendingStartRequest {
   readonly sessionId: string;
   readonly instanceId: string;
   readonly expectedSetupRevision: number;
+  readonly fullGameDemo?: true;
   readonly requestId: string;
 }
 
@@ -372,12 +385,24 @@ function sameStartAttempt(
   sessionId: string,
   instanceId: string,
   expectedSetupRevision: number,
+  fullGameDemo = false,
 ): request is PendingStartRequest {
   return request !== null &&
     request.sessionId === sessionId &&
     request.instanceId === instanceId &&
-    request.expectedSetupRevision === expectedSetupRevision;
+    request.expectedSetupRevision === expectedSetupRevision &&
+    (request.fullGameDemo === true) === fullGameDemo;
 }
+
+interface PendingFullGameDemoRequest {
+  readonly sessionId: string;
+  readonly instanceId: string;
+  readonly expectedRevision: number;
+  readonly requestId: string;
+}
+
+let pendingFullGameDemoPreparation: PendingFullGameDemoRequest | null = null;
+let pendingFullGameDemoPhaseAdvance: PendingFullGameDemoRequest | null = null;
 
 function expectedSetupRevision(session: GameSession): number {
   return Number.isSafeInteger(session.setupRevision) && (session.setupRevision ?? 0) >= 0
@@ -564,6 +589,7 @@ function isReplaySafeCommand(command: PendingCommand): boolean {
     case 'releaseGmInstance':
     case 'kickPlayer':
     case 'setPressEnabled':
+    case 'setShipPreference':
     case 'confirmSetup':
     case 'setFacilitatorResponsibility':
     case 'setFacilitatorCensusNote':
@@ -691,6 +717,28 @@ function applyCommandResult(
     store.setGmInstance(null);
     store.setMode(null);
     store.setLastRoute('/roles');
+  }
+  if (command.kind === 'setShipPreference') {
+    const reply = typeof result === 'object' && result !== null && !Array.isArray(result)
+      ? result as Record<string, unknown>
+      : null;
+    if (
+      command.actorUid !== store.me?.uid || store.me?.role !== 'player' ||
+      store.me.sessionId !== command.payload.sessionId ||
+      store.session?.id !== command.payload.sessionId ||
+      (store.session.phase !== 'lobby' && store.session.phase !== 'casting') ||
+      store.session.configurationLocked === true ||
+      !store.session.activeVesselIds?.includes(command.payload.shipId) ||
+      !reply || reply.sessionId !== command.payload.sessionId ||
+      !Number.isSafeInteger(reply.setupRevision) || Number(reply.setupRevision) < 0 ||
+      Number(reply.setupRevision) < expectedSetupRevision(store.session)
+    ) return;
+    store.setMe({
+      ...store.me,
+      shipPreferenceId: command.payload.shipId as Extract<NonNullable<Player['shipPreferenceId']>, string>,
+    });
+    store.setSession({ ...store.session, phase: 'casting', setupRevision: Number(reply.setupRevision) });
+    return;
   }
   if (
     command.kind === 'confirmSetup' &&
@@ -1183,6 +1231,15 @@ async function flushPendingCommands(): Promise<boolean> {
       recordStaleAuthorityReply();
       continue;
     }
+    if (
+      command.kind === 'setShipPreference' &&
+      (store.me?.uid !== command.actorUid || store.me.role !== 'player' ||
+        store.me.sessionId !== command.payload.sessionId)
+    ) {
+      store.removeCommand(command.id);
+      recordStaleAuthorityReply();
+      continue;
+    }
     if (!isCleanupCommand(command) && !isReplaySafeCommand(command)) {
       store.removeCommand(command.id);
       recordAmbiguousCommand();
@@ -1214,29 +1271,45 @@ function applySession(reply: SessionReply, expectedDisplayedSessionId: string | 
     displayedSessionId !== expectedDisplayedSessionId ||
     (expectedDisplayedSessionId !== null && reply.session.id !== expectedDisplayedSessionId)
   ) return false;
-  const shuttleManifest = normalizeShuttleManifest(
-    reply.session.shuttleDockings,
-    reply.session.shuttleVisitLog,
-    reply.session.activeRoleIds,
-    reply.session.playerCount,
-    Object.keys(reply.session.retainedShuttles ?? {}),
-    reply.session.memberSessionScope !== undefined,
-  );
-  const acceptedSession: GameSession = {
-    ...reply.session,
-    shuttleDockings: shuttleManifest.dockings,
-    shuttleVisitLog: shuttleManifest.visits,
-    pressEnabled: reply.session.pressEnabled !== false,
-    pressClaimed: reply.session.pressClaimed === true,
-    pressAvailabilityRevision:
-      Number.isSafeInteger(reply.session.pressAvailabilityRevision) &&
-      (reply.session.pressAvailabilityRevision as number) >= 0
-        ? reply.session.pressAvailabilityRevision as number
-        : 0,
-    ...(reply.session.pressDispatch === undefined
-      ? {}
-      : { pressDispatch: normalizePressDispatch(reply.session.pressDispatch) }),
-  };
+  let acceptedSession: GameSession;
+  if (reply.session.phase === 'closed') {
+    try {
+      // Normal resume returns the same entitled history as the member reader.
+      // Validate it before hydration and keep it free of live-session defaults.
+      acceptedSession = closedMemberSessionFrom(reply.session.id, {
+        groupId: reply.player.role === 'gm' ? 'gm' : reply.player.fleetGroupId,
+        connectionGeneration: reply.player.connectionGeneration,
+        assignedRoleId: reply.player.assignedRoleId ?? null,
+        activeConsoleRoleId: reply.player.activeConsoleRoleId ?? null,
+      }, { ...reply.session });
+    } catch {
+      return false;
+    }
+  } else {
+    const shuttleManifest = normalizeShuttleManifest(
+      reply.session.shuttleDockings,
+      reply.session.shuttleVisitLog,
+      reply.session.activeRoleIds,
+      reply.session.playerCount,
+      Object.keys(reply.session.retainedShuttles ?? {}),
+      reply.session.memberSessionScope !== undefined,
+    );
+    acceptedSession = {
+      ...reply.session,
+      shuttleDockings: shuttleManifest.dockings,
+      shuttleVisitLog: shuttleManifest.visits,
+      pressEnabled: reply.session.pressEnabled !== false,
+      pressClaimed: reply.session.pressClaimed === true,
+      pressAvailabilityRevision:
+        Number.isSafeInteger(reply.session.pressAvailabilityRevision) &&
+        (reply.session.pressAvailabilityRevision as number) >= 0
+          ? reply.session.pressAvailabilityRevision as number
+          : 0,
+      ...(reply.session.pressDispatch === undefined
+        ? {}
+        : { pressDispatch: normalizePressDispatch(reply.session.pressDispatch) }),
+    };
+  }
   const acceptedByAuthority = acceptCallableSessionAuthority(acceptedSession, reply.player.uid);
   if (acceptedByAuthority) {
     store.setIdentity(acceptedSession, reply.player);
@@ -1258,9 +1331,9 @@ function applySession(reply: SessionReply, expectedDisplayedSessionId: string | 
  * the rules and the callables can check.
  */
 async function ensureSignedIn(): Promise<void> {
-  const instance = auth();
-  if (instance.currentUser) return;
-  await signInAnonymously(instance);
+  const expectedUid = expectedDemoActorUid();
+  if (expectedUid === null) throw new Error('Prepare this demo actor in the crew controller before opening its stations.');
+  await ensureAnonymousAuth(auth(), expectedUid);
 }
 
 /**
@@ -1771,6 +1844,108 @@ export interface FighterBuildResult extends Partial<VesselActionEnvelope> {
   readonly currentRevision?: number;
 }
 
+export type AegisFighterWingId = 'fighter-wing-alpha' | 'fighter-wing-bravo';
+export interface AegisFighterWingExchangeResult {
+  readonly status: 'committed' | 'replayed';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly sourceWingId: AegisFighterWingId;
+  readonly amount: number;
+  readonly turn: number;
+  readonly capacity: 4 | 6;
+  readonly counts: Readonly<Record<AegisFighterWingId, Readonly<{ count: number; revision: number }>>>;
+}
+
+function fighterWingExchangeReply(
+  value: unknown,
+  expected: Readonly<{ sessionId: string; requestId: string; sourceWingId: AegisFighterWingId;
+    amount: number; turn: number }>,
+): AegisFighterWingExchangeResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const counts = raw.counts as Record<string, unknown> | undefined;
+  const validCount = (entry: unknown): entry is { count: number; revision: number } =>
+    typeof entry === 'object' && entry !== null && !Array.isArray(entry) &&
+    Number.isSafeInteger((entry as Record<string, unknown>).count) &&
+    ((entry as Record<string, unknown>).count as number) >= 0 &&
+    Number.isSafeInteger((entry as Record<string, unknown>).revision) &&
+    ((entry as Record<string, unknown>).revision as number) >= 1;
+  if ((raw.status !== 'committed' && raw.status !== 'replayed') ||
+      raw.sessionId !== expected.sessionId || raw.requestId !== expected.requestId ||
+      raw.sourceWingId !== expected.sourceWingId || raw.amount !== expected.amount ||
+      raw.turn !== expected.turn || (raw.capacity !== 4 && raw.capacity !== 6) ||
+      !counts || !validCount(counts['fighter-wing-alpha']) || !validCount(counts['fighter-wing-bravo'])) return null;
+  return {
+    status: raw.status,
+    sessionId: expected.sessionId,
+    requestId: expected.requestId,
+    sourceWingId: expected.sourceWingId,
+    amount: expected.amount,
+    turn: expected.turn,
+    capacity: raw.capacity,
+    counts: {
+      'fighter-wing-alpha': counts['fighter-wing-alpha'],
+      'fighter-wing-bravo': counts['fighter-wing-bravo'],
+    },
+  };
+}
+
+/** Exchange surviving fighters as the active Wing Commander during Team. */
+export async function exchangeAegisFighterWings(
+  sourceWingId: AegisFighterWingId,
+  amount: number,
+): Promise<AegisFighterWingExchangeResult> {
+  const store = useSessionStore.getState();
+  const session = store.session;
+  if (!session || !store.me || store.me.sessionId !== session.id ||
+      store.me.activeConsoleRoleId !== 'wing-commander') {
+    throw new Error('Only the active AEGIS Wing Commander may exchange fighters.');
+  }
+  const turn = session.currentTurn;
+  const alpha = session.fighterWingCounts?.['fighter-wing-alpha'];
+  const bravo = session.fighterWingCounts?.['fighter-wing-bravo'];
+  if (!Number.isSafeInteger(turn) || (turn as number) < 1 || !alpha || !bravo ||
+      !Number.isSafeInteger(amount) || amount < 1 || amount > 6) {
+    throw new Error('Wait for the current live Fighter Wing counts before exchanging fighters.');
+  }
+  requireFreshSessionAuthority('Reconnect before exchanging Fighter Wing strength.');
+  const sessionId = session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  const requestId = commandId();
+  const payload = {
+    sessionId, requestId, sourceWingId, amount, expectedTurn: turn as number,
+    expectedAlphaRevision: alpha.revision, expectedBravoRevision: bravo.revision,
+  };
+  await ensureSignedIn();
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'exchangeAegisFighterWings');
+  try {
+    const reply = fighterWingExchangeReply((await call(payload)).data, {
+      sessionId, requestId, sourceWingId, amount, turn: turn as number,
+    });
+    if (!reply) throw new Error('The server returned an invalid Fighter Wing exchange result.');
+    const latest = useSessionStore.getState();
+    const current = latest.session;
+    if (!current || current.id !== sessionId || !authorityCheckpointIsCurrent(checkpoint) ||
+        latest.me?.activeConsoleRoleId !== 'wing-commander') return reply;
+    const currentAlphaRevision = current.fighterWingCounts?.['fighter-wing-alpha']?.revision ?? 0;
+    const currentBravoRevision = current.fighterWingCounts?.['fighter-wing-bravo']?.revision ?? 0;
+    if (currentAlphaRevision < reply.counts['fighter-wing-alpha'].revision &&
+        currentBravoRevision < reply.counts['fighter-wing-bravo'].revision) {
+      useSessionStore.getState().setSession({
+        ...current,
+        fighterWingCounts: {
+          ...current.fighterWingCounts,
+          ...reply.counts,
+        },
+      });
+    }
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
 function fighterBuildReply(value: unknown): FighterBuildResult | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
@@ -2079,12 +2254,182 @@ export async function joinSession(joinCode: string): Promise<void> {
 }
 
 export async function resumeSession(sessionId: string): Promise<boolean> {
+  const original = useSessionStore.getState();
+  const originalUid = auth().currentUser?.uid;
+  const memberResume = original.me?.role === 'player';
+  const authority = memberResume && originalUid ? sessionSnapshotAuthorityFor(sessionId, originalUid) : undefined;
+  const token = authority ? beginMemberSessionResume(authority) : undefined;
+  const memberScope = (member: Player | null) => JSON.stringify([
+    member?.uid, member?.sessionId, member?.role, member?.fleetGroupId,
+    member?.assignedRoleId ?? null, member?.activeConsoleRoleId ?? null, member?.seatId ?? null,
+    member?.replacementRoleId ?? null, member?.replacementStatus ?? null, member?.escapeState ?? null,
+  ]);
+  const originalScope = memberScope(original.me);
+  let accepted = false;
   const call = httpsCallable<{ sessionId: string }, SessionReply>(
     functions(),
     'resumeSession',
   );
-  const reply = await call({ sessionId });
-  return applySession(reply.data, sessionId);
+  try {
+    const reply = await call({ sessionId });
+    if (memberResume) {
+      const current = useSessionStore.getState();
+      if (!authority || !token || !originalUid || auth().currentUser?.uid !== originalUid ||
+          current.session?.id !== sessionId || current.me?.uid !== originalUid || current.me.sessionId !== sessionId ||
+          reply.data?.player?.uid !== originalUid || reply.data.player.sessionId !== sessionId || reply.data.session?.id !== sessionId) return false;
+      // Like a cursor-rejected payload, a superseded matching response can
+      // complete structurally without applying or releasing any authority.
+      if (!isCurrentMemberSessionResume(authority, token)) return true;
+      if (original.session?.id !== sessionId || original.me?.uid !== originalUid || original.me.sessionId !== sessionId ||
+          current.identityHydrationRevision !== original.identityHydrationRevision || memberScope(current.me) !== originalScope ||
+          current.me.connected === false && original.me.connected !== false ||
+          (reply.data.player.connectionGeneration ?? 1) < (current.me.connectionGeneration ?? 1)) return false;
+    }
+    const applied = applySession(reply.data, sessionId);
+    const current = useSessionStore.getState();
+    accepted = applied && current.identityHydrationRevision > original.identityHydrationRevision &&
+      (!memberResume || Boolean(authority && token && isCurrentMemberSessionResume(authority, token) &&
+        auth().currentUser?.uid === originalUid && current.session?.id === sessionId &&
+        current.me?.uid === originalUid && current.me?.sessionId === sessionId));
+    return applied;
+  } finally {
+    if (authority && token) finishMemberSessionResume(authority, token, accepted);
+  }
+}
+
+/** Refetch only the public debrief for an already authenticated, server-confirmed closed member. */
+export async function readClosedSessionHistory(sessionId: string): Promise<boolean> {
+  const initial = useSessionStore.getState();
+  const initialSession = initial.session;
+  const initialMember = initial.me;
+  const uid = auth().currentUser?.uid;
+  const expectedGroupId = initialMember?.role === 'gm' ? 'gm' : initialMember?.fleetGroupId;
+  if (!initialSession || initialSession.id !== sessionId || initialSession.phase !== 'closed' ||
+      initialSession.debriefSnapshot || !initialMember || initialMember.sessionId !== sessionId ||
+      !uid || initialMember.uid !== uid || !expectedGroupId || initial.connection !== 'live' ||
+      initial.sessionSnapshotFreshness !== 'server') return false;
+
+  const authority = sessionSnapshotAuthorityFor(sessionId, uid);
+  const startingAuthorityVersion = sessionSnapshotAuthorityVersion(authority);
+  const read = httpsCallable<{ readonly sessionId: string }, unknown>(functions(), 'getCurrentMemberSession');
+  const response = (await read({ sessionId })).data;
+  const fields = ['type', 'sessionId', 'actorUid', 'groupId', 'connectionGeneration',
+    'assignedRoleId', 'activeConsoleRoleId', 'session'];
+  if (!isPlainRecord(response) || Object.keys(response).length !== fields.length ||
+      Object.keys(response).some(key => !fields.includes(key)) || response.type !== 'current-member-session' ||
+      response.sessionId !== sessionId || response.actorUid !== uid || response.groupId !== expectedGroupId ||
+      !Number.isSafeInteger(response.connectionGeneration) || Number(response.connectionGeneration) < 1 ||
+      response.assignedRoleId !== null && typeof response.assignedRoleId !== 'string' ||
+      response.activeConsoleRoleId !== null && typeof response.activeConsoleRoleId !== 'string' ||
+      !isPlainRecord(response.session) || response.session.id !== sessionId || response.session.phase !== 'closed') {
+    return false;
+  }
+  let session: GameSession;
+  try {
+    session = closedMemberSessionFrom(sessionId, response, response.session);
+  } catch {
+    return false;
+  }
+  if (session.phase !== 'closed' || !session.debriefSnapshot) return false;
+
+  const latest = useSessionStore.getState();
+  const latestGroupId = latest.me?.role === 'gm' ? 'gm' : latest.me?.fleetGroupId;
+  if (sessionSnapshotAuthorityVersion(authority) !== startingAuthorityVersion ||
+      auth().currentUser?.uid !== uid || latest.session?.id !== sessionId || latest.session.phase !== 'closed' ||
+      latest.session.debriefSnapshot || latest.me?.uid !== uid || latest.me.sessionId !== sessionId ||
+      latestGroupId !== response.groupId || latest.me.connectionGeneration !== initialMember.connectionGeneration ||
+      latest.connection !== 'live' || latest.sessionSnapshotFreshness !== 'server' ||
+      Number.isSafeInteger(latest.me.connectionGeneration) &&
+        latest.me.connectionGeneration !== response.connectionGeneration ||
+      Number.isSafeInteger(initialMember.connectionGeneration) &&
+        initialMember.connectionGeneration !== response.connectionGeneration) return false;
+  if (!acceptCallableSessionAuthority(session, uid)) return false;
+  latest.setSession(session);
+  return true;
+}
+
+export interface SessionDebriefActionResult {
+  readonly phase: 'debrief' | 'closed';
+  readonly committed: boolean;
+  readonly cycle: number;
+  readonly result: 'success' | 'failure' | 'completed';
+}
+
+function currentDebriefGmAuthority() {
+  const { session, me, gmInstance } = useSessionStore.getState();
+  if (!session || !me || me.role !== 'gm' || me.sessionId !== session.id || !gmInstance ||
+      gmInstance.sessionId !== session.id || gmInstance.uid !== me.uid) {
+    throw new Error('A live GM instance is required for debrief controls.');
+  }
+  return { session, gmInstance };
+}
+
+function sessionDebriefActionResult(value: unknown, phase: SessionDebriefActionResult['phase']): SessionDebriefActionResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error('Invalid debrief action result.');
+  }
+  const raw = value as Record<string, unknown>;
+  const keys = ['phase', 'committed', 'cycle', 'result'];
+  if (Object.keys(raw).length !== keys.length || Object.keys(raw).some(key => !keys.includes(key)) ||
+      raw.phase !== phase || typeof raw.committed !== 'boolean' || !Number.isSafeInteger(raw.cycle) ||
+      Number(raw.cycle) < 0 || !['success', 'failure', 'completed'].includes(String(raw.result))) {
+    throw new Error('Invalid debrief action result.');
+  }
+  return { phase, committed: raw.committed, cycle: Number(raw.cycle),
+    result: raw.result as SessionDebriefActionResult['result'] };
+}
+
+function updateSessionPhaseAfterDebrief(sessionId: string, phase: 'debrief' | 'closed'): void {
+  const store = useSessionStore.getState();
+  if (store.session?.id === sessionId) store.setSession({ ...store.session, phase });
+}
+
+/** Enter the immutable debrief for a server-committed failure through the active GM lease. */
+export async function beginSessionDebrief(): Promise<SessionDebriefActionResult> {
+  const { session, gmInstance } = currentDebriefGmAuthority();
+  const call = httpsCallable<{ sessionId: string; instanceId: string; requestId: string }, SessionDebriefActionResult>(
+    functions(), 'beginSessionDebrief',
+  );
+  const reply = await call({ sessionId: session.id, instanceId: gmInstance.id, requestId: commandId() });
+  const result = sessionDebriefActionResult(reply.data, 'debrief');
+  updateSessionPhaseAfterDebrief(session.id, result.phase);
+  return result;
+}
+
+/** Close only an already committed debrief; server receipts make retries idempotent. */
+export async function closeSession(): Promise<SessionDebriefActionResult> {
+  const { session, gmInstance } = currentDebriefGmAuthority();
+  const call = httpsCallable<{ sessionId: string; instanceId: string; requestId: string }, SessionDebriefActionResult>(
+    functions(), 'closeSession',
+  );
+  const reply = await call({ sessionId: session.id, instanceId: gmInstance.id, requestId: commandId() });
+  const result = sessionDebriefActionResult(reply.data, 'closed');
+  updateSessionPhaseAfterDebrief(session.id, result.phase);
+  return result;
+}
+
+/** Read the full candidate summary only when the server confirms a live facilitator lease. */
+export async function getSessionDebrief(): Promise<NonNullable<GameSession['debriefSnapshot']>> {
+  const { session, gmInstance } = currentDebriefGmAuthority();
+  if (session.phase !== 'debrief' && session.phase !== 'closed') {
+    throw new Error('A committed debrief is required for facilitator history.');
+  }
+  const call = httpsCallable<{ sessionId: string; instanceId: string }, unknown>(
+    functions(), 'getSessionDebrief',
+  );
+  const reply = await call({ sessionId: session.id, instanceId: gmInstance.id });
+  const envelope = reply.data as unknown;
+  if (typeof envelope !== 'object' || envelope === null || Array.isArray(envelope)) {
+    throw new Error('Invalid facilitator debrief projection.');
+  }
+  const raw = envelope as Record<string, unknown>;
+  if (Object.keys(raw).length !== 3 || Object.keys(raw).some(key => !['type', 'sessionId', 'snapshot'].includes(key)) ||
+      raw.type !== 'session-debrief' || raw.sessionId !== session.id) {
+    throw new Error('Invalid facilitator debrief projection.');
+  }
+  const parsed = parseSessionDebriefProjection(raw.snapshot, session.survivorOutcome, { allowGroupIds: true });
+  if (!parsed) throw new Error('Invalid facilitator debrief projection.');
+  return parsed;
 }
 
 /** Confirm the entire setup tuple through one replay-safe authoritative command. */
@@ -2105,6 +2450,75 @@ export async function confirmSetup(setup: SetupConfirmationInput): Promise<Comma
     },
     createdAt: new Date().toISOString(),
   });
+}
+
+/** Save a nonbinding player preference through the server's receipt-backed casting command. */
+export async function submitShipPreference(
+  shipId: string,
+): Promise<{ readonly disposition: CommandDisposition; readonly requestId: string }> {
+  const initial = useSessionStore.getState();
+  const { session, me } = initial;
+  if (!session || !me || me.role !== 'player' || me.connected !== true ||
+      me.sessionId !== session.id || auth().currentUser?.uid !== me.uid) {
+    throw new Error('A current connected player is required to set a ship preference.');
+  }
+  requireFreshSessionAuthority('Reconnect and wait for current server state before submitting a preference.');
+  if (session.phase !== 'lobby' && session.phase !== 'casting') {
+    throw new Error('Ship preferences are available only during the lobby or casting window.');
+  }
+  if (session.configurationLocked === true) {
+    throw new Error('Casting is locked; ship preference changes are unavailable.');
+  }
+  const parsedShipId = parseEntityId('vessel', shipId);
+  if (!parsedShipId || !Array.isArray(session.activeVesselIds) ||
+      !session.activeVesselIds.includes(parsedShipId)) {
+    throw new Error('Choose a vessel from the current active roster.');
+  }
+  if (me.shipPreferenceId === parsedShipId) {
+    throw new Error('This vessel is already your current preference.');
+  }
+  if (initial.pendingCommands.some((command) => command.kind === 'setShipPreference' &&
+      command.actorUid === me.uid && command.payload.sessionId === session.id)) {
+    throw new Error('A ship preference is already waiting for server confirmation.');
+  }
+
+  const requestId = commandId();
+  const command: PendingCommand = {
+    id: requestId,
+    kind: 'setShipPreference',
+    actorUid: me.uid,
+    payload: { sessionId: session.id, requestId, shipId: parsedShipId },
+    createdAt: new Date().toISOString(),
+  };
+  let acceptedRevision: number | undefined;
+  const disposition = await sendOrQueue(command, (value) => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      throw new Error('The server did not return a valid ship-preference receipt.');
+    }
+    const reply = value as Record<string, unknown>;
+    if (reply.sessionId !== session.id || !Number.isSafeInteger(reply.setupRevision) ||
+        Number(reply.setupRevision) < 0) {
+      throw new Error('The server did not return a valid ship-preference receipt.');
+    }
+    acceptedRevision = Number(reply.setupRevision);
+  });
+
+  if (disposition === 'applied') {
+    const latest = useSessionStore.getState();
+    if (
+      acceptedRevision === undefined || latest.me?.uid !== me.uid || latest.me.role !== 'player' ||
+      latest.me.sessionId !== session.id || latest.session?.id !== session.id ||
+      (latest.session.phase !== 'lobby' && latest.session.phase !== 'casting') ||
+      latest.session.configurationLocked === true ||
+      !latest.session.activeVesselIds?.includes(parsedShipId) ||
+      latest.me.shipPreferenceId !== parsedShipId ||
+      latest.session.setupRevision !== acceptedRevision ||
+      !hasFreshSessionAuthority()
+    ) {
+      throw new Error('The player or casting state changed before the preference was confirmed. Wait for current server state before retrying.');
+    }
+  }
+  return { disposition, requestId };
 }
 
 /** Change one printed facilitator lane through the revisioned authority command. */
@@ -2478,18 +2892,34 @@ export async function submitCivilUnrestGrievance(input: {
 
 /** Claim a stable role seat through the server-owned CAS transaction. */
 export async function claimSeat(seatId: string): Promise<CommandDisposition> {
+  return claimSeatWithReceipt(seatId);
+}
+
+async function claimSeatWithReceipt(
+  seatId: string,
+  receive?: (receipt: { readonly requestId: string; readonly setupRevision: number }) => void,
+): Promise<CommandDisposition> {
   const store = useSessionStore.getState();
   if (!store.session || !store.me) throw new Error('Join a session before claiming a seat.');
+  const requestId = commandId();
   return sendOrQueue({
     id: commandId(),
     kind: 'claimSeat',
     payload: {
       sessionId: store.session.id,
       seatId,
-      requestId: commandId(),
+      requestId,
       expectedSetupRevision: expectedSetupRevision(store.session),
     },
     createdAt: new Date().toISOString(),
+  }, (result) => {
+    if (!receive || typeof result !== 'object' || result === null) return;
+    const receipt = result as Record<string, unknown>;
+    if ((receipt.status === 'committed' || receipt.status === 'replayed') && receipt.requestId === requestId &&
+        receipt.seatId === seatId && receipt.holderUid === store.me?.uid &&
+        Number.isSafeInteger(receipt.setupRevision) && Number(receipt.setupRevision) >= 0) {
+      receive({ requestId, setupRevision: Number(receipt.setupRevision) });
+    }
   });
 }
 
@@ -2849,6 +3279,26 @@ export async function selectConsoleRole(roleId: string): Promise<void> {
   const checkpoint = before.session
     ? sessionAuthorityCheckpoint(before.session.id, sessionAuthorityUid(before))
     : undefined;
+  let firstEntry: WingFirstEntryProjectionPending | undefined;
+  let admiralFirstEntry: AdmiralFirstEntryProjectionPending | undefined;
+  const retireFirstEntry = () => {
+    if (firstEntry) {
+      finishWingFirstEntry(sessionSnapshotAuthorityFor(firstEntry.sessionId, firstEntry.actorUid), firstEntry);
+      const current = useSessionStore.getState();
+      if (current.currentActorBerthProjectionPending?.kind === 'app-wing-first-entry-withheld' &&
+          current.currentActorBerthProjectionPending.claimRequestId === firstEntry.claimRequestId) {
+        current.setSession(current.session, null);
+      }
+    }
+    if (admiralFirstEntry) {
+      finishAdmiralFirstEntry(sessionSnapshotAuthorityFor(admiralFirstEntry.sessionId, admiralFirstEntry.actorUid), admiralFirstEntry);
+      const current = useSessionStore.getState();
+      if (current.currentActorBerthProjectionPending?.kind === 'app-admiral-first-entry-withheld' &&
+          current.currentActorBerthProjectionPending.claimRequestId === admiralFirstEntry.claimRequestId) {
+        current.setSession(current.session, null);
+      }
+    }
+  };
   if (before.communicationError?.kind === 'station-selection-required' &&
       authorityCheckpointIsCurrent(checkpoint)) {
     // A stale route can finish mounting while App redirects this browser back
@@ -2869,10 +3319,20 @@ export async function selectConsoleRole(roleId: string): Promise<void> {
     // first-entry seat CAS before presence grants console authority.
     const isGm = before.me?.role === 'gm';
     if (!isGm && targetSeat?.status === 'open') {
-      const disposition = await claimSeat(targetSeat.id);
+      let receipt: { readonly requestId: string; readonly setupRevision: number } | undefined;
+      const disposition = await claimSeatWithReceipt(targetSeat.id, (accepted) => { receipt = accepted; });
       if (disposition !== 'applied') {
         if (disposition === 'stale') requireStationReselection(checkpoint);
         return;
+      }
+      if (roleId === 'wing-commander' && before.session && before.me && receipt) {
+        firstEntry = beginWingFirstEntry(sessionSnapshotAuthorityFor(before.session.id, before.me.uid), before,
+          useSessionStore.getState(), auth().currentUser?.uid, performance.timeOrigin, receipt,
+          Date.now() + COMMAND_RECONNECT_WINDOW_MS);
+      } else if (roleId === 'admiral' && before.session && before.me && receipt) {
+        admiralFirstEntry = beginAdmiralFirstEntry(sessionSnapshotAuthorityFor(before.session.id, before.me.uid), before,
+          useSessionStore.getState(), auth().currentUser?.uid, performance.timeOrigin, receipt,
+          Date.now() + COMMAND_RECONNECT_WINDOW_MS);
       }
     } else if (!isGm && (
       targetSeat && targetSeat.holderUid !== before.me?.uid
@@ -2884,12 +3344,23 @@ export async function selectConsoleRole(roleId: string): Promise<void> {
       return;
     }
     await refreshPresence(roleId);
-    if (useSessionStore.getState().communicationError?.kind === 'station-selection-required') return;
+    if (useSessionStore.getState().communicationError?.kind === 'station-selection-required') {
+      retireFirstEntry();
+      return;
+    }
     const store = useSessionStore.getState();
+    if (admiralFirstEntry && !authorityCheckpointIsCurrent(checkpoint)) {
+      // A held local projection cannot promote the console from this reply.
+      // Its exact accepted CAS may still await the normal player/member pair.
+      if (pendingAdmiralFirstEntry(sessionSnapshotAuthorityFor(admiralFirstEntry.sessionId, admiralFirstEntry.actorUid),
+          store, auth().currentUser?.uid, performance.timeOrigin) !== admiralFirstEntry) retireFirstEntry();
+      return;
+    }
     if (store.me && authorityCheckpointIsCurrent(checkpoint)) {
       store.setMe({ ...store.me, activeConsoleRoleId: roleId });
     }
   } catch (cause) {
+    retireFirstEntry();
     if (authorityCheckpointIsCurrent(checkpoint)) {
       const error = interception(cause);
       if (error.kind === 'station-selection-required') requireStationReselection(checkpoint);
@@ -3954,6 +4425,7 @@ interface TurnAdvanceReply {
   readonly title?: 'Demo complete';
   readonly message?: 'Demo mode ends after Cycle 1.';
   readonly singlePlayerDemo?: GameSession['singlePlayerDemo'];
+  readonly fullGameDemo?: GameSession['fullGameDemo'];
   readonly phase?: GameSession['phase'];
   readonly gameOutcome?: GameSession['gameOutcome'];
   readonly turnState?: unknown;
@@ -4227,6 +4699,46 @@ export async function discardPrivateMissionCard(
 export interface StartGameOptions {
   /** Reuse a caller-held id after an ambiguous transport failure. */
   readonly requestId?: string;
+  /** Start the fresh session prepared as a manual full-game training demo. */
+  readonly fullGameDemo?: true;
+}
+
+export interface FullGameDemoPreparationReply {
+  readonly status: 'committed' | 'replayed' | 'stale';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly fullGameDemo?: GameSession['fullGameDemo'];
+  readonly expectedSetupRevision: number;
+  readonly currentSetupRevision: number;
+}
+
+export interface FullGameDemoPhaseAdvanceReply {
+  readonly status: 'committed' | 'replayed';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly currentTurn: number;
+  readonly fullGameDemo: NonNullable<GameSession['fullGameDemo']>;
+  readonly turnPhase: NonNullable<GameSession['turnPhase']>;
+  readonly turnState?: GameSession['turnState'];
+}
+
+function fullGameDemoMarker(value: unknown): NonNullable<GameSession['fullGameDemo']> | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  if (Object.keys(raw).length !== 2 ||
+      (raw.status !== 'preparing' && raw.status !== 'active' && raw.status !== 'complete') ||
+      raw.progression !== 'manual') return undefined;
+  return { status: raw.status, progression: 'manual' };
+}
+
+function pendingFullGameDemoMatches(
+  request: PendingFullGameDemoRequest | null,
+  sessionId: string,
+  instanceId: string,
+  expectedRevision: number,
+): request is PendingFullGameDemoRequest {
+  return request !== null && request.sessionId === sessionId && request.instanceId === instanceId &&
+    request.expectedRevision === expectedRevision;
 }
 
 export async function startGame(options: StartGameOptions = {}): Promise<StartGameReply> {
@@ -4238,8 +4750,9 @@ export async function startGame(options: StartGameOptions = {}): Promise<StartGa
   const instanceId = store.gmInstance.id;
   const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
   const revision = expectedSetupRevision(store.session);
+  const fullGameDemo = options.fullGameDemo === true;
   const requestId = options.requestId ?? (
-    sameStartAttempt(pendingStartRequest, sessionId, instanceId, revision)
+    sameStartAttempt(pendingStartRequest, sessionId, instanceId, revision, fullGameDemo)
       ? pendingStartRequest.requestId
       : commandId()
   );
@@ -4247,6 +4760,7 @@ export async function startGame(options: StartGameOptions = {}): Promise<StartGa
     sessionId,
     instanceId,
     expectedSetupRevision: revision,
+    ...(fullGameDemo ? { fullGameDemo: true as const } : {}),
     requestId,
   };
   pendingStartRequest = attempt;
@@ -4255,15 +4769,22 @@ export async function startGame(options: StartGameOptions = {}): Promise<StartGa
     instanceId,
     requestId,
     expectedSetupRevision: revision,
+    ...(fullGameDemo ? { fullGameDemo: true as const } : {}),
   };
   const call = httpsCallable<typeof payload, StartGameReply>(functions(), 'startGame');
   try {
     const reply = (await call(payload)).data;
+    if (fullGameDemo && reply.status !== 'stale' &&
+        (fullGameDemoMarker(reply.fullGameDemo)?.status !== 'active' ||
+         turnPhaseState(reply.turnPhase)?.progression !== 'manual')) {
+      throw new Error('The full-game demo start receipt did not confirm its manual session mode.');
+    }
     if (sameStartAttempt(
       pendingStartRequest,
       payload.sessionId,
       payload.instanceId,
       payload.expectedSetupRevision,
+      fullGameDemo,
     ) && pendingStartRequest.requestId === payload.requestId) {
       pendingStartRequest = null;
     }
@@ -4272,12 +4793,14 @@ export async function startGame(options: StartGameOptions = {}): Promise<StartGa
     applyTurnAdvanceReply(store.session.id, reply, false, checkpoint);
     const current = useSessionStore.getState().session;
     if (current?.id === store.session.id && authorityCheckpointIsCurrent(checkpoint)) {
+      const demoMarker = fullGameDemoMarker(reply.fullGameDemo);
       useSessionStore.getState().setSession({
         ...current,
         phase: 'active',
         configurationLocked: true,
         currentTurn: reply.currentTurn,
         setupRevision: reply.setupRevision,
+        ...(demoMarker ? { fullGameDemo: demoMarker } : {}),
         pursuitGroups: { 'fleet-1': 2 },
         shipFleetGroupIds: Object.fromEntries((current.activeVesselIds ?? []).map((shipId) => [shipId, 'fleet-1'])),
         ...(current.playerDiscovery
@@ -4294,10 +4817,157 @@ export async function startGame(options: StartGameOptions = {}): Promise<StartGa
         payload.sessionId,
         payload.instanceId,
         payload.expectedSetupRevision,
+        fullGameDemo,
       ) && pendingStartRequest.requestId === payload.requestId) {
         pendingStartRequest = null;
       }
     }
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+function fullGameDemoPreparationReply(value: unknown, sessionId: string): FullGameDemoPreparationReply | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const allowed = ['status', 'sessionId', 'requestId', 'fullGameDemo', 'expectedSetupRevision', 'currentSetupRevision'];
+  if (Object.keys(raw).some((key) => !allowed.includes(key)) ||
+      (raw.status !== 'committed' && raw.status !== 'replayed' && raw.status !== 'stale') ||
+      raw.sessionId !== sessionId || typeof raw.requestId !== 'string' ||
+      !/^[A-Za-z0-9_-]{1,128}$/.test(raw.requestId) ||
+      !Number.isSafeInteger(raw.expectedSetupRevision) || (raw.expectedSetupRevision as number) < 0 ||
+      !Number.isSafeInteger(raw.currentSetupRevision) || (raw.currentSetupRevision as number) < 0) return undefined;
+  const marker = fullGameDemoMarker(raw.fullGameDemo);
+  if (raw.status === 'stale') {
+    if (raw.fullGameDemo !== undefined) return undefined;
+  } else if (marker?.status !== 'preparing') return undefined;
+  return {
+    status: raw.status,
+    sessionId,
+    requestId: raw.requestId,
+    ...(marker ? { fullGameDemo: marker } : {}),
+    expectedSetupRevision: raw.expectedSetupRevision as number,
+    currentSetupRevision: raw.currentSetupRevision as number,
+  };
+}
+
+/** Prepare a fresh Cycle 0 as a permanently labeled, GM-controlled training session. */
+export async function prepareFullGameDemo(requestId?: string): Promise<FullGameDemoPreparationReply> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'gm' || !store.gmInstance) {
+    throw new Error('Claim an active facilitator instance before preparing the full-game demo.');
+  }
+  requireFreshSessionAuthority('Reconnect before preparing the full-game demo.');
+  if (store.session.currentTurn !== 0 || store.session.singlePlayerDemo ||
+      !(store.session.phase === 'casting' || (store.session.phase === 'lobby' && store.session.setupConfirmed === true))) {
+    throw new Error('Prepare the full-game demo only in a fresh confirmed Cycle 0 session.');
+  }
+  await ensureSignedIn();
+  const sessionId = store.session.id;
+  const instanceId = store.gmInstance.id;
+  const revision = expectedSetupRevision(store.session);
+  const pending = pendingFullGameDemoMatches(pendingFullGameDemoPreparation, sessionId, instanceId, revision);
+  const callRequestId = requestId ?? (pending ? pendingFullGameDemoPreparation?.requestId ?? commandId() : commandId());
+  pendingFullGameDemoPreparation = { sessionId, instanceId, expectedRevision: revision, requestId: callRequestId };
+  const payload = {
+    sessionId, instanceId, requestId: callRequestId, expectedSetupRevision: revision,
+  };
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  try {
+    const call = httpsCallable<typeof payload, unknown>(functions(), 'prepareFullGameDemo');
+    const reply = fullGameDemoPreparationReply((await call(payload)).data, sessionId);
+    if (!reply || reply.requestId !== callRequestId || reply.expectedSetupRevision !== revision) {
+      throw new Error('The full-game demo preparation receipt is invalid. Refresh and retry.');
+    }
+    pendingFullGameDemoPreparation = null;
+    if (reply.status !== 'stale' && authorityCheckpointIsCurrent(checkpoint)) {
+      const current = useSessionStore.getState().session;
+      if (current?.id === sessionId && current.currentTurn === 0 && reply.fullGameDemo) {
+        useSessionStore.getState().setSession({ ...current, fullGameDemo: reply.fullGameDemo });
+      }
+    }
+    if (authorityCheckpointIsCurrent(checkpoint)) useSessionStore.getState().setCommunicationError(null);
+    return reply;
+  } catch (cause) {
+    if (!isTransientCommandError(cause)) pendingFullGameDemoPreparation = null;
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+function fullGameDemoPhaseAdvanceReply(
+  value: unknown,
+  sessionId: string,
+  expectedTurn: number,
+): FullGameDemoPhaseAdvanceReply | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const allowed = ['status', 'sessionId', 'requestId', 'currentTurn', 'fullGameDemo', 'turnPhase', 'turnState'];
+  const marker = fullGameDemoMarker(raw.fullGameDemo);
+  const phase = turnPhaseState(raw.turnPhase);
+  if (Object.keys(raw).some((key) => !allowed.includes(key)) ||
+      (raw.status !== 'committed' && raw.status !== 'replayed') || raw.sessionId !== sessionId ||
+      typeof raw.requestId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(raw.requestId) ||
+      raw.currentTurn !== expectedTurn || marker?.status !== 'active' ||
+      phase?.progression !== 'manual' || phase.turn !== expectedTurn || phase.airspace.state !== 'lifted') return undefined;
+  const turnState = raw.turnState === undefined ? undefined : turnStateState(raw.turnState);
+  if (raw.turnState !== undefined && (!turnState || turnState.currentTurn !== expectedTurn || turnState.phase !== 'coordination')) {
+    return undefined;
+  }
+  return {
+    status: raw.status, sessionId, requestId: raw.requestId, currentTurn: expectedTurn,
+    fullGameDemo: marker, turnPhase: phase, ...(turnState ? { turnState } : {}),
+  };
+}
+
+/** Open Coordination through the live GM authority while preserving manual demo progression. */
+export async function advanceFullGameDemoPhase(requestId?: string): Promise<FullGameDemoPhaseAdvanceReply> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'gm' || !store.gmInstance) {
+    throw new Error('Claim an active facilitator instance before opening the demo phase.');
+  }
+  requireFreshSessionAuthority('Reconnect before opening the demo phase.');
+  const phase = turnPhaseState(store.session.turnPhase);
+  const expectedTurn = store.session.currentTurn;
+  if (store.session.fullGameDemo?.status !== 'active' || store.session.fullGameDemo.progression !== 'manual' ||
+      !Number.isSafeInteger(expectedTurn) || (expectedTurn ?? 0) < 1 ||
+      !phase || phase.progression !== 'manual' || phase.turn !== expectedTurn ||
+      phase.airspace.state !== 'restricted' || phase.timerPause !== undefined) {
+    throw new Error('Manual phase advance is available only in the current restricted full-game demo phase.');
+  }
+  await ensureSignedIn();
+  const sessionId = store.session.id;
+  const instanceId = store.gmInstance.id;
+  const pending = pendingFullGameDemoMatches(pendingFullGameDemoPhaseAdvance, sessionId, instanceId, expectedTurn);
+  const callRequestId = requestId ?? (pending ? pendingFullGameDemoPhaseAdvance?.requestId ?? commandId() : commandId());
+  pendingFullGameDemoPhaseAdvance = { sessionId, instanceId, expectedRevision: expectedTurn, requestId: callRequestId };
+  const payload = { sessionId, instanceId, requestId: callRequestId, expectedTurn };
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  try {
+    const call = httpsCallable<typeof payload, unknown>(functions(), 'advanceFullGameDemoPhase');
+    const reply = fullGameDemoPhaseAdvanceReply((await call(payload)).data, sessionId, expectedTurn);
+    if (!reply || reply.requestId !== callRequestId) {
+      throw new Error('The manual phase advance receipt is invalid. Refresh before retrying.');
+    }
+    pendingFullGameDemoPhaseAdvance = null;
+    if (authorityCheckpointIsCurrent(checkpoint)) {
+      const current = useSessionStore.getState().session;
+      if (current?.id === sessionId && current.currentTurn === expectedTurn) {
+        const projectedState = reply.turnState
+          ? turnStateForPhaseContext(reply.turnState, reply.turnPhase, expectedTurn, turnLimitForSession(current))
+          : undefined;
+        useSessionStore.getState().setSession({
+          ...current,
+          fullGameDemo: reply.fullGameDemo,
+          turnPhase: reply.turnPhase,
+          ...(projectedState ? { turnState: projectedState } : {}),
+        });
+      }
+      useSessionStore.getState().setCommunicationError(null);
+    }
+    return reply;
+  } catch (cause) {
+    if (!isTransientCommandError(cause)) pendingFullGameDemoPhaseAdvance = null;
     useSessionStore.getState().setCommunicationError(interception(cause));
     throw cause;
   }
@@ -4676,10 +5346,11 @@ function wolfAttackWindowReply(value: unknown): WolfAttackWindow | null {
     (reply.targetGroupId !== undefined &&
       (typeof reply.targetGroupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(reply.targetGroupId))) ||
     (reply.threatSiteCode !== undefined &&
-      reply.threatSiteCode !== 'L' && reply.threatSiteCode !== 'M' &&
+      reply.threatSiteCode !== 'K' && reply.threatSiteCode !== 'L' && reply.threatSiteCode !== 'M' &&
       reply.threatSiteCode !== 'P' && reply.threatSiteCode !== 'commander') ||
     (reply.threatSourceId !== undefined &&
-      (typeof reply.threatSourceId !== 'string' || !/^arrival-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(reply.threatSourceId)))
+      !validWolfThreatSourceId(reply.threatSiteCode, reply.threatSourceId)) ||
+    (reply.threatSiteCode === 'K' && (typeof reply.targetGroupId !== 'string' || !validWolfThreatSourceId('K', reply.threatSourceId)))
   ) return null;
   return {
     status: reply.status,
@@ -4687,7 +5358,7 @@ function wolfAttackWindowReply(value: unknown): WolfAttackWindow | null {
     revision: reply.revision,
     ...(typeof reply.targetGroupId === 'string'
       ? { targetGroupId: reply.targetGroupId as NonNullable<WolfAttackWindow['targetGroupId']> } : {}),
-    ...(reply.threatSiteCode === 'L' || reply.threatSiteCode === 'M' ||
+    ...(reply.threatSiteCode === 'K' || reply.threatSiteCode === 'L' || reply.threatSiteCode === 'M' ||
       reply.threatSiteCode === 'P' || reply.threatSiteCode === 'commander'
       ? { threatSiteCode: reply.threatSiteCode } : {}),
     ...(typeof reply.threatSourceId === 'string' ? { threatSourceId: reply.threatSourceId } : {}),
@@ -4700,11 +5371,16 @@ export interface WolfAttackThreatWindowOptions {
   readonly targetGroupId: string;
   readonly cycle: number;
   readonly sources: readonly Readonly<{
-    siteCode: 'L' | 'M' | 'P';
+    siteCode: 'K' | 'L' | 'M' | 'P';
     sourceId: string;
     sourceCycle: number;
     coordinate: string;
   }>[];
+}
+
+function validWolfThreatSourceId(siteCode: unknown, sourceId: unknown): sourceId is string {
+  return typeof sourceId === 'string' && (siteCode === 'K'
+    ? /^mission-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/ : /^arrival-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/).test(sourceId);
 }
 
 function wolfAttackThreatWindowOptionsReply(
@@ -4720,8 +5396,8 @@ function wolfAttackThreatWindowOptionsReply(
     const source = candidate as Record<string, unknown>;
     return Object.keys(source).length === 4 &&
       Object.keys(source).every((key) => ['siteCode', 'sourceId', 'sourceCycle', 'coordinate'].includes(key)) &&
-      (source.siteCode === 'L' || source.siteCode === 'M' || source.siteCode === 'P') &&
-      typeof source.sourceId === 'string' && /^arrival-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(source.sourceId) &&
+      (source.siteCode === 'K' || source.siteCode === 'L' || source.siteCode === 'M' || source.siteCode === 'P') &&
+      validWolfThreatSourceId(source.siteCode, source.sourceId) &&
       Number.isSafeInteger(source.sourceCycle) && (source.sourceCycle as number) >= 1 &&
       (source.sourceCycle as number) <= expectedCycle &&
       typeof source.coordinate === 'string' && /^\d{4}$/.test(source.coordinate)
@@ -4901,7 +5577,11 @@ function dioneMaliadesLaunchResultReply(value: unknown): DioneMaliadesLaunchResu
 function pdfEscortWingLaunchViewReply(value: unknown): PdfEscortWingLaunchView | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const reply = value as Record<string, unknown>;
-  const validReason = reply.reason === undefined || reply.reason === 'waiting' ||
+  // The enabled PDF producer owns reason: undefined, which callable encoding
+  // sends as null. Only this complete enabled arm may omit the typed reason.
+  const enabledNullReason = reply.eligible === true && reply.launched === false &&
+    reply.choiceStatus === undefined && reply.reason === null;
+  const validReason = enabledNullReason || reply.reason === undefined || reply.reason === 'waiting' ||
     reply.reason === 'uncharged' || reply.reason === 'damaged' ||
     reply.reason === 'destroyed' || reply.reason === 'no-fighters' ||
     reply.reason === 'already-launched' || reply.reason === 'passed';
@@ -4912,10 +5592,11 @@ function pdfEscortWingLaunchViewReply(value: unknown): PdfEscortWingLaunchView |
       !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 0 ||
       !Number.isSafeInteger(reply.wingRevision) || (reply.wingRevision as number) < 0 ||
       typeof reply.launched !== 'boolean' || typeof reply.eligible !== 'boolean' || !validReason || !validChoiceStatus ||
-      (reply.eligible && (reply.launched || reply.reason !== undefined)) ||
+      (reply.eligible && (reply.launched || reply.choiceStatus !== undefined ||
+        (reply.reason !== undefined && !enabledNullReason))) ||
       (reply.launched && reply.reason !== 'already-launched') ||
       (!reply.eligible && !reply.reason)) return null;
-  const reason = reply.reason as PdfEscortWingLaunchView['reason'];
+  const reason = enabledNullReason ? undefined : reply.reason as PdfEscortWingLaunchView['reason'];
   return {
     type: 'pdf-escort-wing-launch-view', sessionId: reply.sessionId,
     turn: reply.turn as number, revision: reply.revision as number,
@@ -4953,7 +5634,8 @@ function aegisFighterWingLaunchViewReply(value: unknown): AegisFighterWingLaunch
       !Number.isSafeInteger(reply.fighters) || (reply.fighters as number) < 0 ||
       typeof reply.launched !== 'boolean' || typeof reply.eligible !== 'boolean' || !validReason || !validChoiceStatus ||
       (reply.eligible && (reply.launched || reply.reason !== undefined)) ||
-      (reply.launched && reply.reason !== 'already-launched') ||
+      (reply.launched && reply.reason !== 'already-launched' &&
+        !(reply.reason === 'waiting' && reply.choiceStatus === 'launched' && reply.eligible === false)) ||
       (!reply.eligible && !reply.reason)) return null;
   return {
     type: 'aegis-fighter-wing-launch-view', sessionId: reply.sessionId,
@@ -4970,7 +5652,7 @@ function aegisFighterWingLaunchResultReply(value: unknown): AegisFighterWingLaun
   const view = aegisFighterWingLaunchViewReply(value);
   if (!view || typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const reply = value as Record<string, unknown>;
-  return (reply.status === 'committed' || reply.status === 'replayed') &&
+  return reply.reason === 'already-launched' && (reply.status === 'committed' || reply.status === 'replayed') &&
     typeof reply.requestId === 'string' && reply.requestId.length > 0
     ? { ...view, status: reply.status, requestId: reply.requestId }
     : null;
@@ -5751,7 +6433,7 @@ export async function acknowledgeWolfHackingAlert(
 export async function setWolfAttackWindow(
   status: WolfAttackWindowStatus,
   expectedRevision: number,
-  threat?: Readonly<{ targetGroupId: string; threatSiteCode?: 'L' | 'M' | 'P'; threatSourceId?: string }>,
+  threat?: Readonly<{ targetGroupId: string; threatSiteCode?: 'K' | 'L' | 'M' | 'P'; threatSourceId?: string }>,
 ): Promise<WolfAttackWindow> {
   const store = useSessionStore.getState();
   if (!store.session || !store.gmInstance) {
@@ -5763,7 +6445,7 @@ export async function setWolfAttackWindow(
   await ensureSignedIn();
   if (status === 'due' && threat && (!/^fleet-[1-9][0-9]*$/.test(threat.targetGroupId) ||
       (threat.threatSiteCode === undefined) !== (threat.threatSourceId === undefined) ||
-      (threat.threatSourceId !== undefined && !/^arrival-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(threat.threatSourceId)))) {
+      (threat.threatSourceId !== undefined && !validWolfThreatSourceId(threat.threatSiteCode, threat.threatSourceId)))) {
     throw new Error('Select a current fleet group and live source before marking a Wolf threat due.');
   }
   const payload = {
@@ -6884,7 +7566,7 @@ function wolfRangeActionChoiceResultReply(value: unknown): WolfRangeActionChoice
 }
 
 function wolfRangeSupportSourceId(value: unknown): value is WolfRangeSupportSourceId {
-  return value === 'highwall' || value === 'gorgoneion-missile-array' || value === 'boa';
+  return value === 'highwall' || value === 'gorgoneion-missile-array' || value === 'vulcan-laser-cannon' || value === 'boa';
 }
 
 function wolfRangeSupportChoiceViewReply(value: unknown): WolfRangeSupportActionChoiceView | null {
@@ -6897,7 +7579,8 @@ function wolfRangeSupportChoiceViewReply(value: unknown): WolfRangeSupportAction
   const ranges: readonly WolfAttackRange[] = ['long-range', 'medium-range', 'short-range'];
   const expectedActorRole = reply.sourceId === 'highwall' ? 'icebreaker-miner'
     : reply.sourceId === 'gorgoneion-missile-array' ? 'gorgoneion-captain'
-      : reply.sourceId === 'boa' ? 'capybara-recycler' : null;
+      : reply.sourceId === 'vulcan-laser-cannon' ? 'vulcan-captain'
+        : reply.sourceId === 'boa' ? 'capybara-recycler' : null;
   const contacts = Array.isArray(reply.contacts) ? reply.contacts.flatMap((raw) => {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return [];
     const contact = raw as Record<string, unknown>;
@@ -6912,6 +7595,7 @@ function wolfRangeSupportChoiceViewReply(value: unknown): WolfRangeSupportAction
       !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
       !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 1 ||
       !ranges.includes(reply.range as WolfAttackRange) || !wolfRangeSupportSourceId(reply.sourceId) ||
+      (reply.sourceId === 'vulcan-laser-cannon' && reply.range !== 'medium-range' && reply.range !== 'short-range') ||
       reply.actorRoleId !== expectedActorRole ||
       (reply.choiceStatus !== 'pending' && reply.choiceStatus !== 'used' && reply.choiceStatus !== 'passed') ||
       typeof reply.eligible !== 'boolean' || typeof reply.actionAvailable !== 'boolean' ||
@@ -6950,6 +7634,7 @@ function wolfRangeSupportChoiceResultReply(value: unknown): WolfRangeSupportActi
       !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
       !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 1 ||
       !ranges.includes(reply.range as WolfAttackRange) || !wolfRangeSupportSourceId(reply.sourceId) ||
+      (reply.sourceId === 'vulcan-laser-cannon' && reply.range !== 'medium-range' && reply.range !== 'short-range') ||
       (reply.choiceStatus !== 'used' && reply.choiceStatus !== 'passed') ||
       !Number.isSafeInteger(reply.actionCount) || reply.actionCount !== (reply.choiceStatus === 'used' ? 1 : 0)) return null;
   return {
@@ -7250,7 +7935,7 @@ function wolfBoardingSpecialChoiceReadReply(value: unknown): WolfBoardingSpecial
         !Number.isSafeInteger(choice.selectedSecurityTeams) || (choice.selectedSecurityTeams as number) < 0 ||
         (choice.selectedSecurityTeams as number) > (choice.availableSecurityTeams as number) ||
         !Number.isSafeInteger(choice.maxFrontLineDice) || (choice.maxFrontLineDice as number) < 0 ||
-        (choice.maxFrontLineDice as number) > Math.min(3, choice.availableSecurityTeams as number) ||
+        (choice.maxFrontLineDice as number) > 3 ||
         typeof choice.doubleDiceAvailable !== 'boolean') return null;
     return { type: 'wolf-boarding-special-choice-view', sessionId: reply.sessionId,
       turn: reply.turn as number, revision: reply.revision as number, choice: {
@@ -7290,11 +7975,11 @@ function wolfBoardingSpecialChoiceReadReply(value: unknown): WolfBoardingSpecial
   }
   if (choice.kind === 'commander-ruling') {
     if (Object.keys(choice).some((key) => !['kind', 'targetShipId', 'condition'].includes(key)) ||
-        !validTarget(choice.targetShipId) || choice.condition !== 'All Commander-led Wolf Boarding Parties were destroyed.') return null;
+        !validTarget(choice.targetShipId) || choice.condition !== 'HOUSE RULE: The optional +2 Commander boarding request remains pending until the current live GM records the consequence for what happens if all Commander-led Wolf Boarding Parties are destroyed. No automatic consequence or default outcome is assumed.') return null;
     return { type: 'wolf-boarding-special-choice-view', sessionId: reply.sessionId,
       turn: reply.turn as number, revision: reply.revision as number, choice: {
         kind: 'commander-ruling', targetShipId: choice.targetShipId,
-        condition: 'All Commander-led Wolf Boarding Parties were destroyed.',
+        condition: 'HOUSE RULE: The optional +2 Commander boarding request remains pending until the current live GM records the consequence for what happens if all Commander-led Wolf Boarding Parties are destroyed. No automatic consequence or default outcome is assumed.',
       } };
   }
   return null;
@@ -7482,15 +8167,28 @@ export async function getWolfRangeActionChoice(): Promise<WolfRangeActionChoiceR
   }
 }
 
+function vulcanRangeActorContext(): string {
+  const { session, me } = useSessionStore.getState();
+  const ship = session?.smallShipStates?.vulcan;
+  return JSON.stringify([session?.id, me?.uid, me?.role, me?.replacementRoleId, me?.replacementStatus,
+    me?.fleetGroupId, me?.seatId, me?.activeConsoleRoleId, ship?.hostShipId, ship?.dockingRevision]);
+}
+
 function wolfRangeSupportActorAuthorityCheckpointIsCurrent(
   sessionId: string,
   sourceId: WolfRangeSupportSourceId,
   checkpoint: SessionAuthorityCheckpoint | undefined,
+  expectedContext: string,
 ): boolean {
   if (sourceId === 'gorgoneion-missile-array') {
     return gorgoneionCaptainAuthorityCheckpointIsCurrent(sessionId, checkpoint);
   }
   const store = useSessionStore.getState();
+  if (sourceId === 'vulcan-laser-cannon') {
+    return store.me?.role === 'player' && store.me.replacementRoleId === 'vulcan-captain' &&
+      store.me.replacementStatus == null && store.me.activeConsoleRoleId === null && store.me.seatId === null &&
+      vulcanRangeActorContext() === expectedContext && authorityCheckpointIsCurrent(checkpoint);
+  }
   return store.session?.id === sessionId && store.me?.sessionId === sessionId &&
     store.me.role === 'player' && store.me.replacementStatus == null && authorityCheckpointIsCurrent(checkpoint);
 }
@@ -7502,9 +8200,15 @@ export async function getWolfRangeSupportActionChoice(
 ): Promise<WolfRangeSupportActionChoiceView> {
   const store = useSessionStore.getState();
   if (!store.session || !store.me || store.me.role !== 'player' ||
-      (sourceId === 'gorgoneion-missile-array' && store.me.replacementRoleId !== 'gorgoneion-captain')) {
+      (sourceId === 'gorgoneion-missile-array' && store.me.replacementRoleId !== 'gorgoneion-captain') ||
+      (sourceId === 'vulcan-laser-cannon' && (store.me.replacementRoleId !== 'vulcan-captain' ||
+        store.me.replacementStatus != null || store.me.activeConsoleRoleId !== null || store.me.seatId !== null))) {
     throw new Error('The assigned current support actor may read this Wolf range choice.');
   }
+  if (sourceId === 'vulcan-laser-cannon' && range !== 'medium-range' && range !== 'short-range') {
+    throw new Error('Vulcan Laser Cannon fires only at Medium and Short range.');
+  }
+  const expectedContext = vulcanRangeActorContext();
   requireFreshSessionAuthority('Reconnect before reading Wolf range support choices.');
   const sessionId = store.session.id;
   const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
@@ -7516,7 +8220,7 @@ export async function getWolfRangeSupportActionChoice(
     if (!reply || reply.sessionId !== sessionId || reply.range !== range || reply.sourceId !== sourceId) {
       throw new Error('The server returned an invalid Wolf range support view.');
     }
-    if (!wolfRangeSupportActorAuthorityCheckpointIsCurrent(sessionId, sourceId, checkpoint)) {
+    if (!wolfRangeSupportActorAuthorityCheckpointIsCurrent(sessionId, sourceId, checkpoint, expectedContext)) {
       throw new Error('The support actor session or authority changed before this range view arrived.');
     }
     return reply;
@@ -7537,9 +8241,15 @@ export async function commitWolfRangeSupportActionChoice(
 ): Promise<WolfRangeSupportActionChoiceResult> {
   const store = useSessionStore.getState();
   if (!store.session || !store.me || store.me.role !== 'player' ||
-      (sourceId === 'gorgoneion-missile-array' && store.me.replacementRoleId !== 'gorgoneion-captain')) {
+      (sourceId === 'gorgoneion-missile-array' && store.me.replacementRoleId !== 'gorgoneion-captain') ||
+      (sourceId === 'vulcan-laser-cannon' && (store.me.replacementRoleId !== 'vulcan-captain' ||
+        store.me.replacementStatus != null || store.me.activeConsoleRoleId !== null || store.me.seatId !== null))) {
     throw new Error('The assigned current support actor may commit this Wolf range choice.');
   }
+  if (sourceId === 'vulcan-laser-cannon' && range !== 'medium-range' && range !== 'short-range') {
+    throw new Error('Vulcan Laser Cannon fires only at Medium and Short range.');
+  }
+  const expectedContext = vulcanRangeActorContext();
   requireFreshSessionAuthority('Reconnect before choosing a Wolf range support action.');
   if ((sourceId === 'boa' && use && (typeof targetContactId !== 'string' || !/^contact-[1-9]\d*$/.test(targetContactId))) ||
       ((sourceId !== 'boa' || !use) && targetContactId !== undefined)) {
@@ -7561,7 +8271,7 @@ export async function commitWolfRangeSupportActionChoice(
         reply.choiceStatus !== (use ? 'used' : 'passed') || reply.actionCount !== (use ? 1 : 0)) {
       throw new Error('The server returned an invalid Wolf range support receipt.');
     }
-    if (!wolfRangeSupportActorAuthorityCheckpointIsCurrent(sessionId, sourceId, checkpoint)) {
+    if (!wolfRangeSupportActorAuthorityCheckpointIsCurrent(sessionId, sourceId, checkpoint, expectedContext)) {
       throw new Error('The support actor session or authority changed before this range choice committed.');
     }
     return reply;

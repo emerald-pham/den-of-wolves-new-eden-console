@@ -207,3 +207,20 @@ it('rejects malformed stored ledgers and revision overflow without writes', asyn
   });
   expect(mock.updates).toHaveLength(0);
 });
+
+
+it.each(['aegis', 'dione'])('denies a fresh store transfer involving candidate-settled %s without closing other ships', async shipId => {
+  mock.session.candidateVesselOutcomes = { [shipId]: { code: 'N', groupId: 'fleet-1', shipId,
+    sourceId: 'ring-final', cycle: 3, outcome: 'left-behind' } };
+  await expect(scavengeDestroyedShipStores.run(request())).rejects.toMatchObject({ code: 'failed-precondition',
+    message: expect.stringContaining('candidate disposition') });
+  expect(mock.updates).toHaveLength(0);
+});
+it('recovers an original store allocation after candidate settlement while preserving live GM checks', async () => {
+  const original = await scavengeDestroyedShipStores.run(request());
+  mock.session.candidateVesselOutcomes = { dione: { code: 'P', groupId: 'fleet-1', shipId: 'dione',
+    sourceId: 'station-final', cycle: 3, outcome: 'settled' } };
+  await expect(scavengeDestroyedShipStores.run(request())).resolves.toEqual(original);
+  mock.instance.connected = false;
+  await expect(scavengeDestroyedShipStores.run(request())).rejects.toMatchObject({ code: 'permission-denied' });
+});

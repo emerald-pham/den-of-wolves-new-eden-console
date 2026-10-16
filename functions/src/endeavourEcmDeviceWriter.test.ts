@@ -95,6 +95,7 @@ function seedSession(): void {
     id: 'fleet-2', vesselIds: ['dione'], memberUids: ['captain'],
   });
   put('sessions/s1/serverState/endeavourResearch', { 'ecm-device': 5 });
+  put('sessions/s1/serverState/endeavourScienceDevices', { revision: 1, ecmBuilt: true, detectorBuilt: false });
   put('sessions/s1/serverState/navigation', {
     shipGalacticCoordinates: { shepherd: '0000', aegis: '0000', dione: '5143' },
     shipNavigationLogs: { shepherd: [], aegis: [], dione: [] },
@@ -129,7 +130,7 @@ describe('Endeavour ECM Device writer', () => {
   it('returns only the Shepherd group pursuit and the current private device status', async () => {
     await expect(readEndeavourEcmDeviceWorkspace.run(request({ sessionId: 's1' }))).resolves.toEqual({
       status: 'ready', sessionId: 's1', cycle: 3, controlRevision: 4,
-      researchComplete: true,
+      researchComplete: true, built: true,
       device: { status: 'ready', revision: 0 },
       pursuit: { groupId: 'fleet-1', current: 8 },
     });
@@ -267,7 +268,7 @@ describe('Endeavour ECM Device writer', () => {
   });
 
   it.each([
-    ['incomplete research', () => { put('sessions/s1/serverState/endeavourResearch', { 'ecm-device': 4 }); }],
+    ['unbuilt device despite completed research', () => { mock.documents.delete('sessions/s1/serverState/endeavourScienceDevices'); }],
     ['a different actor', () => {}, 'intruder'],
     ['a changed control revision', () => { put('sessions/s1', {
       ...mock.documents.get('sessions/s1'),
@@ -301,4 +302,28 @@ describe('Endeavour ECM Device writer', () => {
       ...command, expectedCycle: 4,
     }))).rejects.toBeInstanceOf(Error);
   });
+});
+
+
+it('denies a fresh Endeavour operation after its source vessel reaches a candidate disposition', async () => {
+  mock.documents.get('sessions/s1')!.candidateVesselOutcomes = { shepherd: { code: 'N', groupId: 'fleet-1', shipId: 'shepherd',
+    sourceId: 'candidate-n-3232', cycle: 3, outcome: 'left-behind' } };
+  await expect(activateEndeavourEcmDevice.run(request(command))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+});
+
+
+it('uses a paid built ECM before research is complete and refuses completed research without construction', async () => {
+  put('sessions/s1/serverState/endeavourResearch', { 'ecm-device': 1 });
+  await expect(activateEndeavourEcmDevice.run(request(command))).resolves.toMatchObject({ pursuitAfter: 5 });
+  expect(mock.documents.get('sessions/s1/serverState/endeavourScienceDevices')).toEqual({ revision: 1, ecmBuilt: true, detectorBuilt: false });
+  seedSession();
+  mock.documents.delete('sessions/s1/serverState/endeavourEcmDevice');
+  mock.documents.delete('sessions/s1/commandReceipts/ecm-use-1');
+  mock.documents.delete('sessions/s1/serverState/endeavourScienceDevices');
+  mock.set.mockClear(); mock.create.mockClear(); mock.update.mockClear();
+  await expect(activateEndeavourEcmDevice.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.create).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
 });

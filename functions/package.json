@@ -1,6 +1,7 @@
 {
   "name": "den-of-wolves-new-eden-console-functions",
   "private": true,
+  "license": "SEE LICENSE IN ../LICENSE.md",
   "main": "lib/index.js",
   "type": "commonjs",
   "engines": {

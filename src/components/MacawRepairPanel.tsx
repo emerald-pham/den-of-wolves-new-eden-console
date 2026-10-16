@@ -10,6 +10,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, ShuttleControlEntry, ShuttleDocking } from '@/types/game';
 import { parseMacawRepairLedger } from '@/lib/macawRepairLedger';
 import type { MacawRepairCallableStaleReply } from '../../functions/src/macawRepairCallable';
+import { turnPhaseDeadlinePassed } from '@/lib/turnPhase';
 
 interface Props {
   readonly control: ShuttleControlEntry;
@@ -89,12 +90,9 @@ function currentCapybaraScrap(session: GameSession): number | null {
 function hasLiveCoordination(session: GameSession): boolean {
   const cycle = session.currentTurn;
   const phase = session.turnPhase;
-  const deadlineValue = phase?.openAirspaceEndsAt;
-  if (typeof deadlineValue !== 'string') return false;
-  const deadline = Date.parse(deadlineValue);
   return session.phase === 'active' && Number.isSafeInteger(cycle) && (cycle as number) >= 1 &&
     phase?.turn === cycle && phase?.airspace?.state === 'lifted' && phase?.timerPause === undefined &&
-    Number.isFinite(deadline) && Date.now() < deadline;
+    !turnPhaseDeadlinePassed(phase, 'open');
 }
 
 function hasCurrentMacawHolderAuthority(

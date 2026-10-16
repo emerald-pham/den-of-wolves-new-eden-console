@@ -624,3 +624,34 @@ it('recovers an exact offer for an active sender even after the other player lea
   await expect(callables.createSameTableTradeOffer(createRequest())).resolves.toEqual({ ...first, status: 'replayed' });
   expect(store.committedWrites).toHaveLength(writes);
 });
+
+
+it('denies a fresh physical ship-table trade after settlement but recovers its original offer', async () => {
+  const store = seededStore();
+  const calls = createSameTableTradeCallables(dependencies(store));
+  await calls.createSameTableTradeOffer(createRequest());
+  store.records.get(paths().session)!.candidateVesselOutcomes = { icebreaker: { code: 'N', groupId: 'fleet-1', shipId: 'icebreaker',
+    sourceId: 'candidate-n-3232', cycle: 3, outcome: 'left-behind' } };
+  const writes = store.committedWrites.length;
+  await expect(calls.createSameTableTradeOffer(createRequest())).resolves.toMatchObject({ status: 'replayed' });
+  await expect(calls.acceptSameTableTradeOffer(acceptRequest())).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(store.committedWrites).toHaveLength(writes);
+});
+
+it('denies a fresh facilitator token baseline at a settled ship while preserving its exact attestation', async () => {
+  const store = seededStore();
+  const calls = createSameTableTradeCallables(dependencies(store));
+  const original = await calls.attestPlayerHeldTokenBaseline(attestationRequest());
+  store.records.get(paths().session)!.candidateVesselOutcomes = { icebreaker: { code: 'N', groupId: 'fleet-1', shipId: 'icebreaker',
+    sourceId: 'candidate-n-3232', cycle: 3, outcome: 'left-behind' } };
+  const writes = store.committedWrites.length;
+  await expect(calls.attestPlayerHeldTokenBaseline(attestationRequest())).resolves.toEqual(original);
+  store.records.delete(paths().senderInventory);
+  await expect(calls.attestPlayerHeldTokenBaseline(attestationRequest())).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(store.records.has(paths().senderInventory)).toBe(false);
+  expect(store.committedWrites).toHaveLength(writes);
+});

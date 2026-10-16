@@ -13,15 +13,26 @@ const missionLifecycleSource = readFileSync(new URL('./awayMissionLifecycleCalla
 const smallShipJumpSource = readFileSync(new URL('./smallShipJump.ts', import.meta.url), 'utf8');
 const turnInterstitialSource = readFileSync(new URL('./turnInterstitialCallable.ts', import.meta.url), 'utf8');
 const unionCraftSetupSource = readFileSync(new URL('./unionCraftSetupCallable.ts', import.meta.url), 'utf8');
-function sourceFunction(name: string): string {
-  const start = source.indexOf(`function ${name}(`);
+const boaMissionReclamationSource = readFileSync(
+  new URL('./boaMissionReclamationCallable.ts', import.meta.url), 'utf8');
+function sourceFunctionIn(sourceText: string, name: string): string {
+  const start = sourceText.indexOf(`function ${name}(`);
   if (start < 0) throw new Error(`Missing actual terminal authority helper: ${name}`);
-  const end = source.indexOf('\nfunction ', start + 1);
-  return source.slice(start, end < 0 ? undefined : end);
+  const end = sourceText.indexOf('\nfunction ', start + 1);
+  return sourceText.slice(start, end < 0 ? undefined : end);
+}
+function sourceFunction(name: string): string {
+  return sourceFunctionIn(source, name);
+}
+function factoryMethod(sourceText: string, name: string, nextName: string): string {
+  const start = sourceText.indexOf(`${name}: async (`);
+  const end = sourceText.indexOf(`${nextName}: async (`, start + 1);
+  if (start < 0 || end < 0) throw new Error(`Missing actual callable factory method: ${name}`);
+  return sourceText.slice(start, end);
 }
 const rangeStateGuard = sourceFunction('requireWolfRangeState');
 const boardingSnapshotGuard = sourceFunction('wolfBoardingProtocolSnapshot') + sourceFunction('wolfBoardingDefenceInputs');
-const callablePattern = /export const (\w+) = onCall/g;
+const callablePattern = /export const (\w+) = (?:onCall|auditedOnCall)\b/g;
 const matches = [...source.matchAll(callablePattern)];
 const highwallWindowGuardStart = source.indexOf('function requireLiveHighwallMiningWindow(');
 const highwallWindowGuardEnd = source.indexOf('\nfunction highwallCargo(', highwallWindowGuardStart);
@@ -36,6 +47,7 @@ const terminalFreezeExemptions = new Set([
   'disconnectFromSession', 'elevateToGm',
   // Setup and casting commands have their own pre-game windows. Legacy setup
   // shims always reject, and debrief mode is intentionally available afterward.
+  'prepareFullGameDemo',
   'confirmSetup', 'setFacilitatorResponsibility', 'startGame', 'setShipPreference',
   'assignRole', 'releaseRole', 'assignLoyalty', 'setCapybaraEnabled', 'setDioneEnabled',
   'setActiveRoleEnabled', 'setActiveRoleConfiguration', 'applyRolePreset',
@@ -43,7 +55,8 @@ const terminalFreezeExemptions = new Set([
   // Read-only authority projections do not mutate gameplay state.
   'getCommissarPurgeAuthority', 'getCurrentMemberSession', 'getWolfRangeActionChoice',
   'getWolfForceFieldChoice', 'getWolfBoardingDefenceChoice',
-  'getWolfAmnestyView',
+  'getWolfAmnestyView', 'getBoardingSecurityTeamLocations', 'readCandidateWorkspace',
+  'beginSessionDebrief', 'closeSession', 'getSessionDebrief',
   // Current-GM acknowledgement only records handling of a prior committed
   // sabotage clue and emits its decorative notice; it must remain drainable
   // from the terminal/debrief view without reopening gameplay mutations.
@@ -109,6 +122,16 @@ const terminalGuardDelegates: Readonly<Record<string, {
     target: 'smallShipJumpCallables.jumpSmallShip(request)',
     source: smallShipJumpSource, guard: 'requireActiveSession(session);',
   },
+  readBoaMissionReclamationWorkspace: {
+    target: 'boaMissionReclamationCallables.readBoaMissionReclamationWorkspace({ auth: request.auth, data: request.data })',
+    source: sourceFunctionIn(boaMissionReclamationSource, 'requireBoaActor'),
+    guard: "session.get('phase') !== 'active'",
+  },
+  chooseBoaMissionReclamationOpportunity: {
+    target: 'boaMissionReclamationCallables.chooseBoaMissionReclamationOpportunity({ auth: request.auth, data: request.data })',
+    source: sourceFunctionIn(boaMissionReclamationSource, 'requireBoaActor'),
+    guard: "session.get('phase') !== 'active'",
+  },
   readFleetGroupMessages: { target: 'groupNoteAuthority(', source, guard: 'requireActiveGameplayPhase(session);' },
   sendFleetGroupMessage: { target: 'groupNoteAuthority(', source, guard: 'requireActiveGameplayPhase(session);' },
   proposePermissionedDismantling: {
@@ -172,6 +195,7 @@ function callableBody(index: number): string {
 it('classifies every callable and requires terminal guards on normal gameplay paths', () => {
   const unclassified: string[] = [];
   const unguarded: string[] = [];
+  expect(matches.length, 'The actual callable inventory must never become empty').toBeGreaterThan(200);
   const acceptedGuards = [
     'requireActiveGameplayPhase(',
     'requireActionPhase(',
@@ -201,6 +225,30 @@ it('classifies every callable and requires terminal guards on normal gameplay pa
   expect(unguarded, 'Normal gameplay callables must reject terminal phases').toEqual([]);
 });
 
+it('classifies full-game demo preparation as a live-GM Cycle 0 casting operation', () => {
+  const index = matches.findIndex(match => match[1] === 'prepareFullGameDemo');
+  expect(index).toBeGreaterThanOrEqual(0);
+  expect(terminalFreezeExemptions.has('prepareFullGameDemo')).toBe(true);
+  const body = callableBody(index);
+  expect(body).toContain('isLiveGmInstance(preflightInstance, preflightPlayer, uid)');
+  expect(body).toContain('requireFacilitatorInstance(tx, prepare.sessionId, uid, prepare.instanceId)');
+  expect(body).toContain("sessionTurn(session.get('currentTurn')) !== 0");
+  expect(body).toContain('requireCastingWindow(session)');
+  expect(body).toContain("players.docs.some(player => player.exists && player.get('role') === 'player')");
+});
+
+it('keeps known read-only authority projections explicitly classified', () => {
+  expect(terminalFreezeExemptions.has('getBoardingSecurityTeamLocations')).toBe(true);
+  expect(terminalFreezeExemptions.has('readCandidateWorkspace')).toBe(true);
+});
+
+it('exports the debrief lifecycle and GM reader through the audited callable boundary', () => {
+  for (const name of ['beginSessionDebrief', 'closeSession', 'getSessionDebrief']) {
+    expect(source).toContain(`export const ${name} = auditedOnCall('${name}'`);
+    expect(terminalFreezeExemptions.has(name)).toBe(true);
+  }
+});
+
 it('keeps every delegated callable backed by a transaction-level terminal guard', () => {
   expect(permissionedDismantlingSource.match(/requireActiveSession\(session\);/g)).toHaveLength(5);
   expect(sameTableTradeSource.match(
@@ -210,6 +258,25 @@ it('keeps every delegated callable backed by a transaction-level terminal guard'
   expect(sourceFunction('requireCastingWindow')).toContain("!['lobby', 'casting'].includes(String(session.get('phase')))");
   expect(callableBody(matches.findIndex(match => match[1] === 'setUnionCraftStartingHost')))
     .toContain('requireCastingWindow,');
+});
+
+it('routes both Boa workspace paths through their actual live-phase actor guard', () => {
+  const readWorkspace = factoryMethod(
+    boaMissionReclamationSource, 'readBoaMissionReclamationWorkspace', 'chooseBoaMissionReclamationOpportunity',
+  );
+  const chooseOpportunity = boaMissionReclamationSource.slice(
+    boaMissionReclamationSource.indexOf('chooseBoaMissionReclamationOpportunity: async ('),
+  );
+  expect(readWorkspace).toContain('requireBoaActor(session, actor, group, actorUid, dependencies.isActivePlayer)');
+  expect(chooseOpportunity).toContain('requireBoaActor(session, actor, group, actorUid, dependencies.isActivePlayer)');
+  expect(sourceFunctionIn(boaMissionReclamationSource, 'requireBoaActor'))
+    .toContain("session.get('phase') !== 'active'");
+  for (const [name, target] of [
+    ['readBoaMissionReclamationWorkspace', 'boaMissionReclamationCallables.readBoaMissionReclamationWorkspace('],
+    ['chooseBoaMissionReclamationOpportunity', 'boaMissionReclamationCallables.chooseBoaMissionReclamationOpportunity('],
+  ] as const) {
+    expect(callableBody(matches.findIndex(match => match[1] === name))).toContain(target);
+  }
 });
 
 it('requires the Highwall mining window guard to reject non-active sessions', () => {

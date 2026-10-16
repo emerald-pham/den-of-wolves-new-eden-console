@@ -11,7 +11,7 @@ import {
   isCurrentSessionAuthority,
   type SessionAuthorityCheckpoint,
 } from '@/lib/sessionMutationAuthority';
-import { phaseForSession } from '@/lib/turnPhase';
+import { phaseForSession, turnPhaseDeadlinePassed } from '@/lib/turnPhase';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession } from '@/types/game';
 
@@ -27,14 +27,13 @@ function repairCommandAuthorityIsCurrent(
   const me = current.me;
   const ship = session?.smallShipStates?.warrior;
   const phase = phaseForSession(session);
-  const deadline = phase ? Date.parse(phase.openAirspaceEndsAt) : Number.NaN;
   return session?.id === checkpoint.sessionId && me?.sessionId === checkpoint.sessionId &&
     me?.uid === checkpoint.uid && me.role === 'player' && me.replacementRoleId === ROLE_ID &&
     me.replacementStatus == null && me.activeConsoleRoleId === null && me.seatId === null &&
     current.connection === 'live' && current.sessionSnapshotFreshness === 'server' &&
     window.navigator.onLine && session.phase === 'active' && session.currentTurn === command.expectedCycle &&
     phase?.airspace.state === 'lifted' && phase.timerPause === undefined &&
-    Number.isFinite(deadline) && Date.now() < deadline &&
+    !turnPhaseDeadlinePassed(phase, 'open') &&
     ship?.hostShipId === command.expectedHostShipId &&
     ship.dockingRevision === command.expectedDockingRevision;
 }
@@ -88,10 +87,9 @@ export default function WarriorRepairDronesPanel() {
     : [];
   const damageIdentity = JSON.stringify(eligibleSystemIds);
   const phase = phaseForSession(session);
-  const deadline = phase ? Date.parse(phase.openAirspaceEndsAt) : Number.NaN;
   const coordinationOpen = session?.phase === 'active' && currentCycle >= 1 &&
     phase?.airspace.state === 'lifted' && phase.timerPause === undefined &&
-    Number.isFinite(deadline) && Date.now() < deadline;
+    !turnPhaseDeadlinePassed(phase, 'open');
   const maintenance = warrior?.cycle;
   const teamMaintenanceClosed = maintenance?.step === 0 &&
     typeof maintenance.completedAt === 'string' && maintenance.completedAt.length > 0;

@@ -17,6 +17,10 @@ const mock = vi.hoisted(() => {
   };
   const get = vi.fn(async (target: { path: string }) => snapshot(target.path));
   const set = vi.fn((target: { path: string }, fields: Fields) => documents.set(target.path, { ...fields }));
+  const create = vi.fn((target: { path: string }, fields: Fields) => {
+    if (documents.has(target.path)) throw new Error('Audit already exists.');
+    documents.set(target.path, { ...fields });
+  });
   const update = vi.fn((target: { path: string }, fields: Fields) => {
     const current = { ...(documents.get(target.path) ?? {}) };
     for (const [path, value] of Object.entries(fields)) {
@@ -34,7 +38,7 @@ const mock = vi.hoisted(() => {
     }
     documents.set(target.path, current);
   });
-  const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) => callback({ get, set, update }));
+  const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) => callback({ get, set, update, create }));
   return { documents, get, set, update, db: { doc: ref, runTransaction } };
 });
 
@@ -274,4 +278,54 @@ it('rejects an unbound Ally repair event without revealing it through a replay',
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('records one private standardized ally-repair audit and preserves it on exact retry', async () => {
+  await repairConsolesFromAlly.run(request(command));
+  const metadata = mock.documents.get('sessions/s1/actionAudits/' + command.requestId);
+  const procedure = mock.documents.get('sessions/s1/procedureAudits/' + command.requestId);
+  expect(metadata).toMatchObject({ action: 'ally-repair', sessionId: 's1', requestId: command.requestId, outcome: 'committed', resolutionSource: 'server-calculated', redactionPolicy: 'action-audit-metadata-only-v1' });
+  expect(metadata).not.toHaveProperty('calculation');
+  expect(procedure).toMatchObject({ action: 'ally-repair', redactionPolicy: 'procedure-audit-gm-private-v1' });
+  expect(Object.keys(procedure!.calculation as Fields).length).toBeGreaterThan(0);
+  expect(Object.keys(procedure!.consequences as Fields).length).toBeGreaterThan(0);
+  expect((procedure!.requiredChoices as unknown[]).length).toBeGreaterThan(0);
+  await repairConsolesFromAlly.run(request(command));
+  expect(mock.documents.get('sessions/s1/actionAudits/' + command.requestId)).toEqual(metadata);
+  expect(mock.documents.get('sessions/s1/procedureAudits/' + command.requestId)).toEqual(procedure);
+});
+
+it.each(['shepherd', 'ally'])('rejects a fresh action when candidate vessel %s is settled while another group is active', async shipId => {
+  const current = mock.documents.get('sessions/s1')!;
+  current.candidateVesselOutcomes = { [shipId]: { code: 'O', groupId: 'fleet-1', shipId,
+    sourceId: 'candidate-o-3131', cycle: 3, outcome: 'reached' } };
+  await expect(repairConsolesFromAlly.run(request(command))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('recovers the exact entitled result after its host settles without accepting another action', async () => {
+  await expect(repairConsolesFromAlly.run(request(command))).resolves.toMatchObject({ status: 'committed' });
+  const current = mock.documents.get('sessions/s1')!;
+  current.candidateVesselOutcomes = { 'shepherd': { code: 'N', groupId: 'fleet-1', shipId: 'shepherd',
+    sourceId: 'candidate-n-3232', cycle: 3, outcome: 'left-behind' } };
+  const writes = mock.update.mock.calls.length + mock.set.mock.calls.length;
+  await expect(repairConsolesFromAlly.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
+  await expect(repairConsolesFromAlly.run(request({ ...command, requestId: 'candidate-unavailable-new' }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(mock.update.mock.calls.length + mock.set.mock.calls.length).toBe(writes);
+});
+
+
+it('rejects a consumed Ring Ally even when its old docking, fuel and ownership remain valid', async () => {
+  mock.documents.get('sessions/s1')!.candidateCraftReservations = { ally: { code: 'N', groupId: 'fleet-1',
+    coordinate: '3232', sourceId: 'candidate-n-3232', cycle: 3 } };
+  await expect(repairConsolesFromAlly.run(request(command))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('permanently consumed'),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });

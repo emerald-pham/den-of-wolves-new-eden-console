@@ -81,7 +81,7 @@ vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error {
     constructor(readonly code: string, message: string) { super(message); }
   },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),

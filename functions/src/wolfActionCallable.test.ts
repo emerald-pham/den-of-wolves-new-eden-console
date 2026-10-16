@@ -1,3 +1,4 @@
+import type * as NodeCrypto from 'node:crypto';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 import { recommendedRoleIds } from './roleConfiguration';
@@ -34,7 +35,7 @@ const mock = vi.hoisted(() => {
 });
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
-vi.mock('node:crypto', () => cryptoMock);
+vi.mock('node:crypto', async (importOriginal) => ({ ...await importOriginal<typeof NodeCrypto>(), ...(cryptoMock) }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => mock.db,
   FieldValue: { serverTimestamp: () => 'server-time', delete: () => 'deleted' },
@@ -52,7 +53,7 @@ vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error {
     constructor(readonly code: string, message: string) { super(message); }
   },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
@@ -669,4 +670,24 @@ it('rejects malformed ledgers, stale cycles, unknown resources, and request coll
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
+});
+
+
+it.each(['supply', 'beacon', 'intelligence'])('denies a fresh %s action from a candidate-settled Wolf cover vessel before entropy', async action => {
+  mock.documents.get('sessions/s1')!.candidateVesselOutcomes = { dione: { code: 'N', groupId: 'fleet-1',
+    shipId: 'dione', sourceId: 'ring-cutoff', cycle: 2, outcome: 'left-behind' } };
+  const pending = action === 'supply' ? submitWolfSupplySabotage.run(request()) : action === 'beacon' ?
+    submitWolfHomingBeacon.run(request({ sessionId: 's1', requestId: 'settled-beacon', expectedCycle: 2 })) :
+    submitWolfIntelligence.run(request({ sessionId: 's1', requestId: 'settled-intel', expectedCycle: 2, message: 'Human choice.' }));
+  await expect(pending).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringContaining('candidate disposition') });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+it('denies supplies sabotage against an Engineering Shuttle consumed by the Ring even if old cargo remains', async () => {
+  mock.documents.get('sessions/s1')!.candidateCraftReservations = { philia: { code: 'N', groupId: 'fleet-1',
+    coordinate: '3232', sourceId: 'ring-craft', cycle: 2 } };
+  await expect(submitWolfSupplySabotage.run(request())).rejects.toMatchObject({ code: 'failed-precondition',
+    message: expect.stringContaining('permanently consumed') });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.documents.get('sessions/s1')!.shuttleCargo).toEqual({ philia: { food: 5 }, maliades: { water: 4 } });
 });

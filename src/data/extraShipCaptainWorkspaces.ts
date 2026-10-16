@@ -44,7 +44,12 @@ export const EXTRA_SHIP_CAPTAIN_WORKSPACES: readonly ExtraShipCaptainWorkspaceDe
         charge: 'reactor', control: 'live-below',
         availability: 'Live server-owned movement controls appear below using this Captain’s known chart nodes.',
       },
-      unavailable('mission-support', 'Mission Support', 'Away Mission', 'Before cards are dealt, inspect the top five mission cards and return each to the top or bottom.', 'none', 'Awaiting the authoritative pre-deal mission lifecycle.'),
+      {
+        id: 'mission-support', name: 'Mission Support', phase: 'Away Mission',
+        effect: 'Before cards are dealt, inspect the top five mission cards and return each to the top or bottom.',
+        charge: 'none', control: 'live-below',
+        availability: 'Live Mission Support controls appear below for an eligible pre-deal mission.',
+      },
       {
         id: 'repair-drones',
         name: 'Repair Drones',
@@ -79,7 +84,12 @@ export const EXTRA_SHIP_CAPTAIN_WORKSPACES: readonly ExtraShipCaptainWorkspaceDe
         charge: 'reactor', control: 'live-below',
         availability: 'Live server-owned movement controls appear below using this Captain’s known chart nodes.',
       },
-      unavailable('bulk-haulage', 'Bulk Haulage', 'Away Mission', 'A contributed opportunity grants one additional resource of every type won.'),
+      {
+        id: 'bulk-haulage', name: 'Bulk Haulage', phase: 'Away Mission',
+        effect: 'A contributed opportunity grants one additional resource of every type won.',
+        charge: 'none', control: 'live-below',
+        availability: 'Mission resolution applies this benefit automatically when base Capybara contributes to the opportunity.',
+      },
       {
         id: 'cargo-transfer',
         name: 'Cargo Transfer',
@@ -99,9 +109,18 @@ export const EXTRA_SHIP_CAPTAIN_WORKSPACES: readonly ExtraShipCaptainWorkspaceDe
     vesselId: 'warrior',
     policy: 'Recover supplies and repair fleet consoles while protecting Warrior and Rosal survivors.',
     actions: [
-      unavailable('jump-drive', 'Jump Drive', 'FTL', 'Spend 1 / 1 / 2 fuel from the docked host for a short / medium / long jump.'),
-      unavailable('reclamator', 'Reclamator', 'Away Mission', 'Discard the entire hand to salvage one opportunity for the printed per-card resource choice.', 'none', 'Awaiting the authoritative mission opportunity and reward lifecycle.'),
-      unavailable('cargo-transfer', 'Cargo Transfer', 'Coordination', 'Move security teams, ore, fuel, food, water, or materials to and from the docked host.'),
+      { id: 'jump-drive', name: 'Jump Drive', phase: 'Coordination', charge: 'none', control: 'live-below',
+        effect: 'Spend 1 / 1 / 2 fuel from the docked host for a short / medium / long jump after current Team maintenance. No reactor charge is required.',
+        availability: 'Live server-owned Jump Drive controls appear below when current authority permits.' },
+      {
+        id: 'reclamator', name: 'Reclamator', phase: 'Away Mission',
+        effect: 'Discard the entire hand to salvage one opportunity for the printed per-card resource choice.',
+        charge: 'none', control: 'live-below',
+        availability: 'Live Reclamator choices appear in the mission workspace when Warrior contributes and private discards open.',
+      },
+      { id: 'cargo-transfer', name: 'Cargo Transfer', phase: 'Coordination', charge: 'none', control: 'live-below',
+        effect: 'Move a positive whole amount of security teams, ore, fuel, food, water, or materials between Warrior cargo and its current docked host.',
+        availability: 'Live server-owned transfer control appears below when current authority permits.' },
       {
         id: 'repair-drones',
         name: 'Repair Drones',
@@ -111,7 +130,12 @@ export const EXTRA_SHIP_CAPTAIN_WORKSPACES: readonly ExtraShipCaptainWorkspaceDe
         control: 'live-below',
         availability: 'Live server-owned repair control appears below when current authority permits.',
       },
-      unavailable('salvage-drones', 'Salvage Drones', 'Wolf attack', 'After an attack, when charged, roll once for each damage dealt by either side and gain 1 material for every 5+.', 'reactor', 'Attack damage tracking and salvage rolls are not available yet.'),
+      {
+        id: 'salvage-drones', name: 'Salvage Drones', phase: 'Wolf attack',
+        effect: 'After an attack, when charged, roll once for each damage dealt by either side and gain 1 material for every 5+.',
+        charge: 'reactor', control: 'live-below',
+        availability: 'Live aftermath controls appear below after a resolved attack when Warrior has a current Salvage Drones charge.',
+      },
     ],
   },
   {
@@ -119,8 +143,12 @@ export const EXTRA_SHIP_CAPTAIN_WORKSPACES: readonly ExtraShipCaptainWorkspaceDe
     vesselId: 'vulcan',
     policy: 'Protect and rehabilitate Vulcan prisoners while using only the vessel systems authorized for the current phase.',
     actions: [
-      unavailable('jump-drive', 'Jump Drive', 'FTL', 'Spend 1 / 1 / 2 fuel from the docked host for a short / medium / long jump.'),
-      unavailable('laser-cannon', 'Laser Cannon', 'Wolf attack', 'When charged, roll two dice at Medium and Short range; each 4+ deals 1 damage.', 'reactor', 'Awaiting the authoritative Medium and Short range resolvers.'),
+      { id: 'jump-drive', name: 'Jump Drive', phase: 'Coordination', charge: 'none', control: 'live-below',
+        effect: 'Spend 1 / 1 / 2 fuel from the docked host for a short / medium / long jump after current Team maintenance. No reactor charge is required.',
+        availability: 'Live server-owned Jump Drive controls appear below when current authority permits.' },
+      { id: 'laser-cannon', name: 'Laser Cannon', phase: 'Wolf attack', charge: 'reactor', control: 'live-below',
+        effect: 'When charged, roll two dice at Medium and Short range; each 4+ deals 1 damage.',
+        availability: 'Live server-owned range choice panels appear below at the current Medium or Short range. Choose use or pass before range resolution.' },
       {
         id: 'additional-labour',
         name: 'Additional Labour',

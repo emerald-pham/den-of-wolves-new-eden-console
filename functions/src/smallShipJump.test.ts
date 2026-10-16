@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { emptySmallShipState } from './smallShip';
 import { navigationStateDocumentPath } from './navigationProjection';
+import { STAR_CHART_COORDINATES } from './starChartGraph';
+import { jumpLengthBetween } from './jumpDrive';
 import {
   createSmallShipJumpCallables,
   parseSmallShipMovementState,
@@ -181,6 +183,66 @@ const jump = {
   destination: '5143', expectedOrigin: '0000', requestId: 'jump-1', expectedMovementRevision: 0,
   expectedDockingRevision: 1, expectedCycleRevision: 8,
 };
+
+function sourceUnchargedCraft(id: 'warrior' | 'vulcan') {
+  const state = emptySmallShipState(id, 'aegis');
+  state.dockingRevision = 1;
+  state.cycle = { ...state.cycle, step: 0, revision: 8, turn: 3, charges: [] };
+  const { db } = seed({ smallShipStates: { [id]: state } });
+  db.documents.set(smallShipMovementDocumentPath('s1', id), { ...movement(), smallShipId: id });
+  db.documents.set('sessions/s1/players/u1', { role: 'player', replacementRoleId: `${id}-captain`,
+    replacementStatus: null, activeConsoleRoleId: null, seatId: null });
+  db.documents.set('sessions/s1/playerDiscoveries/u1', { revision: 5, knownCoordinates: [...STAR_CHART_COORDINATES] });
+  const callables = createSmallShipJumpCallables({ db: db as never, requireUid: auth => {
+    if (!auth?.uid) throw new HttpsError('unauthenticated', 'Sign in first.'); return auth.uid;
+  }, requireSmallShipCaptainAuthority: async (_tx, sid, uid, _instance, craftId) => {
+    if (sid !== 's1' || uid !== 'u1' || craftId !== id) throw new HttpsError('permission-denied', 'Current original Captain required.');
+    return { player: { get: field => db.documents.get('sessions/s1/players/u1')?.[field] },
+      session: { exists: true, get: field => db.documents.get(sessionPath)?.[field] } } as never;
+  }, requireSmallShipMode: () => undefined, serverTimestamp: () => 'server-time', now: () => now });
+  return { db, callables };
+}
+
+describe('printed uncharged Warrior and Vulcan Jump Drives', () => {
+  it.each(['warrior', 'vulcan'] as const)('offers %s only its entitled known destinations and never invents a charge', async id => {
+    const { callables } = sourceUnchargedCraft(id);
+    const view = await callables.getSmallShipJumpWorkspace(request({ sessionId: 's1', smallShipId: id }));
+    expect(view).toMatchObject({ smallShipId: id, requiresCharge: false, charged: false });
+    await expect(callables.getSmallShipJumpWorkspace(request({ sessionId: 's1', smallShipId: id }, 'foreign')))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+  });
+
+  for (const id of ['warrior', 'vulcan'] as const) for (const [length, fuelCost] of [['short', 1], ['medium', 1], ['long', 2]] as const)
+    it(`${id} pays ${fuelCost} host fuel for ${length} without consuming an unrelated charge, and replays exactly`, async () => {
+      const { db, callables } = sourceUnchargedCraft(id);
+      const unrelatedCharge = id === 'warrior' ? 'salvage-drones' : 'laser-cannon';
+      const state = (db.documents.get(sessionPath)!.smallShipStates as Stored)[id] as Stored;
+      (state.cycle as Stored).charges = [unrelatedCharge];
+      const destination = STAR_CHART_COORDINATES.find(value => jumpLengthBetween('0000', value) === length)!;
+      expect(destination).toBeDefined();
+      const command = { ...jump, smallShipId: id, destination, requestId: `${id}-${length}` };
+      await expect(callables.jumpSmallShip(request(command))).resolves.toMatchObject({
+        status: 'committed', fuelCost, remainingHostFuel: 5 - fuelCost, smallShipId: id,
+      });
+      const count = db.writes.length;
+      await expect(callables.jumpSmallShip(request(command))).resolves.toMatchObject({ status: 'replayed', fuelCost });
+      expect(db.writes).toHaveLength(count);
+      expect(db.documents.get(sessionPath)?.smallShipStates).toMatchObject({ [id]: { hostShipId: null, cycle: { charges: [unrelatedCharge] } } });
+      await expect(callables.jumpSmallShip(request({ ...command, destination: command.destination === '1413' ? '0100' : '1413' })))
+        .rejects.toMatchObject({ code: 'failed-precondition' });
+    });
+
+  it.each(['warrior', 'vulcan'] as const)('keeps %s phase, current role, host and fuel denials intact', async id => {
+    const { db, callables } = sourceUnchargedCraft(id), command = { ...jump, smallShipId: id };
+    db.documents.get(sessionPath)!.turnPhase = { ...(db.documents.get(sessionPath)!.turnPhase as Stored),
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false } };
+    await expect(callables.jumpSmallShip(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(db.writes).toHaveLength(0);
+    db.documents.get('sessions/s1/players/u1')!.replacementRoleId = 'doctor';
+    await expect(callables.jumpSmallShip(request(command))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(db.writes).toHaveLength(0);
+  });
+});
 
 describe('small-craft Jump Drive authority', () => {
   beforeEach(() => vi.restoreAllMocks());
@@ -363,3 +425,34 @@ for (const uid of ['__proto__', 'constructor', 'toString', 'captain.with.period'
     }, uid))).resolves.toMatchObject({ arrivalCoordinates: ['0000', '5143'] });
   });
 }
+
+
+it.each(['aegis', 'gorgoneion'])('denies a fresh small-craft jump using settled vessel %s and retains exact recovery', async shipId => {
+  const { db, callables } = seed();
+  db.documents.get(sessionPath)!.candidateVesselOutcomes = { [shipId]: { code: 'O', groupId: 'fleet-1', shipId,
+    sourceId: 'candidate-o-3131', cycle: 3, outcome: 'reached' } };
+  await expect(callables.jumpSmallShip(request(jump))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(db.writes).toHaveLength(0);
+});
+
+it('recovers an original small-craft jump after its original host settles', async () => {
+  const { db, callables } = seed();
+  await callables.jumpSmallShip(request(jump));
+  db.documents.get(sessionPath)!.candidateVesselOutcomes = { aegis: { code: 'N', groupId: 'fleet-1', shipId: 'aegis',
+    sourceId: 'candidate-n-3232', cycle: 3, outcome: 'left-behind' } };
+  const writes = db.writes.length;
+  await expect(callables.jumpSmallShip(request(jump))).resolves.toMatchObject({ status: 'replayed' });
+  expect(db.writes).toHaveLength(writes);
+});
+
+it('retains the ordinary base Capybara charge requirement despite the two printed exceptions', async () => {
+  const state = emptySmallShipState('capybara-small', 'aegis');
+  state.dockingRevision = 1;
+  state.cycle = {...state.cycle, step:0, turn:3, revision:8, charges:[]};
+  const {db,callables} = seed({smallShipStates: {'capybara-small':state}});
+  db.documents.set('sessions/s1/players/u1', {role:'player', replacementRoleId:'capybara-small-captain', replacementStatus:null, activeConsoleRoleId:null});
+  await expect(callables.jumpSmallShip(request({...jump,smallShipId:'capybara-small'}))).rejects.toMatchObject({code:'failed-precondition'});
+  expect(db.writes).toHaveLength(0);
+});

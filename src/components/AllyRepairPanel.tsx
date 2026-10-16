@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { findShip } from '@/data/ships';
+import { turnPhaseDeadlinePassed } from '@/lib/turnPhase';
 import { parseAllyRepairLedger } from '@/lib/allyRepairLedger';
 import {
   hasCurrentAllyHolderAuthority,
@@ -85,13 +86,11 @@ export default function AllyRepairPanel({ control, docking, fuelled }: Props) {
   const visibleSystemIds = [...repairOptions, ...staleSelectedIds];
   const selectionIsCurrent = systemIds.length >= 1 && systemIds.every((id) => repairOptions.includes(id));
   const materials = docking ? session.shipResources?.[docking.shipId]?.materials ?? 0 : 0;
-  const repairDeadline = session.turnPhase?.openAirspaceEndsAt
-    ? Date.parse(session.turnPhase.openAirspaceEndsAt) : Number.NaN;
   const turnPhase = session.turnPhase;
   const repairWindowOpen = session.phase === 'active' && currentCycle >= 1 &&
     turnPhase !== undefined && turnPhase.turn === currentCycle &&
     turnPhase.airspace.state === 'lifted' && turnPhase.timerPause === undefined &&
-    Number.isFinite(repairDeadline) && Date.now() < repairDeadline;
+    !turnPhaseDeadlinePassed(turnPhase, 'open');
   const authorityBinding: AllyRepairAuthorityBinding = {
     sessionId: session.id,
     uid: me.uid,

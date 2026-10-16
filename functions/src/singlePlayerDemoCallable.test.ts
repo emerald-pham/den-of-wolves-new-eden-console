@@ -33,7 +33,7 @@ vi.mock('firebase-functions/v2/https', () => ({
       this.code = code;
     }
   },
-  onCall: (handler: unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
 vi.mock('firebase-functions/v2/scheduler', () => ({ onSchedule: vi.fn() }));

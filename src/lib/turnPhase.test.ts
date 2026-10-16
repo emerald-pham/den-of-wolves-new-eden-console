@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   hasActiveTurnTimer,
+  turnPhaseDeadlinePassed,
   turnPhaseReadout,
   turnPhaseState,
   turnStateForPhaseContext,
@@ -49,6 +50,21 @@ describe('emergency timer pause readout', () => {
       timerPause: { window: 'open', remainingMs: -1, pausedAt: phase.teamPhaseEndsAt },
     })).toBeUndefined();
   });
+});
+
+it('keeps manual phases live after arbitrary wall-clock time while ordinary deadlines still expire', () => {
+  const decadesLater = Date.parse('2099-01-01T00:00:00.000Z');
+  const manual = turnPhaseState({
+    ...phase,
+    progression: 'manual',
+    teamPhaseEndsAt: '2026-09-07T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-07T12:20:00.000Z',
+  });
+  expect(manual).toBeDefined();
+  expect(turnPhaseDeadlinePassed(manual, 'team', decadesLater)).toBe(false);
+  expect(turnPhaseDeadlinePassed(manual, 'open', decadesLater)).toBe(false);
+  expect(turnPhaseDeadlinePassed(phase, 'team', decadesLater)).toBe(true);
+  expect(turnPhaseDeadlinePassed(undefined, 'team', decadesLater)).toBe(true);
 });
 
 describe('persisted turn entity', () => {
@@ -120,4 +136,20 @@ it('preserves automatic pause provenance through persisted snapshot hydration', 
   expect(hydrated).toEqual(held);
   expect(turnPhaseReadout(hydrated, Date.parse('2026-09-08T00:00:00.000Z'))).toEqual({ kind: 'team', remainingMs: 180_000 });
   expect(turnPhaseState({ ...held, timerPause: { ...held.timerPause, reason: 'client-request' } })).toBeUndefined();
+});
+
+it('keeps the manual phase legible without rendering an expired countdown or active timer', () => {
+  const manual = turnPhaseState({
+    ...phase,
+    teamPhaseEndsAt: '9999-12-31T23:59:59.999Z',
+    openAirspaceEndsAt: '9999-12-31T23:59:59.999Z',
+    progression: 'manual',
+  });
+
+  expect(turnPhaseReadout(manual, Date.parse('2099-01-01T00:00:00.000Z'))).toEqual({
+    kind: 'team', remainingMs: 0, manual: true,
+  });
+  expect(hasActiveTurnTimer(manual, Date.parse('2099-01-01T00:00:00.000Z'))).toBe(false);
+  expect(turnPhaseState({ ...manual, progression: 'fast-forward' })).toBeUndefined();
+  expect(turnPhaseState({ ...manual, timerPause: { window: 'restricted', remainingMs: 1000, pausedAt: phase.teamPhaseEndsAt } })).toBeUndefined();
 });

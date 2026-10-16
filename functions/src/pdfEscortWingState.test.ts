@@ -285,3 +285,30 @@ describe('authoritative PDF Escort Wing state', () => {
     expect(parsePdfEscortWingState({ ...state, unexpected: true })).toBeNull();
   });
 });
+
+
+describe('never-assigned PDF host loss contract', () => {
+  const hostLoss = { status: 'lost', destroyedHostShipId: 'refinery-124', sourceId: 'damage-destroyed-refinery-124',
+    cycle: 1, lostAt: '2026-10-15T06:53:19.000Z' };
+  it('parses an exact terminal zero before declaration and never regrows it on a new phase', () => {
+    const terminal = { ...initialPdfEscortWingState(), revision: 1, fighters: 0, losses: 4, hostLoss };
+    const parsed = parsePdfEscortWingState(terminal);
+    expect(parsed).toEqual(terminal);
+    expect(beginPdfEscortWingAttack(parsed!, { expectedRevision: 1, attackId: 'later-attack', attackCycle: 2 }))
+      .toMatchObject({ fighters: 0, losses: 4, launched: false, hostLoss });
+    expect(() => authorizePdfEscortWingMission(parsed!, { missionAllowed: true, fuelRequired: false })).toThrow();
+  });
+  it('denies the existing mission authorizer even when its caller otherwise permits the lost wing', () => {
+    const terminal = { ...initialPdfEscortWingState(), revision: 1, fighters: 0, losses: 4, hostLoss };
+    expect(() => authorizePdfEscortWingMission(terminal as unknown as Parameters<typeof authorizePdfEscortWingMission>[0],
+      { missionAllowed: true, fuelRequired: false })).toThrow(/lost|Lost/);
+  });
+  it.each([
+    { hostLoss: undefined }, { hostLoss: { ...hostLoss, destroyedHostShipId: 'aegis' } },
+    { hostLoss: { ...hostLoss, cycle: 0 } }, { hostLoss: { ...hostLoss, sourceId: 'forged' } },
+    { hostLoss: { ...hostLoss, holderUid: 'foreign' } }, { hostLoss, fighters: 1, losses: 3 },
+    { hostLoss, launched: true },
+  ])('rejects count drift or counterfeit terminal identity %#', delta => {
+    expect(parsePdfEscortWingState({ ...initialPdfEscortWingState(), revision: 1, fighters: 0, losses: 4, ...delta })).toBeNull();
+  });
+});

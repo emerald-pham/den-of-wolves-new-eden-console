@@ -1,12 +1,11 @@
 import type { ActorScope } from './actionMetadata';
 import { INITIAL_SHIP_RESOURCES, isResourceShipId, type ShipResourceInventory } from './resources';
 import { replacementRoleFor } from './replacementRoles';
-import { parseSmallShipState } from './smallShip';
+import { isSmallShipInMutiny, parseSmallShipState } from './smallShip';
 import { SHIP_DAMAGE_DECKS } from './shipDamage';
-import { turnPhaseState } from './turnZero';
+import { turnPhaseDeadlinePassed, turnPhaseState } from './turnZero';
 
-const ROLE_ID = 'capybara-small-captain' as const;
-const SMALL_SHIP_ID = 'capybara-small' as const;
+export type SmallShipCargoId = 'capybara-small' | 'warrior';
 
 export const BASE_CAPYBARA_CARGO_TYPES = [
   'securityTeams', 'ore', 'fuel', 'food', 'water', 'materials',
@@ -54,11 +53,19 @@ export function parseBaseCapybaraCargoState(value: unknown): BaseCapybaraCargoSt
   return Object.freeze({ revision: raw.revision as number, inventory });
 }
 
-function requireCanonicalSmallShipState(value: unknown): NonNullable<ReturnType<typeof parseSmallShipState>> {
+function requireCanonicalSmallShipState(value: unknown, smallShipId: SmallShipCargoId): NonNullable<ReturnType<typeof parseSmallShipState>> {
   const raw = record(value);
+  const craftName = smallShipId === 'warrior' ? 'Warrior' : 'base Capybara';
   const cycle = record(raw?.cycle);
   const results = record(cycle?.results);
-  if (!raw || !exactKeys(raw, ['cycle', 'dockingRevision', 'hostShipId', 'id', 'population', 'unrest']) ||
+  const rootKeys = ['cycle', 'dockingRevision', 'hostShipId', 'id', 'population', 'unrest'];
+  if (smallShipId === 'warrior' && raw && Object.hasOwn(raw, 'mutiny')) rootKeys.push('mutiny');
+  const mutiny = record(raw?.mutiny);
+  const mutinyKeys = mutiny?.status === 'active'
+    ? ['status', 'revision', 'triggerUnrest', 'triggeredAt']
+    : ['status', 'revision', 'triggerUnrest', 'triggeredAt', 'reduction', 'recoveryRequestId', 'recoveredAt'];
+  if (!raw || !exactKeys(raw, rootKeys) ||
+      (Object.hasOwn(raw, 'mutiny') && (!mutiny || !exactKeys(mutiny, mutinyKeys))) ||
       !cycle || Object.keys(cycle).some((key) => ![
         'step', 'revision', 'results', 'charges', 'turn', 'rationBonus',
         'chargingSkipped', 'startedAt', 'completedAt',
@@ -67,17 +74,17 @@ function requireCanonicalSmallShipState(value: unknown): NonNullable<ReturnType<
       !Array.isArray(cycle.charges) || cycle.charges.some((charge) =>
         typeof charge !== 'string' || charge.length === 0) ||
       new Set(cycle.charges).size !== cycle.charges.length) {
-    throw new Error('The base Capybara state is malformed.');
+    throw new Error(`The ${craftName} state is malformed.`);
   }
-  const parsed = parseSmallShipState(value, SMALL_SHIP_ID);
-  if (!parsed) throw new Error('The base Capybara state is malformed.');
+  const parsed = parseSmallShipState(value, smallShipId);
+  if (!parsed) throw new Error(`The ${craftName} state is malformed.`);
   return parsed;
 }
 
-function requireCanonicalHostInventory(value: unknown, hostShipId: string): ShipResourceInventory {
+function requireCanonicalHostInventory(value: unknown, hostShipId: string, smallShipId: SmallShipCargoId): ShipResourceInventory {
   const raw = record(value);
   const initial = INITIAL_SHIP_RESOURCES[hostShipId];
-  if (!raw || !initial || 'scrap' in initial || !exactKeys(raw, BASE_CAPYBARA_CARGO_TYPES) ||
+  if (!raw || !initial || (smallShipId === 'capybara-small' && 'scrap' in initial) || !exactKeys(raw, Object.keys(initial)) ||
       Object.values(raw).some((amount) => !Number.isSafeInteger(amount) || (amount as number) < 0)) {
     throw new Error('The docked host inventory is malformed.');
   }
@@ -94,11 +101,11 @@ function requireUndestroyedHostDamage(value: unknown, hostShipId: string): void 
       new Set(raw.damagedSystemIds).size !== raw.damagedSystemIds.length) {
     throw new Error('The docked-host damage authority is malformed.');
   }
-  if (raw.destroyed) throw new Error('A destroyed host cannot transfer Capybara cargo.');
+  if (raw.destroyed) throw new Error('A destroyed host cannot transfer small-craft cargo.');
 }
 
-/** Resolve one base-game Capybara cargo move without persistence. */
-export function resolveBaseCapybaraCargoTransfer(input: Readonly<{
+/** Resolve a printed six-track cargo move using a server-selected craft. */
+export function resolveSmallShipCargoTransfer(input: Readonly<{
   actorUid: unknown;
   activeRoleHolderUid: unknown;
   actorRoleId: unknown;
@@ -118,7 +125,7 @@ export function resolveBaseCapybaraCargoTransfer(input: Readonly<{
   cargoState: unknown;
   hostResources: unknown;
   hostDamage: unknown;
-}>): Readonly<{
+}>, smallShipId: SmallShipCargoId): Readonly<{
   hostShipId: string;
   resourceId: BaseCapybaraCargoType;
   direction: 'load' | 'unload';
@@ -126,12 +133,15 @@ export function resolveBaseCapybaraCargoTransfer(input: Readonly<{
   hostResources: ShipResourceInventory;
   cargoState: BaseCapybaraCargoState;
 }> {
+  const craftName = smallShipId === 'warrior' ? 'Warrior' : 'base Capybara';
+  const ROLE_ID = `${smallShipId}-captain`;
+  const SMALL_SHIP_ID = smallShipId;
   const printedRole = replacementRoleFor(ROLE_ID);
   if (!printedRole || printedRole.kind !== 'extra-ship' || printedRole.vesselId !== SMALL_SHIP_ID ||
-      printedRole.baseVesselOnly !== true || input.actorScope !== 'player' || input.actorRoleId !== ROLE_ID ||
+      (smallShipId === 'capybara-small' && printedRole.baseVesselOnly !== true) || input.actorScope !== 'player' || input.actorRoleId !== ROLE_ID ||
       typeof input.actorUid !== 'string' || input.actorUid.length === 0 ||
       input.activeRoleHolderUid !== input.actorUid) {
-    throw new Error('Only the current base Capybara Captain may use Cargo Transfer.');
+    throw new Error(`Only the current ${craftName} Captain may use Cargo Transfer.`);
   }
 
   const phase = turnPhaseState(input.turnPhase);
@@ -140,17 +150,17 @@ export function resolveBaseCapybaraCargoTransfer(input: Readonly<{
     throw new Error('Cargo Transfer requires the current cycle authority.');
   }
   if (phase.airspace.state !== 'lifted') {
-    throw new Error('Base Capybara Cargo Transfer is available only during Coordination.');
+    throw new Error(`${craftName} Cargo Transfer is available only during Coordination.`);
   }
-  const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
   if (!Number.isSafeInteger(input.currentTime) || input.currentTime < 0 ||
-      phase.timerPause !== undefined || !Number.isFinite(openAirspaceEndsAt) ||
-      input.currentTime >= openAirspaceEndsAt) {
-    throw new Error('Base Capybara Cargo Transfer requires the current live Coordination cycle.');
+      phase.timerPause !== undefined ||
+      turnPhaseDeadlinePassed(phase, 'open', input.currentTime)) {
+    throw new Error(`${craftName} Cargo Transfer requires the current live Coordination cycle.`);
   }
 
-  if (input.vesselMode !== 'base-capybara') {
-    throw new Error('Cargo Transfer requires the canonical base Capybara vessel mode.');
+  if (!(input.vesselMode === 'base-capybara' || input.vesselMode === 'expansion-capybara' || input.vesselMode === 'none') ||
+      (smallShipId === 'capybara-small' && input.vesselMode !== 'base-capybara')) {
+    throw new Error(`Cargo Transfer requires the canonical ${craftName} vessel mode.`);
   }
   if (!Array.isArray(input.activeVesselIds) || input.activeVesselIds.length === 0 ||
       input.activeVesselIds.some((id) => typeof id !== 'string') ||
@@ -159,42 +169,45 @@ export function resolveBaseCapybaraCargoTransfer(input: Readonly<{
     throw new Error('The canonical core-fleet authority is malformed.');
   }
   if (input.activeVesselIds.includes(SMALL_SHIP_ID)) {
-    throw new Error('The base Capybara must remain separate from the canonical core-fleet roster.');
+    throw new Error(`The ${craftName} must remain separate from the canonical core-fleet roster.`);
   }
-  if (input.activeVesselIds.includes('capybara')) {
-    throw new Error('Cargo Transfer requires the base Capybara and excludes the expansion ship.');
+  if (smallShipId === 'capybara-small' && input.activeVesselIds.includes('capybara')) {
+    throw new Error(`Cargo Transfer requires the ${craftName} and excludes the expansion ship.`);
   }
   if (input.isSmallShipAdmitted !== true) {
-    throw new Error('Cargo Transfer requires server-owned admission for a docked base Capybara.');
+    throw new Error(`Cargo Transfer requires server-owned admission for a docked ${craftName}.`);
   }
 
-  const smallShipState = requireCanonicalSmallShipState(input.smallShipState);
-  const hostShipId = smallShipState.hostShipId;
-  if (!hostShipId) throw new Error('The base Capybara must be docked with one host ship.');
-  if (!isResourceShipId(hostShipId) || hostShipId === 'capybara' ||
-      !input.activeVesselIds.includes(hostShipId)) {
-    throw new Error('The base Capybara must be docked with an active core host inventory.');
+  const smallShipState = requireCanonicalSmallShipState(input.smallShipState, smallShipId);
+  if (isSmallShipInMutiny(smallShipState)) {
+    throw new Error(`${craftName} is in mutiny until a new Captain is installed.`);
   }
-  const hostResources = requireCanonicalHostInventory(input.hostResources, hostShipId);
+  const hostShipId = smallShipState.hostShipId;
+  if (!hostShipId) throw new Error(`The ${craftName} must be docked with one host ship.`);
+  if (!isResourceShipId(hostShipId) || (smallShipId === 'capybara-small' && hostShipId === 'capybara') ||
+      !input.activeVesselIds.includes(hostShipId)) {
+    throw new Error(`The ${craftName} must be docked with an active core host inventory.`);
+  }
+  const hostResources = requireCanonicalHostInventory(input.hostResources, hostShipId, smallShipId);
   requireUndestroyedHostDamage(input.hostDamage, hostShipId);
 
   if (!BASE_CAPYBARA_CARGO_TYPES.includes(input.resourceId as BaseCapybaraCargoType)) {
-    throw new Error('That resource is not permitted by the base Capybara printed cargo rule.');
+    throw new Error(`That resource is not permitted by the ${craftName} printed cargo rule.`);
   }
   if (input.direction !== 'load' && input.direction !== 'unload') {
-    throw new Error('Choose whether to load or unload base Capybara cargo.');
+    throw new Error(`Choose whether to load or unload ${craftName} cargo.`);
   }
   if (!Number.isSafeInteger(input.amount) || (input.amount as number) < 1) {
     throw new Error('Cargo amount must be a positive whole number.');
   }
 
   const cargoState = parseBaseCapybaraCargoState(input.cargoState);
-  if (!cargoState) throw new Error('The base Capybara cargo state is malformed.');
+  if (!cargoState) throw new Error(`The ${craftName} cargo state is malformed.`);
   if (!Number.isSafeInteger(input.expectedRevision) || input.expectedRevision !== cargoState.revision) {
-    throw new Error('Base Capybara cargo changed; refresh before transferring.');
+    throw new Error(`${craftName} cargo changed; refresh before transferring.`);
   }
   if (cargoState.revision >= Number.MAX_SAFE_INTEGER) {
-    throw new Error('Base Capybara cargo revision cannot advance safely.');
+    throw new Error(`${craftName} cargo revision cannot advance safely.`);
   }
 
   const resourceId = input.resourceId as BaseCapybaraCargoType;
@@ -221,4 +234,9 @@ export function resolveBaseCapybaraCargoTransfer(input: Readonly<{
       inventory: Object.freeze({ ...cargoState.inventory, [resourceId]: nextCargoAmount }),
     }),
   });
+}
+
+/** Existing base-game entry retains its exact craft and mode restrictions. */
+export function resolveBaseCapybaraCargoTransfer(input: Parameters<typeof resolveSmallShipCargoTransfer>[0]) {
+  return resolveSmallShipCargoTransfer(input, 'capybara-small');
 }

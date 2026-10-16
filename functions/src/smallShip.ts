@@ -1,5 +1,6 @@
 import { addResourceAmount, type ShipResourceInventory } from './resources';
 import { maintenanceActionForStep } from './maintenanceOrder';
+import { parseUnassignedCraftHostLoss, type UnassignedCraftHostLoss } from './shipDestruction';
 import {
   isShipInMutiny,
   mutinyAfterUnrestChange,
@@ -57,6 +58,9 @@ export interface SmallShipState {
   unrest: number;
   mutiny?: ShipMutiny;
   cycle: SmallShipMaintenanceCycle;
+  /** Missing legacy provenance is unknown, never equivalent to false. */
+  everAssigned?: boolean;
+  loss?: UnassignedCraftHostLoss;
 }
 
 export interface SmallShipMaintenanceInput {
@@ -139,8 +143,11 @@ export function parseSmallShipState(value: unknown, id: SmallShipId): SmallShipS
   const unrest = safeNonNegative(raw.unrest);
   const cycle = parseCycle(raw.cycle);
   const mutiny = raw.mutiny === undefined ? undefined : parseShipMutiny(raw.mutiny);
+  const loss = raw.loss === undefined ? undefined : parseUnassignedCraftHostLoss(raw.loss);
   if (dockingRevision === undefined || population === undefined || population > SMALL_SHIP_RULES[id].population ||
-      unrest === undefined || unrest > 10 || !cycle || (raw.mutiny !== undefined && !mutiny)) return undefined;
+      unrest === undefined || unrest > 10 || !cycle || (raw.mutiny !== undefined && !mutiny) ||
+      (Object.hasOwn(raw, 'everAssigned') && typeof raw.everAssigned !== 'boolean') ||
+      (Object.hasOwn(raw, 'loss') && (!loss || raw.everAssigned !== false || raw.hostShipId !== null || dockingRevision < 2))) return undefined;
   return {
     id,
     hostShipId: raw.hostShipId as string | null,
@@ -149,6 +156,8 @@ export function parseSmallShipState(value: unknown, id: SmallShipId): SmallShipS
     unrest,
     ...(mutiny ? { mutiny } : {}),
     cycle,
+    ...(raw.everAssigned === undefined ? {} : { everAssigned: raw.everAssigned as boolean }),
+    ...(loss ? { loss } : {}),
   };
 }
 

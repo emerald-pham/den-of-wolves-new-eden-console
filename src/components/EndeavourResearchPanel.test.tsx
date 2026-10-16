@@ -5,13 +5,15 @@ import { useSessionStore } from '@/store/useSessionStore';
 
 const mocks = vi.hoisted(() => ({
   read: vi.fn(), advance: vi.fn(), retry: vi.fn(), createAttempt: vi.fn(), purchaseUpgrade: vi.fn(), retryUpgrade: vi.fn(),
-  connectedPlayers: vi.fn(), detectorState: vi.fn(), detectorReport: vi.fn(), runDetector: vi.fn(),
+  connectedPlayers: vi.fn(), detectorState: vi.fn(), detectorReport: vi.fn(), runDetector: vi.fn(), createBuildAttempt: vi.fn(), buildDevice: vi.fn(),
 }));
 vi.mock('@/lib/endeavourResearchService', () => ({
   readEndeavourResearchWorkspace: mocks.read,
   advanceEndeavourResearchTrack: mocks.advance,
   retryEndeavourResearchAttempt: mocks.retry,
   createEndeavourResearchAttempt: mocks.createAttempt,
+  createEndeavourScienceDeviceAttempt: mocks.createBuildAttempt,
+  buildEndeavourScienceDevice: mocks.buildDevice,
 }));
 vi.mock('@/lib/firestore', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/firestore')>();
@@ -49,8 +51,68 @@ const workspace = {
     { trackId: 'jump-drive', name: 'Jump Drive', crossedBoxes: 0, totalBoxes: 5, currentMaterialCost: 14, complete: false },
   ],
   shepherdOre: 10,
+  scienceDevices: { revision: 0, ecmBuilt: false, detectorBuilt: false, ecmUsed: false, shepherdMaterials: 18 },
   fieldUpgradeState: { upgradeRevision: 6, targetsUsedThisCycle: 0 },
 };
+
+it('offers paid ECM construction before complete research, disables an unavailable Detector, then renders Built after the writer refresh', async () => {
+  const devices = { ...workspace, tracks: [
+    { trackId: 'ecm-device', name: 'ECM Device', crossedBoxes: 2, totalBoxes: 5, currentMaterialCost: 13, complete: false },
+    { trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector', crossedBoxes: 2, totalBoxes: 5, currentMaterialCost: null, complete: false },
+  ] };
+  mocks.read.mockResolvedValueOnce(devices).mockResolvedValue({ ...devices,
+    scienceDevices: { ...devices.scienceDevices, revision: 1, ecmBuilt: true, shepherdMaterials: 5 },
+  });
+  const attempt = { sessionId: 's1', requestId: 'build-ecm', expectedCycle: 3, expectedControlRevision: 4,
+    expectedResearchRevision: 0, expectedDeviceRevision: 0, deviceId: 'ecm-device' };
+  mocks.createBuildAttempt.mockReturnValue(attempt);
+  mocks.buildDevice.mockResolvedValue({ status: 'committed', built: true, materialCost: 13, shepherdMaterials: 5 });
+  render(<EndeavourResearchPanel control={control} />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Build ECM Device for 13 materials' }));
+  await waitFor(() => expect(mocks.buildDevice).toHaveBeenCalledExactlyOnceWith(attempt));
+  expect(await screen.findByText('ECM Device // Built')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Build Wolf Agent Detector' })).toBeDisabled();
+  expect(screen.queryByRole('region', { name: 'Wolf Agent Detector' })).not.toBeInTheDocument();
+});
+
+it('does not expose Detector tests on completed but unbuilt research', async () => {
+  mocks.read.mockResolvedValue({ ...workspace, tracks: [...workspace.tracks,
+    { trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector', crossedBoxes: 5,
+      totalBoxes: 5, currentMaterialCost: 10, complete: true },
+  ] });
+  render(<EndeavourResearchPanel control={control} />);
+  await screen.findByRole('list', { name: 'Research progress' });
+  expect(screen.queryByRole('button', { name: 'Run detector test' })).not.toBeInTheDocument();
+  expect(mocks.runDetector).not.toHaveBeenCalled();
+});
+
+it('builds an unlocked incomplete Detector then exposes its private test path after the authoritative refresh', async () => {
+  const devices = { ...workspace, tracks: [{ trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector',
+    crossedBoxes: 3, totalBoxes: 5, currentMaterialCost: 18, complete: false }] };
+  mocks.read.mockResolvedValueOnce(devices).mockResolvedValue({ ...devices,
+    scienceDevices: { ...devices.scienceDevices, revision: 1, detectorBuilt: true, shepherdMaterials: 0 } });
+  const attempt = { sessionId: 's1', requestId: 'build-detector', expectedCycle: 3, expectedControlRevision: 4,
+    expectedResearchRevision: 0, expectedDeviceRevision: 0, deviceId: 'wolf-agent-detector' };
+  mocks.createBuildAttempt.mockReturnValue(attempt);
+  mocks.buildDevice.mockResolvedValue({ status: 'committed', deviceId: 'wolf-agent-detector', built: true, materialCost: 18, shepherdMaterials: 0 });
+  render(<EndeavourResearchPanel control={control} />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Build Wolf Agent Detector for 18 materials' }));
+  expect(await screen.findByText('Wolf Agent Detector // Built')).toBeVisible();
+  await userEvent.click(screen.getByRole('button', { name: 'Run detector test' }));
+  await waitFor(() => expect(mocks.runDetector).toHaveBeenCalledExactlyOnceWith('target', 0));
+});
+
+it('keeps built Detector tests disabled outside the live Team window', async () => {
+  mocks.read.mockResolvedValue({ ...workspace, scienceDevices: { ...workspace.scienceDevices, revision: 1, detectorBuilt: true },
+    tracks: [{ trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector', crossedBoxes: 5,
+      totalBoxes: 5, currentMaterialCost: 10, complete: true }] });
+  const session = useSessionStore.getState().session!;
+  useSessionStore.setState({ session: { ...session, turnPhase: { ...session.turnPhase!,
+    airspace: { state: 'lifted', tickerActive: false, pressAccess: false } } } });
+  render(<EndeavourResearchPanel control={control} />);
+  expect(await screen.findByRole('button', { name: 'Run detector test' })).toBeDisabled();
+  expect(mocks.runDetector).not.toHaveBeenCalled();
+});
 
 function staleReply(attempt: {
   sessionId: string; requestId: string; expectedControlRevision: number;
@@ -74,6 +136,7 @@ function staleReply(attempt: {
 
 beforeEach(() => {
   mocks.read.mockReset();
+  mocks.createBuildAttempt.mockReset(); mocks.buildDevice.mockReset();
   mocks.advance.mockReset();
   mocks.purchaseUpgrade.mockReset();
   mocks.retryUpgrade.mockReset();
@@ -142,7 +205,7 @@ it('shows private left-most progress and field-upgrade cost to the current Scien
   render(<EndeavourResearchPanel control={control} />);
   expect(await screen.findByRole('region', { name: 'Endeavour research controls' })).toBeVisible();
   expect(screen.getByLabelText('Research track')).toHaveTextContent('Reactor');
-  expect(screen.getByText(/cross the left-most research box.*reactor.*cost is 7 materials/i)).toBeVisible();
+  expect(screen.getByText(/cross the left-most remaining research box.*reactor.*cost is 7 materials/i)).toBeVisible();
   expect(screen.getByRole('list', { name: 'Research progress' })).toHaveTextContent(
     'Reactor: 1 of 5 boxes crossed; next field-upgrade cost is 7 materials. Available for a research choice.',
   );
@@ -157,9 +220,10 @@ it('offers the finished detector to the current Scientist and submits a selected
   const user = userEvent.setup();
   mocks.read.mockResolvedValue({
     ...workspace,
+    scienceDevices: { ...workspace.scienceDevices, revision: 1, detectorBuilt: true },
     tracks: [...workspace.tracks, {
       trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector', crossedBoxes: 5,
-      totalBoxes: 5, currentMaterialCost: null, complete: true,
+      totalBoxes: 5, currentMaterialCost: 10, complete: true,
     }],
     progress: { ...workspace.progress, 'wolf-agent-detector': 5 },
   });
@@ -560,15 +624,15 @@ it('keeps the ore-funded choice unavailable without five current Shepherd ore', 
   expect(mocks.advance).not.toHaveBeenCalled();
 });
 
-it('shows completed tracks without inventing another field-upgrade price', async () => {
+it('shows completed tracks with the permanent final field-upgrade price', async () => {
   mocks.read.mockResolvedValue({
     ...workspace,
-    progress: { reactor: 5 },
-    tracks: [{ ...workspace.tracks[0]!, crossedBoxes: 5, totalBoxes: 5, currentMaterialCost: null, complete: true }],
+    progress: { reactor: 4 },
+    tracks: [{ ...workspace.tracks[0]!, crossedBoxes: 5, totalBoxes: 5, currentMaterialCost: 4, complete: true }],
   });
   render(<EndeavourResearchPanel control={control} />);
   expect(await screen.findByRole('list', { name: 'Research progress' })).toHaveTextContent(
-    'Reactor: 5 of 5 boxes crossed; no further field-upgrade cost. Research complete.',
+    'Reactor: 5 of 5 boxes crossed; current purchase cost is 4 materials. Research complete.',
   );
 });
 

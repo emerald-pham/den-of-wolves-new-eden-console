@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
 
@@ -11,6 +11,7 @@ vi.mock('@/lib/scoutResultService', () => api);
 
 import ScoutReportController from './ScoutReportController';
 import GmScoutRevealController from './GmScoutRevealController';
+import type { SessionPhase } from '@/types/game';
 
 const result = {
   type: 'private-scout-result', sessionId: 's1', requestId: 'r1', requesterUid: 'u1',
@@ -148,4 +149,106 @@ it('delivers the Comms Officer automatic report in its current replacement stati
   render(<ScoutReportController refreshKey="" entitlementId="comms-officer" />);
   await waitFor(() => expect(screen.getByRole('region', { name: 'Comms Officer scout report' }))
     .toHaveTextContent('Deep Nebula'));
+});
+
+function ownedGm(phase: SessionPhase = 'active') {
+  useSessionStore.setState(state => ({ session: { ...state.session!, phase },
+    me: { ...state.me!, uid: 'gm1', role: 'gm' },
+    gmInstance: { id: 'browser-1', sessionId: 's1', uid: 'gm1', name: 'GM', deviceLabel: 'Laptop',
+      claimedAt: '2026-10-05T12:00:00.000Z' } }));
+  api.listPendingScoutRequests.mockResolvedValue([]);
+}
+
+it.each(['lobby', 'casting', 'briefing'] as const)(
+  'does not query or keep polling the active-only GM scouting lists during %s', async phase => {
+    ownedGm(phase);
+    useSessionStore.setState(state => ({ session: { ...state.session!, currentTurn: 0 } }));
+    vi.useFakeTimers();
+    try {
+      render(<GmScoutRevealController />);
+      await act(async () => { await vi.advanceTimersByTimeAsync(16_000); });
+      expect(api.listPendingScoutRequests).not.toHaveBeenCalled();
+      expect(api.listGmScoutResolutionLog).not.toHaveBeenCalled();
+      expect(screen.getByText(/Awaiting GM start.*scouting results/)).toBeVisible();
+      expect(screen.queryByText('Scout queue unavailable. Reconnect and refresh.')).not.toBeInTheDocument();
+    } finally { vi.useRealTimers(); }
+  },
+);
+
+it.each(['success', 'failure', 'debrief', 'closed', 'retained-empty'] as const)(
+  'does not issue the source-denied GM scouting reads after %s', async phase => {
+    ownedGm(phase);
+    render(<GmScoutRevealController />);
+    await act(async () => {});
+    expect(api.listPendingScoutRequests).not.toHaveBeenCalled();
+    expect(api.listGmScoutResolutionLog).not.toHaveBeenCalled();
+    expect(screen.getByText(/Game ended.*scout recovery.*unavailable/)).toBeVisible();
+  },
+);
+
+it('starts both scouting reads under the same owned GM after the active phase arrives', async () => {
+  ownedGm('casting');
+  render(<GmScoutRevealController />);
+  expect(api.listPendingScoutRequests).not.toHaveBeenCalled();
+  await act(async () => useSessionStore.setState(state => ({ session: { ...state.session!, phase: 'active' } })));
+  await screen.findByRole('region', { name: 'GM scouting result log' });
+  expect(api.listPendingScoutRequests).toHaveBeenCalledTimes(1);
+  expect(api.listGmScoutResolutionLog).toHaveBeenCalledTimes(1);
+  expect(useSessionStore.getState().me?.uid).toBe('gm1');
+});
+
+it('retains the source-valid active-phase Cycle 0 reads instead of manufacturing a cycle restriction', async () => {
+  ownedGm();
+  useSessionStore.setState(state => ({ session: { ...state.session!, currentTurn: 0 } }));
+  render(<GmScoutRevealController />);
+  await screen.findByRole('region', { name: 'GM scouting result log' });
+  expect(api.listPendingScoutRequests).toHaveBeenCalledTimes(1);
+  expect(api.listGmScoutResolutionLog).toHaveBeenCalledTimes(1);
+});
+
+it('cannot paint late private GM log/queue replies after phase or owned-instance authority disappears', async () => {
+  ownedGm();
+  let resolvePending!: (value: unknown) => void;
+  let resolveLog!: (value: unknown) => void;
+  const pending = new Promise(resolve => { resolvePending = resolve; });
+  const log = new Promise(resolve => { resolveLog = resolve; });
+  api.listPendingScoutRequests.mockReturnValue(pending);
+  api.listGmScoutResolutionLog.mockReturnValue(log);
+  render(<GmScoutRevealController />);
+  await act(async () => useSessionStore.setState(state => ({ session: { ...state.session!, phase: 'debrief' } })));
+  await act(async () => {
+    resolvePending([{ requestId: 'r1', cycle: 2, entitlementId: 'endeavour', anchorShipId: 'shepherd', targetCoordinate: '0408' }]);
+    resolveLog([{ requestId: 'r1', cycle: 2, sourceId: 'endeavour', originShipId: 'shepherd', receivingShipId: 'shepherd',
+      targetCoordinate: '0408', systemFact: result.systemFact, recordedAt: '2026-09-27T21:40:00.000Z', resolutionMode: 'automatic' }]);
+    await Promise.all([pending, log]);
+  });
+  expect(screen.queryByText(/Deep Nebula/)).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Reveal Endeavour scout/ })).not.toBeInTheDocument();
+  expect(api.listPendingScoutRequests).toHaveBeenCalledTimes(1);
+});
+
+it('does not start follow-up scouting reads when an in-flight reveal loses active authority', async () => {
+  ownedGm();
+  api.listPendingScoutRequests.mockResolvedValue([{ requestId: 'r1', cycle: 2,
+    entitlementId: 'endeavour', anchorShipId: 'shepherd', targetCoordinate: '0408' }]);
+  let resolveReveal!: (value: unknown) => void;
+  const deferred = new Promise(resolve => { resolveReveal = resolve; });
+  api.resolvePendingScoutRequest.mockReturnValue(deferred);
+  render(<GmScoutRevealController />);
+  fireEvent.click(await screen.findByRole('button', { name: /Reveal Endeavour scout/ }));
+  await act(async () => useSessionStore.setState(state => ({ session: { ...state.session!, phase: 'debrief' } })));
+  await act(async () => { resolveReveal(result); await deferred; });
+  expect(api.listPendingScoutRequests).toHaveBeenCalledTimes(1);
+  expect(api.listGmScoutResolutionLog).toHaveBeenCalledTimes(1);
+  expect(screen.queryByText(/Deep Nebula/)).not.toBeInTheDocument();
+});
+
+it('awaits reconnect rather than querying with a foreign GM-instance UID', async () => {
+  ownedGm();
+  useSessionStore.setState(state => ({ gmInstance: { ...state.gmInstance!, uid: 'other-gm' } }));
+  render(<GmScoutRevealController />);
+  await act(async () => {});
+  expect(api.listPendingScoutRequests).not.toHaveBeenCalled();
+  expect(api.listGmScoutResolutionLog).not.toHaveBeenCalled();
+  expect(screen.getByText(/Reconnect.*scouting result log/)).toBeVisible();
 });

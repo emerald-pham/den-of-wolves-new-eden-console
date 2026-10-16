@@ -1,6 +1,6 @@
 import { commissarPurgeAuthorityIsCurrent } from '@/lib/commissarPurgeAuthority';
 import { memberSessionProjection } from '../functions/src/memberSession';
-import { Component, lazy, Suspense, useEffect, useRef, type ReactNode } from 'react';
+import { Component, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { HashRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import Landing from '@/routes/Landing';
 import RoleSelect from '@/routes/RoleSelect';
@@ -12,6 +12,7 @@ import {
   connectAutomatically,
   logoutGmAccess,
   reconcileGmAuthority,
+  readClosedSessionHistory,
   refreshPresence,
   requireStationReselectionForCurrentSession,
 } from '@/lib/sessionService';
@@ -19,6 +20,10 @@ import AppHeader from '@/components/AppHeader';
 import WolfHackingRuntime from '@/components/WolfHackingRuntime';
 import ShipPlot from '@/components/ShipPlot';
 import { useFleetGroupNavigation } from '@/lib/useFleetGroupNavigation';
+import { finishWingFirstEntry, memberSessionResumeBlocksFreshness, pendingWingFirstEntry,
+  finishAdmiralFirstEntry, pendingAdmiralFirstEntry, withholdAdmiralFirstEntry,
+  awaitAdmiralFirstEntryReader,
+  sessionSnapshotAuthorityFor } from '@/lib/sessionSnapshotAuthority';
 import ScreenFade from '@/components/ScreenFade';
 import CommunicationError from '@/components/CommunicationError';
 import PopulationAlert from '@/components/PopulationAlert';
@@ -32,7 +37,7 @@ import { GM_ACCESS_TIMEOUT_MS, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference, useMotionSafetyGatePending } from '@/lib/motionPreference';
 import { startVersionUpgradeMonitor } from '@/lib/versionUpgrade';
 import { markServiceWorkerUpdateAvailable } from '@/pwa';
-import { dockingForShuttle } from '@/data/shuttles';
+import { SHUTTLECRAFT, dockingForShuttle } from '@/data/shuttles';
 import { findShip } from '@/data/ships';
 import { findConsoleRole } from '@/data/roles';
 import { replacementRoleFor } from '@/data/replacementRoles';
@@ -49,16 +54,68 @@ import type {
   Player,
   PlayerDiscoveryProjection,
   RoleBrief as RoleBriefProjection,
+  SetupReceipt,
   WolfCultIntelligence,
 } from '@/types/game';
 import { isSessionRoute, restoreSessionRoute } from '@/lib/sessionRoute';
-import { stripGmNavigationProjection } from '@/lib/navigationPrivacy';
+import { stripGmNavigationProjection, stripPersistedNavigationProjection } from '@/lib/navigationPrivacy';
+import { isWireSafeEntityId } from '@/types/identifiers';
 import { shouldLoadAwayMissionDiscardPanel } from '@/lib/awayMissionVisibility';
 import type { GmDiscoveryProjection } from '@/lib/firestore';
 import { parseVoyage33MovementState } from '../functions/src/voyage33Movement';
+import { activeDemoActorProfile, demoActorPresenceAllowed } from '@/lib/demoActorContext';
+import { auth } from '@/lib/firebase';
 
 const GM_RECONCILE_INTERVAL_MS = 5_000;
 const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
+let automaticConnectionAttempt: Promise<void> | null = null;
+let pendingStationMemberRefresh: (() => boolean) | undefined;
+
+function connectAutomaticallyDeduplicated(): Promise<void> {
+  if (automaticConnectionAttempt) return automaticConnectionAttempt;
+  const attempt = connectAutomatically();
+  automaticConnectionAttempt = attempt;
+  const clear = () => {
+    if (automaticConnectionAttempt === attempt) automaticConnectionAttempt = null;
+  };
+  void attempt.then(clear, clear);
+  return attempt;
+}
+
+function clearClosedHistoryTransientState(session?: GameSession): void {
+  const store = useSessionStore.getState();
+  store.setPrivateLoyalty(null);
+  store.setRoleBrief(null);
+  store.setAwayMissionHandPointer(null);
+  store.setAwayMissionHand(null);
+  store.setAwayMissionHandPointers([]);
+  store.setAwayMissionHands([]);
+  store.setGmAwayMissionHandPointers([]);
+  store.setGmLoyaltyCensus(null);
+  store.setWolfCultIntelligence(null);
+  store.setGmWolfCultIntelligence(null);
+  store.setArbourVision(null);
+  store.setGmArbourVision(null);
+  store.setFacilitatorRuleCall(null);
+  store.setGmFacilitatorRuleCall(null);
+  store.setGmCrisisState(null);
+  store.setGmZealotryResponse(null);
+  store.setGmCivilUnrestResolution(null);
+  store.setGmSetupReceipt(null);
+  store.setCommissarPurgeAuthority(null);
+  store.setVoyage33MovementProjection(undefined, false);
+  store.setSeats([]);
+  const current = session ?? store.session;
+  if (current) {
+    const safeSession = stripPersistedNavigationProjection(current);
+    // Debrief data is server-validated and reader-scoped before it enters this
+    // in-memory session. Keep it ephemeral while the durable allowlist clears
+    // navigation and any other fields that do not belong in closed history.
+    store.setSession(current.debriefSnapshot
+      ? { ...safeSession, debriefSnapshot: current.debriefSnapshot }
+      : safeSession);
+  }
+}
 const GmConsole = lazy(() => import('@/routes/GmConsole'));
 const RoleBrief = lazy(() => import('@/routes/RoleBrief'));
 const SessionMode = lazy(() => import('@/routes/SessionMode'));
@@ -69,6 +126,8 @@ const PresidentOffice = lazy(() => import('@/routes/PresidentOffice'));
 const ElectionWorkspace = lazy(() => import('@/routes/ElectionWorkspace'));
 const CrisisReportPanel = lazy(() => import('@/components/CrisisReportPanel'));
 const ShipConsole = lazy(() => import('@/routes/ShipConsole'));
+const DemoActorManager = lazy(() => import('@/routes/DemoActorManager'));
+const DemoActorControls = lazy(() => import('@/components/DemoActorControls'));
 const hasConsoleDradis = (path: string): boolean =>
   path === '/press' || path.startsWith('/ships/') || path.startsWith('/union/') ||
   path.startsWith('/shuttles/') || path.startsWith('/replacement/');
@@ -117,16 +176,53 @@ function pursuitEmergencyAuthorityMatches(session: GameSession): boolean {
     marker.openedAt === authority.openedAt);
 }
 
-function stripNavigationProjection(session: GameSession): GameSession {
+function stripOwnPlayerNavigation(session: GameSession): GameSession {
   const next = { ...session };
   delete next.playerDiscovery;
-  delete next.currentGroupCandidateReveals;
   delete next.shipGalacticCoordinates;
   delete next.shipNavigationLogs;
+  return next;
+}
+
+function stripNavigationProjection(session: GameSession): GameSession {
+  const next = { ...stripOwnPlayerNavigation(session) };
+  delete next.currentGroupCandidateReveals;
   delete next.voyage33Movement;
   return next;
 }
 
+/** Join the private transaction witness to independently current actor and
+ * session snapshots. A present invalid witness never takes the legacy path. */
+function currentActorBerthMatches(session: GameSession, player: Player | null | undefined): boolean {
+  const berth = session.currentActorBerthAuthority;
+  const keys = ['sessionId', 'actorUid', 'groupId', 'role', 'connectionGeneration',
+    'assignedRoleId', 'activeConsoleRoleId', 'replacementRoleId', 'replacementStatus', 'shipId'];
+  const nullableRole = (id: unknown) => id === null || isWireSafeEntityId(id);
+  return Boolean(berth && typeof berth === 'object' && !Array.isArray(berth) &&
+    Object.keys(berth).length === keys.length && Object.keys(berth).every(key => keys.includes(key)) &&
+    isWireSafeEntityId(berth.sessionId) && isWireSafeEntityId(berth.actorUid) && isWireSafeEntityId(berth.shipId) &&
+    typeof berth.groupId === 'string' && /^fleet-[1-9][0-9]*$/.test(berth.groupId) && berth.role === 'player' &&
+    Number.isSafeInteger(berth.connectionGeneration) && berth.connectionGeneration >= 1 &&
+    nullableRole(berth.assignedRoleId) && nullableRole(berth.activeConsoleRoleId) && nullableRole(berth.replacementRoleId) &&
+    berth.replacementStatus === null && session.phase !== 'closed' &&
+    player?.role === 'player' && player.connected === true && player.replacementStatus == null &&
+    berth.sessionId === session.id && player.sessionId === session.id && berth.actorUid === player.uid &&
+    berth.groupId === player.fleetGroupId && berth.groupId === session.memberSessionScope?.groupId &&
+    Array.isArray(session.memberSessionScope?.vesselIds) &&
+    session.memberSessionScope.vesselIds.includes(berth.shipId) &&
+    berth.connectionGeneration === (player.connectionGeneration ?? 1) &&
+    berth.assignedRoleId === (player.assignedRoleId ?? null) && berth.activeConsoleRoleId === (player.activeConsoleRoleId ?? null) &&
+    berth.replacementRoleId === (player.replacementRoleId ?? null));
+}
+
+function currentActorBerthDiscoveryMatches(
+  session: GameSession, player: Player | null | undefined, projection: PlayerDiscoveryProjection,
+): boolean {
+  const berth = session.currentActorBerthAuthority;
+  return Boolean(berth && currentActorBerthMatches(session, player) &&
+    projection.groupId === berth.groupId && projection.shipId === berth.shipId &&
+    projection.fleetGroupVesselIds?.includes(berth.shipId) === true);
+}
 
 function effectivePlayerShip(player: Player | null | undefined): Player['shipPreferenceId'] {
   if (!player) return undefined;
@@ -145,6 +241,11 @@ function playerEntitlementKey(player: Player | null | undefined): string | undef
   if (player.replacementStatus === 'awaiting-re-role') return undefined;
   if (player.replacementRoleId) return `replacement:${player.replacementRoleId}`;
   return player.assignedRoleId ? `assigned:${player.assignedRoleId}` : undefined;
+}
+
+function playerBriefRoleId(player: Player | null | undefined): string | undefined {
+  if (!player || player.replacementStatus != null) return undefined;
+  return player.replacementRoleId ?? player.assignedRoleId ?? undefined;
 }
 
 function playerAuthorityKey(player: Player | null | undefined): string | undefined {
@@ -174,6 +275,12 @@ export function stationRoleFromPath(pathname: string): string | undefined {
     const [, shipId, roleId] = shipMatch;
     const role = findConsoleRole(roleId);
     return role && role.shipId === shipId ? role.id : undefined;
+  }
+  const shuttleMatch = /^\/shuttles\/([^/]+)$/.exec(pathname);
+  if (shuttleMatch) {
+    const shuttle = SHUTTLECRAFT.find((craft) => craft.id === shuttleMatch[1]);
+    const ownerRole = findConsoleRole(shuttle?.captainRoleId);
+    return ownerRole && ownerRole.shipId !== 'press' ? ownerRole.id : undefined;
   }
   const unionMatch = /^\/union\/roles\/([^/]+)$/.exec(pathname);
   const unionRole = findConsoleRole(unionMatch?.[1]);
@@ -211,8 +318,12 @@ function AppRoutes() {
   const localDradisNavigation = useFleetGroupNavigation(requiresLocalDradis);
   const communicationError = useSessionStore((state) => state.communicationError);
   const sessionId = session?.id;
+  const sessionPhase = session?.phase;
   const playerUid = me?.uid;
   const playerRole = me?.role;
+  const hasRoleBriefAudience = playerBriefRoleId(me) !== undefined;
+  const previousRoleBriefAudience = useRef({ sessionId, playerUid, available: hasRoleBriefAudience });
+  const [roleBriefActivationRevision, setRoleBriefActivationRevision] = useState(0);
   const gmInstanceId = useSessionStore((state) => state.gmInstance?.id);
   const awayMissionPointerCount = useSessionStore((state) => state.awayMissionHandPointers.length);
   const gmAwayMissionPointerCount = useSessionStore((state) => state.gmAwayMissionHandPointers.length);
@@ -259,6 +370,17 @@ function AppRoutes() {
       : shuttleHost ?? 'aegis';
 
   useEffect(() => {
+    const previous = previousRoleBriefAudience.current;
+    const sameIdentity = previous.sessionId === sessionId && previous.playerUid === playerUid;
+    const gainsBriefAudience = sameIdentity && hasRoleBriefAudience && !previous.available;
+    previousRoleBriefAudience.current = { sessionId, playerUid, available: hasRoleBriefAudience };
+    // A new assignment needs its own private reader. Losing an assignment
+    // clears the brief in onPlayer and terminates its SDK reader through Rules;
+    // preserve the current session listener's pending station-release callbacks.
+    if (gainsBriefAudience) setRoleBriefActivationRevision((revision) => revision + 1);
+  }, [hasRoleBriefAudience, playerUid, sessionId]);
+
+  useEffect(() => {
     appRoutesMounted.current = true;
     return () => { appRoutesMounted.current = false; };
   }, []);
@@ -275,7 +397,16 @@ function AppRoutes() {
   }, [communicationError?.kind, location.pathname, navigate]);
 
   useEffect(() => {
+    if (sessionPhase === 'closed') {
+      clearClosedHistoryTransientState(session ?? undefined);
+      return;
+    }
     if (!sessionId || !playerUid) return;
+    // A restored member stays a read-only cache until normal join/resume
+    // accepts this document's identity. Earlier actor/feed readers can publish
+    // pre-resume authority after that identity has been accepted.
+    if (playerRole === 'player' && !(identityHydrationRevision > 0)) return;
+    const initialMember = useSessionStore.getState().me;
     let active = true;
     const identity = `${sessionId}:${playerUid}`;
     if (
@@ -291,6 +422,14 @@ function AppRoutes() {
     const callbackCurrent = () => active && appRoutesMounted.current &&
       playerListenerGeneration.current === listenerGeneration &&
       useSessionStore.getState().gmInstance?.id === gmInstanceId;
+    const currentWingFirstEntry = () => callbackCurrent()
+      ? pendingWingFirstEntry(sessionSnapshotAuthorityFor(sessionId, playerUid), useSessionStore.getState(),
+        auth().currentUser?.uid, performance.timeOrigin)
+      : undefined;
+    const currentAdmiralFirstEntry = () => callbackCurrent()
+      ? pendingAdmiralFirstEntry(sessionSnapshotAuthorityFor(sessionId, playerUid), useSessionStore.getState(),
+        auth().currentUser?.uid, performance.timeOrigin)
+      : undefined;
     let pendingRoleBrief: RoleBriefProjection | null = null;
     let pendingWolfCultIntelligence: { intelligence: WolfCultIntelligence; generation: number } | null = null;
     let wolfCultAuthorityGeneration = 0;
@@ -309,6 +448,104 @@ function AppRoutes() {
     let playerProjectionFresh = false;
     let pendingPlayerDiscovery: PlayerDiscoveryProjection | null | undefined;
     let retainedGroupCandidateProjection: CurrentGroupCandidateRevealProjection | undefined;
+    const isPressAudience = (player: Player | null | undefined) =>
+      initialMember?.activeConsoleRoleId === 'press-officer' || player?.activeConsoleRoleId === 'press-officer';
+    const currentPressGroupDiscoveryMatches = (
+      current: GameSession, player: Player | null | undefined, projection: PlayerDiscoveryProjection,
+      requirePlayerFresh = true,
+    ): projection is PlayerDiscoveryProjection & Required<Pick<PlayerDiscoveryProjection, 'fleetGroupVesselIds'>> => {
+      const store = useSessionStore.getState();
+      const scope = current.memberSessionScope;
+      const control = current.shuttleControl?.['snn-press-shuttle'];
+      const controlKeys = ['shuttleId', 'ownerRoleId', 'ownerUid', 'holderUid', 'revision'];
+      return Boolean(callbackCurrent() && auth().currentUser?.uid === playerUid &&
+        store.identityHydrationRevision === identityHydrationRevision && identityHydrationRevision > 0 &&
+        store.session?.id === sessionId && current.id === sessionId && current.phase === 'active' &&
+        store.connection === 'live' && store.sessionSnapshotFreshness === 'server' &&
+        (!requirePlayerFresh || playerProjectionFresh) && initialMember?.uid === playerUid &&
+        initialMember.sessionId === sessionId && initialMember.role === 'player' &&
+        Number.isSafeInteger(initialMember.connectionGeneration) && (initialMember.connectionGeneration ?? 0) > 0 &&
+        player?.uid === playerUid && player.sessionId === sessionId && player.role === 'player' && player.connected === true &&
+        player.connectionGeneration === initialMember.connectionGeneration && player.fleetGroupId === initialMember.fleetGroupId &&
+        player.activeConsoleRoleId === 'press-officer' && player.assignedRoleId === null && player.seatId === null &&
+        player.replacementRoleId == null && player.replacementStatus == null && player.escapeState == null &&
+        Object.hasOwn(current, 'currentActorBerthAuthority') && current.currentActorBerthAuthority === null &&
+        current.pressEnabled !== false &&
+        scope && typeof scope.groupId === 'string' && /^fleet-[1-9][0-9]*$/.test(scope.groupId) &&
+        scope.groupId === player.fleetGroupId && scope.groupId === projection.groupId &&
+        Array.isArray(scope.vesselIds) && scope.vesselIds.length === 0 &&
+        Array.isArray(scope.craftIds) && scope.craftIds.length === 1 && scope.craftIds[0] === 'snn-press-shuttle' &&
+        control && Object.keys(control).length === controlKeys.length && Object.keys(control).every(key => controlKeys.includes(key)) &&
+        control.shuttleId === 'snn-press-shuttle' && control.ownerRoleId === 'press-officer' &&
+        control.ownerUid === playerUid && control.holderUid === playerUid &&
+        Number.isSafeInteger(control.revision) && control.revision >= 0 &&
+        projection.shipId === undefined && projection.currentCoordinate === undefined && projection.systemHistory === undefined &&
+        Number.isSafeInteger(projection.revision) && projection.revision >= 0 &&
+        Array.isArray(projection.fleetGroupVesselIds) &&
+        new Set(projection.fleetGroupVesselIds).size === projection.fleetGroupVesselIds.length);
+    };
+    // Press has no capital-ship berth. Its protected document supplies only
+    // current group metadata here; chart and candidate fields stay withheld.
+    const pressGroupMetadata = (
+      projection: PlayerDiscoveryProjection & Required<Pick<PlayerDiscoveryProjection, 'fleetGroupVesselIds'>>,
+    ): PlayerDiscoveryProjection => ({
+      groupId: projection.groupId, fleetGroupVesselIds: projection.fleetGroupVesselIds, revision: projection.revision,
+      knownCoordinates: [], knownSystems: {}, pursuitDistance: 0, navigationLogs: [],
+    });
+    const withdrawCurrentActorBerth = (previousPlayer?: Player | null) => {
+      const store = useSessionStore.getState();
+      const current = store.session;
+      if (!current || current.id !== sessionId || !Object.hasOwn(current, 'currentActorBerthAuthority')) return;
+      pendingPlayerDiscovery = undefined;
+      if (current.currentActorBerthAuthority === null && !current.playerDiscovery &&
+          !current.shipGalacticCoordinates && !current.shipNavigationLogs) return;
+      const member = store.me;
+      const scope = current.memberSessionScope;
+      // Only a validated positive current berth can originate this local
+      // distinction. A server null or invalid/foreign witness remains untagged.
+      const sourceMember = previousPlayer ?? member;
+      const firstEntry = currentWingFirstEntry();
+      const admiralEntry = callbackCurrent()
+        ? withholdAdmiralFirstEntry(sessionSnapshotAuthorityFor(sessionId, playerUid), store,
+          auth().currentUser?.uid, performance.timeOrigin) : undefined;
+      const sourceBerth = current.currentActorBerthAuthority;
+      const projectionPending = firstEntry && currentActorBerthMatches(current, sourceMember)
+        ? { ...firstEntry, activeConsoleRoleId: member?.activeConsoleRoleId === 'wing-commander' ? 'wing-commander' as const : null }
+        : admiralEntry && sourceBerth && sourceBerth.sessionId === admiralEntry.sessionId &&
+          sourceBerth.actorUid === admiralEntry.actorUid && sourceBerth.groupId === admiralEntry.groupId &&
+          sourceBerth.role === 'player' && sourceBerth.shipId === 'aegis' &&
+          sourceBerth.connectionGeneration === admiralEntry.sourceConnectionGeneration &&
+          sourceBerth.assignedRoleId === 'admiral' && sourceBerth.activeConsoleRoleId === null &&
+          sourceBerth.replacementRoleId == null && sourceBerth.replacementStatus == null
+          ? { ...admiralEntry, activeConsoleRoleId: member?.activeConsoleRoleId === 'admiral' ? 'admiral' as const : null }
+        : ['lobby', 'casting'].includes(current.phase ?? '') && current.currentTurn === 0 &&
+        current.setupConfirmed === true && currentActorBerthMatches(current, sourceMember) &&
+        auth().currentUser?.uid === playerUid && sourceMember?.uid === member?.uid &&
+        sourceMember?.sessionId === member?.sessionId && sourceMember?.fleetGroupId === member?.fleetGroupId &&
+        member?.uid === playerUid && member.role === 'player' && member.connected === true &&
+        (member.assignedRoleId == null || member.assignedRoleId === 'wing-commander') &&
+        member.activeConsoleRoleId == null && member.seatId == null && member.escapeState == null &&
+        (member as Player & { readonly kickedAt?: unknown }).kickedAt == null &&
+        member.replacementRoleId == null && member.replacementStatus == null &&
+        Number.isSafeInteger(member.connectionGeneration) && (member.connectionGeneration ?? 0) > 0 &&
+        scope && current.currentActorBerthAuthority?.shipId === 'aegis'
+        ? { kind: 'app-casting-berth-withheld' as const, sessionId, actorUid: playerUid,
+          groupId: scope.groupId, role: 'player' as const,
+          assignedRoleId: member.assignedRoleId == null ? null : 'wing-commander' as const,
+          activeConsoleRoleId: null, seatId: null, shipId: current.currentActorBerthAuthority.shipId,
+          connectionGeneration: member.connectionGeneration!, identityHydrationRevision: store.identityHydrationRevision,
+          sourceConnectionGeneration: current.currentActorBerthAuthority.connectionGeneration,
+          sourceIdentityHydrationRevision: store.identityHydrationRevision,
+          documentTimeOrigin: performance.timeOrigin,
+          memberSessionScope: { groupId: scope.groupId, vesselIds: [...scope.vesselIds], craftIds: [...scope.craftIds] } }
+        : null;
+      if (projectionPending?.kind === 'app-admiral-first-entry-withheld') {
+        // The activating player invalidates the old reader's role projection.
+        // Only a matching normal member/freshness callback can release it.
+        pendingStationMemberRefresh = () => Boolean(currentAdmiralFirstEntry());
+      }
+      store.setSession({ ...stripNavigationProjection(current), currentActorBerthAuthority: null }, projectionPending);
+    };
     const invalidatePendingStationReleaseFreshness = () => {
       const pending = pendingStationRelease.current;
       if (pending?.sessionId === sessionId && pending.playerUid === playerUid) {
@@ -433,11 +670,23 @@ function AppRoutes() {
         return;
       }
       const projection = pendingPlayerDiscovery;
+      if (isPressAudience(store.me)) {
+        retainedGroupCandidateProjection = undefined;
+        const next = stripNavigationProjection(current);
+        if (currentPressGroupDiscoveryMatches(current, store.me, projection)) {
+          store.setSession({ ...next, playerDiscovery: pressGroupMetadata(projection) });
+        } else {
+          pendingPlayerDiscovery = undefined;
+          store.setSession(next);
+        }
+        return;
+      }
       const requiresCandidateAuthority = projection.candidateReveals !== undefined;
+      const hasCurrentBerthAuthority = Object.hasOwn(current, 'currentActorBerthAuthority');
       // Navigation remains an own-ship projection. Group candidate names need
       // both independent server snapshots because either can change the read
       // audience while this protected document is arriving.
-      if (requiresCandidateAuthority &&
+      if ((requiresCandidateAuthority || hasCurrentBerthAuthority) &&
           (!playerProjectionFresh || store.connection !== 'live' || store.sessionSnapshotFreshness !== 'server')) return;
       const me = store.me;
       if (me?.uid !== playerUid || me.role !== 'player' ||
@@ -462,7 +711,9 @@ function AppRoutes() {
       const withGroupCandidates = candidateProjection
         ? { ...withoutPreviousDiscovery, currentGroupCandidateReveals: candidateProjection }
         : withoutPreviousDiscovery;
-      const entitledShipId = effectivePlayerShip(me);
+      const entitledShipId = hasCurrentBerthAuthority
+        ? currentActorBerthDiscoveryMatches(current, me, projection) ? current.currentActorBerthAuthority?.shipId : undefined
+        : effectivePlayerShip(me);
       if (!entitledShipId || projection.shipId !== entitledShipId) {
         pendingPlayerDiscovery = undefined;
         store.setSession(withGroupCandidates);
@@ -480,13 +731,28 @@ function AppRoutes() {
       });
     };
     const unsubscribeAuthorityFreshness = useSessionStore.subscribe((state, previousState) => {
+      const pressDiscovery = state.session?.playerDiscovery;
+      if (callbackCurrent() && state.session && pressDiscovery && isPressAudience(state.me) &&
+          (!currentPressGroupDiscoveryMatches(state.session, state.me, pressDiscovery, false) ||
+            previousState.session?.playerDiscovery &&
+              previousState.session.shuttleControl?.['snn-press-shuttle']?.revision !== state.session.shuttleControl?.['snn-press-shuttle']?.revision)) {
+        pendingPlayerDiscovery = undefined;
+        retainedGroupCandidateProjection = undefined;
+        state.setSession(stripNavigationProjection(state.session));
+      }
       const wasFresh = previousState.connection === 'live' &&
         previousState.sessionSnapshotFreshness === 'server';
       const isFresh = state.connection === 'live' && state.sessionSnapshotFreshness === 'server';
       if (wasFresh && !isFresh) {
+        withdrawCurrentActorBerth();
         pendingGmDiscovery = undefined;
         state.setVoyage33MovementProjection(undefined, false);
         playerProjectionFresh = false;
+        // A missing or unchanged census can emit its server projection once.
+        // Retire the listener when authority becomes stale so the renewed
+        // player projection requests a fresh census instead of waiting forever
+        // for a callback that was correctly rejected during the interruption.
+        clearLoyaltyCensus();
         invalidatePendingStationReleaseFreshness();
         clearCurrentGroupCandidateReveals();
       }
@@ -509,14 +775,14 @@ function AppRoutes() {
     });
     let subscribeLoyaltyCensusFn: (
       sessionId: string,
-      onCensus: (census: LoyaltyCensus | null) => void,
+      onCensus: (census: LoyaltyCensus | null, status: 'loading' | 'present' | 'empty' | 'error') => void,
     ) => () => void = () => () => undefined;
     const clearLoyaltyCensus = () => {
       censusGeneration += 1;
       censusSubscribed = false;
       unsubscribeLoyaltyCensus();
       unsubscribeLoyaltyCensus = () => undefined;
-      useSessionStore.getState().setGmLoyaltyCensus(null);
+      useSessionStore.getState().setGmLoyaltyCensus(null, 'loading');
     };
     const clearWolfCultIntelligence = () => {
       wolfCultAuthorityGeneration += 1;
@@ -562,9 +828,16 @@ function AppRoutes() {
       if (censusSubscribed) return;
       const generation = ++censusGeneration;
       censusSubscribed = true;
-      unsubscribeLoyaltyCensus = subscribeLoyaltyCensusFn(sessionId, (next) => {
-        if (generation !== censusGeneration || !currentPlayerMayReadCensus()) return;
-        useSessionStore.getState().setGmLoyaltyCensus(next);
+      unsubscribeLoyaltyCensus = subscribeLoyaltyCensusFn(sessionId, (next, status) => {
+        if (generation !== censusGeneration) return;
+        if (!currentPlayerMayReadCensus()) {
+          // A one-shot empty/unchanged projection rejected during player
+          // renewal cannot be replayed by Firestore. Retire this generation
+          // so fresh own-player authority binds a new private listener.
+          clearLoyaltyCensus();
+          return;
+        }
+        useSessionStore.getState().setGmLoyaltyCensus(next, status);
       });
     };
     const reconcileStationRelease = () => {
@@ -589,17 +862,95 @@ function AppRoutes() {
       subscribeLoyaltyCensus,
     }) => {
       if (!active) return;
+      const briefAudienceAvailable = playerBriefRoleId(useSessionStore.getState().me) !== undefined;
       subscribeLoyaltyCensusFn = subscribeLoyaltyCensus;
       unsubscribe = subscribeSessionState(sessionId, playerUid, {
         sessionReadAudience: playerRole === 'gm' ? 'gm' : 'member',
         sessionSnapshotAuthority: sessionSnapshotAuthorityFor(sessionId, playerUid),
-        onSession: (next) => {
+        initialMemberActor: () => {
+          const current = useSessionStore.getState();
+          const member = current.me;
+          // A first player confirmation can precede its member transaction.
+          // Only this document's accepted identity may initialize that reader.
+          if (!callbackCurrent() || !initialMember || initialMember.role !== 'player' || !(identityHydrationRevision > 0) ||
+              !sessionSnapshotAuthorityFor(sessionId, playerUid).hasServerSessionAuthority ||
+              auth().currentUser?.uid !== playerUid || current.identityHydrationRevision !== identityHydrationRevision ||
+              current.session?.id !== sessionId || current.connection !== 'live' || current.sessionSnapshotFreshness !== 'server' ||
+              ['debrief', 'closed'].includes(current.session.phase ?? '') ||
+              !member || member.uid !== playerUid || member.sessionId !== sessionId || member.role !== 'player' ||
+              member.connected === false || initialMember.connected === false ||
+              !Number.isSafeInteger(initialMember.connectionGeneration) || (initialMember.connectionGeneration ?? 0) < 1 ||
+              member.connectionGeneration !== initialMember.connectionGeneration || member.fleetGroupId !== initialMember.fleetGroupId ||
+              (member.assignedRoleId ?? null) !== (initialMember.assignedRoleId ?? null) ||
+              (member.activeConsoleRoleId ?? null) !== (initialMember.activeConsoleRoleId ?? null) ||
+              (member.seatId ?? null) !== (initialMember.seatId ?? null) ||
+              member.replacementRoleId != null || member.replacementStatus != null || member.escapeState != null ||
+              initialMember.replacementRoleId != null || initialMember.replacementStatus != null || initialMember.escapeState != null ||
+              activeDemoActorProfile && activeDemoActorProfile.sessionId !== sessionId) return undefined;
+          return initialMember;
+        },
+        prepareStationMemberRefresh: (player) => {
+          if (!callbackCurrent()) return;
+          const original = useSessionStore.getState();
+          const member = original.me;
+          if (!initialMember || initialMember.uid !== playerUid || initialMember.sessionId !== sessionId ||
+              initialMember.role !== 'player' || initialMember.connected === false || !member ||
+              initialMember.replacementRoleId != null || initialMember.replacementStatus != null || initialMember.escapeState != null ||
+              member.uid !== playerUid || member.sessionId !== sessionId || member.role !== 'player' || member.connected !== true ||
+              original.session?.id !== sessionId || original.connection !== 'live' || original.sessionSnapshotFreshness !== 'server' ||
+              ['debrief', 'closed'].includes(original.session.phase ?? '') ||
+              auth().currentUser?.uid !== playerUid || original.identityHydrationRevision !== identityHydrationRevision ||
+              !sessionSnapshotAuthorityFor(sessionId, playerUid).hasServerSessionAuthority ||
+              memberSessionResumeBlocksFreshness(sessionSnapshotAuthorityFor(sessionId, playerUid)) ||
+              !(identityHydrationRevision > 0) || !Number.isSafeInteger(member.connectionGeneration) ||
+              (member.connectionGeneration ?? 0) < 1 || member.connectionGeneration !== initialMember.connectionGeneration ||
+              member.fleetGroupId !== initialMember.fleetGroupId || member.assignedRoleId !== initialMember.assignedRoleId ||
+              member.seatId !== initialMember.seatId || player.uid !== member.uid || player.sessionId !== member.sessionId ||
+              player.connectionGeneration !== member.connectionGeneration || player.fleetGroupId !== member.fleetGroupId ||
+              player.assignedRoleId !== member.assignedRoleId || player.seatId !== member.seatId ||
+              (member.activeConsoleRoleId !== null && member.activeConsoleRoleId !== player.activeConsoleRoleId) ||
+              member.replacementRoleId != null || member.replacementStatus != null || member.escapeState != null) return;
+          // This owns only an in-flight read. The existing false freshness and
+          // private projection withdrawal remain in force until it accepts.
+          return (isCurrentRead) => {
+            pendingStationMemberRefresh = () => {
+              const current = useSessionStore.getState();
+              const next = current.me;
+              return callbackCurrent() && isCurrentRead() && auth().currentUser?.uid === playerUid &&
+                current.identityHydrationRevision === identityHydrationRevision && current.session?.id === sessionId &&
+                !['debrief', 'closed'].includes(current.session.phase ?? '') &&
+                sessionSnapshotAuthorityFor(sessionId, playerUid).hasServerSessionAuthority &&
+                !memberSessionResumeBlocksFreshness(sessionSnapshotAuthorityFor(sessionId, playerUid)) &&
+                next?.uid === playerUid && next.sessionId === sessionId && next.role === 'player' && next.connected === true &&
+                next.connectionGeneration === member.connectionGeneration && next.fleetGroupId === member.fleetGroupId &&
+                next.assignedRoleId === member.assignedRoleId && next.activeConsoleRoleId === player.activeConsoleRoleId &&
+                next.seatId === member.seatId && next.replacementRoleId == null && next.replacementStatus == null &&
+                next.escapeState == null && (!activeDemoActorProfile || activeDemoActorProfile.sessionId === sessionId);
+            };
+          };
+        },
+        onSession: (incoming) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
+          const next = Object.hasOwn(incoming, 'currentActorBerthAuthority') &&
+            !currentActorBerthMatches(incoming, store.me)
+            ? { ...stripOwnPlayerNavigation(incoming), currentActorBerthAuthority: null } : incoming;
+          if (next.phase === 'closed') {
+            retainedGroupCandidateProjection = undefined;
+            pendingPlayerDiscovery = undefined;
+            pendingGmDiscovery = undefined;
+            pendingRoleBrief = null;
+            clearLoyaltyCensus();
+            if (store.me?.role === 'player' && store.me.connected) {
+              store.setMe({ ...store.me, connected: false });
+            }
+            clearClosedHistoryTransientState(next);
+            return;
+          }
           const current = store.session;
           if (!current || current.id !== next.id) {
             retainedGroupCandidateProjection = undefined;
-            store.setSession(next);
+            store.setSession(next, null);
             return;
           }
           // Protected documents have independent snapshot timing. A public
@@ -626,11 +977,22 @@ function AppRoutes() {
           }
           const emergencyAuthority = pendingGmDiscovery?.pursuitEmergencyWindowAuthority ??
             current.pursuitEmergencyWindowAuthority;
+          const keepOwnNavigation = Object.hasOwn(next, 'currentActorBerthAuthority')
+            ? playerProjectionFresh && store.connection === 'live' && store.sessionSnapshotFreshness === 'server' &&
+              current.playerDiscovery && currentActorBerthDiscoveryMatches(next, store.me, current.playerDiscovery)
+            : !Object.hasOwn(current, 'currentActorBerthAuthority');
+          const keepPressGroup = isPressAudience(store.me) && current.playerDiscovery &&
+            currentPressGroupDiscoveryMatches(next, store.me, current.playerDiscovery) &&
+            current.shuttleControl?.['snn-press-shuttle']?.revision === next.shuttleControl?.['snn-press-shuttle']?.revision;
+          if (isPressAudience(store.me) && !keepPressGroup) pendingPlayerDiscovery = undefined;
+          const ownNavigation = keepPressGroup && current.playerDiscovery
+            ? { ...stripNavigationProjection(current), playerDiscovery: pressGroupMetadata(current.playerDiscovery) }
+            : keepOwnNavigation ? current : stripOwnPlayerNavigation(current);
           const composed = {
             ...next,
-            ...(current.playerDiscovery ? { playerDiscovery: current.playerDiscovery } : {}),
-            ...(current.shipGalacticCoordinates ? { shipGalacticCoordinates: current.shipGalacticCoordinates } : {}),
-            ...(current.shipNavigationLogs ? { shipNavigationLogs: current.shipNavigationLogs } : {}),
+            ...(ownNavigation.playerDiscovery ? { playerDiscovery: ownNavigation.playerDiscovery } : {}),
+            ...(ownNavigation.shipGalacticCoordinates ? { shipGalacticCoordinates: ownNavigation.shipGalacticCoordinates } : {}),
+            ...(ownNavigation.shipNavigationLogs ? { shipNavigationLogs: ownNavigation.shipNavigationLogs } : {}),
             ...(current.organiserSystems ? { organiserSystems: current.organiserSystems } : {}),
             ...(current.organiserSites ? { organiserSites: current.organiserSites } : {}),
             ...(current.organiserSystemHistory ? { organiserSystemHistory: current.organiserSystemHistory } : {}),
@@ -645,7 +1007,9 @@ function AppRoutes() {
             }) ? { pursuitEmergencyWindowAuthority: emergencyAuthority } : {}),
             ...(candidateProjection ? { currentGroupCandidateReveals: candidateProjection } : {}),
           };
-          store.setSession(store.me?.role === 'gm' ? composed : stripGmNavigationProjection(composed));
+          // This actual transaction response, including canonical null, ends
+          // the local withdrawal origin. It never inherits a pending marker.
+          store.setSession(store.me?.role === 'gm' ? composed : stripGmNavigationProjection(composed), null);
         },
         onPlayerDiscovery: (projection) => {
           if (!callbackCurrent()) return;
@@ -675,7 +1039,19 @@ function AppRoutes() {
         },
         onSessionFreshness: (fresh) => {
           if (!callbackCurrent()) return;
+          if (!fresh) awaitAdmiralFirstEntryReader(sessionSnapshotAuthorityFor(sessionId, playerUid),
+            useSessionStore.getState(), auth().currentUser?.uid, performance.timeOrigin);
+          // An accepted first-entry CAS owns this wait even when the member
+          // transaction arrives before the activating own-player projection.
+          pendingStationMemberRefresh = !fresh && (currentWingFirstEntry() || currentAdmiralFirstEntry())
+            ? () => Boolean(currentWingFirstEntry() || currentAdmiralFirstEntry()) : undefined;
           const store = useSessionStore.getState();
+          if (fresh && playerRole === 'player' &&
+              memberSessionResumeBlocksFreshness(sessionSnapshotAuthorityFor(sessionId, playerUid))) {
+            store.setSessionSnapshotFreshness('cache');
+            if (store.connection === 'live') store.setConnection('connecting');
+            return;
+          }
           store.setConnection(fresh ? 'live' : 'offline');
           store.setSessionSnapshotFreshness(fresh ? 'server' : 'cache');
           if (!fresh) {
@@ -730,6 +1106,8 @@ function AppRoutes() {
           if (playerAuthorityKey(next) !== listenerAuthorityKey) {
             store.setFacilitatorRuleCall(null);
           }
+          const keepPressGroup = store.session?.playerDiscovery && isPressAudience(previousPlayer) &&
+            currentPressGroupDiscoveryMatches(store.session, next, store.session.playerDiscovery);
           playerProjectionFresh = false;
           const currentCandidateProjection = store.session?.id === sessionId
             ? store.session.currentGroupCandidateReveals ?? retainedGroupCandidateProjection
@@ -740,6 +1118,7 @@ function AppRoutes() {
             ? currentCandidateProjection : undefined;
           hideCurrentGroupCandidateReveals();
           store.setMe(next);
+          if (!keepPressGroup && store.session && !currentActorBerthMatches(store.session, next)) withdrawCurrentActorBerth(previousPlayer);
           if (previousWolfCultIdentity !== nextWolfCultIdentity || next.role !== 'player') {
             clearWolfCultIntelligence();
           }
@@ -757,9 +1136,11 @@ function AppRoutes() {
               // The old group was entitled when painted. Its operations are no
               // longer current once the actor moves; retain only the shared clock
               // and header until the server supplies the new group transaction.
-              useSessionStore.getState().setSession(memberSessionProjection(current, {
+              const projected = memberSessionProjection(current, {
                 groupId: next.fleetGroupId ?? 'fleet-1', vesselIds: [], craftIds: [],
-              }) as unknown as GameSession);
+              }) as unknown as GameSession;
+              useSessionStore.getState().setSession({ ...projected,
+                ...(Object.hasOwn(current, 'currentActorBerthAuthority') ? { currentActorBerthAuthority: null } : {}) });
             }
           }
           const authority = store.commissarPurgeAuthority;
@@ -789,9 +1170,7 @@ function AppRoutes() {
               useSessionStore.getState().setSession(stripNavigationProjection(current));
             }
           }
-          const effectiveBriefRoleId = next.replacementStatus === 'awaiting-re-role'
-            ? undefined
-            : next.replacementRoleId ?? next.assignedRoleId;
+          const effectiveBriefRoleId = playerBriefRoleId(next);
           if (!effectiveBriefRoleId) {
             pendingRoleBrief = null;
             store.setRoleBrief(null);
@@ -833,6 +1212,7 @@ function AppRoutes() {
             pending && pending.sessionId === sessionId && pending.playerUid === playerUid
           ) pendingStationRelease.current = { ...pending, playerProjectionFresh: fresh };
           if (!fresh) {
+            withdrawCurrentActorBerth();
             clearCurrentGroupCandidateReveals();
           }
           else {
@@ -976,7 +1356,10 @@ function AppRoutes() {
           }
           store.setFacilitatorRuleCall(next);
         },
-        onRoleBrief: (next) => {
+        // Rules deny an absent/unassigned private brief. Opening that reader
+        // without an assignment causes an offline/resume loop and prevents
+        // presence heartbeats. Existing matching GM assignments remain valid.
+        ...(briefAudienceAvailable ? { onRoleBrief: (next: RoleBriefProjection | null) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
           if (!next) {
@@ -984,7 +1367,7 @@ function AppRoutes() {
             store.setRoleBrief(null);
             return;
           }
-          if (store.me?.uid !== next.assignmentUid || store.me.replacementStatus != null) {
+          if (store.me?.uid !== next.assignmentUid || playerBriefRoleId(store.me) === undefined) {
             pendingRoleBrief = null;
             store.setRoleBrief(null);
             return;
@@ -999,7 +1382,7 @@ function AppRoutes() {
           // matching assignment arrives, while removing any former brief.
           pendingRoleBrief = next;
           store.setRoleBrief(null, true);
-        },
+        } } : {}),
         onAwayMissionHandPointers: (next) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
@@ -1042,24 +1425,31 @@ function AppRoutes() {
             store.setCommissarPurgeAuthority(next);
           }
         },
-        onSetupReceipt: (next) => {
-          if (!callbackCurrent()) return;
-          const store = useSessionStore.getState();
-          // A denied GM query can report through the still-mounted session
-          // listener after demotion. Never retain or rehydrate that private
-          // receipt unless the current player projection is still a GM.
-          if (store.me?.role !== 'gm') {
-            store.setGmSetupReceipt(null);
-            return;
-          }
-          store.setGmSetupReceipt(next);
-        },
+        ...(playerRole === 'gm' ? {
+          onSetupReceipt: (next: SetupReceipt | null) => {
+            if (!callbackCurrent()) return;
+            const store = useSessionStore.getState();
+            // A denied GM query can report through the still-mounted session
+            // listener after demotion. Never retain or rehydrate that private
+            // receipt unless the current player projection is still a GM.
+            if (store.me?.role !== 'gm') {
+              store.setGmSetupReceipt(null);
+              return;
+            }
+            store.setGmSetupReceipt(next);
+          },
+        } : {}),
         onError: () => {
           if (!callbackCurrent()) return;
+          finishWingFirstEntry(sessionSnapshotAuthorityFor(sessionId, playerUid));
+          finishAdmiralFirstEntry(sessionSnapshotAuthorityFor(sessionId, playerUid));
+          pendingStationMemberRefresh = undefined;
           playerProjectionFresh = false;
           invalidatePendingStationReleaseFreshness();
           clearCurrentGroupCandidateReveals();
           const store = useSessionStore.getState();
+          if (store.currentActorBerthProjectionPending?.kind === 'app-wing-first-entry-withheld' ||
+              store.currentActorBerthProjectionPending?.kind === 'app-admiral-first-entry-withheld') store.setSession(store.session, null);
           store.setSessionSnapshotFreshness('cache');
           store.setConnection('offline');
         },
@@ -1067,6 +1457,18 @@ function AppRoutes() {
     });
     return () => {
       active = false;
+      finishWingFirstEntry(sessionSnapshotAuthorityFor(sessionId, playerUid));
+      // Normal presence changes the listener's role key before the activating
+      // player/read pair arrives. Only its still-valid accepted Admiral CAS
+      // survives this same-document restart; unmount/identity changes clear it.
+      if (!appRoutesMounted.current || !pendingAdmiralFirstEntry(sessionSnapshotAuthorityFor(sessionId, playerUid),
+          useSessionStore.getState(), auth().currentUser?.uid, performance.timeOrigin)) {
+        finishAdmiralFirstEntry(sessionSnapshotAuthorityFor(sessionId, playerUid));
+        const current = useSessionStore.getState();
+        if (current.currentActorBerthProjectionPending?.kind === 'app-admiral-first-entry-withheld' &&
+            current.currentActorBerthProjectionPending.actorUid === playerUid &&
+            current.currentActorBerthProjectionPending.sessionId === sessionId) current.setSession(current.session, null);
+      }
       playerListenerGeneration.current += 1;
       pendingRoleBrief = null;
       clearLoyaltyCensus();
@@ -1078,7 +1480,7 @@ function AppRoutes() {
       unsubscribeAuthorityFreshness();
       unsubscribe();
     };
-  }, [gmInstanceId, identityHydrationRevision, playerAuthority, playerRole, playerUid, sessionId]);
+  }, [gmInstanceId, identityHydrationRevision, playerAuthority, playerRole, playerUid, roleBriefActivationRevision, sessionId, sessionPhase]);
 
   useEffect(() => {
     if (gmAccessAuthenticatedAt === null) return;
@@ -1127,6 +1529,7 @@ function AppRoutes() {
         turnPhase={session?.turnPhase}
       />
       <AppHeader />
+      {activeDemoActorProfile && <Suspense fallback={null}><DemoActorControls /></Suspense>}
       <WolfHackingRuntime />
       <EndgameDialog />
       <CommunicationError />
@@ -1148,7 +1551,8 @@ function AppRoutes() {
                 <Suspense fallback={null}><CrisisReportPanel /></Suspense>
               </DeferredModuleBoundary>
             )}
-            <Suspense fallback={null}><FleetGroupWorkspace /></Suspense>
+            {location.pathname !== '/ships/refinery-124/roles/refinery-124-pdf-colonel' &&
+              <Suspense fallback={null}><FleetGroupWorkspace /></Suspense>}
             {showAwayMissionDiscardPanel && (
               <Suspense fallback={null}>
                 <AwayMissionDiscardPanel />
@@ -1157,11 +1561,12 @@ function AppRoutes() {
             {escapeLocked ? <EscapeState /> : <Routes location={screen}>
               <Route path="/" element={home} />
               <Route path="/roles" element={<RoleSelect />} />
+              <Route path="/demo-actors" element={<DeferredRoute label="demo crew"><DemoActorManager /></DeferredRoute>} />
               <Route path="/brief" element={
                 <Suspense fallback={
                   <main className="role-brief-screen">
                     <article className="role-brief cic-frame">
-                      <Link className="session-mode__back cic-text-button" to="/console">
+                      <Link className="session-mode__back cic-text-button" to="/console" aria-label="Back to stations">
                         Back to stations
                       </Link>
                       <p role="status">Opening private briefing…</p>
@@ -1263,19 +1668,72 @@ function AppRuntime() {
     // Slow mobile connections must not accumulate another request on every tick.
     // Keep independent leases so a slow GM check cannot delay presence renewal.
     const pending = new Set<() => Promise<void>>();
+    let active = true;
+    const closedHistoryRequests = new Map<string, { readonly pending: boolean;
+      readonly confirmed: boolean; readonly retryAfter: number }>();
+    const readClosedHistoryIfReady = () => {
+      if (!active) return;
+      const state = useSessionStore.getState();
+      const member = state.me;
+      const sessionId = state.session?.id;
+      const uid = member?.uid;
+      if (
+        !sessionId || state.session?.phase !== 'closed' || state.session.debriefSnapshot ||
+        !member || member.sessionId !== sessionId || !uid || state.connection !== 'live' ||
+        state.sessionSnapshotFreshness !== 'server'
+      ) return;
+      const requestKey = `${sessionId}:${uid}:${member.connectionGeneration ?? 'legacy'}`;
+      const prior = closedHistoryRequests.get(requestKey);
+      if (prior?.pending || prior?.confirmed || prior && Date.now() < prior.retryAfter) return;
+      closedHistoryRequests.set(requestKey, { pending: true, confirmed: false, retryAfter: 0 });
+      run(async () => {
+        let confirmed = false;
+        try { confirmed = await readClosedSessionHistory(sessionId); }
+        finally {
+          if (active) closedHistoryRequests.set(requestKey, {
+            pending: false, confirmed, retryAfter: Date.now() + 5_000,
+          });
+        }
+      });
+    };
     const run = (check: () => Promise<void>) => {
       if (pending.has(check)) return;
       pending.add(check);
-      void check().catch(() => undefined).finally(() => pending.delete(check));
+      void check().catch(() => undefined).finally(() => {
+        pending.delete(check);
+        readClosedHistoryIfReady();
+      });
     };
     const markAuthorityOffline = () => {
+      pendingStationMemberRefresh = undefined;
       const store = useSessionStore.getState();
+      if (store.session && store.me) {
+        finishWingFirstEntry(sessionSnapshotAuthorityFor(store.session.id, store.me.uid));
+        finishAdmiralFirstEntry(sessionSnapshotAuthorityFor(store.session.id, store.me.uid));
+      }
+      if (store.currentActorBerthProjectionPending?.kind === 'app-wing-first-entry-withheld' ||
+          store.currentActorBerthProjectionPending?.kind === 'app-admiral-first-entry-withheld') store.setSession(store.session, null);
       store.setSessionSnapshotFreshness('cache');
       store.setConnection('offline');
     };
     const renewPresence = () => refreshPresence().catch(markAuthorityOffline);
+    const reconnectIfNeeded = () => {
+      const state = useSessionStore.getState();
+      // An applied, still-current first-entry CAS owns this reconnect deferral.
+      // Initial confirmation and ordinary station reads retain normal presence handling.
+      if (pendingStationMemberRefresh?.() && state.session && state.me &&
+          (pendingWingFirstEntry(sessionSnapshotAuthorityFor(state.session.id, state.me.uid), state,
+            auth().currentUser?.uid, performance.timeOrigin) ||
+           pendingAdmiralFirstEntry(sessionSnapshotAuthorityFor(state.session.id, state.me.uid), state,
+            auth().currentUser?.uid, performance.timeOrigin))) return;
+      if (state.session?.phase === 'closed' && state.sessionSnapshotFreshness === 'server') {
+        readClosedHistoryIfReady();
+        return;
+      }
+      run(connectAutomaticallyDeduplicated);
+    };
     const stopVersionMonitor = startVersionUpgradeMonitor({
-      reconnect: () => run(connectAutomatically),
+      reconnect: reconnectIfNeeded,
       onUpdateAvailable: markServiceWorkerUpdateAvailable,
     });
     // Some session-service failures mark the connection offline without going
@@ -1286,30 +1744,42 @@ function AppRuntime() {
         state.setSessionSnapshotFreshness('cache');
       }
     });
-    run(connectAutomatically);
+    const stopClosedHistoryWatch = useSessionStore.subscribe(readClosedHistoryIfReady);
+    run(connectAutomaticallyDeduplicated);
 
     const retry = window.setInterval(() => {
-      if (useSessionStore.getState().connection !== 'live') run(connectAutomatically);
+      const state = useSessionStore.getState();
+      if (state.session?.phase === 'closed') readClosedHistoryIfReady();
+      else if (state.connection !== 'live' && !pendingStationMemberRefresh?.()) run(connectAutomaticallyDeduplicated);
     }, CONNECT_RETRY_INTERVAL_MS);
     const reconcileGm = window.setInterval(() => {
       const state = useSessionStore.getState();
-      if (state.connection === 'live' && state.gmInstance) {
+      if (state.session?.phase !== 'closed' && state.connection === 'live' && state.gmInstance) {
         run(reconcileGmAuthority);
       }
     }, GM_RECONCILE_INTERVAL_MS);
     const heartbeat = window.setInterval(() => {
       const state = useSessionStore.getState();
-      if (state.connection === 'live' && state.session && state.me) {
+      if (state.session?.phase !== 'closed' && state.connection === 'live' && state.session && state.me &&
+          demoActorPresenceAllowed(state.session, activeDemoActorProfile)) {
         run(renewPresence);
       }
     }, PRESENCE_HEARTBEAT_INTERVAL_MS);
 
     const markOffline = markAuthorityOffline;
-    const reconnectNow = () => {
-      run(connectAutomatically);
-    };
+    const reconnectNow = reconnectIfNeeded;
     const reconnectWhenVisible = () => {
-      if (document.visibilityState === 'visible') run(connectAutomatically);
+      if (document.visibilityState !== 'visible') return;
+      const state = useSessionStore.getState();
+      const uid = auth().currentUser?.uid;
+      // A short focus change must not retire this document's accepted identity.
+      // The independent stale-page monitor still owns its existing recovery.
+      if (uid && state.session && state.me && uid === state.me.uid &&
+          state.me.sessionId === state.session.id && state.identityHydrationRevision > 0 &&
+          state.connection === 'live' && state.sessionSnapshotFreshness === 'server' &&
+          state.me.connected !== false &&
+          !memberSessionResumeBlocksFreshness(sessionSnapshotAuthorityFor(state.session.id, uid))) return;
+      reconnectIfNeeded();
     };
 
     window.addEventListener('offline', markOffline);
@@ -1317,11 +1787,14 @@ function AppRuntime() {
     document.addEventListener('visibilitychange', reconnectWhenVisible);
 
     return () => {
+      active = false;
+      closedHistoryRequests.clear();
       window.clearInterval(retry);
       window.clearInterval(reconcileGm);
       window.clearInterval(heartbeat);
       stopVersionMonitor();
       stopOfflineAuthorityWatch();
+      stopClosedHistoryWatch();
       window.removeEventListener('offline', markOffline);
       window.removeEventListener('online', reconnectNow);
       document.removeEventListener('visibilitychange', reconnectWhenVisible);

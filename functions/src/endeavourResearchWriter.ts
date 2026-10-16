@@ -1,5 +1,7 @@
+import { auditedOnCall } from './securityCallable';
+import { requireCandidateCraftActionAvailable } from './candidateAvailability';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot, type Transaction } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError, } from 'firebase-functions/v2/https';
 import { decideActionAuthorization } from './actionMetadata';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
 import {
@@ -18,13 +20,15 @@ import { boundCoreConsoleRole } from './consoleRolePolicy';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import { isPresenceStale } from './sessionLifecycle';
 import { parseShuttleControl } from './shuttleControl';
-import { turnPhaseState } from './turnZero';
+import { turnPhaseDeadlinePassed, turnPhaseState } from './turnZero';
 import { serviceRechargeResourceState } from './serviceShuttleRecharge';
 import { isResourceShipId } from './resources';
 import { ROLE_IDS } from './roleConfiguration';
 import { parsePlayerEscapeState } from './escapeState';
 import { parseEndeavourFieldUpgradeState } from './endeavourFieldUpgrades';
 import { requirePursuitEmergencyWindowAbsent } from './pursuitEmergencyWindow';
+import { parseEndeavourScienceDevicesState } from './endeavourScienceDevices';
+import { parseEndeavourEcmDeviceState } from './endeavourEcmDevice';
 
 type RecordValue = Record<string, unknown>;
 
@@ -47,7 +51,7 @@ export type EndeavourResearchWriterReply = Readonly<{
   trackId: EndeavourResearchTrackId;
   funding: EndeavourResearchFunding;
   oreCost: 0 | 5;
-  previousMaterialCost: number;
+  previousMaterialCost: number | null;
   currentMaterialCost: number | null;
   shepherdOre: number;
   progress: Readonly<Record<string, number>>;
@@ -195,7 +199,7 @@ function isWriterReply(
       value.researchRevision !== fingerprint.expectedRevision! + 1 ||
       value.trackId !== fingerprint.payload.trackId || value.funding !== fingerprint.payload.funding ||
       value.oreCost !== (fingerprint.payload.funding === 'standard' ? 0 : 5) ||
-      !isSafeCounter(value.previousMaterialCost) ||
+      (value.previousMaterialCost !== null && !isSafeCounter(value.previousMaterialCost)) ||
       (value.currentMaterialCost !== null && !isSafeCounter(value.currentMaterialCost)) ||
       !isSafeCounter(value.shepherdOre) || !isResearchProgress(value.progress)) return false;
   const cadence = parseEndeavourResearchCadenceState(value.cadence);
@@ -204,7 +208,7 @@ function isWriterReply(
     return false;
   }
   const track = endeavourResearchTrack(value.progress, fingerprint.payload.trackId);
-  const expectedPreviousCost = ENDEAVOUR_RESEARCH_TRACKS[fingerprint.payload.trackId].materialCosts[track.crossedBoxes - 1];
+  const expectedPreviousCost = ENDEAVOUR_RESEARCH_TRACKS[fingerprint.payload.trackId].materialCosts[track.crossedBoxes - 2];
   return expectedPreviousCost !== undefined && value.previousMaterialCost === expectedPreviousCost &&
     value.currentMaterialCost === track.currentMaterialCost;
 }
@@ -298,6 +302,8 @@ function readPrivateState(
   cadenceSnapshot: DocumentSnapshot,
   fieldUpgradeSnapshot: DocumentSnapshot,
   shepherdOre: number,
+  construction: DocumentSnapshot,
+  ecmSnapshot: DocumentSnapshot,
 ) {
   const cycle = session.get('currentTurn');
   const turnPhase = turnPhaseState(session.get('turnPhase'));
@@ -320,6 +326,12 @@ function readPrivateState(
   if (!fieldUpgrades || fieldUpgrades.cycle > (cycle as number)) {
     throw new HttpsError('failed-precondition', 'The private Endeavour field-upgrade state is malformed.');
   }
+  const devices = parseEndeavourScienceDevicesState(construction.exists ? construction.data() : undefined);
+  const ecm = parseEndeavourEcmDeviceState(ecmSnapshot.exists ? ecmSnapshot.data() : undefined);
+  const resources = serviceRechargeResourceState(session.get('shipResources'), 'shepherd');
+  if (!devices || !ecm || !resources) {
+    throw new HttpsError('failed-precondition', 'The private science device or Shepherd material state is unavailable.');
+  }
   return {
     status: 'ready' as const,
     sessionId,
@@ -331,6 +343,7 @@ function readPrivateState(
     })(),
     tracks: researchTracks(progress),
     shepherdOre,
+    scienceDevices: Object.freeze({ ...devices, ecmUsed: ecm.status === 'used', shepherdMaterials: resources.materials }),
     fieldUpgradeState: Object.freeze({
       upgradeRevision: fieldUpgrades.revision,
       targetsUsedThisCycle: fieldUpgrades.cycle === cycle ? fieldUpgrades.targets.length : 0,
@@ -338,8 +351,8 @@ function readPrivateState(
   };
 }
 
-export const readEndeavourResearchWorkspace = onCall<{ sessionId?: unknown }>(
-  CALLABLE_RUNTIME_OPTIONS,
+export const readEndeavourResearchWorkspace = auditedOnCall<{ sessionId?: unknown }>(
+  'readEndeavourResearchWorkspace', CALLABLE_RUNTIME_OPTIONS,
   async (request) => {
     const uid = requireUid(request.auth);
     const sessionId = validateReadRequest(request.data);
@@ -349,21 +362,23 @@ export const readEndeavourResearchWorkspace = onCall<{ sessionId?: unknown }>(
     const researchRef = db.doc(`sessions/${sessionId}/serverState/endeavourResearch`);
     const cadenceRef = db.doc(`sessions/${sessionId}/serverState/endeavourResearchCadence`);
     const fieldUpgradeRef = db.doc(`sessions/${sessionId}/serverState/endeavourFieldUpgrades`);
+    const constructionRef = db.doc(`sessions/${sessionId}/serverState/endeavourScienceDevices`);
+    const ecmRef = db.doc(`sessions/${sessionId}/serverState/endeavourEcmDevice`);
     return db.runTransaction(async (tx) => {
-      const [session, actor, research, cadence, fieldUpgrades] = await Promise.all([
-        tx.get(sessionRef), tx.get(actorRef), tx.get(researchRef), tx.get(cadenceRef), tx.get(fieldUpgradeRef),
+      const [session, actor, research, cadence, fieldUpgrades, construction, ecm] = await Promise.all([
+        tx.get(sessionRef), tx.get(actorRef), tx.get(researchRef), tx.get(cadenceRef), tx.get(fieldUpgradeRef), tx.get(constructionRef), tx.get(ecmRef),
       ]);
       if (!session.exists) throw new HttpsError('not-found', 'No such session.');
       if (session.get('phase') !== 'active') {
         throw new HttpsError('failed-precondition', 'Endeavour research is available only during active gameplay.');
       }
       const authority = await requireCurrentScientist(tx, session, actor, sessionId, uid);
-      return readPrivateState(sessionId, session, research, cadence, fieldUpgrades, authority.shepherdOre);
+      return readPrivateState(sessionId, session, research, cadence, fieldUpgrades, authority.shepherdOre, construction, ecm);
     });
   },
 );
 
-export const advanceEndeavourResearchTrack = onCall<{
+export const advanceEndeavourResearchTrack = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedControlRevision?: unknown;
@@ -372,7 +387,7 @@ export const advanceEndeavourResearchTrack = onCall<{
   trackId?: unknown;
   funding?: unknown;
 }>(
-  CALLABLE_RUNTIME_OPTIONS,
+  'advanceEndeavourResearchTrack', CALLABLE_RUNTIME_OPTIONS,
   async (request) => {
     const uid = requireUid(request.auth);
     const command = validateCommand(request.data);
@@ -397,6 +412,7 @@ export const advanceEndeavourResearchTrack = onCall<{
       }
       const replay = replayReply(receipt, fingerprint);
       if (replay) return replay;
+      requireCandidateCraftActionAvailable(session, ['endeavour'], ['shepherd']);
       requirePursuitEmergencyWindowAbsent(session);
       if (session.get('phase') !== 'active') {
         throw new HttpsError('failed-precondition', 'Endeavour research is available only during active gameplay.');
@@ -416,9 +432,8 @@ export const advanceEndeavourResearchTrack = onCall<{
       if (!authorization.allowed) {
         throw new HttpsError('failed-precondition', 'Endeavour research is available only during Team Phase.');
       }
-      const teamPhaseEndsAt = Date.parse(phase.teamPhaseEndsAt);
       if (phase.airspace.state !== 'restricted' || phase.timerPause !== undefined ||
-          !Number.isFinite(teamPhaseEndsAt) || Date.now() >= teamPhaseEndsAt) {
+          turnPhaseDeadlinePassed(phase, 'team')) {
         throw new HttpsError('failed-precondition', 'Endeavour research is available only during Team Phase.');
       }
 
@@ -428,7 +443,7 @@ export const advanceEndeavourResearchTrack = onCall<{
       );
       if (!cadence) throw new HttpsError('failed-precondition', 'The private Endeavour research cadence is malformed.');
       const before = researchTracks(progress).find((track) => track.trackId === command.trackId)!;
-      if (before.currentMaterialCost === null) {
+      if (before.complete) {
         throw new HttpsError('failed-precondition', 'The selected Endeavour research track is complete.');
       }
       const resolveAtRevision = (expectedRevision: number) => resolveEndeavourResearchChoice({

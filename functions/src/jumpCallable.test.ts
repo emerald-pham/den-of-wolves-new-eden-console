@@ -22,6 +22,7 @@ const mock = vi.hoisted(() => ({
   connected: true,
   currentTurn: 1,
   phase: 'active',
+  candidateVesselOutcomes: {} as Record<string, unknown>,
   gameOutcome: undefined as Record<string, unknown> | undefined,
   chartId: 'A',
   chartLocked: true,
@@ -45,6 +46,7 @@ const mock = vi.hoisted(() => ({
   systemHistory: {} as Record<string, unknown>,
   scoutedCoordinatesByShip: {} as Record<string, string[]>,
   missionExploredCoordinatesByUid: {} as Record<string, string[]>,
+  missionNebulaBenefitsByShip: {} as Record<string, unknown>,
   pursuitGroups: { 'fleet-1': 2 } as Record<string, number>,
   fleetGroups: [{
     id: 'fleet-1',
@@ -76,6 +78,12 @@ const mock = vi.hoisted(() => ({
   shuttleTransitChains: {} as Record<string, Record<string, unknown>>,
   startedOpportunityIds: [] as string[],
   commandReceiptRecord: undefined as Record<string, unknown> | undefined,
+  commandReceiptRecords: {} as Record<string, Record<string, unknown>>,
+  fleetGroupRejoinAdjudications: {} as Record<string, Record<string, unknown>>,
+  gmInstanceLastSeenAt: undefined as Date | undefined,
+  gmInstanceClaimedAt: undefined as Date | undefined,
+  gmInstanceRevoked: false,
+  turnPhaseOverride: undefined as Record<string, unknown> | undefined,
   singlePlayerDemo: undefined as Record<string, unknown> | undefined,
   jumpFailures: {} as Record<string, Record<string, unknown>>,
   pursuitEmergencyWindow: undefined as Record<string, unknown> | undefined,
@@ -211,6 +219,7 @@ beforeEach(() => {
   mock.connected = true;
   mock.currentTurn = 1;
   mock.phase = 'active';
+  mock.candidateVesselOutcomes = {};
   mock.gameOutcome = undefined;
   mock.chartId = 'A';
   mock.chartLocked = true;
@@ -234,6 +243,7 @@ beforeEach(() => {
   mock.systemHistory = {};
   mock.scoutedCoordinatesByShip = {};
   mock.missionExploredCoordinatesByUid = {};
+  mock.missionNebulaBenefitsByShip = {};
   mock.pursuitGroups = { 'fleet-1': 2 };
   mock.fleetGroups = [{
     id: 'fleet-1',
@@ -263,6 +273,12 @@ beforeEach(() => {
   mock.shuttleTransitChains = {};
   mock.startedOpportunityIds = [];
   mock.commandReceiptRecord = undefined;
+  mock.commandReceiptRecords = {};
+  mock.fleetGroupRejoinAdjudications = {};
+  mock.gmInstanceLastSeenAt = undefined;
+  mock.gmInstanceClaimedAt = undefined;
+  mock.gmInstanceRevoked = false;
+  mock.turnPhaseOverride = undefined;
   mock.singlePlayerDemo = undefined;
   mock.jumpFailures = {};
   mock.pursuitEmergencyWindow = undefined;
@@ -300,9 +316,15 @@ beforeEach(() => {
       exists: mock.groupMessages !== undefined, data: () => mock.groupMessages,
       get: (key: string) => mock.groupMessages?.[key],
     };
+    const rejoinAdjudicationMatch = path.match(/^sessions\/s1\/fleetGroupRejoinAdjudications\/([^/]+)$/);
+    if (rejoinAdjudicationMatch) {
+      const fields = mock.fleetGroupRejoinAdjudications[rejoinAdjudicationMatch[1]!];
+      return { exists: fields !== undefined, id: rejoinAdjudicationMatch[1], ref: { path },
+        data: () => fields, get: (key: string) => fields?.[key] };
+    }
     if (path.includes('/commandReceipts/')) return {
-      exists: mock.commandReceiptRecord !== undefined,
-      get: (key: string) => mock.commandReceiptRecord?.[key],
+      exists: (mock.commandReceiptRecords[path.split('/').at(-1) ?? ''] ?? mock.commandReceiptRecord) !== undefined,
+      get: (key: string) => (mock.commandReceiptRecords[path.split('/').at(-1) ?? ''] ?? mock.commandReceiptRecord)?.[key],
     };
     if (path.startsWith('sessionStartRequests/') ||
         /\/(setupMutationRequests|gmResponsibilityRequests|seatMutationRequests|loyaltyAssignmentRequests)\//.test(path) ||
@@ -372,6 +394,14 @@ beforeEach(() => {
     if (path === 'sessions/s1/gmInstances') {
       return { docs: [{ id: 'bridge' }] };
     }
+    if (/^sessions\/s1\/gmInstances\/[^/]+$/.test(path)) {
+      const fields = mock.gmInstanceRevoked ? undefined : {
+        uid: mock.owner, connected: mock.connected, lastSeenAt: mock.gmInstanceLastSeenAt ?? new Date(),
+        ...(mock.gmInstanceClaimedAt ? { claimedAt: mock.gmInstanceClaimedAt } : {}),
+      };
+      return { exists: fields !== undefined, id: path.split('/').at(-1), ref: { path }, data: () => fields,
+        get: (key: string) => fields?.[key] };
+    }
     const protectedPursuitWindow = mock.pursuitEmergencyWindow;
     const memberPursuitWindow = protectedPursuitWindow &&
       Object.hasOwn(protectedPursuitWindow, 'navigationRevision') &&
@@ -394,7 +424,7 @@ beforeEach(() => {
           shipId: mock.grantedShipId, grantedAt: new Date(),
         }
       : path.includes('/gmInstances/')
-        ? { uid: mock.owner, connected: mock.connected, lastSeenAt: new Date() }
+        ? { uid: mock.owner, connected: mock.connected, lastSeenAt: mock.gmInstanceLastSeenAt ?? new Date() }
         : {
           phase: mock.phase,
           ...(mock.singlePlayerDemo ? { singlePlayerDemo: mock.singlePlayerDemo } : {}),
@@ -411,7 +441,7 @@ beforeEach(() => {
           activeVesselIds: mock.activeVesselIds,
           currentTurn: mock.currentTurn,
           fleetPartitionRevision: mock.fleetPartitionRevision,
-          turnPhase: {
+          turnPhase: mock.turnPhaseOverride ?? {
             turn: mock.currentTurn,
             teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
             openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
@@ -444,6 +474,7 @@ beforeEach(() => {
           },
           shipSurvivors: mock.survivors,
           shipDamage: mock.damage,
+          candidateVesselOutcomes: mock.candidateVesselOutcomes,
           shipUpgrades: mock.upgrades,
           shipJumpStates: mock.jumpStates,
           systemHistory: mock.systemHistory,
@@ -461,6 +492,7 @@ beforeEach(() => {
         ...(protectedPursuitWindow ? { pursuitEmergencyWindow: protectedPursuitWindow } : {}),
         revision: mock.navigationRevision,
         missionExploredCoordinatesByUid: mock.missionExploredCoordinatesByUid,
+        missionNebulaBenefitsByShip: mock.missionNebulaBenefitsByShip,
       };
       return {
         exists: true, id: 'navigation', ref: { path },
@@ -490,6 +522,49 @@ beforeEach(() => {
   });
   mock.transactionOperations = [];
 });
+
+function configureSplitPursuitRejoin() {
+  mock.navigationRevision = 0;
+  mock.fleetPartitionRevision = 0;
+  mock.currentTurn = 1;
+  mock.turnPhaseOverride = undefined;
+  mock.coordinate = '1413';
+  mock.coordinates = Object.fromEntries(mock.activeVesselIds.map(id => [id, '1413']));
+  mock.fleetGroups = [
+    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'], memberShipIds: { u1: 'aegis' } },
+    { id: 'fleet-2', vesselIds: mock.activeVesselIds.filter(id => id !== 'aegis'), memberUids: ['u2'], memberShipIds: { u2: 'dione' } },
+  ];
+  mock.players = [
+    { id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } },
+    { id: 'u2', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-2', assignedRoleId: 'icebreaker-miner' } },
+  ];
+  mock.pursuitGroups = { 'fleet-1': 2, 'fleet-2': 5 };
+}
+
+async function recordValidPursuitRejoin(requestId = 'record-valid-pursuit', pursuitAfter = 4) {
+  configureSplitPursuitRejoin();
+  const calls = jumpCallables as unknown as {
+    recordFleetGroupRejoinAdjudication: { run: (request: unknown) => Promise<unknown> };
+    confirmFleetPartition: { run: (request: unknown) => Promise<unknown> };
+  };
+  const preview = await calls.confirmFleetPartition.run(request({ sessionId: 's1', instanceId: 'bridge',
+    requestId: `preview-${requestId}`, expectedNavigationRevision: 0 }));
+  const previewBinding = typeof preview === 'object' && preview !== null && 'previewBinding' in preview
+    ? (preview as Record<string, unknown>).previewBinding : undefined;
+  const recordCommand = request({ sessionId: 's1', instanceId: 'bridge', requestId,
+    expectedNavigationRevision: 0, expectedFleetPartitionRevision: 0,
+    decisions: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter }],
+    ...(previewBinding === undefined ? {} : { previewBinding }) });
+  const recorded = await calls.recordFleetGroupRejoinAdjudication.run(recordCommand);
+  const adjudicationPath = `sessions/s1/fleetGroupRejoinAdjudications/${requestId}`;
+  const receiptPath = `sessions/s1/commandReceipts/${requestId}`;
+  const saved = mock.set.mock.calls.find(([path]) => path === adjudicationPath)?.[1];
+  const receipt = mock.set.mock.calls.find(([path]) => path === receiptPath)?.[1];
+  if (!saved || !receipt) throw new Error('The actual rejoin record handler did not write its record and receipt.');
+  mock.fleetGroupRejoinAdjudications[requestId] = saved;
+  mock.commandReceiptRecords[requestId] = receipt;
+  return { calls, preview, previewBinding, recordCommand, recorded, saved, adjudicationPath, receiptPath };
+}
 
 afterEach(() => {
   vi.useRealTimers();
@@ -1004,6 +1079,77 @@ it('creates an Unstable Star opportunity again in a later cycle without duplicat
   }))).resolves.not.toHaveProperty('missionOpportunityId');
   expect(mock.set.mock.calls.some(([path]) =>
     String(path).startsWith('sessions/s1/missionOpportunities/'))).toBe(false);
+});
+
+it('redeems protected I2 free exit through the registered jump handler and removes only the departing ship benefit', async () => {
+  mock.coordinate = '1096';
+  mock.coordinates = { dione: '1096' };
+  mock.fuel = 0;
+  const benefit = { missionId: 'mission-parity', coordinate: '1096', suppressMaintenanceDamage: true, freeExitFuel: true };
+  mock.missionNebulaBenefitsByShip = { aegis: benefit, dione: benefit };
+  await expect(jumpShip.run(request({ ...data, requestId: 'nebula-exit-parity', destination: '0000' })))
+    .resolves.toMatchObject({ status: 'jumped', fuelCost: 0, remainingFuel: 0 });
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({
+    missionNebulaBenefitsByShip: { dione: benefit },
+  }));
+});
+
+it.each(['drive-failure', 'fuel-shortage'] as const)(
+  'waives only the entitled I2 departure debit in actual GM adjudication after a real %s', async failureKind => {
+    mock.coordinate = '1096'; mock.coordinates = { dione: '1096' };
+    mock.fuel = failureKind === 'fuel-shortage' ? 1 : 10;
+    if (failureKind === 'drive-failure') {
+      mock.damage = { aegis: { damagedSystemIds: ['jump-drive'], destroyed: false } };
+      mock.randomInt.mockReturnValue(1);
+    }
+    const destination = failureKind === 'fuel-shortage'
+      ? Array.from({ length: 10_000 }, (_, value) => String(value).padStart(4, '0'))
+        .find(coordinate => jumpLengthBetween('1096', coordinate) === 'long')!
+      : '0000';
+    const failed = await jumpShip.run(request({ ...data, requestId: `i2-before-${failureKind}`, destination }));
+    expect(failed).toMatchObject({ status: failureKind, revision: 0 });
+    const record = mock.set.mock.calls.find(([path]) => path === `sessions/s1/jumpFailures/i2-before-${failureKind}`)![1];
+    mock.jumpFailures = { [`i2-before-${failureKind}`]: record }; mock.jumpStates = { aegis: failed.state };
+    const benefit = { missionId: 'mission-parity', coordinate: '1096', suppressMaintenanceDamage: true, freeExitFuel: true };
+    mock.missionNebulaBenefitsByShip = { aegis: benefit, dione: benefit };
+    mock.set.mockClear(); mock.update.mockClear(); mock.randomInt.mockReturnValue(1);
+    await expect(adjudicateFailedJump.run(request({ sessionId: 's1', instanceId: 'bridge', requestId: `i2-adjudicate-${failureKind}`,
+      expectedRevision: 0, failureRequestId: `i2-before-${failureKind}`, destination: '0000',
+      consequence: failureKind === 'fuel-shortage' ? 'half-d6-damage' : 'wrong-location-half-d6-damage' })))
+      .resolves.toMatchObject({ status: 'jumped', fuelSpent: 0, remainingFuel: mock.fuel, damageCount: 0 });
+    expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({ missionNebulaBenefitsByShip: { dione: benefit } }));
+  });
+
+it('preserves the distinct emergency all-fuel penalty while expiring only the departed nebula grant', async () => {
+  mock.coordinate = '1096'; mock.coordinates = { dione: '1096' };
+  mock.fuel = 10;
+  mock.damage = { aegis: { damagedSystemIds: ['jump-drive'], destroyed: false } }; mock.randomInt.mockReturnValue(1);
+  const failed = await jumpShip.run(request({ ...data, requestId: 'i2-before-emergency', destination: '0000' }));
+  expect(failed).toMatchObject({ status: 'drive-failure', revision: 0 });
+  const record = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/jumpFailures/i2-before-emergency')![1];
+  mock.jumpFailures = { 'i2-before-emergency': record }; mock.jumpStates = { aegis: failed.state };
+  const benefit = { missionId: 'mission-parity', coordinate: '1096', suppressMaintenanceDamage: true, freeExitFuel: true };
+  mock.missionNebulaBenefitsByShip = { aegis: benefit, dione: benefit };
+  mock.set.mockClear(); mock.update.mockClear();
+  await expect(jumpShip.run(request({ ...data, requestId: 'i2-emergency-penalty', destination: '0000', emergency: true,
+    failureRequestId: 'i2-before-emergency' })))
+    .resolves.toMatchObject({ status: 'jumped', emergency: true, fuelCost: 10, fuelSpent: 10, remainingFuel: 0,
+      state: { emergencyJumpUsed: true } });
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({ missionNebulaBenefitsByShip: { dione: benefit } }));
+});
+
+it('expires a GM-moved nebula grant and preserves its absence after an actual return to Ion', async () => {
+  mock.coordinate = '1096'; mock.coordinates = { dione: '1096' };
+  const benefit = { missionId: 'mission-parity', coordinate: '1096', suppressMaintenanceDamage: true, freeExitFuel: true };
+  mock.missionNebulaBenefitsByShip = { aegis: benefit, dione: benefit };
+  await moveShipToLocation.run(request({ ...data, requestId: 'i2-gm-departure', destination: '0000' }));
+  const departure = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/serverState/navigation')![1];
+  expect(departure.missionNebulaBenefitsByShip).toEqual({ dione: benefit });
+  mock.coordinate = '0000'; mock.coordinates = departure.shipGalacticCoordinates;
+  mock.missionNebulaBenefitsByShip = departure.missionNebulaBenefitsByShip; mock.navigationLogs = departure.shipNavigationLogs;
+  mock.navigationRevision = departure.revision; mock.set.mockClear(); mock.update.mockClear();
+  await moveShipToLocation.run(request({ ...data, requestId: 'i2-gm-return', destination: '1096' }));
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({ missionNebulaBenefitsByShip: { dione: benefit } }));
 });
 
 it('does not duplicate a legacy Unstable Star opportunity during its deployment cycle', async () => {
@@ -1535,6 +1681,7 @@ it('rejects Coordination jumps while the server phase is Team', async () => {
           shipGalacticCoordinates: { aegis: mock.coordinate },
           shipResources: { aegis: { ore: 0, fuel: mock.fuel, food: 8, water: 6, materials: 1, securityTeams: 9 } },
           shipDamage: mock.damage,
+          candidateVesselOutcomes: mock.candidateVesselOutcomes,
           shipUpgrades: mock.upgrades,
           shipJumpStates: mock.jumpStates,
           maintenanceCycles: { aegis: { turn: mock.currentTurn, charges: mock.charges, results: {} } },
@@ -1689,9 +1836,12 @@ it('records an under-fuel attempt without spending resources so an exact GM adju
   expect(mock.randomInt).not.toHaveBeenCalled();
 });
 
-it('accepts a pursuit-10 emergency jump without a charge or fuel and damages the drive plus half the remaining consoles', async () => {
+it('rounds the emergency jump half-console exception up when the remaining count is odd', async () => {
   mock.charges = [];
   mock.fuel = 0;
+  // Aegis has ten remaining non-drive, non-armoured consoles; one already
+  // damaged console leaves an odd nine for the printed half-up exception.
+  mock.damage.aegis = { damagedSystemIds: ['reactor'], destroyed: false };
   mock.pursuitGroups = { 'fleet-1': 10 };
   mock.pursuitEmergencyWindow = {
     type: 'pursuit-emergency-window', status: 'offered', cycle: 1,
@@ -1700,14 +1850,17 @@ it('accepts a pursuit-10 emergency jump without a charge or fuel and damages the
   mock.update.mockClear();
   mock.set.mockClear();
 
-  await expect(jumpShip.run(request({
+  const jumpReply = await jumpShip.run(request({
     ...data, requestId: 'emergency-at-pursuit-ten', destination: '5143', emergency: true,
-  }))).resolves.toMatchObject({
+  }));
+  expect(jumpReply).toMatchObject({
     status: 'jumped', emergency: true, shipId: 'aegis',
     origin: '0000', destination: '5143', fuelSpent: 0, remainingFuel: 0,
     state: { lastJumpTurn: 1, emergencyJumpUsed: true },
     damage: { destroyed: false, damagedSystemIds: expect.arrayContaining(['jump-drive']) },
+    damageDraws: expect.any(Array),
   });
+  expect((jumpReply as { damageDraws: unknown[] }).damageDraws).toHaveLength(5);
 
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'shipResources.aegis.fuel': 0,
@@ -2713,6 +2866,31 @@ it('rounds half of an odd d6 failed-jump damage roll down before drawing cards',
     expect.objectContaining({ resolution: 'half-d6-damage', damageRoll: 5, appliedDamageCount: 2 }));
 });
 
+it('does not invent a minimum damage draw for a failed-jump roll of one', async () => {
+  mock.fuel = 1;
+  mock.jumpStates = { aegis: { lastFailureRequestId: 'minimum-half-failure' } };
+  mock.jumpFailures = {
+    'minimum-half-failure': {
+      type: 'ship-jump-failure', status: 'unresolved', adjudicable: true,
+      requestId: 'minimum-half-failure', shipId: 'aegis', origin: '0000', destination: '9997',
+      failureStatus: 'fuel-shortage', failureRevision: 0, currentTurn: 1, fuelAtFailure: 1,
+      requiredFuel: 3,
+    },
+  };
+  mock.randomInt.mockReturnValue(1);
+
+  const reply = await adjudicateFailedJump.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'minimum-half-resolution',
+    expectedRevision: 0, failureRequestId: 'minimum-half-failure', destination: '5143',
+    consequence: 'half-d6-damage',
+  }));
+
+  expect(reply).toMatchObject({ status: 'jumped', consequence: 'half-d6-damage', failureRoll: 1, damageCount: 0 });
+  expect((reply as { damageDraws: unknown[] }).damageDraws).toHaveLength(0);
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1/jumpFailures/minimum-half-failure',
+    expect.objectContaining({ resolution: 'half-d6-damage', damageRoll: 1, appliedDamageCount: 0 }));
+});
+
 it('commits the documented no-jump delay without fuel, movement, or damage mutations', async () => {
   mock.jumpStates = { aegis: { lastFailureRequestId: 'delay-failure' } };
   mock.jumpFailures = {
@@ -2884,6 +3062,246 @@ it.each([null,-1,1.5,'4',Number.MAX_SAFE_INTEGER,Number.MAX_SAFE_INTEGER+1])('de
   expect(mock.update).not.toHaveBeenCalled();expect(mock.set).not.toHaveBeenCalled();expect(mock.delete).not.toHaveBeenCalled();
 });
 
+it('does not merge colocated groups with different pursuit inputs until the live GM records a decision', async () => {
+  mock.coordinate = '1413';
+  mock.coordinates = Object.fromEntries(mock.activeVesselIds.map(id => [id, '1413']));
+  mock.fleetGroups = [
+    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'], memberShipIds: { u1: 'aegis' } },
+    { id: 'fleet-2', vesselIds: mock.activeVesselIds.filter(id => id !== 'aegis'), memberUids: ['u2'], memberShipIds: { u2: 'dione' } },
+  ];
+  mock.players = [
+    { id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } },
+    { id: 'u2', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-2', assignedRoleId: 'icebreaker-miner' } },
+  ];
+  mock.pursuitGroups = { 'fleet-1': 2, 'fleet-2': 5 };
+  const call = (jumpCallables as unknown as { confirmFleetPartition: { run: (request: unknown) => Promise<unknown> } })
+    .confirmFleetPartition;
+
+  await expect(call.run(request({ sessionId: 's1', instanceId: 'bridge', expectedNavigationRevision: 0 }))).resolves.toEqual({
+    status: 'adjudication-required', navigationRevision: 0, fleetPartitionRevision: 0,
+    candidates: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 } }],
+    previewBinding: { actorUid: 'u1', instanceId: 'bridge', leaseClaimedAt: null,
+      navigationRevision: 0, fleetPartitionRevision: 0, currentTurn: 1,
+      turnPhase: { turn: 1, teamPhaseEndsAt: '2026-09-06T12:05:00.000Z', openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+        airspace: { state: 'lifted', tickerActive: true, pressAccess: false } },
+      candidates: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'],
+        pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 } }] },
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+});
+
+it('refuses to attach an old displayed pursuit choice to fresh server candidates without its preview binding', async () => {
+  configureSplitPursuitRejoin();
+  const calls = jumpCallables as unknown as {
+    recordFleetGroupRejoinAdjudication: { run: (request: unknown) => Promise<unknown> };
+    confirmFleetPartition: { run: (request: unknown) => Promise<unknown> };
+  };
+  const preview = await calls.confirmFleetPartition.run(request({ sessionId: 's1', instanceId: 'bridge',
+    requestId: 'old-pursuit-preview', expectedNavigationRevision: 0 }));
+  expect(preview).toMatchObject({ status: 'adjudication-required', navigationRevision: 0, fleetPartitionRevision: 0,
+    candidates: [{ coordinate: '1413', pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 } }] });
+
+  mock.navigationRevision = 5;
+  mock.fleetPartitionRevision = 2;
+  mock.currentTurn = 4;
+  mock.pursuitGroups = { 'fleet-1': 3, 'fleet-2': 7 };
+  const outcome = await calls.recordFleetGroupRejoinAdjudication.run(request({ sessionId: 's1', instanceId: 'bridge',
+    requestId: 'old-pursuit-choice', expectedNavigationRevision: 5, expectedFleetPartitionRevision: 2,
+    decisions: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter: 4 }] }))
+    .then(value => ({ value }), error => ({ error }));
+
+  expect(outcome).toHaveProperty('error');
+  expect(mock.set.mock.calls.some(([path]) => path === 'sessions/s1/fleetGroupRejoinAdjudications/old-pursuit-choice' ||
+    path === 'sessions/s1/commandReceipts/old-pursuit-choice')).toBe(false);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+});
+
+it('records a current live-GM choice before applying it, then consumes and exactly replays that decision once', async () => {
+  mock.coordinate = '1413';
+  mock.coordinates = Object.fromEntries(mock.activeVesselIds.map(id => [id, '1413']));
+  mock.fleetGroups = [
+    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'], memberShipIds: { u1: 'aegis' } },
+    { id: 'fleet-2', vesselIds: mock.activeVesselIds.filter(id => id !== 'aegis'), memberUids: ['u2'], memberShipIds: { u2: 'dione' } },
+  ];
+  mock.players = [
+    { id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } },
+    { id: 'u2', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-2', assignedRoleId: 'icebreaker-miner' } },
+  ];
+  mock.pursuitGroups = { 'fleet-1': 2, 'fleet-2': 5 };
+  const calls = jumpCallables as unknown as {
+    recordFleetGroupRejoinAdjudication: { run: (request: unknown) => Promise<unknown> };
+    confirmFleetPartition: { run: (request: unknown) => Promise<unknown> };
+  };
+  const preview = await calls.confirmFleetPartition.run(request({ sessionId: 's1', instanceId: 'bridge',
+    requestId: 'preview-record-pursuit-decision', expectedNavigationRevision: 0 }));
+  const previewBinding = typeof preview === 'object' && preview !== null && 'previewBinding' in preview
+    ? (preview as Record<string, unknown>).previewBinding : undefined;
+  const recordCommand = request({ sessionId: 's1', instanceId: 'bridge', requestId: 'record-pursuit-decision',
+    expectedNavigationRevision: 0, expectedFleetPartitionRevision: 0,
+    decisions: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter: 4 }],
+    ...(previewBinding === undefined ? {} : { previewBinding }) });
+  const decision = await calls.recordFleetGroupRejoinAdjudication.run(recordCommand);
+  expect(decision).toEqual({ status: 'recorded', adjudicationId: 'record-pursuit-decision',
+    navigationRevision: 0, fleetPartitionRevision: 0 });
+  const saved = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/fleetGroupRejoinAdjudications/record-pursuit-decision')?.[1];
+  expect(saved).toMatchObject({ type: 'fleet-group-rejoin-adjudication', status: 'recorded', actorUid: 'u1',
+    instanceId: 'bridge', navigationRevision: 0, fleetPartitionRevision: 0,
+    decisions: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 }, pursuitAfter: 4 }] });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set.mock.calls.some(([path]) => path === 'sessions/s1/serverState/navigation' ||
+    path.startsWith('sessions/s1/fleetGroups/') || path.startsWith('sessions/s1/players/'))).toBe(false);
+  expect(mock.delete).not.toHaveBeenCalled();
+  mock.fleetGroupRejoinAdjudications['record-pursuit-decision'] = saved!;
+  const recordReceipt = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/commandReceipts/record-pursuit-decision')?.[1];
+  mock.commandReceiptRecords['record-pursuit-decision'] = recordReceipt!;
+  mock.set.mockClear(); mock.update.mockClear(); mock.delete.mockClear();
+  await expect(calls.recordFleetGroupRejoinAdjudication.run(recordCommand)).resolves.toEqual(decision);
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
+  await expect(calls.recordFleetGroupRejoinAdjudication.run(request({ sessionId: 's1', instanceId: 'bridge',
+    requestId: 'record-pursuit-decision', expectedNavigationRevision: 0, expectedFleetPartitionRevision: 0,
+    decisions: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter: 3 }],
+    ...(previewBinding === undefined ? {} : { previewBinding }) })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
+
+  const applyCommand = request({ sessionId: 's1', instanceId: 'bridge', requestId: 'apply-pursuit-decision',
+    expectedNavigationRevision: 0, rejoinAdjudicationId: 'record-pursuit-decision' });
+  const applied = await calls.confirmFleetPartition.run(applyCommand);
+  expect(applied).toEqual({ status: 'committed', navigationRevision: 1, groupIds: ['fleet-1'] });
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({
+    pursuitGroups: { 'fleet-1': 4 }, revision: 1,
+  }));
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/fleetGroups/fleet-1', expect.objectContaining({
+    vesselIds: [...mock.activeVesselIds], memberUids: ['u1', 'u2'], mergedGroupIds: ['fleet-2'],
+  }));
+  expect(mock.delete).toHaveBeenCalledWith('sessions/s1/fleetGroups/fleet-2');
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1/players/u2', { fleetGroupId: 'fleet-1' });
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/fleetGroupRejoinAudits/apply-pursuit-decision', expect.objectContaining({
+    adjudicationId: 'record-pursuit-decision', pursuitDecision: 'facilitator-adjudication',
+    rejoins: [expect.objectContaining({ pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 }, pursuitAfter: 4,
+      resolution: 'facilitator-adjudication', adjudicationId: 'record-pursuit-decision' })],
+  }));
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1/fleetGroupRejoinAdjudications/record-pursuit-decision',
+    expect.objectContaining({ status: 'consumed', consumedByRequestId: 'apply-pursuit-decision' }));
+  const applyReceipt = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/commandReceipts/apply-pursuit-decision')?.[1];
+  mock.commandReceiptRecords['apply-pursuit-decision'] = applyReceipt!;
+
+  mock.navigationRevision = 1; mock.fleetPartitionRevision = 1;
+  mock.fleetGroups = [{ id: 'fleet-1', vesselIds: [...mock.activeVesselIds], memberUids: ['u1', 'u2'],
+    memberShipIds: { u1: 'aegis', u2: 'dione' }, mergedGroupIds: ['fleet-2'] }];
+  mock.players = [
+    { id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } },
+    { id: 'u2', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-1', assignedRoleId: 'icebreaker-miner' } },
+  ];
+  mock.pursuitGroups = { 'fleet-1': 4 };
+  mock.fleetGroupRejoinAdjudications['record-pursuit-decision'] = { ...saved, status: 'consumed', consumedByRequestId: 'apply-pursuit-decision' };
+  mock.set.mockClear(); mock.update.mockClear(); mock.delete.mockClear();
+  await expect(calls.confirmFleetPartition.run(applyCommand)).resolves.toEqual(applied);
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
+  await expect(calls.confirmFleetPartition.run(request({ sessionId: 's1', instanceId: 'bridge',
+    requestId: 'apply-pursuit-decision', expectedNavigationRevision: 0,
+    rejoinAdjudicationId: 'different-pursuit-decision' }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
+
+  mock.commandReceiptRecord = undefined;
+  await expect(calls.confirmFleetPartition.run(request({ sessionId: 's1', instanceId: 'bridge',
+    requestId: 'apply-pursuit-decision-again', expectedNavigationRevision: 1,
+    rejoinAdjudicationId: 'record-pursuit-decision' }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
+});
+
+it.each(['revoked instance', 'demoted GM', 'disconnected GM', 'foreign instance holder'] as const)(
+  'rechecks a %s before exact record and apply receipt replay', async authorityChange => {
+    const { calls, recordCommand, recorded, adjudicationPath } = await recordValidPursuitRejoin(
+      `record-replay-${authorityChange.replaceAll(' ', '-')}`);
+    const adjudicationId = adjudicationPath.split('/').at(-1)!;
+    const applyCommand = request({ sessionId: 's1', instanceId: 'bridge',
+      requestId: `apply-replay-${authorityChange.replaceAll(' ', '-')}`, expectedNavigationRevision: 0,
+      rejoinAdjudicationId: adjudicationId });
+    const applied = await calls.confirmFleetPartition.run(applyCommand);
+    const applyReceipt = mock.set.mock.calls.find(([path]) => path === `sessions/s1/commandReceipts/${
+      (applyCommand.data as Record<string, unknown>).requestId}`)?.[1];
+    if (!applyReceipt) throw new Error('The actual partition handler did not write its apply receipt.');
+    mock.commandReceiptRecords[(applyCommand.data as Record<string, unknown>).requestId as string] = applyReceipt;
+
+    mock.set.mockClear(); mock.update.mockClear(); mock.delete.mockClear();
+    await expect(calls.recordFleetGroupRejoinAdjudication.run(recordCommand)).resolves.toEqual(recorded);
+    await expect(calls.confirmFleetPartition.run(applyCommand)).resolves.toEqual(applied);
+    expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
+
+    if (authorityChange === 'revoked instance') mock.gmInstanceRevoked = true;
+    else if (authorityChange === 'demoted GM') mock.role = 'player';
+    else if (authorityChange === 'disconnected GM') mock.connected = false;
+    else mock.owner = 'u2';
+    await expect(calls.recordFleetGroupRejoinAdjudication.run(recordCommand))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(calls.confirmFleetPartition.run(applyCommand))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
+  });
+
+it.each(['foreign actor', 'stale navigation', 'stale partition', 'changed pursuit input', 'changed cycle',
+  'changed phase', 'changed GM lease'] as const)(
+  'rejects an actually recorded decision when only the %s guard changes', async guard => {
+    const { calls, saved, adjudicationPath } = await recordValidPursuitRejoin(`record-${guard.replaceAll(' ', '-')}`);
+    mock.set.mockClear(); mock.update.mockClear(); mock.delete.mockClear();
+    let expectedNavigationRevision = 0;
+    if (guard === 'foreign actor') {
+      mock.fleetGroupRejoinAdjudications[adjudicationPath.split('/').at(-1)!] = { ...saved, actorUid: 'u2' };
+    } else if (guard === 'stale navigation') {
+      mock.navigationRevision = 1; expectedNavigationRevision = 1;
+    } else if (guard === 'stale partition') {
+      mock.fleetPartitionRevision = 1;
+    } else if (guard === 'changed pursuit input') {
+      mock.pursuitGroups = { 'fleet-1': 2, 'fleet-2': 6 };
+    } else if (guard === 'changed cycle') {
+      mock.currentTurn = 2;
+    } else if (guard === 'changed phase') {
+      mock.turnPhaseOverride = { turn: 1, teamPhaseEndsAt: '2026-09-06T12:06:00.000Z',
+        openAirspaceEndsAt: '2026-09-06T12:20:00.000Z', airspace: { state: 'lifted', tickerActive: true, pressAccess: false } };
+    } else {
+      mock.gmInstanceClaimedAt = new Date('2026-09-06T12:01:00.000Z');
+    }
+    const adjudicationId = adjudicationPath.split('/').at(-1)!;
+    await expect(calls.confirmFleetPartition.run(request({ sessionId: 's1', instanceId: 'bridge',
+      requestId: `apply-${guard.replaceAll(' ', '-')}`, expectedNavigationRevision,
+      rejoinAdjudicationId: adjudicationId })))
+      .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/recorded GM decision is stale/i) });
+    expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
+  });
+
+it.each([
+  [],
+  [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter: 11 }],
+  [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter: 4, pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 } }],
+])('rejects malformed or out-of-range pursuit adjudication without applying a merge (%j)', async decisions => {
+  const record = (jumpCallables as unknown as {
+    recordFleetGroupRejoinAdjudication: { run: (request: unknown) => Promise<unknown> };
+  }).recordFleetGroupRejoinAdjudication;
+  await expect(record.run(request({ sessionId: 's1', instanceId: 'bridge', requestId: 'invalid-decision',
+    expectedNavigationRevision: 0, expectedFleetPartitionRevision: 0, decisions })))
+    .rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
+});
+
+it('rejects an expired facilitator lease before recording or applying pursuit adjudication', async () => {
+  mock.gmInstanceLastSeenAt = new Date(Date.now() - 5 * 60 * 1000);
+  const calls = jumpCallables as unknown as {
+    confirmFleetPartition: { run: (request: unknown) => Promise<unknown> };
+    recordFleetGroupRejoinAdjudication: { run: (request: unknown) => Promise<unknown> };
+  };
+  await expect(calls.confirmFleetPartition.run(request({ sessionId: 's1', instanceId: 'bridge', expectedNavigationRevision: 0 })))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  await expect(calls.recordFleetGroupRejoinAdjudication.run(request({ sessionId: 's1', instanceId: 'bridge',
+    requestId: 'expired-pursuit-decision', expectedNavigationRevision: 0, expectedFleetPartitionRevision: 0,
+    decisions: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter: 4 }] })))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
+});
+
 it('reattaches a validated in-flight shuttle to the rejoined current group exactly once', async () => {
   const vesselIds = [...mock.activeVesselIds];
   const rightFleet = vesselIds.filter((id) => id !== 'aegis');
@@ -2897,7 +3315,7 @@ it('reattaches a validated in-flight shuttle to the rejoined current group exact
     { id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } },
     { id: 'u2', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-2', assignedRoleId: 'icebreaker-miner' } },
   ];
-  mock.pursuitGroups = { 'fleet-1': 2, 'fleet-2': 5 };
+  mock.pursuitGroups = { 'fleet-1': 2, 'fleet-2': 2 };
   const transit = enterShuttleTransit({
     transitRequestId: 'transit-rejoin', actorUid: 'u2', expectedDepartureRequestId: 'departure-rejoin',
     expectedControlRevision: 0, expectedCycle: 1,
@@ -2919,7 +3337,7 @@ it('reattaches a validated in-flight shuttle to the rejoined current group exact
   await expect(call.run(command)).resolves.toEqual({ status: 'committed', navigationRevision: 1, groupIds: ['fleet-1'] });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1/shuttleDepartures/starlight', { fleetGroupId: 'fleet-1' });
   expect(mock.set).toHaveBeenCalledWith('sessions/s1/fleetGroupRejoinAudits/rejoin-with-shuttle', expect.objectContaining({
-    policy: 'highest-pursuit-score', migratedShuttleIds: ['starlight'],
+    pursuitDecision: 'identical-inputs', migratedShuttleIds: ['starlight'],
   }));
 });
 
@@ -3050,4 +3468,15 @@ it('publishes remaining pursuit-emergency authority after a host jump and clears
   await jumpShip.run(request({ ...data, requestId: 'resolved-window-projection', destination: '5143' }));
   const resolved = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/gmDiscovery/current')?.[1];
   expect(resolved).toHaveProperty('pursuitEmergencyWindow', 'delete-field');
+});
+
+
+it.each(['jump', 'move'])('denies a fresh ordinary GM %s for a settled vessel while another group remains active', async kind => {
+  mock.candidateVesselOutcomes = { aegis: { code: 'N', groupId: 'fleet-1', shipId: 'aegis',
+    sourceId: 'candidate-n-3232', cycle: 1, outcome: 'left-behind' } };
+  const handler = kind === 'jump' ? jumpShip : moveShipToLocation;
+  await expect(handler.run(request({ ...data, destination: '5143' }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
 });

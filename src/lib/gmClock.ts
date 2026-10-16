@@ -22,7 +22,7 @@ export function nextGmClockUpdate(
 ): number | undefined {
   let next: number | undefined;
   const phase = phaseForSession(session);
-  const phaseEndsAt = phase?.timerPause
+  const phaseEndsAt = phase?.progression === 'manual' || phase?.timerPause
     ? Number.NaN
     : Date.parse(phase?.openAirspaceEndsAt ?? '');
   if (Number.isFinite(phaseEndsAt) && phaseEndsAt > now) {

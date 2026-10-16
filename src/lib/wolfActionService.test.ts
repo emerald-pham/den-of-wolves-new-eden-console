@@ -1,7 +1,11 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { httpsCallable } from 'firebase/functions';
 import { useSessionStore } from '@/store/useSessionStore';
-import { submitWolfHomingBeacon, submitWolfIntelligence } from './wolfActionService';
+import {
+  submitWolfHomingBeacon,
+  submitWolfIntelligence,
+  submitWolfSupplySabotage,
+} from './wolfActionService';
 
 const call = vi.fn();
 
@@ -55,4 +59,36 @@ it('submits only current cycle authority for a server-targeted homing beacon', a
   expect(call).toHaveBeenCalledWith({
     sessionId: 's1', requestId: 'wolf-beacon-1', expectedCycle: 2,
   });
+});
+
+it('submits only the selected shuttle resource and current cycle authority for supply sabotage', async () => {
+  const result = {
+    status: 'committed' as const, type: 'wolf-supply-sabotage' as const,
+    sessionId: 's1', requestId: 'wolf-sabotage-1', cycle: 2, revision: 1,
+    coverRoleId: 'dione-engineer', shuttleId: 'maliades', resourceId: 'fuel',
+    destroyedAmount: 2, remainingAmount: 3, suspicion: 4,
+    actorUid: 'u2', actorRoleId: 'dione-engineer', vesselId: 'maliades', turn: 2,
+    phase: 'active', idempotencyKey: 'wolf-sabotage-1',
+    auditId: 'wolf-supply-sabotage-wolf-sabotage-1',
+  };
+  call.mockResolvedValue({ data: result });
+
+  await expect(submitWolfSupplySabotage('maliades', 'fuel', 'wolf-sabotage-1'))
+    .resolves.toEqual(result);
+  expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'submitWolfSupplySabotage');
+  expect(call).toHaveBeenCalledWith({
+    sessionId: 's1', requestId: 'wolf-sabotage-1', expectedCycle: 2,
+    shuttleId: 'maliades', resourceId: 'fuel',
+  });
+});
+
+it('blocks supply sabotage for a non-Wolf card or an inactive cycle before calling the server', async () => {
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'fleet-loyalist', suspicion: 0 });
+  await expect(submitWolfSupplySabotage('maliades', 'fuel', 'wolf-sabotage-2'))
+    .rejects.toThrow(/only a Wolf holder/i);
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+  useSessionStore.getState().setSession({ id: 's1', phase: 'briefing', currentTurn: 0 } as never);
+  await expect(submitWolfSupplySabotage('maliades', 'fuel', 'wolf-sabotage-3'))
+    .rejects.toThrow(/active cycle/i);
+  expect(call).not.toHaveBeenCalled();
 });

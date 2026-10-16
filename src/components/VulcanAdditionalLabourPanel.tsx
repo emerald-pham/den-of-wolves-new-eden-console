@@ -33,7 +33,14 @@ export default function VulcanAdditionalLabourPanel() {
     [effectiveTargetShipId, targetShips],
   );
   const coordination = session?.turnPhase === undefined || session.turnPhase.airspace.state === 'lifted';
-  const ready = sourceState?.cycle.step === 5 && sourceState.cycle.turn === session?.currentTurn && sourceCharges.length > 0;
+  const completedTeamCycle = Boolean(sourceState && sourceState.cycle.step === 0 &&
+    sourceState.cycle.chargingSkipped === false &&
+    typeof sourceState.cycle.startedAt === 'string' && Number.isFinite(Date.parse(sourceState.cycle.startedAt)) &&
+    typeof sourceState.cycle.completedAt === 'string' && Number.isFinite(Date.parse(sourceState.cycle.completedAt)) &&
+    Object.keys(sourceState.cycle.results).sort().join(',') === '1,2,3,4' &&
+    Object.values(sourceState.cycle.results).every(result => typeof result === 'string' && result.length > 0));
+  const maintenanceReady = sourceState?.cycle.step === 5 || completedTeamCycle;
+  const ready = maintenanceReady && sourceState?.cycle.turn === session?.currentTurn && sourceCharges.length > 0;
   const fuelRefinery = effectiveTargetConsoleId === 'fuel-refinery' || effectiveTargetConsoleId === 'fuel-refinery-ii';
   const refineryMax = session?.shipUpgrades?.[effectiveTargetShipId]?.includes(effectiveTargetConsoleId) ? 15 : 10;
   const targetOre = session?.shipResources?.[effectiveTargetShipId]?.ore ?? 0;
@@ -76,8 +83,8 @@ export default function VulcanAdditionalLabourPanel() {
       <p>During Coordination, spend one charged console to charge one permitted console on another active ship.</p>
       <p role="status">Remaining uses this cycle: {sourceCharges.length} // {sourceState?.hostShipId ? `docked with ${sourceState.hostShipId}` : 'dock the Vulcan first'}</p>
       {!sourceState && <p role="status">Vulcan state is unavailable. Reconnect to the session.</p>}
-      {sourceState && sourceState.cycle.step !== 5 && <p role="status">Finish Vulcan maintenance before using Additional Labour.</p>}
-      {sourceState && sourceState.cycle.step === 5 && sourceState.cycle.turn !== session.currentTurn && <p role="status">The charged consoles belong to another cycle.</p>}
+      {sourceState && !maintenanceReady && <p role="status">Finish Vulcan maintenance before using Additional Labour.</p>}
+      {sourceState && maintenanceReady && sourceState.cycle.turn !== session.currentTurn && <p role="status">The charged consoles belong to another cycle.</p>}
       {ready && targetShips.length === 0 && <p role="status">No active fleet ship can receive a console charge.</p>}
       {ready && targetShips.length > 0 && (
         <fieldset className="maintenance-controls" disabled={pending || !coordination}>

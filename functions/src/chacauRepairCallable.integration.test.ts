@@ -14,6 +14,10 @@ const mock = vi.hoisted(() => {
   };
   const get = vi.fn(async (target: { path: string }) => snapshot(target.path));
   const set = vi.fn((target: { path: string }, fields: Fields) => documents.set(target.path, { ...fields }));
+  const create = vi.fn((target: { path: string }, fields: Fields) => {
+    if (documents.has(target.path)) throw new Error('Audit already exists.');
+    documents.set(target.path, { ...fields });
+  });
   const update = vi.fn((target: { path: string }, fields: Fields) => {
     const current = { ...(documents.get(target.path) ?? {}) };
     for (const [path, value] of Object.entries(fields)) {
@@ -31,7 +35,7 @@ const mock = vi.hoisted(() => {
     }
     documents.set(target.path, current);
   });
-  const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) => callback({ get, set, update }));
+  const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) => callback({ get, set, update, create }));
   return { documents, get, set, update, db: { doc: ref, collection: ref, runTransaction } };
 });
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -48,7 +52,7 @@ vi.mock('firebase-admin/firestore', () => ({
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
 vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error { constructor(readonly code: string, message: string) { super(message); } },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 vi.mock('firebase-functions/v2/scheduler', () => ({ onSchedule: (_s: string, h: (event: unknown) => unknown) => ({ run: h }) }));
 
@@ -252,3 +256,18 @@ it.each([
     expect(mock.documents.has('sessions/s1/events/chacau-repair-chacau-1')).toBe(false);
   },
 );
+
+it('records one private standardized chacau-repair audit and preserves it on exact retry', async () => {
+  await repairConsolesFromChacau.run(request(command));
+  const metadata = mock.documents.get('sessions/s1/actionAudits/' + command.requestId);
+  const procedure = mock.documents.get('sessions/s1/procedureAudits/' + command.requestId);
+  expect(metadata).toMatchObject({ action: 'chacau-repair', sessionId: 's1', requestId: command.requestId, outcome: 'committed', resolutionSource: 'server-calculated', redactionPolicy: 'action-audit-metadata-only-v1' });
+  expect(metadata).not.toHaveProperty('calculation');
+  expect(procedure).toMatchObject({ action: 'chacau-repair', redactionPolicy: 'procedure-audit-gm-private-v1' });
+  expect(Object.keys(procedure!.calculation as Fields).length).toBeGreaterThan(0);
+  expect(Object.keys(procedure!.consequences as Fields).length).toBeGreaterThan(0);
+  expect((procedure!.requiredChoices as unknown[]).length).toBeGreaterThan(0);
+  await repairConsolesFromChacau.run(request(command));
+  expect(mock.documents.get('sessions/s1/actionAudits/' + command.requestId)).toEqual(metadata);
+  expect(mock.documents.get('sessions/s1/procedureAudits/' + command.requestId)).toEqual(procedure);
+});

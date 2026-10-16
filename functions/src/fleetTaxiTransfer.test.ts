@@ -2,8 +2,10 @@ import { expect, it } from 'vitest';
 import { planFleetTaxiTransfer } from './fleetGroupOperations';
 
 const groups = [
-  { id: 'fleet-1', vesselIds: ['aegis', 'dione'], memberUids: ['alice', 'bob'] },
-  { id: 'fleet-2', vesselIds: ['icebreaker', 'shepherd'], memberUids: ['cara'] },
+  { id: 'fleet-1', vesselIds: ['aegis', 'dione'], memberUids: ['alice', 'bob'],
+    memberShipIds: { alice: 'aegis', bob: 'aegis' } },
+  { id: 'fleet-2', vesselIds: ['icebreaker', 'shepherd'], memberUids: ['cara'],
+    memberShipIds: { cara: 'icebreaker' } },
 ];
 it('moves at most two current anchor passengers to the selected destination group in one taxi attempt', () => {
   const plan = planFleetTaxiTransfer({ actorUid: 'pilot', groups, sourceGroupId: 'fleet-1', targetGroupId: 'fleet-2',
@@ -15,7 +17,7 @@ it('moves at most two current anchor passengers to the selected destination grou
     groups: [
       { id: 'fleet-1', vesselIds: ['aegis', 'dione'], memberUids: [] },
       { id: 'fleet-2', vesselIds: ['icebreaker', 'shepherd'], memberUids: ['cara', 'alice', 'bob'],
-        memberShipIds: { alice: 'icebreaker', bob: 'icebreaker' } },
+        memberShipIds: { cara: 'icebreaker', alice: 'icebreaker', bob: 'icebreaker' } },
     ] });
   expect(() => planFleetTaxiTransfer({ actorUid: 'pilot', groups, sourceGroupId: 'fleet-1', targetGroupId: 'fleet-2',
     anchorShipId: 'aegis', targetShipId: 'icebreaker', payload: { kind: 'players', playerUids: ['alice', 'bob', 'cara'] },

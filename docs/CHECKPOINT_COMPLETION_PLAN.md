@@ -208,3 +208,122 @@ criterion and count, independent review, CI and production deployment.
 Prepared scenes remain presentation alone. Full-table PC10 and ending
 obligations remain and may use emulator clients; P605a and version
 authorization boundaries are unchanged. Historical evidence labels remain.
+
+## PC10 owner revision — October 5
+
+The separate PC10 dispatch authorizes the revised shape and execution in
+[PC10 execution record](PC10_EXECUTION_RECORD.md). Keep its fixed 48 assigned
+closures and 751/751 endpoint, with real authenticated GM cycle 0→1, an
+unlimited manually advanced full-game demo beside the existing single-cycle
+demo, fresh-game every-role/function acceptance across two browsers,
+claim-based overlapping/reconnect/retry/privacy checks, and explicit
+action/cost/blocker/next-actor usability evidence. The October 7 owner correction
+in [the execution policy](AGENT_EXECUTION_POLICY.md#risk-based-verification-for-remaining-checkpoints)
+supersedes about-21-session defaults: use the smallest legitimate cohort for
+the specific claim and reuse unaffected evidence. The October 8 correction
+requires meaningful observed RED before every functional change, implementation
+then GREEN. Risk governs test selection, breadth and depth, not permission to
+implement first. Pure prose/docs use consistency review; report historical
+timing gaps honestly and hold release of unvalidated functionality.
+A 21-account run needs an explicit scale claim impossible with fewer or a
+reproduced scale-dependent bug; untested capacity remains unclaimed.
+Prepared scenes alone are insufficient. The primary Firebase Settings join QR
+and full-game demo are explicit additions with zero fixed-catalog credit.
+Preserve Cycle 0 AWAITING CIC AUTHENTICATION and its Settings GM-start explanation.
+
+Record automated actors/browser concurrency separately from human device
+playtesting. PC10 completion returns to the parent before existing post-PC10
+work, then PC11 in-app cross-game rules guidance, then PC12 same-repository
+Mac authoritative offline LAN backup. This supersedes earlier future-PC11
+prohibitions; no later phase is executed by PC10. Firebase remains primary,
+cloud data/deployment stay intact, and no cloud/offline synchronization is
+implied. PC12 uses local identity/privacy/persistence/recovery, no runtime
+internet dependencies, WAN-disconnected multi-client proof, and local QR for
+user-entered Wi-Fi details and server URL. No credentials enter Git/reports,
+and no unauthorized network-security setting change is allowed. The subsequent
+owner authorization applies CC0 only to her own rights and contributions;
+third-party/game material, dependencies, other contributors and assets with
+unconfirmed provenance are excluded. Existing asset bytes and third-party
+notices remain unchanged.
+
+## Post-release colorblindness backlog — October 13
+
+After verified PC10 and the full app release, audit color-dependent states
+across Den of Wolves and add an optional Settings **“Don’t rely on color”**
+mode with non-color cues and patterns. This deferred item preserves the current
+release scope: it adds no PC10 acceptance requirement, does not reopen PC11,
+and does not delay version 0.9. Existing later-work sequencing remains in place.
+
+## October 8 owner N/O edition choice
+
+Emerald approved **Home as the default** for the app and canonical paper kit,
+with clearly labeled, coherent Deluxe alternatives. This owner choice is not
+author-confirmed precedence. Home N requires 10 Materials, an Engineering
+Shuttle, five research tracks with four crosses and 5 Fuel per attempting ship.
+Home O is d6 plus scouting plus prior lost ships, threshold 9. Deluxe N uses
+15 Materials and five completed technologies, preserving its other exact
+source-face requirements; Deluxe O uses threshold 8 without loss bonuses.
+Verify the exact source faces before implementation and do not mix clauses.
+
+The existing SUCCESS/P app and canonical paper owners retain implementation,
+coordinated by the checkpoint parent. Separately proposed facilitator policies
+remain unselected. The [acceptance impact](PC10_PARITY_ACCEPTANCE_IMPACT.md#owner-selected-home-no-default)
+requires edition-bound consumer RED, independent review and relevant rendered
+and gameplay evidence. Older N/O observations retain their original bindings;
+this planning/catalog amendment grants no closure or new Home outcome credit.
+
+## October 10 deadline and sequential PC11 handoff
+
+The owner's October 5 steering sets **October 10** as the available work
+window. Complete PC10 first, return it to the parent, then follow the existing
+post-PC10 work and PC11 sequentially. The owner said “execute” for the
+[PC10 to PC11 implementation lessons](PC10_PC11_HANDOFF.md): audit mounted
+actions, explain actual current states and adjacent costs/blockers/next actors,
+qualify small live slices, reuse scoped PC10 evidence, use exact accessible
+controls and retain finite appropriate-role families. Apply these now to the
+plan and at PC11's turn; do not start PC11 concurrently.
+
+PC12 is unstarted and conditional; it has not been cancelled. The owner decides
+on deferral or cancellation after a concrete reuse and service-boundary
+assessment. Earlier coarse estimates are not a reliable schedule. Deadline
+pressure does not weaken functionality, privacy, acceptance or release gates.
+The linked handoff records the current evidence limits, critical path and
+bounded offline architecture assessment.
+
+The subsequent canonical paper handoff is delivered locally with paper-only
+independent content/layout acceptance. Its exact original-clause alignment
+is recorded in [the PC10 acceptance impact](PC10_PARITY_ACCEPTANCE_IMPACT.md#owner-selected-home-no-default):
+Home's four displayed crosses include any original mark once; both N variants
+use Engineering Shuttle and 5 Fuel per attempting ship; Home O's loss bonus
+counts ships lost earlier in the same attempt sequence, for subsequent rolls
+only. Paper acceptance is not app acceptance. At the paper-only handoff the five conditional
+house-rule gap-fillers were pending; the subsequent separate approval below governs.
+
+## October 8 owner-approved house rules
+
+Emerald's direct “go for it” response (`Sentinel_cdb7e2735ee4819188a584d06e6b3756`)
+to proposal `Sentinel_a0dcb330864c8191bbd5b06981f753b7` approves these five
+clearly labeled house rules for app and local canonical paper. They fill
+unspecified cases; they do not claim original-author intent.
+
+| Rule | Approved behavior and boundary |
+| --- | --- |
+| Nonparticipating targets | Reroll targets that are not participating. Preserve exact source targeting exceptions and the Capybara override. |
+| Finite mission deck | Recycle resolved mission discards only when needed; leave undealable extras undrawn. Do not recycle unresolved/in-hand cards or invent extra cards. This is not a Wolf or damage-deck carryover ruling. |
+| Split pursuit | Track separated groups' pursuit individually; adjudicate exceptional merges before they affect play. Preserve normal documented merge policy and source exceptions. This does not select net-depth versus cumulative outward-jump arithmetic. |
+| Unspecified half-losses | Round unspecified half-losses down, preserving explicit exceptions, including printed emergency-jump rounding. Do not apply this rule to fractional Boa opportunity difficulty or invent range/tie conventions. |
+| Unfinished Wolf Commander action | Keep the optional unfinished action unavailable until the GM records its consequence. Preserve the printed effects and actual phase/role authority. No automatic default death, capture, escape or other consequence is approved. |
+
+The canonical main PC10 parent owns app changes and coordinating existing
+helpers; the canonical-kit task owns local-only documents. Avoid overlapping
+writers. Each functional correction requires meaningful consumer/backend RED
+in a separate test-only commit, GREEN, independent exact source review and
+final relevant rendered review. Current authority/privacy, cost accounting,
+replay/recovery and explicit source exceptions remain gates. The GM records a
+real adjudication where required; ordinary calculation remains server-owned.
+Request a bounded parent runtime allocation only when source-ready.
+
+Prior observations retain their exact source binding; these planning updates
+alone add no implementation, native evidence, fixed catalog closure or release
+acceptance. The fixed 48 PC10 rows and all 751 statuses remain unchanged. Other
+source disputes outside the five approved scopes remain unresolved.

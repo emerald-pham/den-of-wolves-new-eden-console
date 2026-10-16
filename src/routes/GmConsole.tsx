@@ -1,4 +1,6 @@
+import type { PlayerRemovalLogEntry } from '@/types/game';
 import WolfBoardingSpecialChoicePanel from '@/components/WolfBoardingSpecialChoicePanel';
+import CandidatePreparationPanel from '@/components/CandidatePreparationPanel';
 import DiseaseOutbreakFields from '../components/DiseaseOutbreakFields';
 import { populationForShip, populationTrackForShip } from '@/data/shipPopulation';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -18,6 +20,7 @@ import ShipPlot from '@/components/ShipPlot';
 import { useFleetGroupNavigation } from '@/lib/useFleetGroupNavigation';
 import GmMutinyRecovery from '@/components/GmMutinyRecovery';
 import { GmSetupChecklist } from '@/components/GmSetupChecklist';
+import GmLoyaltySetupPanel from '@/components/GmLoyaltySetupPanel';
 import UnionCraftStartingHostPanel from '@/components/UnionCraftStartingHostPanel';
 import PursuitTracker from '@/components/PursuitTracker';
 import JumpFailureAdjudicationPanel from '@/components/JumpFailureAdjudicationPanel';
@@ -73,6 +76,8 @@ import {
   applyShipCounterSteps,
   advanceTurn,
   startGame,
+  prepareFullGameDemo,
+  advanceFullGameDemoPhase,
   setFighterWingCount,
   scavengeDestroyedShipStores,
   extendAirspaceWindow,
@@ -97,6 +102,7 @@ import {
 } from '@/lib/presidentialElectionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
+import { demoActorManagerUrl } from '@/lib/demoActorContext';
 import { hasActiveTurnTimer, phaseForSession, turnPhaseReadout } from '@/lib/turnPhase';
 import { facilitatorQueueFor } from '@/lib/facilitatorQueue';
 import { useDialogFocus } from '@/hooks/useDialogFocus';
@@ -469,6 +475,11 @@ export default function GmConsole() {
   const gmRecoveryPending = useSessionStore((state) => state.gmRecoveryPending);
   const connection = useSessionStore((state) => state.connection);
   const sessionSnapshotFreshness = useSessionStore((state) => state.sessionSnapshotFreshness);
+  const identityHydrationRevision = useSessionStore((state) => state.identityHydrationRevision);
+  const seats = useSessionStore((state) => state.seats);
+  const liveSetupAuthority = Boolean(session && me?.role === 'gm' && me.sessionId === session.id &&
+    local?.sessionId === session.id && local.uid === me.uid &&
+    connection === 'live' && sessionSnapshotFreshness === 'server');
   const setupReceipt = useSessionStore((state) => state.gmSetupReceipt);
   const loyaltyCensus = useSessionStore((state) => state.gmLoyaltyCensus);
   const gmWolfCultIntelligence = useSessionStore((state) => state.gmWolfCultIntelligence);
@@ -510,6 +521,7 @@ export default function GmConsole() {
   const [castingMutationUid, setCastingMutationUid] = useState<string | null>(null);
   const [castingMutationMessage, setCastingMutationMessage] = useState<string | null>(null);
   const [events, setEvents] = useState<readonly SessionEvent[]>([]);
+  const [playerRemovals, setPlayerRemovals] = useState<readonly PlayerRemovalLogEntry[]>([]);
   const [wolfAttackWindow, setWolfAttackWindowState] = useState<WolfAttackWindow | null>(null);
   const [wolfThreatTargetGroupId, setWolfThreatTargetGroupId] = useState('');
   const [wolfThreatOptions, setWolfThreatOptions] = useState<WolfAttackThreatWindowOptions | null>(null);
@@ -719,6 +731,11 @@ export default function GmConsole() {
   const [confirmFinale, setConfirmFinale] = useState(false);
   const [startingGame, setStartingGame] = useState(false);
   const [confirmGameStart, setConfirmGameStart] = useState(false);
+  const [confirmDemoPreparation, setConfirmDemoPreparation] = useState(false);
+  const [demoPreparationMutation, setDemoPreparationMutation] = useState(false);
+  const [demoPreparationMessage, setDemoPreparationMessage] = useState<string | null>(null);
+  const [demoPhaseMutation, setDemoPhaseMutation] = useState(false);
+  const [demoPhaseMessage, setDemoPhaseMessage] = useState<string | null>(null);
   const [startMutationState, setStartMutationState] = useState<
     'idle' | 'pending' | 'blocked' | 'stale' | 'committed' | 'replayed'
   >('idle');
@@ -761,12 +778,46 @@ export default function GmConsole() {
   const attackInProgress = wolfAttackState?.status==='declared';
   const candidatePlanCycleEligible = currentTurn === 6;
   const endgameEvaluation = ['success', 'failure', 'debrief', 'closed'].includes(session?.phase ?? '');
+  const currentGmVerified = Boolean(session && local && me?.role === 'gm' && me.sessionId === session.id &&
+    local.sessionId === session.id && local.uid === me.uid && isGm && connection === 'live' &&
+    sessionSnapshotFreshness === 'server');
+  const demoPreparationWindow = Boolean(session && currentTurn === 0 &&
+    (session.phase === 'casting' || (session.phase === 'lobby' && session.setupConfirmed === true)));
+  const hasOrdinaryPlayers = allPlayers.some((player) => player.role === 'player');
+  const canPrepareFullGameDemo = currentGmVerified && demoPreparationWindow &&
+    !session?.fullGameDemo && !session?.singlePlayerDemo && !hasOrdinaryPlayers;
   const canReplayTurnAnnouncement = Boolean(
     session?.turnStartAnnouncement && session.turnStartAnnouncement.turn === currentTurn && currentTurn >= 1,
   );
   const changingTurn = advancingTurn || skippingTurn;
   const currentPhase = phaseForSession(session);
+  const fullGameDemo = session?.fullGameDemo;
+  const demoIsPreparing = fullGameDemo?.status === 'preparing' && fullGameDemo.progression === 'manual';
+  const demoIsActive = fullGameDemo?.status === 'active' && fullGameDemo.progression === 'manual';
+  const demoIsManual = demoIsActive && currentPhase?.progression === 'manual';
+  const demoPursuitEmergency = session?.pursuitEmergencyWindow ?? session?.pursuitEmergencyWindowAuthority;
+  const demoPhaseBlocker = demoPursuitEmergency
+    ? demoPursuitEmergency.status === 'awaiting-gm-decision'
+      ? 'Pursuit emergency // GM: choose Offer emergency jump or End pursuit-limit run in Pursuit emergency decision. Coordination remains blocked until the emergency window clears.'
+      : 'Pursuit emergency // entitled ship crews must complete the offered emergency jump. GM: review Pursuit emergency decision. Coordination remains blocked until the emergency window clears.'
+    : null;
+  const canStartFullGameDemo = currentGmVerified && demoIsPreparing && demoPreparationWindow &&
+    !session?.singlePlayerDemo;
+  const demoManagerHref = session?.id && session.joinCode
+    ? demoActorManagerUrl({ id: session.id, joinCode: session.joinCode }, window.location.href)
+    : null;
   const phaseReadout = turnPhaseReadout(currentPhase, clock);
+  const currentDispositionPhase = currentPhase?.turn !== currentTurn
+    ? 'unavailable'
+    : currentPhase.timerPause !== undefined
+      ? 'paused'
+      : phaseReadout?.kind === 'team' && currentPhase.airspace.state === 'restricted'
+        ? 'team'
+        : phaseReadout?.kind === 'open' && currentPhase.airspace.state === 'lifted'
+          ? 'coordination'
+          : phaseReadout?.kind === 'complete' && currentPhase.airspace.state === 'lifted'
+            ? 'complete'
+            : 'unavailable';
   const activeAirspaceWindow: AirspaceWindow | null = !currentPhase?.timerPause && phaseReadout?.kind === 'team' &&
     currentPhase?.airspace.state === 'restricted'
     ? 'restricted'
@@ -1068,6 +1119,7 @@ export default function GmConsole() {
       setInstances([]);
       setConnectedPlayers([]);
       setAllPlayers([]);
+      setPlayerRemovals([]);
       setReplacementEligibilityEntries([]);
       setLoading(false);
       setCrisisMutationState(null);
@@ -1112,6 +1164,7 @@ export default function GmConsole() {
       subscribeGmCivilUnrestResolution,
       subscribeGmArrestPosseCalculation,
       subscribeSessionEvents,
+      subscribeGmPlayerRemovalEvents,
     }) => {
       if (!currentAuthorityKey()) return;
       stopInstances = subscribeGmInstances(
@@ -1342,6 +1395,13 @@ export default function GmConsole() {
           useSessionStore.getState().setGmFacilitatorRuleCall(next);
         })
         : () => undefined;
+      const stopPlayerRemovals = subscribeGmPlayerRemovalEvents(
+        sessionId,
+        next => { if (currentAuthorityKey()) setPlayerRemovals(next); },
+        () => useSessionStore.getState().setCommunicationError({
+          code: 'gm-player-removal-log-link', message: 'The private player-removal log could not be refreshed.',
+        }),
+      );
       const stopEvents = subscribeSessionEvents(
         sessionId,
         setEvents,
@@ -1403,6 +1463,8 @@ export default function GmConsole() {
         stopZealotryResponse();
         stopCivilUnrestResolution();
         stopArrestPosseCalculation();
+        stopPlayerRemovals();
+        setPlayerRemovals([]);
         stopEvents();
         stopDamageDraws();
         stopPlayers();
@@ -1446,6 +1508,9 @@ export default function GmConsole() {
   }, [
     advanceArrestPosseCalculationGeneration,
     clearArrestPosseCalculation,
+    // Accepted identity hydration clears private stores even for the same GM
+    // claim. Rebind their listeners so unchanged current documents refill them.
+    identityHydrationRevision,
     isGm,
     gmRecoveryPending,
     connection,
@@ -1640,8 +1705,10 @@ export default function GmConsole() {
   useEffect(() => {
     const nextServerRoleIds = knownRoleIds(activeRoleIds);
     const nextDraftRoleIds = normalizeRoleDraft(nextServerRoleIds);
+    // The queued updater may run after the ref advances to the new roster.
+    const previousRoleIds = previousServerRoleIds.current;
     setDraftRoleIds((current) =>
-      sameRoleConfiguration(current, previousServerRoleIds.current)
+      sameRoleConfiguration(current, previousRoleIds)
         ? nextDraftRoleIds
         : current);
     previousServerRoleIds.current = nextServerRoleIds;
@@ -1778,10 +1845,28 @@ export default function GmConsole() {
       </p>
     </main>;
   }
-  if (!isGm || !local) return <Navigate to="/console" replace />;
+  if (!isGm || !local || local.uid !== me.uid || local.sessionId !== session.id) {
+    return <Navigate to="/console" replace />;
+  }
 
   function castingRoleLabel(roleId: string): string {
     return CONSOLE_ROLES.find((role) => role.id === roleId)?.name ?? roleId;
+  }
+
+  function hasCanonicalHeldCastingSeat(player: Player): boolean {
+    if (
+      !session || currentTurn !== 0 ||
+      (session.phase !== 'lobby' && session.phase !== 'casting') ||
+      connection !== 'live' || sessionSnapshotFreshness !== 'server' ||
+      player.sessionId !== session.id || typeof player.uid !== 'string' || player.uid.length === 0 ||
+      typeof player.seatId !== 'string' || !activeRoleIds.includes(player.seatId)
+    ) return false;
+    const matchingSeats = seats.filter((seat) => seat.id === player.seatId);
+    if (matchingSeats.length !== 1) return false;
+    const seat = matchingSeats[0];
+    if (!seat) return false;
+    return seat.sessionId === session.id && seat.roleId === player.seatId &&
+      seat.status === 'claimed' && seat.holderUid === player.uid;
   }
 
   function castingRestriction(player: Player): string | null {
@@ -1795,7 +1880,8 @@ export default function GmConsole() {
     if (
       typeof player.seatId === 'string' &&
       player.seatId.length > 0 &&
-      player.seatId !== player.assignedRoleId
+      player.seatId !== player.assignedRoleId &&
+      !(player.assignedRoleId == null && hasCanonicalHeldCastingSeat(player))
     ) {
       return `Station held // ${castingRoleLabel(player.seatId)} // release it before casting.`;
     }
@@ -1805,10 +1891,15 @@ export default function GmConsole() {
   function availableCastingRoles(player: Player): readonly string[] {
     if (castingRestriction(player)) return [];
     return activeRoleIds.filter((roleId) =>
-      roleId === player.assignedRoleId || !assignedCastingRoleIds.has(roleId));
+      (!player.seatId || roleId === player.seatId) &&
+      (roleId === player.assignedRoleId || !assignedCastingRoleIds.has(roleId)));
   }
 
   async function changeCastingRole(player: Player, roleId: string | null): Promise<void> {
+    if (roleId !== null && !availableCastingRoles(player).includes(roleId)) {
+      setCastingMutationMessage('CASTING CHANGE REJECTED // REVIEW THE LIVE ROSTER');
+      return;
+    }
     setCastingMutationUid(player.uid);
     setCastingMutationMessage(null);
     try {
@@ -2530,7 +2621,8 @@ export default function GmConsole() {
     setStartMutationState('pending');
     setStartMutationMessage('Start pending // validating live seats, roles, vessels, loyalty, and GM staffing.');
     try {
-      const reply = await startGame();
+      const fullDemoStart = demoIsPreparing;
+      const reply = await startGame(fullDemoStart ? { fullGameDemo: true } : {});
       if (reply.status === 'stale') {
         setStartMutationState('stale');
         setStartMutationMessage(
@@ -2541,7 +2633,9 @@ export default function GmConsole() {
         setStartMutationMessage(
           reply.status === 'replayed'
             ? 'Start replayed // the existing Cycle 1 result was preserved.'
-            : 'Start committed // Cycle 1, pursuit 2, and private setup are live.',
+            : fullDemoStart
+              ? 'Full-game demo started // Cycle 1 // unlimited GM-controlled phases are live.'
+              : 'Start committed // Cycle 1, pursuit 2, and private setup are live.',
         );
       }
     } catch (cause) {
@@ -2565,6 +2659,41 @@ export default function GmConsole() {
     void commitProductionStart();
   }
 
+  async function prepareTrainingSession(): Promise<void> {
+    if (demoPreparationMutation || !confirmDemoPreparation) return;
+    setConfirmDemoPreparation(false);
+    setDemoPreparationMutation(true);
+    setDemoPreparationMessage('Training session preparation pending // confirming a fresh Cycle 0 with the server.');
+    try {
+      const reply = await prepareFullGameDemo();
+      if (reply.status === 'stale') {
+        setDemoPreparationMessage('Preparation stale // refresh the live setup revision and retry.');
+      } else {
+        setDemoPreparationMessage('Permanent full-game training session prepared // open the actor link in a second browser.');
+      }
+    } catch (cause) {
+      const error = normalizeCommandError(cause);
+      setDemoPreparationMessage(`Preparation blocked // ${error.message}`);
+    } finally {
+      setDemoPreparationMutation(false);
+    }
+  }
+
+  async function openDemoCoordination(): Promise<void> {
+    if (!demoIsManual || demoPhaseMutation || attackInProgress || demoPursuitEmergency || !session) return;
+    setDemoPhaseMutation(true);
+    setDemoPhaseMessage(null);
+    try {
+      await advanceFullGameDemoPhase();
+      setDemoPhaseMessage('Coordination open // no countdown // advance the next cycle manually when ready.');
+    } catch (cause) {
+      const error = normalizeCommandError(cause);
+      setDemoPhaseMessage(`Manual phase advance blocked // ${error.message}`);
+    } finally {
+      setDemoPhaseMutation(false);
+    }
+  }
+
   async function requestAirspaceExtension(window: AirspaceWindow): Promise<void> {
     if (attackInProgress || activeAirspaceWindow !== window || extendingAirspace !== null) return;
     if (confirmAirspaceExtension !== window) {
@@ -2584,7 +2713,7 @@ export default function GmConsole() {
 
   async function changeWolfAttackWindow(
     status: WolfAttackWindowStatus,
-    threat?: Readonly<{ targetGroupId: string; threatSiteCode?: 'L' | 'M' | 'P'; threatSourceId?: string }>,
+    threat?: Parameters<typeof setWolfAttackWindow>[2],
   ): Promise<void> {
     if (wolfWindowMutation || !session || !local) return;
     setWolfWindowMutation(status);
@@ -2698,14 +2827,16 @@ export default function GmConsole() {
     presentPlayerUids: readonly string[],
     expectedCycle: number,
     expectedRevision: number,
+    attendanceEvidence?: 'simulated-demo',
   ) {
-    const result = await resolveArrestPosse(targetUid, presentPlayerUids, expectedCycle, expectedRevision);
+    const result = await resolveArrestPosse(targetUid, presentPlayerUids, expectedCycle, expectedRevision, attendanceEvidence);
     setArrestCase((current) => current && current.revision > result.revision ? current : {
       type: 'arrest-case', sessionId: result.sessionId, targetUid: result.targetUid,
       status: result.outcome === 'arrested' ? 'pending-resolution' : 'not-arrested',
       outcome: result.outcome, turn: result.turn, revision: result.revision,
       requiredPlayers: result.requiredPlayers, presentPlayers: result.presentPlayers,
       ...(result.deadlineCycle === undefined ? {} : { deadlineCycle: result.deadlineCycle }),
+      ...(result.attendanceEvidence ? { attendanceEvidence: result.attendanceEvidence } : {}),
       requestId: result.requestId,
     });
     return result;
@@ -2971,6 +3102,7 @@ export default function GmConsole() {
   }
 
   async function confirmRoster(lockChart = false): Promise<void> {
+    if (!liveSetupAuthority) return;
     if (endgameEvaluation) return;
     if (lockChart && chartLocked) return;
     if (!rosterConfigurationValid) return;
@@ -3069,6 +3201,30 @@ export default function GmConsole() {
         <p className="ship-console__nation">{session.name} // Game master</p>
         <h1 className="ship-console__name">GM Console</h1>
         <p className="ship-console__type">Fleet command oversight</p>
+        {fullGameDemo && (
+          <section className="gm-console__module cic-frame" aria-label="Full-game training session">
+            <h2 className="gm-console__section-title">Permanent training session</h2>
+            <p className="gm-console__status">
+              {fullGameDemo.status === 'preparing'
+                ? 'Prepared before player admission // waiting for authenticated demo actors.'
+                : fullGameDemo.status === 'active'
+                  ? 'Live full-game demo // unlimited progression is controlled manually by the GM.'
+                  : 'Completed full-game demo // this session remains permanently labeled as training.'}
+            </p>
+            <p className="gm-console__hint">
+              Each demo role uses a real authenticated account. The crew represents simulated roles,
+              not physical attendance; role authority, choices, consent, and server rules still apply.
+            </p>
+            {demoManagerHref && fullGameDemo.status !== 'complete' && (
+              <p className="gm-console__hint">
+                Open the ordinary join link in a second browser, then choose each authenticated demo role there.{' '}
+                <a className="cic-text-button" href={demoManagerHref} target="_blank" rel="noreferrer">
+                  Demo actor manager // join code only
+                </a>
+              </p>
+            )}
+          </section>
+        )}
 
         <RoleConsoleTemplate
           label="GM operations console"
@@ -3105,6 +3261,12 @@ export default function GmConsole() {
           <section className="gm-console__module cic-frame" aria-label="Cycle controls">
             <h2 className="gm-console__section-title">Cycle control</h2>
             <p className="gm-console__status">Cycle {currentTurn}</p>
+            {demoIsManual && (
+              <p className="gm-console__hint">
+                Full-game demo // unlimited manual progression // no cycle countdown or automatic airspace closure.
+                Review the current phase and player decisions before using the GM controls.
+              </p>
+            )}
             {attackInProgress&&<p className="gm-console__hint">
               Wait for the attack to finish before advancing cycles or extending ordinary airspace.
               Use the reasoned emergency timer control for a genuine attack pause.
@@ -3115,6 +3277,17 @@ export default function GmConsole() {
               </p>
             )}
             <div className="gm-turn-control__actions">
+              {demoIsManual && currentPhase?.airspace.state === 'restricted' && (
+                <button
+                  className="cic-action-button"
+                  type="button"
+                  disabled={attackInProgress || Boolean(demoPursuitEmergency) || demoPhaseMutation || changingTurn || connection !== 'live' || sessionSnapshotFreshness !== 'server'}
+                  aria-describedby={demoPhaseBlocker ? 'gm-demo-phase-blocker' : undefined}
+                  onClick={() => void openDemoCoordination()}
+                >
+                  {demoPhaseMutation ? 'Opening Coordination manually…' : 'Open Coordination manually'}
+                </button>
+              )}
               {endgameEvaluation ? (
                 <p className="gm-console__status" role="status">
                   {session?.gameOutcome?.cause === 'pursuit-limit'
@@ -3178,36 +3351,44 @@ export default function GmConsole() {
                   : 'Replay last transmission // Everyone'}
               </button>
             </div>
+            {demoIsManual && demoPhaseBlocker && (
+              <p id="gm-demo-phase-blocker" className="gm-console__status" role="status">{demoPhaseBlocker}</p>
+            )}
+            {demoPhaseMessage && <p className="gm-console__status" role="status">{demoPhaseMessage}</p>}
             <section className="gm-turn-control__airspace" aria-label="Airspace time controls">
-              <p className="gm-console__status">Airspace extension // +5 minutes</p>
-              <div className="gm-turn-control__actions">
-                {(['restricted', 'open'] as const).map((window) => {
-                  const label = airspaceWindowLabel(window);
-                  const confirming = confirmAirspaceExtension === window;
-                  return (
-                    <button
-                      className={`cic-action-button${confirming ? ' cic-action-button--confirm' : ''}`}
-                      type="button"
-                      key={window}
-                      disabled={
-                        attackInProgress ||
-                        currentPhase?.timerPause !== undefined ||
-                        activeAirspaceWindow !== window ||
-                        extendingAirspace !== null ||
-                        changingTurn ||
-                        replayingTurnAnnouncement !== null
-                      }
-                      onClick={() => void requestAirspaceExtension(window)}
-                    >
-                      {extendingAirspace === window
-                        ? `Adding 5 minutes // ${label}…`
-                        : confirming
-                          ? `ARE YOU SURE? // Add 5 minutes // ${label}`
-                          : `Add 5 minutes // ${label}`}
-                    </button>
-                  );
-                })}
-              </div>
+              {demoIsManual ? (
+                <p className="gm-console__status">No countdown // the GM opens Coordination and advances each cycle manually.</p>
+              ) : <>
+                <p className="gm-console__status">Airspace extension // +5 minutes</p>
+                <div className="gm-turn-control__actions">
+                  {(['restricted', 'open'] as const).map((window) => {
+                    const label = airspaceWindowLabel(window);
+                    const confirming = confirmAirspaceExtension === window;
+                    return (
+                      <button
+                        className={`cic-action-button${confirming ? ' cic-action-button--confirm' : ''}`}
+                        type="button"
+                        key={window}
+                        disabled={
+                          attackInProgress ||
+                          currentPhase?.timerPause !== undefined ||
+                          activeAirspaceWindow !== window ||
+                          extendingAirspace !== null ||
+                          changingTurn ||
+                          replayingTurnAnnouncement !== null
+                        }
+                        onClick={() => void requestAirspaceExtension(window)}
+                      >
+                        {extendingAirspace === window
+                          ? `Adding 5 minutes // ${label}…`
+                          : confirming
+                            ? `ARE YOU SURE? // Add 5 minutes // ${label}`
+                            : `Add 5 minutes // ${label}`}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>}
             </section>
             <section className="gm-turn-control__airspace" aria-label="Wolf attack timing controls">
               <p className="gm-console__status">
@@ -3814,13 +3995,13 @@ export default function GmConsole() {
               onResolveElection={resolvePresidentialElection}
             />
           </section>
-          <EmergencyTimerPauseControl
+          {!demoIsManual && <EmergencyTimerPauseControl
             phase={currentPhase}
             connection={connection}
             busy={changingTurn || replayingTurnAnnouncement !== null || sessionSnapshotFreshness!=='server'}
             {...(attackInProgress&&wolfAttackState?{attack:wolfAttackState}:{})}
             authorityKey={`${sessionId}:${local?.id??''}:${me?.uid??''}`}
-          />
+          />}
           <section className="gm-console__module gm-finale cic-frame" aria-label="Finale controls">
             <h2 className="gm-console__section-title">Finale</h2>
             <p className="gm-console__status">
@@ -4415,6 +4596,10 @@ export default function GmConsole() {
                 <p className="gm-role-setup__note" role="status" aria-label="Press GM projection">
                   {pressProjectionMessage}
                 </p>
+                {!liveSetupAuthority && <p id="gm-setup-authority-status" className="gm-role-setup__note"
+                  role="status" aria-live="polite" aria-label="Setup authority status">
+                  Reconnect until the live GM session returns before confirming setup or locking the star chart.
+                </p>}
                 <fieldset className="gm-role-setup gm-chart-setup">
                   <legend>Star chart</legend>
                   <label className="gm-role-preset">
@@ -4438,7 +4623,8 @@ export default function GmConsole() {
                     Confirm the staged setup and lock this chart. Other roster choices remain editable until start.
                   </p>
                   <button className="cic-action-button" type="button"
-                    disabled={endgameEvaluation || chartLocked || !rosterConfigurationValid || confirmingRoster || rosterQueued}
+                    disabled={!liveSetupAuthority || endgameEvaluation || chartLocked || !rosterConfigurationValid || confirmingRoster || rosterQueued}
+                    aria-describedby={!liveSetupAuthority ? 'gm-setup-authority-status' : undefined}
                     onClick={() => void confirmRoster(true)}>
                     Lock star chart
                   </button>
@@ -4526,8 +4712,9 @@ export default function GmConsole() {
                       className="cic-action-button"
                       type="button"
                       aria-label="Confirm setup // Confirm roster"
+                      aria-describedby={!liveSetupAuthority ? 'gm-setup-authority-status' : undefined}
                       disabled={
-                        !rosterConfigurationValid ||
+                        !liveSetupAuthority || !rosterConfigurationValid ||
                         endgameEvaluation || confirmingRoster || rosterQueued
                       }
                       onClick={() => void confirmRoster()}
@@ -4585,6 +4772,75 @@ export default function GmConsole() {
                     Wobbly and Ally are available only with their confirmed Union replacement station.
                   </p>
                 </fieldset>
+                <GmLoyaltySetupPanel players={allPlayers} />
+                <fieldset className="gm-production-start" aria-label="Full-game demo preparation">
+                  <legend>Full-game demo // unlimited manual progression</legend>
+                  {!fullGameDemo ? <>
+                    <p className="gm-role-setup__note">
+                      Optional permanent training mode. Prepare it in fresh Cycle 0 before any ordinary player joins;
+                      normal authenticated admission, role assignment, readiness, and start rules still apply.
+                    </p>
+                    <p
+                      className="gm-role-setup__note"
+                      role="status"
+                      aria-label="Training session preparation"
+                      aria-live="polite"
+                      aria-busy={demoPreparationMutation}
+                    >
+                      {demoPreparationMessage ?? (confirmDemoPreparation
+                        ? 'ARE YOU SURE? // This permanently labels the session as training and enables demo actors before join.'
+                        : 'No training session prepared // ordinary production remains available.')}
+                    </p>
+                    <button
+                      className={`cic-action-button${confirmDemoPreparation ? ' cic-action-button--confirm' : ''}`}
+                      type="button"
+                      disabled={!canPrepareFullGameDemo || demoPreparationMutation || hasUnconfirmedRosterChanges}
+                      onClick={() => {
+                        if (confirmDemoPreparation) void prepareTrainingSession();
+                        else setConfirmDemoPreparation(true);
+                      }}
+                    >
+                      {demoPreparationMutation
+                        ? 'Preparing permanent training session…'
+                        : confirmDemoPreparation
+                          ? 'ARE YOU SURE? // PREPARE FULL-GAME DEMO'
+                          : 'Prepare full-game demo'}
+                    </button>
+                    {!canPrepareFullGameDemo && <p className="gm-role-setup__note">
+                      Preparation requires this live GM in fresh Cycle 0, before ordinary players join, with setup changes synchronized.
+                    </p>}
+                  </> : demoIsPreparing ? <>
+                    <p className="gm-role-setup__note">
+                      Permanent training session prepared // each demo role must join and claim a real seat through the normal authenticated admission flow.
+                      The GM assigns roles and starts Cycle 1 using the same server readiness checks as production.
+                    </p>
+                    {demoManagerHref && <p className="gm-role-setup__note">
+                      Open the following ordinary join link in a second browser. It carries the join code and training identifier only.
+                      {' '}<a className="cic-text-button" href={demoManagerHref} target="_blank" rel="noreferrer">
+                        Open demo actor manager
+                      </a>
+                    </p>}
+                    <button
+                      className={`cic-action-button${confirmGameStart ? ' cic-action-button--confirm' : ''}`}
+                      type="button"
+                      disabled={!canStartFullGameDemo || startingGame || hasUnconfirmedRosterChanges}
+                      onClick={requestProductionStart}
+                    >
+                      {startingGame
+                        ? 'Starting full-game demo // awaiting server receipt…'
+                        : confirmGameStart
+                          ? 'ARE YOU SURE? // START FULL-GAME DEMO // CYCLE 1'
+                          : 'Start full-game demo // Advance to Cycle 1'}
+                    </button>
+                    {!canStartFullGameDemo && <p className="gm-role-setup__note">
+                      Start requires this live GM in fresh Cycle 0 with synchronized setup; server checks seats, roles, vessels, loyalties, and staffing.
+                    </p>}
+                  </> : <p className="gm-role-setup__note">
+                    {fullGameDemo.status === 'active'
+                      ? 'Full-game demo started // use the manual GM phase and cycle controls.'
+                      : 'Training session complete // its permanent label is retained.'}
+                  </p>}
+                </fieldset>
                 <fieldset className="gm-production-start" aria-label="Ordinary production start">
                   <UnionCraftStartingHostPanel />
                   <legend>Ordinary production start</legend>
@@ -4610,7 +4866,7 @@ export default function GmConsole() {
                   <button
                     className={`cic-action-button${confirmGameStart ? ' cic-action-button--confirm' : ''}`}
                     type="button"
-                    disabled={startingGame || currentTurn !== 0 || !(session.phase === 'casting' || (session.phase === 'lobby' && session.setupConfirmed === true))}
+                    disabled={startingGame || demoIsPreparing || currentTurn !== 0 || !(session.phase === 'casting' || (session.phase === 'lobby' && session.setupConfirmed === true))}
                     onClick={requestProductionStart}
                   >
                     {startingGame
@@ -4878,10 +5134,12 @@ export default function GmConsole() {
               calculationGeneration={arrestPosseCalculationGeneration}
               calculation={arrestPosseCalculation}
               presentPlayerOptions={arrestPossePresentPlayerOptions}
+              {...((session as unknown as { fullGameDemo?: { status: string; progression: string } })?.fullGameDemo?.status === 'active' &&
+                (session as unknown as { fullGameDemo?: { status: string; progression: string } })?.fullGameDemo?.progression === 'manual'
+                ? { attendanceEvidence: 'simulated-demo' as const } : {})}
               caseRecord={arrestCase}
               {...(typeof session?.currentTurn === 'number' ? { currentCycle: session.currentTurn } : {})}
-              deadlineTeamPhaseOpen={Boolean(currentPhase?.turn === currentTurn && phaseReadout?.kind === 'team' &&
-                currentPhase.airspace.state === 'restricted' && currentPhase.timerPause === undefined)}
+              currentDispositionPhase={currentDispositionPhase}
               {...(typeof session?.currentTurn === 'number' && Number.isSafeInteger(session.currentTurn) && session.currentTurn > 0
                 ? { expectedCycle: session.currentTurn } : {})}
               caseOutcome={arrestCase && arrestCase.targetUid === arrestPosseCalculation?.targetUid ? {
@@ -4891,6 +5149,7 @@ export default function GmConsole() {
                 requiredPlayers: arrestCase.requiredPlayers, presentPlayers: arrestCase.presentPlayers,
                 outcome: arrestCase.outcome,
                 ...(arrestCase.deadlineCycle === undefined ? {} : { deadlineCycle: arrestCase.deadlineCycle }),
+                ...(arrestCase.attendanceEvidence ? { attendanceEvidence: arrestCase.attendanceEvidence } : {}),
               } : null}
               onCalculate={runArrestPosseCalculation}
               onResolve={resolveArrestPosseAttendance}
@@ -5384,6 +5643,8 @@ export default function GmConsole() {
           )}
 
           {isGm && (
+            <>
+            <CandidatePreparationPanel />
             <section className="gm-console__module cic-frame gm-arbour-vision" aria-label="Cycle 6 candidate plan checkpoint">
               <h2 className="gm-console__section-title">Cycle 6 candidate plan checkpoint</h2>
               <p className="gm-player-roster__hint">
@@ -5415,6 +5676,7 @@ export default function GmConsole() {
                     : 'No Cycle 6 candidate plan status recorded yet.')}
               </p>
             </section>
+            </>
           )}
 
           {isGm && wolfAssignment && (
@@ -5532,9 +5794,21 @@ export default function GmConsole() {
               </div>
             )}
             <ul className="gm-event-log" aria-label="GM event log">
-              {events.length === 0 && damageDraws.length === 0
+              {events.length === 0 && damageDraws.length === 0 && playerRemovals.length === 0
                 ? <li>No logged events.</li>
                 : <>
+                  {playerRemovals.map(event => <li key={event.id} aria-label="Player removal">
+                    <time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleTimeString()}</time>
+                    <span><strong>Player out of play</strong> // {event.playerName} // {event.roleName} // {{
+                      'ship-destroyed': 'Ship destroyed — Awaiting escape',
+                      'fighter-ace-death': 'Fighter Ace killed in combat — Awaiting a new role',
+                      'boarding-death': 'Militia Leader killed during boarding — Awaiting a new role',
+                      'gm-removal': 'Removed from the session by a GM',
+                      'mutiny-replacement': 'Captain replaced after mutiny — Awaiting a new role',
+                      'execution': 'Executed after arrest — Eligible for a new role',
+                      'candidate-loss': 'Candidate vessel lost, left behind or cannibalised — Player actions closed',
+                    }[event.cause]}</span>
+                  </li>)}
                   {damageDraws.map((draw) => {
                     const shipName = SHIPS.find((ship) => ship.id === draw.shipId)?.name ?? draw.shipId;
                     return <li key={`damage-${draw.id}`}>
@@ -5606,7 +5880,7 @@ export default function GmConsole() {
         </>,
         document.body,
       )}
-      {pendingCapybaraEnabled !== null && (
+      {pendingCapybaraEnabled !== null && createPortal(
         <div
           className="settings-backdrop"
           onMouseDown={() => setPendingCapybaraEnabled(null)}
@@ -5644,9 +5918,9 @@ export default function GmConsole() {
               Confirm {pendingCapybaraEnabled ? 'add' : 'remove'} Capybara
             </button>
           </section>
-        </div>
+        </div>, document.body,
       )}
-      {pendingDioneEnabled !== null && (
+      {pendingDioneEnabled !== null && createPortal(
         <div
           className="settings-backdrop"
           onMouseDown={() => setPendingDioneEnabled(null)}
@@ -5684,9 +5958,9 @@ export default function GmConsole() {
               Confirm {pendingDioneEnabled ? 'add' : 'remove'} Dione
             </button>
           </section>
-        </div>
+        </div>, document.body,
       )}
-      {pendingPressEnabled !== null && (
+      {pendingPressEnabled !== null && createPortal(
         <div
           className="settings-backdrop"
           onMouseDown={closePressDialog}
@@ -5726,7 +6000,7 @@ export default function GmConsole() {
               ARE YOU SURE? // {pendingPressEnabled ? 'Enable' : 'Disable'} Press
             </button>
           </section>
-        </div>
+        </div>, document.body,
       )}
     </main>
   );

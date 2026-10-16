@@ -1,3 +1,4 @@
+import type * as NodeCrypto from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomInt } from 'node:crypto';
 import type { CallableRequest } from 'firebase-functions/v2/https';
@@ -42,7 +43,7 @@ vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error { constructor(readonly code: string, message: string) { super(message); } },
   onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
-vi.mock('node:crypto', () => ({ randomInt: vi.fn(() => 5) }));
+vi.mock('node:crypto', async (importOriginal) => ({ ...await importOriginal<typeof NodeCrypto>(), ...(({ randomInt: vi.fn(() => 5) })) }));
 
 import { resolveWolfAttackAftermath } from './wolfAttackAftermathCallable';
 
@@ -132,6 +133,29 @@ describe('Wolf attack aftermath command contract', () => {
       expect.objectContaining({ sourceId: 'doctor-medical-aid', outcome: { casualtiesPrevented: 1, foodSpent: 0, waterSpent: 0 } }),
     ]);
     expect(mock.documents.get('sessions/s-1/wolfAttackAudience/current')).not.toHaveProperty('calculationReceipt');
+  });
+
+  it('commits the lower integer half of five casualties from the private Doctor receipt', async () => {
+    mock.documents.get('sessions/s-1')!.shipSurvivors = { aegis: 750 };
+    const attack = mock.documents.get('sessions/s-1/wolfAttackState/current')!;
+    (attack.calculationReceipt as Fields).fleetDamage = [{
+      target: 'aegis', amount: 5, populationBefore: 2_500, population: 750,
+      state: { damagedSystemIds: [], destroyed: false },
+      draws: Array.from({ length: 5 }, () => ({ casualty: true })),
+    }];
+
+    await expect(resolveWolfAttackAftermath.run(request({
+      sessionId: 's-1', attackId: 'attack-7', requestId: 'doctor-odd-five',
+      action: 'doctor', selectedShipIds: ['aegis'],
+    }))).resolves.toMatchObject({
+      status: 'committed', mitigated: [{
+        shipId: 'aegis', casualtiesBefore: 5, casualtiesAfter: 2, casualtiesPrevented: 3,
+      }],
+    });
+
+    expect(mock.documents.get('sessions/s-1')?.shipSurvivors).toEqual({ aegis: 1_500 });
+    expect(mock.documents.get('sessions/s-1/wolfAttackState/current')?.aftermath)
+      .toMatchObject({ doctor: { mitigated: [{ casualtiesBefore: 5, casualtiesAfter: 2, casualtiesPrevented: 3 }] } });
   });
 
   it('replays semantic Doctor fingerprints across map ordering but binds exact fields and array order', async () => {
@@ -337,5 +361,111 @@ describe('Wolf attack aftermath command contract', () => {
       requestId: 'boa-scrap-7', action: 'collect-scrap', shuttleId: 'boa', targetShipId: 'aegis' }, 'boa-uid')))
       .resolves.toMatchObject({ status: 'committed', action: 'collect-scrap', shuttleId: 'boa', scrapGained: 1 });
     expect(mock.documents.get('sessions/s-1')?.shuttleCargo).toEqual({ boa: { scrap: 1 } });
+  });
+
+  it('lets the retained Capybara shuttle collect the Scrap earned by a ship destroyed at the 3-damage threshold', async () => {
+    const session = mock.documents.get('sessions/s-1')!;
+    session.activeVesselIds = ['aegis', 'capybara'];
+    session.capybaraEnabled = true;
+    session.shuttleDockings = [];
+    session.retainedShuttles = { macaw: { status: 'retained', shuttleId: 'macaw',
+      ownerRoleId: 'capybara-captain', holderUid: 'macaw-uid', destroyedHostShipId: 'aegis',
+      controlRevision: 0, retainedAt: '2026-10-04T09:59:00.000Z' } };
+    session.shuttleControl = { macaw: { shuttleId: 'macaw', ownerRoleId: 'capybara-captain',
+      ownerUid: 'macaw-uid', holderUid: 'macaw-uid', revision: 0 } };
+    session.shuttleCargo = {};
+    const state = mock.documents.get('sessions/s-1/wolfAttackState/current')!;
+    (state.calculationReceipt as Fields).fleetDamage = [{ target: 'aegis', amount: 3, populationBefore: 2_500,
+      population: 2_000, state: { damagedSystemIds: ['reactor'], destroyed: true },
+      draws: [{ casualty: false }, { casualty: true }, { casualty: false }] }];
+    put('sessions/s-1/players/macaw-uid', { role: 'player', connected: true, assignedRoleId: 'capybara-captain',
+      activeConsoleRoleId: 'capybara-captain', replacementRoleId: null, replacementStatus: null,
+      escapeState: null, fleetGroupId: 'fleet-1' });
+    put('sessions/s-1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis', 'capybara'], memberUids: ['macaw-uid'] });
+
+    await expect(resolveWolfAttackAftermath.run(request({ sessionId: 's-1', attackId: 'attack-7',
+      requestId: 'destroyed-scrap-7', action: 'collect-scrap', shuttleId: 'macaw', targetShipId: 'aegis' }, 'macaw-uid')))
+      .resolves.toMatchObject({ status: 'committed', action: 'collect-scrap', scrapGained: 1 });
+    expect(mock.documents.get('sessions/s-1')?.shuttleCargo).toEqual({ macaw: { scrap: 1 } });
+  });
+
+  it('does not let a retained shuttle claim another destroyed ship’s Scrap', async () => {
+    const session = mock.documents.get('sessions/s-1')!;
+    session.activeVesselIds = ['aegis', 'dione', 'capybara'];
+    session.capybaraEnabled = true;
+    session.shuttleDockings = [];
+    session.retainedShuttles = { macaw: { status: 'retained', shuttleId: 'macaw',
+      ownerRoleId: 'capybara-captain', holderUid: 'macaw-uid', destroyedHostShipId: 'dione',
+      controlRevision: 0, retainedAt: '2026-10-04T09:59:00.000Z' } };
+    session.shuttleControl = { macaw: { shuttleId: 'macaw', ownerRoleId: 'capybara-captain',
+      ownerUid: 'macaw-uid', holderUid: 'macaw-uid', revision: 0 } };
+    session.shuttleCargo = {};
+    const state = mock.documents.get('sessions/s-1/wolfAttackState/current')!;
+    (state.calculationReceipt as Fields).fleetDamage = [{ target: 'aegis', amount: 3, populationBefore: 2_500,
+      population: 2_000, state: { damagedSystemIds: ['reactor'], destroyed: true },
+      draws: [{ casualty: false }, { casualty: true }, { casualty: false }] }];
+    put('sessions/s-1/players/macaw-uid', { role: 'player', connected: true, assignedRoleId: 'capybara-captain',
+      activeConsoleRoleId: 'capybara-captain', replacementRoleId: null, replacementStatus: null,
+      escapeState: null, fleetGroupId: 'fleet-1' });
+    put('sessions/s-1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis', 'dione', 'capybara'], memberUids: ['macaw-uid'] });
+
+    await expect(resolveWolfAttackAftermath.run(request({ sessionId: 's-1', attackId: 'attack-7',
+      requestId: 'unbound-destroyed-scrap-7', action: 'collect-scrap', shuttleId: 'macaw', targetShipId: 'aegis' }, 'macaw-uid')))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.documents.get('sessions/s-1')?.shuttleCargo).toEqual({});
+  });
+
+  it('blocks a fresh Scrap pickup when the Capybara has a committed candidate disposition', async () => {
+    const session = mock.documents.get('sessions/s-1')!;
+    session.activeVesselIds = ['aegis', 'capybara'];
+    session.capybaraEnabled = true;
+    session.shuttleDockings = [{ shuttleId: 'macaw', shipId: 'aegis', dockedAt: 'fixture' }];
+    session.shuttleControl = { macaw: { shuttleId: 'macaw', ownerRoleId: 'capybara-captain',
+      ownerUid: 'macaw-uid', holderUid: 'macaw-uid', revision: 0 } };
+    session.shuttleCargo = {};
+    session.candidateVesselOutcomes = { capybara: { code: 'N', groupId: 'fleet-1', shipId: 'capybara',
+      sourceId: 'source-1', cycle: 1, outcome: 'lost' } };
+    const state = mock.documents.get('sessions/s-1/wolfAttackState/current')!;
+    (state.calculationReceipt as Fields).fleetDamage = [{ target: 'aegis', amount: 3, populationBefore: 2_500,
+      population: 2_000, state: { damagedSystemIds: [], destroyed: false },
+      draws: [{ casualty: false }, { casualty: true }, { casualty: false }] }];
+    put('sessions/s-1/players/macaw-uid', { role: 'player', connected: true, assignedRoleId: 'capybara-captain',
+      activeConsoleRoleId: 'capybara-captain', replacementRoleId: null, replacementStatus: null,
+      escapeState: null, fleetGroupId: 'fleet-1' });
+    put('sessions/s-1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis', 'capybara'], memberUids: ['macaw-uid'] });
+
+    await expect(resolveWolfAttackAftermath.run(request({ sessionId: 's-1', attackId: 'attack-7',
+      requestId: 'settled-capya-scrap-7', action: 'collect-scrap', shuttleId: 'macaw', targetShipId: 'aegis' }, 'macaw-uid')))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.documents.get('sessions/s-1')?.shuttleCargo).toEqual({});
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+
+  it('does not reopen fresh Scrap collection against a target with a committed candidate disposition', async () => {
+    const session = mock.documents.get('sessions/s-1')!;
+    session.activeVesselIds = ['aegis', 'capybara'];
+    session.capybaraEnabled = true;
+    session.shuttleDockings = [{ shuttleId: 'macaw', shipId: 'aegis', dockedAt: 'fixture' }];
+    session.shuttleControl = { macaw: { shuttleId: 'macaw', ownerRoleId: 'capybara-captain',
+      ownerUid: 'macaw-uid', holderUid: 'macaw-uid', revision: 0 } };
+    session.shuttleCargo = {};
+    session.candidateVesselOutcomes = { aegis: { code: 'N', groupId: 'fleet-1', shipId: 'aegis',
+      sourceId: 'source-1', cycle: 1, outcome: 'settled' } };
+    const state = mock.documents.get('sessions/s-1/wolfAttackState/current')!;
+    (state.calculationReceipt as Fields).fleetDamage = [{ target: 'aegis', amount: 3, populationBefore: 2_500,
+      population: 2_000, state: { damagedSystemIds: [], destroyed: false },
+      draws: [{ casualty: false }, { casualty: true }, { casualty: false }] }];
+    put('sessions/s-1/players/macaw-uid', { role: 'player', connected: true, assignedRoleId: 'capybara-captain',
+      activeConsoleRoleId: 'capybara-captain', replacementRoleId: null, replacementStatus: null,
+      escapeState: null, fleetGroupId: 'fleet-1' });
+    put('sessions/s-1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis', 'capybara'], memberUids: ['macaw-uid'] });
+
+    await expect(resolveWolfAttackAftermath.run(request({ sessionId: 's-1', attackId: 'attack-7',
+      requestId: 'settled-target-scrap-7', action: 'collect-scrap', shuttleId: 'macaw', targetShipId: 'aegis' }, 'macaw-uid')))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.documents.get('sessions/s-1')?.shuttleCargo).toEqual({});
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
   });
 });

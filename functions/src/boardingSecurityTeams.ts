@@ -1,3 +1,4 @@
+import { validatedLostShuttles } from './lostShuttles';
 import {
   craftStartingManifestForSetup,
   craftStartingManifestMatches,
@@ -13,6 +14,7 @@ import { isValidRoleConfiguration } from './roleConfiguration';
 import { SHIP_DAMAGE_DECKS } from './shipDamage';
 import { SHUTTLE_CARGO_TYPES } from './shuttleCargoTransfer';
 import { parseShuttleControl } from './shuttleControl';
+import { parseShuttleTransit } from './shuttleTransit';
 
 export interface BoardingSecurityTeamAuthority {
   readonly shipSecurityTeams: Readonly<Record<string, number>>;
@@ -73,11 +75,17 @@ export function boardingSecurityTeamAuthority(input: Readonly<{
   startingCraftManifest: unknown;
   shuttleVisitLog: unknown;
   retainedShuttles: unknown;
+  lostShuttles?: unknown;
+  vesselActionRevisions?: unknown;
+  shuttleFuelled?: unknown;
   shuttleControl: unknown;
   shipDamage: unknown;
   shipResources: unknown;
   shuttleCargo: unknown;
   shuttleDockings: unknown;
+  consumedShuttleIds?: readonly string[];
+  inTransitShuttles?: unknown;
+  currentCycle?: unknown;
 }>): BoardingSecurityTeamAuthority {
   const knownVessels = new Set(Object.keys(INITIAL_SHIP_RESOURCES));
   const activeRoleIds = Array.isArray(input.activeRoleIds) &&
@@ -139,8 +147,12 @@ export function boardingSecurityTeamAuthority(input: Readonly<{
   )) {
     throw new Error('Enabled craft do not match the canonical starting manifest.');
   }
+  const lost = validatedLostShuttles(input.lostShuttles, { activeRoleIds, activeVesselIds,
+    currentCycle: input.currentCycle as number, shipDamage: input.shipDamage, vesselActionRevisions: input.vesselActionRevisions,
+    dockings: input.shuttleDockings, visits: input.shuttleVisitLog, control: input.shuttleControl,
+    retained: input.retainedShuttles, cargo: input.shuttleCargo, fuelled: input.shuttleFuelled });
   const enabledShuttleIds = expectedStartingCraft.entries
-    .filter((craft) => craft.kind === 'shuttle')
+    .filter((craft) => craft.kind === 'shuttle' && !input.consumedShuttleIds?.includes(craft.id) && !Object.hasOwn(lost, craft.id))
     .map((craft) => craft.id);
   const enabledShuttles = new Map(expectedStartingCraft.entries
     .filter((craft) => craft.kind === 'shuttle').map((craft) => [craft.id, craft]));
@@ -160,7 +172,7 @@ export function boardingSecurityTeamAuthority(input: Readonly<{
   }
   if (Object.keys(input.shipResources).length !== activeVesselIds.length ||
       Object.keys(input.shipResources).some((shipId) => !activeVesselIds.includes(shipId)) ||
-      Object.keys(input.shuttleCargo).some((shuttleId) => !enabledShuttleIds.includes(shuttleId))) {
+      Object.keys(input.shuttleCargo).some((shuttleId) => !enabledShuttles.has(shuttleId))) {
     throw new Error('Security-team ledgers do not match the active fleet and shuttle manifest.');
   }
 
@@ -193,13 +205,30 @@ export function boardingSecurityTeamAuthority(input: Readonly<{
   for (const value of input.shuttleDockings as readonly Record<string, unknown>[]) {
     hostByShuttle.set(value.shuttleId as string, value.shipId as string);
   }
+  const inTransit = input.inTransitShuttles ?? {};
+  if (!isRecord(inTransit)) throw new Error('In-transit security-team locations are malformed.');
+  for (const [shuttleId, raw] of Object.entries(inTransit)) {
+    const transit = parseShuttleTransit(raw, shuttleId);
+    const control = shuttleControl[shuttleId];
+    const latest = latestVisit.get(shuttleId);
+    if (!transit || !enabledShuttleIds.includes(shuttleId) || hostByShuttle.has(shuttleId) ||
+        retainedShuttles[shuttleId] !== undefined || !control ||
+        control.ownerRoleId !== enabledShuttles.get(shuttleId)?.ownerRoleId ||
+        control.holderUid !== transit.holderUid || control.revision !== transit.controlRevision ||
+        !Number.isSafeInteger(input.currentCycle) || transit.cycle > (input.currentCycle as number) ||
+        !activeVesselIds.includes(transit.originShipId) || !activeVesselIds.includes(transit.destinationShipId) ||
+        !shuttleHostIsAllowed(shuttleId, transit.destinationShipId) ||
+        latest?.action !== 'docked' || latest.shipId !== transit.originShipId) {
+      throw new Error('In-transit security-team locations lack current movement or custody authority.');
+    }
+  }
   for (const shuttleId of enabledShuttleIds) {
     const currentHost = hostByShuttle.get(shuttleId);
     const latest = latestVisit.get(shuttleId);
     const retained = retainedShuttles[shuttleId];
     if (!latest || currentHost && (retained !== undefined ||
         latest.action !== 'docked' || latest.shipId !== currentHost) ||
-        !currentHost && retained === undefined && latest.action !== 'departed' ||
+        !currentHost && retained === undefined && latest.action !== 'departed' && !Object.hasOwn(inTransit, shuttleId) ||
         !currentHost && retained !== undefined &&
           (latest.action !== 'docked' || latest.shipId !== retained.destroyedHostShipId)) {
       throw new Error('Current shuttle location does not match its authoritative visit history.');

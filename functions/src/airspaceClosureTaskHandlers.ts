@@ -1,3 +1,4 @@
+import { parseCandidateCraftReservations } from './candidateAvailability';
 import { getFirestore, FieldValue, type DocumentReference, type DocumentSnapshot, type Transaction } from 'firebase-admin/firestore';
 import { getFunctions } from 'firebase-admin/functions';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
@@ -161,6 +162,7 @@ export async function parkAtOrdinaryAirspaceDeadline(
   ]);
   const roles = authoritativeActiveRoles(session);
   const vessels = authoritativeActiveVessels(session, roles);
+  const consumedShuttleIds = Object.keys(parseCandidateCraftReservations(session.get('candidateCraftReservations')));
   const storedDockings = session.get('shuttleDockings');
   const rawDockings = storedDockings === undefined
     ? initialShuttleDockingsForRoles(roles)
@@ -211,6 +213,7 @@ export async function parkAtOrdinaryAirspaceDeadline(
     parking = resolveAirspaceClosureShuttleParking({
       activeRoleIds: roles,
       activeVesselIds: vessels,
+      consumedShuttleIds,
       dockings: rawDockings,
       transits,
       fleetGroups: groups,
@@ -233,7 +236,7 @@ export async function parkAtOrdinaryAirspaceDeadline(
         event.parkedShuttleCount !== closureDockedVisitCount(parking.visitLog, currentTurn, closedAt) ||
         parking.clearedTransitIds.length > 0 ||
         !shuttleDockingsAreParked(parking.dockings, vessels) ||
-        !shuttleDockingsMatchRoleOwnedCraft(roles, parking.dockings)) {
+        !shuttleDockingsMatchRoleOwnedCraft(roles, parking.dockings, consumedShuttleIds)) {
       throw new Error('The existing airspace-closure projection conflicts with live transit authority.');
     }
     return;

@@ -56,8 +56,12 @@ is optional once the owner explicitly authorizes the checkpoint. The scene is
 for judging presentation, not evidence that multiplayer gameplay works. Agents
 prove the real authorized paths and relevant multi-client behavior separately
 before claiming the affected gameplay prompts complete.
-The final game-completion gate includes the full-table twenty-player proof;
-the owner is never responsible for recruiting or operating that table.
+The final game-completion gate covers the complete game's role/function
+behavior. The October 7 risk-based execution policy supersedes a blanket
+simultaneous twenty-player proof: use legitimate configurations and only the
+actors needed for each claim. The owner is never responsible for recruiting
+or operating a test cohort. Historical checkpoint test-first plans below remain
+historical; the current policy governs remaining work.
 
 The [catalog](implementation-prompts.json) owns current prompt definitions,
 dependencies, decisions and status. The [completion plan](CHECKPOINT_COMPLETION_PLAN.md)
@@ -297,9 +301,18 @@ make, even when the shaped UI passed.
    prevents a shaped acceptance check from passing is part of that check;
    unrelated discoveries and extra features go to the candidate list. Keep
    technical exit fixtures, authority/privacy/reconnect coverage, rendered QA,
-   and release evidence as internal gates. For new behavior, commit a failing
-   test on the task branch **before** the implementation commit. Never weaken,
-   skip, or delete an existing test to make the build pass. If an existing test
+   and release evidence as internal gates. Apply the October 8 mandatory
+   functional test-first correction and October 7
+   [risk-based execution policy](AGENT_EXECUTION_POLICY.md#risk-based-verification-for-remaining-checkpoints):
+   every functional change needs a meaningful observed RED before implementation
+   in a separate test-first commit, then GREEN. Risk governs test selection,
+   breadth and depth, not an implementation-first exception. Interactive layout,
+   visibility, defaults, parsers and provider features count as functionality;
+   pure prose/docs use consistency review. Report historical timing gaps
+   honestly and distinguish later base-versus-fixed verification. Hold release
+   of unvalidated functionality. Choose actual actor count by the claim and reuse valid
+   unaffected evidence. Never weaken, skip, or delete an existing test to make
+   the build pass. If an existing test
    appears wrong, leave it intact and flag it. Never modify an existing test
    in the same commit as the code it covers. If a later shape or cooldown
    establishes a correction, make it a separate test-only commit and record
@@ -805,3 +818,80 @@ audience-specific rules tests, action-audit and rate-limit tests, and the
 authenticated two-browser/member-GM proof helpers. Preparation does not establish
 that any gameplay gate passed. The final audit aggregates the original 48 full
 acceptances rather than treating these brief checklists as replacement criteria.
+
+## PC10 owner revision — October 5
+
+The separate PC10 dispatch authorizes the revised shape and execution in
+[PC10 execution record](PC10_EXECUTION_RECORD.md). Keep its fixed 48 assigned
+closures and 751/751 endpoint, with real authenticated GM cycle 0→1, an
+unlimited manually advanced full-game demo beside the existing single-cycle
+demo, fresh-game every-role/function acceptance across two browsers,
+claim-based overlapping/reconnect/retry/privacy checks, and explicit
+action/cost/blocker/next-actor usability evidence. The October 7 owner correction
+in [the execution policy](AGENT_EXECUTION_POLICY.md#risk-based-verification-for-remaining-checkpoints)
+supersedes about-21-session defaults: use the smallest legitimate cohort for
+the specific claim and reuse unaffected evidence. The October 8 correction
+requires meaningful observed RED before every functional change, implementation
+then GREEN. Risk governs test selection, breadth and depth, not permission to
+implement first. Pure prose/docs use consistency review; report historical
+timing gaps honestly and hold release of unvalidated functionality.
+A 21-account run needs an explicit scale claim impossible with fewer or a
+reproduced scale-dependent bug; untested capacity remains unclaimed.
+Prepared scenes alone are insufficient. The primary Firebase Settings join QR
+and full-game demo are explicit additions with zero fixed-catalog credit.
+Preserve Cycle 0 AWAITING CIC AUTHENTICATION and its Settings GM-start explanation.
+
+Record automated actors/browser concurrency separately from human device
+playtesting. PC10 completion returns to the parent before existing post-PC10
+work, then PC11 in-app cross-game rules guidance, then PC12 same-repository
+Mac authoritative offline LAN backup. This supersedes earlier future-PC11
+prohibitions; no later phase is executed by PC10. Firebase remains primary,
+cloud data/deployment stay intact, and no cloud/offline synchronization is
+implied. PC12 uses local identity/privacy/persistence/recovery, no runtime
+internet dependencies, WAN-disconnected multi-client proof, and local QR for
+user-entered Wi-Fi details and server URL. No credentials enter Git/reports,
+and no unauthorized network-security setting change is allowed. The subsequent
+owner authorization applies CC0 only to her own rights and contributions;
+third-party/game material, dependencies, other contributors and assets with
+unconfirmed provenance are excluded. Existing asset bytes and third-party
+notices remain unchanged.
+
+The October 13 [post-release colorblindness backlog](CHECKPOINT_COMPLETION_PLAN.md#post-release-colorblindness-backlog--october-13)
+records an app-wide audit and optional Settings **“Don’t rely on color”** mode
+with non-color cues and patterns after verified PC10 and the full app release.
+Current release scope, PC10 acceptance, PC11 and the version 0.9 schedule remain unchanged.
+
+## October 10 deadline and sequential PC11 handoff
+
+The owner's October 5 steering sets **October 10** as the available work
+window. Complete PC10 first, return it to the parent, then follow the existing
+post-PC10 work and PC11 sequentially. The owner said “execute” for the
+[PC10 to PC11 implementation lessons](PC10_PC11_HANDOFF.md): audit mounted
+actions, explain actual current states and adjacent costs/blockers/next actors,
+qualify small live slices, reuse scoped PC10 evidence, use exact accessible
+controls and retain finite appropriate-role families. Apply these now to the
+plan and at PC11's turn; do not start PC11 concurrently.
+
+PC12 is unstarted and conditional; it has not been cancelled. The owner decides
+on deferral or cancellation after a concrete reuse and service-boundary
+assessment. Earlier coarse estimates are not a reliable schedule. Deadline
+pressure does not weaken functionality, privacy, acceptance or release gates.
+The linked handoff records the current evidence limits, critical path and
+bounded offline architecture assessment.
+
+## October 8 PC10 owner house-rule alignment
+
+The owner's separate approval adopts five labeled gap-fillers in both app
+and local canonical paper: reroll nonparticipating targets; recycle resolved
+mission discards only when needed and leave undealable extras undrawn; track
+split-group pursuit independently and adjudicate exceptional merges before
+play; round unspecified half-losses down while retaining explicit exceptions;
+and keep the unfinished optional Wolf Commander action unavailable until the
+GM records its consequence. Preserve Capybara override. These are owner house
+rules, not original-author intent; no default Commander consequence is added.
+The [PC10 acceptance impact](PC10_PARITY_ACCEPTANCE_IMPACT.md#october-8-owner-approved-house-rules)
+records boundaries and existing app/paper ownership. Meaningful functional
+RED/GREEN, exact independent review and relevant final renders remain gates.
+This aligns affected catalog acceptances without changing statuses or adding
+closures. Existing post-PC10, PC11 and conditional PC12 stay sequential future
+work.

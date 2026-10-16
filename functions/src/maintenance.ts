@@ -248,6 +248,10 @@ export function advanceMaintenance(input: MaintenanceInput) {
         damageDraw = drawShipDamage(shipId, damage, upper => Math.floor(input.entropy * upper));
         damage = damageDraw.state;
         if (input.damageDrawId) cycle.damageDrawId = input.damageDrawId;
+        if (!damageDraw.destroyed && !damageDraw.card.systemId.startsWith('armoured-hull') && population > 0) {
+          population = populationChange(shipId, population, -1, false).amount;
+          if (population === 0) unrest = Math.min(10, unrest + 2);
+        }
         cycle.results['0'] = `${hazard.name}: rolled ${hazard.roll} (${hazard.threshold}+ causes damage); ${
           damageDraw.destroyed
             ? 'ship destroyed'

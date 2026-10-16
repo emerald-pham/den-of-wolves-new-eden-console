@@ -1,13 +1,16 @@
+import { auditedOnCall } from './securityCallable';
+import { requireCandidateCraftActionAvailable } from './candidateAvailability';
 import { randomInt } from 'node:crypto';
 import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError, } from 'firebase-functions/v2/https';
 import { commandReceiptDisposition } from './commandIdempotency';
 import { endeavourResearchTrack } from './endeavourResearch';
+import { requireEndeavourScienceDeviceBuilt } from './endeavourScienceDevices';
 import { reserveWolfAgentDetectorTest } from './endeavourWolfAgentDetector';
 import { detectorReportedWolf } from './pc09SpecialistMechanics';
 import { fleetGroupRecord } from './fleetGroups';
 import { isPresenceStale } from './sessionLifecycle';
-import { turnPhaseState } from './turnZero';
+import { turnPhaseDeadlinePassed, turnPhaseState } from './turnZero';
 
 type RecordValue = Record<string, unknown>;
 
@@ -63,10 +66,10 @@ function isSafeResult(value: unknown, request: ReturnType<typeof validateRequest
  * accuracy roll are recorded in a server-only audit document, separate from
  * the private report projection returned to the current Scientist.
  */
-export const runWolfAgentDetectorTest = onCall<{
+export const runWolfAgentDetectorTest = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedCycle?: unknown;
   expectedRevision?: unknown; targetUid?: unknown;
-}>(async (request) => {
+}>('runWolfAgentDetectorTest', async (request) => {
   const uid = requireUid(request.auth);
   const command = validateRequest(request.data);
   if (command.targetUid === uid) throw new HttpsError('invalid-argument', 'Choose another player to test.');
@@ -76,6 +79,7 @@ export const runWolfAgentDetectorTest = onCall<{
   const targetRef = db.doc(`sessions/${command.sessionId}/players/${command.targetUid}`);
   const targetSecretRef = db.doc(`sessions/${command.sessionId}/secrets/loyalty-${command.targetUid}`);
   const researchRef = db.doc(`sessions/${command.sessionId}/serverState/endeavourResearch`);
+  const constructionRef = db.doc(`sessions/${command.sessionId}/serverState/endeavourScienceDevices`);
   const stateRef = db.doc(`sessions/${command.sessionId}/wolfAgentDetectorStates/${uid}`);
   const reportRef = db.doc(`sessions/${command.sessionId}/wolfAgentDetectorReports/${uid}`);
   const auditRef = db.doc(`sessions/${command.sessionId}/wolfAgentDetectorAudits/${command.requestId}`);
@@ -88,9 +92,9 @@ export const runWolfAgentDetectorTest = onCall<{
   let accuracyRoll: number | undefined;
 
   return db.runTransaction(async (tx) => {
-    const [session, actor, target, secret, research, state, prior] = await Promise.all([
+    const [session, actor, target, secret, research, state, prior, construction] = await Promise.all([
       tx.get(sessionRef), tx.get(actorRef), tx.get(targetRef), tx.get(targetSecretRef),
-      tx.get(researchRef), tx.get(stateRef), tx.get(receiptRef),
+      tx.get(researchRef), tx.get(stateRef), tx.get(receiptRef), tx.get(constructionRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!activePlayer(actor) || actor.get('role') !== 'player' || actor.get('replacementStatus') != null ||
@@ -131,17 +135,17 @@ export const runWolfAgentDetectorTest = onCall<{
       }
       return result;
     }
+    requireCandidateCraftActionAvailable(session, ['endeavour'], ['shepherd']);
     const researchProgress = research.exists ? research.data() : {};
     try {
-      if (!endeavourResearchTrack(researchProgress, 'wolf-agent-detector').complete) {
-        throw new Error('Complete the Wolf Agent Detector research before testing.');
-      }
+      endeavourResearchTrack(researchProgress, 'wolf-agent-detector');
+      requireEndeavourScienceDeviceBuilt(construction.exists ? construction.data() : undefined, 'wolf-agent-detector');
     } catch (cause) {
       throw new HttpsError('failed-precondition', cause instanceof Error ? cause.message : 'Detector research is unavailable.');
     }
     const phase = turnPhaseState(session.get('turnPhase'));
     if (!phase || phase.turn !== currentTurn || phase.airspace.state !== 'restricted' || phase.timerPause ||
-        Date.now() >= Date.parse(phase.teamPhaseEndsAt)) {
+        turnPhaseDeadlinePassed(phase, 'team')) {
       throw new HttpsError('failed-precondition', 'Detector tests are available only during the current Team Phase.');
     }
     const targetName = target.get('displayName');
@@ -156,6 +160,7 @@ export const runWolfAgentDetectorTest = onCall<{
     try {
       const reservation = reserveWolfAgentDetectorTest({
         progress: researchProgress,
+        construction: construction.exists ? construction.data() : undefined,
         state: state.exists ? state.data() : undefined,
         expectedRevision: command.expectedRevision,
         cycle: currentTurn as number,

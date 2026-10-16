@@ -11,6 +11,10 @@ const mock = vi.hoisted(() => {
   }; };
   const get = vi.fn(async (target: { path: string }) => snapshot(target.path));
   const set = vi.fn((target: { path: string }, fields: Fields) => documents.set(target.path, { ...fields }));
+  const create = vi.fn((target: { path: string }, fields: Fields) => {
+    if (documents.has(target.path)) throw new Error('Audit already exists.');
+    documents.set(target.path, { ...fields });
+  });
   const update = vi.fn((target: { path: string }, fields: Fields) => {
     const current = { ...(documents.get(target.path) ?? {}) };
     for (const [key, value] of Object.entries(fields)) {
@@ -21,7 +25,7 @@ const mock = vi.hoisted(() => {
     }
     documents.set(target.path, current);
   });
-  const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) => callback({ get, set, update }));
+  const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) => callback({ get, set, update, create }));
   return { documents, get, set, update, db: { doc: ref, collection: ref, runTransaction } };
 });
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -33,7 +37,7 @@ vi.mock('firebase-admin/firestore', () => ({
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
 vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error { constructor(readonly code: string, message: string) { super(message); } },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 vi.mock('firebase-functions/v2/scheduler', () => ({ onSchedule: (_s: string, h: (event: unknown) => unknown) => ({ run: h }) }));
 
@@ -332,4 +336,37 @@ it.each([
     ...command, requestId: 'upgrade-malformed',
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('records one private standardized shuttle-recharge audit and preserves it on exact retry', async () => {
+  await rechargeHostConsoleFromShuttle.run(request(command));
+  const metadata = mock.documents.get('sessions/s1/actionAudits/' + command.requestId);
+  const procedure = mock.documents.get('sessions/s1/procedureAudits/' + command.requestId);
+  expect(metadata).toMatchObject({ action: 'shuttle-recharge', sessionId: 's1', requestId: command.requestId, outcome: 'committed', resolutionSource: 'server-calculated', redactionPolicy: 'action-audit-metadata-only-v1' });
+  expect(metadata).not.toHaveProperty('calculation');
+  expect(procedure).toMatchObject({ action: 'shuttle-recharge', redactionPolicy: 'procedure-audit-gm-private-v1' });
+  expect(Object.keys(procedure!.calculation as Fields).length).toBeGreaterThan(0);
+  expect(Object.keys(procedure!.consequences as Fields).length).toBeGreaterThan(0);
+  expect((procedure!.requiredChoices as unknown[]).length).toBeGreaterThan(0);
+  await rechargeHostConsoleFromShuttle.run(request(command));
+  expect(mock.documents.get('sessions/s1/actionAudits/' + command.requestId)).toEqual(metadata);
+  expect(mock.documents.get('sessions/s1/procedureAudits/' + command.requestId)).toEqual(procedure);
+});
+
+it('denies a source-consumed Engineering Shuttle even if its old docking remains valid', async () => {
+  mock.documents.get('sessions/s1')!.candidateCraftReservations = { 'condor': { code: 'N', groupId: 'fleet-1',
+    coordinate: '3232', sourceId: 'candidate-n-3232', cycle: 3 } };
+  await expect(rechargeHostConsoleFromShuttle.run(request(command))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('permanently consumed'),
+  });
+  expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('denies a fresh craft action on a settled host while other groups remain active', async () => {
+  mock.documents.get('sessions/s1')!.candidateVesselOutcomes = { 'quellon': { code: 'O', groupId: 'fleet-1',
+    shipId: 'quellon', sourceId: 'candidate-o-3131', cycle: 3, outcome: 'reached' } };
+  await expect(rechargeHostConsoleFromShuttle.run(request(command))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
 });

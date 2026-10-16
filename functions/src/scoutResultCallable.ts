@@ -1,6 +1,7 @@
+import { auditedOnCall } from './securityCallable';
 import { getFirestore, type DocumentSnapshot, type Transaction } from 'firebase-admin/firestore';
 import { isDeepStrictEqual } from 'node:util';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError, } from 'firebase-functions/v2/https';
 import { isLiveSetupGm } from './gameSetup';
 import { shipForRole } from './crewAccess';
 import { replacementRoleFor } from './replacementRoles';
@@ -126,7 +127,7 @@ export type ScoutMapCommit = (input: Readonly<{
 
 /** GM reveals one selected-chart fact from a committed, immutable legal request. */
 export function createResolvePendingScoutRequest(commitMapKnowledge: ScoutMapCommit) {
-  return onCall(CALLABLE_RUNTIME_OPTIONS, async (request) => {
+  return auditedOnCall('resolvePendingScoutRequest', CALLABLE_RUNTIME_OPTIONS, async (request) => {
     const actorUid = uid(request.auth);
     const raw = command(request.data, ['sessionId', 'requestId', 'instanceId']);
     return resolveCommittedScoutRequest(commitMapKnowledge, raw.sessionId as string,
@@ -200,7 +201,8 @@ export async function resolveCommittedScoutRequest(
         request: pendingData, cadence: cadence.data(),
         session: {
           sessionId, phase: session.get('phase'), chartId: session.get('chartId'),
-          chartSelectionLocked: session.get('chartSelectionLocked'),
+          chartSelectionLocked: session.get('chartSelectionLocked') === true ||
+            session.get('configurationLocked') === true,
           currentCycle: session.get('currentTurn'),
         }, facilitator,
         fleetGroupId: groupForShip(groups.docs, pendingData.anchorShipId, activeVesselIds),
@@ -228,7 +230,8 @@ export async function resolveCommittedScoutRequest(
         request: pendingData, cadence: cadence.data(),
         session: {
           sessionId, phase: session.get('phase'), chartId: session.get('chartId'),
-          chartSelectionLocked: session.get('chartSelectionLocked'),
+          chartSelectionLocked: session.get('chartSelectionLocked') === true ||
+            session.get('configurationLocked') === true,
           currentCycle: session.get('currentTurn'),
         }, facilitator, fleetGroupId: note.fleetGroupId,
         recordedAt: note.recordedAt,
@@ -263,7 +266,7 @@ function validScoutAudit(audit: RecordValue, expected: ScoutResolutionPlan['audi
 }
 
 /** Return one fact; no endpoint accepts a chart selector or exports a chart. */
-export const readPrivateScoutResult = onCall(CALLABLE_RUNTIME_OPTIONS, async (request) => {
+export const readPrivateScoutResult = auditedOnCall('readPrivateScoutResult', CALLABLE_RUNTIME_OPTIONS, async (request) => {
   const db = getFirestore();
   const actorUid = uid(request.auth);
   const raw = command(request.data, record(request.data) && 'instanceId' in request.data
@@ -290,12 +293,11 @@ export const readPrivateScoutResult = onCall(CALLABLE_RUNTIME_OPTIONS, async (re
 });
 
 /** A GM sees only pending request coordinates and source identities. */
-export const listPendingScoutRequests = onCall(CALLABLE_RUNTIME_OPTIONS, async (request) => {
+export const listPendingScoutRequests = auditedOnCall('listPendingScoutRequests', CALLABLE_RUNTIME_OPTIONS, async (request) => {
   const db = getFirestore();
   const actorUid = uid(request.auth);
   const raw = command(request.data, ['sessionId', 'instanceId']);
   const sessionId = raw.sessionId as string;
-  const nowMs = Date.now();
   return db.runTransaction(async (tx: Transaction) => {
     const [session, player, instance, requests] = await Promise.all([
       tx.get(db.doc(`sessions/${sessionId}`)),
@@ -303,6 +305,8 @@ export const listPendingScoutRequests = onCall(CALLABLE_RUNTIME_OPTIONS, async (
       tx.get(db.doc(`sessions/${sessionId}/gmInstances/${raw.instanceId}`)),
       tx.get(db.collection(`sessions/${sessionId}/scoutRequests`)),
     ]);
+    // Presence can renew while the transaction is reading; judge its lease now.
+    const nowMs = Date.now();
     if (!session.exists || session.get('phase') !== 'active') {
       throw new HttpsError('failed-precondition', 'This scouting session is not active.');
     }
@@ -327,11 +331,10 @@ export const listPendingScoutRequests = onCall(CALLABLE_RUNTIME_OPTIONS, async (
 });
 
 /** Current owned GM receives committed results, never a chart or player identity map. */
-export const listGmScoutResolutionLog = onCall(CALLABLE_RUNTIME_OPTIONS, async request => {
+export const listGmScoutResolutionLog = auditedOnCall('listGmScoutResolutionLog', CALLABLE_RUNTIME_OPTIONS, async request => {
   const actorUid = uid(request.auth);
   const raw = command(request.data, ['sessionId', 'instanceId']);
   const sessionId = raw.sessionId as string;
-  const nowMs = Date.now();
   const db = getFirestore();
   return db.runTransaction(async tx => {
     const [session, player, instance, audits] = await Promise.all([
@@ -340,6 +343,8 @@ export const listGmScoutResolutionLog = onCall(CALLABLE_RUNTIME_OPTIONS, async r
       tx.get(db.doc(`sessions/${sessionId}/gmInstances/${raw.instanceId}`)),
       tx.get(db.collection(`sessions/${sessionId}/scoutResolutionAudits`)),
     ]);
+    // Presence can renew while the transaction is reading; judge its lease now.
+    const nowMs = Date.now();
     if (!session.exists || session.get('phase') !== 'active') {
       throw new HttpsError('failed-precondition', 'This scouting session is not active.');
     }
@@ -370,7 +375,7 @@ export const listGmScoutResolutionLog = onCall(CALLABLE_RUNTIME_OPTIONS, async r
 });
 
 /** Reconnect index: own request identities and states, never chart facts. */
-export const listMyScoutReports = onCall(CALLABLE_RUNTIME_OPTIONS, async (request) => {
+export const listMyScoutReports = auditedOnCall('listMyScoutReports', CALLABLE_RUNTIME_OPTIONS, async (request) => {
   const db = getFirestore();
   const actorUid = uid(request.auth);
   const raw = command(request.data, ['sessionId']);
@@ -420,7 +425,7 @@ function currentRoleShip(player: DocumentSnapshot): string | undefined {
 }
 
 /** One durable note remains bound to the same requester, source ship and live fleet group. */
-export const readMyScoutDiscoveryNote = onCall(CALLABLE_RUNTIME_OPTIONS, async (request) => {
+export const readMyScoutDiscoveryNote = auditedOnCall('readMyScoutDiscoveryNote', CALLABLE_RUNTIME_OPTIONS, async (request) => {
   const db = getFirestore();
   const actorUid = uid(request.auth);
   const raw = command(request.data, ['sessionId', 'noteId']);

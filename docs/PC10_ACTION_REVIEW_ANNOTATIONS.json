@@ -1,0 +1,2872 @@
+{
+  "schemaVersion": 1,
+  "sourceBinding": {
+    "ownerRevision": "9681f7aad0451f125dad4b2296f80ebe2b3330cc",
+    "sourceCommit": "08b21c99702c2532221b8072b48f29dd22e820c1",
+    "functionsSource": {
+      "fileCount": 217,
+      "sha256": "bd2632edaf6f6147732f8207d8f1159bc5206e940f07fd6467b511622f8b84ca"
+    },
+    "clientSource": {
+      "fileCount": 395,
+      "sha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de"
+    },
+    "buildArtifactsIncluded": false,
+    "runtimeChecks": "not run",
+    "scope": "Current TypeScript/JavaScript source only. No Functions rebuild, browser, native, emulator, HTTP, or gameplay request was run for this annotation snapshot."
+  },
+  "coverageAccounting": {
+    "baselineCallableExports": 232,
+    "annotatedCallables": 20,
+    "remainingCallableRowsNotReviewed": 212,
+    "baselineRoleIdentities": 42,
+    "baselineCallableRoleCells": 9744,
+    "callableRoleCellsReviewed": 0,
+    "gameplayAcceptanceCredit": 0,
+    "canonicalSnapshotPath": "docs/PC10_ACTION_ROLE_MATRIX.json",
+    "canonicalSnapshotSha256": "bdd64af30a867de22a2c0abb3513bea94fc5ef618ac909188d7072baee53f224",
+    "canonicalSnapshotModified": false,
+    "clarification": "The canonical generator snapshot is preserved. Its unresolved inConsoleGuidance sentinel is not treated here as proof that every remaining action is a PC11 guidance gap; only the reviewed rows below have an explicit source-traced guidance status. Unreviewed rows remain unreviewed.",
+    "explicitPc11GuidanceGaps": [
+      {
+        "exportName": "submitWolfSupplySabotage",
+        "status": "server-action-not-surfaced-to-member-ui",
+        "summary": "The current member panel wires other Wolf actions while the GM console presents this action’s receipt. If this callable is later exposed as a member control, add adjacent requirements, selected-cargo loss and next-step guidance; this source pass does not claim that UI flow complete.",
+        "sourceAnchorIds": [
+          "supply.handler",
+          "supply.otherWolfControls",
+          "supply.receiptUi"
+        ]
+      }
+    ]
+  },
+  "annotationPolicy": {
+    "classifications": [
+      "served-ui-path",
+      "legacy/deprecated-internal-compatibility",
+      "external/manual-only",
+      "genuinely-unserved"
+    ],
+    "clientTraceLimit": "A source-tree scan and import/call-site trace do not prove a rendered control is visible or usable. No absence claim is a gameplay acceptance claim.",
+    "anchorPolicy": "Every reviewed actor, requirement, cost, consequence, blocker, next-actor and guidance summary refers to top-level source declaration line ranges and full-file SHA-256 hashes.",
+    "privacy": "No private source text, secret player values, hidden result payloads, or credentials are copied into this artifact."
+  },
+  "sourceAnchors": [
+    {
+      "id": "maliades.mediumCallable",
+      "path": "functions/src/maliadesCallable.ts",
+      "symbol": "resolveMaliadesMedium",
+      "startLine": 202,
+      "endLine": 203,
+      "sha256": "366e92fe21323d92d9c762543de274b40ae2f2aad1e11986f1f62acd58ef1d84"
+    },
+    {
+      "id": "maliades.shortCallable",
+      "path": "functions/src/maliadesCallable.ts",
+      "symbol": "resolveMaliadesShort",
+      "startLine": 205,
+      "endLine": 206,
+      "sha256": "366e92fe21323d92d9c762543de274b40ae2f2aad1e11986f1f62acd58ef1d84"
+    },
+    {
+      "id": "maliades.actionRunner",
+      "path": "functions/src/maliadesCallable.ts",
+      "symbol": "runMaliadesRangeAction",
+      "startLine": 182,
+      "endLine": 200,
+      "sha256": "366e92fe21323d92d9c762543de274b40ae2f2aad1e11986f1f62acd58ef1d84"
+    },
+    {
+      "id": "maliades.engineerAuthority",
+      "path": "functions/src/maliadesCallable.ts",
+      "symbol": "requireDioneEngineer",
+      "startLine": 60,
+      "endLine": 67,
+      "sha256": "366e92fe21323d92d9c762543de274b40ae2f2aad1e11986f1f62acd58ef1d84"
+    },
+    {
+      "id": "maliades.custodyAuthority",
+      "path": "functions/src/maliadesCallable.ts",
+      "symbol": "requireMaliadesControl",
+      "startLine": 163,
+      "endLine": 168,
+      "sha256": "366e92fe21323d92d9c762543de274b40ae2f2aad1e11986f1f62acd58ef1d84"
+    },
+    {
+      "id": "maliades.clientMediumStub",
+      "path": "src/lib/maliadesService.ts",
+      "symbol": "resolveMaliadesMedium",
+      "startLine": 174,
+      "endLine": 191,
+      "sha256": "76c30e6382dc38621e928191e52cab12265e71c129491cd471e79736f82b9374"
+    },
+    {
+      "id": "maliades.clientShortStub",
+      "path": "src/lib/maliadesService.ts",
+      "symbol": "resolveMaliadesShort",
+      "startLine": 193,
+      "endLine": 208,
+      "sha256": "76c30e6382dc38621e928191e52cab12265e71c129491cd471e79736f82b9374"
+    },
+    {
+      "id": "maliades.activeUi",
+      "path": "src/components/WolfEscortRangeActionPanel.tsx",
+      "symbol": "WolfEscortRangeActionPanel",
+      "startLine": 10,
+      "endLine": 51,
+      "sha256": "b5b157c17dac6848ad00fa97e73aee47b16f6110410634b812ff03b55c57135a"
+    },
+    {
+      "id": "maliades.activeChoiceService",
+      "path": "src/lib/wolfEscortRangeService.ts",
+      "symbol": "commitWolfEscortRangeActionChoice",
+      "startLine": 81,
+      "endLine": 120,
+      "sha256": "294aee8af46a4c27912ae34f7ebae18e645607a8d190edbb5e93d04a1695839b"
+    },
+    {
+      "id": "maliades.activeChoiceRead",
+      "path": "src/lib/wolfEscortRangeService.ts",
+      "symbol": "getWolfEscortRangeActionChoice",
+      "startLine": 69,
+      "endLine": 79,
+      "sha256": "294aee8af46a4c27912ae34f7ebae18e645607a8d190edbb5e93d04a1695839b"
+    },
+    {
+      "id": "maliades.choiceReaderServer",
+      "path": "functions/src/index.ts",
+      "symbol": "getWolfEscortRangeActionChoice",
+      "startLine": 30676,
+      "endLine": 30715,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "maliades.choiceCommitServer",
+      "path": "functions/src/index.ts",
+      "symbol": "commitWolfEscortRangeActionChoice",
+      "startLine": 30718,
+      "endLine": 30827,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "maliades.escortAuthorityServer",
+      "path": "functions/src/index.ts",
+      "symbol": "requireWolfEscortActor",
+      "startLine": 30624,
+      "endLine": 30645,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "maliades.choiceReconcile",
+      "path": "functions/src/index.ts",
+      "symbol": "reconcileWolfAttackProgress",
+      "startLine": 26816,
+      "endLine": 27110,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "maliades.collector",
+      "path": "functions/src/wolfEscortRange.ts",
+      "symbol": "collectWolfEscortRange",
+      "startLine": 31,
+      "endLine": 179,
+      "sha256": "593ec08f01c8d0dd9f3965107c4692033e45d588848a297011eccf5edc4a0a10"
+    },
+    {
+      "id": "maliades.rangeApply",
+      "path": "functions/src/index.ts",
+      "symbol": "applyLockedWolfRangeChoiceBundles",
+      "startLine": 25616,
+      "endLine": 25631,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "maliades.rangeRollResolver",
+      "path": "functions/src/wolfCombatMath.ts",
+      "symbol": "resolveLockedWolfRange",
+      "startLine": 739,
+      "endLine": 791,
+      "sha256": "5a15c6aae91ab484f5e79f6678bedbb9e5c92bf34abd9b81852dd2b86b32766f"
+    },
+    {
+      "id": "maliades.fleetConsoleMount",
+      "path": "src/components/FleetConsoleWorkspace.tsx",
+      "symbol": "FleetConsoleWorkspace",
+      "startLine": 34,
+      "endLine": 124,
+      "sha256": "d276fdfc95f4c52ac043fcf294626ae56166df32e00062422b198af8cc15ef43"
+    },
+    {
+      "id": "maliades.currentGuidance",
+      "path": "src/components/DioneMaliadesRangeActions.tsx",
+      "symbol": "DioneMaliadesRangeActionPanelView",
+      "startLine": 32,
+      "endLine": 157,
+      "sha256": "b73d82fd3dd0dc8424be64b4680344bd24a2ed9082421c7e7c78c054197e79a4"
+    },
+    {
+      "id": "preference.handler",
+      "path": "functions/src/index.ts",
+      "symbol": "setShipPreference",
+      "startLine": 11839,
+      "endLine": 11905,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "preference.activePlayer",
+      "path": "functions/src/index.ts",
+      "symbol": "isActivePlayer",
+      "startLine": 3834,
+      "endLine": 3842,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "preference.window",
+      "path": "functions/src/index.ts",
+      "symbol": "requireCastingWindow",
+      "startLine": 5782,
+      "endLine": 5787,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "preference.request",
+      "path": "functions/src/requestGuards.ts",
+      "symbol": "requireCastingPreferenceRequest",
+      "startLine": 423,
+      "endLine": 433,
+      "sha256": "c359a6294944543d9de13c2c6d33b21fe3ea27d9be936dcbf03b2040780c9b14"
+    },
+    {
+      "id": "supply.handler",
+      "path": "functions/src/index.ts",
+      "symbol": "submitWolfSupplySabotage",
+      "startLine": 34043,
+      "endLine": 34372,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "supply.authorization",
+      "path": "functions/src/wolfActionAuthorization.ts",
+      "symbol": "wolfActionAuthorization",
+      "startLine": 40,
+      "endLine": 82,
+      "sha256": "7204eb7850ea1c3d0eb5921c04054dd48d7676a1fbcd607505051d10d7183e9e"
+    },
+    {
+      "id": "supply.calculation",
+      "path": "functions/src/wolfSupplySabotage.ts",
+      "symbol": "resolveWolfSupplySabotage",
+      "startLine": 28,
+      "endLine": 73,
+      "sha256": "e371a5f6d5d0ec8700f33e9177b881a7319eb9e272517e60b7d7859c0f05b8b0"
+    },
+    {
+      "id": "supply.request",
+      "path": "functions/src/requestGuards.ts",
+      "symbol": "requireWolfSupplySabotageRequest",
+      "startLine": 1325,
+      "endLine": 1351,
+      "sha256": "c359a6294944543d9de13c2c6d33b21fe3ea27d9be936dcbf03b2040780c9b14"
+    },
+    {
+      "id": "supply.alertAcknowledgement",
+      "path": "functions/src/index.ts",
+      "symbol": "acknowledgeWolfHackingAlert",
+      "startLine": 34608,
+      "endLine": 34741,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "supply.receiptUi",
+      "path": "src/routes/GmConsole.tsx",
+      "symbol": "GmConsole",
+      "startLine": 458,
+      "endLine": 5889,
+      "sha256": "e393c90b18ea8c519a75728980b5244ca80d21e8e28575b5afe0270c86a8b37b"
+    },
+    {
+      "id": "supply.otherWolfControls",
+      "path": "src/components/PrivateLoyaltyPanel.tsx",
+      "symbol": "PrivateLoyaltyPanel",
+      "startLine": 54,
+      "endLine": 447,
+      "sha256": "183451611e72abc3c46d1b8c3b879e635bd5e0add783c69f870f06bbe3c0b72b"
+    },
+    {
+      "id": "elevation.handler",
+      "path": "functions/src/index.ts",
+      "symbol": "elevateToGm",
+      "startLine": 36978,
+      "endLine": 37020,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "elevation.request",
+      "path": "functions/src/requestGuards.ts",
+      "symbol": "requireElevationRequest",
+      "startLine": 837,
+      "endLine": 847,
+      "sha256": "c359a6294944543d9de13c2c6d33b21fe3ea27d9be936dcbf03b2040780c9b14"
+    },
+    {
+      "id": "elevation.liveGm",
+      "path": "functions/src/index.ts",
+      "symbol": "isLiveGmInstance",
+      "startLine": 3947,
+      "endLine": 3960,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "elevation.activePlayer",
+      "path": "functions/src/index.ts",
+      "symbol": "isActivePlayer",
+      "startLine": 3834,
+      "endLine": 3842,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "elevation.coreSeat",
+      "path": "functions/src/index.ts",
+      "symbol": "hasCoreSeat",
+      "startLine": 3968,
+      "endLine": 3971,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "elevation.coreAssignment",
+      "path": "functions/src/index.ts",
+      "symbol": "hasCoreAssignment",
+      "startLine": 3962,
+      "endLine": 3966,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "elevation.pressState",
+      "path": "functions/src/index.ts",
+      "symbol": "hasPressState",
+      "startLine": 3999,
+      "endLine": 4002,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "elevation.claimInstance",
+      "path": "functions/src/index.ts",
+      "symbol": "claimGmInstance",
+      "startLine": 19193,
+      "endLine": 19306,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "dice.handler",
+      "path": "functions/src/index.ts",
+      "symbol": "rollDice",
+      "startLine": 38859,
+      "endLine": 38892,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "dice.request",
+      "path": "functions/src/requestGuards.ts",
+      "symbol": "requireDiceRequest",
+      "startLine": 2763,
+      "endLine": 2777,
+      "sha256": "c359a6294944543d9de13c2c6d33b21fe3ea27d9be936dcbf03b2040780c9b14"
+    },
+    {
+      "id": "dice.activePlayer",
+      "path": "functions/src/index.ts",
+      "symbol": "isActivePlayer",
+      "startLine": 3834,
+      "endLine": 3842,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "dice.activePhase",
+      "path": "functions/src/index.ts",
+      "symbol": "requireActiveGameplayPhase",
+      "startLine": 4282,
+      "endLine": 4285,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "dice.ratePolicy",
+      "path": "functions/src/callableRateLimit.ts",
+      "symbol": "CALLABLE_RATE_LIMIT_POLICIES",
+      "startLine": 3,
+      "endLine": 32,
+      "sha256": "7084293724138ccffd1625940916e8b886ae309055a4bcdd3dbc308f2a405467"
+    },
+    {
+      "id": "auth.create",
+      "path": "functions/src/index.ts",
+      "symbol": "createSession",
+      "startLine": 5185,
+      "endLine": 5551,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "auth.createRequest",
+      "path": "functions/src/requestGuards.ts",
+      "symbol": "requireSessionCreationRequest",
+      "startLine": 398,
+      "endLine": 421,
+      "sha256": "c359a6294944543d9de13c2c6d33b21fe3ea27d9be936dcbf03b2040780c9b14"
+    },
+    {
+      "id": "auth.createClient",
+      "path": "src/lib/sessionService.ts",
+      "symbol": "createSession",
+      "startLine": 1315,
+      "endLine": 1336,
+      "sha256": "33939f5a1286c94058b3c405b5464193631bca93ea77f09df2fe1264a47aaf1c"
+    },
+    {
+      "id": "auth.landing",
+      "path": "src/routes/Landing.tsx",
+      "symbol": "Landing",
+      "startLine": 38,
+      "endLine": 164,
+      "sha256": "54b16f173b7357584aab927a18b5f5ebce1437b649bfb20f43fe9a9b458ee98d"
+    },
+    {
+      "id": "auth.join",
+      "path": "functions/src/index.ts",
+      "symbol": "joinSession",
+      "startLine": 18536,
+      "endLine": 18791,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "auth.joinClient",
+      "path": "src/lib/sessionService.ts",
+      "symbol": "joinSession",
+      "startLine": 2014,
+      "endLine": 2026,
+      "sha256": "33939f5a1286c94058b3c405b5464193631bca93ea77f09df2fe1264a47aaf1c"
+    },
+    {
+      "id": "auth.resume",
+      "path": "functions/src/index.ts",
+      "symbol": "resumeSession",
+      "startLine": 18794,
+      "endLine": 19083,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "auth.resumeClient",
+      "path": "src/lib/sessionService.ts",
+      "symbol": "resumeSession",
+      "startLine": 2028,
+      "endLine": 2035,
+      "sha256": "33939f5a1286c94058b3c405b5464193631bca93ea77f09df2fe1264a47aaf1c"
+    },
+    {
+      "id": "auth.closedHistoryClient",
+      "path": "src/lib/sessionService.ts",
+      "symbol": "readClosedSessionHistory",
+      "startLine": 2038,
+      "endLine": 2081,
+      "sha256": "33939f5a1286c94058b3c405b5464193631bca93ea77f09df2fe1264a47aaf1c"
+    },
+    {
+      "id": "auth.appRecovery",
+      "path": "src/App.tsx",
+      "symbol": "App",
+      "startLine": 1318,
+      "endLine": 1324,
+      "sha256": "f470d06aa6f995588c419dd9bd49e6b0793dd37b2aa35bf65580ef55a77090cf"
+    },
+    {
+      "id": "auth.memberReader",
+      "path": "functions/src/memberSessionCallable.ts",
+      "symbol": "createCurrentMemberSessionReader",
+      "startLine": 15,
+      "endLine": 103,
+      "sha256": "cbe7297d9aa6715826e0957b30b98f89c5e4fd4eb2275f1c434eaa46373b2ab1"
+    },
+    {
+      "id": "auth.memberExport",
+      "path": "functions/src/index.ts",
+      "symbol": "getCurrentMemberSession",
+      "startLine": 18526,
+      "endLine": 18526,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "auth.memberClient",
+      "path": "src/lib/firestore.ts",
+      "symbol": "subscribeSessionState",
+      "startLine": 4021,
+      "endLine": 4797,
+      "sha256": "8d45a3bb9fa26d97ebd85425305a043055aeb844d46270c8d2a1cefa443d8ac6"
+    },
+    {
+      "id": "auth.presence",
+      "path": "functions/src/index.ts",
+      "symbol": "refreshPresence",
+      "startLine": 35941,
+      "endLine": 36241,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "auth.presenceClient",
+      "path": "src/lib/sessionService.ts",
+      "symbol": "refreshPresence",
+      "startLine": 2890,
+      "endLine": 2922,
+      "sha256": "33939f5a1286c94058b3c405b5464193631bca93ea77f09df2fe1264a47aaf1c"
+    },
+    {
+      "id": "gmAccess.login",
+      "path": "functions/src/index.ts",
+      "symbol": "loginGmAccess",
+      "startLine": 19144,
+      "endLine": 19155,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "gmAccess.passwordPolicy",
+      "path": "functions/src/gmAccess.ts",
+      "symbol": "isGmAccessPassword",
+      "startLine": 13,
+      "endLine": 18,
+      "sha256": "0b28ae4815c35eafa10ac8c07e523266f645828b1e75c9afc14ea90325b8433c"
+    },
+    {
+      "id": "gmAccess.leasePolicy",
+      "path": "functions/src/gmAccess.ts",
+      "symbol": "isGmAccessActive",
+      "startLine": 35,
+      "endLine": 39,
+      "sha256": "0b28ae4815c35eafa10ac8c07e523266f645828b1e75c9afc14ea90325b8433c"
+    },
+    {
+      "id": "gmAccess.loginClient",
+      "path": "src/lib/sessionService.ts",
+      "symbol": "loginGmAccess",
+      "startLine": 2743,
+      "endLine": 2763,
+      "sha256": "33939f5a1286c94058b3c405b5464193631bca93ea77f09df2fe1264a47aaf1c"
+    },
+    {
+      "id": "gmAccess.settingsUi",
+      "path": "src/components/AppHeader.tsx",
+      "symbol": "AppHeader",
+      "startLine": 220,
+      "endLine": 739,
+      "sha256": "dd93642a48c4f74a6b42890f75a26b6fc6bdb79d104cbca88482deac63811980"
+    },
+    {
+      "id": "gmAccess.claimInstance",
+      "path": "functions/src/index.ts",
+      "symbol": "claimGmInstance",
+      "startLine": 19193,
+      "endLine": 19306,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "setup.handler",
+      "path": "functions/src/index.ts",
+      "symbol": "confirmSetup",
+      "startLine": 6022,
+      "endLine": 6396,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "setup.request",
+      "path": "functions/src/requestGuards.ts",
+      "symbol": "requireSetupConfirmationRequest",
+      "startLine": 2660,
+      "endLine": 2727,
+      "sha256": "c359a6294944543d9de13c2c6d33b21fe3ea27d9be936dcbf03b2040780c9b14"
+    },
+    {
+      "id": "setup.client",
+      "path": "src/lib/sessionService.ts",
+      "symbol": "confirmSetup",
+      "startLine": 2168,
+      "endLine": 2185,
+      "sha256": "33939f5a1286c94058b3c405b5464193631bca93ea77f09df2fe1264a47aaf1c"
+    },
+    {
+      "id": "setup.ui",
+      "path": "src/routes/GmConsole.tsx",
+      "symbol": "GmConsole",
+      "startLine": 458,
+      "endLine": 5889,
+      "sha256": "e393c90b18ea8c519a75728980b5244ca80d21e8e28575b5afe0270c86a8b37b"
+    },
+    {
+      "id": "start.handler",
+      "path": "functions/src/index.ts",
+      "symbol": "startGame",
+      "startLine": 6722,
+      "endLine": 7272,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "start.request",
+      "path": "functions/src/requestGuards.ts",
+      "symbol": "requireGameStartRequest",
+      "startLine": 629,
+      "endLine": 655,
+      "sha256": "c359a6294944543d9de13c2c6d33b21fe3ea27d9be936dcbf03b2040780c9b14"
+    },
+    {
+      "id": "start.client",
+      "path": "src/lib/sessionService.ts",
+      "symbol": "startGame",
+      "startLine": 4235,
+      "endLine": 4319,
+      "sha256": "33939f5a1286c94058b3c405b5464193631bca93ea77f09df2fe1264a47aaf1c"
+    },
+    {
+      "id": "start.ui",
+      "path": "src/routes/GmConsole.tsx",
+      "symbol": "GmConsole",
+      "startLine": 458,
+      "endLine": 5889,
+      "sha256": "e393c90b18ea8c519a75728980b5244ca80d21e8e28575b5afe0270c86a8b37b"
+    },
+    {
+      "id": "demo.handler",
+      "path": "functions/src/index.ts",
+      "symbol": "prepareFullGameDemo",
+      "startLine": 7294,
+      "endLine": 7372,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "demo.client",
+      "path": "src/lib/sessionService.ts",
+      "symbol": "prepareFullGameDemo",
+      "startLine": 4346,
+      "endLine": 4387,
+      "sha256": "33939f5a1286c94058b3c405b5464193631bca93ea77f09df2fe1264a47aaf1c"
+    },
+    {
+      "id": "demo.ui",
+      "path": "src/routes/GmConsole.tsx",
+      "symbol": "GmConsole",
+      "startLine": 458,
+      "endLine": 5889,
+      "sha256": "e393c90b18ea8c519a75728980b5244ca80d21e8e28575b5afe0270c86a8b37b"
+    },
+    {
+      "id": "debrief.commands",
+      "path": "functions/src/sessionDebriefCallable.ts",
+      "symbol": "createSessionDebriefCommands",
+      "startLine": 115,
+      "endLine": 209,
+      "sha256": "e5fb624bec79a79fee11ca6939369f3aa4110f2337f24b404db279e25ed59023"
+    },
+    {
+      "id": "debrief.beginExport",
+      "path": "functions/src/index.ts",
+      "symbol": "beginSessionDebrief",
+      "startLine": 18528,
+      "endLine": 18529,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "debrief.closeExport",
+      "path": "functions/src/index.ts",
+      "symbol": "closeSession",
+      "startLine": 18530,
+      "endLine": 18531,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "debrief.readExport",
+      "path": "functions/src/index.ts",
+      "symbol": "getSessionDebrief",
+      "startLine": 18532,
+      "endLine": 18533,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "debrief.clientBegin",
+      "path": "src/lib/sessionService.ts",
+      "symbol": "beginSessionDebrief",
+      "startLine": 2120,
+      "endLine": 2129,
+      "sha256": "33939f5a1286c94058b3c405b5464193631bca93ea77f09df2fe1264a47aaf1c"
+    },
+    {
+      "id": "debrief.clientClose",
+      "path": "src/lib/sessionService.ts",
+      "symbol": "closeSession",
+      "startLine": 2132,
+      "endLine": 2141,
+      "sha256": "33939f5a1286c94058b3c405b5464193631bca93ea77f09df2fe1264a47aaf1c"
+    },
+    {
+      "id": "debrief.clientRead",
+      "path": "src/lib/sessionService.ts",
+      "symbol": "getSessionDebrief",
+      "startLine": 2144,
+      "endLine": 2165,
+      "sha256": "33939f5a1286c94058b3c405b5464193631bca93ea77f09df2fe1264a47aaf1c"
+    },
+    {
+      "id": "debrief.ui",
+      "path": "src/components/EndgameDialog.tsx",
+      "symbol": "EndgameDialog",
+      "startLine": 136,
+      "endLine": 234,
+      "sha256": "12732400fee00481d99361e7a4df93a93743c21a01ba2adfbc523b39827c10a4"
+    },
+    {
+      "id": "group.request",
+      "path": "functions/src/index.ts",
+      "symbol": "groupNoteRequest",
+      "startLine": 17482,
+      "endLine": 17492,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "group.authority",
+      "path": "functions/src/index.ts",
+      "symbol": "groupNoteAuthority",
+      "startLine": 17493,
+      "endLine": 17510,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "group.read",
+      "path": "functions/src/index.ts",
+      "symbol": "readFleetGroupMessages",
+      "startLine": 17526,
+      "endLine": 17540,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "group.send",
+      "path": "functions/src/index.ts",
+      "symbol": "sendFleetGroupMessage",
+      "startLine": 17541,
+      "endLine": 17565,
+      "sha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f"
+    },
+    {
+      "id": "group.clientActions",
+      "path": "src/lib/fleetGroupService.ts",
+      "symbol": "createFleetGroupActions",
+      "startLine": 136,
+      "endLine": 270,
+      "sha256": "9cd032ba720432442e85636b06264af132d9e77d459eb830c3e4e41381629df6"
+    },
+    {
+      "id": "group.currentActions",
+      "path": "src/lib/fleetGroupService.ts",
+      "symbol": "createCurrentFleetGroupActions",
+      "startLine": 271,
+      "endLine": 292,
+      "sha256": "9cd032ba720432442e85636b06264af132d9e77d459eb830c3e4e41381629df6"
+    },
+    {
+      "id": "group.workspace",
+      "path": "src/components/FleetGroupWorkspace.tsx",
+      "symbol": "FleetGroupWorkspace",
+      "startLine": 17,
+      "endLine": 102,
+      "sha256": "11bd4613d42dcda0a5f3c7ec9b2468b0e8b4c368548b72e3e1e6936e9741165c"
+    }
+  ],
+  "annotations": [
+    {
+      "exportName": "resolveMaliadesMedium",
+      "classification": "legacy/deprecated-internal-compatibility",
+      "productPath": {
+        "status": "legacy-endpoint-not-used-by-current-control",
+        "currentSurface": "Maliades range panel",
+        "currentCallable": "commitWolfEscortRangeActionChoice",
+        "servedAlternative": {
+          "callable": "commitWolfEscortRangeActionChoice"
+        },
+        "sourceAnchorIds": [
+          "maliades.activeUi",
+          "maliades.activeChoiceService",
+          "maliades.fleetConsoleMount"
+        ]
+      },
+      "actor": {
+        "family": "active connected Dione Engineer holding the live Maliades shuttle control",
+        "identities": [
+          "dione-engineer"
+        ],
+        "sourceAnchorIds": [
+          "maliades.engineerAuthority",
+          "maliades.custodyAuthority",
+          "maliades.activeChoiceService"
+        ]
+      },
+      "requirements": {
+        "summary": "The old endpoint validates the Dione Engineer core role and current Maliades control holder before returning its unavailable-service failure. The current panel reads and commits a sourceId=maliades range choice through the shared escort endpoints.",
+        "sourceAnchorIds": [
+          "maliades.actionRunner",
+          "maliades.engineerAuthority",
+          "maliades.custodyAuthority",
+          "maliades.activeChoiceRead",
+          "maliades.choiceReaderServer",
+          "maliades.choiceCommitServer",
+          "maliades.escortAuthorityServer"
+        ]
+      },
+      "costs": {
+        "summary": "The old callable spends no resources because it throws before mutation. The current UI choice commit also stores only the selection and uses the shared server-owned range roll lock; combat damage/loss is resolved later by that shared engine.",
+        "sourceAnchorIds": [
+          "maliades.actionRunner",
+          "maliades.choiceCommitServer",
+          "maliades.collector",
+          "maliades.rangeRollResolver"
+        ]
+      },
+      "consequences": {
+        "summary": "A valid request to this endpoint still fails with failed-precondition/unavailable-service. The current UI stores the Dione range choice as pending resolution; reconciliation waits for other required source choices, then applies the locked combat result and member projection.",
+        "sourceAnchorIds": [
+          "maliades.actionRunner",
+          "maliades.choiceCommitServer",
+          "maliades.choiceReconcile",
+          "maliades.rangeApply",
+          "maliades.rangeRollResolver"
+        ]
+      },
+      "blockers": {
+        "summary": "Missing active Dione Engineer or matching Maliades custody fails authorization first; even a valid actor then hits the unconditional unavailable-service branch.",
+        "sourceAnchorIds": [
+          "maliades.actionRunner",
+          "maliades.engineerAuthority",
+          "maliades.custodyAuthority"
+        ]
+      },
+      "nextActor": {
+        "summary": "No next actor is produced by the old endpoint. In the current UI, the Dione Engineer submits a range choice through the shared endpoint; that endpoint records pending resolution.",
+        "sourceAnchorIds": [
+          "maliades.choiceCommitServer",
+          "maliades.choiceReconcile",
+          "maliades.activeUi"
+        ]
+      },
+      "clientCallTrace": {
+        "status": "service-stub-only",
+        "sourceTreeSha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de",
+        "identifierReferenceCount": 1,
+        "interpretation": "The same-named client helpers validate local authority then throw before making a callable request; FleetConsoleWorkspace mounts WolfEscortRangeActionPanel, which instead calls the shared endpoint. The client source hash and anchor hashes bind this trace.",
+        "sourceAnchorIds": [
+          "maliades.clientMediumStub",
+          "maliades.clientShortStub",
+          "maliades.activeUi",
+          "maliades.activeChoiceService",
+          "maliades.fleetConsoleMount"
+        ],
+        "exactQuotedReferenceCount": 0,
+        "clientSourceReferences": {
+          "identifierOccurrences": [
+            {
+              "path": "src/lib/maliadesService.ts",
+              "line": 174
+            }
+          ],
+          "quotedOccurrences": []
+        }
+      },
+      "guidance": {
+        "status": "current-guidance-on-served-alternative",
+        "summary": "The current Dione range panel contains contextual Medium/Short choices and target guidance; it is reached through the fleet console. No guidance directs users to the disabled old endpoint.",
+        "sourceAnchorIds": [
+          "maliades.currentGuidance",
+          "maliades.activeUi",
+          "maliades.fleetConsoleMount"
+        ]
+      }
+    },
+    {
+      "exportName": "resolveMaliadesShort",
+      "classification": "legacy/deprecated-internal-compatibility",
+      "productPath": {
+        "status": "legacy-endpoint-not-used-by-current-control",
+        "currentSurface": "Maliades range panel",
+        "currentCallable": "commitWolfEscortRangeActionChoice",
+        "servedAlternative": {
+          "callable": "commitWolfEscortRangeActionChoice"
+        },
+        "sourceAnchorIds": [
+          "maliades.activeUi",
+          "maliades.activeChoiceService",
+          "maliades.fleetConsoleMount"
+        ]
+      },
+      "actor": {
+        "family": "active connected Dione Engineer holding the live Maliades shuttle control",
+        "identities": [
+          "dione-engineer"
+        ],
+        "sourceAnchorIds": [
+          "maliades.engineerAuthority",
+          "maliades.custodyAuthority",
+          "maliades.activeChoiceService"
+        ]
+      },
+      "requirements": {
+        "summary": "The old endpoint validates the Dione Engineer core role and current Maliades control holder before returning its unavailable-service failure. The current panel reads and commits a sourceId=maliades range choice through the shared escort endpoints.",
+        "sourceAnchorIds": [
+          "maliades.actionRunner",
+          "maliades.engineerAuthority",
+          "maliades.custodyAuthority",
+          "maliades.activeChoiceRead",
+          "maliades.choiceReaderServer",
+          "maliades.choiceCommitServer",
+          "maliades.escortAuthorityServer"
+        ]
+      },
+      "costs": {
+        "summary": "The old callable spends no resources because it throws before mutation. The current UI choice commit also stores only the selection and uses the shared server-owned range roll lock; combat damage/loss is resolved later by that shared engine.",
+        "sourceAnchorIds": [
+          "maliades.actionRunner",
+          "maliades.choiceCommitServer",
+          "maliades.collector",
+          "maliades.rangeRollResolver"
+        ]
+      },
+      "consequences": {
+        "summary": "A valid request to this endpoint still fails with failed-precondition/unavailable-service. The current UI stores the Dione range choice as pending resolution; reconciliation waits for other required source choices, then applies the locked combat result and member projection.",
+        "sourceAnchorIds": [
+          "maliades.actionRunner",
+          "maliades.choiceCommitServer",
+          "maliades.choiceReconcile",
+          "maliades.rangeApply",
+          "maliades.rangeRollResolver"
+        ]
+      },
+      "blockers": {
+        "summary": "Missing active Dione Engineer or matching Maliades custody fails authorization first; even a valid actor then hits the unconditional unavailable-service branch.",
+        "sourceAnchorIds": [
+          "maliades.actionRunner",
+          "maliades.engineerAuthority",
+          "maliades.custodyAuthority"
+        ]
+      },
+      "nextActor": {
+        "summary": "No next actor is produced by the old endpoint. In the current UI, the Dione Engineer submits a range choice through the shared endpoint; that endpoint records pending resolution.",
+        "sourceAnchorIds": [
+          "maliades.choiceCommitServer",
+          "maliades.choiceReconcile",
+          "maliades.activeUi"
+        ]
+      },
+      "clientCallTrace": {
+        "status": "service-stub-only",
+        "sourceTreeSha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de",
+        "identifierReferenceCount": 1,
+        "interpretation": "The same-named client helpers validate local authority then throw before making a callable request; FleetConsoleWorkspace mounts WolfEscortRangeActionPanel, which instead calls the shared endpoint. The client source hash and anchor hashes bind this trace.",
+        "sourceAnchorIds": [
+          "maliades.clientMediumStub",
+          "maliades.clientShortStub",
+          "maliades.activeUi",
+          "maliades.activeChoiceService",
+          "maliades.fleetConsoleMount"
+        ],
+        "exactQuotedReferenceCount": 0,
+        "clientSourceReferences": {
+          "identifierOccurrences": [
+            {
+              "path": "src/lib/maliadesService.ts",
+              "line": 193
+            }
+          ],
+          "quotedOccurrences": []
+        }
+      },
+      "guidance": {
+        "status": "current-guidance-on-served-alternative",
+        "summary": "The current Dione range panel contains contextual Medium/Short choices and target guidance; it is reached through the fleet console. No guidance directs users to the disabled old endpoint.",
+        "sourceAnchorIds": [
+          "maliades.currentGuidance",
+          "maliades.activeUi",
+          "maliades.fleetConsoleMount"
+        ]
+      }
+    },
+    {
+      "exportName": "setShipPreference",
+      "classification": "external/manual-only",
+      "productPath": {
+        "status": "no-current-client-control-found",
+        "sourceAnchorIds": [
+          "preference.handler",
+          "preference.request"
+        ]
+      },
+      "actor": {
+        "family": "any authenticated active player",
+        "identities": [
+          "active player; role-specific privilege not required"
+        ],
+        "sourceAnchorIds": [
+          "preference.handler",
+          "preference.activePlayer"
+        ]
+      },
+      "requirements": {
+        "summary": "Requires a valid session/request/ship ID, a connected active player, an unlocked lobby/casting window, and a vessel in the canonical active roster. Request receipts bind retries and collisions.",
+        "sourceAnchorIds": [
+          "preference.handler",
+          "preference.request",
+          "preference.activePlayer",
+          "preference.window"
+        ]
+      },
+      "costs": {
+        "summary": "No in-game resource or action slot is spent; the handler writes the caller’s nonbinding shipPreferenceId and increments setupRevision.",
+        "sourceAnchorIds": [
+          "preference.handler"
+        ]
+      },
+      "consequences": {
+        "summary": "The session stays in casting and the preference is stored as advisory state; it does not assign the vessel or change role readiness.",
+        "sourceAnchorIds": [
+          "preference.handler"
+        ]
+      },
+      "blockers": {
+        "summary": "No session, inactive player, closed/locked setup, or vessel absent from the active roster rejects the request; request-ID replay collisions also fail.",
+        "sourceAnchorIds": [
+          "preference.handler",
+          "preference.activePlayer",
+          "preference.window",
+          "preference.request"
+        ]
+      },
+      "nextActor": {
+        "summary": "The handler defines no turn order or next player. A facilitator may later confirm the setup through the separate setup command.",
+        "sourceAnchorIds": [
+          "preference.handler",
+          "setup.handler"
+        ]
+      },
+      "clientCallTrace": {
+        "status": "no-current-client-call-found",
+        "sourceTreeSha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de",
+        "identifierReferenceCount": 0,
+        "interpretation": "No matching identifier or callable literal occurs in the application source tree; the callable remains exported. The current setup UI’s client path is separately anchored, and the complete client-source hash scopes the absence scan.",
+        "sourceAnchorIds": [
+          "preference.handler",
+          "setup.client",
+          "setup.ui"
+        ],
+        "exactQuotedReferenceCount": 0,
+        "clientSourceReferences": {
+          "identifierOccurrences": [],
+          "quotedOccurrences": []
+        }
+      },
+      "guidance": {
+        "status": "not-present-in-current-ui",
+        "summary": "No current preference control or adjacent in-console guidance was located. This is an API-only path in the reviewed client source, so no current action hint is credited or marked as a blanket PC11 deferral.",
+        "sourceAnchorIds": [
+          "preference.handler",
+          "setup.ui"
+        ]
+      }
+    },
+    {
+      "exportName": "submitWolfSupplySabotage",
+      "classification": "external/manual-only",
+      "productPath": {
+        "status": "facilitator-receipt-only-no-member-action-control",
+        "sourceAnchorIds": [
+          "supply.receiptUi",
+          "supply.otherWolfControls"
+        ]
+      },
+      "actor": {
+        "family": "active Wolf Agent or Wolf Cult with the exact assigned cover role and its eligible shuttle",
+        "identities": [
+          "wolf-agent",
+          "wolf-cult"
+        ],
+        "sourceAnchorIds": [
+          "supply.handler",
+          "supply.authorization"
+        ]
+      },
+      "requirements": {
+        "summary": "Requires an active gameplay cycle, one unused Wolf action for that cycle, actor-only Wolf loyalty, matching assigned cover, an active cover-owned shuttle with positive selected cargo, and a valid facilitator census. A Press cover also requires the station to be enabled and held by this actor.",
+        "sourceAnchorIds": [
+          "supply.handler",
+          "supply.authorization",
+          "supply.calculation",
+          "supply.request"
+        ]
+      },
+      "costs": {
+        "summary": "Destroys floor(current selected cargo / 2) from the chosen cover-owned shuttle; cargo of one loses zero units but must be positive. The cycle’s Wolf action slot is consumed only after validation succeeds.",
+        "sourceAnchorIds": [
+          "supply.handler",
+          "supply.calculation"
+        ]
+      },
+      "consequences": {
+        "summary": "The server updates shuttle cargo and adds exactly two suspicion to the private loyalty/census, stores the private clue and action receipt, and creates a pending facilitator alert. The alert’s clue details remain in the private server/Gm path.",
+        "sourceAnchorIds": [
+          "supply.handler",
+          "supply.calculation"
+        ]
+      },
+      "blockers": {
+        "summary": "Stale cycle, malformed or mismatched loyalty/census, replacement/escape, inactive or wrong cover, unavailable shuttle, empty cargo, duplicate same-cycle Wolf action, or inconsistent alert history rejects before a fresh action commits.",
+        "sourceAnchorIds": [
+          "supply.handler",
+          "supply.authorization",
+          "supply.calculation",
+          "supply.request"
+        ]
+      },
+      "nextActor": {
+        "summary": "The facilitator receives the pending private hacking alert and must acknowledge that exact alert; only after acknowledgement does the server publish an actor-free player notice.",
+        "sourceAnchorIds": [
+          "supply.handler",
+          "supply.alertAcknowledgement"
+        ]
+      },
+      "clientCallTrace": {
+        "status": "no-current-client-call-found",
+        "sourceTreeSha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de",
+        "identifierReferenceCount": 0,
+        "interpretation": "The member panel currently wires intelligence and homing-beacon actions, not this callable. The GmConsole renders the supply-sabotage receipt after a committed action; it is not the initiating control. The client-source hash binds the no-member-call scan.",
+        "sourceAnchorIds": [
+          "supply.otherWolfControls",
+          "supply.receiptUi"
+        ],
+        "exactQuotedReferenceCount": 0,
+        "clientSourceReferences": {
+          "identifierOccurrences": [],
+          "quotedOccurrences": []
+        }
+      },
+      "guidance": {
+        "status": "facilitator-receipt-only",
+        "summary": "The existing GM console explains committed supply loss and clue receipt. No current member-side supply-sabotage action control or pre-action guidance was located.",
+        "sourceAnchorIds": [
+          "supply.receiptUi",
+          "supply.otherWolfControls"
+        ]
+      }
+    },
+    {
+      "exportName": "elevateToGm",
+      "classification": "external/manual-only",
+      "productPath": {
+        "status": "no-current-client-control-found",
+        "sourceAnchorIds": [
+          "elevation.handler",
+          "elevation.request"
+        ]
+      },
+      "actor": {
+        "family": "session owner or active GM with a live GM instance; target is another active connected member",
+        "identities": [
+          "owner",
+          "gm"
+        ],
+        "sourceAnchorIds": [
+          "elevation.handler",
+          "elevation.liveGm",
+          "elevation.activePlayer"
+        ]
+      },
+      "requirements": {
+        "summary": "Requires a valid target UID and caller authority; non-owner GMs must supply their owned live instance. The target must be active and have no core seat, core assignment, Press state, or current Press-holder claim.",
+        "sourceAnchorIds": [
+          "elevation.handler",
+          "elevation.request",
+          "elevation.liveGm",
+          "elevation.activePlayer",
+          "elevation.coreSeat",
+          "elevation.coreAssignment",
+          "elevation.pressState"
+        ]
+      },
+      "costs": {
+        "summary": "No in-game resource or cycle slot is spent.",
+        "sourceAnchorIds": [
+          "elevation.handler"
+        ]
+      },
+      "consequences": {
+        "summary": "The target player record’s role changes to gm. This handler does not mint a GM browser instance or session lease.",
+        "sourceAnchorIds": [
+          "elevation.handler",
+          "elevation.claimInstance"
+        ]
+      },
+      "blockers": {
+        "summary": "Unauthenticated/inactive callers, non-owner non-GMs, missing/expired live instances, disconnected targets, and targets retaining core or Press authority are rejected.",
+        "sourceAnchorIds": [
+          "elevation.handler",
+          "elevation.liveGm",
+          "elevation.activePlayer",
+          "elevation.coreSeat",
+          "elevation.coreAssignment",
+          "elevation.pressState"
+        ]
+      },
+      "nextActor": {
+        "summary": "The elevated target must complete the separate normal GM-instance claim before using lease-bound facilitator actions.",
+        "sourceAnchorIds": [
+          "elevation.handler",
+          "elevation.claimInstance"
+        ]
+      },
+      "clientCallTrace": {
+        "status": "no-current-client-call-found",
+        "sourceTreeSha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de",
+        "identifierReferenceCount": 0,
+        "interpretation": "The current application source has no exact client caller for this callable; the authenticated endpoint remains exposed for external/manual use. The client-source hash binds the scan.",
+        "sourceAnchorIds": [
+          "elevation.handler"
+        ],
+        "exactQuotedReferenceCount": 0,
+        "clientSourceReferences": {
+          "identifierOccurrences": [],
+          "quotedOccurrences": []
+        }
+      },
+      "guidance": {
+        "status": "not-present-in-current-ui",
+        "summary": "No current in-console elevation control or guidance was located; current GmConsole surfaces the already-authorized facilitator mode.",
+        "sourceAnchorIds": [
+          "elevation.handler",
+          "elevation.claimInstance"
+        ]
+      }
+    },
+    {
+      "exportName": "rollDice",
+      "classification": "external/manual-only",
+      "productPath": {
+        "status": "no-current-client-control-found",
+        "sourceAnchorIds": [
+          "dice.handler",
+          "dice.request"
+        ]
+      },
+      "actor": {
+        "family": "any authenticated active player in active gameplay",
+        "identities": [
+          "active player; role-specific privilege not required"
+        ],
+        "sourceAnchorIds": [
+          "dice.handler",
+          "dice.activePlayer",
+          "dice.activePhase"
+        ]
+      },
+      "requirements": {
+        "summary": "Requires active player membership, an active gameplay phase, sides from 2 through 1,000, count from 1 through 50, and remaining per-UID/session rate budget.",
+        "sourceAnchorIds": [
+          "dice.handler",
+          "dice.request",
+          "dice.activePlayer",
+          "dice.activePhase",
+          "dice.ratePolicy"
+        ]
+      },
+      "costs": {
+        "summary": "No game resource or action slot is spent; a 30-per-minute callable limit applies.",
+        "sourceAnchorIds": [
+          "dice.handler",
+          "dice.ratePolicy"
+        ]
+      },
+      "consequences": {
+        "summary": "The server generates the requested values, writes a privacy-safe roll event with the caller and total, and returns the sampled values.",
+        "sourceAnchorIds": [
+          "dice.handler"
+        ]
+      },
+      "blockers": {
+        "summary": "Invalid arguments, missing/inactive member, non-active gameplay phase, or exhausted rate budget rejects the request.",
+        "sourceAnchorIds": [
+          "dice.handler",
+          "dice.request",
+          "dice.activePlayer",
+          "dice.activePhase",
+          "dice.ratePolicy"
+        ]
+      },
+      "nextActor": {
+        "summary": "The result returns to the requesting caller; this general utility does not schedule another player or consume a role action.",
+        "sourceAnchorIds": [
+          "dice.handler"
+        ]
+      },
+      "clientCallTrace": {
+        "status": "no-current-client-call-found",
+        "sourceTreeSha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de",
+        "identifierReferenceCount": 0,
+        "interpretation": "No current application client invokes the generic dice callable. Action-specific gameplay resolvers use their own server calculations. The client-source hash binds the absence scan.",
+        "sourceAnchorIds": [
+          "dice.handler"
+        ],
+        "exactQuotedReferenceCount": 0,
+        "clientSourceReferences": {
+          "identifierOccurrences": [],
+          "quotedOccurrences": []
+        }
+      },
+      "guidance": {
+        "status": "not-present-in-current-ui",
+        "summary": "No current general-purpose dice control or contextual guidance was located; the callable is not credited as an in-console role action.",
+        "sourceAnchorIds": [
+          "dice.handler"
+        ]
+      }
+    },
+    {
+      "exportName": "createSession",
+      "classification": "served-ui-path",
+      "productPath": {
+        "status": "served-ui-path",
+        "surface": "Landing session creation",
+        "invocation": "sessionService.createSession → createSession callable",
+        "sourceAnchorIds": [
+          "auth.landing",
+          "auth.createClient",
+          "auth.create"
+        ]
+      },
+      "actor": {
+        "family": "authenticated account creating a session",
+        "identities": [
+          "authenticated UID; server initially records player role and ownerUid"
+        ],
+        "sourceAnchorIds": [
+          "auth.create",
+          "auth.landing"
+        ]
+      },
+      "requirements": {
+        "summary": "Requires authentication, a valid creation configuration, a request ID, and no conflicting active session membership; the creation receipt makes an identical retry return the original session result.",
+        "sourceAnchorIds": [
+          "auth.create",
+          "auth.createRequest"
+        ]
+      },
+      "costs": {
+        "summary": "No in-game resources are spent.",
+        "sourceAnchorIds": [
+          "auth.create"
+        ]
+      },
+      "consequences": {
+        "summary": "Creates a Cycle 0 lobby with a join code, canonical setup and initial player/membership state; the owner UID is retained for later facilitator authority.",
+        "sourceAnchorIds": [
+          "auth.create"
+        ]
+      },
+      "blockers": {
+        "summary": "Invalid configuration/request, conflicting membership, foreign/colliding request IDs, or exhausted join-code attempts prevents creation.",
+        "sourceAnchorIds": [
+          "auth.create",
+          "auth.createRequest"
+        ]
+      },
+      "nextActor": {
+        "summary": "No participant order is imposed. The creator receives the join code and can continue the normal GM setup/start flow or admit players.",
+        "sourceAnchorIds": [
+          "auth.createClient",
+          "auth.landing",
+          "gmAccess.loginClient"
+        ]
+      },
+      "clientCallTrace": {
+        "status": "current-ui-service-call",
+        "sourceTreeSha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de",
+        "identifierReferenceCount": 4,
+        "interpretation": "Landing calls the session service; the service invokes the createSession callable after ensuring a signed-in identity.",
+        "sourceAnchorIds": [
+          "auth.landing",
+          "auth.createClient"
+        ],
+        "exactQuotedReferenceCount": 1,
+        "clientSourceReferences": {
+          "identifierOccurrences": [
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 1315
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 1327
+            },
+            {
+              "path": "src/routes/Landing.tsx",
+              "line": 4
+            },
+            {
+              "path": "src/routes/Landing.tsx",
+              "line": 108
+            }
+          ],
+          "quotedOccurrences": [
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 1327
+            }
+          ]
+        }
+      },
+      "guidance": {
+        "status": "current-entry-guidance",
+        "summary": "Landing provides the current create/join entry controls and their adjacent session setup context.",
+        "sourceAnchorIds": [
+          "auth.landing"
+        ]
+      }
+    },
+    {
+      "exportName": "joinSession",
+      "classification": "served-ui-path",
+      "productPath": {
+        "status": "served-ui-path",
+        "surface": "Landing join-code admission",
+        "invocation": "sessionService.joinSession → joinSession callable",
+        "sourceAnchorIds": [
+          "auth.landing",
+          "auth.joinClient",
+          "auth.join"
+        ]
+      },
+      "actor": {
+        "family": "authenticated person entering a session code",
+        "identities": [
+          "authenticated UID; becomes an ordinary active player"
+        ],
+        "sourceAnchorIds": [
+          "auth.join",
+          "auth.joinClient"
+        ]
+      },
+      "requirements": {
+        "summary": "Requires a valid join code and no conflicting active membership. The server rejects closed or retiring sessions and kicked identities, then transactionally reconciles membership, connection generation, fleet group and presence.",
+        "sourceAnchorIds": [
+          "auth.join"
+        ]
+      },
+      "costs": {
+        "summary": "No in-game resources are spent.",
+        "sourceAnchorIds": [
+          "auth.join"
+        ]
+      },
+      "consequences": {
+        "summary": "Registers or reconnects the member and returns the current session projection to the joining browser.",
+        "sourceAnchorIds": [
+          "auth.join",
+          "auth.joinClient"
+        ]
+      },
+      "blockers": {
+        "summary": "Malformed or unknown code, closed/deleting session, kicked member, conflicting active membership, or inconsistent fleet/seat authority rejects admission.",
+        "sourceAnchorIds": [
+          "auth.join"
+        ]
+      },
+      "nextActor": {
+        "summary": "The admitted member receives the current session state; no fixed player turn order is created by admission.",
+        "sourceAnchorIds": [
+          "auth.join",
+          "auth.joinClient"
+        ]
+      },
+      "clientCallTrace": {
+        "status": "current-ui-service-call",
+        "sourceTreeSha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de",
+        "identifierReferenceCount": 7,
+        "interpretation": "Landing passes the entered code to the session service, which invokes the joinSession callable.",
+        "sourceAnchorIds": [
+          "auth.landing",
+          "auth.joinClient"
+        ],
+        "exactQuotedReferenceCount": 2,
+        "clientSourceReferences": {
+          "identifierOccurrences": [
+            {
+              "path": "src/lib/demoActorProfiles.ts",
+              "line": 54
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2014
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2022
+            },
+            {
+              "path": "src/routes/DemoActorManager.tsx",
+              "line": 13
+            },
+            {
+              "path": "src/routes/DemoActorManager.tsx",
+              "line": 48
+            },
+            {
+              "path": "src/routes/Landing.tsx",
+              "line": 4
+            },
+            {
+              "path": "src/routes/Landing.tsx",
+              "line": 72
+            }
+          ],
+          "quotedOccurrences": [
+            {
+              "path": "src/lib/demoActorProfiles.ts",
+              "line": 54
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2022
+            }
+          ]
+        }
+      },
+      "guidance": {
+        "status": "current-entry-guidance",
+        "summary": "Landing is the current join-code entry and admission surface.",
+        "sourceAnchorIds": [
+          "auth.landing"
+        ]
+      }
+    },
+    {
+      "exportName": "resumeSession",
+      "classification": "served-ui-path",
+      "productPath": {
+        "status": "served-ui-path",
+        "surface": "session recovery",
+        "invocation": "App/sessionService recovery → resumeSession; closed history uses a separate entitled member refresh",
+        "sourceAnchorIds": [
+          "auth.resumeClient",
+          "auth.resume",
+          "auth.appRecovery",
+          "auth.closedHistoryClient"
+        ]
+      },
+      "actor": {
+        "family": "authenticated identity with an existing session player record",
+        "identities": [
+          "same UID bound to the prior member record"
+        ],
+        "sourceAnchorIds": [
+          "auth.resume",
+          "auth.resumeClient"
+        ]
+      },
+      "requirements": {
+        "summary": "Requires a session ID and the prior authenticated member identity. Active recovery reconciles ordinary membership and presence; a closed session uses the dedicated read-only current-member history fetch rather than restoring a seat.",
+        "sourceAnchorIds": [
+          "auth.resume",
+          "auth.resumeClient",
+          "auth.closedHistoryClient",
+          "auth.appRecovery"
+        ]
+      },
+      "costs": {
+        "summary": "No in-game resources or gameplay action slots are spent.",
+        "sourceAnchorIds": [
+          "auth.resume",
+          "auth.closedHistoryClient"
+        ]
+      },
+      "consequences": {
+        "summary": "Active resume restores the current authorized member view. Closed-session history is fetched separately into ephemeral client state and does not rejoin, reclaim a seat, or refresh presence.",
+        "sourceAnchorIds": [
+          "auth.resume",
+          "auth.closedHistoryClient",
+          "auth.appRecovery"
+        ]
+      },
+      "blockers": {
+        "summary": "Missing/unauthorized prior member identity, kicked state, conflicting membership, malformed session authority, or stale identity/group reply rejects recovery.",
+        "sourceAnchorIds": [
+          "auth.resume",
+          "auth.closedHistoryClient"
+        ]
+      },
+      "nextActor": {
+        "summary": "The recovered member continues from the server-entitled current projection; no game actor is advanced by resume.",
+        "sourceAnchorIds": [
+          "auth.resumeClient",
+          "auth.closedHistoryClient"
+        ]
+      },
+      "clientCallTrace": {
+        "status": "current-lifecycle-service-call",
+        "sourceTreeSha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de",
+        "identifierReferenceCount": 4,
+        "interpretation": "App invokes recovery through sessionService. Closed history then makes one separate getCurrentMemberSession read only when its authenticated actor/group snapshot remains current.",
+        "sourceAnchorIds": [
+          "auth.appRecovery",
+          "auth.resumeClient",
+          "auth.closedHistoryClient"
+        ],
+        "exactQuotedReferenceCount": 2,
+        "clientSourceReferences": {
+          "identifierOccurrences": [
+            {
+              "path": "src/lib/demoActorProfiles.ts",
+              "line": 59
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 1262
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2028
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2031
+            }
+          ],
+          "quotedOccurrences": [
+            {
+              "path": "src/lib/demoActorProfiles.ts",
+              "line": 59
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2031
+            }
+          ]
+        }
+      },
+      "guidance": {
+        "status": "recovery-state-guidance",
+        "summary": "The application resumes session state in the background; the closed member history fetch is a recovery path rather than a game action control.",
+        "sourceAnchorIds": [
+          "auth.appRecovery",
+          "auth.closedHistoryClient"
+        ]
+      }
+    },
+    {
+      "exportName": "getCurrentMemberSession",
+      "classification": "served-ui-path",
+      "productPath": {
+        "status": "served-ui-path",
+        "surface": "current member projection and closed-history refresh",
+        "invocation": "firestore/sessionService → getCurrentMemberSession callable",
+        "sourceAnchorIds": [
+          "auth.memberExport",
+          "auth.memberReader",
+          "auth.memberClient",
+          "auth.closedHistoryClient"
+        ]
+      },
+      "actor": {
+        "family": "authenticated current or retained entitled member",
+        "identities": [
+          "current member; closed-history path revalidates the same UID and group"
+        ],
+        "sourceAnchorIds": [
+          "auth.memberReader",
+          "auth.memberExport",
+          "auth.closedHistoryClient"
+        ]
+      },
+      "requirements": {
+        "summary": "The server derives a safe session projection from the authenticated member record and current group. Closed history requires a prior entitled member, while detailed facilitator debrief reads use the separate live-instance endpoint.",
+        "sourceAnchorIds": [
+          "auth.memberReader",
+          "auth.memberExport",
+          "auth.closedHistoryClient",
+          "debrief.readExport"
+        ]
+      },
+      "costs": {
+        "summary": "Read-only; it does not create membership, seat, presence, or game-action writes.",
+        "sourceAnchorIds": [
+          "auth.memberReader",
+          "auth.memberClient",
+          "auth.closedHistoryClient"
+        ]
+      },
+      "consequences": {
+        "summary": "Returns only the actor-entitled current member projection; the dedicated cold closed-history flow can hydrate the safe debrief summary after confirming actor/session/group identity.",
+        "sourceAnchorIds": [
+          "auth.memberReader",
+          "auth.memberClient",
+          "auth.closedHistoryClient"
+        ]
+      },
+      "blockers": {
+        "summary": "Unknown, kicked, mismatched, or no-longer-entitled member/group identity is rejected; generic reads do not grant historical GM private detail.",
+        "sourceAnchorIds": [
+          "auth.memberReader",
+          "auth.closedHistoryClient",
+          "debrief.readExport"
+        ]
+      },
+      "nextActor": {
+        "summary": "The same client continues rendering its authorized projection; the read does not schedule a gameplay actor.",
+        "sourceAnchorIds": [
+          "auth.memberClient",
+          "auth.closedHistoryClient"
+        ]
+      },
+      "clientCallTrace": {
+        "status": "current-member-and-history-read",
+        "sourceTreeSha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de",
+        "identifierReferenceCount": 2,
+        "interpretation": "The ordinary client projection and explicit closed-history refresh use this callable; no raw session collection read replaces the server projection.",
+        "sourceAnchorIds": [
+          "auth.memberExport",
+          "auth.memberClient",
+          "auth.closedHistoryClient"
+        ],
+        "exactQuotedReferenceCount": 2,
+        "clientSourceReferences": {
+          "identifierOccurrences": [
+            {
+              "path": "src/lib/firestore.ts",
+              "line": 4256
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2051
+            }
+          ],
+          "quotedOccurrences": [
+            {
+              "path": "src/lib/firestore.ts",
+              "line": 4256
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2051
+            }
+          ]
+        }
+      },
+      "guidance": {
+        "status": "background-entitlement-read",
+        "summary": "No separate action hint is needed; this read silently refreshes the current entitled member view.",
+        "sourceAnchorIds": [
+          "auth.memberReader",
+          "auth.memberClient"
+        ]
+      }
+    },
+    {
+      "exportName": "refreshPresence",
+      "classification": "served-ui-path",
+      "productPath": {
+        "status": "served-ui-path",
+        "surface": "App presence heartbeat",
+        "invocation": "App timer → sessionService.refreshPresence → callable",
+        "sourceAnchorIds": [
+          "auth.presence",
+          "auth.presenceClient",
+          "auth.appRecovery"
+        ]
+      },
+      "actor": {
+        "family": "authenticated active player/GM device already attached to the session",
+        "identities": [
+          "current UID and member record; GM instance checked when supplied"
+        ],
+        "sourceAnchorIds": [
+          "auth.presence",
+          "auth.presenceClient"
+        ]
+      },
+      "requirements": {
+        "summary": "Requires an attached current session member; the server rechecks current identity and role/seat authority and binds GM presence to its live instance when applicable.",
+        "sourceAnchorIds": [
+          "auth.presence",
+          "auth.presenceClient"
+        ]
+      },
+      "costs": {
+        "summary": "No game resource, cycle, or role-action cost; it is a periodic presence update.",
+        "sourceAnchorIds": [
+          "auth.presence",
+          "auth.presenceClient"
+        ]
+      },
+      "consequences": {
+        "summary": "Refreshes presence/last-seen state for the existing member and current GM instance when applicable.",
+        "sourceAnchorIds": [
+          "auth.presence"
+        ]
+      },
+      "blockers": {
+        "summary": "Lost member identity, kicked/stale actor, mismatched role/seat, or invalid GM instance prevents an unauthorized refresh.",
+        "sourceAnchorIds": [
+          "auth.presence"
+        ]
+      },
+      "nextActor": {
+        "summary": "No game actor is advanced; App schedules the next heartbeat while the session remains active.",
+        "sourceAnchorIds": [
+          "auth.appRecovery",
+          "auth.presenceClient"
+        ]
+      },
+      "clientCallTrace": {
+        "status": "background-lifecycle-caller",
+        "sourceTreeSha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de",
+        "identifierReferenceCount": 7,
+        "interpretation": "App starts and clears the heartbeat with session lifecycle state; this is not a player action control.",
+        "sourceAnchorIds": [
+          "auth.appRecovery",
+          "auth.presenceClient"
+        ],
+        "exactQuotedReferenceCount": 2,
+        "clientSourceReferences": {
+          "identifierOccurrences": [
+            {
+              "path": "src/App.tsx",
+              "line": 16
+            },
+            {
+              "path": "src/App.tsx",
+              "line": 1378
+            },
+            {
+              "path": "src/lib/demoActorProfiles.ts",
+              "line": 64
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2890
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2911
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2963
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2984
+            }
+          ],
+          "quotedOccurrences": [
+            {
+              "path": "src/lib/demoActorProfiles.ts",
+              "line": 64
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2911
+            }
+          ]
+        }
+      },
+      "guidance": {
+        "status": "not-a-player-action",
+        "summary": "No contextual action hint is shown for the background presence heartbeat.",
+        "sourceAnchorIds": [
+          "auth.appRecovery",
+          "auth.presence"
+        ]
+      }
+    },
+    {
+      "exportName": "confirmSetup",
+      "classification": "served-ui-path",
+      "productPath": {
+        "status": "served-ui-path",
+        "surface": "GM setup controls",
+        "invocation": "GmConsole → sessionService.confirmSetup → callable",
+        "sourceAnchorIds": [
+          "setup.handler",
+          "setup.client",
+          "setup.ui"
+        ]
+      },
+      "actor": {
+        "family": "authenticated GM with current live GM instance",
+        "identities": [
+          "gm"
+        ],
+        "sourceAnchorIds": [
+          "setup.handler",
+          "setup.request"
+        ]
+      },
+      "requirements": {
+        "summary": "Requires a live facilitator instance, exact expectedSetupRevision, a valid complete setup tuple and allowed role roster; a bound request can replay its original result.",
+        "sourceAnchorIds": [
+          "setup.handler",
+          "setup.request"
+        ]
+      },
+      "costs": {
+        "summary": "No in-game resources are spent.",
+        "sourceAnchorIds": [
+          "setup.handler"
+        ]
+      },
+      "consequences": {
+        "summary": "Commits canonical setup choices and advances the setup revision; setup confirmation does not itself start gameplay.",
+        "sourceAnchorIds": [
+          "setup.handler",
+          "setup.client"
+        ]
+      },
+      "blockers": {
+        "summary": "Missing/expired GM lease, malformed or incomplete tuple, stale setup revision, invalid roster, or conflicting request ID rejects confirmation.",
+        "sourceAnchorIds": [
+          "setup.handler",
+          "setup.request"
+        ]
+      },
+      "nextActor": {
+        "summary": "The facilitator reviews the committed setup and uses the separate startGame action when ready.",
+        "sourceAnchorIds": [
+          "setup.handler",
+          "start.handler",
+          "setup.ui"
+        ]
+      },
+      "clientCallTrace": {
+        "status": "current-gm-ui-service-call",
+        "sourceTreeSha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de",
+        "identifierReferenceCount": 10,
+        "interpretation": "GmConsole dispatches the complete setup tuple through sessionService; the callable performs the authoritative validation and commit.",
+        "sourceAnchorIds": [
+          "setup.client",
+          "setup.ui"
+        ],
+        "exactQuotedReferenceCount": 7,
+        "clientSourceReferences": {
+          "identifierOccurrences": [
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 522
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 556
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 649
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2168
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2175
+            },
+            {
+              "path": "src/routes/GmConsole.tsx",
+              "line": 59
+            },
+            {
+              "path": "src/routes/GmConsole.tsx",
+              "line": 756
+            },
+            {
+              "path": "src/routes/GmConsole.tsx",
+              "line": 932
+            },
+            {
+              "path": "src/routes/GmConsole.tsx",
+              "line": 3039
+            },
+            {
+              "path": "src/store/useSessionStore.ts",
+              "line": 183
+            }
+          ],
+          "quotedOccurrences": [
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 522
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 556
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 649
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2175
+            },
+            {
+              "path": "src/routes/GmConsole.tsx",
+              "line": 756
+            },
+            {
+              "path": "src/routes/GmConsole.tsx",
+              "line": 932
+            },
+            {
+              "path": "src/store/useSessionStore.ts",
+              "line": 183
+            }
+          ]
+        }
+      },
+      "guidance": {
+        "status": "current-gm-setup-guidance",
+        "summary": "GmConsole contains the setup controls and current confirmation/start flow.",
+        "sourceAnchorIds": [
+          "setup.ui"
+        ]
+      }
+    },
+    {
+      "exportName": "startGame",
+      "classification": "served-ui-path",
+      "productPath": {
+        "status": "served-ui-path",
+        "surface": "GM game start",
+        "invocation": "GmConsole → sessionService.startGame → callable",
+        "sourceAnchorIds": [
+          "start.handler",
+          "start.client",
+          "start.ui"
+        ]
+      },
+      "actor": {
+        "family": "authenticated GM with current live GM instance",
+        "identities": [
+          "gm"
+        ],
+        "sourceAnchorIds": [
+          "start.handler",
+          "start.request"
+        ]
+      },
+      "requirements": {
+        "summary": "Requires the exact setup revision, live GM instance, current start request identity, valid roster and completed authoritative setup/admission checks. The full-game demo option is a distinct authorized start mode.",
+        "sourceAnchorIds": [
+          "start.handler",
+          "start.request"
+        ]
+      },
+      "costs": {
+        "summary": "No in-game resources are spent by starting; setup requirements and roster admission still apply.",
+        "sourceAnchorIds": [
+          "start.handler",
+          "start.ui"
+        ]
+      },
+      "consequences": {
+        "summary": "Transitions the confirmed session into active Cycle 1, locks setup, and returns the committed start receipt; when authorized full-game demo is selected, the server marks manual progression.",
+        "sourceAnchorIds": [
+          "start.handler",
+          "start.client"
+        ]
+      },
+      "blockers": {
+        "summary": "Missing/expired GM lease, stale setup revision, invalid or incomplete roster/seats, prior incompatible request, or invalid demo mode rejects start.",
+        "sourceAnchorIds": [
+          "start.handler",
+          "start.request"
+        ]
+      },
+      "nextActor": {
+        "summary": "The game is active and available member consoles can act; the callable does not encode one fixed first player.",
+        "sourceAnchorIds": [
+          "start.handler",
+          "start.ui"
+        ]
+      },
+      "clientCallTrace": {
+        "status": "current-gm-ui-service-call",
+        "sourceTreeSha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de",
+        "identifierReferenceCount": 4,
+        "interpretation": "GmConsole dispatches the start command and applies only the validated start reply.",
+        "sourceAnchorIds": [
+          "start.client",
+          "start.ui"
+        ],
+        "exactQuotedReferenceCount": 1,
+        "clientSourceReferences": {
+          "identifierOccurrences": [
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 4235
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 4265
+            },
+            {
+              "path": "src/routes/GmConsole.tsx",
+              "line": 76
+            },
+            {
+              "path": "src/routes/GmConsole.tsx",
+              "line": 2548
+            }
+          ],
+          "quotedOccurrences": [
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 4265
+            }
+          ]
+        }
+      },
+      "guidance": {
+        "status": "current-gm-start-guidance",
+        "summary": "GmConsole exposes the normal and full-game-demo start controls with setup/authorization context.",
+        "sourceAnchorIds": [
+          "start.ui"
+        ]
+      }
+    },
+    {
+      "exportName": "prepareFullGameDemo",
+      "classification": "served-ui-path",
+      "productPath": {
+        "status": "served-ui-path",
+        "surface": "GM full-game demo preparation",
+        "invocation": "GmConsole → sessionService.prepareFullGameDemo → callable",
+        "sourceAnchorIds": [
+          "demo.handler",
+          "demo.client",
+          "demo.ui"
+        ]
+      },
+      "actor": {
+        "family": "authenticated GM with current live GM instance",
+        "identities": [
+          "gm"
+        ],
+        "sourceAnchorIds": [
+          "demo.handler",
+          "demo.client"
+        ]
+      },
+      "requirements": {
+        "summary": "Requires fresh Cycle 0, confirmed casting window, exact setup revision, active GM lease and no ordinary participant admission before preparation; the single-cycle demo is excluded.",
+        "sourceAnchorIds": [
+          "demo.handler",
+          "demo.client"
+        ]
+      },
+      "costs": {
+        "summary": "No in-game resources are spent.",
+        "sourceAnchorIds": [
+          "demo.handler"
+        ]
+      },
+      "consequences": {
+        "summary": "Writes a permanent manual-progression training marker while remaining in Cycle 0; the separate fullGameDemo start then enters the live game.",
+        "sourceAnchorIds": [
+          "demo.handler",
+          "demo.client",
+          "start.handler"
+        ]
+      },
+      "blockers": {
+        "summary": "Nonzero cycle, wrong phase, stale revision, expired GM instance, existing ordinary participants, or single-cycle-demo session prevents preparation.",
+        "sourceAnchorIds": [
+          "demo.handler",
+          "demo.client"
+        ]
+      },
+      "nextActor": {
+        "summary": "The authenticated GM starts the prepared session with the fullGameDemo option; authenticated demo actors then use ordinary admission and consent.",
+        "sourceAnchorIds": [
+          "demo.handler",
+          "demo.client",
+          "demo.ui"
+        ]
+      },
+      "clientCallTrace": {
+        "status": "current-gm-ui-service-call",
+        "sourceTreeSha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de",
+        "identifierReferenceCount": 4,
+        "interpretation": "The service validates the preparation reply and GmConsole surfaces the preparation/start flow.",
+        "sourceAnchorIds": [
+          "demo.client",
+          "demo.ui"
+        ],
+        "exactQuotedReferenceCount": 1,
+        "clientSourceReferences": {
+          "identifierOccurrences": [
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 4346
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 4368
+            },
+            {
+              "path": "src/routes/GmConsole.tsx",
+              "line": 77
+            },
+            {
+              "path": "src/routes/GmConsole.tsx",
+              "line": 2591
+            }
+          ],
+          "quotedOccurrences": [
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 4368
+            }
+          ]
+        }
+      },
+      "guidance": {
+        "status": "current-training-guidance",
+        "summary": "GmConsole labels the training flow, manual advancement, actor admission, and normal consent boundaries.",
+        "sourceAnchorIds": [
+          "demo.ui"
+        ]
+      }
+    },
+    {
+      "exportName": "beginSessionDebrief",
+      "classification": "served-ui-path",
+      "productPath": {
+        "status": "served-ui-path",
+        "surface": "EndgameDialog failure review",
+        "invocation": "EndgameDialog → sessionService.beginSessionDebrief → callable",
+        "sourceAnchorIds": [
+          "debrief.commands",
+          "debrief.beginExport",
+          "debrief.clientBegin",
+          "debrief.ui"
+        ]
+      },
+      "actor": {
+        "family": "authenticated current GM with live instance",
+        "identities": [
+          "gm"
+        ],
+        "sourceAnchorIds": [
+          "debrief.commands",
+          "debrief.beginExport"
+        ]
+      },
+      "requirements": {
+        "summary": "Requires a source-committed failure and live GM instance; begins the immutable failure debrief rather than letting the facilitator choose or transcribe the result.",
+        "sourceAnchorIds": [
+          "debrief.commands",
+          "debrief.beginExport"
+        ]
+      },
+      "costs": {
+        "summary": "No gameplay resources are spent; the transaction freezes the terminal failure snapshot.",
+        "sourceAnchorIds": [
+          "debrief.commands"
+        ]
+      },
+      "consequences": {
+        "summary": "Validates the stored outcome, freezes an allowlisted debrief snapshot and moves the phase into debrief with replay-safe receipt semantics.",
+        "sourceAnchorIds": [
+          "debrief.commands"
+        ]
+      },
+      "blockers": {
+        "summary": "No committed failure, malformed terminal snapshot, stale/expired GM instance, or conflicting lifecycle request prevents entry.",
+        "sourceAnchorIds": [
+          "debrief.commands",
+          "debrief.beginExport"
+        ]
+      },
+      "nextActor": {
+        "summary": "The GM reviews the committed debrief and may close it through the separate closeSession control.",
+        "sourceAnchorIds": [
+          "debrief.commands",
+          "debrief.closeExport",
+          "debrief.ui"
+        ]
+      },
+      "clientCallTrace": {
+        "status": "current-endgame-ui-service-call",
+        "sourceTreeSha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de",
+        "identifierReferenceCount": 4,
+        "interpretation": "EndgameDialog calls the GM-validated service only for the source-reported failure path.",
+        "sourceAnchorIds": [
+          "debrief.clientBegin",
+          "debrief.ui"
+        ],
+        "exactQuotedReferenceCount": 1,
+        "clientSourceReferences": {
+          "identifierOccurrences": [
+            {
+              "path": "src/components/EndgameDialog.tsx",
+              "line": 4
+            },
+            {
+              "path": "src/components/EndgameDialog.tsx",
+              "line": 183
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2120
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2123
+            }
+          ],
+          "quotedOccurrences": [
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2123
+            }
+          ]
+        }
+      },
+      "guidance": {
+        "status": "current-endgame-guidance",
+        "summary": "EndgameDialog presents the endgame summary and failure-freeze control.",
+        "sourceAnchorIds": [
+          "debrief.ui"
+        ]
+      }
+    },
+    {
+      "exportName": "closeSession",
+      "classification": "served-ui-path",
+      "productPath": {
+        "status": "served-ui-path",
+        "surface": "EndgameDialog close action",
+        "invocation": "EndgameDialog → sessionService.closeSession → callable",
+        "sourceAnchorIds": [
+          "debrief.commands",
+          "debrief.closeExport",
+          "debrief.clientClose",
+          "debrief.ui"
+        ]
+      },
+      "actor": {
+        "family": "authenticated current GM with live instance",
+        "identities": [
+          "gm"
+        ],
+        "sourceAnchorIds": [
+          "debrief.commands",
+          "debrief.closeExport"
+        ]
+      },
+      "requirements": {
+        "summary": "Requires an already committed valid debrief snapshot and current live GM instance; a close receipt binds the action to its actor and request.",
+        "sourceAnchorIds": [
+          "debrief.commands",
+          "debrief.closeExport"
+        ]
+      },
+      "costs": {
+        "summary": "No gameplay resources are spent.",
+        "sourceAnchorIds": [
+          "debrief.commands"
+        ]
+      },
+      "consequences": {
+        "summary": "Transitions debrief to closed while retaining the committed snapshot for entitled history reads.",
+        "sourceAnchorIds": [
+          "debrief.commands",
+          "auth.closedHistoryClient"
+        ]
+      },
+      "blockers": {
+        "summary": "A missing/invalid debrief, stale GM instance, wrong phase, or conflicting request blocks closure.",
+        "sourceAnchorIds": [
+          "debrief.commands",
+          "debrief.closeExport"
+        ]
+      },
+      "nextActor": {
+        "summary": "The closed session is immutable; previously entitled members may read their bounded history while live GM detail stays lease-gated.",
+        "sourceAnchorIds": [
+          "debrief.commands",
+          "auth.closedHistoryClient",
+          "debrief.readExport"
+        ]
+      },
+      "clientCallTrace": {
+        "status": "current-endgame-ui-service-call",
+        "sourceTreeSha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de",
+        "identifierReferenceCount": 4,
+        "interpretation": "EndgameDialog calls closeSession only from the committed debrief view.",
+        "sourceAnchorIds": [
+          "debrief.clientClose",
+          "debrief.ui"
+        ],
+        "exactQuotedReferenceCount": 1,
+        "clientSourceReferences": {
+          "identifierOccurrences": [
+            {
+              "path": "src/components/EndgameDialog.tsx",
+              "line": 4
+            },
+            {
+              "path": "src/components/EndgameDialog.tsx",
+              "line": 183
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2132
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2135
+            }
+          ],
+          "quotedOccurrences": [
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2135
+            }
+          ]
+        }
+      },
+      "guidance": {
+        "status": "current-endgame-guidance",
+        "summary": "EndgameDialog presents the frozen debrief and close action.",
+        "sourceAnchorIds": [
+          "debrief.ui"
+        ]
+      }
+    },
+    {
+      "exportName": "getSessionDebrief",
+      "classification": "served-ui-path",
+      "productPath": {
+        "status": "served-ui-path",
+        "surface": "EndgameDialog facilitator summary",
+        "invocation": "EndgameDialog → sessionService.getSessionDebrief → callable",
+        "sourceAnchorIds": [
+          "debrief.commands",
+          "debrief.readExport",
+          "debrief.clientRead",
+          "debrief.ui"
+        ]
+      },
+      "actor": {
+        "family": "authenticated current GM with live instance; detailed projection is not inferred from historical role alone",
+        "identities": [
+          "gm with owned live instance"
+        ],
+        "sourceAnchorIds": [
+          "debrief.commands",
+          "debrief.readExport"
+        ]
+      },
+      "requirements": {
+        "summary": "Requires debrief/closed phase, validated committed snapshot, current GM role and owned live GM instance.",
+        "sourceAnchorIds": [
+          "debrief.commands",
+          "debrief.readExport",
+          "debrief.clientRead"
+        ]
+      },
+      "costs": {
+        "summary": "Read-only; no gameplay state or resources are changed.",
+        "sourceAnchorIds": [
+          "debrief.commands"
+        ]
+      },
+      "consequences": {
+        "summary": "Returns the allowlisted detailed facilitator debrief after revalidating the live lease; it does not modify the immutable snapshot.",
+        "sourceAnchorIds": [
+          "debrief.commands",
+          "debrief.clientRead"
+        ]
+      },
+      "blockers": {
+        "summary": "No committed snapshot, wrong phase, expired/unowned instance, or invalid stored projection denies the read.",
+        "sourceAnchorIds": [
+          "debrief.commands",
+          "debrief.readExport"
+        ]
+      },
+      "nextActor": {
+        "summary": "The facilitator reviews the returned snapshot; no game actor is advanced.",
+        "sourceAnchorIds": [
+          "debrief.clientRead",
+          "debrief.ui"
+        ]
+      },
+      "clientCallTrace": {
+        "status": "current-endgame-ui-service-call",
+        "sourceTreeSha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de",
+        "identifierReferenceCount": 4,
+        "interpretation": "EndgameDialog fetches detailed debrief only while the client has a live GM instance.",
+        "sourceAnchorIds": [
+          "debrief.clientRead",
+          "debrief.ui"
+        ],
+        "exactQuotedReferenceCount": 1,
+        "clientSourceReferences": {
+          "identifierOccurrences": [
+            {
+              "path": "src/components/EndgameDialog.tsx",
+              "line": 4
+            },
+            {
+              "path": "src/components/EndgameDialog.tsx",
+              "line": 164
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2144
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2150
+            }
+          ],
+          "quotedOccurrences": [
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2150
+            }
+          ]
+        }
+      },
+      "guidance": {
+        "status": "current-endgame-summary",
+        "summary": "EndgameDialog presents the committed summary and candidate/survivor sections when entitled.",
+        "sourceAnchorIds": [
+          "debrief.ui"
+        ]
+      }
+    },
+    {
+      "exportName": "readFleetGroupMessages",
+      "classification": "served-ui-path",
+      "productPath": {
+        "status": "served-ui-path",
+        "surface": "FleetGroupWorkspace ordinary group notes",
+        "invocation": "FleetGroupWorkspace → current fleet-group service → callable",
+        "sourceAnchorIds": [
+          "group.read",
+          "group.clientActions",
+          "group.currentActions",
+          "group.workspace"
+        ]
+      },
+      "actor": {
+        "family": "active session member of the expected current fleet group",
+        "identities": [
+          "current member in group membership"
+        ],
+        "sourceAnchorIds": [
+          "group.authority",
+          "group.request"
+        ]
+      },
+      "requirements": {
+        "summary": "Requires an authenticated active member, active gameplay, matching current fleet-group membership and a valid expectedGroupId; current group merge history is actor-derived.",
+        "sourceAnchorIds": [
+          "group.authority",
+          "group.request",
+          "group.read"
+        ]
+      },
+      "costs": {
+        "summary": "Read-only; no resource or action slot is spent.",
+        "sourceAnchorIds": [
+          "group.read",
+          "group.authority"
+        ]
+      },
+      "consequences": {
+        "summary": "Returns at most the latest 20 validated messages from the member’s current/merged ordinary group history.",
+        "sourceAnchorIds": [
+          "group.read",
+          "group.authority"
+        ]
+      },
+      "blockers": {
+        "summary": "Inactive member, wrong phase, malformed group membership, or a requested group outside the ordinary communication boundary denies the read.",
+        "sourceAnchorIds": [
+          "group.authority",
+          "group.request"
+        ]
+      },
+      "nextActor": {
+        "summary": "Any active member of the same group may continue reading or send a note; no strict speaking order is encoded.",
+        "sourceAnchorIds": [
+          "group.authority",
+          "group.workspace"
+        ]
+      },
+      "clientCallTrace": {
+        "status": "current-group-workspace-read",
+        "sourceTreeSha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de",
+        "identifierReferenceCount": 1,
+        "interpretation": "The client service dynamically dispatches the named read endpoint after deriving the current group and rechecks reply group identity.",
+        "sourceAnchorIds": [
+          "group.clientActions",
+          "group.currentActions",
+          "group.workspace"
+        ],
+        "exactQuotedReferenceCount": 1,
+        "clientSourceReferences": {
+          "identifierOccurrences": [
+            {
+              "path": "src/lib/fleetGroupService.ts",
+              "line": 238
+            }
+          ],
+          "quotedOccurrences": [
+            {
+              "path": "src/lib/fleetGroupService.ts",
+              "line": 238
+            }
+          ]
+        }
+      },
+      "guidance": {
+        "status": "current-group-communication-surface",
+        "summary": "FleetGroupWorkspace contains the group note read/send panel and its local constraints.",
+        "sourceAnchorIds": [
+          "group.workspace",
+          "group.clientActions"
+        ]
+      }
+    },
+    {
+      "exportName": "sendFleetGroupMessage",
+      "classification": "served-ui-path",
+      "productPath": {
+        "status": "served-ui-path",
+        "surface": "FleetGroupWorkspace ordinary group notes",
+        "invocation": "FleetGroupWorkspace → current fleet-group service → callable",
+        "sourceAnchorIds": [
+          "group.send",
+          "group.clientActions",
+          "group.currentActions",
+          "group.workspace"
+        ]
+      },
+      "actor": {
+        "family": "active session member of the expected current fleet group",
+        "identities": [
+          "current member in group membership"
+        ],
+        "sourceAnchorIds": [
+          "group.authority",
+          "group.request"
+        ]
+      },
+      "requirements": {
+        "summary": "Requires authenticated active membership, active gameplay, matching current group, request ID and trimmed text from 1 to 240 characters. The transaction records an idempotent receipt.",
+        "sourceAnchorIds": [
+          "group.authority",
+          "group.request",
+          "group.send"
+        ]
+      },
+      "costs": {
+        "summary": "No game resource or cycle action slot is spent.",
+        "sourceAnchorIds": [
+          "group.send",
+          "group.request"
+        ]
+      },
+      "consequences": {
+        "summary": "Adds the message to the current group history, retaining at most 20 notes; the same-group members can read it.",
+        "sourceAnchorIds": [
+          "group.send",
+          "group.authority"
+        ]
+      },
+      "blockers": {
+        "summary": "Inactive member, wrong phase/group, invalid text, request collision or malformed stored group history rejects the send.",
+        "sourceAnchorIds": [
+          "group.authority",
+          "group.request",
+          "group.send"
+        ]
+      },
+      "nextActor": {
+        "summary": "Any active member in the same ordinary fleet group may read or respond; no role-specific speaker is selected.",
+        "sourceAnchorIds": [
+          "group.authority",
+          "group.workspace"
+        ]
+      },
+      "clientCallTrace": {
+        "status": "current-group-workspace-send",
+        "sourceTreeSha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de",
+        "identifierReferenceCount": 4,
+        "interpretation": "The fleet-group service sends the current actor/group context through its transport and validates the returned receipt.",
+        "sourceAnchorIds": [
+          "group.clientActions",
+          "group.currentActions",
+          "group.workspace"
+        ],
+        "exactQuotedReferenceCount": 4,
+        "clientSourceReferences": {
+          "identifierOccurrences": [
+            {
+              "path": "src/lib/fleetGroupService.ts",
+              "line": 43
+            },
+            {
+              "path": "src/lib/fleetGroupService.ts",
+              "line": 159
+            },
+            {
+              "path": "src/lib/fleetGroupService.ts",
+              "line": 180
+            },
+            {
+              "path": "src/lib/fleetGroupService.ts",
+              "line": 207
+            }
+          ],
+          "quotedOccurrences": [
+            {
+              "path": "src/lib/fleetGroupService.ts",
+              "line": 43
+            },
+            {
+              "path": "src/lib/fleetGroupService.ts",
+              "line": 159
+            },
+            {
+              "path": "src/lib/fleetGroupService.ts",
+              "line": 180
+            },
+            {
+              "path": "src/lib/fleetGroupService.ts",
+              "line": 207
+            }
+          ]
+        }
+      },
+      "guidance": {
+        "status": "current-group-communication-surface",
+        "summary": "FleetGroupWorkspace contains the group note composer and its local length/availability handling.",
+        "sourceAnchorIds": [
+          "group.workspace",
+          "group.clientActions"
+        ]
+      }
+    },
+    {
+      "exportName": "loginGmAccess",
+      "classification": "served-ui-path",
+      "productPath": {
+        "status": "served-ui-path",
+        "surface": "Settings GM access panel",
+        "invocation": "AppHeader/sessionService.loginGmAccess → loginGmAccess callable",
+        "sourceAnchorIds": [
+          "gmAccess.login",
+          "gmAccess.loginClient",
+          "gmAccess.settingsUi"
+        ]
+      },
+      "actor": {
+        "family": "authenticated account with the valid GM access credential",
+        "identities": [
+          "authenticated UID; not yet a session GM instance"
+        ],
+        "sourceAnchorIds": [
+          "gmAccess.login",
+          "gmAccess.passwordPolicy"
+        ]
+      },
+      "requirements": {
+        "summary": "Requires signed-in UID and a valid GM access password; server records the authentication timestamp, bounded by the existing access expiry policy.",
+        "sourceAnchorIds": [
+          "gmAccess.login",
+          "gmAccess.passwordPolicy",
+          "gmAccess.leasePolicy"
+        ]
+      },
+      "costs": {
+        "summary": "No gameplay resource or session action is spent.",
+        "sourceAnchorIds": [
+          "gmAccess.login"
+        ]
+      },
+      "consequences": {
+        "summary": "Grants persistent device/account GM access until its server-defined expiry. It does not itself join a session, change a player role, or create a live GM instance.",
+        "sourceAnchorIds": [
+          "gmAccess.login",
+          "gmAccess.leasePolicy",
+          "gmAccess.claimInstance"
+        ]
+      },
+      "blockers": {
+        "summary": "Unauthenticated request or rejected password denies GM access.",
+        "sourceAnchorIds": [
+          "gmAccess.login",
+          "gmAccess.passwordPolicy"
+        ]
+      },
+      "nextActor": {
+        "summary": "After joining and releasing any core station, the account must claim a separate live GM instance for session-scoped facilitator authority.",
+        "sourceAnchorIds": [
+          "gmAccess.claimInstance"
+        ]
+      },
+      "clientCallTrace": {
+        "status": "current-settings-ui-service-call",
+        "sourceTreeSha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de",
+        "identifierReferenceCount": 4,
+        "interpretation": "AppHeader presents the GM access setting and calls the session service, which validates the server confirmation before updating local access state.",
+        "sourceAnchorIds": [
+          "gmAccess.loginClient",
+          "gmAccess.settingsUi"
+        ],
+        "exactQuotedReferenceCount": 1,
+        "clientSourceReferences": {
+          "identifierOccurrences": [
+            {
+              "path": "src/components/AppHeader.tsx",
+              "line": 12
+            },
+            {
+              "path": "src/components/AppHeader.tsx",
+              "line": 385
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2743
+            },
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2751
+            }
+          ],
+          "quotedOccurrences": [
+            {
+              "path": "src/lib/sessionService.ts",
+              "line": 2751
+            }
+          ]
+        }
+      },
+      "guidance": {
+        "status": "current-settings-guidance",
+        "summary": "Settings explains GM access and exposes the password entry and authorization state.",
+        "sourceAnchorIds": [
+          "gmAccess.settingsUi"
+        ]
+      }
+    }
+  ]
+}

@@ -62,8 +62,19 @@ export default function WolfAttackAftermathActionPanel({ operator }: Readonly<{ 
   const damage = useMemo(() => damageRows(view), [view]);
   const alreadyCommitted = view?.status === 'resolved' && results.some((result) => actionSource(operator)(result.sourceId));
   const doctorTargets = damage.filter((row) => row.populationLoss > 0);
-  const scrapTargets = damage.filter((row) => row.damage >= 3 && !row.destroyed &&
-    !results.some((result) => result.targetId === row.shipId && result.sourceId.startsWith('capybara-scrap-collection-')));
+  const scrapTargets = typeof operator === 'object' ? damage.filter((row) => {
+    const shuttleId = operator.shuttleId;
+    const dockings = session?.shuttleDockings?.filter((docking) => docking.shuttleId === shuttleId) ?? [];
+    const retained = session?.retainedShuttles?.[shuttleId];
+    const control = session?.shuttleControl?.[shuttleId];
+    const dockedAtLiveTarget = !row.destroyed && dockings.length === 1 && dockings[0]?.shipId === row.shipId &&
+      retained === undefined;
+    const retainedAtDestroyedTarget = row.destroyed && dockings.length === 0 && retained?.status === 'retained' &&
+      retained.ownerRoleId === expectedRole && retained.holderUid === me?.uid &&
+      retained.destroyedHostShipId === row.shipId && control?.revision === retained.controlRevision;
+    return row.damage >= 3 && (dockedAtLiveTarget || retainedAtDestroyedTarget) &&
+      !results.some((result) => result.targetId === row.shipId && result.sourceId.startsWith('capybara-scrap-collection-'));
+  }) : [];
   const warrior = session?.smallShipStates?.warrior;
   const salvageCharged = Boolean(warrior && view && warrior.cycle?.turn === view.turn &&
     warrior.cycle?.charges?.includes('salvage-drones') === true && warrior.hostShipId !== null &&

@@ -1,4 +1,5 @@
 import { expect, it, vi } from 'vitest';
+import { act } from '@testing-library/react';
 import { recommendedRoleIds } from '@/data/rolePresets';
 import { activeFleetShipIds } from '@/data/roles';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -9,6 +10,8 @@ import { MAINTENANCE_EVENT_ACTIONS as CLIENT_MAINTENANCE_EVENT_ACTIONS, MAINTENA
 import { MAINTENANCE_EVENT_ACTIONS as SERVER_MAINTENANCE_EVENT_ACTIONS, MAINTENANCE_EVENT_RESULT_STEPS as SERVER_MAINTENANCE_EVENT_RESULT_STEPS } from '../../functions/src/maintenanceEvent';
 import { firstTurnWolfAttackComposition } from '../../functions/src/wolfAttackComposition';
 import { resolveWolfTargeting } from '../../functions/src/wolfCombatMath';
+import { sessionDebriefProjection } from '../../functions/src/sessionDebrief';
+import { createCurrentMemberSessionReader } from '../../functions/src/memberSessionCallable';
 
 vi.mock('firebase/firestore', () => ({
   collection: vi.fn(),
@@ -42,6 +45,7 @@ vi.mock('./firebaseConfig', () => ({
 const {
   acceptCallableSessionAuthority,
   sessionFrom,
+  parseSessionDebriefProjection,
   sessionSnapshotAuthorityFor,
   subscribeGmInstances,
   subscribeConnectedPlayers,
@@ -52,6 +56,7 @@ const {
   subscribeDamageDraws,
   subscribeLoyaltyCensus,
   subscribeGmArrestPosseCalculation,
+  subscribeGmArrestCase,
   subscribeGmMissionStartSnapshots,
   subscribeGmWolfActionReceipt,
   subscribeGmWolfSuspicionHistory,
@@ -70,7 +75,7 @@ const {
   subscribeSessionEvents,
   subscribeSessionState,
 } = await import('./firestore');
-const { doc, getDocFromServer, onSnapshot, Timestamp: FirestoreTimestamp, where } =
+const { collection, doc, getDocFromServer, onSnapshot, Timestamp: FirestoreTimestamp, where } =
   await import('firebase/firestore');
 const { httpsCallable } = await import('firebase/functions');
 
@@ -199,6 +204,141 @@ it('uses the current member read feed without subscribing to a raw session root'
   expect(call).toHaveBeenCalledWith({ sessionId: 'member-feed' });
   expect(paths).not.toContain('sessions/member-feed');
   stop();
+});
+
+async function productionClosedMemberEnvelope(sessionId = 'closed-feed', sourcePatch: Record<string, unknown> = {}) {
+  const records: Record<string, Record<string, unknown>> = {
+    [`sessions/${sessionId}`]: {
+      id: sessionId, name: 'Table one', joinCode: 'PRIVATE RETAINED CODE', phase: 'closed', currentTurn: 4,
+      playerCount: 8, turnLimit: 4, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-10-05T12:01:00.000Z',
+      shipResources: { aegis: { fuel: 90 } }, privateBrief: 'PRIVATE RETAINED BRIEF',
+      debriefSnapshot: { type: 'session-debrief', version: 1, source: 'final-cycle', result: 'completed',
+        cause: 'final-cycle', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z', committedAt: '2026-10-05T12:01:00.000Z' },
+      ...sourcePatch,
+    },
+    [`sessions/${sessionId}/players/u1`]: { role: 'player', connected: false, fleetGroupId: 'fleet-1',
+      connectionGeneration: 3, assignedRoleId: 'admiral', activeConsoleRoleId: null },
+    [`sessions/${sessionId}/fleetGroups/fleet-1`]: { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'] },
+  };
+  const snapshot = (path: string) => ({ id: path.split('/').at(-1), exists: !!records[path],
+    data: () => records[path], get: (key: string) => records[path]?.[key] });
+  const database = {
+    doc: (path: string) => ({ path }), collection: (path: string) => ({ path, collection: true }),
+    runTransaction: async (read: (transaction: unknown) => unknown) => read({
+      get: async ({ path, collection }: { path: string; collection?: boolean }) => collection
+        ? { docs: Object.keys(records).filter(key => key.startsWith(path + '/') && !key.slice(path.length + 1).includes('/')).map(snapshot) }
+        : snapshot(path),
+    }),
+  } as unknown as Parameters<typeof createCurrentMemberSessionReader>[0]['db'];
+  const read = createCurrentMemberSessionReader({ db: database, projectSession: () => {
+    throw new Error('Closed history must not project retained operational state.');
+  } });
+  return read({ auth: { uid: 'u1' }, data: { sessionId } });
+}
+
+it('stops member feed polling and private listeners after the actual server returns immutable closed history', async () => {
+  const envelope = await productionClosedMemberEnvelope();
+  expect(envelope.session).not.toHaveProperty('memberSessionScope');
+  expect(envelope.session).not.toHaveProperty('shipResources');
+  vi.useFakeTimers();
+  vi.mocked(doc).mockImplementation(((_db: unknown, path: string) => ({ path })) as never);
+  vi.mocked(collection).mockImplementation(((_db: unknown, path: string) => ({ path })) as never);
+  const listenerPaths: string[] = [];
+  const listenerStops: ReturnType<typeof vi.fn>[] = [];
+  vi.mocked(onSnapshot).mockImplementation(((reference: { path?: string }) => {
+    if (reference.path) listenerPaths.push(reference.path);
+    const stop = vi.fn(); listenerStops.push(stop); return stop;
+  }) as never);
+  const read = vi.fn().mockResolvedValue({ data: envelope });
+  vi.mocked(httpsCallable).mockReturnValue(read as never);
+  const onSession = vi.fn();
+  const onError = vi.fn();
+  const stop = subscribeSessionState('closed-feed', 'u1', {
+    sessionReadAudience: 'member', onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError,
+    onPrivateLoyalty: vi.fn(), onRoleBrief: vi.fn(),
+  });
+
+  try {
+    await vi.waitFor(() => expect(onSession).toHaveBeenCalledWith(expect.objectContaining({ phase: 'closed' })));
+    expect(onError).not.toHaveBeenCalled();
+    expect(listenerPaths).toContain('sessions/closed-feed/secrets/loyalty-u1');
+    expect(listenerPaths).toContain('sessions/closed-feed/roleBriefs/u1');
+    expect(listenerStops.every(unsubscribe => unsubscribe.mock.calls.length === 1)).toBe(true);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(onSession).toHaveBeenCalledTimes(1);
+  } finally {
+    stop();
+    vi.useRealTimers();
+  }
+});
+
+it('preserves the actual member-safe candidate history without reapplying an empty operational audience', async () => {
+  const outcome = { type: 'game-outcome', result: 'success', cause: 'candidate-complete', candidateCode: 'N',
+    cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' };
+  const envelope = await productionClosedMemberEnvelope('closed-candidate', {
+    gameOutcome: outcome,
+    debriefSnapshot: { type: 'session-debrief', version: 1, source: 'candidate', result: 'success',
+      cause: 'candidate-complete', cycle: 4, occurredAt: outcome.occurredAt,
+      committedAt: '2026-10-05T12:01:00.000Z', outcome,
+      candidate: { code: 'N', groups: [{ groupId: 'fleet-1',
+        requirements: [{ id: 'paid-crossing', status: 'met' }],
+        rolls: [{ id: 'passage', face: 4, result: 'success', audience: 'members' }],
+        losses: [{ shipId: 'aegis', reason: 'candidate-loss', audience: 'members' }],
+        humanCalls: [{ id: 'facilitator-recovery', cycle: 4, audience: 'members' }],
+      }, { groupId: 'fleet-2', requirements: [{ id: 'foreign-requirement', status: 'unmet' }],
+        rolls: [], losses: [], humanCalls: [] }] } },
+  });
+  expect(envelope.session.debriefSnapshot).toMatchObject({ candidate: { groups: [{
+    losses: [{ shipId: 'aegis', reason: 'candidate-loss' }],
+  }] } });
+  vi.mocked(doc).mockImplementation(((_db: unknown, path: string) => ({ path })) as never);
+  vi.mocked(collection).mockImplementation(((_db: unknown, path: string) => ({ path })) as never);
+  vi.mocked(onSnapshot).mockImplementation(() => vi.fn());
+  vi.mocked(httpsCallable).mockReturnValue(vi.fn().mockResolvedValue({ data: envelope }) as never);
+  const onSession = vi.fn();
+  const onError = vi.fn();
+  const stop = subscribeSessionState('closed-candidate', 'u1', {
+    sessionReadAudience: 'member', onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError,
+  });
+  try {
+    await vi.waitFor(() => expect(onSession).toHaveBeenCalled());
+    expect(onError).not.toHaveBeenCalled();
+    const accepted = onSession.mock.calls[0]![0];
+    expect(accepted.debriefSnapshot).toEqual(envelope.session.debriefSnapshot);
+    expect(accepted.shipResources).toBeUndefined();
+    expect(JSON.stringify(accepted)).not.toMatch(/foreign-requirement|memberSessionScope/);
+  } finally { stop(); }
+});
+
+it.each([
+  { response: { actorUid: 'foreign-member' } },
+  { response: { sessionId: 'foreign-session' } },
+  { response: { groupId: 'foreign-group' } },
+  { response: { connectionGeneration: 0 } },
+  { session: { id: 'foreign-session' } },
+  { session: { shipResources: { aegis: { fuel: 90 } } } },
+  { session: { privateBrief: 'PRIVATE CARD' } },
+  { session: { joinCode: 'RETAINED JOIN CODE' } },
+  { session: { debriefSnapshot: { type: 'session-debrief', privateCard: 'PRIVATE CARD' } } },
+])('rejects an unbound or operational closed-history envelope %j', async (change) => {
+  const envelope = await productionClosedMemberEnvelope();
+  vi.mocked(doc).mockImplementation(((_db: unknown, path: string) => ({ path })) as never);
+  vi.mocked(collection).mockImplementation(((_db: unknown, path: string) => ({ path })) as never);
+  vi.mocked(onSnapshot).mockImplementation(() => vi.fn());
+  const read = vi.fn().mockResolvedValue({ data: { ...envelope, ...change.response,
+    session: { ...envelope.session, ...change.session } } });
+  vi.mocked(httpsCallable).mockReturnValue(read as never);
+  const onSession = vi.fn();
+  const onError = vi.fn();
+  const stop = subscribeSessionState('closed-feed', 'u1', {
+    sessionReadAudience: 'member', onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError,
+  });
+  try {
+    await vi.waitFor(() => expect(onError).toHaveBeenCalled());
+    expect(onSession).not.toHaveBeenCalled();
+  } finally { stop(); }
 });
 
 it('hydrates the bounded Philia repair receipt through the member wire parser', () => {
@@ -333,6 +473,21 @@ function sessionData(playerCount: number) {
     updatedAt: '2026-01-01T00:00:00.000Z',
   };
 }
+
+it.each(['preparing', 'active', 'complete'] as const)(
+  'hydrates only the bounded %s full-game demo marker across session refreshes', (status) => {
+    const marker = { status, progression: 'manual' } as const;
+    expect(sessionFrom(`demo-${status}`, {
+      ...sessionData(8), fullGameDemo: marker,
+    }).fullGameDemo).toEqual(marker);
+    expect(sessionFrom(`demo-${status}-with-extra`, {
+      ...sessionData(8), fullGameDemo: { ...marker, gmPassword: 'must not hydrate' },
+    }).fullGameDemo).toBeUndefined();
+    expect(sessionFrom(`demo-${status}-wrong-mode`, {
+      ...sessionData(8), fullGameDemo: { status, progression: 'automatic' },
+    }).fullGameDemo).toBeUndefined();
+  },
+);
 
 it('hydrates only canonical shuttle-control entries from the member session projection', () => {
   const session = sessionFrom('s1', {
@@ -841,6 +996,130 @@ it('hydrates only an internally consistent privacy-safe survivor outcome', () =>
       lostOrDestroyedShipIds: [],
     },
   }).survivorOutcome).toBeUndefined();
+});
+
+it('hydrates a strict reader-scoped debrief and full-game demo marker', () => {
+  const outcome = { type: 'game-outcome', result: 'success', cause: 'candidate-complete',
+    candidateCode: 'N', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' };
+  const debrief = {
+    type: 'session-debrief', version: 1, source: 'candidate', result: 'success',
+    cause: 'candidate-complete', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+    committedAt: '2026-10-05T12:01:00.000Z', outcome,
+    candidate: { code: 'N', groups: [{
+      requirements: [{ id: 'paid-crossing', status: 'met' }],
+      rolls: [{ id: 'passage', face: 4, result: 'success' }],
+      losses: [{ shipId: 'aegis', reason: 'candidate-loss' }],
+      humanCalls: [{ id: 'opposite-side-sabotage', cycle: 4 }],
+    }] },
+  };
+  const session = sessionFrom('closed-session', {
+    ...sessionData(8), phase: 'closed', debriefSnapshot: debrief,
+    gameOutcome: outcome,
+    fullGameDemo: { status: 'complete', progression: 'manual' },
+  });
+  expect(session.debriefSnapshot).toEqual(debrief);
+  expect(session.gameOutcome).toEqual(outcome);
+  expect(session.fullGameDemo).toEqual({ status: 'complete', progression: 'manual' });
+  for (const invalidOutcome of [
+    { ...outcome, candidateCode: 'X' },
+    { ...outcome, cycle: -1 },
+    { ...outcome, occurredAt: 'invalid' },
+    { ...outcome, privatePlayerUids: ['secret'] },
+  ]) {
+    expect(sessionFrom('unsafe-candidate-outcome', {
+      ...sessionData(8), phase: 'closed', gameOutcome: invalidOutcome,
+    }).gameOutcome).toBeUndefined();
+  }
+  expect(sessionFrom('unsafe-debrief', {
+    ...sessionData(8), phase: 'closed',
+    debriefSnapshot: { ...debrief, gmNote: 'loyalty and hidden chart' },
+  }).debriefSnapshot).toBeUndefined();
+  expect(sessionFrom('unsafe-demo-marker', {
+    ...sessionData(8), fullGameDemo: { status: 'complete', progression: 'manual', hidden: true },
+  }).fullGameDemo).toBeUndefined();
+
+  const fleetLossOutcome = { type: 'game-outcome', result: 'failure', cause: 'total-fleet-loss',
+    cycle: 6, occurredAt: '2026-10-05T12:00:00.000Z' };
+  const fleetLossSurvivors = {
+    type: 'survivor-outcome', cycle: 6, occurredAt: '2026-10-05T12:00:00.000Z',
+    fleetShipPopulation: 100, survivingShipPopulation: 0, evacuatedPopulation: 12,
+    escapePodCapacity: 12, lostPopulation: 88, smallVesselPopulation: 2,
+    admittedVesselPopulation: 3, finalSurvivors: 17,
+    survivingShipIds: [], lostOrDestroyedShipIds: ['aegis'],
+  };
+  const fleetLossDebrief = {
+    type: 'session-debrief', version: 1, source: 'candidate', result: 'failure',
+    cause: 'total-fleet-loss', cycle: 6, occurredAt: '2026-10-05T12:00:00.000Z',
+    committedAt: '2026-10-05T12:01:00.000Z', outcome: fleetLossOutcome,
+    survivorOutcome: fleetLossSurvivors,
+    candidate: { code: 'O', groups: [{
+      requirements: [{ id: 'O-requirements', status: 'met' }],
+      rolls: [{ id: 'aegis', result: 'failure' }],
+      losses: [{ shipId: 'aegis', reason: 'lost-in-nebula' }], humanCalls: [],
+    }] },
+  };
+  expect(sessionFrom('candidate-o-total-loss', {
+    ...sessionData(8), phase: 'closed', gameOutcome: fleetLossOutcome,
+    survivorOutcome: fleetLossSurvivors, debriefSnapshot: fleetLossDebrief,
+  }).debriefSnapshot).toEqual(fleetLossDebrief);
+});
+
+it.each(['final-cycle', 'failure-review', 'candidate'] as const)(
+  'hydrates the actual server debrief projection for %s without admitting private fields', source => {
+    const final = source === 'final-cycle';
+    const outcome = final ? undefined : {
+      type: 'game-outcome', result: source === 'candidate' ? 'success' : 'failure',
+      cause: source === 'candidate' ? 'candidate-complete' : 'pursuit-limit',
+      cycle: 5, occurredAt: '2026-10-05T12:00:00.000Z',
+      ...(source === 'candidate' ? { candidateCode: 'N' } : { navigationRevision: 2 }),
+    };
+    const frozen = {
+      type: 'session-debrief', version: 1, source,
+      result: final ? 'completed' : outcome!.result,
+      cause: final ? 'final-cycle' : outcome!.cause, cycle: 5,
+      occurredAt: '2026-10-05T12:00:00.000Z', committedAt: '2026-10-05T12:01:00.000Z',
+      ...(outcome ? { outcome } : {}),
+      ...(source === 'candidate' ? { candidate: { code: 'N', groups: [{
+        groupId: 'fleet-a', requirements: [{ id: 'paid-crossing', status: 'met' }],
+        rolls: [{ id: 'private-roll', face: 4, result: 'success', audience: 'gm' }],
+        losses: [], humanCalls: [],
+      }] } } : {}),
+    };
+    const projected = sessionDebriefProjection(frozen, { groupId: 'fleet-a', vesselIds: ['aegis'] });
+    expect(projected).toBeDefined();
+    const hydrated = sessionFrom('fresh-terminal', {
+      ...sessionData(8), phase: 'closed', currentTurn: 5, debriefSnapshot: projected,
+    });
+    expect(hydrated.debriefSnapshot).toMatchObject({ source, result: frozen.result, cause: frozen.cause, cycle: 5 });
+    expect(JSON.stringify(hydrated.debriefSnapshot)).not.toContain('private-roll');
+    expect(sessionFrom('unsafe-terminal', {
+      ...sessionData(8), phase: 'closed', debriefSnapshot: { ...projected, gmNote: 'private' },
+    }).debriefSnapshot).toBeUndefined();
+  },
+);
+
+it('parses GM-only group route details only when explicitly enabled for the live reader', () => {
+  const outcome = { type: 'game-outcome', result: 'success', cause: 'candidate-complete',
+    candidateCode: 'N', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' };
+  const projection = {
+    type: 'session-debrief', version: 1, source: 'candidate', result: 'success',
+    cause: 'candidate-complete', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+    committedAt: '2026-10-05T12:01:00.000Z', outcome,
+    candidate: { code: 'N', groups: [{ groupId: 'fleet-a',
+      requirements: [{ id: 'paid-crossing', status: 'met' }],
+      rolls: [{ id: 'nebula-bonus', face: 2, result: 'success' }],
+      losses: [], humanCalls: [{ id: 'opposite-side-sabotage', cycle: 4 }],
+      path: [{ action: 'ring-passage', result: 'crossed', shipId: 'aegis', fuelSpent: 2 }],
+    }] },
+  };
+  const privateView = parseSessionDebriefProjection(projection, undefined, { allowGroupIds: true });
+  expect(privateView?.candidate?.groups[0]).toMatchObject({
+    groupId: 'fleet-a', path: [{ action: 'ring-passage', result: 'crossed', shipId: 'aegis', fuelSpent: 2 }],
+  });
+  expect(parseSessionDebriefProjection(projection, undefined)).toBeUndefined();
+  expect(parseSessionDebriefProjection({ ...projection, candidate: { ...projection.candidate,
+    groups: [{ ...projection.candidate.groups[0], gmNote: 'loyalty and secret chart' }] },
+  }, undefined, { allowGroupIds: true })).toBeUndefined();
 });
 
 it('keeps typed entity IDs stable at the session snapshot boundary', () => {
@@ -1753,57 +2032,75 @@ it('hydrates stable seat role ids without treating Press as a core seat', () => 
 });
 
 it('hydrates only the current player loyalty and a GM-visible setup receipt after reconnect', () => {
+  vi.mocked(doc).mockImplementation(((_database: unknown, path: string) => ({ path })) as never);
+  const { callbacks } = captureSessionListener();
+  const listenerCallOffset = vi.mocked(onSnapshot).mock.calls.length;
   const onPrivateLoyalty = vi.fn();
   const onSetupReceipt = vi.fn();
-  let listener = 0;
-  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, optionsOrCallback: unknown,
-    callbackOrError: unknown) => {
-    const callback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callbackOrError;
-    listener += 1;
-    if (listener === 3) {
-      (callback as (snapshot: unknown) => void)({ docs: [] });
-    } else if (listener === 4) {
-      (callback as (snapshot: unknown) => void)({
-        exists: () => true,
-        get: (field: string) => field === 'payload'
-          ? { type: 'loyalty', kind: 'fleet-loyalist', suspicion: 5 }
-          : undefined,
-      });
-    } else if (listener === 5) {
-      (callback as (snapshot: unknown) => void)({
-        docs: [{
-          get: (field: string) => field === 'payload'
-            ? {
-              type: 'setup-receipt', source: 'routine-start', playerCount: 8,
-              mode: 'base', rosterIds: ['admiral'], pressEligibility: {}, excludedGmCount: 1,
-              wolfCount: 1, wolfRule: 'one-wolf-at-8-13', selectedWolfRoleIds: ['admiral'],
-              eligibleRoleIds: ['admiral'], orderedModifiers: [], resultCount: 8,
-              loyaltySource: 'automatic-default', request: {}, expectedSetupRevision: 0,
-              committedSetupRevision: 1, actorUid: 'u1', serverTime: '2026-09-09T00:00:00.000Z',
-              event: 'game-started',
-            } : undefined,
-        }],
-      });
-    } else {
-      (callback as (snapshot: unknown) => void)({
-        exists: () => true,
-        id: 's1',
-        data: () => ({}),
-        get: () => undefined,
-      });
-    }
-    return vi.fn();
-  }) as never);
 
   subscribeSessionState('s1', 'u1', {
     onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
     onPrivateLoyalty, onSetupReceipt, onError: vi.fn(),
   });
 
-  expect(onPrivateLoyalty).toHaveBeenCalledWith({ kind: 'fleet-loyalist', suspicion: 5 });
+  const privateListenerIndex = vi.mocked(onSnapshot).mock.calls.findIndex(([reference], index) =>
+    index >= listenerCallOffset &&
+    (reference as { readonly path?: string } | undefined)?.path === 'sessions/s1/secrets/loyalty-u1');
+  expect(privateListenerIndex).toBeGreaterThanOrEqual(0);
+  callbacks[privateListenerIndex - listenerCallOffset]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    get: (field: string) => field === 'payload'
+      ? {
+        type: 'loyalty', kind: 'fleet-loyalist', suspicion: 5,
+        directives: ['Server-assigned private objective for this holder.'],
+      }
+      : undefined,
+  });
+  callbacks.at(-1)?.({
+    docs: [{
+      get: (field: string) => field === 'payload'
+        ? {
+          type: 'setup-receipt', source: 'routine-start', playerCount: 8,
+          mode: 'base', rosterIds: ['admiral'], pressEligibility: {}, excludedGmCount: 1,
+          wolfCount: 1, wolfRule: 'one-wolf-at-8-13', selectedWolfRoleIds: ['admiral'],
+          eligibleRoleIds: ['admiral'], orderedModifiers: [], resultCount: 8,
+          loyaltySource: 'automatic-default', request: {}, expectedSetupRevision: 0,
+          committedSetupRevision: 1, actorUid: 'u1', serverTime: '2026-09-09T00:00:00.000Z',
+          event: 'game-started',
+        } : undefined,
+    }],
+  });
+
+  expect(onPrivateLoyalty).toHaveBeenCalledWith({
+    kind: 'fleet-loyalist', suspicion: 5,
+    directives: ['Server-assigned private objective for this holder.'],
+  });
   expect(onSetupReceipt).toHaveBeenCalledWith(expect.objectContaining({
     source: 'routine-start', committedSetupRevision: 1,
   }));
+});
+
+it('clears a peer reader when its own loyalty secret path denies access', () => {
+  vi.mocked(doc).mockImplementation(((_database: unknown, path: string) => ({ path })) as never);
+  const { errors } = captureSessionListener();
+  const listenerCallOffset = vi.mocked(onSnapshot).mock.calls.length;
+  const onPrivateLoyalty = vi.fn();
+  const onError = vi.fn();
+  subscribeSessionState('s1', 'u2', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
+    onPrivateLoyalty, onError,
+  });
+
+  const privateListenerIndex = vi.mocked(onSnapshot).mock.calls.findIndex(([reference], index) =>
+    index >= listenerCallOffset &&
+    (reference as { readonly path?: string } | undefined)?.path === 'sessions/s1/secrets/loyalty-u2');
+  expect(privateListenerIndex).toBeGreaterThanOrEqual(0);
+  errors[privateListenerIndex - listenerCallOffset]?.({ code: 'permission-denied' });
+
+  expect(onPrivateLoyalty).toHaveBeenLastCalledWith(null);
+  expect(onPrivateLoyalty).not.toHaveBeenCalledWith(expect.objectContaining({ directives: expect.any(Array) }));
+  expect(onError).not.toHaveBeenCalled();
 });
 
 it('hydrates the server-owned Android proof disclosure marker only for the current player', () => {
@@ -2001,6 +2298,31 @@ it('rebinds a denied same-UID secret listener after the player projection change
   });
   expect(onPrivateLoyalty).toHaveBeenLastCalledWith({ kind: 'wolf-cult', suspicion: 6 });
   expect(onWolfCultIntelligence).toHaveBeenLastCalledWith(expect.objectContaining({ revision: 1 }));
+});
+
+it('unsubscribes the recovered same-UID private listener exactly once and ignores its late delivery', () => {
+  const { callbacks, errors, unsubscribeSpies } = captureSessionListener();
+  const onPrivateLoyalty = vi.fn();
+  const stop = subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
+    onPrivateLoyalty, onError: vi.fn(),
+  });
+  errors[3]?.({ code: 'permission-denied' });
+  callbacks[1]?.({
+    metadata: { fromCache: false }, exists: () => true,
+    get: (field: string) => field === 'connected' ? true : undefined,
+    data: () => ({ role: 'player', assignedRoleId: 'admiral' }),
+  });
+  expect(unsubscribeSpies).toHaveLength(5);
+  const recoveredStop = unsubscribeSpies[4];
+  stop();
+  stop();
+  expect(recoveredStop).toHaveBeenCalledTimes(1);
+  expect(unsubscribeSpies[3]).toHaveBeenCalledTimes(1);
+  const callsAtStop = onPrivateLoyalty.mock.calls.length;
+  callbacks[4]?.({ metadata: { fromCache: false }, exists: () => true,
+    get: () => ({ type: 'loyalty', kind: 'wolf-agent', suspicion: 5 }) });
+  expect(onPrivateLoyalty).toHaveBeenCalledTimes(callsAtStop);
 });
 
 it('rebinds the denied same-UID Arbour secret path and hydrates a fresh call', () => {
@@ -2214,14 +2536,32 @@ it('hydrates the known facilitator census only from server authority and allowli
   expect(onLoyaltyCensus).toHaveBeenCalledWith({
     revision: 7,
     entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 10 }],
-  });
+  }, 'present');
 
   callbacks[0]?.({
     metadata: { fromCache: false },
     exists: () => true,
     data: () => ({ type: 'loyalty-census', revision: 8, entries: [{ uid: 'players/u2', kind: 'wolf-agent', suspicion: 10 }] }),
   });
-  expect(onLoyaltyCensus).toHaveBeenLastCalledWith(null);
+  expect(onLoyaltyCensus).toHaveBeenLastCalledWith(null, 'error');
+});
+
+it('distinguishes an authorized server-confirmed empty loyalty census from malformed and failed reads', () => {
+  const { callbacks, errors } = captureSessionListener();
+  const onCensus = vi.fn((_census: unknown, _status?: string) => { void _census; void _status; });
+  subscribeLoyaltyCensus('s1', onCensus);
+
+  callbacks[0]?.({ metadata: { fromCache: true }, exists: () => false, data: () => undefined });
+  expect(onCensus).not.toHaveBeenCalled();
+
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => false, data: () => undefined });
+  expect(onCensus).toHaveBeenLastCalledWith(null, 'empty');
+
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => ({ forged: true }) });
+  expect(onCensus).toHaveBeenLastCalledWith(null, 'error');
+
+  errors[0]?.({ code: 'permission-denied' });
+  expect(onCensus).toHaveBeenLastCalledWith(null, 'error');
 });
 
 it('subscribes to the server-only arrest calculation, rejects cached or malformed state, and stays monotonic', () => {
@@ -2259,6 +2599,27 @@ it('subscribes to the server-only arrest calculation, rejects cached or malforme
   callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => result });
   expect(unsubscribeSpies[0]).toHaveBeenCalledOnce();
   expect(onCalculation).toHaveBeenCalledTimes(callsAtUnsubscribe);
+});
+
+it('recovers the current GM-only prisoner case from a server snapshot', () => {
+  const { callbacks } = captureSessionListener();
+  const onCase = vi.fn();
+  const stop = subscribeGmArrestCase('s1', 'u2', onCase);
+  const currentCase = {
+    type: 'arrest-case', sessionId: 's1', targetUid: 'u2', status: 'pending-resolution',
+    outcome: 'arrested', turn: 3, revision: 1, requiredPlayers: 5, presentPlayers: 5,
+    deadlineCycle: 4, createdBy: 'gm1', requestId: 'arrest-1',
+  };
+
+  callbacks[0]?.({ metadata: { fromCache: true }, exists: () => true, data: () => currentCase });
+  expect(onCase).toHaveBeenCalledTimes(1);
+  expect(onCase).toHaveBeenLastCalledWith(null);
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => currentCase });
+  expect(onCase).toHaveBeenLastCalledWith(expect.objectContaining({
+    status: 'pending-resolution', turn: 3, deadlineCycle: 4, revision: 1,
+  }));
+
+  stop();
 });
 
 it('projects only complete server-confirmed PC04 mission-start receipts to the facilitator', () => {
@@ -2977,7 +3338,7 @@ it('does not let a delayed older census revision overwrite the newer server proj
   expect(onCensus).toHaveBeenLastCalledWith({
     revision: 8,
     entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 20 }],
-  });
+  }, 'present');
 });
 
 it('keeps the GM Wolf Cult intelligence projection monotonic and clears terminal access loss', () => {
@@ -3352,6 +3713,18 @@ it('does not let a delayed older Wolf timing revision overwrite the newer server
   expect(onWindow).toHaveBeenLastCalledWith({ status: 'deferred', turn: 2, revision: 2 });
 });
 
+it('delivers a recipient-private server K timing window through the existing GM listener', () => {
+  const listener = captureSessionListener();
+  const onWindow = vi.fn();
+  subscribeGmWolfAttackWindow('s1', onWindow);
+  const window = { status: 'due', turn: 2, revision: 1, targetGroupId: 'fleet-1', threatSiteCode: 'K', threatSourceId: 'mission-mission-parity' };
+  listener.callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => window });
+  expect(onWindow).toHaveBeenLastCalledWith(window);
+  listener.callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true,
+    data: () => ({ ...window, revision: 2, threatSourceId: 'arrival-forged' }) });
+  expect(onWindow).toHaveBeenLastCalledWith(null);
+});
+
 it('allows equal revision updates, clears deletion, and resets ordering only on a new subscription', () => {
   const first = captureSessionListener();
   const onWindow = vi.fn();
@@ -3423,7 +3796,7 @@ it('clears a revisioned projection on listener errors without reopening an older
     data: () => ({ type: 'loyalty-census', revision: 3, entries: [] }),
   });
 
-  expect(onCensus.mock.calls).toEqual([[{ revision: 4, entries: [] }], [null]]);
+  expect(onCensus.mock.calls).toEqual([[{ revision: 4, entries: [] }, 'present'], [null, 'error']]);
 });
 
 it('hydrates only the typed facilitator Wolf assignment and clears after teardown', () => {

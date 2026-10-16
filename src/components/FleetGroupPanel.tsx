@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { MAX_PURSUIT, authoritativePursuitValue } from '@/data/pursuit';
 import { findVessel } from '@/data/ships';
-import type { FleetGroupNavigationProjection, FleetGroupNote, FleetTaxiPayload, FleetTaxiShuttleId } from '@/lib/fleetGroupService';
+import type { FleetGroupNavigationProjection, FleetGroupNote, FleetGroupRejoinCandidate, FleetGroupRejoinDecision,
+  FleetTaxiPayload, FleetTaxiShuttleId } from '@/lib/fleetGroupService';
 import './FleetGroupWorkspace.css';
 
 interface TaxiPlayer { readonly uid: string; readonly label: string }
@@ -8,6 +10,9 @@ const EMPTY_OPTIONS = [] as const;
 interface Props {
   readonly groupId: string; readonly actorUid: string; readonly notes: readonly FleetGroupNote[];
   readonly draft: string; readonly busy: boolean; readonly notice: string;
+  readonly pursuitValue?: number | undefined;
+  readonly rejoinCandidates?: readonly FleetGroupRejoinCandidate[];
+  readonly rejoinAdjudicationId?: string | null;
   readonly navigation?: FleetGroupNavigationProjection | null;
   readonly scannedCoordinates?: readonly string[];
   readonly taxiDestinations?: readonly string[];
@@ -16,6 +21,8 @@ interface Props {
   readonly canShare?: boolean;
   readonly onDraft: (text: string) => void; readonly onSend: () => void; readonly onRefresh: () => void;
   readonly onConfirm?: () => void;
+  readonly onRecordRejoin?: (decisions: readonly FleetGroupRejoinDecision[]) => void;
+  readonly onApplyRejoin?: () => void;
   readonly onShare?: (coordinate: string, recipients: 'all' | readonly string[]) => void;
   readonly onTaxi?: (input: Readonly<{ shuttleId: FleetTaxiShuttleId; targetShipId: string; payload: FleetTaxiPayload }>) => void;
 }
@@ -28,9 +35,10 @@ function shipLabel(shipId: string): string {
 }
 
 export default function FleetGroupPanel({ groupId, actorUid, notes, draft, busy, notice, navigation = null,
+  pursuitValue, rejoinCandidates = EMPTY_OPTIONS, rejoinAdjudicationId = null,
   scannedCoordinates = EMPTY_OPTIONS, taxiDestinations = EMPTY_OPTIONS, taxiShuttles = EMPTY_OPTIONS,
   taxiPlayers = EMPTY_OPTIONS, canShare = false, onDraft, onSend, onRefresh,
-  onConfirm, onShare, onTaxi }: Props) {
+  onConfirm, onRecordRejoin, onApplyRejoin, onShare, onTaxi }: Props) {
   const [coordinate, setCoordinate] = useState('');
   const [recipientShipIds, setRecipientShipIds] = useState<readonly string[]>([]);
   const [allRecipients, setAllRecipients] = useState(false);
@@ -39,6 +47,8 @@ export default function FleetGroupPanel({ groupId, actorUid, notes, draft, busy,
   const [payloadKind, setPayloadKind] = useState<'players' | 'fuel'>('fuel');
   const [fuelUnits, setFuelUnits] = useState<1 | 2>(1);
   const [passengerUids, setPassengerUids] = useState<readonly string[]>([]);
+  const [rejoinPursuitValues, setRejoinPursuitValues] = useState<Readonly<Record<string, string>>>({});
+  useEffect(() => { setRejoinPursuitValues({}); }, [rejoinCandidates]);
   useEffect(() => {
     if (!scannedCoordinates.includes(coordinate)) setCoordinate(scannedCoordinates[0] ?? '');
     setRecipientShipIds(current => {
@@ -54,12 +64,18 @@ export default function FleetGroupPanel({ groupId, actorUid, notes, draft, busy,
   }, [scannedCoordinates, navigation, taxiShuttles, taxiDestinations, taxiPlayers, coordinate, shuttleId, destinationShipId]);
 
   const ships = navigation?.ships ?? [];
+  const authoritativePursuit = authoritativePursuitValue(pursuitValue);
   const shareRecipients = allRecipients ? 'all' : recipientShipIds;
   const shareReady = canShare && !!coordinate && (shareRecipients === 'all' || shareRecipients.length > 0) && ships.length > 0;
   const taxiReady = !!shuttleId && !!destinationShipId &&
     (payloadKind === 'fuel' || (passengerUids.length > 0 && passengerUids.length <= 2));
   const toggle = (items: readonly string[], value: string, set: (next: readonly string[]) => void) =>
     set(items.includes(value) ? items.filter(item => item !== value) : [...items, value]);
+  const rejoinKey = (candidate: FleetGroupRejoinCandidate) => JSON.stringify([candidate.coordinate, candidate.groupIds]);
+  const rejoinDecisionsReady = rejoinCandidates.length > 0 && rejoinCandidates.every(candidate => {
+    const value = rejoinPursuitValues[rejoinKey(candidate)] ?? '';
+    return /^(?:0|[1-9]|10)$/.test(value);
+  });
 
   return <section className="fleet-group-workspace" aria-label="Fleet group communication">
     <h2>Fleet group // {groupId}</h2>
@@ -75,6 +91,15 @@ export default function FleetGroupPanel({ groupId, actorUid, notes, draft, busy,
           <li key={transit.shuttleId}>{transit.shuttleId.toUpperCase()} in transit // {transit.destinationShipId} // sampled {new Date(transit.sampledAt).toLocaleTimeString()}</li>)}</ul>}
       </> : <p role="status">Current group positions are unavailable until a fresh server sample arrives.</p>}
     </section>
+    <section className="fleet-group-workspace__pursuit" aria-label="Current fleet group pursuit" data-fleet-group-id={groupId}>
+      <h3>HOUSE RULE // SPLIT-GROUP PURSUIT</h3>
+      <p>Each separated group tracks its own pursuit.</p>
+      <dl>
+        <div><dt>Current fleet group</dt><dd>{groupId.toUpperCase()}</dd></div>
+        <div><dt>Wolf pursuit</dt><dd>{authoritativePursuit === undefined
+          ? 'Pursuit unavailable' : `${authoritativePursuit} / ${MAX_PURSUIT}`}</dd></div>
+      </dl>
+    </section>
     <ul aria-label="Current group announcements">{notes.map(note => <li key={note.id}><p>{note.text}</p>
       <small>{note.actorUid === actorUid ? 'You' : 'Group participant'} // {new Date(note.sentAt).toLocaleTimeString()}</small></li>)}</ul>
     <label>Note to your fleet group<textarea maxLength={240} value={draft} onChange={event => onDraft(event.target.value)} disabled={busy} /></label>
@@ -83,6 +108,28 @@ export default function FleetGroupPanel({ groupId, actorUid, notes, draft, busy,
       <button type="button" disabled={busy} onClick={onRefresh}>Refresh group notes</button>
       {onConfirm && <button type="button" disabled={busy} onClick={onConfirm}>Confirm separated fleet groups</button>}
     </div>
+    {rejoinCandidates.length > 0 && <section className="fleet-group-workspace__tool fleet-group-workspace__rejoin" aria-label="Pursuit rejoin adjudication">
+      <h3>HOUSE RULE // EXCEPTIONAL REJOIN</h3>
+      <p>Different pursuit inputs have no automatic result. The groups stay separate until a current live GM records a decision.</p>
+      {rejoinCandidates.map(candidate => {
+        const key = rejoinKey(candidate);
+        const inputs = candidate.groupIds.map(id => `${id.toUpperCase()}: ${candidate.pursuitBefore[id]}`).join(' // ');
+        return <label key={key}>Pursuit after merge at {candidate.coordinate}
+          <small>{inputs}</small>
+          <input type="number" min={0} max={10} step={1} value={rejoinPursuitValues[key] ?? ''}
+            aria-label={`Pursuit after merge at ${candidate.coordinate}`} disabled={busy || !!rejoinAdjudicationId}
+            onChange={event => setRejoinPursuitValues(current => ({ ...current, [key]: event.target.value }))} />
+        </label>;
+      })}
+      {rejoinAdjudicationId
+        ? <><p role="status">Recorded facilitator decision // {rejoinAdjudicationId}</p>
+          <button type="button" disabled={busy} onClick={onApplyRejoin}>Apply recorded rejoin adjudication</button></>
+        : <button type="button" disabled={busy || !rejoinDecisionsReady || !onRecordRejoin} onClick={() => onRecordRejoin?.(
+          rejoinCandidates.map(candidate => ({ coordinate: candidate.coordinate, groupIds: candidate.groupIds,
+            pursuitAfter: Number(rejoinPursuitValues[rejoinKey(candidate)]) }))) }>
+          Record live-GM pursuit decision
+        </button>}
+    </section>}
     {canShare && onShare && <section className="fleet-group-workspace__tool" aria-label="Share scanned system">
       <h3>Share a scanned system</h3>
       <p>Choose a coordinate known to your ship and one or more ships in this current group. Other groups and their locations stay hidden.</p>

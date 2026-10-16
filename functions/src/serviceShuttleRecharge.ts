@@ -233,8 +233,8 @@ export function resolveServiceShuttleRecharge(input: Readonly<{
       entropy: 0,
       upgraded: input.upgrades,
       productionConsoleId: input.targetConsoleId,
-      productionScrap: input.productionScrap,
-      productionOreAmount: input.productionOreAmount,
+      ...(input.productionScrap === undefined ? {} : { productionScrap: input.productionScrap }),
+      ...(input.productionOreAmount === undefined ? {} : { productionOreAmount: input.productionOreAmount }),
       now: input.now,
     } satisfies MaintenanceInput);
     // Production is borrowed from the maintenance resolver, but this command runs

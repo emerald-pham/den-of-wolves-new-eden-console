@@ -228,7 +228,7 @@ vi.mock('firebase-functions/v2/https', () => ({
       super(message);
     }
   },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
@@ -267,6 +267,7 @@ import {
   releaseRole,
   resumeSession,
   runMaintenance,
+  setEmergencyTimerPaused,
   setShipPreference,
   startGame,
 } from './index';
@@ -656,6 +657,28 @@ async function clearComposedBriefing(composition: Awaited<ReturnType<typeof comp
 
 describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
   beforeEach(() => mock.reset());
+
+  it('advances ordinary Team phases after a Ring-consumed Engineering Shuttle is permanently removed', async () => {
+    const composition = await composeProductionSession(19);
+    await clearComposedBriefing(composition);
+    const sessionPath = `sessions/${composition.sessionId}`;
+    const session = read(sessionPath) as StoredDocument;
+    // Native counterexample: only the committed consumption authority is prepared;
+    // the complete lobby/start and subsequent turn mutation are real handlers.
+    expect(session.shuttleDockings).toEqual(expect.arrayContaining([expect.objectContaining({ shuttleId: 'blacksmith' })]));
+    session.candidateCraftReservations = { blacksmith: { code: 'N', groupId: 'fleet-1', coordinate: '3232',
+      sourceId: 'ring-engineering-contribution', cycle: 1 } };
+    session.shuttleDockings = (session.shuttleDockings as StoredDocument[])
+      .filter(docking => docking.shuttleId !== 'blacksmith');
+    const retainedDockings = structuredClone(session.shuttleDockings);
+    const command = { sessionId: composition.sessionId, instanceId: composition.startRequest.instanceId,
+      requestId: 'advance-after-ring-consumption', expectedTurn: 1, overridePhaseTimer: true,
+      skipTurnStartAnnouncement: true };
+    const result = await advanceTurn.run(request(command, composition.ownerUid));
+    expect(result).toMatchObject({ currentTurn: 2 });
+    expect(read(sessionPath)?.shuttleDockings).toEqual(retainedDockings);
+    expect(read(sessionPath)?.candidateCraftReservations).toEqual(session.candidateCraftReservations);
+  });
 
   it('parks a travelling shuttle atomically when the ordinary airspace deadline catches up at advanceTurn', async () => {
     vi.useFakeTimers();
@@ -1274,6 +1297,9 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
       const turnOnePhase = turnOne.turnPhase as { teamPhaseEndsAt: string; openAirspaceEndsAt: string };
 
       const initialTime = Date.parse('2026-09-12T16:00:00.000Z');
+      expect(Date.parse(turnOnePhase.teamPhaseEndsAt) - initialTime).toBe(10 * 60_000);
+      expect(Date.parse(turnOnePhase.openAirspaceEndsAt) - Date.parse(turnOnePhase.teamPhaseEndsAt))
+        .toBe(25 * 60_000);
       for (let heartbeatAt = initialTime + 30_000;
         heartbeatAt < Date.parse(turnOnePhase.teamPhaseEndsAt);
         heartbeatAt += 30_000) {
@@ -1291,9 +1317,9 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
       }, composition.coreUids[0]!))).resolves.toMatchObject({
         turnPhase: { turn: 1, airspace: { state: 'lifted' } },
       });
-
+      const pauseAt = Date.parse(turnOnePhase.teamPhaseEndsAt) + 15 * 60_000;
       for (let heartbeatAt = Date.parse(turnOnePhase.teamPhaseEndsAt) + 1_000;
-        heartbeatAt < Date.parse(turnOnePhase.openAirspaceEndsAt);
+        heartbeatAt < pauseAt;
         heartbeatAt += 30_000) {
         vi.setSystemTime(new Date(heartbeatAt));
         await refreshPresence.run(request({
@@ -1301,7 +1327,47 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
           instanceId: composition.startRequest.instanceId,
         }, composition.ownerUid));
       }
-      vi.setSystemTime(new Date(Date.parse(turnOnePhase.openAirspaceEndsAt) + 1));
+      vi.setSystemTime(new Date(pauseAt));
+      await expect(setEmergencyTimerPaused.run(request({
+        sessionId: composition.sessionId,
+        instanceId: composition.startRequest.instanceId,
+        expectedTurn: 1,
+        paused: true,
+      }, composition.ownerUid))).resolves.toMatchObject({
+        turnPhase: { timerPause: { window: 'open', remainingMs: 10 * 60_000 } },
+      });
+      const resumedAt = pauseAt + 30_000;
+      vi.setSystemTime(new Date(resumedAt - 20_000));
+      await refreshPresence.run(request({
+        sessionId: composition.sessionId,
+        instanceId: composition.startRequest.instanceId,
+      }, composition.ownerUid));
+      vi.setSystemTime(new Date(resumedAt));
+      await expect(setEmergencyTimerPaused.run(request({
+        sessionId: composition.sessionId,
+        instanceId: composition.startRequest.instanceId,
+        expectedTurn: 1,
+        paused: false,
+      }, composition.ownerUid))).resolves.toMatchObject({
+        turnPhase: {
+          teamPhaseEndsAt: turnOnePhase.teamPhaseEndsAt,
+          openAirspaceEndsAt: new Date(Date.parse(turnOnePhase.teamPhaseEndsAt) + 25 * 60_000 + 30_000).toISOString(),
+        },
+      });
+      const resumedPhase = (read(sessionPath) as StoredDocument).turnPhase as {
+        teamPhaseEndsAt: string; openAirspaceEndsAt: string;
+      };
+
+      for (let heartbeatAt = resumedAt + 1_000;
+        heartbeatAt < Date.parse(resumedPhase.openAirspaceEndsAt);
+        heartbeatAt += 30_000) {
+        vi.setSystemTime(new Date(heartbeatAt));
+        await refreshPresence.run(request({
+          sessionId: composition.sessionId,
+          instanceId: composition.startRequest.instanceId,
+        }, composition.ownerUid));
+      }
+      vi.setSystemTime(new Date(Date.parse(resumedPhase.openAirspaceEndsAt) + 1));
       const advanceRequests = [
         { sessionId: composition.sessionId, instanceId: composition.startRequest.instanceId, requestId: 'advance-turn-1a', expectedTurn: 1 },
         { sessionId: composition.sessionId, instanceId: composition.startRequest.instanceId, requestId: 'advance-turn-1b', expectedTurn: 1 },
@@ -1312,6 +1378,9 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
       expect(advances.filter((result) => result.status === 'rejected')).toHaveLength(1);
       const advanced = advances.find((result): result is PromiseFulfilledResult<Record<string, unknown>> =>
         result.status === 'fulfilled')!.value;
+      const turnTwoPhase = advanced.turnPhase as { teamPhaseEndsAt: string; openAirspaceEndsAt: string };
+      expect(Date.parse(turnTwoPhase.openAirspaceEndsAt) - Date.parse(turnTwoPhase.teamPhaseEndsAt))
+        .toBe(15 * 60_000);
       expect(advanced).toMatchObject({
         currentTurn: 2,
         turnPhase: { turn: 2, airspace: { state: 'restricted' } },

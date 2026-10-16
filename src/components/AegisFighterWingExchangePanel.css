@@ -1,0 +1,66 @@
+.aegis-wing-exchange {
+  display: grid;
+  gap: 0.85rem;
+  grid-column: 1 / -1;
+  padding: 1rem;
+}
+
+.aegis-wing-exchange__header,
+.aegis-wing-exchange__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.aegis-wing-exchange__header h3 {
+  margin: 0;
+}
+
+.aegis-wing-exchange__cycle,
+.aegis-wing-exchange__strength {
+  color: var(--cic-cyan);
+}
+
+.aegis-wing-exchange__strength {
+  margin: 0;
+}
+
+.aegis-wing-exchange__form label {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 10rem;
+  color: var(--cic-amber);
+}
+
+.aegis-wing-exchange__form select {
+  min-height: 2.75rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--cic-amber-dim);
+  border-radius: var(--cic-radius);
+  color: var(--cic-cyan);
+  background: var(--cic-panel);
+}
+
+.aegis-wing-exchange__form .cic-action-button {
+  min-height: 2.75rem;
+}
+
+.aegis-wing-exchange__notice,
+.aegis-wing-exchange__error {
+  margin: 0;
+  color: var(--cic-ink);
+}
+
+.aegis-wing-exchange__error {
+  color: var(--cic-danger);
+}
+
+@media (max-width: 38rem) {
+  .aegis-wing-exchange__form,
+  .aegis-wing-exchange__form label,
+  .aegis-wing-exchange__form .cic-action-button {
+    width: 100%;
+  }
+}

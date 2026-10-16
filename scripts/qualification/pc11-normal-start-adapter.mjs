@@ -86,8 +86,17 @@ export function pc11SameActorEpoch(before, after, resumeEvidence) {
       before.identityHydrationRevision < 1 ||
       !Number.isSafeInteger(after.identityHydrationRevision) ||
       after.identityHydrationRevision < 1 ||
-      after.connectionGeneration < before.connectionGeneration ||
-      after.identityHydrationRevision < before.identityHydrationRevision) return false;
+      after.connectionGeneration < before.connectionGeneration) return false;
+
+  const changedDocument = before.documentTimeOrigin !== after.documentTimeOrigin;
+  if (changedDocument) {
+    // The local counter restarts in each document. Only the exact accepted
+    // newer-document receipt and completed SDK fence permit that reset.
+    if (after.documentTimeOrigin <= before.documentTimeOrigin ||
+        after.connectionGeneration !== before.connectionGeneration + 1 ||
+        resumeEvidence?.documentTimeOrigin !== after.documentTimeOrigin ||
+        resumeEvidence?.sdkResumePending !== false) return false;
+  } else if (after.identityHydrationRevision < before.identityHydrationRevision) return false;
 
   const sameEpoch = before.documentTimeOrigin === after.documentTimeOrigin &&
     before.connectionGeneration === after.connectionGeneration &&

@@ -1,0 +1,169 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import test from 'node:test';
+import { assessPc10FunctionalTransport, assertPc10FunctionalCommand } from './pc10-gate2-functional-proof.mjs';
+
+// Static, exact metadata copies of the two original ordinary-player GM-log
+// denials: commands[44,50], native observations[129,459], failures[1,7].
+// Original report SHA256 9d064c165f6a73eea84c98aa91d8fe44a6368575db235d4fbf029c4face8e348;
+// original strict raw SHA256 d61423454c8e885b87e40acca384342f08f883d64457704394638bd64ef0de09.
+// These unit fixtures never replay or re-adjudicate the failed historical run.
+// No native body, denial code, protocol-ID, payload hash, or SID is added to
+// original SDK invocation metadata. Auth/source/doc/window linkage must suffice.
+const RETAINED_DENIALS = [{"command":{"commandId":"dcabf1ff-d506-472c-8f2b-ed6b1a3facc7","kind":"original-functional-proof-command","roleId":"admiral","name":"listGmScoutResolutionLog","original":{"roleId":"admiral","sessionId":"KgB4SSuTHD72Je6FuW0H","uid":"CdkY4Sfghtaw7q3W4ga9kpN0lgd5","contextHash":"5bd67faf6e6e7721383a458220af49a1fe6934a71801b96a4f6a925d0c1130cf","scope":{"groupId":"fleet-1","vesselIds":["aegis","capybara","dione","icebreaker","quellon","refinery-124","shepherd"],"craftIds":["black-sheep","blacksmith","boa","chacau","chepu","condor","endeavour","highwall","hummingbird","macaw","maliades","pallas","philia","snn-press-shuttle","starlight"]}},"data":{"sessionId":"KgB4SSuTHD72Je6FuW0H","instanceId":"pc07-local-proof"},"registeredEndpoint":"listGmScoutResolutionLog","registeredRequestFingerprint":"57f723d288685dce48e881736f778303c0bdd4b6fb76ce365a6cc20c8d0b92a8","expectedDenial":"permission-denied","registeredAt":1791272558125,"issuedAt":1791272558907,"completedAt":1791272561834,"failedAt":null,"beforeBinding":{"authUid":"CdkY4Sfghtaw7q3W4ga9kpN0lgd5","storeUid":"CdkY4Sfghtaw7q3W4ga9kpN0lgd5","sessionId":"KgB4SSuTHD72Je6FuW0H","assignedRoleId":"admiral","activeConsoleRoleId":"admiral","seatId":"admiral","online":true,"observedAt":1791272558143,"contextHash":"5bd67faf6e6e7721383a458220af49a1fe6934a71801b96a4f6a925d0c1130cf","nativeDocumentHash":"2b53973984adfe46c971ee43df34b785eff5fc839e4747635e79b72bdda89c1c"},"beforeSource":{"roleId":"admiral","uid":"CdkY4Sfghtaw7q3W4ga9kpN0lgd5","sessionId":"KgB4SSuTHD72Je6FuW0H","checkedAt":1791272558906,"sourceHash":"fe741cbe68846440daf11d2196ea15c9cecb80978eee9ad0ea9c786f9c688b8e","presence":{"schemaVersion":1,"kind":"pc10-presence-authority-readonly","roleId":"admiral","actorHash":"fa2f6b6e6c2fe588c3309a0240663c815c200df1674b56a67e38d3f5e477f207","sessionHash":"e85eb7c532ad181a8180f9ad5d7fc923f7def857fd0a065b4b57aae0e7b42783","projectHash":"c02d6c3256411c990d3cdefcf67f27ce153652ac4ffe20b1c1b4acd9bfcdcef5","checkedAt":1791272558444,"sessionExists":true,"phase":"active","cycle":1,"playerExists":true,"originalUidMatches":true,"connected":true,"nonKicked":true,"ordinaryPlayer":true,"sameSessionMembership":true,"assignedRoleMatches":true,"activeConsoleMatches":true,"ownStationAuthority":true,"noReplacementOrEscape":true,"configuredRoleMatches":true,"generation":7,"lastSeenAtMs":1791272555728,"membershipConnectedAtMs":1791272555728,"leaseMs":45000},"phase":"active","currentTurn":1,"setupRevision":42,"connected":true,"nonKicked":true,"playerRole":"player","assignedRoleId":"admiral","activeConsoleRoleId":"admiral","seatId":"admiral","generation":7,"groupId":"fleet-1","vesselIds":["aegis","dione","icebreaker","shepherd","quellon","refinery-124","capybara"],"craftIds":["snn-press-shuttle","starlight","pallas","philia","maliades","highwall","blacksmith","macaw","boa","endeavour","black-sheep","hummingbird","condor","chacau","chepu"],"berthMapPresent":true,"berthShipId":"aegis","seatHolderUid":"CdkY4Sfghtaw7q3W4ga9kpN0lgd5","seatStatus":"claimed","sameMembership":true,"pressHolderUid":null,"noReplacementOrEscape":true,"configuredRoleMatches":true,"lastSeenAtMs":1791272555728,"receiptHash":null,"seatRequestHash":null,"seatEventHash":null,"pressDispatchHash":"a8ec60f4fb484eb8067b18d6f159b271c0097ef94f9412b4737ff56a51c4ecd6"},"trace":{"name":"listGmScoutResolutionLog","action":"read-gm-scout-resolution-log","transport":"independent-browser-SDK","startedAt":1791272558907,"issuedAt":1791272558907,"requestHash":null,"actorHash":"fa2f6b6e6c2fe588c3309a0240663c815c200df1674b56a67e38d3f5e477f207","sessionHash":"e85eb7c532ad181a8180f9ad5d7fc923f7def857fd0a065b4b57aae0e7b42783","groupHash":null,"headersReceivedAt":null,"bodyCompletedAt":null,"requestFinishedAt":null,"requestFailedAt":null,"completedAt":1791272561834,"durationMs":null,"status":"denied","resultStatus":null,"revision":null,"denialCode":"permission-denied","failureCategory":null},"reply":{"status":"denied","error":{"code":"functions/permission-denied"}},"invocation":{"kind":"explicit-sdk-invocation","roleId":"admiral","name":"listGmScoutResolutionLog","startedAt":1791272558907,"completedAt":1791272561828,"nativeDocumentHash":"2b53973984adfe46c971ee43df34b785eff5fc839e4747635e79b72bdda89c1c"},"afterBinding":{"authUid":"CdkY4Sfghtaw7q3W4ga9kpN0lgd5","storeUid":"CdkY4Sfghtaw7q3W4ga9kpN0lgd5","sessionId":"KgB4SSuTHD72Je6FuW0H","assignedRoleId":"admiral","activeConsoleRoleId":"admiral","seatId":"admiral","online":true,"observedAt":1791272561936,"contextHash":"5bd67faf6e6e7721383a458220af49a1fe6934a71801b96a4f6a925d0c1130cf","nativeDocumentHash":"2b53973984adfe46c971ee43df34b785eff5fc839e4747635e79b72bdda89c1c"},"afterSource":{"roleId":"admiral","uid":"CdkY4Sfghtaw7q3W4ga9kpN0lgd5","sessionId":"KgB4SSuTHD72Je6FuW0H","checkedAt":1791272562596,"sourceHash":"fe741cbe68846440daf11d2196ea15c9cecb80978eee9ad0ea9c786f9c688b8e","presence":{"schemaVersion":1,"kind":"pc10-presence-authority-readonly","roleId":"admiral","actorHash":"fa2f6b6e6c2fe588c3309a0240663c815c200df1674b56a67e38d3f5e477f207","sessionHash":"e85eb7c532ad181a8180f9ad5d7fc923f7def857fd0a065b4b57aae0e7b42783","projectHash":"c02d6c3256411c990d3cdefcf67f27ce153652ac4ffe20b1c1b4acd9bfcdcef5","checkedAt":1791272562452,"sessionExists":true,"phase":"active","cycle":1,"playerExists":true,"originalUidMatches":true,"connected":true,"nonKicked":true,"ordinaryPlayer":true,"sameSessionMembership":true,"assignedRoleMatches":true,"activeConsoleMatches":true,"ownStationAuthority":true,"noReplacementOrEscape":true,"configuredRoleMatches":true,"generation":7,"lastSeenAtMs":1791272555728,"membershipConnectedAtMs":1791272555728,"leaseMs":45000},"phase":"active","currentTurn":1,"setupRevision":42,"connected":true,"nonKicked":true,"playerRole":"player","assignedRoleId":"admiral","activeConsoleRoleId":"admiral","seatId":"admiral","generation":7,"groupId":"fleet-1","vesselIds":["aegis","dione","icebreaker","shepherd","quellon","refinery-124","capybara"],"craftIds":["snn-press-shuttle","starlight","pallas","philia","maliades","highwall","blacksmith","macaw","boa","endeavour","black-sheep","hummingbird","condor","chacau","chepu"],"berthMapPresent":true,"berthShipId":"aegis","seatHolderUid":"CdkY4Sfghtaw7q3W4ga9kpN0lgd5","seatStatus":"claimed","sameMembership":true,"pressHolderUid":null,"noReplacementOrEscape":true,"configuredRoleMatches":true,"lastSeenAtMs":1791272555728,"receiptHash":null,"seatRequestHash":null,"seatEventHash":null,"pressDispatchHash":"a8ec60f4fb484eb8067b18d6f159b271c0097ef94f9412b4737ff56a51c4ecd6"},"validation":{"passed":true,"expectedDenial":"permission-denied"}},"observation":{"name":"listGmScoutResolutionLog","action":"read-gm-scout-resolution-log","transport":"independent-browser-SDK","startedAt":1791272560333,"issuedAt":1791272560333,"requestHash":null,"actorHash":"fa2f6b6e6c2fe588c3309a0240663c815c200df1674b56a67e38d3f5e477f207","sessionHash":"e85eb7c532ad181a8180f9ad5d7fc923f7def857fd0a065b4b57aae0e7b42783","groupHash":null,"headersReceivedAt":1791272561757,"bodyCompletedAt":null,"requestFinishedAt":1791272561757,"requestFailedAt":null,"completedAt":null,"durationMs":null,"status":403,"resultStatus":null,"revision":null,"denialCode":null,"failureCategory":"response-observation-unavailable","roleId":"admiral","captureMode":"native-durable","projectHash":"c02d6c3256411c990d3cdefcf67f27ce153652ac4ffe20b1c1b4acd9bfcdcef5","protocolRequestHash":"228e3ca8d82a49195a3c1b8fcffb68a62a0172b70373a657d02b837fb7f9b783","nativeRequestObservedAt":1791272560333,"nativeDocumentHash":"2b53973984adfe46c971ee43df34b785eff5fc839e4747635e79b72bdda89c1c","nativeContextHash":"516daf38afe1fac5e9671537c91cc371e6b624fd08d924dd8b4271226de65c72","nativeFrameHash":"8a9d3ef86f3e205d0c937fc15e21322395fe63bce5e946b1e675d562f7000443","nativeLoaderHash":"470e2de8546e81428fca20d58a7f51800c6f752d2789fcf036f343c5242e5108","nativeDocumentWitnessObservedAt":1791272225216,"bodyFailureStage":"native-get-response-body","bodyReadFailureReason":"body-unavailable","bodyObservationFailedAt":1791272562409},"failure":{"roleId":"admiral","name":"listGmScoutResolutionLog","requestHash":null,"protocolRequestHash":"228e3ca8d82a49195a3c1b8fcffb68a62a0172b70373a657d02b837fb7f9b783","status":403,"category":"response-observation-unavailable","bodyFailureStage":"native-get-response-body","bodyReadFailureReason":"body-unavailable","nativeDocumentHash":"2b53973984adfe46c971ee43df34b785eff5fc839e4747635e79b72bdda89c1c","nativeContextHash":"516daf38afe1fac5e9671537c91cc371e6b624fd08d924dd8b4271226de65c72","nativeFrameHash":"8a9d3ef86f3e205d0c937fc15e21322395fe63bce5e946b1e675d562f7000443","nativeLoaderHash":"470e2de8546e81428fca20d58a7f51800c6f752d2789fcf036f343c5242e5108","nativeRequestObservedAt":1791272560333}},{"command":{"commandId":"08122a83-a48c-46b6-9190-abdad0c2e94b","kind":"original-functional-proof-command","roleId":"wing-commander","name":"listGmScoutResolutionLog","original":{"roleId":"wing-commander","sessionId":"KgB4SSuTHD72Je6FuW0H","uid":"nB30XlekbJEryFqU67w6wnmvPNzL","contextHash":"2c4869b45d4f47f6e36d0d300bd9c636eb80b4ad6787e9eee194a9006a2c24a2","scope":{"groupId":"fleet-1","vesselIds":["aegis","capybara","dione","icebreaker","quellon","refinery-124","shepherd"],"craftIds":["black-sheep","blacksmith","boa","chacau","chepu","condor","endeavour","highwall","hummingbird","macaw","maliades","pallas","philia","snn-press-shuttle","starlight"]}},"data":{"sessionId":"KgB4SSuTHD72Je6FuW0H","instanceId":"pc07-local-proof"},"registeredEndpoint":"listGmScoutResolutionLog","registeredRequestFingerprint":"625e3d0fc3cc26302f17a0c0fd788fad3e8fd56a6bcd74df4c36aa618018d01a","expectedDenial":"permission-denied","registeredAt":1791272558125,"issuedAt":1791272558890,"completedAt":1791272561923,"failedAt":null,"beforeBinding":{"authUid":"nB30XlekbJEryFqU67w6wnmvPNzL","storeUid":"nB30XlekbJEryFqU67w6wnmvPNzL","sessionId":"KgB4SSuTHD72Je6FuW0H","assignedRoleId":"wing-commander","activeConsoleRoleId":"wing-commander","seatId":"wing-commander","online":true,"observedAt":1791272558140,"contextHash":"2c4869b45d4f47f6e36d0d300bd9c636eb80b4ad6787e9eee194a9006a2c24a2","nativeDocumentHash":"8246bc7c414f4391dde768b1063103d48c0dc05a5b915739fedaf1de4ef6256a"},"beforeSource":{"roleId":"wing-commander","uid":"nB30XlekbJEryFqU67w6wnmvPNzL","sessionId":"KgB4SSuTHD72Je6FuW0H","checkedAt":1791272558890,"sourceHash":"4ec04b8fa8113af3baeab333baea9181267dc84ad2ed1107d860d34245806826","presence":{"schemaVersion":1,"kind":"pc10-presence-authority-readonly","roleId":"wing-commander","actorHash":"62aaa788c51b3269664ee4e663dbe0beac23047e8b118383b3f1fd1d6520ee9e","sessionHash":"e85eb7c532ad181a8180f9ad5d7fc923f7def857fd0a065b4b57aae0e7b42783","projectHash":"c02d6c3256411c990d3cdefcf67f27ce153652ac4ffe20b1c1b4acd9bfcdcef5","checkedAt":1791272558399,"sessionExists":true,"phase":"active","cycle":1,"playerExists":true,"originalUidMatches":true,"connected":true,"nonKicked":true,"ordinaryPlayer":true,"sameSessionMembership":true,"assignedRoleMatches":true,"activeConsoleMatches":true,"ownStationAuthority":true,"noReplacementOrEscape":true,"configuredRoleMatches":true,"generation":5,"lastSeenAtMs":1791272557032,"membershipConnectedAtMs":1791272557032,"leaseMs":45000},"phase":"active","currentTurn":1,"setupRevision":42,"connected":true,"nonKicked":true,"playerRole":"player","assignedRoleId":"wing-commander","activeConsoleRoleId":"wing-commander","seatId":"wing-commander","generation":5,"groupId":"fleet-1","vesselIds":["aegis","dione","icebreaker","shepherd","quellon","refinery-124","capybara"],"craftIds":["snn-press-shuttle","starlight","pallas","philia","maliades","highwall","blacksmith","macaw","boa","endeavour","black-sheep","hummingbird","condor","chacau","chepu"],"berthMapPresent":true,"berthShipId":"aegis","seatHolderUid":"nB30XlekbJEryFqU67w6wnmvPNzL","seatStatus":"claimed","sameMembership":true,"pressHolderUid":null,"noReplacementOrEscape":true,"configuredRoleMatches":true,"lastSeenAtMs":1791272557032,"receiptHash":null,"seatRequestHash":null,"seatEventHash":null,"pressDispatchHash":"a8ec60f4fb484eb8067b18d6f159b271c0097ef94f9412b4737ff56a51c4ecd6"},"trace":{"name":"listGmScoutResolutionLog","action":"read-gm-scout-resolution-log","transport":"independent-browser-SDK","startedAt":1791272558890,"issuedAt":1791272558890,"requestHash":null,"actorHash":"62aaa788c51b3269664ee4e663dbe0beac23047e8b118383b3f1fd1d6520ee9e","sessionHash":"e85eb7c532ad181a8180f9ad5d7fc923f7def857fd0a065b4b57aae0e7b42783","groupHash":null,"headersReceivedAt":null,"bodyCompletedAt":null,"requestFinishedAt":null,"requestFailedAt":null,"completedAt":1791272561923,"durationMs":null,"status":"denied","resultStatus":null,"revision":null,"denialCode":"permission-denied","failureCategory":null},"reply":{"status":"denied","error":{"code":"functions/permission-denied"}},"invocation":{"kind":"explicit-sdk-invocation","roleId":"wing-commander","name":"listGmScoutResolutionLog","startedAt":1791272558890,"completedAt":1791272561923,"nativeDocumentHash":"8246bc7c414f4391dde768b1063103d48c0dc05a5b915739fedaf1de4ef6256a"},"afterBinding":{"authUid":"nB30XlekbJEryFqU67w6wnmvPNzL","storeUid":"nB30XlekbJEryFqU67w6wnmvPNzL","sessionId":"KgB4SSuTHD72Je6FuW0H","assignedRoleId":"wing-commander","activeConsoleRoleId":"wing-commander","seatId":"wing-commander","online":true,"observedAt":1791272561960,"contextHash":"2c4869b45d4f47f6e36d0d300bd9c636eb80b4ad6787e9eee194a9006a2c24a2","nativeDocumentHash":"8246bc7c414f4391dde768b1063103d48c0dc05a5b915739fedaf1de4ef6256a"},"afterSource":{"roleId":"wing-commander","uid":"nB30XlekbJEryFqU67w6wnmvPNzL","sessionId":"KgB4SSuTHD72Je6FuW0H","checkedAt":1791272562683,"sourceHash":"4ec04b8fa8113af3baeab333baea9181267dc84ad2ed1107d860d34245806826","presence":{"schemaVersion":1,"kind":"pc10-presence-authority-readonly","roleId":"wing-commander","actorHash":"62aaa788c51b3269664ee4e663dbe0beac23047e8b118383b3f1fd1d6520ee9e","sessionHash":"e85eb7c532ad181a8180f9ad5d7fc923f7def857fd0a065b4b57aae0e7b42783","projectHash":"c02d6c3256411c990d3cdefcf67f27ce153652ac4ffe20b1c1b4acd9bfcdcef5","checkedAt":1791272562459,"sessionExists":true,"phase":"active","cycle":1,"playerExists":true,"originalUidMatches":true,"connected":true,"nonKicked":true,"ordinaryPlayer":true,"sameSessionMembership":true,"assignedRoleMatches":true,"activeConsoleMatches":true,"ownStationAuthority":true,"noReplacementOrEscape":true,"configuredRoleMatches":true,"generation":5,"lastSeenAtMs":1791272557032,"membershipConnectedAtMs":1791272557032,"leaseMs":45000},"phase":"active","currentTurn":1,"setupRevision":42,"connected":true,"nonKicked":true,"playerRole":"player","assignedRoleId":"wing-commander","activeConsoleRoleId":"wing-commander","seatId":"wing-commander","generation":5,"groupId":"fleet-1","vesselIds":["aegis","dione","icebreaker","shepherd","quellon","refinery-124","capybara"],"craftIds":["snn-press-shuttle","starlight","pallas","philia","maliades","highwall","blacksmith","macaw","boa","endeavour","black-sheep","hummingbird","condor","chacau","chepu"],"berthMapPresent":true,"berthShipId":"aegis","seatHolderUid":"nB30XlekbJEryFqU67w6wnmvPNzL","seatStatus":"claimed","sameMembership":true,"pressHolderUid":null,"noReplacementOrEscape":true,"configuredRoleMatches":true,"lastSeenAtMs":1791272557032,"receiptHash":null,"seatRequestHash":null,"seatEventHash":null,"pressDispatchHash":"a8ec60f4fb484eb8067b18d6f159b271c0097ef94f9412b4737ff56a51c4ecd6"},"validation":{"passed":true,"expectedDenial":"permission-denied"}},"observation":{"name":"listGmScoutResolutionLog","action":"read-gm-scout-resolution-log","transport":"independent-browser-SDK","startedAt":1791272560268,"issuedAt":1791272560268,"requestHash":null,"actorHash":"62aaa788c51b3269664ee4e663dbe0beac23047e8b118383b3f1fd1d6520ee9e","sessionHash":"e85eb7c532ad181a8180f9ad5d7fc923f7def857fd0a065b4b57aae0e7b42783","groupHash":null,"headersReceivedAt":1791272561922,"bodyCompletedAt":null,"requestFinishedAt":1791272561922,"requestFailedAt":null,"completedAt":null,"durationMs":null,"status":403,"resultStatus":null,"revision":null,"denialCode":null,"failureCategory":"response-observation-unavailable","roleId":"wing-commander","captureMode":"native-durable","projectHash":"c02d6c3256411c990d3cdefcf67f27ce153652ac4ffe20b1c1b4acd9bfcdcef5","protocolRequestHash":"ddd0b6887f3ca0ce2a557f4a22cafbd0ce283630f71a8d8efea0ff5d842a9ed3","nativeRequestObservedAt":1791272560268,"nativeDocumentHash":"8246bc7c414f4391dde768b1063103d48c0dc05a5b915739fedaf1de4ef6256a","nativeContextHash":"6839243086b248dc8e8c40592c1149744002ad12116d0e9b1382f62f90a89577","nativeFrameHash":"a7ebc2f830efaecbd7e1b872e4ff48faa86112e91083c3f01a0a9b7d559753d1","nativeLoaderHash":"f2e9e7d02e9c5b24947dcc5e69dfca8638b74bc458ce0337f1196de3a79f7587","nativeDocumentWitnessObservedAt":1791272246628,"bodyFailureStage":"native-get-response-body","bodyReadFailureReason":"body-unavailable","bodyObservationFailedAt":1791272562437},"failure":{"roleId":"wing-commander","name":"listGmScoutResolutionLog","requestHash":null,"protocolRequestHash":"ddd0b6887f3ca0ce2a557f4a22cafbd0ce283630f71a8d8efea0ff5d842a9ed3","status":403,"category":"response-observation-unavailable","bodyFailureStage":"native-get-response-body","bodyReadFailureReason":"body-unavailable","nativeDocumentHash":"8246bc7c414f4391dde768b1063103d48c0dc05a5b915739fedaf1de4ef6256a","nativeContextHash":"6839243086b248dc8e8c40592c1149744002ad12116d0e9b1382f62f90a89577","nativeFrameHash":"a7ebc2f830efaecbd7e1b872e4ff48faa86112e91083c3f01a0a9b7d559753d1","nativeLoaderHash":"f2e9e7d02e9c5b24947dcc5e69dfca8638b74bc458ce0337f1196de3a79f7587","nativeRequestObservedAt":1791272560268}}];
+const RETAINED_UNFINISHED_GETTER = {"name":"getCurrentMemberSession","action":"read-current-member-session","transport":"independent-browser-SDK","startedAt":1791272662277,"issuedAt":1791272662277,"requestHash":null,"actorHash":"62aaa788c51b3269664ee4e663dbe0beac23047e8b118383b3f1fd1d6520ee9e","sessionHash":"e85eb7c532ad181a8180f9ad5d7fc923f7def857fd0a065b4b57aae0e7b42783","groupHash":null,"headersReceivedAt":null,"bodyCompletedAt":null,"requestFinishedAt":null,"requestFailedAt":null,"completedAt":null,"durationMs":null,"status":null,"resultStatus":null,"revision":null,"denialCode":null,"failureCategory":null,"roleId":"wing-commander","captureMode":"native-durable","projectHash":"c02d6c3256411c990d3cdefcf67f27ce153652ac4ffe20b1c1b4acd9bfcdcef5","protocolRequestHash":"83e37735fa779c77bfbb4558d925dac8c471e90b482bcbb558d50eecabd600a0","nativeRequestObservedAt":1791272662277,"nativeDocumentHash":"8246bc7c414f4391dde768b1063103d48c0dc05a5b915739fedaf1de4ef6256a","nativeContextHash":"6839243086b248dc8e8c40592c1149744002ad12116d0e9b1382f62f90a89577","nativeFrameHash":"a7ebc2f830efaecbd7e1b872e4ff48faa86112e91083c3f01a0a9b7d559753d1","nativeLoaderHash":"f2e9e7d02e9c5b24947dcc5e69dfca8638b74bc458ce0337f1196de3a79f7587","nativeDocumentWitnessObservedAt":1791272246628};
+
+const digest = (kind, value) => createHash('sha256').update(`security-denial-${kind}\0${value}`).digest('hex');
+const fingerprint = command => createHash('sha256').update(JSON.stringify({ name: command.name,
+  actorUid: command.original.uid, data: command.data })).digest('hex');
+function input(index = 0) {
+  const { command, observation, failure } = structuredClone(RETAINED_DENIALS[index]);
+  return { commands: [command], observations: [observation], failures: [failure],
+    drains: [{ roleId: command.roleId, outcome: 'failed' }], originals: new Map([[command.roleId, structuredClone(command.original)]]) };
+}
+function deny(input, label) {
+  const bytes = JSON.stringify({ commands: input.commands, observations: input.observations, failures: input.failures });
+  const result = assessPc10FunctionalTransport(input);
+  assert.equal(result.functionalStatus, 'FAILED', label);
+  assert.equal(JSON.stringify({ commands: input.commands, observations: input.observations, failures: input.failures }), bytes,
+    'Original SDK and raw native outcomes remain byte-identical.');
+  return result;
+}
+for (const [index, role] of ['admiral', 'wing-commander'].entries()) {
+  test(`retained ${role} unique original SDK denial qualifies only semantics with finished HTTP403 and an unread CDP body`, () => {
+    const sample = input(index), command = sample.commands[0], raw = sample.observations[0];
+    assertPc10FunctionalCommand(command);
+    assert.equal(raw.actorHash, digest('actor', command.beforeBinding.authUid));
+    assert.equal(raw.sessionHash, digest('session', command.beforeBinding.sessionId));
+    assert.equal(raw.nativeDocumentHash, command.invocation.nativeDocumentHash);
+    assert.equal(command.registeredRequestFingerprint, fingerprint(command));
+    assert.deepEqual(Object.keys(command.invocation).sort(),
+      ['completedAt', 'kind', 'name', 'nativeDocumentHash', 'roleId', 'startedAt']);
+    assert.equal(command.invocation.sessionId, undefined); assert.equal(command.invocation.protocolRequestHash, undefined);
+    assert.equal(raw.requestHash, null); assert.equal(command.trace.requestHash, null);
+    const bytes = JSON.stringify(sample), result = assessPc10FunctionalTransport(sample);
+    assert.equal(result.functionalStatus, 'PASSED'); assert.deepEqual(result.hardFailures, []);
+    assert.equal(result.strictTransportStatus, 'INCOMPLETE'); assert.equal(result.passivePrivacyStatus, 'UNINSPECTED');
+    assert.equal(result.commandedPrivacyStatus, 'NOT_PROVED', 'A denied GM log has no commanded member privacy credit.');
+    assert.equal(result.instrumentationLimits.length, 1);
+    assert.equal(result.instrumentationLimits[0].wireBodyStatus, 'UNINSPECTED');
+    assert.deepEqual(result.instrumentationLimits[0].semanticExpectedDenial,
+      { commandId: command.commandId, code: 'permission-denied', httpStatus: 403 });
+    assert.equal(result.instrumentationLimits[0].originalReplyKnown, false);
+    assert.equal(result.instrumentationLimits[0].commandedReplySubstitution, false);
+    assert.equal(JSON.stringify(sample), bytes);
+    assert.equal(raw.denialCode, null); assert.equal(Object.hasOwn(raw, 'bodyHash'), false);
+    assert.equal(sample.failures.length, 1);
+  });
+}
+test('canonical HTTP400 qualifies a source-bound original failed-precondition SDK denial using the same available metadata shape', () => {
+  const sample = input(), c = sample.commands[0], o = sample.observations[0];
+  c.expectedDenial = 'failed-precondition'; c.reply.error.code = 'functions/failed-precondition';
+  c.trace.denialCode = 'failed-precondition'; c.validation.expectedDenial = 'failed-precondition';
+  o.status = 400; sample.failures[0].status = 400;
+  const result = assessPc10FunctionalTransport(sample);
+  assert.equal(result.functionalStatus, 'PASSED'); assert.equal(result.strictTransportStatus, 'INCOMPLETE');
+  assert.equal(result.passivePrivacyStatus, 'UNINSPECTED');
+});
+
+for (const [label, mutate] of [
+  ['unfinished SDK command', s => { s.commands[0].completedAt = null; }],
+  ['missing original SDK outcome', s => { delete s.commands[0].reply; }],
+  ['failed original SDK command', s => { s.commands[0].failedAt = s.commands[0].completedAt; }],
+  ['unchecked original denial', s => { s.commands[0].validation.passed = false; }],
+  ['wrong expected code', s => { s.commands[0].expectedDenial = 'failed-precondition'; }],
+  ['contradictory original SDK code', s => { s.commands[0].reply.error.code = 'functions/internal'; }],
+  ['contradictory native denial code', s => { s.observations[0].denialCode = 'FAILED_PRECONDITION'; }],
+  ['HTTP500', s => { s.observations[0].status = 500; s.failures[0].status = 500; }],
+  ['HTTP503', s => { s.observations[0].status = 503; s.failures[0].status = 503; }],
+  ['unexpected HTTP400 for permission-denied', s => { s.observations[0].status = 400; s.failures[0].status = 400; }],
+  ['unknown HTTP status', s => { s.observations[0].status = null; s.failures[0].status = null; }],
+  ['missing native terminal', s => { s.observations[0].requestFinishedAt = null; }],
+  ['requestFailed alongside HTTP403', s => { s.observations[0].requestFailedAt = s.observations[0].requestFinishedAt; }],
+  ['network error alongside HTTP403', s => { s.observations[0].transportError = 'aborted'; }],
+  ['missing original actor registration', s => { s.originals = new Map(); }],
+  ['missing original audience scope', s => { delete s.commands[0].original.scope; delete s.originals.get(s.commands[0].roleId).scope; }],
+  ['guessed command provenance kind', s => { s.commands[0].kind = 'guessed-sdk-command'; }],
+  ['contradictory native completed timestamp', s => { s.observations[0].completedAt = s.observations[0].requestFinishedAt; }],
+  ['contradictory native byte length', s => { s.observations[0].byteLength = 1; }],
+  ['contradictory native result actor', s => { s.observations[0].resultActorHash = digest('actor', 'foreign'); }],
+  ['contradictory native result SID', s => { s.observations[0].resultSessionHash = digest('session', 'foreign'); }],
+  ['parsed native code with no captured body', s => { s.observations[0].denialCode = 'PERMISSION_DENIED'; }],
+  ['native started/issued clock mismatch', s => { s.observations[0].startedAt++; }],
+  ['stale after-source presence witness', s => { s.commands[0].afterSource.presence.checkedAt = s.commands[0].completedAt - 1; }],
+  ['late before-source presence witness', s => { s.commands[0].beforeSource.presence.checkedAt = s.commands[0].issuedAt + 1; }],
+  ['wrong native Auth UID', s => { s.observations[0].actorHash = digest('actor', 'different-original'); }],
+  ['wrong native SID', s => { s.observations[0].sessionHash = digest('session', 'different-session'); }],
+  ['missing native SID hash', s => { s.observations[0].sessionHash = null; }],
+  ['wrong command SID', s => { s.commands[0].data.sessionId = 'different-session'; }],
+  ['wrong before Auth observation', s => { s.commands[0].beforeBinding.authUid = 'different-original'; }],
+  ['wrong after Auth observation', s => { s.commands[0].afterBinding.authUid = 'different-original'; }],
+  ['wrong original context', s => { s.commands[0].beforeBinding.contextHash = 'f'.repeat(64); }],
+  ['wrong observed native document', s => { s.observations[0].nativeDocumentHash = 'f'.repeat(64); }],
+  ['missing within-invocation native document', s => { s.commands[0].invocation.nativeDocumentHash = null; }],
+  ['SDK invocation actor label mismatch', s => { s.commands[0].invocation.roleId = 'different-role'; }],
+  ['SDK invocation endpoint mismatch', s => { s.commands[0].invocation.name = 'refreshPresence'; }],
+  ['non-original SDK invocation kind', s => { s.commands[0].invocation.kind = 'guessed-reply'; }],
+  ['wrong before source actor', s => { s.commands[0].beforeSource.uid = 'different-original'; }],
+  ['wrong after source SID', s => { s.commands[0].afterSource.sessionId = 'different-session'; }],
+  ['scope discrepancy', s => { s.commands[0].afterSource.vesselIds = ['dione']; }],
+  ['authority state discrepancy', s => { s.commands[0].afterSource.seatHolderUid = 'different-original'; }],
+  ['missing source hash', s => { s.commands[0].beforeSource.sourceHash = null; }],
+  ['wrong read-only presence actor hash', s => { s.commands[0].beforeSource.presence.actorHash = digest('actor', 'different-original'); }],
+  ['wrong read-only presence SID hash', s => { s.commands[0].afterSource.presence.sessionHash = digest('session', 'different-session'); }],
+  ['wrong native project', s => { s.observations[0].projectHash = 'f'.repeat(64); }],
+  ['wrong registered command fingerprint', s => { s.commands[0].registeredRequestFingerprint = 'f'.repeat(64); }],
+  ['contradictory original trace actor', s => { s.commands[0].trace.actorHash = digest('actor', 'different-original'); }],
+  ['contradictory original trace denial code', s => { s.commands[0].trace.denialCode = 'failed-precondition'; }],
+  ['native request before original SDK invocation', s => { s.observations[0].issuedAt = s.commands[0].invocation.startedAt - 1; }],
+  ['native request after original SDK completion', s => { s.observations[0].issuedAt = s.commands[0].invocation.completedAt + 1; }],
+  ['native finish after original SDK completion', s => { s.observations[0].requestFinishedAt = s.commands[0].invocation.completedAt + 1; }],
+  ['native headers absent', s => { s.observations[0].headersReceivedAt = null; }],
+  ['native finish preceding headers', s => { s.observations[0].headersReceivedAt = s.observations[0].requestFinishedAt + 1; }],
+  ['native document witness after request', s => { s.observations[0].nativeDocumentWitnessObservedAt = s.observations[0].issuedAt + 1; }],
+  ['missing native context', s => { s.observations[0].nativeContextHash = null; }],
+  ['missing native frame', s => { s.observations[0].nativeFrameHash = null; }],
+  ['missing native loader', s => { s.observations[0].nativeLoaderHash = null; }],
+  ['native-issued observation clock mismatch', s => { s.observations[0].nativeRequestObservedAt++; }],
+  ['body parse failure', s => { s.observations[0].bodyFailureStage = 'native-json-parse'; s.failures[0].bodyFailureStage = 'native-json-parse'; }],
+  ['body schema failure', s => { s.observations[0].bodyFailureStage = 'native-body-shape'; s.failures[0].bodyFailureStage = 'native-body-shape'; }],
+  ['body timeout', s => { s.observations[0].bodyFailureStage = 'native-body-timeout'; s.failures[0].bodyFailureStage = 'native-body-timeout'; }],
+  ['unallowed CDP eviction reason', s => { s.observations[0].bodyReadFailureReason = 'content-evicted'; s.failures[0].bodyReadFailureReason = 'content-evicted'; }],
+  ['unknown CDP failure reason', s => { s.observations[0].bodyReadFailureReason = 'unknown'; s.failures[0].bodyReadFailureReason = 'unknown'; }],
+  ['missing original raw body failure', s => { s.failures = []; }],
+  ['contradictory raw failure status', s => { s.failures[0].status = 500; }],
+  ['contradictory raw failure document', s => { s.failures[0].nativeDocumentHash = 'f'.repeat(64); }],
+  ['duplicate SDK ledger command', s => { s.commands.push(structuredClone(s.commands[0])); }],
+  ['second native request in the same SDK window', s => { s.observations.push({ ...s.observations[0], protocolRequestHash: 'f'.repeat(64) }); }],
+  ['duplicate native protocol record', s => { s.observations.push(structuredClone(s.observations[0])); }],
+  ['duplicate native failure record', s => { s.failures.push(structuredClone(s.failures[0])); }],
+]) test(`${label} cannot qualify an unread native denial`, () => {
+  const sample = input(); mutate(sample); deny(sample, label);
+});
+test('a successful commanded member response with a private field remains hard failure alongside a qualified expected denial', () => {
+  const sample = input(), c = structuredClone(sample.commands[0]); c.commandId = 'separate-member-command';
+  c.name = 'getCurrentMemberSession'; c.invocation.name = c.name; c.expectedDenial = null;
+  c.reply = { status: 200, result: { type: 'current-member-session', actorUid: c.original.uid,
+    sessionId: c.original.sessionId, groupId: c.afterSource.groupId, connectionGeneration: c.afterSource.generation,
+    assignedRoleId: c.afterSource.assignedRoleId, activeConsoleRoleId: c.afterSource.activeConsoleRoleId,
+    currentActorBerthAuthority: { sessionId: c.original.sessionId, actorUid: c.original.uid,
+      groupId: c.afterSource.groupId, role: 'player', connectionGeneration: c.afterSource.generation,
+      assignedRoleId: c.afterSource.assignedRoleId, activeConsoleRoleId: c.afterSource.activeConsoleRoleId,
+      replacementRoleId: null, replacementStatus: null, shipId: c.afterSource.berthShipId },
+    session: { id: c.original.sessionId, phase: 'active', currentTurn: 1,
+      memberSessionScope: c.original.scope, loyaltyAssignments: { foreign: 'private' } } } };
+  c.validation = { passed: true }; sample.commands.push(c);
+  assert.ok(deny(sample).hardFailures.some(f => f.category === 'unverified-original-command'
+    && /unlisted session\/private field|server-only field/.test(f.message)), 'The fixture reaches the actual private-field check.');
+});
+test('retained final Wing Commander passive getter stays unfinished and hard; completed SDK denials cannot backfill it', () => {
+  const sample = input(1); sample.observations.push(structuredClone(RETAINED_UNFINISHED_GETTER));
+  const result = deny(sample);
+  assert.ok(result.hardFailures.some(f => f.category === 'unfinished-native-terminal-outcome'));
+  assert.ok(result.hardFailures.some(f => f.category === 'unfinished-native-http-outcome'));
+  assert.equal(sample.observations[1].status, null); assert.equal(sample.observations[1].requestFinishedAt, null);
+});
+test('adding later diagnostic source does not promote an explicitly historical failed run', () => {
+  const sample = input(); sample.historicalRecord = { status: 'FAILED', functionalAcceptance: false };
+  assert.ok(deny(sample).hardFailures.some(f => f.category === 'historical-run-is-not-new-functional-evidence'));
+});

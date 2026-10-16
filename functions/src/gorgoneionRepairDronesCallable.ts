@@ -1,5 +1,8 @@
+import { writeStandardActionAudit } from './actionAudit';
+import { auditedOnCall } from './securityCallable';
+import { requireCandidateVesselsAvailable } from './candidateAvailability';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError, } from 'firebase-functions/v2/https';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
 import { isExtraShipAdmitted } from './extraShipAdmission';
 import { buildAuthoritativeEventEnvelope, EventVisibility } from './eventEnvelope';
@@ -12,7 +15,7 @@ import {
   type GorgoneionRepairDronesState,
 } from './gorgoneionRepairDrones';
 import { serviceRechargeDamageState, serviceRechargeResourceState } from './serviceShuttleRecharge';
-import { turnPhaseState } from './turnZero';
+import { turnPhaseDeadlinePassed, turnPhaseState } from './turnZero';
 import { isResourceShipId } from './resources';
 import { isSmallShipInMutiny, parseSmallShipState } from './smallShip';
 
@@ -181,7 +184,7 @@ function activeVessels(session: DocumentSnapshot): readonly string[] {
   return ids as string[];
 }
 
-export const repairGorgoneionWithDrones = onCall<{
+export const repairGorgoneionWithDrones = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedCycle?: unknown;
@@ -189,7 +192,7 @@ export const repairGorgoneionWithDrones = onCall<{
   expectedDockingRevision?: unknown;
   expectedHostShipId?: unknown;
   systemId?: unknown;
-}>(CALLABLE_RUNTIME_OPTIONS, async (request) => {
+}>('repairGorgoneionWithDrones', CALLABLE_RUNTIME_OPTIONS, async (request) => {
   const uid = requireUid(request.auth);
   const command = parseGorgoneionRepairDronesCommand(request.data);
   if (!command) throw new HttpsError('invalid-argument', 'Invalid Gorgoneion Repair Drones request.');
@@ -213,6 +216,7 @@ export const repairGorgoneionWithDrones = onCall<{
     currentCaptainReplacementRole(actor);
     const replay = replayReply(receipt, fingerprint);
     if (replay) return replay;
+    requireCandidateVesselsAvailable(session, ['gorgoneion', command.expectedHostShipId]);
     if (legacy.some((snapshot) => snapshot.exists)) {
       throw new HttpsError('failed-precondition', 'This Repair Drones request id is already bound to another command.');
     }
@@ -225,10 +229,10 @@ export const repairGorgoneionWithDrones = onCall<{
     }
     const currentCycle = session.get('currentTurn');
     const phase = turnPhaseState(session.get('turnPhase'));
-    const openAirspaceEndsAt = phase ? Date.parse(phase.openAirspaceEndsAt) : Number.NaN;
     if (!Number.isSafeInteger(currentCycle) || currentCycle !== command.expectedCycle ||
         !phase || phase.turn !== currentCycle || phase.airspace.state !== 'lifted' ||
-        phase.timerPause !== undefined || !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
+        phase.timerPause !== undefined ||
+        turnPhaseDeadlinePassed(phase, 'open')) {
       throw new HttpsError('failed-precondition', 'Repair Drones are available only during the current live Coordination cycle.');
     }
 
@@ -339,6 +343,15 @@ export const repairGorgoneionWithDrones = onCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeStandardActionAudit(tx, db, {
+      sessionId: command.sessionId, actorUid: uid, actorRoleId: ROLE_ID, action: 'gorgoneion-drone-repair',
+      phase: 'active', requestId: command.requestId, revision: result.state.revision,
+      outcome: 'committed', resolutionSource: 'server-calculated', createdAt: FieldValue.serverTimestamp(),
+    }, {
+      sourceId: 'gorgoneion-drone-repair', requiredChoices: [{ actor: 'player', kind: 'console', value: command.systemId }],
+      calculation: { materialsSpent: REPAIR_COST },
+      consequences: { hostShipId: result.hostShipId, systemId: result.repairedSystemId, materialsRemaining: result.hostResources.materials, damage: result.hostDamage }, audience: { operational: 'actor' },
+    });
     tx.set(receiptRef, {
       fingerprint,
       result: reply,

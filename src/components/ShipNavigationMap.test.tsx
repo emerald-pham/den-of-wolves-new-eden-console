@@ -17,7 +17,8 @@ it('shows only the ship fix and the coordinates it has visited', () => {
   const map = screen.getByRole('region', { name: 'Ship navigation map' });
   expect(map).toHaveTextContent(/current ship.*5143/i);
   expect(map).toHaveTextContent(/places you have come from.*0000/i);
-  expect(map).toHaveTextContent(/22 systems.*40 jump links/i);
+  // Ship navigation renders the same source-backed 41-link Starmap network.
+  expect(map).toHaveTextContent(/22 systems.*41 jump links/i);
   expect(map.querySelector('[data-current-ship="true"]')).toBeTruthy();
   expect(map.querySelector('[data-visited-coordinate="0000"]')).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Chart A' })).not.toBeInTheDocument();

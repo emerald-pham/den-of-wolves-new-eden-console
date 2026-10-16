@@ -551,3 +551,26 @@ it('parks a canonical revision-one legacy transit whose private chain has not be
   expect([...mock.documents.entries()].find(([path]) => path.startsWith(`${sessionPath}/events/`))?.[1])
     .toMatchObject({ type: 'airspace-closure-parking', parkedShuttleCount: 1 });
 });
+
+
+it('commits and recovers ordinary closure for remaining craft after Ring consumption', async () => {
+  seedSession(); seedTransit(); vi.setSystemTime(new Date(closedAtMs + 1000));
+  const current = mock.documents.get(sessionPath)!;
+  const currentRoles = [...roles, 'dione-engineer'];
+  current.activeRoleIds = currentRoles;
+  current.activeVesselIds = [...activeVesselIdsForRoles(currentRoles)];
+  mock.documents.set(`${sessionPath}/fleetGroups/fleet-1`, { ...group, vesselIds: current.activeVesselIds });
+  current.candidateCraftReservations = { philia: { code: 'N', groupId: 'fleet-1', coordinate: '3232',
+    sourceId: 'ring-craft', cycle: 2 } };
+  current.shuttleDockings = initialShuttleDockingsForRoles(currentRoles)
+    .filter(docking => !['starlight', 'philia'].includes(docking.shuttleId));
+  current.shuttleVisitLog = initialShuttleVisitsForDockings(initialShuttleDockingsForRoles(currentRoles)
+    .filter(docking => docking.shuttleId !== 'starlight'));
+  await parkShuttlesAtAirspaceClosure.run(callableRequest());
+  expect((mock.documents.get(sessionPath)!.shuttleDockings as { shuttleId: string }[])
+    .some(docking => docking.shuttleId === 'philia')).toBe(false);
+  expect(mock.documents.has(chainPath)).toBe(false);
+  const writes = mock.update.mock.calls.length;
+  await parkShuttlesAtAirspaceClosure.run(callableRequest());
+  expect(mock.update.mock.calls.length).toBe(writes);
+});

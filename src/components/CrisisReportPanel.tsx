@@ -40,18 +40,19 @@ export function CrisisReportContent({ report }: { report: CrisisReport }) {
 }
 
 export default function CrisisReportPanel() {
-  const sessionId = useSessionStore((state) => state.session?.id);
+  const session = useSessionStore((state) => state.session);
+  const sessionId = session?.id;
   const uid = useSessionStore((state) => state.me?.uid);
   const identity = JSON.stringify([sessionId, uid]);
   const [projection, setProjection] = useState<{ identity: string; report: CrisisReport | null } | null>(null);
   useEffect(() => {
-    if (!sessionId || !uid) return;
+    if (!sessionId || !uid || session?.phase === 'closed') return;
     let current = true;
     const unsubscribe = subscribeCrisisReport(sessionId, (report) => {
       if (current) setProjection({ identity, report });
     });
     return () => { current = false; unsubscribe(); };
-  }, [sessionId, uid, identity]);
+  }, [sessionId, session?.phase, uid, identity]);
   const report = projection?.identity === identity ? projection.report : null;
   return report ? <CrisisReportContent key={`${identity}:${report.crisisId}`} report={report} /> : null;
 }

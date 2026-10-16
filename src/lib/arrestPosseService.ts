@@ -8,18 +8,26 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** Resolve an attendance count from the current GM's own physical attestation. */
+/** Resolve a GM attestation, or an explicitly labeled virtual crew in a protected demo. */
 export async function resolveArrestPosse(
   targetUid: string,
   presentPlayerUids: readonly string[],
   expectedCycle: number,
   expectedRevision: number,
+  attendanceEvidence?: 'simulated-demo',
 ): Promise<ArrestPosseOutcome> {
   const store = useSessionStore.getState();
   if (!store.session || !store.me || store.me.role !== 'gm' || !store.gmInstance ||
       store.me.sessionId !== store.session.id || store.gmInstance.sessionId !== store.session.id ||
       store.gmInstance.uid !== store.me.uid || store.session.currentTurn !== expectedCycle) {
     throw new Error('The current facilitator session is required to resolve this posse.');
+  }
+  const demo = (store.session as unknown as Record<string, unknown>).fullGameDemo;
+  const manualDemo = isRecord(demo) && demo.status === 'active' && demo.progression === 'manual';
+  if ((attendanceEvidence === 'simulated-demo') !== manualDemo) {
+    throw new Error(manualDemo
+      ? 'Choose Simulate attendance for this virtual crew.'
+      : 'Simulated attendance requires an active manual full-game demo.');
   }
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(targetUid) || !Number.isSafeInteger(expectedCycle) || expectedCycle < 1 ||
       !Number.isSafeInteger(expectedRevision) || expectedRevision < 1 ||
@@ -41,6 +49,7 @@ export async function resolveArrestPosse(
     expectedRevision,
     targetUid,
     presentPlayerUids: [...presentPlayerUids].sort(),
+    ...(attendanceEvidence ? { attendanceEvidence } : {}),
   };
   const call = httpsCallable<typeof payload, unknown>(functions(), 'resolveArrestPosse');
   const result = (await call(payload)).data;
@@ -52,12 +61,15 @@ export async function resolveArrestPosse(
   }
   if (!isRecord(result) || Object.keys(result).some((key) => ![
       'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'targetUid',
-      'requiredPlayers', 'presentPlayers', 'outcome', 'deadlineCycle',
+      'requiredPlayers', 'presentPlayers', 'outcome', 'deadlineCycle', 'attendanceEvidence',
     ].includes(key)) || result.status !== 'committed' || result.type !== 'arrest-posse-outcome' ||
       result.sessionId !== sessionId || result.requestId !== requestId || result.turn !== expectedCycle ||
-      !Number.isSafeInteger(result.revision) || result.revision !== expectedRevision + 1 ||
+      // The private calculation and durable prisoner case have independent
+      // counters. A first case is revision 1, even after many recalculations.
+      !Number.isSafeInteger(result.revision) || (result.revision as number) < 1 ||
       result.targetUid !== targetUid || !Number.isSafeInteger(result.requiredPlayers) ||
       (result.requiredPlayers as number) < 0 || result.presentPlayers !== presentPlayerUids.length ||
+      result.attendanceEvidence !== attendanceEvidence ||
       (result.outcome !== 'arrested' && result.outcome !== 'not-arrested') ||
       (result.outcome === 'arrested'
         ? result.deadlineCycle !== expectedCycle + 1

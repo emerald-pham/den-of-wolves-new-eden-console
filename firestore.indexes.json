@@ -4,8 +4,28 @@
       "collectionGroup": "players",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
-        { "fieldPath": "connected", "order": "ASCENDING" },
-        { "fieldPath": "lastSeenAt", "order": "ASCENDING" }
+        {
+          "fieldPath": "connected",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lastSeenAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "procedureAudits",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     }
   ],

@@ -190,7 +190,12 @@ export function candidateRevealProjectionForCurrentFleetMember(
     if (!entries) continue;
     for (const [coordinate, entry] of Object.entries(entries)) {
       const discovery = entry.candidateDiscovery;
-      if (!discovery || discovery.source !== 'arrival' ||
+      const rawShipHistory = isRecord(navigation.systemHistory) ? navigation.systemHistory[vesselId] : undefined;
+      const rawEntry = isRecord(rawShipHistory) ? rawShipHistory[coordinate] : undefined;
+      const rawDiscovery = isRecord(rawEntry) ? rawEntry.candidateDiscovery : undefined;
+      if (!isRecord(rawDiscovery) || Object.keys(rawDiscovery).length !== 5 ||
+          Object.keys(rawDiscovery).some(key => !['id', 'occurredAt', 'code', 'title', 'source'].includes(key))) continue;
+      if (!discovery || (discovery.source !== 'arrival' && discovery.source !== 'scout') ||
           (discovery.code !== 'N' && discovery.code !== 'O' && discovery.code !== 'P')) continue;
       const site = sites[coordinate];
       if (!site?.candidate || site.code !== discovery.code || site.name !== discovery.title) continue;

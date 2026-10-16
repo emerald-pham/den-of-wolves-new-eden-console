@@ -60,7 +60,7 @@ vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error {
     constructor(readonly code: string, message: string) { super(message); }
   },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
@@ -148,36 +148,7 @@ function resetFixture(): void {
   });
 }
 
-beforeEach(resetFixture);
-
-it('reads a filtered current-dice view and patches only selected receipt rolls', async () => {
-  await declare();
-  const declarationSamples = cryptoMock.randomInt.mock.calls.length;
-  cryptoMock.randomInt.mockImplementationOnce(() => 1).mockImplementationOnce(() => 2);
-
-  const first = await applyWolfCommanderTargetRerolls.run(request({
-    sessionId: 's1', requestId: 'wolf-reroll-1', expectedTurn: 1, expectedRevision: 1,
-    rosterIndexes: [2, 0],
-  }, 'wolf-1'));
-  expect(first).toMatchObject({ status: 'committed', revision: 2, rerolledIndexes: [0, 2] });
-  const state = mock.documents.get('sessions/s1/wolfAttackState/current')!;
-  expect(state.commanderRerollIndexes).toEqual([0, 2]);
-  expect((state.calculationReceipt as Fields).targeting).toMatchObject({
-    rolls: expect.arrayContaining([
-      expect.objectContaining({ rosterIndex: 0, initialDie: 1, rerollDie: 2, target: 'dione' }),
-      expect.objectContaining({ rosterIndex: 1, initialDie: 1, finalDie: 1 }),
-      expect.objectContaining({ rosterIndex: 2, initialDie: 1, rerollDie: 3, target: 'icebreaker' }),
-    ]),
-  });
-  expect(cryptoMock.randomInt).toHaveBeenCalledTimes(declarationSamples + 2);
-
-  const view = await getWolfCommanderTargeting.run(request({ sessionId: 's1' }, 'wolf-1'));
-  expect(view).toMatchObject({ type: 'wolf-commander-targeting-view', revision: 2 });
-  expect(view).not.toHaveProperty('calculationReceipt');
-  expect(view).toMatchObject({ eligibleRerollIndexes: expect.not.arrayContaining([0, 2]) });
-});
-
-it('targets only the selected split group and records only that group pursuit as the attack dial input', async () => {
+function configureSecondSplitGroupAttack(): void {
   const firstGroup = ['aegis', 'dione', 'icebreaker'];
   const secondGroup = ['shepherd', 'quellon', 'refinery-124'];
   const commanderCards = [
@@ -219,6 +190,39 @@ it('targets only the selected split group and records only that group pursuit as
     type: 'wolf-commander-cycle-dial', status: 'committed', cycle: 1,
     actorUid: 'wolf-1', commanderCycleAttack,
   });
+}
+
+beforeEach(resetFixture);
+
+it('reads a filtered current-dice view and patches only selected receipt rolls', async () => {
+  await declare();
+  const declarationSamples = cryptoMock.randomInt.mock.calls.length;
+  cryptoMock.randomInt.mockImplementationOnce(() => 1).mockImplementationOnce(() => 2);
+
+  const first = await applyWolfCommanderTargetRerolls.run(request({
+    sessionId: 's1', requestId: 'wolf-reroll-1', expectedTurn: 1, expectedRevision: 1,
+    rosterIndexes: [2, 0],
+  }, 'wolf-1'));
+  expect(first).toMatchObject({ status: 'committed', revision: 2, rerolledIndexes: [0, 2] });
+  const state = mock.documents.get('sessions/s1/wolfAttackState/current')!;
+  expect(state.commanderRerollIndexes).toEqual([0, 2]);
+  expect((state.calculationReceipt as Fields).targeting).toMatchObject({
+    rolls: expect.arrayContaining([
+      expect.objectContaining({ rosterIndex: 0, initialDie: 1, rerollDie: 2, target: 'dione' }),
+      expect.objectContaining({ rosterIndex: 1, initialDie: 1, finalDie: 1 }),
+      expect.objectContaining({ rosterIndex: 2, initialDie: 1, rerollDie: 3, target: 'icebreaker' }),
+    ]),
+  });
+  expect(cryptoMock.randomInt).toHaveBeenCalledTimes(declarationSamples + 2);
+
+  const view = await getWolfCommanderTargeting.run(request({ sessionId: 's1' }, 'wolf-1'));
+  expect(view).toMatchObject({ type: 'wolf-commander-targeting-view', revision: 2 });
+  expect(view).not.toHaveProperty('calculationReceipt');
+  expect(view).toMatchObject({ eligibleRerollIndexes: expect.not.arrayContaining([0, 2]) });
+});
+
+it('targets only the selected split group and records only that group pursuit as the attack dial input', async () => {
+  configureSecondSplitGroupAttack();
 
   await declare();
   const receipt = mock.documents.get('sessions/s1/wolfAttackState/current')!.calculationReceipt as Fields;
@@ -227,6 +231,85 @@ it('targets only the selected split group and records only that group pursuit as
   });
   expect((receipt.targeting as Fields).ring).toEqual(['quellon', 'shepherd', 'refinery-124']);
   expect((receipt.targeting as Fields).ring).not.toContain('aegis');
+});
+
+it('rerolls nonparticipating split-group targets in the declaration handler without publishing them as targets', async () => {
+  configureSecondSplitGroupAttack();
+  const drawBounds: number[] = [];
+  cryptoMock.randomInt.mockImplementation((upperBound: number) => {
+    drawBounds.push(upperBound);
+    if (upperBound === 6) return 0; // The printed base face maps to AEGIS, outside fleet-2.
+    if (upperBound === 3) return 1; // Conditional house-rule reroll selects Shepherd.
+    throw new Error(`Unexpected target draw bound ${upperBound}`);
+  });
+
+  await declare();
+
+  const receipt = mock.documents.get('sessions/s1/wolfAttackState/current')!.calculationReceipt as Fields;
+  const targeting = receipt.targeting as Fields;
+  const rolls = targeting.rolls as Fields[];
+  expect(drawBounds).toEqual(Array.from({ length: rolls.length }, () => [6, 3]).flat());
+  expect(rolls.every(({ target }) => ['shepherd', 'quellon', 'refinery-124'].includes(target as string))).toBe(true);
+  expect(rolls[0]).toMatchObject({ target: 'shepherd', nonparticipatingTargetRerolls: 1 });
+});
+
+it('parses the canonical Commander source ring after a candidate disposition settles', async () => {
+  const currentSession = mock.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...currentSession, candidateVesselOutcomes: { icebreaker: { code: 'O',
+    groupId: 'fleet-1', shipId: 'icebreaker', sourceId: 'candidate-O-1', cycle: 1, outcome: 'settled' } } });
+  await declare();
+
+  const attackPath = 'sessions/s1/wolfAttackState/current';
+  const declaration = mock.documents.get(attackPath)!;
+  const declarationTargeting = (declaration.calculationReceipt as Fields).targeting as Fields;
+  expect(declarationTargeting.ring).toEqual(['aegis', 'dione', 'quellon', 'shepherd', 'refinery-124']);
+  expect(declarationTargeting.sourceRing)
+    .toEqual(['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124']);
+
+  const rerollBounds: number[] = [];
+  const rerollSamples = [2, 1];
+  cryptoMock.randomInt.mockImplementation((upperBound: number) => {
+    rerollBounds.push(upperBound);
+    const sample = rerollSamples.shift();
+    if (sample === undefined || sample >= upperBound) throw new Error('Unexpected candidate reroll draw.');
+    return sample;
+  });
+  await applyWolfCommanderTargetRerolls.run(request({
+    sessionId: 's1', requestId: 'settled-candidate-commander-reroll', expectedTurn: 1, expectedRevision: 1,
+    rosterIndexes: [0],
+  }, 'wolf-1'));
+
+  const targeting = (mock.documents.get(attackPath)!.calculationReceipt as Fields).targeting as Fields;
+  const rolls = targeting.rolls as Fields[];
+  expect(rerollBounds).toEqual([6, 5]);
+  expect(rolls[0]).toMatchObject({ commanderSourceDie: 3, commanderNonparticipatingTargetRerolls: 1, target: 'dione' });
+  expect(rolls.every(({ target }) => target !== 'icebreaker')).toBe(true);
+});
+
+it('keeps an actual Commander reroll inside the selected group after a nonparticipating source face', async () => {
+  configureSecondSplitGroupAttack();
+  await declare();
+  const rerollBounds: number[] = [];
+  const rerollSamples = [0, 2];
+  cryptoMock.randomInt.mockImplementation((upperBound: number) => {
+    rerollBounds.push(upperBound);
+    const sample = rerollSamples.shift();
+    if (sample === undefined || sample >= upperBound) throw new Error('Unexpected Commander reroll draw.');
+    return sample;
+  });
+
+  await applyWolfCommanderTargetRerolls.run(request({
+    sessionId: 's1', requestId: 'split-group-house-rule-reroll', expectedTurn: 1, expectedRevision: 1,
+    rosterIndexes: [0],
+  }, 'wolf-1'));
+
+  const targeting = (mock.documents.get('sessions/s1/wolfAttackState/current')!.calculationReceipt as Fields).targeting as Fields;
+  const rolls = targeting.rolls as Fields[];
+  expect(rerollBounds).toEqual([6, 3]);
+  expect(rolls[0]).toMatchObject({
+    rerollDie: 3, target: 'refinery-124', commanderNonparticipatingTargetRerolls: 1,
+  });
+  expect(rolls.every(({ target }) => ['shepherd', 'quellon', 'refinery-124'].includes(target as string))).toBe(true);
 });
 
 it('replays exactly without another random sample and rejects stale or consumed selections', async () => {

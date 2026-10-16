@@ -1,5 +1,5 @@
 export const TURN_ONE_TEAM_PHASE_DURATION_MS = 10 * 60_000;
-export const TURN_ONE_COORDINATION_PHASE_DURATION_MS = 20 * 60_000;
+export const TURN_ONE_COORDINATION_PHASE_DURATION_MS = 25 * 60_000;
 export const SUBSEQUENT_TEAM_PHASE_DURATION_MS = 5 * 60_000;
 export const SUBSEQUENT_COORDINATION_PHASE_DURATION_MS = 15 * 60_000;
 export const AIRSPACE_EXTENSION_MS = 5 * 60_000;
@@ -41,6 +41,8 @@ export type TurnPhase = {
     readonly pressAccess: boolean;
   };
   readonly timerPause?: TurnTimerPause;
+  /** Explicit full-game demo clock policy; the GM advances every phase. */
+  readonly progression?: 'manual';
 };
 
 function phaseForAirspace(state: TurnPhase['airspace']['state']): TurnStatePhase {
@@ -164,13 +166,16 @@ export function turnPhaseState(value: unknown): TurnPhase | undefined {
   const airspace = value.airspace;
   const hasTimerPause = value.timerPause !== undefined;
   const timerPause = hasTimerPause ? timerPauseState(value.timerPause) : undefined;
+  const hasManualProgression = value.progression !== undefined;
   if (
     typeof turn !== 'number' || !Number.isSafeInteger(turn) || turn < 1 ||
     !instant(teamPhaseEndsAt) || !instant(openAirspaceEndsAt) ||
     Date.parse(openAirspaceEndsAt) < Date.parse(teamPhaseEndsAt) ||
     (airspace.state !== 'restricted' && airspace.state !== 'lifted') ||
     typeof airspace.tickerActive !== 'boolean' || typeof airspace.pressAccess !== 'boolean' ||
-    (hasTimerPause && !timerPause)
+    (hasTimerPause && !timerPause) ||
+    (hasManualProgression && value.progression !== 'manual') ||
+    (value.progression === 'manual' && hasTimerPause)
   ) return undefined;
   return {
     turn,
@@ -182,6 +187,7 @@ export function turnPhaseState(value: unknown): TurnPhase | undefined {
       pressAccess: airspace.pressAccess,
     },
     ...(timerPause ? { timerPause } : {}),
+    ...(value.progression === 'manual' ? { progression: 'manual' as const } : {}),
   };
 }
 
@@ -202,16 +208,37 @@ export function phaseDurationsForTurn(turn: number): {
 }
 
 /** Build the server-owned team-then-coordination schedule for one turn. */
-export function startTurnPhase(turn: number, now = Date.now()): TurnPhase {
+export function startTurnPhase(
+  turn: number,
+  now = Date.now(),
+  options: { readonly progression?: 'manual' } = {},
+): TurnPhase {
   const { teamPhaseMs, coordinationPhaseMs } = phaseDurationsForTurn(turn);
+  const manual = options.progression === 'manual';
+  const teamPhaseEndsAt = manual
+    ? '9999-12-31T23:59:59.999Z'
+    : new Date(now + teamPhaseMs).toISOString();
+  const openAirspaceEndsAt = manual
+    ? '9999-12-31T23:59:59.999Z'
+    : new Date(now + teamPhaseMs + coordinationPhaseMs).toISOString();
   return {
     turn,
-    teamPhaseEndsAt: new Date(now + teamPhaseMs).toISOString(),
-    openAirspaceEndsAt: new Date(
-      now + teamPhaseMs + coordinationPhaseMs,
-    ).toISOString(),
+    teamPhaseEndsAt,
+    openAirspaceEndsAt,
     airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    ...(manual ? { progression: 'manual' as const } : {}),
   };
+}
+
+/** A manual phase has no deadline; compatibility timestamps never control it. */
+export function turnPhaseDeadlinePassed(
+  phase: TurnPhase,
+  window: 'team' | 'open',
+  now = Date.now(),
+): boolean {
+  if (phase.progression === 'manual') return false;
+  const deadline = Date.parse(window === 'team' ? phase.teamPhaseEndsAt : phase.openAirspaceEndsAt);
+  return !Number.isFinite(deadline) || now >= deadline;
 }
 
 /** Extend only the currently live airspace window by one five-minute increment. */
@@ -220,7 +247,7 @@ export function extendActiveTurnPhase(
   window: AirspaceWindow,
   now = Date.now(),
 ): TurnPhase | undefined {
-  if (phase.timerPause) return undefined;
+  if (phase.timerPause || phase.progression === 'manual') return undefined;
   const teamPhaseEndsAt = Date.parse(phase.teamPhaseEndsAt);
   const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
   if (now >= openAirspaceEndsAt) return undefined;
@@ -243,6 +270,7 @@ export function extendActiveTurnPhase(
 
 /** Freeze the currently live team or coordination window for an emergency. */
 export function pauseActiveTurnPhase(phase: TurnPhase, now = Date.now()): TurnPhase | undefined {
+  if (phase.progression === 'manual') return undefined;
   if (phase.timerPause) return phase;
   const teamPhaseEndsAt = Date.parse(phase.teamPhaseEndsAt);
   const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
@@ -289,6 +317,7 @@ export function resumePausedTurnPhase(phase: TurnPhase, now = Date.now()): TurnP
 }
 
 export function isTurnPhaseTimerActive(phase: TurnPhase | undefined, now = Date.now()): boolean {
+  if (phase?.progression === 'manual') return false;
   return phase !== undefined && (
     phase.timerPause !== undefined || now < Date.parse(phase.openAirspaceEndsAt)
   );

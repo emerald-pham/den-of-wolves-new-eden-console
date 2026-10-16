@@ -1,6 +1,13 @@
 import { createHash } from 'node:crypto';
 
 export const CALLABLE_RATE_LIMIT_POLICIES = {
+  // Manual demo preparation/phase changes are deliberate live-GM transitions;
+  // callers must bypass the budget for an already committed exact receipt.
+  prepareFullGameDemo: { windowMs: 60_000, maxRequests: 6 },
+  advanceFullGameDemoPhase: { windowMs: 60_000, maxRequests: 6 },
+  // Three devices may each refresh every five seconds (36/min), with ample
+  // remaining budget for snapshot bursts, focus changes and reconnects.
+  getCurrentMemberSession: { windowMs: 60_000, maxRequests: 120 },
   // These budgets absorb duplicate reconnect/bootstrap calls while bounding repeated full roster work.
   resumeSession: { windowMs: 60_000, maxRequests: 10 },
   getSessionPresence: { windowMs: 60_000, maxRequests: 12 },

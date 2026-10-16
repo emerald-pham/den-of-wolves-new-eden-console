@@ -1,0 +1,3051 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "639ad674afd383fd0690dbdb299c5ef351c43f46",
+  "binding": "Built SDK __endpoint exports from current Functions source; independent review and gameplay evidence remain separate.",
+  "accounting": "Every callable is inventoried. Background jobs are separately traced; an inventory row alone is not acceptance.",
+  "roles": [
+    {
+      "id": "admiral",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "partial: accepted N4 six ordinary maintenance steps through reactor and bay-charge delivery; N9 original current Admiral preserved through natural Coordination. Other role mechanics/full ending remain open. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. N11 accepted scoped six reused normal prerequisites and paid Zeta Fuel4→3/step-revision6→7, original Admiral/Wing delivery, substantive ship/custody state preserved; lane incomplete. Alpha scoped run reused six ordinary prerequisites without Zeta, preserving maintenance6 and selected resources/charges/custody through one Wing launch; no new Admiral mechanic or lane completion.",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "executive-officer",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "wing-commander",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "partial: canonical station/Starlight/private scout/normal flight and docking accepted ata648; f35 adds timely return transit read/paint. Other wing/mission/rebuild and whole fresh ending remain pending. October14 accepted N4/N9 adds both initial and charged bay cards/full-capacity blockers plus current original first-scout/report/note/map delivery; positive fighters, paid second scout, missions/rebuild and all-role ending remain open. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. N11 accepted paid Zeta delivery and retained first distance1 Scout prefix; second distinct pending-only request acknowledged, private result/note/map/log incomplete. Reviewed selector0c9 is inert source evidence only; failed child/flags unchanged. Parentaccepted2e25aded now qualifies distinct second original Scout report/note/map/automaticGMlog and retained first current indices/fingerprints; no native first reselect-after-second/coldreload/recovery extension. Positive fighters/missions/rebuild/full ending still open. Accepted E-PC10-ORDINARY-ALPHA-LAUNCH-SCOPED-20261014: one original Alpha4 launch and Bravo4eligible/unlaunched pending at nativec49/operator23ac, original receipt/deliveredrevision3/wingRevision1, zero material/fuel/charge/loss cost and preserved current original authority/manual clock/selected state. Bravo/build/exchange/range/aftermath/missions/rebuild/full ending remain open.",
+      "recoveryProof": "partial: original same-UID/role/seat server-fresh cold reload accepted. Original50f6b189 unsent5143 input-loss RED and test-first7df/source704 repair retained. Independently accepted exactc3 minimum same-current-member unpaused Cycle1 Team Time Back/overview/held-Wing/Starlight re-entry preserves5143 with unchanged current Auth/member/session/role/seat/console/live server SDK authority, Record disabled and zero scout POSTs; only shipResources/shuttleFuelled equality. Actual7856 unlocked Cycle0 GM release clears same player role/seat/console/input and populated brief, retaining runtime5143; obsolete Starlight route/no chooser is preserved native RED, reassignment unattempted. Meaningful3 mounted REDs before testf70/source45da and exact independent source-only PASS; fixture-onlyc420/same20PASS confirmed. At that source stage native after-fix casting chooser/reassign/reselect was unearned; no submitted retry or cold-document draft claim. Exactee35 minimum unlocked Cycle0 real GM release -> chooser/reselect instruction -> same-target assignment200 -> later deliberate select/seat200 -> fresh same-member Wing privateBrief rev5/Starlight5143 is independently accepted (review1fabc09e/ROOT ACK36b9986d). Early pre-reply assignment-labelled frame/dismissal excluded, loyalty null, runtime text only; active-game loss/submitted retry/cold-document and wholeWing remain open.",
+      "usabilityProof": "partial: actual core R1 and exact53783d80 sampled R2 containment/wrapping/Back keyboard focus accepted, with sampled Courier/Courier-Bold/Menlo and CIC retained. Exactc3 offered Back/overview/held-Wing/Starlight activation and unsent5143 retention independently accepted only for same current member in Team Time. Prefix overlapping distinct-ID claim conflicts400 and casting-phase report403 are independently source-classified; client coalescing/inactive-phase guidance remains limited. Actual casting station-loss chooser RED has reviewed source-only45da repair/c420 fixture confirmation; At that source stage native chooser/reassignment was unearned; remaining controls, touch/full keyboard/manual-free and final emitted-build typography remain pending. Exactee35 minimum casting chooser/reselection and same-member reentry are accepted with scoped390 fullpage notice/readability/horizontal bounds. NegativeY/fixedbar composites/font metadata do not certify unobscured viewport/touch/enlarged/final painted typography; report403 reader UX remains unqualified. Alpha run adds actual launched notice and enabled pending Bravo control only; no Back/new recovery/manual-free/final typography extension."
+    },
+    {
+      "id": "dione-captain",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "dione-engineer",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "dione-president",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "icebreaker-captain",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "icebreaker-engineer",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "icebreaker-miner",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "shepherd-captain",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "shepherd-engineer",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "shepherd-scientist",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "quellon-captain",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "quellon-engineer",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "quellon-explorer",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "refinery-124-captain",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "refinery-124-engineer",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "refinery-124-pdf-colonel",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "press-officer",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "capybara-captain",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "capybara-recycler",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "joint-engineering-quellon-refinery",
+      "kind": "sparse-roster station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "joint-engineering-shepherd-icebreaker",
+      "kind": "sparse-roster station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "wolf-commander",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "comms-officer",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "vip-host",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "commissar",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "rosal-militia-leader",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "doctor",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "pdf-fighter-ace",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "gorgoneion-captain",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "capybara-small-captain",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "warrior-captain",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "vulcan-captain",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "gm",
+      "kind": "authenticated facilitator",
+      "currentFreshGameProof": "partial: normal real authorization/live instance, casting/start0→1 and focused GM reads accepted atf35; whole fresh game/ending remains pending. N9 exact1dd fresh0→1, natural Coordination and populated original-scout automatic-log delivery accepted; no complete manual-game/recovery/ending extension. N11 accepted scoped genuine unlimited/manual preparation before ordinary joins, ordinary casting/manual0→1/no briefing hold and manual Coordination; positive current lease only, no new recovery/ending. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. Parentaccepted2e25aded second original Scout automaticGMlog from current genuine owned lease; positive entitled read only, no full ending/recovery extension. Accepted E-PC10-ORDINARY-ALPHA-LAUNCH-SCOPED-20261014 at nativec49/operator23ac: current genuine GM manual prerequisites and original timing due/private draft/declaration, exact manual restricted targeting delivered before one Wing Alpha launch. Positive owned authority only; no whole ending/new recovery.",
+      "recoveryProof": "pending",
+      "usabilityProof": "partial: populated pending/log/boarding UI, actual rendered system mono/CIC samples; full control/keyboard/touch/final built typography remains pending."
+    },
+    {
+      "id": "fleet-loyalist",
+      "kind": "private loyalty functions",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "wolf-agent",
+      "kind": "private loyalty functions",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "intelligence-agent",
+      "kind": "private loyalty functions",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "universal-arbour",
+      "kind": "private loyalty functions",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "wolf-cult",
+      "kind": "private loyalty functions",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "android",
+      "kind": "private loyalty functions",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "friend",
+      "kind": "private loyalty functions",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    }
+  ],
+  "functions": [
+    {
+      "name": "repairConsolesFromAlly",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/allyRepairService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "repairGorgoneionWithDrones",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/gorgoneionRepairDronesService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "repairWarriorWithDrones",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/warriorRepairDronesService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "resolveWolfAttackAftermath",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/wolfAttackAftermathService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "transferBaseCapybaraCargo",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/baseCapybaraCargoService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "transferWarriorCargo",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/baseCapybaraCargoService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "exchangeAegisFighterWings",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "readPrivateScoutResult",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/scoutResultService.ts"
+      ],
+      "currentFreshGameProof": "partial: N9 exact1dd: current original Wing private fact displayed for the one original scout. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. N11 scoped partial: N11 retained first-scout correlated private fact/report prefix; four native result reads share only the first fingerprint. Second result delivery unproved, native full indices not retained. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. Parentaccepted selector-fixed2e25aded: accepted own second original private report and unchanged first result fingerprint, with actual readers3HTTP200/two distinct request/result pairs and current actor/session/request/target/cycle correlation checked in memory. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: Positive own entitlement only; no new denied-peer/foreign-group or recovered read claim. N11: Positive own entitlement only; no new denied-peer/foreign-group/recovery or comprehensive private audience claim. Accepted second-delivery extension is positive current own-Wing/current-GM entitlement only; prior denials retained, no new peer/foreign-group/reload/recovery/comprehensive audience claim.",
+      "automatedBrowserProof": "partial: parentaccepted2e25aded second-scout private-result/note/map/log and retained first-index/fingerprint scope,3Auth/3Chrome contexts/eight configured roles/two players/zero humans. No fullgame/capacity/human-device or new recovery claim.",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "listPendingScoutRequests",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/scoutResultService.ts"
+      ],
+      "currentFreshGameProof": "partial: accepted focused fresh normal GM/Wing scope atf35af64f; complete every-role game/ending remains pending. See PC10_NORMAL_UI_REVIEW_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: current live owned GM pending reads succeed through real presence renewal; nonempty pending result observed; ordinary Wing is denied with error-only403. Broader stale/malformed/foreign-instance and recovery controls remain pending.",
+      "automatedBrowserProof": "accepted scoped: two Auth actors/two Chrome processes/contexts, normal UI and six actual SDK error-only negatives;575 reads across3handlers are polling, not575 actions. Exactf35 receipt dfac4611.",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "listGmScoutResolutionLog",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/scoutResultService.ts"
+      ],
+      "currentFreshGameProof": "partial: accepted focused fresh normal GM/Wing scope atf35af64f; complete every-role game/ending remains pending. See PC10_NORMAL_UI_REVIEW_REPORT.md. October14 extension: partial: N9 exact1dd: actual current authenticated GM automatic-resolution log matches the original Scout report/note. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. N11 accepted first-scout original automatic GM-log prefix only; second-scout log proof incomplete. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. Parentaccepted selector-fixed2e25aded: accepted genuine current-GM automatic log corresponding to second original Scout, plus retained first history; positive owned live instance only. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: current live owned GM log reads succeed through real presence renewal, including populated results; ordinary Wing (including after population) and wrong GM instance receive error-only403. Broader stale/malformed/demoted/recovery controls remain pending. October14 extension: partial: Positive genuine GM read only; earlier scoped denials retained separately, no new denial/recovery extension. N11 adds positive original current-GM entitlement only; no new borrowed-instance/peer/recovery claim. Accepted second-delivery extension is positive current own-Wing/current-GM entitlement only; prior denials retained, no new peer/foreign-group/reload/recovery/comprehensive audience claim.",
+      "automatedBrowserProof": "partial: parentaccepted2e25aded second-scout private-result/note/map/log and retained first-index/fingerprint scope,3Auth/3Chrome contexts/eight configured roles/two players/zero humans. No fullgame/capacity/human-device or new recovery claim.",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "listMyScoutReports",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/scoutResultService.ts"
+      ],
+      "currentFreshGameProof": "partial: N9 exact1dd: one original report delivered to original current Wing with matching actor/request. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. Parentaccepted selector-fixed2e25aded: accepted two distinct current original report indices, same original Wing/session/cycle, selected second request and preserved first-report history/fingerprints. No native first reselect-after-second/cold reload claim. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: Positive own report list only; no comprehensive audience or recovery proof. Accepted second-delivery extension is positive current own-Wing/current-GM entitlement only; prior denials retained, no new peer/foreign-group/reload/recovery/comprehensive audience claim.",
+      "automatedBrowserProof": "partial: parentaccepted2e25aded second-scout private-result/note/map/log and retained first-index/fingerprint scope,3Auth/3Chrome contexts/eight configured roles/two players/zero humans. No fullgame/capacity/human-device or new recovery claim.",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "readMyScoutDiscoveryNote",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/scoutResultService.ts"
+      ],
+      "currentFreshGameProof": "partial: N9 exact1dd: same-scout saved discovery note displayed and bound to current map discovery. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. N11 scoped partial: N11 retained first-scout matching saved note/map prefix; four note reads share only the first fingerprint. Second canonical note delivery unproved. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. Parentaccepted selector-fixed2e25aded: accepted own second canonical saved note and unchanged first note fingerprint, with actual readers3HTTP200/two distinct request/result pairs and canonical note/result/request correspondence. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: Positive own note only; no denied peer/foreign-group/export or recovery extension. N11: Positive own note only; no new denied-peer/foreign-group/export/recovery claim. Accepted second-delivery extension is positive current own-Wing/current-GM entitlement only; prior denials retained, no new peer/foreign-group/reload/recovery/comprehensive audience claim.",
+      "automatedBrowserProof": "partial: parentaccepted2e25aded second-scout private-result/note/map/log and retained first-index/fingerprint scope,3Auth/3Chrome contexts/eight configured roles/two players/zero humans. No fullgame/capacity/human-device or new recovery claim.",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "advanceEndeavourResearchTrack",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/endeavourResearchService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "readEndeavourResearchWorkspace",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/endeavourResearchService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "buildEndeavourScienceDevice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/endeavourResearchService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "runWolfAgentDetectorTest",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/wolfAgentDetectorService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "activateEndeavourEcmDevice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/endeavourEcmDeviceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "readEndeavourEcmDeviceWorkspace",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/endeavourEcmDeviceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "repairMaliades",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/maliadesService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "resolveMaliadesMedium",
+      "kind": "callable",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "resolveMaliadesShort",
+      "kind": "callable",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "readBoaMissionReclamationWorkspace",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/boaMissionReclamationService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "chooseBoaMissionReclamationOpportunity",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/boaMissionReclamationService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "proposePermissionedDismantling",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/permissionedDismantlingService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getGorgoneionMissionSupportProjection",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/gorgoneionMissionSupportService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "applyGorgoneionMissionSupport",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/gorgoneionMissionSupportService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitAwayMissionLifecycleCommand",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/awayMissionLifecycleService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "repairAwayMissionProjectionPrivacy",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/awayMissionProjectionPreparationService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "consentToPermissionedDismantling",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/permissionedDismantlingService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "declinePermissionedDismantling",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/permissionedDismantlingService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "revokePermissionedDismantlingConsent",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/permissionedDismantlingService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "applyPermissionedDismantling",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/permissionedDismantlingService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "attestPlayerHeldTokenBaseline",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sameTableTradeService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "createSameTableTradeOffer",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sameTableTradeService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "acceptSameTableTradeOffer",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sameTableTradeService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "dockVoyage33",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/voyage33MovementService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "jumpVoyage33",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/voyage33MovementService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getSmallShipJumpWorkspace",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/smallShipJumpService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "jumpSmallShip",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/smallShipJumpService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getBoardingSecurityTeamLocations",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/boardingSecurityTeamService.ts"
+      ],
+      "currentFreshGameProof": "partial: accepted focused fresh normal GM/Wing scope atf35af64f; complete every-role game/ending remains pending. See PC10_NORMAL_UI_REVIEW_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: current live owned GM docked/undocked transit reads succeed with nohost/private route/holder exposure; ordinary Wing and wrong GM instance receive error-only403. Zero shuttle teams were carried; positive transport, broader stale/malformed/recovery controls remain pending.",
+      "automatedBrowserProof": "accepted scoped: two Auth actors/two Chrome processes/contexts, normal UI and six actual SDK error-only negatives;575 reads across3handlers are polling, not575 actions. Exactf35 receipt dfac4611.",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "readCandidateWorkspace",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/candidateService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "executeCandidateAction",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/candidateService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "selectCandidateEdition",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/candidateService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "resolvePendingScoutRequest",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/scoutResultService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "automaticallyResolveScoutRequest",
+      "kind": "background",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "createSession",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "confirmSetup",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/routes/GmConsole.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setFacilitatorResponsibility",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/routes/GmConsole.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "startGame",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "partial: Accepted scoped N11: genuine current-GM manual Cycle0→1 after normal casting, no briefing hold/clear RPC. Setup repeated as prerequisite; no duplicate milestone. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: Current original GM/live owned instance and ordinary admitted players positive authority only; no new negative/replay/recovery claim.",
+      "automatedBrowserProof": "partial: N11 three actual Auth actors/three Chrome processes-contexts/eight configured roles/zero humans; scoped manual/Zeta and first-Scout prefix only. No native second delivery, whole-game, capacity or human-device proof.",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "prepareFullGameDemo",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "partial: Accepted scoped N11: owned current authenticated GM prepared genuine unlimited/manual full-game training before ordinary joins; current manual publication observed. Complete demo/every-role/end/recovery remains open. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. Alpha scoped pass reused this manual prerequisite at nativec49/operator23ac without natural timer requalification; no whole ending or new mechanic credit.",
+      "authorityPrivacyRecoveryProof": "partial: Current GM/live owned instance positive authority only; no new negative/replay/recovery claim.",
+      "automatedBrowserProof": "partial: N11 three actual Auth actors/three Chrome processes-contexts/eight configured roles/zero humans; scoped manual/Zeta and first-Scout prefix only. No native second delivery, whole-game, capacity or human-device proof.",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "advanceFullGameDemoPhase",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "partial: Accepted scoped N11: owned current GM manually opened Coordination, with current manual publication and compatibility timestamps verified; natural timer evidence reused from N9. Whole-game ending/recovery remains open. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. Alpha scoped pass reused this manual prerequisite at nativec49/operator23ac without natural timer requalification; no whole ending or new mechanic credit.",
+      "authorityPrivacyRecoveryProof": "partial: Current original GM/live owned instance positive authority only; no new negative/replay/recovery claim.",
+      "automatedBrowserProof": "partial: N11 three actual Auth actors/three Chrome processes-contexts/eight configured roles/zero humans; scoped manual/Zeta and first-Scout prefix only. No native second delivery, whole-game, capacity or human-device proof.",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "transferShuttleControlCommand",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/shuttleControlService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "transferShuttleCargoCommand",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/shuttleCargoService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "rechargeHostConsoleFromShuttle",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/serviceShuttleRechargeService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "repairConsolesFromBlacksmith",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/blacksmithRepairService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "repairConsolesFromPhilia",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/philiaRepairService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "repairConsolesFromMacaw",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/macawRepairService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "recycleWithBoa",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/boaRecyclingService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "repairConsolesFromChacau",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/chacauRepairService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "upgradeEndeavourFieldTargets",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/endeavourFieldUpgradeService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "evacuateShuttleSurvivorsCommand",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/shuttleEvacuationService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "requestShuttleDeparture",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/shuttleDepartureService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "beginShuttleTransit",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/shuttleDepartureService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "retargetShuttleTransit",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/shuttleDepartureService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "completeShuttleArrival",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/shuttleDepartureService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "dealPrivateInitialCards",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "openPrivateMissionDiscards",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "discardPrivateMissionCard",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setShipPreference",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/components/CastingPreferencePanel.tsx",
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "assignRole",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "releaseRole",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setReplacementEligibility",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "assignReplacementRole",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setFacilitatorCensusNote",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "calculateArrestPosse",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "resolveArrestPosse",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/arrestPosseService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "resolveArrestCaseDisposition",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/arrestCaseDispositionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "attestVipHostVisit",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/vipHostService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "rerollHostedShipMaintenance",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/vipHostService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getPdfFighterAceCombatView",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/pdfFighterAceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getPdfFighterAcePermissionView",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/pdfFighterAceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "grantPdfFighterAcePermission",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/pdfFighterAceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitPdfFighterAceCombat",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/pdfFighterAceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "deliverWolfCultIntelligence",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "transitionCrisis",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/routes/GmConsole.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setDiseaseQuarantine",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/routes/GmConsole.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "admitVoyage33",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "recordApproachingVesselResponse",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/approachingVesselResponseService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "recordZealotryResponse",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "recordCivilUnrestResolution",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "submitCivilUnrestGrievance",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "authorArbourVision",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "authorFacilitatorRuleCall",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setCandidatePlanCheckpoint",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "assignLoyalty",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/gmLoyaltyAssignmentService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "revealAndroidProof",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/androidProofService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "readFleetGroupMessages",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/fleetGroupService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "sendFleetGroupMessage",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/fleetGroupService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "shareKnownSystemDetails",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/fleetGroupService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "readFleetGroupNavigation",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/fleetGroupService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "sendScoutTaxiCourier",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/scoutTaxiCommunicationService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "sendScoutTaxiTransfer",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/fleetGroupService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "recordFleetGroupRejoinAdjudication",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/fleetGroupService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "confirmFleetPartition",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/fleetGroupService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getCurrentMemberSession",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/firestore.ts",
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "beginSessionDebrief",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "closeSession",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getSessionDebrief",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "joinSession",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/demoActorProfiles.ts",
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "resumeSession",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/demoActorProfiles.ts",
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "loginGmAccess",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "logoutGmAccess",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "claimGmInstance",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/routes/GmConsole.tsx",
+        "src/routes/RoleSelect.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setGmShipConsoleWriteGrant",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "listGmInstances",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/firestore.ts",
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "kickGmInstance",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/routes/GmConsole.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "releaseGmInstance",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/components/AppHeader.tsx",
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "kickPlayer",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/routes/GmConsole.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "triggerDradisContact",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setCapybaraEnabled",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setPressEnabled",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/routes/GmConsole.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setDioneEnabled",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "moveShipToLocation",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "jumpShip",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "listUnresolvedJumpFailures",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "adjudicateFailedJump",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setShipConsoleLock",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setGmControlsLocked",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/routes/GmConsole.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setDebriefMode",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/routes/GmConsole.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "advanceTurn",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "scheduleAirspaceClosureParking",
+      "kind": "background",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "parkShuttlesAtAirspaceClosure",
+      "kind": "background",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "reconcileAirspaceClosureTasks",
+      "kind": "schedule",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "startSinglePlayerDemo",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "replayTurnStartAnnouncement",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "beginOpenAirspacePhase",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "partial: N9 exact1dd: natural eligible Team→Coordination, one call per each of three current Auth actors, three server executions overlapping, all final200 and lifted publication. Two internal lock warnings remain; attempts unknown. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: Current authenticated caller/live session and eligible natural phase observed; no wrong/stale actor or failed-call retry/recovery extension.",
+      "automatedBrowserProof": "partial: three actual Auth actors/three Chrome processes-contexts/eight configured roles/zero human devices, scoped N4/N9 only; no whole-game or capacity proof.",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "extendAirspaceWindow",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setEmergencyTimerPaused",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfAttackThreatWindowOptions",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setWolfAttackWindow",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "partial: E-PC10-ORDINARY-ALPHA-LAUNCH-SCOPED-20261014, exact nativec49/operator23ac. Current genuine GM used ordinary Mark timing due and original HTTP200 receipt. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: Current original owned GM/Wing positive entitlement and source/runtime clock/lease/epoch/role/berth/custody checks preserved. No new adversarial/replay/recovery/comprehensive audience claim; source denial evidence stays separate.",
+      "automatedBrowserProof": "partial: Accepted scoped one-Alpha route,3Auth/3Chrome processes-contexts/two players plusGM/eight configured roles/zero humans.37steps/281transport rows are not action counts; no full ending/scale/final typography credit.",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitWolfCommanderAttackDial",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfCommanderCycleAttackDial",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "publishWolfCommanderAddress",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "createWolfAmnestyOffer",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "respondToWolfAmnesty",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "recordWolfAmnestyConsequence",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfAmnestyView",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "stageWolfAttackPreparation",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "partial: E-PC10-ORDINARY-ALPHA-LAUNCH-SCOPED-20261014, exact nativec49/operator23ac. Current genuine GM used ordinary Save private attack draft and original HTTP200 receipt. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: Current original owned GM/Wing positive entitlement and source/runtime clock/lease/epoch/role/berth/custody checks preserved. No new adversarial/replay/recovery/comprehensive audience claim; source denial evidence stays separate.",
+      "automatedBrowserProof": "partial: Accepted scoped one-Alpha route,3Auth/3Chrome processes-contexts/two players plusGM/eight configured roles/zero humans.37steps/281transport rows are not action counts; no full ending/scale/final typography credit.",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "declareWolfAttack",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "partial: E-PC10-ORDINARY-ALPHA-LAUNCH-SCOPED-20261014, exact nativec49/operator23ac. Current genuine GM used ordinary Declare Wolf attack and original HTTP200 receipt; exact manual restricted clock/current targeting delivered before launch. No attack resolution/phase advance claim. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: Current original owned GM/Wing positive entitlement and source/runtime clock/lease/epoch/role/berth/custody checks preserved. No new adversarial/replay/recovery/comprehensive audience claim; source denial evidence stays separate.",
+      "automatedBrowserProof": "partial: Accepted scoped one-Alpha route,3Auth/3Chrome processes-contexts/two players plusGM/eight configured roles/zero humans.37steps/281transport rows are not action counts; no full ending/scale/final typography credit.",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "syncWolfAttackAudienceProjection",
+      "kind": "background",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "advanceWolfAttackLifecycle",
+      "kind": "background",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "refreshWolfAttackDecisionSummaryOnPlayerChange",
+      "kind": "background",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "advanceWolfAttackToLongRange",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfCommanderTargeting",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "applyWolfCommanderTargetRerolls",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "finishWolfCommanderTargetingRerolls",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "applyWolfCommanderRangeTargetAdjustment",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfCommanderRangeTargetDial",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getAegisCommandAndControl",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "applyAegisCommandAndControl",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "passAegisCommandAndControl",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getAegisEnrichedWarheadChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitAegisEnrichedWarheadChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getAegisFighterWingLaunch",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "partial: E-PC10-ORDINARY-ALPHA-LAUNCH-SCOPED-20261014, exact nativec49/operator23ac. Current Wing received paired current Alpha/Bravo offers and latest audience tuple; after one launch Alpha4launched/Bravo4eligible-unlaunched at revision3/wingRevision1. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: Current original owned GM/Wing positive entitlement and source/runtime clock/lease/epoch/role/berth/custody checks preserved. No new adversarial/replay/recovery/comprehensive audience claim; source denial evidence stays separate.",
+      "automatedBrowserProof": "partial: Accepted scoped one-Alpha route,3Auth/3Chrome processes-contexts/two players plusGM/eight configured roles/zero humans.37steps/281transport rows are not action counts; no full ending/scale/final typography credit.",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "launchAegisFighterWing",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "partial: E-PC10-ORDINARY-ALPHA-LAUNCH-SCOPED-20261014, exact nativec49/operator23ac. Exactly one current Wing original Alpha request committed/deliveredrevision3/wingRevision1, Alpha4launched/Bravo4eligible-unlaunched pending, zero material/fuel/charge/loss cost and preserved selected state. No Bravo/build/exchange/range/aftermath/rebuild claim. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: Current original owned GM/Wing positive entitlement and source/runtime clock/lease/epoch/role/berth/custody checks preserved. No new adversarial/replay/recovery/comprehensive audience claim; source denial evidence stays separate.",
+      "automatedBrowserProof": "partial: Accepted scoped one-Alpha route,3Auth/3Chrome processes-contexts/two players plusGM/eight configured roles/zero humans.37steps/281transport rows are not action counts; no full ending/scale/final typography credit.",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfRangeActionChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitWolfRangeActionChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "assignWolfRangeTargets",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfFighterRangeActionChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitWolfFighterRangeActionChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfEscortRangeActionChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/wolfEscortRangeService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitWolfEscortRangeActionChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/wolfEscortRangeService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfRangeSupportActionChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitWolfRangeSupportActionChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfForceFieldChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitWolfForceFieldChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfBoardingDefenceChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitWolfBoardingDefenceChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfBoardingSpecialChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitWolfBoardingSpecialChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getDioneMaliadesLaunch",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "launchDioneMaliades",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getPdfEscortWingLaunch",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "launchPdfEscortWing",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "passWolfFighterLaunchChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "startWolfConsoleVisit",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "resolveWolfConsoleSabotage",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "submitWolfSupplySabotage",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/wolfActionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "acknowledgeWolfHackingAlert",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "submitWolfHomingBeacon",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/wolfActionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "submitWolfIntelligence",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/wolfActionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "investigateAsIntelligenceAgent",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/intelligenceInvestigationService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "unlockPressAirspace",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/airspaceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setActiveRoleEnabled",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setActiveRoleConfiguration",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "applyRolePreset",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "popShipConfetti",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/components/PressConfetti.tsx",
+        "src/lib/sessionService.ts",
+        "src/routes/ShipConsole.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getSessionPresence",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "fleeDestroyedShip",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "refreshPresence",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/demoActorProfiles.ts",
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "disconnectFromSession",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/components/AppHeader.tsx",
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "deleteInactiveSessions",
+      "kind": "schedule",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "expireStalePlayers",
+      "kind": "schedule",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "claimSeat",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/demoActorProfiles.ts",
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "releaseSeat",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "elevateToGm",
+      "kind": "callable",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "scavengeDestroyedShipStores",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "adjustShipResource",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "adjustShipUnrest",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "consentCommissarPurge",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "applyCommissarPurge",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getCommissarPurgeAuthority",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "dismissUnrestAlert",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "resolveShipMutiny",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "addShipDamage",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/shipDamageService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "rollDice",
+      "kind": "callable",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "adjustShipPopulation",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "applyShipCounterSteps",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setFighterWingCount",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "buildFighter",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "dismissPopulationAlert",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "runHighwallMining",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/highwallMiningService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "requestScout",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/scoutRequestService.ts"
+      ],
+      "currentFreshGameProof": "partial: N9 exact1dd: one original ordinary Wing Cycle1 distance2 first scout with one current delivered result, original actor/request and no movement. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. N11 scoped partial: N11 retained first Cycle1 distance1 Scout report/note/map/GM-log prefix and two distinct same-actor/cycle request200 acknowledgements. Both acknowledgements pending-only; second resolved private result unproved; original failed child retained. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. Parentaccepted selector-fixed2e25aded: accepted second distinct original Cycle1 Scout9997 after first5143, same original current Wing, own second report/note/map/automaticGMlog and preserved first indices/fingerprints. Request acknowledgements remain pending-only; delivered correlation is separately verified. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: Entitled current Wing only; no second/fuelled scout, duplicate/conflict, denied peer or recovery extension. N11: Current entitled Wing positive only; no native second-private-result, new duplicate/conflict/peer/recovery claim. Accepted second-delivery extension is positive current own-Wing/current-GM entitlement only; prior denials retained, no new peer/foreign-group/reload/recovery/comprehensive audience claim.",
+      "automatedBrowserProof": "partial: parentaccepted2e25aded second-scout private-result/note/map/log and retained first-index/fingerprint scope,3Auth/3Chrome contexts/eight configured roles/two players/zero humans. No fullgame/capacity/human-device or new recovery claim.",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "rollHummingbirdHarvest",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/hummingbirdHarvestService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "allocateHummingbirdHarvest",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/hummingbirdHarvestService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setSmallShipDocking",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/smallShipService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "runSmallShipMaintenance",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/smallShipService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "runVoyage33Maintenance",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/smallShipService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "runVulcanAdditionalLabour",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/vulcanLabourService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "runMaintenance",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/maintenanceService.ts"
+      ],
+      "currentFreshGameProof": "partial: Accepted N4 ffd63649: six ordinary Admiral commits begin/storage/rations/unrest/riot/reactor, step/revision6 and delivered Alpha/Bravo/Construction charges; unchanged consumers reused at1dd. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md. N11 scoped partial: N11 accepted scoped six ordinary prerequisites revision0→6 and paid bays-zeta Fuel4→3/step-revision6→7, original Admiral/Wing publication and substantive ship/custody state preserved. Existing N4 bay-charge evidence retained; lane incomplete. See docs/PC10_N9_WING_SCOUT_NATIVE_REPORT.md.",
+      "authorityPrivacyRecoveryProof": "partial: Original current live Admiral and entitled Wing delivery observed; lane incomplete and no refuel/other steps/new denial/replay/recovery proof. N11: Original current Admiral and entitled Wing positive delivery only; other maintenance, denial/replay/recovery remain open.",
+      "automatedBrowserProof": "partial: N11 three actual Auth actors/three Chrome processes-contexts/eight configured roles/zero humans; scoped manual/Zeta and first-Scout prefix only. No native second delivery, whole-game, capacity or human-device proof.",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "drawVipCard",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/vipCardService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "transferVipCard",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/vipCardService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "rerollVipUnrest",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/vipCardService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "publishAdmiralDirectiveCommand",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/admiralDirectiveService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "recordPresidentActionCommand",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/presidentWorkspaceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "recordPresidentialVisit",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/presidentWorkspaceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "configurePresidentialElection",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/presidentialElectionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "castPresidentialBallot",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/presidentialElectionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "resolvePresidentialElection",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/presidentialElectionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "updatePoliticalCapital",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/presidentWorkspaceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setFleetRedAlert",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/fleetAlertService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "publishPressDispatch",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/pressDispatchService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "dismissPressDispatch",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/pressDispatchService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "repairAllShipDamage",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/shipDamageService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "rollbackMaintenance",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/maintenanceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "clearTurnAdvanceInterstitial",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/turnInterstitialService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setUnionCraftStartingHost",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/unionCraftSetupService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    }
+  ]
+}

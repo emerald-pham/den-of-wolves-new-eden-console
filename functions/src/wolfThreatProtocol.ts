@@ -246,7 +246,9 @@ export function resolveWolfAmnestyDecision(
   decision: WolfAmnestyDecision,
   expectedCycle: number,
   now = new Date().toISOString(),
+  options: { readonly progression?: 'manual' } = {},
 ): WolfAmnestyOffer {
+  const manualProgression = options.progression === 'manual';
   if (!Number.isSafeInteger(offer.cycle) || offer.cycle !== expectedCycle ||
       typeof offer.offerId !== 'string' || offer.offerId.length === 0 ||
       typeof offer.targetShipId !== 'string' || offer.targetShipId.length === 0 ||
@@ -258,7 +260,7 @@ export function resolveWolfAmnestyDecision(
   }
   if (decision.kind === 'response') {
     if (offer.status !== 'offered') throw new Error('The amnesty offer is no longer open for a response.');
-    if (Date.parse(now) > Date.parse(offer.responseDeadline)) {
+    if (!manualProgression && Date.parse(now) > Date.parse(offer.responseDeadline)) {
       throw new Error('The amnesty response deadline has passed; record an explicit facilitator consequence.');
     }
     return Object.freeze({
@@ -268,7 +270,8 @@ export function resolveWolfAmnestyDecision(
     });
   }
   const accepted = offer.status === 'accepted-pending-facilitator' && offer.response === 'accept';
-  const unansweredAfterDeadline = offer.status === 'offered' && Date.parse(now) > Date.parse(offer.responseDeadline);
+  const unansweredAfterDeadline = offer.status === 'offered' &&
+    (manualProgression || Date.parse(now) > Date.parse(offer.responseDeadline));
   if (decision.kind !== 'facilitator-consequence' || (!accepted && !unansweredAfterDeadline) ||
       typeof decision.text !== 'string' || decision.text.trim().length === 0) {
     throw new Error('A facilitator consequence requires an accepted offer or an elapsed deadline, plus explicit ruling text.');

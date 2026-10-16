@@ -28,6 +28,7 @@ export const STAR_CHART_COORDINATES: readonly string[] = Object.freeze([
 export const STAR_CHART_CONNECTIONS: readonly (readonly [string, string])[] = Object.freeze([
   Object.freeze(['0000', '5143'] as const),
   Object.freeze(['0000', '1413'] as const),
+  Object.freeze(['5143', '1413'] as const),
   Object.freeze(['5143', '9997'] as const),
   Object.freeze(['5143', '6837'] as const),
   Object.freeze(['1413', '6837'] as const),

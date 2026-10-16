@@ -1,3 +1,4 @@
+import type * as NodeCrypto from 'node:crypto';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
@@ -23,7 +24,7 @@ const mock = vi.hoisted(() => {
   return { documents, get, set, runTransaction, db: { doc: ref, runTransaction } };
 });
 
-vi.mock('node:crypto', () => random);
+vi.mock('node:crypto', async (importOriginal) => ({ ...await importOriginal<typeof NodeCrypto>(), ...(random) }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => mock.db,
   FieldValue: { serverTimestamp: () => 'server-time' },
@@ -31,7 +32,7 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error { constructor(readonly code: string, message: string) { super(message); } },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 
 import { runWolfAgentDetectorTest } from './index';
@@ -62,6 +63,7 @@ beforeEach(() => {
   put('sessions/s1/players/u2', { role: 'player', connected: true, displayName: 'Target' });
   put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['shepherd'], memberUids: ['u1', 'u2'] });
   put('sessions/s1/serverState/endeavourResearch', { 'wolf-agent-detector': 4 });
+  put('sessions/s1/serverState/endeavourScienceDevices', { revision: 1, ecmBuilt: false, detectorBuilt: true });
   put('sessions/s1/secrets/loyalty-u2', {
     visibleToUids: ['u2'], payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 },
   });
@@ -142,4 +144,27 @@ it('rejects a previous-cycle exact retry before returning its receipt', async ()
   await expect(runWolfAgentDetectorTest.run(request())).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(random.randomInt).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+
+it('denies a fresh detector operation after Shepherd settlement before reading another result', async () => {
+  mock.documents.get('sessions/s1')!.candidateVesselOutcomes = { shepherd: { code: 'O', groupId: 'fleet-1', shipId: 'shepherd',
+    sourceId: 'candidate-o-3131', cycle: 1, outcome: 'reached' } };
+  await expect(runWolfAgentDetectorTest.run(request())).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(mock.set).not.toHaveBeenCalled(); expect(random.randomInt).not.toHaveBeenCalled();
+});
+
+
+it('runs tests on a paid built Detector with incomplete research and denies complete research on an unbuilt device', async () => {
+  put('sessions/s1/serverState/endeavourResearch', { 'wolf-agent-detector': 2 });
+  await expect(runWolfAgentDetectorTest.run(request())).resolves.toMatchObject({ reportedWolf: true });
+  expect(random.randomInt).toHaveBeenCalledOnce();
+  mock.documents.delete('sessions/s1/serverState/endeavourScienceDevices');
+  put('sessions/s1/serverState/endeavourResearch', { 'wolf-agent-detector': 4 });
+  random.randomInt.mockClear(); mock.set.mockClear();
+  await expect(runWolfAgentDetectorTest.run(request({ ...payload, requestId: 'unbuilt', expectedRevision: 1 })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(random.randomInt).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
 });

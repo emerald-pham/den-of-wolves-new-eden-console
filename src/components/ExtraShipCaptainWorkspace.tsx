@@ -3,7 +3,7 @@ import { SHIPS, SMALL_SHIPS } from '@/data/ships';
 import { extraShipCaptainWorkspaceFor } from '@/data/extraShipCaptainWorkspaces';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { RoleId } from '@/types/identifiers';
-import BaseCapybaraCargoTransferPanel from './BaseCapybaraCargoTransferPanel';
+import BaseCapybaraCargoTransferPanel, { SmallShipCargoTransferPanel } from './BaseCapybaraCargoTransferPanel';
 import WolfRangeSupportActionPanel from './WolfRangeSupportActionPanel';
 
 const GorgoneionRepairDronesPanel = lazy(() => import('./GorgoneionRepairDronesPanel'));
@@ -75,7 +75,7 @@ export default function ExtraShipCaptainWorkspace({ roleId }: { readonly roleId:
               );
             })}
           </div>
-          {(workspace.vesselId === 'gorgoneion' || workspace.vesselId === 'capybara-small') && (
+          {(['gorgoneion', 'capybara-small', 'warrior', 'vulcan'] as const).includes(workspace.vesselId) && (
             <Suspense fallback={<p className="console-workspace__status" role="status">
               Loading Jump Drive controls…
             </p>}>
@@ -89,6 +89,10 @@ export default function ExtraShipCaptainWorkspace({ roleId }: { readonly roleId:
               <WolfForceFieldChoicePanel />
             </Suspense>
           )}
+          {workspace.roleId === 'vulcan-captain' && (['medium-range', 'short-range'] as const).map((range) => (
+            <WolfRangeSupportActionPanel key={`vulcan-laser-cannon-${range}`}
+              sourceId="vulcan-laser-cannon" range={range} />
+          ))}
           {workspace.roleId === 'gorgoneion-captain' && (['long-range', 'medium-range', 'short-range'] as const).map((range) => (
             <WolfRangeSupportActionPanel key={`gorgoneion-missile-array-${range}`}
               sourceId="gorgoneion-missile-array" range={range} />
@@ -108,6 +112,7 @@ export default function ExtraShipCaptainWorkspace({ roleId }: { readonly roleId:
             </Suspense>
           )}
           {workspace.roleId === 'capybara-small-captain' && <BaseCapybaraCargoTransferPanel />}
+          {workspace.roleId === 'warrior-captain' && <SmallShipCargoTransferPanel smallShipId="warrior" />}
           {workspace.roleId === 'warrior-captain' && (
             <Suspense fallback={<p className="console-workspace__status" role="status">
               Loading repair controls…

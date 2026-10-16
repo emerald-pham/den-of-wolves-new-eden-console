@@ -39,6 +39,12 @@ export function nextWolfBoardingStage(input: WolfBoardingProtocolInput): WolfBoa
     return { kind: 'commander', actorUid: input.commanderUid };
   }
 
+  const commanderRulingTarget = input.commanderRulingRequiredTarget ??
+    (input.commanderChoice?.target ? input.commanderChoice.target : undefined);
+  if (commanderRulingTarget && input.commanderRuling === undefined) {
+    return { kind: 'commander-ruling', target: commanderRulingTarget };
+  }
+
   for (const relocation of input.relocations) {
     if (!relocation.fuelled || input.relocationChoices[relocation.craftId] !== undefined) continue;
     return { kind: 'relocation', actorUid: relocation.holderUid, craftId: relocation.craftId };
@@ -71,8 +77,5 @@ export function nextWolfBoardingStage(input: WolfBoardingProtocolInput): WolfBoa
     }
   }
 
-  if (input.commanderRulingRequiredTarget && input.commanderRuling === undefined) {
-    return { kind: 'commander-ruling', target: input.commanderRulingRequiredTarget };
-  }
   return { kind: 'complete' };
 }

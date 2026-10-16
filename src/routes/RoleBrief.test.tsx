@@ -494,7 +494,7 @@ it.each(['role-revoked', 'session-mismatch', 'awaiting-re-role'] as const)(
   },
 );
 
-it('states the Warrior Salvage Drones trigger while the damage ledger is unavailable', () => {
+it('states the Warrior Salvage Drones prerequisites without offering a roll without current authority', () => {
   useSessionStore.getState().setMe({
     ...useSessionStore.getState().me!,
     assignedRoleId: null,
@@ -519,7 +519,7 @@ it('states the Warrior Salvage Drones trigger while the damage ledger is unavail
   const workspace = screen.getByRole('region', { name: 'Warrior Captain workspace' });
   expect(within(workspace).getByRole('heading', { name: 'Salvage Drones' })).toBeVisible();
   expect(within(workspace).getByText(/after an attack, when charged, roll once for each damage/i)).toBeVisible();
-  expect(within(workspace).getByText(/attack damage tracking and salvage rolls are not available yet/i)).toBeVisible();
+  expect(within(workspace).getByText(/live aftermath controls appear below after a resolved attack when Warrior has a current Salvage Drones charge/i)).toBeVisible();
   expect(screen.queryByRole('button', { name: /roll|salvage|award/i })).not.toBeInTheDocument();
 });
 

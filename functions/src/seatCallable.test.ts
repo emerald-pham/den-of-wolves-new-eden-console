@@ -68,8 +68,13 @@ const mock = vi.hoisted(() => {
   });
   const remove = vi.fn((target: Ref) => { documents.delete(target.path); });
   let transactionTail: Promise<void> = Promise.resolve();
-  const runTransaction = vi.fn((callback: (tx: unknown) => unknown) => {
-    const run = transactionTail.then(() => callback({ get, update, set, delete: remove }));
+  const runTransaction = vi.fn((callback: (tx: unknown) => unknown, options?: { readOnly: boolean }) => {
+    const rejectReadOnlyWrite = () => { throw new Error('Read-only seat replay cannot mutate authority.'); };
+    const run = transactionTail.then(() => callback({ get,
+      update: options?.readOnly ? rejectReadOnlyWrite : update,
+      set: options?.readOnly ? rejectReadOnlyWrite : set,
+      delete: options?.readOnly ? rejectReadOnlyWrite : remove,
+    }));
     transactionTail = run.then(() => undefined, () => undefined);
     return run;
   });
@@ -112,13 +117,14 @@ vi.mock('firebase-functions/v2/https', () => ({
       super(message);
     }
   },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
 }));
 
 import { claimSeat, releaseSeat } from './index';
+import { recommendedRoleIds } from './roleConfiguration';
 
 function put(path: string, fields: StoredDocument) {
   mock.documents.set(path, { ...fields });
@@ -169,6 +175,97 @@ beforeEach(() => {
 });
 
 describe('claimSeat', () => {
+  it('uses only read-only transactions for twenty original active-game receipt retries', async () => {
+    const roles = recommendedRoleIds(20);
+    put('sessions/s1', { phase: 'lobby', currentTurn: 0, configurationLocked: false,
+      setupRevision: 0, activeRoleIds: roles });
+    const commands = [];
+    for (const [index, roleId] of roles.entries()) {
+      const uid = `core-${index}`;
+      player(uid, { assignedRoleId: roleId, connectionGeneration: 7,
+        lastSeenAt: Timestamp.fromMillis(Date.now()) });
+      seat(roleId);
+      const command = { sessionId: 's1', seatId: roleId,
+        requestId: `original-core-claim-${index}`, expectedSetupRevision: index };
+      await expect(claimSeat.run(request(command, uid))).resolves.toMatchObject({ status: 'committed' });
+      commands.push({ command, uid, roleId });
+    }
+    put('sessions/s1', { ...read('sessions/s1'), phase: 'active', currentTurn: 1 });
+    mock.db.runTransaction.mockClear();
+    mock.update.mockClear();
+    mock.set.mockClear();
+    mock.remove.mockClear();
+
+    const replies = await Promise.all(commands.map(({ command, uid }) => claimSeat.run(request(command, uid))));
+    expect(replies).toHaveLength(20);
+    for (const [index, { uid, roleId }] of commands.entries()) {
+      expect(replies[index]).toMatchObject({ status: 'replayed', holderUid: uid, seatId: roleId });
+      expect(read(`sessions/s1/players/${uid}`)).toMatchObject({ connectionGeneration: 7, seatId: roleId });
+      expect(read(`sessions/s1/seats/${roleId}`)).toMatchObject({ status: 'claimed', holderUid: uid });
+    }
+    expect(mock.db.runTransaction).toHaveBeenCalledTimes(20);
+    for (const call of mock.db.runTransaction.mock.calls) {
+      expect(call[1]).toEqual({ readOnly: true });
+    }
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.remove).not.toHaveBeenCalled();
+  });
+
+  it('does not turn missing receipts into read-only seat mutations', async () => {
+    player('u1', { connectionGeneration: 4, lastSeenAt: Timestamp.fromMillis(Date.now()) });
+    seat('seat-1');
+    const command = { sessionId: 's1', seatId: 'seat-1', requestId: 'new-after-read-probe', expectedSetupRevision: 0 };
+    mock.db.runTransaction.mockClear();
+    await expect(claimSeat.run(request(command))).resolves.toMatchObject({ status: 'committed' });
+    expect(mock.db.runTransaction.mock.calls.some(call => call[1]?.readOnly === true)).toBe(true);
+    expect(mock.db.runTransaction.mock.calls.some(call => call[1]?.readOnly !== true)).toBe(true);
+    expect(read('sessions/s1/players/u1')).toMatchObject({ seatId: 'seat-1', connectionGeneration: 4 });
+    expect(read('sessions/s1/seats/seat-1')).toMatchObject({ status: 'claimed', holderUid: 'u1' });
+  });
+
+  it('read-only replay still rejects current kicked, disconnected, expired and GM authority', async () => {
+    player('u1', { connectionGeneration: 9, lastSeenAt: Timestamp.fromMillis(Date.now()) });
+    seat('seat-1');
+    const command = { sessionId: 's1', seatId: 'seat-1', requestId: 'live-replay-authority', expectedSetupRevision: 0 };
+    await claimSeat.run(request(command));
+    const current = { ...read('sessions/s1/players/u1') };
+    for (const revoked of [
+      { kickedAt: Timestamp.fromMillis(Date.now()) },
+      { connected: false },
+      { lastSeenAt: Timestamp.fromMillis(Date.now() - 45_001) },
+      { role: 'gm' },
+    ]) {
+      put('sessions/s1/players/u1', { ...current, ...revoked });
+      mock.db.runTransaction.mockClear();
+      mock.update.mockClear();
+      mock.set.mockClear();
+      await expect(claimSeat.run(request(command))).rejects.toMatchObject({ code: 'permission-denied' });
+      expect(mock.db.runTransaction).toHaveBeenCalledTimes(1);
+      expect(mock.db.runTransaction.mock.calls[0]?.[1]).toEqual({ readOnly: true });
+      expect(mock.update).not.toHaveBeenCalled();
+      expect(mock.set).not.toHaveBeenCalled();
+      expect(read('sessions/s1/players/u1')?.connectionGeneration).toBe(9);
+    }
+  });
+
+  it('read-only replay retains actor, payload and foreign legacy namespace conflicts', async () => {
+    player('u1', { lastSeenAt: Timestamp.fromMillis(Date.now()) });
+    player('u2', { lastSeenAt: Timestamp.fromMillis(Date.now()) });
+    seat('seat-1');
+    const command = { sessionId: 's1', seatId: 'seat-1', requestId: 'bound-readonly-replay', expectedSetupRevision: 0 };
+    await claimSeat.run(request(command));
+    mock.update.mockClear();
+    mock.set.mockClear();
+    await expect(claimSeat.run(request(command, 'u2'))).rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(claimSeat.run(request({ ...command, expectedSetupRevision: 1 })))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    put('sessions/s1/setupMutationRequests/bound-readonly-replay', { actorUid: 'u1' });
+    await expect(claimSeat.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+  });
+
   it('rejects a GM claim before the first call without writing', async () => {
     player('u1', { role: 'gm' });
     seat('seat-1');

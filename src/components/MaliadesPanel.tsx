@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { findShip } from '@/data/ships';
-import { phaseForSession } from '@/lib/turnPhase';
+import { phaseForSession, turnPhaseDeadlinePassed } from '@/lib/turnPhase';
 import { hasFreshSessionAuthority } from '@/lib/sessionMutationAuthority';
 import { parseMaliadesSnapshot } from '@/lib/maliadesLedger';
 import { repairMaliades, type MaliadesRepairStaleReply } from '@/lib/maliadesService';
@@ -62,9 +62,8 @@ function liveTeamPhase(session: GameSession): boolean {
   const cycle = session.currentTurn;
   const phase = phaseForSession(session);
   if (!phase || !Number.isSafeInteger(cycle) || (cycle as number) < 1) return false;
-  const teamEnds = Date.parse(phase.teamPhaseEndsAt);
   return session.phase === 'active' && phase.turn === cycle && phase.airspace.state === 'restricted' && !phase.timerPause &&
-    Number.isFinite(teamEnds) && Date.now() < teamEnds;
+    !turnPhaseDeadlinePassed(phase, 'team');
 }
 
 function currentAuthorityMatches(binding: MaliadesAttemptAuthority): boolean {

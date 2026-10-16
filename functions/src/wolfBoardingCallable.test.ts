@@ -47,7 +47,7 @@ vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => testState.db,
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
 vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error { constructor(readonly code: string, message: string) { super(message); } },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 vi.mock('firebase-functions/v2/firestore', () => ({ onDocumentWritten: (_path: string, handler: (event: unknown) => unknown) => ({ run: handler }) }));
 vi.mock('firebase-functions/v2/scheduler', () => ({ onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }) }));
@@ -233,6 +233,36 @@ async function special(uid: string, choice: Fields, requestId: string, instanceI
   const result = await commitWolfBoardingSpecialChoice.run(request(payload, uid));
   return { uid, payload, result };
 }
+
+it('holds Commander-led boarding in the actual GM consequence stage before other boarding choices proceed', async () => {
+  completeBoardingFixture();
+  put(`${sessionPath}/players/gm-1`, { uid: 'gm-1', role: 'gm', connected: true });
+  put(`${sessionPath}/gmInstances/gm-instance`, { uid: 'gm-1', connected: true, lastSeenAt: new Date() });
+
+  await special('commander-1', { kind: 'commander', targetShipId: 'aegis' }, 'house-rule-commander-request');
+
+  const gmView = await getWolfBoardingSpecialChoice.run(request({ sessionId: 's1', instanceId: 'gm-instance' }, 'gm-1'));
+  expect(gmView).toMatchObject({ choice: {
+    kind: 'commander-ruling', targetShipId: 'aegis',
+    condition: expect.stringMatching(/house rule.*live GM.*no automatic consequence/i),
+  } });
+  await expect(getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'commander-1')))
+    .resolves.toMatchObject({ type: 'wolf-boarding-special-choice-unavailable' });
+
+  const rulingPayload = { sessionId: 's1', requestId: 'house-rule-live-gm-ruling', expectedTurn: 1,
+    expectedRevision: fields(attackPath).revision, instanceId: 'gm-instance',
+    choice: { kind: 'commander-ruling', targetShipId: 'aegis',
+      rulingText: 'The facilitator records the chosen consequence.' } };
+  await expect(commitWolfBoardingSpecialChoice.run(request(rulingPayload, 'another-gm')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  const recorded = await commitWolfBoardingSpecialChoice.run(request(rulingPayload, 'gm-1'));
+  expect(recorded).toMatchObject({ status: 'committed', choiceKind: 'commander-ruling' });
+  expect(fields(attackPath)).toMatchObject({
+    boardingCommanderRuling: { targetShipId: 'aegis', text: 'The facilitator records the chosen consequence.', actorUid: 'gm-1' },
+  });
+  await expect(getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'xo-1')))
+    .resolves.toMatchObject({ choice: { kind: 'relocation', craftId: 'pallas' } });
+});
 async function skipCommanderAndRelocation() {
   await special('commander-1', { kind: 'commander', targetShipId: null }, 'review-no-commander');
   const view = await getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'xo-1'));
@@ -247,6 +277,7 @@ async function crewDefence(securityTeams: number) {
 const specialCases = ['commander', 'relocation', 'militia', 'aegis-reroll', 'pallas-reroll', 'commander-ruling'] as const;
 async function commitSpecialFixture(kind: typeof specialCases[number]) {
   completeBoardingFixture();
+  let committedCommanderRuling: Awaited<ReturnType<typeof special>> | undefined;
   if (kind === 'commander') return special('commander-1', { kind: 'commander', targetShipId: 'aegis' }, 'review-commander');
   if (kind === 'relocation') {
     await special('commander-1', { kind: 'commander', targetShipId: null }, 'review-no-commander');
@@ -256,6 +287,10 @@ async function commitSpecialFixture(kind: typeof specialCases[number]) {
   if (kind === 'commander-ruling') {
     patch(sessionPath, { shipResources: { aegis: { securityTeams: 22 } } });
     await special('commander-1', { kind: 'commander', targetShipId: 'aegis' }, 'review-commander');
+    put(`${sessionPath}/players/gm-1`, { uid: 'gm-1', role: 'gm', connected: true });
+    put(`${sessionPath}/gmInstances/gm-instance`, { uid: 'gm-1', connected: true, lastSeenAt: new Date() });
+    committedCommanderRuling = await special('gm-1', { kind: 'commander-ruling', targetShipId: 'aegis',
+      rulingText: 'Explicit current ruling.' }, 'review-commander-ruling', 'gm-instance');
     await special('xo-1', { kind: 'relocation', craftId: 'pallas', targetShipId: null,
       expectedControlRevision: 0 }, 'review-no-relocation');
     await crewDefence(22);
@@ -273,7 +308,8 @@ async function commitSpecialFixture(kind: typeof specialCases[number]) {
   const pallas = await special('xo-1', { kind: 'reroll', source: 'pallas', targetShipId: 'aegis',
     dieIndexes: kind === 'pallas-reroll' ? [0] : [] }, 'review-pallas-reroll');
   if (kind === 'pallas-reroll') return pallas;
-  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  if (!committedCommanderRuling) await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  if (committedCommanderRuling) return committedCommanderRuling;
   put(`${sessionPath}/players/gm-1`, { uid: 'gm-1', role: 'gm', connected: true });
   put(`${sessionPath}/gmInstances/gm-instance`, { uid: 'gm-1', connected: true, lastSeenAt: new Date() });
   return special('gm-1', { kind: 'commander-ruling', targetShipId: 'aegis', rulingText: 'Explicit current ruling.' },
@@ -400,6 +436,10 @@ it.each([20, 21, 22])('R3 uses Commander-adjusted parties for the Militia bounda
   seatMilitia();
   patch(sessionPath, { shipResources: { aegis: { securityTeams: teams } } });
   await special('commander-1', { kind: 'commander', targetShipId: 'aegis' }, 'review-commander');
+  put(`${sessionPath}/players/gm-1`, { uid: 'gm-1', role: 'gm', connected: true });
+  put(`${sessionPath}/gmInstances/gm-instance`, { uid: 'gm-1', connected: true, lastSeenAt: new Date() });
+  await special('gm-1', { kind: 'commander-ruling', targetShipId: 'aegis',
+    rulingText: 'The facilitator records the consequence.' }, 'review-commander-ruling', 'gm-instance');
   await special('xo-1', { kind: 'relocation', craftId: 'pallas', targetShipId: null,
     expectedControlRevision: 0 }, 'review-no-relocation');
   await crewDefence(1);
@@ -409,6 +449,61 @@ it.each([20, 21, 22])('R3 uses Commander-adjusted parties for the Militia bounda
     militiaDoubleTeams: true, militiaFrontLineDice: 0 }, 'review-double-militia');
   if (teams < 22) await expect(commit()).resolves.toMatchObject({ result: { status: 'committed' } });
   else await expect(commit()).rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
+it.each([0, 1, 2])('R4 lets the current Militia Leader on AEGIS choose three extra dice with %i available teams', async teams => {
+  completeBoardingFixture();
+  seatMilitia();
+  patch(sessionPath, { shipResources: { aegis: { securityTeams: teams } } });
+  const militiaTargeting = resolveWolfTargeting({
+    ...firstTurnWolfAttackComposition(), shipIds: ['wolf-assault-transport'],
+  }, {}, undefined, () => 0);
+  const militiaRoster = wolfCombatRoster(militiaTargeting);
+  patch(attackPath, { combatRoster: militiaRoster,
+    calculationReceipt: { type: 'wolf-combat-calculation-stage', version: 1, turn: 1, step: 'targeting', targeting: militiaTargeting },
+    rangeReceipts: (fields(attackPath).rangeReceipts as Fields[]).map(receipt => ({ ...receipt,
+      targetSnapshot: militiaRoster.map(({ instanceId, target }) => ({ instanceId, target })) })) });
+  await skipCommanderAndRelocation();
+  await crewDefence(0);
+
+  const view = await getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'militia-1'));
+  expect(view).toMatchObject({ choice: { kind: 'militia', targetShipId: 'aegis', availableSecurityTeams: teams } });
+  await expect(getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'xo-1')))
+    .resolves.toMatchObject({ type: 'wolf-boarding-special-choice-unavailable', reason: 'not-your-choice' });
+
+  const beforeWrongActor = structuredClone([...testState.documents.values()]);
+  const drawsBeforeWrongActor = entropy.randomInt.mock.calls.length;
+  await expect(special('xo-1', { kind: 'militia', targetShipId: 'aegis',
+    militiaDoubleTeams: false, militiaFrontLineDice: 3 }, `review-wrong-militia-${teams}`))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  noAdditionalWrites(beforeWrongActor, drawsBeforeWrongActor);
+
+  const tooManyPayload = { sessionId: 's1', requestId: `review-four-militia-${teams}`, expectedTurn: 1,
+    expectedRevision: fields(attackPath).revision,
+    choice: { kind: 'militia', targetShipId: 'aegis', militiaDoubleTeams: false, militiaFrontLineDice: 4 } };
+  await expect(commitWolfBoardingSpecialChoice.run(request(tooManyPayload, 'militia-1')))
+    .rejects.toMatchObject({ code: 'invalid-argument' });
+
+  const committed = await special('militia-1', { kind: 'militia', targetShipId: 'aegis',
+    militiaDoubleTeams: false, militiaFrontLineDice: 3 }, `review-three-militia-${teams}`);
+  expect(view).toMatchObject({ choice: { maxFrontLineDice: 3 } });
+  expect(fields(attackPath)).toMatchObject({ boardingMilitiaChoices: { aegis: {
+    targetShipId: 'aegis', actorUid: 'militia-1', militiaFrontLineDice: 3,
+  } } });
+  const beforeReplay = structuredClone([...testState.documents.values()]);
+  const drawsBeforeReplay = entropy.randomInt.mock.calls.length;
+  await expect(commitWolfBoardingSpecialChoice.run(request(committed.payload, committed.uid)))
+    .resolves.toEqual(committed.result);
+  noAdditionalWrites(beforeReplay, drawsBeforeReplay);
+
+  entropy.randomInt.mockReturnValue(0);
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  await special('xo-1', { kind: 'reroll', source: 'aegis', targetShipId: 'aegis', dieIndexes: [] }, `review-eo-pass-${teams}`);
+  await special('xo-1', { kind: 'reroll', source: 'pallas', targetShipId: 'aegis', dieIndexes: [] }, `review-pallas-pass-${teams}`);
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect(fields(attackPath)).toMatchObject({ status: 'resolved', calculationReceipt: { boarding: [{
+    frontLineDice: 3, militiaLeaderKilled: true, securityCasualties: teams,
+  }] } });
 });
 
 async function militiaDeathFixture(frontLineDice = 1, rerollToSurvive = false, stopBeforeLock = false) {
@@ -445,6 +540,7 @@ it('R4 atomically consumes the committed front-line death through the existing r
   const militia = await militiaDeathFixture();
   const historicalLoyalty = structuredClone(fields(`${sessionPath}/secrets/loyalty-militia-1`));
   await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect([...testState.documents.values()].filter(value => value.type === 'player-removal')).toEqual([expect.objectContaining({ playerUid: 'militia-1', roleId: 'rosal-militia-leader', cause: 'boarding-death' })]);
   expect(fields(attackPath)).toMatchObject({ status: 'resolved', calculationReceipt: { boarding: [{ militiaLeaderKilled: true }] } });
   expect(fields(`${sessionPath}/players/militia-1`)).toMatchObject({ assignedRoleId: 'shepherd-scientist',
     replacementRoleId: null, replacementStatus: 'awaiting-re-role', activeConsoleRoleId: null, seatId: null });

@@ -7,15 +7,21 @@ export const ENGINEERING_DISMANTLING_CRAFT_IDS = [
 ] as const;
 
 export type EngineeringDismantlingCraftId = typeof ENGINEERING_DISMANTLING_CRAFT_IDS[number];
+export const MACAW_SCRAP_DISMANTLING_CRAFT_ID = 'macaw' as const;
+export const MACAW_CONSENTED_DISMANTLING_SCRAP_GAIN = 1;
+export type PermissionedDismantlingCraftId =
+  | EngineeringDismantlingCraftId
+  | typeof MACAW_SCRAP_DISMANTLING_CRAFT_ID;
 
 export const PERMISSIONED_DISMANTLING_MATERIAL_GAIN = 3;
 
 export interface PermissionedDismantlingProposal {
-  readonly craftId: string;
+  readonly craftId: PermissionedDismantlingCraftId;
   readonly targetShipId: string;
   readonly targetConsoleId: string;
   readonly targetRevision: number;
-  readonly materialGain: number;
+  readonly materialGain?: number;
+  readonly scrapGain?: number;
 }
 
 /**
@@ -32,10 +38,10 @@ export interface PermissionedDismantlingResult {
   readonly targetDamage: ShipDamageState;
   readonly targetResources: ShipResourceInventory;
   readonly consumedConsent: PermissionedDismantlingConsent;
+  readonly macawScrapAfter?: number;
 }
 
-const PROPOSAL_KEYS = ['craftId', 'targetShipId', 'targetConsoleId', 'targetRevision', 'materialGain'];
-const CONSENT_KEYS = [...PROPOSAL_KEYS, 'id', 'status', 'actorUid'];
+const PROPOSAL_BASE_KEYS = ['craftId', 'targetShipId', 'targetConsoleId', 'targetRevision'];
 const RESOURCE_KEYS = ['ore', 'fuel', 'food', 'water', 'materials', 'securityTeams', 'scrap'];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -54,12 +60,42 @@ function isEngineeringDismantlingCraftId(value: string): value is EngineeringDis
   return (ENGINEERING_DISMANTLING_CRAFT_IDS as readonly string[]).includes(value);
 }
 
+function proposalKeys(craftId: string): string[] {
+  return craftId === MACAW_SCRAP_DISMANTLING_CRAFT_ID
+    ? [...PROPOSAL_BASE_KEYS, 'scrapGain']
+    : [...PROPOSAL_BASE_KEYS, 'materialGain'];
+}
+
+function rewardConsentKeys(proposal: PermissionedDismantlingProposal): string[] {
+  return proposal.craftId === MACAW_SCRAP_DISMANTLING_CRAFT_ID
+    ? [...proposalKeys(proposal.craftId), 'id', 'status', 'actorUid']
+    : [...proposalKeys(proposal.craftId), 'id', 'status', 'actorUid'];
+}
+
 function requireProposal(value: unknown): PermissionedDismantlingProposal {
-  if (!isRecord(value) || !hasExactKeys(value, PROPOSAL_KEYS) ||
-      typeof value.craftId !== 'string' || !isEngineeringDismantlingCraftId(value.craftId) ||
+  if (!isRecord(value) || typeof value.craftId !== 'string' ||
+      !(isEngineeringDismantlingCraftId(value.craftId) || value.craftId === MACAW_SCRAP_DISMANTLING_CRAFT_ID) ||
+      !hasExactKeys(value, proposalKeys(value.craftId)) ||
       typeof value.targetShipId !== 'string' || !Object.prototype.hasOwnProperty.call(SHIP_DAMAGE_DECKS, value.targetShipId) ||
-      typeof value.targetConsoleId !== 'string' || !safeNonNegativeInteger(value.targetRevision) ||
-      value.materialGain !== PERMISSIONED_DISMANTLING_MATERIAL_GAIN) {
+      typeof value.targetConsoleId !== 'string' || !safeNonNegativeInteger(value.targetRevision)) {
+    throw new Error('Permissioned dismantling proposal is malformed or outside its printed craft and material rules.');
+  }
+  if (value.craftId === MACAW_SCRAP_DISMANTLING_CRAFT_ID) {
+    if (value.targetShipId === 'capybara') {
+      throw new Error('The Macaw-to-Capybara self-target requires a facilitator ruling before it can be enabled.');
+    }
+    if (value.scrapGain !== MACAW_CONSENTED_DISMANTLING_SCRAP_GAIN) {
+      throw new Error('Macaw dismantling has a fixed one-Scrap gain.');
+    }
+    return {
+      craftId: value.craftId,
+      targetShipId: value.targetShipId,
+      targetConsoleId: value.targetConsoleId,
+      targetRevision: value.targetRevision,
+      scrapGain: MACAW_CONSENTED_DISMANTLING_SCRAP_GAIN,
+    };
+  }
+  if (value.materialGain !== PERMISSIONED_DISMANTLING_MATERIAL_GAIN) {
     throw new Error('Permissioned dismantling proposal is malformed or outside its printed craft and material rules.');
   }
   return {
@@ -76,7 +112,8 @@ function requireConsent(
   proposal: PermissionedDismantlingProposal,
   activeTargetShipPlayerUids: readonly string[],
 ): PermissionedDismantlingConsent {
-  if (!isRecord(value) || !hasExactKeys(value, CONSENT_KEYS) || value.status !== 'granted' ||
+  const consentKeys = [...rewardConsentKeys(proposal)];
+  if (!isRecord(value) || !hasExactKeys(value, consentKeys) || value.status !== 'granted' ||
       typeof value.id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(value.id) ||
       typeof value.actorUid !== 'string' || value.actorUid.length === 0) {
     throw new Error('A current, unused target-ship consent is required before dismantling.');
@@ -86,7 +123,9 @@ function requireConsent(
   }
   if (value.craftId !== proposal.craftId || value.targetShipId !== proposal.targetShipId ||
       value.targetConsoleId !== proposal.targetConsoleId || value.targetRevision !== proposal.targetRevision ||
-      value.materialGain !== proposal.materialGain) {
+      (proposal.craftId === MACAW_SCRAP_DISMANTLING_CRAFT_ID
+        ? value.scrapGain !== proposal.scrapGain
+        : value.materialGain !== proposal.materialGain)) {
     throw new Error('The consent receipt does not match the proposed action.');
   }
   return {
@@ -97,7 +136,9 @@ function requireConsent(
     targetShipId: proposal.targetShipId,
     targetConsoleId: proposal.targetConsoleId,
     targetRevision: proposal.targetRevision,
-    materialGain: proposal.materialGain,
+    ...(proposal.craftId === MACAW_SCRAP_DISMANTLING_CRAFT_ID
+      ? { scrapGain: proposal.scrapGain }
+      : { materialGain: proposal.materialGain }),
   };
 }
 
@@ -140,6 +181,7 @@ export function resolvePermissionedDismantling(input: Readonly<{
   currentTargetRevision: number;
   targetDamage: unknown;
   targetResources: unknown;
+  macawScrap?: unknown;
 }>): PermissionedDismantlingResult {
   const proposal = requireProposal(input.proposal);
   if (!safeNonNegativeInteger(input.currentTargetRevision) ||
@@ -154,7 +196,13 @@ export function resolvePermissionedDismantling(input: Readonly<{
     throw new Error('Choose one eligible, undamaged console on the target ship.');
   }
   const targetResources = requireTargetResources(input.targetResources);
-  if (targetResources.materials > Number.MAX_SAFE_INTEGER - proposal.materialGain) {
+  const isMacaw = proposal.craftId === MACAW_SCRAP_DISMANTLING_CRAFT_ID;
+  const currentMacawScrap = isMacaw ? input.macawScrap : undefined;
+  if (isMacaw && (!safeNonNegativeInteger(currentMacawScrap) ||
+      currentMacawScrap > Number.MAX_SAFE_INTEGER - MACAW_CONSENTED_DISMANTLING_SCRAP_GAIN)) {
+    throw new Error('The Capybara Scrap ledger is unavailable or cannot safely receive the one-Scrap gain.');
+  }
+  if (!isMacaw && targetResources.materials > Number.MAX_SAFE_INTEGER - PERMISSIONED_DISMANTLING_MATERIAL_GAIN) {
     throw new Error('The target ship cannot safely receive the dismantling material gain.');
   }
 
@@ -163,10 +211,10 @@ export function resolvePermissionedDismantling(input: Readonly<{
       damagedSystemIds: [...targetDamage.damagedSystemIds, targetConsole.systemId],
       destroyed: false,
     },
-    targetResources: {
-      ...targetResources,
-      materials: targetResources.materials + proposal.materialGain,
-    },
+    targetResources: isMacaw
+      ? targetResources
+      : { ...targetResources, materials: targetResources.materials + PERMISSIONED_DISMANTLING_MATERIAL_GAIN },
     consumedConsent: { ...consent, status: 'consumed' },
+    ...(isMacaw ? { macawScrapAfter: currentMacawScrap as number + MACAW_CONSENTED_DISMANTLING_SCRAP_GAIN } : {}),
   };
 }

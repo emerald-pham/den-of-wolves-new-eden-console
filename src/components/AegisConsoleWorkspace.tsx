@@ -21,6 +21,7 @@ import { useConsoleAccess } from '@/lib/consoleAccess';
 import { phaseForSession } from '@/lib/turnPhase';
 import { buildFighter as buildFighterAction } from '@/lib/sessionService';
 import AdmiralDirectiveWorkspace from './AdmiralDirectives';
+import AegisFighterWingExchangePanel from './AegisFighterWingExchangePanel';
 
 interface Props {
   readonly roleId: string | undefined;
@@ -152,6 +153,37 @@ function liveStateLabel(
   return 'Awaiting live server state';
 }
 
+function fighterBuildGuidance({ hasServerSnapshot, connection, writable, constructionTurnAvailable,
+  teamPhaseAvailable, constructionBayDamaged, constructionBayCharged, maintenance,
+  fighterWingCount, capacity, materials }: {
+  readonly hasServerSnapshot: boolean;
+  readonly connection: 'idle' | 'connecting' | 'live' | 'offline';
+  readonly writable: boolean;
+  readonly constructionTurnAvailable: boolean;
+  readonly teamPhaseAvailable: boolean;
+  readonly constructionBayDamaged: boolean | null;
+  readonly constructionBayCharged: boolean;
+  readonly maintenance: MaintenanceCycle | undefined;
+  readonly fighterWingCount: { readonly count: number; readonly revision: number } | undefined;
+  readonly capacity: number;
+  readonly materials: number | undefined;
+}): string {
+  if (!hasServerSnapshot) return 'Build unavailable // awaiting live server state. Next actor // Wing Commander reconnects for the current build state.';
+  if (connection !== 'live') return 'Build unavailable // reconnect required. Next actor // Wing Commander restores the live connection.';
+  if (!writable) return 'Build unavailable // read-only view. Next actor // the current entitled console actor uses their own console; a GM observer needs explicit Write access.';
+  if (!constructionTurnAvailable) return 'Build unavailable // Cycle 1 required. Next actor // GM completes the normal start.';
+  if (!teamPhaseAvailable) return 'Build unavailable // Team Phase required. Next actor // Wing Commander waits for Team Phase; GM controls cycle advancement.';
+  if (constructionBayDamaged === null) return 'Build unavailable // awaiting Construction Bay state. Next actor // Wing Commander waits for the current server state.';
+  if (constructionBayDamaged) return 'Build unavailable // Construction Bay damaged. Next actor // AEGIS Admiral or Executive Officer coordinates its repair.';
+  if (!maintenance) return 'Build unavailable // Construction Bay charge state unavailable. Next actor // AEGIS Admiral or Executive Officer uses the current maintenance cycle.';
+  if (!constructionBayCharged) return 'Build unavailable // Construction Bay not charged. Next actor // AEGIS Admiral or Executive Officer charges it through maintenance.';
+  if (!fighterWingCount) return 'Build unavailable // fighter strength is not published. Next actor // Wing Commander waits for the current server strength.';
+  if (fighterWingCount.count >= capacity) return `Build unavailable // wing at capacity (${capacity} fighters). Next actor // Wing Commander waits for space in this wing.`;
+  if (materials === undefined) return 'Build unavailable // construction materials are not published. Next actor // Wing Commander waits for the current server resource state.';
+  if (materials < 1) return 'Build unavailable // 1 material required. Next actor // AEGIS crew obtains construction materials, then the Wing Commander builds.';
+  return `${materials} material${materials === 1 ? '' : 's'} available. Next actor // Wing Commander builds one fighter for one material.`;
+}
+
 export function FighterWingCard({
   craft,
   authoritativeDamage,
@@ -165,6 +197,7 @@ export function FighterWingCard({
   maintenance,
   snapshotLabel,
   fighterCapacity,
+  buildGuidance,
 }: {
   readonly craft: AegisCraft;
   readonly authoritativeDamage: ShipDamageState | undefined;
@@ -178,6 +211,7 @@ export function FighterWingCard({
   readonly maintenance: MaintenanceCycle | undefined;
   readonly snapshotLabel: string;
   readonly fighterCapacity: { readonly standard: number; readonly upgraded: number };
+  readonly buildGuidance?: string;
 }) {
   const baySystem = craft.launchSystemId
     ? AEGIS_FIGHTER_BAY_SYSTEMS[craft.launchSystemId]
@@ -235,7 +269,7 @@ export function FighterWingCard({
           : 'Unavailable // awaiting live resource state'}</dd></div>
       </dl>
       <div className="aegis-craft__construction-action">
-        <p>{buildLabel}</p>
+        <p>{buildGuidance ?? buildLabel}</p>
         <button className="cic-action-button" type="button" disabled={!canBuild || buildPending}
           aria-busy={buildPending}
           onClick={onBuild}>
@@ -389,51 +423,61 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
         knownSystems={knownSystems}
         consoleLocked={consoleLocked}
       /> : page === 'flight' ? (
-        <div className="aegis-craft-grid">
-          <article className="aegis-craft aegis-craft--starlight cic-frame">
-            <p>Exploration shuttle // Airspace open</p>
-            <h3>{starlight.name}</h3>
-            <dl>
-              <div><dt>Scouting envelope</dt><dd>One system within {console.scoutRange} jumps of AEGIS</dd></div>
-              <div><dt>Fuelled sortie</dt><dd>Scout a second system</dd></div>
-              <div><dt>Away mission</dt><dd>Explore +{console.awayMissionBonus.explore} // Salvage +{console.awayMissionBonus.salvage}</dd></div>
-              <div><dt>Fuel state</dt><dd>Tracked at the console</dd></div>
-            </dl>
-            <Link className="cic-text-button" to={`/shuttles/${starlight.id}`}
-              aria-label="Open Starlight shuttle console">
-              Open shuttle console
-            </Link>
-          </article>
-          {console.craft.slice(1).map((craft) => (
-            <FighterWingCard
-              key={craft.id}
-              craft={craft}
-              authoritativeDamage={authoritativeDamage}
-              constructionBayUpgraded={constructionBayUpgraded}
-              fighterWingCount={craft.fighterWing ? fighterWingCounts?.[craft.fighterWing.countId] : undefined}
-              materials={resources?.materials}
-              canBuild={Boolean(
-                access.writable && connection === 'live' && hasServerSnapshot &&
-                constructionBayCharged && constructionBayDamaged === false && teamPhaseAvailable &&
-                constructionTurnAvailable && craft.fighterWing &&
-                fighterWingCounts?.[craft.fighterWing.countId] &&
-                fighterWingCounts[craft.fighterWing.countId]!.count <
-                  (constructionBayUpgraded ? craft.fighterWing.capacity.upgraded : craft.fighterWing.capacity.standard) &&
-                (resources?.materials ?? 0) >= 1,
-              )}
-              buildPending={buildingWing === craft.fighterWing?.countId}
-              onBuild={() => {
-                if (!craft.fighterWing || buildingWing !== null) return;
-                setBuildingWing(craft.fighterWing.countId);
-                void buildFighterAction(craft.fighterWing.countId).finally(() => setBuildingWing(null));
-              }}
-              hasServerSnapshot={hasServerSnapshot}
-              maintenance={maintenance}
-              snapshotLabel={snapshotLabel}
-              fighterCapacity={craft.fighterWing?.capacity ?? console.fighterCapacity}
-            />
-          ))}
-        </div>
+        <>
+          <div className="aegis-craft-grid">
+            <article className="aegis-craft aegis-craft--starlight cic-frame">
+              <p>Exploration shuttle // Airspace open</p>
+              <h3>{starlight.name}</h3>
+              <dl>
+                <div><dt>Scouting envelope</dt><dd>One system within {console.scoutRange} jumps of AEGIS</dd></div>
+                <div><dt>Fuelled sortie</dt><dd>Scout a second system</dd></div>
+                <div><dt>Away mission</dt><dd>Explore +{console.awayMissionBonus.explore} // Salvage +{console.awayMissionBonus.salvage}</dd></div>
+                <div><dt>Fuel state</dt><dd>Tracked at the console</dd></div>
+              </dl>
+              <Link className="cic-text-button" to={`/shuttles/${starlight.id}`}
+                aria-label="Open Starlight shuttle console">
+                Open shuttle console
+              </Link>
+            </article>
+            {console.craft.slice(1).map((craft) => (
+              <FighterWingCard
+                key={craft.id}
+                craft={craft}
+                authoritativeDamage={authoritativeDamage}
+                constructionBayUpgraded={constructionBayUpgraded}
+                fighterWingCount={craft.fighterWing ? fighterWingCounts?.[craft.fighterWing.countId] : undefined}
+                materials={resources?.materials}
+                canBuild={Boolean(
+                  access.writable && connection === 'live' && hasServerSnapshot &&
+                  constructionBayCharged && constructionBayDamaged === false && teamPhaseAvailable &&
+                  constructionTurnAvailable && craft.fighterWing &&
+                  fighterWingCounts?.[craft.fighterWing.countId] &&
+                  fighterWingCounts[craft.fighterWing.countId]!.count <
+                    (constructionBayUpgraded ? craft.fighterWing.capacity.upgraded : craft.fighterWing.capacity.standard) &&
+                  (resources?.materials ?? 0) >= 1,
+                )}
+                buildPending={buildingWing === craft.fighterWing?.countId}
+                onBuild={() => {
+                  if (!craft.fighterWing || buildingWing !== null) return;
+                  setBuildingWing(craft.fighterWing.countId);
+                  void buildFighterAction(craft.fighterWing.countId).finally(() => setBuildingWing(null));
+                }}
+                hasServerSnapshot={hasServerSnapshot}
+                maintenance={maintenance}
+                snapshotLabel={snapshotLabel}
+                fighterCapacity={craft.fighterWing?.capacity ?? console.fighterCapacity}
+                buildGuidance={fighterBuildGuidance({ hasServerSnapshot, connection, writable: access.writable,
+                  constructionTurnAvailable, teamPhaseAvailable, constructionBayDamaged, constructionBayCharged,
+                  maintenance, fighterWingCount: craft.fighterWing ? fighterWingCounts?.[craft.fighterWing.countId] : undefined,
+                  capacity: constructionBayUpgraded
+                    ? (craft.fighterWing?.capacity ?? console.fighterCapacity).upgraded
+                    : (craft.fighterWing?.capacity ?? console.fighterCapacity).standard,
+                  materials: resources?.materials })}
+              />
+            ))}
+          </div>
+          <AegisFighterWingExchangePanel />
+        </>
       ) : (
         <div className="aegis-combat-grid">
           <article className="aegis-doctrine cic-frame">

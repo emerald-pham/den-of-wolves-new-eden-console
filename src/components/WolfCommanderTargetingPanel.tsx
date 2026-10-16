@@ -62,7 +62,7 @@ export function WolfCommanderTargetingPanelView({
         <span className="wolf-commander-panel__revision">Cycle {view.turn} // Rev {view.revision}</span>
       </header>
       <p className="wolf-commander-panel__guidance">
-        Choose each die at most once. Rerolls resolve before AEGIS Command and Control; printed Capybara 8 rerolls are automatic and separate.
+        HOUSE RULE: Nonparticipating target results are rerolled into a participating target. Choose each die at most once; Commander rerolls resolve before AEGIS Command and Control. Printed Capybara d8 face 8 rerolls remain automatic and separate.
       </p>
       <fieldset className="wolf-commander-panel__dice" disabled={busy || view.rerollsFinalized}>
         <legend>Choose targeting dice to reroll</legend>

@@ -1,4 +1,5 @@
 import { httpsCallable } from 'firebase/functions';
+import type { ResourceId } from '@/data/resources';
 import { functions } from './firebase';
 import { requireFreshSessionAuthority } from './sessionMutationAuthority';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -34,6 +35,28 @@ export interface WolfHomingBeaconReply {
   readonly suspicion: number;
 }
 
+export interface WolfSupplySabotageReply {
+  readonly status: 'committed';
+  readonly type: 'wolf-supply-sabotage';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly cycle: number;
+  readonly revision: number;
+  readonly coverRoleId: string;
+  readonly shuttleId: string;
+  readonly resourceId: ResourceId;
+  readonly destroyedAmount: number;
+  readonly remainingAmount: number;
+  readonly suspicion: number;
+  readonly actorUid: string;
+  readonly actorRoleId: string | null;
+  readonly vesselId: string;
+  readonly turn: number;
+  readonly phase: string;
+  readonly idempotencyKey: string;
+  readonly auditId: string;
+}
+
 /** Schedule next-cycle pressure at the current server-owned fleet system. */
 export async function submitWolfHomingBeacon(
   requestId = commandId(),
@@ -55,6 +78,36 @@ export async function submitWolfHomingBeacon(
     sessionId: session.id,
     requestId,
     expectedCycle: session.currentTurn as number,
+  });
+  return response.data;
+}
+
+/** Request the server-owned half-loss calculation for one cover-role shuttle resource. */
+export async function submitWolfSupplySabotage(
+  shuttleId: string,
+  resourceId: ResourceId,
+  requestId = commandId(),
+): Promise<WolfSupplySabotageReply> {
+  const { session, privateLoyalty } = useSessionStore.getState();
+  if (!session) throw new Error('Reconnect before sabotaging shuttle supplies.');
+  if (session.phase !== 'active' || !Number.isSafeInteger(session.currentTurn) ||
+      (session.currentTurn as number) < 1) {
+    throw new Error('Supply sabotage is available only during an active cycle.');
+  }
+  if (privateLoyalty?.kind !== 'wolf-agent' && privateLoyalty?.kind !== 'wolf-cult') {
+    throw new Error('Only a Wolf holder can sabotage shuttle supplies.');
+  }
+  requireFreshSessionAuthority();
+  const call = httpsCallable<{
+    sessionId: string; requestId: string; expectedCycle: number;
+    shuttleId: string; resourceId: ResourceId;
+  }, WolfSupplySabotageReply>(functions(), 'submitWolfSupplySabotage');
+  const response = await call({
+    sessionId: session.id,
+    requestId,
+    expectedCycle: session.currentTurn as number,
+    shuttleId,
+    resourceId,
   });
   return response.data;
 }

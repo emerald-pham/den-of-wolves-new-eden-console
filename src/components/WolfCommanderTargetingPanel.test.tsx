@@ -74,6 +74,7 @@ it('shows current dice, keeps used dice disabled, and submits only selected inde
   render(<WolfCommanderTargetingPanel />);
 
   expect(await screen.findByRole('heading', { name: 'Targeting dice' })).toBeVisible();
+  expect(screen.getByText(/HOUSE RULE.*nonparticipating target results are rerolled/i)).toBeVisible();
   expect(screen.getByText('Die 2 // Dione')).toBeVisible();
   expect(screen.getByText('Die 5 // Shepherd')).toBeVisible();
   const checkboxes = screen.getAllByRole('checkbox');

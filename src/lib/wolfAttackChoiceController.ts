@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeWolfAttackMemberView } from '@/lib/firestore';
 import { useSessionStore } from '@/store/useSessionStore';
+import { captureSessionAuthority, isCurrentSessionAuthority, type SessionAuthorityCheckpoint } from './sessionMutationAuthority';
 import type { GameSession, GmInstance, Player, WolfAttackMemberView } from '@/types/game';
 
 export type WolfAttackChoiceActor =
-  | 'gorgoneion-captain' | 'wolf-commander' | 'executive-officer' | 'wing-commander' | 'ship-crew' | 'facilitator';
+  | 'gorgoneion-captain' | 'vulcan-captain' | 'wolf-commander' | 'executive-officer' | 'wing-commander' | 'ship-crew' | 'facilitator';
 
 export interface WolfAttackChoiceAuthority {
   readonly sessionId?: string;
@@ -40,6 +41,8 @@ function authorityFor(
     me.role === 'gm' && me.connected !== false && gmInstance?.sessionId === sessionId && gmInstance.uid === me.uid);
   const actorReady = actor === 'facilitator' ? baseFacilitatorActor : basePlayerActor && (actor === 'gorgoneion-captain'
     ? me?.replacementRoleId === 'gorgoneion-captain'
+    : actor === 'vulcan-captain'
+      ? me?.replacementRoleId === 'vulcan-captain' && me.activeConsoleRoleId === null && me.seatId === null
     : actor === 'wolf-commander'
       ? me?.replacementRoleId === 'wolf-commander'
       : actor === 'executive-officer'
@@ -48,15 +51,21 @@ function authorityFor(
           ? me?.activeConsoleRoleId === 'wing-commander'
           : true);
   const gorgoneion = session?.smallShipStates?.gorgoneion;
+  const vulcan = session?.smallShipStates?.vulcan;
   const discovery = session?.playerDiscovery;
   const key = JSON.stringify([
     actor, sessionId ?? null, session?.id ?? null, session?.phase ?? null, session?.currentTurn ?? null,
+    session?.turnState?.currentTurn ?? null, session?.turnState?.phase ?? null, session?.turnState?.phaseRevision ?? null,
+    session?.turnPhase?.turn ?? null, session?.turnPhase?.airspace.state ?? null,
+    session?.turnPhase?.airspace.pressAccess ?? null, session?.turnPhase?.timerPause ?? null,
+    session?.pursuitEmergencyWindow ?? null,
     me?.sessionId ?? null, me?.uid ?? null, me?.connectionGeneration ?? null, me?.role ?? null, me?.connected ?? null,
     me?.replacementRoleId ?? null, me?.replacementStatus ?? null, me?.assignedRoleId ?? null,
     me?.activeConsoleRoleId ?? null, me?.seatId ?? null, me?.fleetGroupId ?? null, identityRevision,
     gmInstance?.sessionId ?? null, gmInstance?.uid ?? null, gmInstance?.id ?? null,
     discovery?.groupId ?? null, discovery?.shipId ?? null, discovery?.revision ?? null,
     discovery?.fleetGroupVesselIds ?? [], gorgoneion?.hostShipId ?? null, gorgoneion?.dockingRevision ?? null,
+    ...(actor === 'vulcan-captain' ? [vulcan?.hostShipId ?? null, vulcan?.dockingRevision ?? null] : []),
     connection, freshness, online, enabled,
   ]);
   return {
@@ -190,10 +199,38 @@ export function useWolfAttackChoiceController<T>({
     let latestRequest = 0;
     let reading = false;
     let queuedMember: WolfAttackMemberView | null = null;
+    const recoveredCheckpoints = new Set<string>();
     const key = authority.key;
     const sessionId = authority.sessionId;
     const canContinue = () => live && activeAuthorityRef.current === key &&
       wolfAttackChoiceAuthorityIsCurrent(actor, key, sessionId, authority.enabled);
+
+    const discardSupersededRead = (
+      checkpoint: SessionAuthorityCheckpoint | undefined,
+      member: WolfAttackMemberView,
+      failureMessage?: string,
+    ): boolean => {
+      if (isCurrentSessionAuthority(checkpoint)) return false;
+      readRef.current = null;
+      setReadState(null);
+      const current = captureSessionAuthority(sessionId, useSessionStore.getState().me?.uid);
+      const memberKey = memberCheckpoint(member);
+      // An accepted resource/presence snapshot can invalidate a read while the
+      // same actor and attack window stay live. Discard it and read once more;
+      // further churn needs ordinary Refresh, never a cursor-driven read loop.
+      const recover = checkpoint && current && current.authority === checkpoint.authority &&
+        current.version > checkpoint.version && !recoveredCheckpoints.has(memberKey);
+      if (recover) {
+        recoveredCheckpoints.add(memberKey);
+        latestRequest += 1;
+        queuedMember = member;
+      }
+      setErrorState({ authorityKey: key, message: recover
+        ? 'The session changed. Checking the current server choice…'
+        : failureMessage ?? 'The session changed before this choice arrived. Refresh the current choice.',
+      });
+      return true;
+    };
 
     const readLoop = async (): Promise<void> => {
       if (reading || (!refreshAfterMutation && mutationInFlightRef.current)) return;
@@ -202,6 +239,7 @@ export function useWolfAttackChoiceController<T>({
         const requestedMember = queuedMember;
         queuedMember = null;
         const requestNumber = latestRequest;
+        const sessionCheckpoint = captureSessionAuthority(sessionId, useSessionStore.getState().me?.uid);
         try {
           const value = await read();
           if (!canContinue() || requestNumber !== latestRequest || (!refreshAfterMutation && mutationInFlightRef.current) ||
@@ -209,6 +247,7 @@ export function useWolfAttackChoiceController<T>({
           const currentMember = memberRef.current;
           if (!currentMember || currentMember.authorityKey !== key ||
               memberCheckpoint(currentMember.member) !== memberCheckpoint(requestedMember)) continue;
+          if (discardSupersededRead(sessionCheckpoint, requestedMember)) continue;
           if (readMatches(value, requestedMember)) {
             const next = { authorityKey: key, memberCheckpoint: memberCheckpoint(requestedMember), value };
             readRef.current = next;
@@ -225,6 +264,8 @@ export function useWolfAttackChoiceController<T>({
           const currentMember = memberRef.current;
           if (!currentMember || currentMember.authorityKey !== key ||
               memberCheckpoint(currentMember.member) !== memberCheckpoint(requestedMember)) continue;
+          if (discardSupersededRead(sessionCheckpoint, requestedMember,
+            cause instanceof Error ? cause.message : readFailureMessage)) continue;
           readRef.current = null;
           setReadState(null);
           setErrorState({

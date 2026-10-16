@@ -32,6 +32,24 @@ service cloud.firestore {
       ).data.role == 'gm';
     }
 
+    // This session-wide predicate can authorize an unchanged owner query.
+    // Missing or malformed legacy administration never grants participant reads.
+    function isAwayMissionProjectionReady(sessionId) {
+      let session = get(/databases/$(database)/documents/sessions/$(sessionId)).data;
+      return 'awayMissionProjectionSafety' in session
+        && session.awayMissionProjectionSafety is map
+        && session.awayMissionProjectionSafety.keys().hasAll(['policyVersion', 'epoch', 'state', 'writeRevision'])
+        && session.awayMissionProjectionSafety.keys().hasOnly(['policyVersion', 'epoch', 'state', 'writeRevision'])
+        && session.awayMissionProjectionSafety.policyVersion == 1
+        && session.awayMissionProjectionSafety.epoch is int
+        && session.awayMissionProjectionSafety.epoch > 0
+        && session.awayMissionProjectionSafety.epoch <= 9007199254740991
+        && session.awayMissionProjectionSafety.state == 'ready'
+        && session.awayMissionProjectionSafety.writeRevision is int
+        && session.awayMissionProjectionSafety.writeRevision >= 0
+        && session.awayMissionProjectionSafety.writeRevision <= 9007199254740991;
+    }
+
     function isPressLogReader(sessionId) {
       let session = get(
         /databases/$(database)/documents/sessions/$(sessionId)
@@ -310,6 +328,125 @@ service cloud.firestore {
         && uid() in currentGroup.memberUids
         && (historyGroupId == currentGroupId
           || (currentGroup.mergedGroupIds is list && historyGroupId in currentGroup.mergedGroupIds));
+    }
+
+    // An exact get of a not-yet-created departure document is useful only to
+    // the connected current holder that could request it. Keep the absent
+    // case bound to the live control entry and the holder's server berth; once
+    // a route exists, the separate group-audience rule below applies.
+    function isCurrentShuttleAbsenceHolder(sessionId, shuttleId) {
+      let player = get(
+        /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+      ).data;
+      let session = get(/databases/$(database)/documents/sessions/$(sessionId)).data;
+      return isMember(sessionId)
+        && player.role == 'player'
+        && playerHasCurrentRoleAuthority(player)
+        && (!('kickedAt' in player) || player.kickedAt == null)
+        && (!('escapeState' in player) || player.escapeState == null)
+        && player.fleetGroupId is string
+        && isCurrentFleetGroupHistoryReader(sessionId, player.fleetGroupId)
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(player.fleetGroupId)
+        ).data.vesselIds is list
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(player.fleetGroupId)
+        ).data.memberShipIds is map
+        && uid() in get(
+          /databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(player.fleetGroupId)
+        ).data.memberShipIds
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(player.fleetGroupId)
+        ).data.memberShipIds[uid()] is string
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(player.fleetGroupId)
+        ).data.memberShipIds[uid()] in get(
+          /databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(player.fleetGroupId)
+        ).data.vesselIds
+        && session.phase == 'active'
+        && session.activeRoleIds is list
+        && session.activeVesselIds is list
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(player.fleetGroupId)
+        ).data.memberShipIds[uid()] in session.activeVesselIds
+        && session.shuttleControl is map
+        && shuttleId in session.shuttleControl
+        && session.shuttleControl[shuttleId] is map
+        && session.shuttleControl[shuttleId].keys().hasAll([
+          'shuttleId', 'ownerRoleId', 'ownerUid', 'holderUid', 'revision'
+        ])
+        && session.shuttleControl[shuttleId].keys().hasOnly([
+          'shuttleId', 'ownerRoleId', 'ownerUid', 'holderUid', 'revision'
+        ])
+        && session.shuttleControl[shuttleId].shuttleId == shuttleId
+        && session.shuttleControl[shuttleId].ownerRoleId is string
+        && session.shuttleControl[shuttleId].ownerRoleId.size() > 0
+        && session.shuttleControl[shuttleId].ownerRoleId in session.activeRoleIds
+        && session.shuttleControl[shuttleId].ownerUid is string
+        && session.shuttleControl[shuttleId].ownerUid.size() > 0
+        && session.shuttleControl[shuttleId].holderUid == uid()
+        && session.shuttleControl[shuttleId].revision is int
+        && session.shuttleControl[shuttleId].revision >= 0
+        && session.shuttleControl[shuttleId].revision <= 9007199254740991;
+    }
+
+    // Press has a current SNN craft audience but intentionally has no capital
+    // berth map. Keep its absent-route listener bound to that server-owned
+    // holder, current group and matching private discovery projection.
+    function isCurrentPressShuttleAbsenceHolder(sessionId, shuttleId) {
+      let player = get(
+        /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+      ).data;
+      let session = get(/databases/$(database)/documents/sessions/$(sessionId)).data;
+      let groupPath = /databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(player.fleetGroupId);
+      let discoveryPath = /databases/$(database)/documents/sessions/$(sessionId)/playerDiscoveries/$(uid());
+      let group = get(groupPath).data;
+      let discovery = get(discoveryPath).data;
+      let control = session.shuttleControl is map
+        && 'snn-press-shuttle' in session.shuttleControl
+        ? session.shuttleControl['snn-press-shuttle'] : null;
+      return shuttleId == 'snn-press-shuttle'
+        && isMember(sessionId)
+        && player.role == 'player'
+        && playerHasCurrentRoleAuthority(player)
+        && (!('kickedAt' in player) || player.kickedAt == null)
+        && (!('escapeState' in player) || player.escapeState == null)
+        && player.activeConsoleRoleId == 'press-officer'
+        && (!('assignedRoleId' in player) || player.assignedRoleId == null)
+        && player.fleetGroupId is string
+        && group.id == player.fleetGroupId
+        && group.memberUids is list
+        && uid() in group.memberUids
+        && isCurrentFleetGroupHistoryReader(sessionId, player.fleetGroupId)
+        && group.vesselIds is list
+        && group.vesselIds.size() > 0
+        && exists(discoveryPath)
+        && discovery.groupId == player.fleetGroupId
+        && discovery.revision is int
+        && discovery.revision >= 0
+        && discovery.revision <= 9007199254740991
+        && discovery.fleetGroupVesselIds is list
+        && discovery.fleetGroupVesselIds.size() == group.vesselIds.size()
+        && group.vesselIds.hasAll(discovery.fleetGroupVesselIds)
+        && discovery.fleetGroupVesselIds.hasAll(group.vesselIds)
+        && session.phase == 'active'
+        && session.pressEnabled == true
+        && session.pressHolderUid == uid()
+        && control is map
+        && control.keys().hasAll([
+          'shuttleId', 'ownerRoleId', 'ownerUid', 'holderUid', 'revision'
+        ])
+        && control.keys().hasOnly([
+          'shuttleId', 'ownerRoleId', 'ownerUid', 'holderUid', 'revision'
+        ])
+        && control.shuttleId == shuttleId
+        && control.ownerRoleId == 'press-officer'
+        && control.ownerUid is string
+        && control.ownerUid.size() > 0
+        && control.holderUid == uid()
+        && control.revision is int
+        && control.revision >= 0
+        && control.revision <= 9007199254740991;
     }
 
     function isCurrentSameTableTradePlayer(sessionId) {
@@ -715,9 +852,12 @@ service cloud.firestore {
 
       // Pending shuttle routes contain group-local origin and destination data.
       // The server is the only writer; connected members may read one exact
-      // route only while their live group pointer matches its audience.
+      // route only while their live group pointer matches its audience. An
+      // absent exact route is visible only to its current active shuttle holder.
       match /shuttleDepartures/{shuttleId} {
         allow get: if isGm(sessionId)
+          || (resource == null && isCurrentPressShuttleAbsenceHolder(sessionId, shuttleId))
+          || (resource == null && isCurrentShuttleAbsenceHolder(sessionId, shuttleId))
           || (isMember(sessionId)
             && resource.data.status in ['requested', 'in-transit']
             && resource.data.shuttleId == shuttleId
@@ -870,19 +1010,20 @@ service cloud.firestore {
         allow list, write: if false;
       }
 
-      // A current-hand pointer carries only mission/phase metadata. The owner
-      // can use it to discover their private hand, while the current GM may
-      // enumerate pointers to operate the facilitator readiness control. It
-      // never contains a card identity or card content.
+      // Pointers carry mission metadata and recipient public lifecycle state.
+      // Ordinary reads wait for verified legacy-K sanitation. Current GM
+      // readiness remains available independently of that session-wide hold.
       match /awayMissionHandPointers/{pointerId} {
         allow get: if isMember(sessionId)
           && resource.data.keys().hasAll(['sessionId', 'participantUid', 'handId'])
           && resource.data.sessionId == sessionId
           && resource.data.handId == pointerId
-          && (resource.data.participantUid == uid() || isGm(sessionId));
+          && (isGm(sessionId) || (resource.data.participantUid == uid()
+            && isAwayMissionProjectionReady(sessionId)));
         allow list: if isMember(sessionId)
           && resource.data.sessionId == sessionId
-          && (resource.data.participantUid == uid() || isGm(sessionId));
+          && (isGm(sessionId) || (resource.data.participantUid == uid()
+            && isAwayMissionProjectionReady(sessionId)));
         allow write: if false;
       }
 
@@ -984,7 +1125,8 @@ service cloud.firestore {
       // selected-player projections. They never enter the public event feed.
       match /facilitatorRuleCalls/{documentId} {
         allow get: if documentId == 'gm-current' && isGm(sessionId) &&
-          resource.data.type == 'facilitator-rule-call' && resource.data.sessionId == sessionId
+          (resource == null ||
+            (resource.data.type == 'facilitator-rule-call' && resource.data.sessionId == sessionId))
           || (documentId == 'recipient-' + uid() &&
             ((resource == null && isEligibleFacilitatorRuleRecipient(sessionId, uid())) ||
               isCurrentFacilitatorRuleCall(sessionId, uid())))
@@ -997,6 +1139,13 @@ service cloud.firestore {
       // Standardized action audits contain actor and outcome metadata only.
       // Facilitators may query them; all writes remain server-owned.
       match /actionAudits/{requestId} {
+        allow get, list: if isGm(sessionId);
+        allow write: if false;
+      }
+
+      // Required choices, calculations and consequences stay in private GM
+      // procedure history. They never enter player or Press event projections.
+      match /procedureAudits/{requestId} {
         allow get, list: if isGm(sessionId);
         allow write: if false;
       }

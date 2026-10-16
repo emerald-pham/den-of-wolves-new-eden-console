@@ -1,9 +1,16 @@
 import { createCastingCommands } from './castingCompanionCallable';
 import { getAuth as castingAdminAuth } from 'firebase-admin/auth';
-import { castingCallableTransport as auditedOnCall } from './castingCallableTransport';
+import { castingCallableTransport as castingAuditedOnCall } from './castingCallableTransport';
+import { unassignedHostCraftLoss, smallShipHostLossIsCurrent, type OtherHostCraftLoss } from './unassignedHostCraftLoss';
+import { hasInitialOnlyShuttleHistory, validatedLostShuttles, type LostShuttleState } from './lostShuttles';
+import { writePlayerRemovalAlert } from './playerRemovalAlert';
 import { holdTurnAdvancePhase } from './turnInterstitial';
+import { awayMissionPointerWriteSafetyPatch } from './awayMissionProjectionSafety';
+import { createAwayMissionProjectionMaintenance } from './awayMissionProjectionMaintenance';
 import { parsedMemberSessionDetails } from './memberSession';
 import { createCurrentMemberSessionReader } from './memberSessionCallable';
+import { limitCurrentMemberSessionReader } from './memberSessionLimit';
+import { createSessionDebriefCommands } from './sessionDebriefCallable';
 import { createTurnInterstitialHandler } from './turnInterstitialCallable';
 import { createUnionCraftStartingHostHandler } from './unionCraftSetupCallable';
 import { requireAttackAwareEmergencyTimerPauseRequest } from './wolfAttackTimerRequest';
@@ -19,8 +26,12 @@ import {
 import { advanceMaintenance, chargeableConsoleIds, MAINTENANCE_RULES, emptyMaintenanceCycle, parseMaintenanceCycle, rerollMaintenanceUnrest, type MaintenanceCycle } from './maintenance';
 import { environmentalMaintenanceHazard } from './environmentalMaintenanceHazard';
 import { recordSystemHazard } from './systemHistory';
-import { candidateDiscoveryFromArrival } from './candidateDiscovery';
+import { candidateDiscoveryFromArrival, candidateDiscoveryFromScout } from './candidateDiscovery';
 import { recordCandidatePlanCheckpoint } from './candidatePlanCheckpoint';
+import { createCandidateCallables } from './candidatePathsCallable';
+import { candidateStationLiberationFromFinalization } from './candidateStationLiberation';
+import { commitTerminal } from './sessionDebrief';
+import { requireCandidateVesselsAvailable, requireCandidateCraftAvailable, requireCandidateCraftActionAvailable, candidateAvailableVesselIds, parseCandidateCraftReservations } from './candidateAvailability';
 import {
   candidateRevealProjectionForCurrentFleetMember,
   type CandidateReveal,
@@ -46,7 +57,8 @@ import {
   type QuerySnapshot,
 } from 'firebase-admin/firestore';
 import { setGlobalOptions } from 'firebase-functions/v2';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError } from 'firebase-functions/v2/https';
+import { auditedOnCall } from './securityCallable';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { commandError } from './commandErrors';
@@ -70,10 +82,14 @@ import { createSameTableTradeCallables } from './sameTableTradeCallable';
 import { createGorgoneionMissionSupportCallables } from './gorgoneionMissionSupportCallable';
 import { applyAwayMissionLifecycleCommand, createAwayMissionLifecycleBootstrap, markAwayMissionOverrun, projectAwayMissionPrivateState, projectAwayMissionPublicState, type AwayMissionLifecycleRecord, type AwayMissionLifecycleCommand } from './awayMissionLifecycleAdapter';
 import { missionCraftIdsCarriedByShip, nextMissionCraftCommitments, parseMissionCraftCommitments, requireMissionCraftMovementAvailable } from './missionCraftCommitment';
-import { planMissionRewardDelivery } from './missionRewardDelivery';
+import { missionRewardConsoleTargets, planBoaMissionRewardDelivery, planMissionRewardDelivery } from './missionRewardDelivery';
+import { prepareResolvedMissionConsequences, prepareMissionRewardConsequences, validateMissionRewardChoice,
+  requireLiveMissionWolfSource, requireMissionAwareWolfAttackWindowRequest, type MissionWolfPressure } from './missionConsequences';
+import { hasMissionNebulaBenefit, parseMissionNebulaBenefits } from './missionNebulaBenefits';
 import { createAwayMissionLifecycleCallables } from './awayMissionLifecycleCallable';
 import { deriveAwayMissionParticipantCraftSnapshots } from './awayMissionCraftSnapshot';
 import { createPermissionedDismantlingCallables } from './permissionedDismantlingCallable';
+import { createBoaMissionReclamationCallables } from './boaMissionReclamationCallable';
 import { createBoardingSecurityTeamCallable } from './boardingSecurityTeamCallable';
 import { createVoyage33MovementCallables } from './voyage33MovementCallable';
 import {
@@ -155,7 +171,6 @@ import {
   requireGmInstanceActionRequest,
   requireGmInstanceRequest,
   requireAirspaceWindowExtensionRequest,
-  requireWolfAttackWindowRequest,
   requireWolfAttackPreparationRequest,
   requireWolfAttackDeclarationRequest,
   requireWolfCommanderRerollRequest,
@@ -220,6 +235,7 @@ import {
   requireAndroidDisclosureRequest,
   requireFacilitatorResponsibilityRequest,
   requireGameStartRequest,
+  requireFullGameDemoPhaseAdvanceRequest,
   requireAwayMissionCardDealRequest,
   requireAwayMissionDiscardReadyRequest,
   requireAwayMissionCardDiscardRequest,
@@ -318,6 +334,7 @@ import {
   type LoyaltyKind,
 } from './gameSetup';
 import { liveLoyaltySuspicionDecision } from './loyaltySuspicion';
+import { privateLoyaltyDirectives } from './privateLoyaltyDirectives';
 import { calculateArrestPosseSize } from './arrestPosse';
 import {
   applyPdfFighterAceResults,
@@ -361,7 +378,8 @@ import {
   withFleetGroupVessels,
   type FleetGroupRecord,
 } from './fleetGroups';
-import { planFleetTaxiTransfer, planKnownSystemSharing, type FleetTaxiPayload } from './fleetGroupOperations';
+import { planFleetTaxiTransfer, planKnownSystemSharing, type FleetGroupRejoinCandidate, type FleetGroupRejoinDecision,
+  type FleetTaxiPayload } from './fleetGroupOperations';
 import {
   ROLE_OWNED_CRAFT_CATALOG,
   battleTableCraftActionsForParkedCraft,
@@ -418,6 +436,7 @@ import {
   serviceRechargeDamageState,
 } from './serviceShuttleRecharge';
 import {
+  BLACKSMITH_REPAIR_COST,
   parseBlacksmithRepairLedger,
   resolveBlacksmithRepair,
 } from './blacksmithRepair';
@@ -462,7 +481,8 @@ export { repairConsolesFromAlly } from './allyRepairCallable';
 export { repairGorgoneionWithDrones } from './gorgoneionRepairDronesCallable';
 export { repairWarriorWithDrones } from './warriorRepairDronesCallable';
 export { resolveWolfAttackAftermath } from './wolfAttackAftermathCallable';
-export { transferBaseCapybaraCargo } from './baseCapybaraCargoTransferCallable';
+export { transferBaseCapybaraCargo, transferWarriorCargo } from './baseCapybaraCargoTransferCallable';
+export { exchangeAegisFighterWings } from './fighterWingExchangeCallable';
 import { createResolvePendingScoutRequest, type ScoutMapCommit } from './scoutResultCallable';
 import { createAutomaticScoutResolver } from './scoutAutomaticResolution';
 export {
@@ -470,6 +490,7 @@ export {
   listMyScoutReports, readMyScoutDiscoveryNote,
 } from './scoutResultCallable';
 export { advanceEndeavourResearchTrack, readEndeavourResearchWorkspace } from './endeavourResearchWriter';
+export { buildEndeavourScienceDevice } from './endeavourScienceDeviceWriter';
 export { runWolfAgentDetectorTest } from './wolfAgentDetectorWriter';
 export {
   applyPdfFighterAceResults,
@@ -505,7 +526,7 @@ import {
   PRESENCE_RECONCILIATION_INTERVAL_MS,
 } from './sessionLifecycle';
 import { CapybaraDamageDeckExhaustedError, SHIP_DAMAGE_DECKS, drawShipDamage, shipDamage, type ShipDamageState } from './shipDamage';
-import { destructionTransition, escapePodCapacityForShip } from './shipDestruction';
+import { catastropheEventIdForShip, destructionTransition, escapePodCapacityForShip } from './shipDestruction';
 import { totalFleetLossOutcome } from './totalFleetLoss';
 import { aggregateSurvivorOutcome, type SurvivorOutcome } from './survivorOutcome';
 import {
@@ -577,6 +598,7 @@ import {
   turnStateForPhase,
   turnStateState,
   turnPhaseState,
+  turnPhaseDeadlinePassed,
   updateTurnStateForPhase,
 } from './turnZero';
 import {
@@ -590,7 +612,7 @@ import {
   buildAuthoritativeEventEnvelope,
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
-import { buildActionAuditRecord, type ActionAuditAction } from './actionAudit';
+import { buildActionAuditRecord, writeStandardActionAudit, type ActionAuditAction } from './actionAudit';
 import {
   createAirspaceClosureParkingTask,
   createAirspaceClosureTaskScheduler,
@@ -641,10 +663,11 @@ import { discoverySystemsForCoordinates } from './starChartProjection';
 import { pursuitDistancesForCoordinates } from './starChartProjection';
 import type { LifecyclePhase } from './lifecycle';
 import {
-  allocateMissionCards,
+  allocateMissionCardsWithResolvedDiscards,
   awayMissionCraftForRole,
   awayMissionHandId,
   missionDeckDealtCount,
+  missionDeckResolvedDiscardCardIds,
   type AwayMissionParticipantSnapshot,
 } from './awayMissionCards';
 import { wolfAttackWindowState, type WolfAttackWindow } from './wolfAttackWindow';
@@ -652,6 +675,7 @@ import {
   resolvedWolfAttackForCarryover,
   wolfWingCarryoverForPreparation,
   type CommanderCycleCarryoverContext,
+  type MissionKCarryoverContext,
   type PStationRepeatContext,
   type ResolvedPStationRepeat,
   type ResolvedWolfAttackForCarryover,
@@ -716,6 +740,7 @@ import { nextWolfBoardingStage, type WolfBoardingProtocolInput } from './wolfBoa
 import {
   boaWolfRangeActions,
   gorgoneionWolfRangeActions,
+  vulcanWolfRangeActions,
   highwallWolfRangeActions,
   aegisWolfRangeActions,
   wolfAttackNextStep,
@@ -878,8 +903,34 @@ const gorgoneionMissionSupportCallables = createGorgoneionMissionSupportCallable
   serverTimestamp: () => FieldValue.serverTimestamp(),
 });
 
+const boaMissionReclamationCallables = createBoaMissionReclamationCallables({
+  db,
+  commandMarkers: {
+    read: (transaction, sessionId, requestId) =>
+      (transaction as Transaction).get(commandReceiptRef(sessionId, requestId)),
+    create: (transaction, fingerprint, result) => {
+      const sessionId = fingerprint.sessionId;
+      if (!sessionId) throw new Error('Boa mission choices require a session ID.');
+      (transaction as Transaction).create(commandReceiptRef(sessionId, fingerprint.requestId), {
+        fingerprint,
+        result,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    },
+  },
+  isActivePlayer: (player) => isActivePlayer(player as DocumentSnapshot),
+  serverTimestamp: () => FieldValue.serverTimestamp(),
+});
+
+export const readBoaMissionReclamationWorkspace = auditedOnCall('readBoaMissionReclamationWorkspace', request =>
+  boaMissionReclamationCallables.readBoaMissionReclamationWorkspace({ auth: request.auth, data: request.data }));
+export const chooseBoaMissionReclamationOpportunity = auditedOnCall('chooseBoaMissionReclamationOpportunity', request =>
+  boaMissionReclamationCallables.chooseBoaMissionReclamationOpportunity({ auth: request.auth, data: request.data }));
+
 const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
   db,
+  prepareResolvedConsequences: context => prepareResolvedMissionConsequences(db, context),
+  validateRewardChoice: validateMissionRewardChoice,
   prepareCraftCommitments: async ({ transaction, sessionId, session, nextRecord }) => {
     const commitments = nextMissionCraftCommitments(session.get('missionCraftCommitments'), {
       missionId: nextRecord.lifecycle.missionId, sourceCycle: nextRecord.sourceCycle,
@@ -939,7 +990,8 @@ const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
         groups, true, { sessionSnapshot: session, navigationSnapshot, fleetGroupSnapshots: groupSnapshots.docs });
     };
   },
-  prepareRewardDelivery: async ({ transaction, sessionId, missionId, session, nextRecord, shipId }) => {
+  prepareRewardDelivery: async (context) => {
+    const { transaction, sessionId, missionId, session, nextRecord, shipId } = context;
     const tx = transaction as Transaction;
     const receiptRef = db.doc(`sessions/${sessionId}/serverState/missionRewardDeliveries/receipts/${missionId}`);
     const prior = await tx.get(receiptRef);
@@ -961,22 +1013,54 @@ const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
     if (storedPopulation !== undefined && !isRecord(storedPopulation)) {
       throw new HttpsError('failed-precondition', 'The destination population is malformed.');
     }
-    const delivery = planMissionRewardDelivery({
+    requireCandidateVesselsAvailable(session, [shipId]);
+    let delivery: ReturnType<typeof planMissionRewardDelivery>;
+    let boaScrapCargo: ReturnType<typeof parseBoaScrapCargo> = null;
+    let boaScrapAwarded: 0 | 1 | undefined;
+    if (nextRecord.boaReclamation !== undefined) {
+      requireCandidateCraftAvailable(session, ['boa']);
+      const cargoRoot = session.get('shuttleCargo');
+      if (cargoRoot !== undefined && !isRecord(cargoRoot)) {
+        throw new HttpsError('failed-precondition', 'The Boa Scrap cargo is malformed.');
+      }
+      boaScrapCargo = parseBoaScrapCargo(isRecord(cargoRoot) ? cargoRoot.boa : undefined);
+      if (!boaScrapCargo) throw new HttpsError('failed-precondition', 'The Boa Scrap cargo is malformed.');
+      const routed = planBoaMissionRewardDelivery({
+        shipId, inventory, population: isRecord(storedPopulation) && Object.hasOwn(storedPopulation, shipId)
+          ? storedPopulation[shipId] : INITIAL_SHIP_SURVIVORS[shipId],
+        minerals: isRecord(mineralCargo) && Object.hasOwn(mineralCargo, shipId) ? mineralCargo[shipId] : 0,
+        rewards: nextRecord.rewards ?? [], specialRewards: nextRecord.specialRewards ?? [],
+        boaReclamationOpportunityId: nextRecord.boaReclamation.opportunityId,
+        boaScrapCargo,
+      });
+      if (!routed) throw new HttpsError('failed-precondition', 'Mission rewards cannot be delivered safely.');
+      delivery = routed;
+      boaScrapCargo = routed.boaScrapCargo;
+      boaScrapAwarded = routed.boaScrapAwarded;
+    } else {
+      delivery = planMissionRewardDelivery({
       shipId, inventory, population: isRecord(storedPopulation) && Object.hasOwn(storedPopulation, shipId)
         ? storedPopulation[shipId] : INITIAL_SHIP_SURVIVORS[shipId],
       minerals: isRecord(mineralCargo) && Object.hasOwn(mineralCargo, shipId) ? mineralCargo[shipId] : 0,
       rewards: nextRecord.rewards ?? [], specialRewards: nextRecord.specialRewards ?? [],
-    });
+      });
+    }
     if (!delivery) throw new HttpsError('failed-precondition', 'Mission rewards cannot be delivered safely.');
+    const consequences = await prepareMissionRewardConsequences(db, context);
     return () => {
+      consequences.commit();
       tx.update(db.doc(`sessions/${sessionId}`), {
+        ...consequences.sessionPatch,
         [`shipResources.${shipId}`]: delivery.inventory,
         [`shipSurvivors.${shipId}`]: delivery.population,
         [`shipMissionMinerals.${shipId}`]: delivery.minerals,
+        ...(boaScrapCargo ? { 'shuttleCargo.boa': boaScrapCargo } : {}),
         updatedAt: FieldValue.serverTimestamp(),
       });
       tx.create(receiptRef, {
         missionId, shipId, revision: nextRecord.revision, deltas: delivery.deltas,
+        ...consequences.receiptFields,
+        ...(boaScrapAwarded === undefined ? {} : { boaScrapAwarded, boaScrapCargo }),
         createdAt: FieldValue.serverTimestamp(),
       });
     };
@@ -1016,7 +1100,9 @@ const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
     }
 
     let legalDropOffShipIds: string[] = [];
-    if (commandType === 'resolve' || commandType === 'dropOff' || commandType === 'assignCards' || commandType === 'reclamatorSalvage') {
+    let currentGroupId: string | undefined;
+    if (commandType === 'resolve' || commandType === 'dropOff' || commandType === 'assignCards' ||
+        commandType === 'reclamatorSalvage' || commandType === 'chooseRewardTargets') {
       const missionCoordinate = mission.get('coordinate');
       const activeVesselIds = activeVesselIdsForSession(session);
       const tx = transaction as Transaction;
@@ -1061,6 +1147,7 @@ const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
             typeof rawCoordinates[shipId] === 'string' && isStarSystemCoordinate(rawCoordinates[shipId] as string))) {
         throw new HttpsError('failed-precondition', 'Current mission-group ship locations are unavailable.');
       }
+      currentGroupId = group.id;
       legalDropOffShipIds = group.vesselIds.filter((shipId) =>
         navigation.shipGalacticCoordinates[shipId] === missionCoordinate);
     }
@@ -1069,6 +1156,8 @@ const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
       currentCycle: currentCycle as number,
       teamPhase: currentTurnState.phase === 'team',
       legalDropOffShipIds,
+      currentGroupId,
+      rewardConsoleTargets: missionRewardConsoleTargets(legalDropOffShipIds, session.get('shipUpgrades'), session.get('shipDamage')),
       bonusSources: [],
     };
   },
@@ -1186,53 +1275,73 @@ const getBoardingSecurityTeamLocationsCallable = createBoardingSecurityTeamCalla
   requireFacilitatorInstance,
 });
 
-export const proposePermissionedDismantling = onCall((request) =>
+export const proposePermissionedDismantling = auditedOnCall('proposePermissionedDismantling', (request) =>
   permissionedDismantlingCallables.proposePermissionedDismantling(request));
 
-export const getGorgoneionMissionSupportProjection = onCall((request) =>
+export const getGorgoneionMissionSupportProjection = auditedOnCall('getGorgoneionMissionSupportProjection', (request) =>
   gorgoneionMissionSupportCallables.getGorgoneionMissionSupportProjection(request));
 
-export const applyGorgoneionMissionSupport = onCall((request) =>
+export const applyGorgoneionMissionSupport = auditedOnCall('applyGorgoneionMissionSupport', (request) =>
   gorgoneionMissionSupportCallables.applyGorgoneionMissionSupport(request));
 
-export const commitAwayMissionLifecycleCommand = onCall((request) =>
+export const commitAwayMissionLifecycleCommand = auditedOnCall('commitAwayMissionLifecycleCommand', (request) =>
   awayMissionLifecycleCallables.commitAwayMissionLifecycleCommand(request));
 
-export const consentToPermissionedDismantling = onCall((request) =>
+const awayMissionProjectionMaintenance = createAwayMissionProjectionMaintenance({ db,
+  serverTimestamp: () => FieldValue.serverTimestamp(),
+  requireActiveGm: (transaction, sessionId, uid, instanceId) =>
+    requireFacilitatorInstance(transaction as Transaction, sessionId, uid, instanceId).then(() => undefined),
+});
+export const repairAwayMissionProjectionPrivacy = auditedOnCall('repairAwayMissionProjectionPrivacy', request =>
+  awayMissionProjectionMaintenance(request));
+
+export const consentToPermissionedDismantling = auditedOnCall('consentToPermissionedDismantling', (request) =>
   permissionedDismantlingCallables.consentToPermissionedDismantling(request));
 
-export const declinePermissionedDismantling = onCall((request) =>
+export const declinePermissionedDismantling = auditedOnCall('declinePermissionedDismantling', (request) =>
   permissionedDismantlingCallables.declinePermissionedDismantling(request));
 
-export const revokePermissionedDismantlingConsent = onCall((request) =>
+export const revokePermissionedDismantlingConsent = auditedOnCall('revokePermissionedDismantlingConsent', (request) =>
   permissionedDismantlingCallables.revokePermissionedDismantlingConsent(request));
 
-export const applyPermissionedDismantling = onCall((request) =>
+export const applyPermissionedDismantling = auditedOnCall('applyPermissionedDismantling', (request) =>
   permissionedDismantlingCallables.applyPermissionedDismantling(request));
 
-export const attestPlayerHeldTokenBaseline = onCall((request) =>
+export const attestPlayerHeldTokenBaseline = auditedOnCall('attestPlayerHeldTokenBaseline', (request) =>
   sameTableTradeCallables.attestPlayerHeldTokenBaseline(request));
 
-export const createSameTableTradeOffer = onCall((request) =>
+export const createSameTableTradeOffer = auditedOnCall('createSameTableTradeOffer', (request) =>
   sameTableTradeCallables.createSameTableTradeOffer(request));
 
-export const acceptSameTableTradeOffer = onCall((request) =>
+export const acceptSameTableTradeOffer = auditedOnCall('acceptSameTableTradeOffer', (request) =>
   sameTableTradeCallables.acceptSameTableTradeOffer(request));
 
-export const dockVoyage33 = onCall((request) =>
+export const dockVoyage33 = auditedOnCall('dockVoyage33', (request) =>
   voyage33MovementCallables.dockVoyage33(request));
 
-export const jumpVoyage33 = onCall((request) =>
+export const jumpVoyage33 = auditedOnCall('jumpVoyage33', (request) =>
   voyage33MovementCallables.jumpVoyage33(request));
 
-export const getSmallShipJumpWorkspace = onCall((request) =>
+export const getSmallShipJumpWorkspace = auditedOnCall('getSmallShipJumpWorkspace', (request) =>
   smallShipJumpCallables.getSmallShipJumpWorkspace(request));
 
-export const jumpSmallShip = onCall((request) =>
+export const jumpSmallShip = auditedOnCall('jumpSmallShip', (request) =>
   smallShipJumpCallables.jumpSmallShip(request));
 
-export const getBoardingSecurityTeamLocations = onCall((request) =>
+export const getBoardingSecurityTeamLocations = auditedOnCall('getBoardingSecurityTeamLocations', (request) =>
   getBoardingSecurityTeamLocationsCallable(request));
+
+const candidateCallables = createCandidateCallables({
+  db, serverTimestamp: () => FieldValue.serverTimestamp(),
+  requireShipAuthority: (tx, sessionId, uid, shipId, instanceId) =>
+    requireShipCounterAuthority(tx, sessionId, uid, shipId, instanceId, false, true),
+  commitTerminal,
+  survivorOutcome: (session, cycle, occurredAt) => survivorOutcomeForSession(session.id, session,
+    shipDamage(session.get('shipDamage')), cycle, occurredAt),
+});
+export const readCandidateWorkspace = auditedOnCall('readCandidateWorkspace', CALLABLE_RUNTIME_OPTIONS, request => candidateCallables.read(request));
+export const executeCandidateAction = auditedOnCall('executeCandidateAction', CALLABLE_RUNTIME_OPTIONS, request => candidateCallables.execute(request));
+export const selectCandidateEdition = auditedOnCall('selectCandidateEdition', CALLABLE_RUNTIME_OPTIONS, request => candidateCallables.selectEdition(request));
 
 /** Persist server-authoritative source events to the Press-only intake. */
 function writePressLogEvent(tx: Transaction, sessionId: string, event: PressLogEvent): void {
@@ -1465,6 +1574,24 @@ function fleetTickerFiniteFallback(
   return publishFleetTicker(sessionId, state, fallback, now);
 }
 
+/** Calculate the existing ticker reconciliation before deciding whether to write it. */
+function fleetTickerBaselineDecision(
+  sessionId: string,
+  session: DocumentSnapshot,
+  now: string,
+): { state: FleetTickerState; changed: boolean } {
+  const stored = session.get('fleetTicker');
+  const state = fleetTickerForMutation(sessionId, session, now);
+  const next = fleetTickerFiniteFallback(
+    sessionId,
+    session,
+    fleetTickerBaseline(sessionId, session, state, now),
+    now,
+  );
+  const previous = stored === undefined ? emptyFleetTickerState() : fleetTickerState(stored);
+  return { state: next, changed: JSON.stringify(previous) !== JSON.stringify(next) };
+}
+
 /** Seed an authoritative ATC baseline without disturbing an active stream. */
 function ensureFleetTickerBaseline(
   tx: Transaction,
@@ -1472,19 +1599,11 @@ function ensureFleetTickerBaseline(
   session: DocumentSnapshot,
   now: string,
 ): FleetTickerState {
-  const stored = session.get('fleetTicker');
-  const state = fleetTickerForMutation(sessionRef.id, session, now);
-  const next = fleetTickerFiniteFallback(
-    sessionRef.id,
-    session,
-    fleetTickerBaseline(sessionRef.id, session, state, now),
-    now,
-  );
-  const previous = stored === undefined ? emptyFleetTickerState() : fleetTickerState(stored);
-  if (JSON.stringify(previous) !== JSON.stringify(next)) {
-    tx.update(sessionRef, { fleetTicker: next, updatedAt: FieldValue.serverTimestamp() });
+  const { state, changed } = fleetTickerBaselineDecision(sessionRef.id, session, now);
+  if (changed) {
+    tx.update(sessionRef, { fleetTicker: state, updatedAt: FieldValue.serverTimestamp() });
   }
-  return next;
+  return state;
 }
 
 function publishSessionFleetTicker(
@@ -1579,6 +1698,10 @@ function reconcilePresenceTimer(
   }
   const phase = turnPhaseState(session.get('turnPhase'));
   if (!phase || phase.turn !== sessionTurn(session.get('currentTurn'))) {
+    persistActivePressRecovery(tx, sessionRef, session, new Date().toISOString());
+    return;
+  }
+  if (phase.progression === 'manual') {
     persistActivePressRecovery(tx, sessionRef, session, new Date().toISOString());
     return;
   }
@@ -1938,7 +2061,8 @@ function publicShipMutinies(value: unknown, activeVesselIds: readonly string[]) 
   }));
 }
 
-function requireUsableShip(session: DocumentSnapshot, shipId: string): void {
+function requireUsableShip(session: DocumentSnapshot, shipId: string, allowCandidateReceiptRecovery = false): void {
+  if (!allowCandidateReceiptRecovery) requireCandidateVesselsAvailable(session, [shipId]);
   const unrest = shipUnrest(session.get('shipUnrest'))[shipId] ?? 0;
   if (isShipInMutiny(shipMutinyForSession(session, shipId), unrest)) {
     throw commandError('failed-precondition',
@@ -1973,10 +2097,14 @@ function playerHoldsDestroyedShip(player: DocumentSnapshot, shipId: string): boo
 
 function markPlayersForShipEscape(
   tx: Transaction,
+  sessionId: string,
   players: readonly DocumentSnapshot[],
   shipId: string,
   destructionEventId: string,
   revision: number,
+  cycle: number,
+  // Caller command/attack identity; numeric CAS revisions have distinct domains.
+  incidentKey: string,
 ): void {
   for (const player of players) {
     if (!playerHoldsDestroyedShip(player, shipId)) continue;
@@ -1989,6 +2117,9 @@ function markPlayersForShipEscape(
       escapeState: escapeStateForDestruction(shipId, destructionEventId, revision),
       activeConsoleRoleId: null,
     });
+    writePlayerRemovalAlert(tx, db, { sessionId, sourceId: destructionEventId, player,
+      cause: 'ship-destroyed', shipId, cycle, incidentKey: `${destructionEventId}:${incidentKey}`,
+      recordedAt: new Date().toISOString(), createdAt: FieldValue.serverTimestamp() });
   }
 }
 
@@ -2064,6 +2195,8 @@ function navigationProjectionFields(navigation: NavigationState): Record<string,
   return {
     shipGalacticCoordinates: navigation.shipGalacticCoordinates,
     shipNavigationLogs: navigation.shipNavigationLogs,
+    ...(navigation.missionNebulaBenefitsByShip
+      ? { missionNebulaBenefitsByShip: navigation.missionNebulaBenefitsByShip } : {}),
     ...(navigation.missionExploredCoordinatesByUid
       ? { missionExploredCoordinatesByUid: navigation.missionExploredCoordinatesByUid } : {}),
     ...(navigation.scoutedCoordinatesByShip
@@ -2244,7 +2377,9 @@ function maintenanceHazardAuthority(
       'malformed-input',
     );
   }
-  const hazard = environmentalMaintenanceHazard(chart, coordinates[shipId] as string);
+  const benefits = parseMissionNebulaBenefits(isRecord(rawNavigation) ? rawNavigation.missionNebulaBenefitsByShip : undefined);
+  if (!benefits) throw commandError('failed-precondition', 'The protected mission hazard benefit is malformed.', 'malformed-input');
+  const hazard = environmentalMaintenanceHazard(chart, coordinates[shipId] as string, { shipId, benefits });
   if (!hazard) return { hazard: undefined };
 
   const storedActiveVesselIds = session.get('activeVesselIds');
@@ -2824,14 +2959,17 @@ function ensureInitialFleetGroup(
   if (JSON.stringify(group.memberUids) !== JSON.stringify(memberUids)) {
     group = { ...group, memberUids: [...memberUids] };
   }
-  const memberShipIds: Record<string, string> = { ...(group.memberShipIds ?? {}) };
+  const currentMembers = new Set(group.memberUids);
+  const memberShipIds: Record<string, string> = Object.fromEntries(
+    Object.entries(group.memberShipIds ?? {}).filter(([uid]) => currentMembers.has(uid)),
+  );
   for (const player of players) {
     if (!player.exists || isKickedPlayer(player) || !group.memberUids.includes(player.id) ||
         Object.hasOwn(memberShipIds, player.id)) continue;
     const roleShipId = playerShipId(player);
     if (roleShipId && group.vesselIds.includes(roleShipId)) memberShipIds[player.id] = roleShipId;
   }
-  if (Object.keys(memberShipIds).length > 0 && !isDeepStrictEqual(memberShipIds, group.memberShipIds ?? {})) {
+  if (!isDeepStrictEqual(memberShipIds, group.memberShipIds ?? {})) {
     group = { ...group, memberShipIds };
   }
   const changed = !storedGroup.exists || JSON.stringify(parsed) !== JSON.stringify(group);
@@ -3097,9 +3235,14 @@ const commitScoutMapKnowledge: ScoutMapCommit = async ({
     throw commandError('failed-precondition', 'Current fleet-group members are mismatched for scouting.', 'malformed-input');
   }
   const navigation = navigationStateForSession(storedNavigation, session, activeVesselIds);
-  const nextNavigation = recordScoutedCoordinateForShip(
+  const scoutedNavigation = recordScoutedCoordinateForShip(
     navigation, plan.receivingShipId, plan.result.targetCoordinate,
   );
+  const candidateHistory = candidateDiscoveryFromScout(
+    scoutedNavigation.systemHistory, plan.receivingShipId, plan.result, plan.note.recordedAt,
+  );
+  const nextNavigation = candidateHistory === scoutedNavigation.systemHistory ? scoutedNavigation :
+    { ...scoutedNavigation, systemHistory: candidateHistory };
   if (nextNavigation === navigation) return;
   const nextRevision = (revision as number) + 1;
   const chartId = session.get('chartId');
@@ -3111,6 +3254,7 @@ const commitScoutMapKnowledge: ScoutMapCommit = async ({
   }
   tx.set(navigationRef, {
     scoutedCoordinatesByShip: nextNavigation.scoutedCoordinatesByShip,
+    ...(nextNavigation.systemHistory ? { systemHistory: nextNavigation.systemHistory } : {}),
     revision: nextRevision,
     updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
@@ -3440,7 +3584,13 @@ function requireWolfAttackParking(
   parkedAt: string,
   requestId: string,
 ): WolfAttackParkingSnapshot {
-  const initialDockings = initialShuttleDockingsForRoles(activeRoleIds);
+  const lost = lostShuttlesForSession(session);
+  const lostIds = new Set(Object.keys(lost));
+  if (departures.docs.some(doc => lostIds.has(doc.id)) || transitChains.docs.some(doc => lostIds.has(doc.id))) {
+    throw commandError('failed-precondition', 'A lost shuttle has contradictory movement authority.', 'conflict');
+  }
+  const consumed = new Set(Object.keys(parseCandidateCraftReservations(session.get('candidateCraftReservations'))));
+  const initialDockings = initialShuttleDockingsForRoles(activeRoleIds).filter(docking => !consumed.has(docking.shuttleId) && !lostIds.has(docking.shuttleId));
   const storedDockings = session.get('shuttleDockings');
   const retained = parseRetainedShuttles(session.get('retainedShuttles'));
   if (!retained) {
@@ -3457,6 +3607,7 @@ function requireWolfAttackParking(
       : initialDockings.map((docking) => docking.shuttleId),
   );
   const ownedCraft = roleOwnedCraftForRoles(activeRoleIds)
+    .filter((craft) => !consumed.has(craft.id) && !lostIds.has(craft.id))
     .filter((craft) => craft.enabledMode === 'standard' || dockingIds.has(craft.id) || retainedIds.has(craft.id));
   const expectedShuttles = ownedCraft.filter((craft) => craft.kind === 'shuttle');
   // The locked vessel roster represents every shuttle initially docked with
@@ -3598,6 +3749,12 @@ function requireWolfAttackParking(
     const latestVisit = new Map<string, 'docked' | 'departed'>();
     shuttleVisitLog = [];
     for (const entry of rawVisitLog) {
+      if (isRecord(entry) && typeof entry.shuttleId === 'string' && lostIds.has(entry.shuttleId)) {
+        // Proven canonical initial loss history remains durable, never parked.
+        shuttleVisitLog.push(entry as unknown as PublicShuttleVisit);
+        continue;
+      }
+      if (isRecord(entry) && typeof entry.shuttleId === 'string' && consumed.has(entry.shuttleId)) continue;
       if (!isRecord(entry) || typeof entry.shuttleId !== 'string' ||
           !expectedShuttleIds.has(entry.shuttleId) ||
           typeof entry.id !== 'string' || typeof entry.shipId !== 'string' ||
@@ -3787,8 +3944,11 @@ function playerEscapeState(player: Pick<DocumentSnapshot, 'get'>): PlayerEscapeS
 }
 
 /** Player ship actions are revoked by the authoritative escape transition. */
-function requirePlayerShipActionAuthority(player: DocumentSnapshot): void {
+function requirePlayerShipActionAuthority(player: DocumentSnapshot, allowCandidateReceiptRecovery = false): void {
   if (player.get('role') !== 'player') return;
+  if (!allowCandidateReceiptRecovery && player.get('candidateDisposition') != null) {
+    throw commandError('failed-precondition', 'This vessel has reached its candidate disposition. Original results remain available.', 'conflict');
+  }
   if (player.get('replacementStatus') != null) {
     throw commandError(
       'failed-precondition',
@@ -3803,6 +3963,14 @@ function requirePlayerShipActionAuthority(player: DocumentSnapshot): void {
       'conflict',
     );
   }
+}
+
+/** Fresh acceptance only. Original bound receipts must return before this check. */
+function requireCandidateActionAvailable(session: DocumentSnapshot, actor: DocumentSnapshot | undefined,
+  shipIds: readonly string[] = [], craftIds: readonly string[] = []): void {
+  if (actor) requirePlayerShipActionAuthority(actor);
+  requireCandidateCraftActionAvailable(session, craftIds,
+    [...shipIds, ...(actor ? playerAuthoritativeVesselIds(actor) : [])]);
 }
 
 function isCanonicalAndroidPayload(value: unknown): value is Record<string, unknown> {
@@ -3898,6 +4066,42 @@ function isAuthoritativePressHolder(player: DocumentSnapshot): boolean {
     player.get('activeConsoleRoleId') === 'press-officer' && !hasCoreStation(player);
 }
 
+/** A renewal may keep an already reconciled Press holder without a table-wide write. */
+function hasStablePressAuthority(session: DocumentSnapshot, player: DocumentSnapshot, uid: string): boolean {
+  return isAuthoritativePressHolder(player) &&
+    player.get('assignedRoleId') == null && player.get('seatId') == null &&
+    player.get('replacementStatus') == null && typeof player.get('replacementRoleId') !== 'string' &&
+    !playerEscapeState(player) && session.get('pressEnabled') !== false &&
+    session.get('pressHolderUid') === uid;
+}
+
+function isSolePressHolder(holders: readonly DocumentSnapshot[], uid: string): boolean {
+  return holders.length === 1 && holders[0]!.id === uid && isAuthoritativePressHolder(holders[0]!);
+}
+
+/** A renewal never grants a role, repairs legacy authority, or admits another device. */
+function hasStableCorePresenceAuthority(
+  session: DocumentSnapshot,
+  player: DocumentSnapshot,
+  seat: DocumentSnapshot,
+  membership: DocumentSnapshot,
+  sessionId: string,
+  uid: string,
+  roleId: string,
+): boolean {
+  const roleIds = configuredRoleIds(session);
+  const generation = player.get('connectionGeneration');
+  return session.exists && isActivePlayer(player) && player.get('lastSeenAt') instanceof Timestamp &&
+    player.get('role') === 'player' && player.get('assignedRoleId') === roleId &&
+    player.get('seatId') === roleId && player.get('activeConsoleRoleId') === roleId &&
+    player.get('replacementStatus') == null && typeof player.get('replacementRoleId') !== 'string' &&
+    player.get('escapeState') == null && Number.isSafeInteger(generation) && (generation as number) >= 1 &&
+    roleIds.includes(roleId) &&
+    (!isJointEngineeringRoleId(roleId) || isJointEngineeringRoleAvailable(roleIds, roleId)) &&
+    seat.exists && seat.get('roleId') === roleId && seat.get('status') === 'claimed' &&
+    seat.get('holderUid') === uid && membership.exists && membership.get('sessionId') === sessionId;
+}
+
 function hasPressState(player: DocumentSnapshot): boolean {
   return player.get('activeConsoleRoleId') === 'press-officer' ||
     player.get('assignedRoleId') === 'press-officer';
@@ -3951,6 +4155,7 @@ type ReturningSeat = Readonly<{
   claimSeat: boolean;
   clearActiveConsoleRole: boolean;
   stationSelectionRequired: boolean;
+  canonicalOpenSeat?: boolean;
 }>;
 
 /**
@@ -4049,6 +4254,7 @@ async function reconcileReturningSeat(
     return {
       seatId: storedSeatId, clearPointer: false, claimSeat: true,
       clearActiveConsoleRole: false, stationSelectionRequired: false,
+      canonicalOpenSeat: seat.get('roleId') === storedSeatId && canonicalSeatIds.includes(storedSeatId),
     };
   }
   return {
@@ -4167,7 +4373,7 @@ function requireTurnOneForGameplay(session: DocumentSnapshot): void {
 }
 
 function requireLiveAirspaceWindow(phase: ActiveTurnPhase): void {
-  if (phase.airspace.state === 'restricted' && Date.now() >= Date.parse(phase.openAirspaceEndsAt)) {
+  if (phase.airspace.state === 'restricted' && turnPhaseDeadlinePassed(phase, 'open')) {
     throw commandError(
       'failed-precondition',
       'The airspace window has closed. Wait for the next cycle.',
@@ -4472,7 +4678,11 @@ function advanceTurnInTransaction(
     ...(skipTurnStartAnnouncement && pendingFormalAnnouncements.length > 0 ? { formalOnly: true } : {}),
   };
   const phaseStartedAt = Date.now();
-  const initialTurnPhase = startTurnPhase(nextTurn, phaseStartedAt);
+  const fullGameDemo = fullGameDemoState(additionalFields.fullGameDemo ?? session.get('fullGameDemo'));
+  const manualProgression = fullGameDemo?.status === 'active';
+  const initialTurnPhase = startTurnPhase(nextTurn, phaseStartedAt, manualProgression
+    ? { progression: 'manual' }
+    : {});
   const turnPhase = skipTurnStartAnnouncement ? initialTurnPhase
     : holdTurnAdvancePhase(initialTurnPhase, phaseStartedAt);
   const tickerTime = transition?.transitionServerTime ?? new Date().toISOString();
@@ -4498,32 +4708,37 @@ function advanceTurnInTransaction(
     if (pursuitAuthority?.legacyMigration) {
       writeTurnPursuitState(tx, sessionId, pursuitAuthority, false);
     }
-    tx.update(sessionRef, {
-      currentTurn: maxTurn,
-      phase: 'debrief',
-      turnPhase: FieldValue.delete(),
-      turnState: FieldValue.delete(),
-      turnStartAnnouncement: FieldValue.delete(),
-      pendingTeamAnnouncements: FieldValue.delete(),
-      fleetTicker,
-      survivorOutcome: survivorOutcomeForSession(
-        sessionId,
-        session,
-        shipDamage(session.get('shipDamage')),
-        maxTurn,
-        tickerTime,
-      ),
-      ...(expiredTurnResources
-        ? {
-          maintenanceCycles: expiredTurnResources.maintenanceCycles,
-          shuttleFuelled: expiredTurnResources.shuttleFuelled,
-        }
-        : {}),
-      ...additionalFields,
-      ...(pursuitAuthority?.legacyHeaderPresent
-        ? { pursuitGroups: removeLegacyNavigationField() }
-        : {}),
-      updatedAt: FieldValue.serverTimestamp(),
+    const survivorOutcome = survivorOutcomeForSession(
+      sessionId,
+      session,
+      shipDamage(session.get('shipDamage')),
+      maxTurn,
+      tickerTime,
+    );
+    commitTerminal(tx, sessionRef, session, {
+      source: 'final-cycle',
+      committedAt: tickerTime,
+      survivorOutcome,
+      sessionPatch: {
+        currentTurn: maxTurn,
+        turnPhase: FieldValue.delete(),
+        turnState: FieldValue.delete(),
+        turnStartAnnouncement: FieldValue.delete(),
+        pendingTeamAnnouncements: FieldValue.delete(),
+        fleetTicker,
+        ...(expiredTurnResources
+          ? {
+            maintenanceCycles: expiredTurnResources.maintenanceCycles,
+            shuttleFuelled: expiredTurnResources.shuttleFuelled,
+          }
+          : {}),
+        ...(Object.hasOwn(additionalFields, 'singlePlayerDemo')
+          ? { singlePlayerDemo: additionalFields.singlePlayerDemo }
+          : {}),
+        ...(pursuitAuthority?.legacyHeaderPresent
+          ? { pursuitGroups: removeLegacyNavigationField() }
+          : {}),
+      },
     });
     return {
       currentTurn: maxTurn,
@@ -5075,7 +5290,7 @@ function ensureFighterWingCountActionAuditForReplay(
   );
 }
 
-export const createSession = onCall<{
+export const createSession = auditedOnCall<{
   name?: string;
   displayName?: string;
   joinCodeVersion?: unknown;
@@ -5090,7 +5305,7 @@ export const createSession = onCall<{
   wolfCultEnabled?: unknown;
   options?: unknown;
 }>(
-  async (request) => {
+  'createSession', async (request) => {
     const uid = requireUid(request.auth);
     const creation = requireSessionCreationRequest(request.data ?? {});
     const name = cleanName(request.data?.name, 'New session', 80);
@@ -5912,7 +6127,7 @@ function rejectLegacySetupMutation(): never {
 }
 
 /** Confirm the complete setup tuple in one authoritative, replayable write. */
-export const confirmSetup = onCall<{
+export const confirmSetup = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -5928,7 +6143,7 @@ export const confirmSetup = onCall<{
   universalArbourEnabled?: unknown;
   wolfCultEnabled?: unknown;
   activeRoleIds?: unknown;
-}>(async (request) => {
+}>('confirmSetup', async (request) => {
   const uid = requireUid(request.auth);
   const command = requireSetupConfirmationRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${command.sessionId}`);
@@ -6332,7 +6547,7 @@ const castingCompanionCommands = createCastingCommands({
     catch { throw new HttpsError('unauthenticated', 'unauthenticated'); }
   },
 });
-export const castingCompanionCommand = auditedOnCall(request => castingCompanionCommands.handle(request));
+export const castingCompanionCommand = castingAuditedOnCall(request => castingCompanionCommands.handle(request));
 
 /** Record which of the two physical facilitator responsibilities an instance owns. */
 type FacilitatorResponsibility = 'main' | 'assistant';
@@ -6354,7 +6569,7 @@ function responsibilityCoverage(instances: readonly DocumentSnapshot[]) {
   };
 }
 
-export const setFacilitatorResponsibility = onCall<{
+export const setFacilitatorResponsibility = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -6362,7 +6577,7 @@ export const setFacilitatorResponsibility = onCall<{
   responsibility?: unknown;
   mode?: unknown;
   targetInstanceId?: unknown;
-}>(async (request) => {
+}>('setFacilitatorResponsibility', async (request) => {
   const uid = requireUid(request.auth);
   const responsibility = requireFacilitatorResponsibilityRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${responsibility.sessionId}`);
@@ -6509,6 +6724,8 @@ export const setFacilitatorResponsibility = onCall<{
     const nextRevision = responsibility.expectedSetupRevision + 1;
     const nextInstances = liveInstances.map((candidate) => ({
       ...candidate,
+      // Firestore exposes id through a prototype getter, outside object spread.
+      id: candidate.id,
       get: (field: string) => field === 'responsibilities'
         ? nextByInstance.get(candidate.id) ?? []
         : field === 'responsibility'
@@ -6551,12 +6768,47 @@ export const setFacilitatorResponsibility = onCall<{
 });
 
 /** Start a ready casting roster exactly once through an active facilitator. */
+type FullGameDemoState = Readonly<{
+  status: 'preparing' | 'active' | 'complete';
+  progression: 'manual';
+}>;
+
+function fullGameDemoState(value: unknown): FullGameDemoState | undefined {
+  if (!isRecord(value) || Object.keys(value).length !== 2 ||
+      (value.status !== 'preparing' && value.status !== 'active' && value.status !== 'complete') ||
+      value.progression !== 'manual') return undefined;
+  return { status: value.status, progression: 'manual' };
+}
+
+function requireFullGameDemoStartMode(
+  session: DocumentSnapshot,
+  requested: boolean,
+): FullGameDemoState | undefined {
+  const stored = session.get('fullGameDemo');
+  if (stored === undefined || stored === null) {
+    if (requested) {
+      throw commandError('failed-precondition', 'Prepare a fresh Cycle 0 training session before starting the full-game demo.', 'invalid-phase');
+    }
+    return undefined;
+  }
+  const mode = fullGameDemoState(stored);
+  if (!mode) {
+    throw commandError('failed-precondition', 'The full-game demo mode marker is malformed.', 'conflict');
+  }
+  if (mode.status === 'preparing' && requested && sessionTurn(session.get('currentTurn')) === 0) return mode;
+  if (mode.status === 'preparing' && !requested) {
+    throw commandError('failed-precondition', 'This session is prepared as a full-game demo; use its labeled demo start control.', 'invalid-phase');
+  }
+  throw commandError('failed-precondition', 'The full-game demo start is available only for its prepared fresh Cycle 0 session.', 'invalid-phase');
+}
+
 type StartRequestFingerprint = {
   readonly sessionId: string;
   readonly requestId: string;
   readonly actorUid: string;
   readonly instanceId: string;
   readonly expectedSetupRevision: number;
+  readonly fullGameDemo?: true;
 };
 
 function sameStartRequestFingerprint(
@@ -6565,7 +6817,8 @@ function sameStartRequestFingerprint(
 ): boolean {
   if (typeof value !== 'object' || value === null) return false;
   const candidate = value as Record<string, unknown>;
-  return Object.entries(expected).every(([key, item]) => candidate[key] === item);
+  return Object.entries(expected).every(([key, item]) => candidate[key] === item) &&
+    candidate.fullGameDemo === expected.fullGameDemo;
 }
 
 function startLoyaltyRecord(
@@ -6592,12 +6845,13 @@ function startLoyaltyRecord(
 }
 
 /** Start a ready casting roster exactly once through an active facilitator. */
-export const startGame = onCall<{
+export const startGame = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   expectedSetupRevision?: unknown;
-}>(async (request) => {
+  fullGameDemo?: unknown;
+}>('startGame', async (request) => {
   const uid = requireUid(request.auth);
   const start = requireGameStartRequest(request.data ?? {});
   const fingerprint: StartRequestFingerprint = {
@@ -6606,6 +6860,7 @@ export const startGame = onCall<{
     actorUid: uid,
     instanceId: start.instanceId,
     expectedSetupRevision: start.expectedSetupRevision,
+    ...(start.fullGameDemo ? { fullGameDemo: true as const } : {}),
   };
   const sessionRef = db.doc(`sessions/${start.sessionId}`);
   const startRequestRef = db.doc(`sessionStartRequests/${start.sessionId}_${start.requestId}`);
@@ -6626,7 +6881,7 @@ export const startGame = onCall<{
     actorUid: uid,
     instanceId: start.instanceId,
     expectedRevision: start.expectedSetupRevision,
-    payload: {},
+    payload: start.fullGameDemo ? { fullGameDemo: true } : {},
   };
   const [preflightSession, preflightPlayer, preflightInstance, priorStart, markerStart, legacyStartEvent] = await Promise.all([
     sessionRef.get(),
@@ -6661,6 +6916,7 @@ export const startGame = onCall<{
     return { ...(result as Record<string, unknown>), status: 'replayed' };
   })();
   if (preflightReply) return preflightReply;
+  requireFullGameDemoStartMode(preflightSession, start.fullGameDemo === true);
   await enforceExpensiveCallableRateLimit(db, {
     callableName: 'startGame', sessionId: start.sessionId, uid,
   });
@@ -6669,7 +6925,7 @@ export const startGame = onCall<{
   let candidateMissionDeck: MissionDeckState | undefined;
 
   return db.runTransaction(async (tx) => {
-    const [prior, marker, authority, players, instances, seats, secrets, legacyEvent, craftOwnershipManifest, census, missionDeckSnapshot, storedGroup] = await Promise.all([
+    const [prior, marker, authority, players, instances, seats, secrets, legacyEvent, craftOwnershipManifest, census, missionDeckSnapshot, storedGroup, storedNavigation] = await Promise.all([
       tx.get(startRequestRef),
       tx.get(markerRef),
       requireFacilitatorInstance(tx, start.sessionId, uid, start.instanceId),
@@ -6682,6 +6938,7 @@ export const startGame = onCall<{
       tx.get(censusRef),
       tx.get(missionDeckRef),
       tx.get(fleetGroupRefForStart),
+      tx.get(navigationStateRef(start.sessionId)),
     ]);
     await rejectForeignLegacyM1Command(
       tx, start.sessionId, start.requestId, 'start', [startRequestRef.path, eventRef.path],
@@ -6703,6 +6960,7 @@ export const startGame = onCall<{
       }
       throw commandError('failed-precondition', 'This start request has no replayable result.', 'conflict');
     }
+    requireFullGameDemoStartMode(authority.session, start.fullGameDemo === true);
     if (setupRevision(authority.session) !== start.expectedSetupRevision) {
       const reply = {
         status: 'stale' as const,
@@ -6949,6 +7207,16 @@ export const startGame = onCall<{
       loyaltySource = 'explicit-preserved';
     }
 
+    // Casting assigns roles without rewriting the earlier unassigned join
+    // discovery. Derive its current own-ship view from protected navigation,
+    // before projection writes/randomness, rather than retaining that
+    // shipless document.
+    const startNavigation = navigationStateForSession(storedNavigation, authority.session, activeVesselIds);
+    const storedNavigationRevision = storedNavigation.get('revision');
+    const startNavigationRevision = typeof storedNavigationRevision === 'number' &&
+      Number.isSafeInteger(storedNavigationRevision) && storedNavigationRevision >= 0
+      ? storedNavigationRevision : 0;
+
     // Do not draw randomness until every start precondition has passed. The
     // candidate is still shared across callback retries and only the first
     // successful transaction persists it.
@@ -6977,6 +7245,14 @@ export const startGame = onCall<{
     }, { mergeFields: ['pursuitGroups', 'shipFleetGroupIds', 'updatedAt'] });
     for (const player of players.docs) {
       if (!player.exists || isKickedPlayer(player)) continue;
+      // Replace complete audience-owned maps so an earlier role's discoveries
+      // cannot survive. Keep the existing group/pursuit initialization below.
+      writePlayerDiscoveryProjection(
+        tx, playerDiscoveryProjectionRef(start.sessionId, player.id),
+        { get: (field: string) => field === 'fleetGroupId' ? initialGroup.id : player.get(field) },
+        { ...startNavigation, pursuitGroups: initialPursuitGroups }, startNavigationRevision,
+        initialGroup.vesselIds, [], initialGroup.memberShipIds?.[player.id],
+      );
       tx.set(playerDiscoveryProjectionRef(start.sessionId, player.id), {
         groupId: initialGroup.id,
         fleetGroupVesselIds: [...initialGroup.vesselIds],
@@ -7036,7 +7312,7 @@ export const startGame = onCall<{
         if (!assignment) throw commandError('failed-precondition', 'Start blocked: loyalties-missing-result.', 'unavailable-service');
         tx.set(db.doc(`sessions/${start.sessionId}/secrets/loyalty-${holder.uid}`), {
           visibleToUids: [holder.uid],
-          payload: { type: 'loyalty', ...assignment },
+          payload: { type: 'loyalty', ...assignment, directives: privateLoyaltyDirectives(assignment.kind) },
           createdAt: FieldValue.serverTimestamp(),
         });
       }
@@ -7077,6 +7353,7 @@ export const startGame = onCall<{
       tx.set(missionDeckRef, {
         ...missionDeckState,
         dealtCount: 0,
+        resolvedDiscardCardIds: [],
         createdAt: FieldValue.serverTimestamp(),
       });
     } else if (missionDeckSnapshot.get('dealtCount') === undefined) {
@@ -7087,6 +7364,7 @@ export const startGame = onCall<{
       activeVesselIds,
       shipDamage: authority.session.get('shipDamage'),
       maintenanceCycles: authority.session.get('maintenanceCycles'),
+      shuttleFuelled: authority.session.get('shuttleFuelled'),
       fighterWingCounts: authority.session.get('fighterWingCounts'),
       fleetRedAlert: authority.session.get('fleetRedAlert'),
       pressDispatch: authority.session.get('pressDispatch'),
@@ -7097,6 +7375,7 @@ export const startGame = onCall<{
       setupRevision: committedSetupRevision,
       pursuitGroups: removeLegacyNavigationField(),
       shuttleControl,
+      ...(start.fullGameDemo ? { fullGameDemo: { status: 'active', progression: 'manual' } } : {}),
       ...turnOneState,
     });
     const result = {
@@ -7107,6 +7386,7 @@ export const startGame = onCall<{
       setupRevision: committedSetupRevision,
       turnStartAnnouncement: transition.turnStartAnnouncement,
       turnPhase: transition.turnPhase,
+      ...(start.fullGameDemo ? { fullGameDemo: { status: 'active', progression: 'manual' } } : {}),
       ...(transition.turnState ? { turnState: transition.turnState } : {}),
       setupReceipt,
     };
@@ -7138,6 +7418,218 @@ export const startGame = onCall<{
   });
 });
 
+type FullGameDemoPreparationReply = Readonly<{
+  status: 'committed' | 'replayed' | 'stale';
+  sessionId: string;
+  requestId: string;
+  fullGameDemo?: FullGameDemoState;
+  expectedSetupRevision: number;
+  currentSetupRevision: number;
+}>;
+
+function isFullGameDemoPreparationReply(value: unknown): value is FullGameDemoPreparationReply {
+  if (!isRecord(value) ||
+      (value.status !== 'committed' && value.status !== 'replayed' && value.status !== 'stale') ||
+      typeof value.sessionId !== 'string' || typeof value.requestId !== 'string' ||
+      !Number.isSafeInteger(value.expectedSetupRevision) || !Number.isSafeInteger(value.currentSetupRevision)) {
+    return false;
+  }
+  return value.status === 'stale' || fullGameDemoState(value.fullGameDemo)?.status === 'preparing';
+}
+
+/** Permanently label a fresh Cycle 0 training session before demo actors join. */
+export const prepareFullGameDemo = auditedOnCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedSetupRevision?: unknown;
+}>('prepareFullGameDemo', async request => {
+  const uid = requireUid(request.auth);
+  const prepare = requireGameStartRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${prepare.sessionId}`);
+  const playerRef = db.doc(`sessions/${prepare.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(`sessions/${prepare.sessionId}/gmInstances/${prepare.instanceId}`);
+  const playersRef = db.collection(`sessions/${prepare.sessionId}/players`);
+  const receiptRef = commandReceiptRef(prepare.sessionId, prepare.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'prepare-full-game-demo',
+    sessionId: prepare.sessionId,
+    requestId: prepare.requestId,
+    actorUid: uid,
+    instanceId: prepare.instanceId,
+    expectedRevision: prepare.expectedSetupRevision,
+    payload: {},
+  };
+  const [preflightSession, preflightPlayer, preflightInstance, preflightReceipt] = await Promise.all([
+    sessionRef.get(), playerRef.get(), instanceRef.get(), receiptRef.get(),
+  ]);
+  if (!preflightSession.exists) throw new HttpsError('not-found', 'No such session.');
+  if (!isLiveGmInstance(preflightInstance, preflightPlayer, uid)) {
+    throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
+  }
+  const prior = replayBoundCommand(preflightReceipt, fingerprint, isFullGameDemoPreparationReply, 'full-game demo preparation');
+  if (prior) return { ...prior, status: 'replayed' as const };
+  await enforceExpensiveCallableRateLimit(db, {
+    callableName: 'prepareFullGameDemo', sessionId: prepare.sessionId, uid,
+  });
+
+  return db.runTransaction(async tx => {
+    const [authority, players, receipt] = await Promise.all([
+      requireFacilitatorInstance(tx, prepare.sessionId, uid, prepare.instanceId),
+      tx.get(playersRef), tx.get(receiptRef),
+    ]);
+    const replay = replayBoundCommand(receipt, fingerprint, isFullGameDemoPreparationReply, 'full-game demo preparation');
+    if (replay) return { ...replay, status: 'replayed' as const };
+    const session = authority.session;
+    if (sessionTurn(session.get('currentTurn')) !== 0) {
+      throw commandError('failed-precondition', 'Full-game demo preparation is available only in Cycle 0.', 'invalid-phase');
+    }
+    requireCastingWindow(session);
+    if (setupRevision(session) !== prepare.expectedSetupRevision) {
+      const stale: FullGameDemoPreparationReply = {
+        status: 'stale', sessionId: prepare.sessionId, requestId: prepare.requestId,
+        expectedSetupRevision: prepare.expectedSetupRevision,
+        currentSetupRevision: setupRevision(session),
+      };
+      tx.set(receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    if (session.get('singlePlayerDemo') !== undefined && session.get('singlePlayerDemo') !== null) {
+      throw commandError('failed-precondition', 'A single-cycle demo cannot be converted into a full-game demo.', 'invalid-phase');
+    }
+    if (players.docs.some(player => player.exists && player.get('role') === 'player')) {
+      throw commandError('failed-precondition', 'Prepare the full-game demo before any ordinary player joins.', 'conflict');
+    }
+    const existing = session.get('fullGameDemo');
+    const existingMode = existing === undefined || existing === null ? undefined : fullGameDemoState(existing);
+    if (existing !== undefined && existing !== null && existingMode?.status !== 'preparing') {
+      throw commandError('failed-precondition', 'A training session cannot be created from an existing ordinary or completed game.', 'invalid-phase');
+    }
+    const marker: FullGameDemoState = { status: 'preparing', progression: 'manual' };
+    const result: FullGameDemoPreparationReply = {
+      status: 'committed', sessionId: prepare.sessionId, requestId: prepare.requestId,
+      fullGameDemo: marker,
+      expectedSetupRevision: prepare.expectedSetupRevision,
+      currentSetupRevision: setupRevision(session),
+    };
+    if (!existingMode) tx.update(sessionRef, { fullGameDemo: marker, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type FullGameDemoPhaseAdvanceReply = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  requestId: string;
+  currentTurn: number;
+  fullGameDemo: FullGameDemoState;
+  turnPhase: ActiveTurnPhase;
+  turnState?: ActiveTurnState;
+}>;
+
+function isFullGameDemoPhaseAdvanceReply(value: unknown, sessionId: string): value is FullGameDemoPhaseAdvanceReply {
+  if (!isRecord(value) || (value.status !== 'committed' && value.status !== 'replayed') ||
+      value.sessionId !== sessionId || typeof value.requestId !== 'string' ||
+      !Number.isSafeInteger(value.currentTurn) ||
+      fullGameDemoState(value.fullGameDemo)?.status !== 'active') return false;
+  const phase = turnPhaseState(value.turnPhase);
+  return phase?.progression === 'manual' && phase.turn === value.currentTurn && phase.airspace.state === 'lifted';
+}
+
+/** Open Coordination in an unlimited demo through the live authenticated GM instance. */
+export const advanceFullGameDemoPhase = auditedOnCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedTurn?: unknown;
+}>('advanceFullGameDemoPhase', async request => {
+  const uid = requireUid(request.auth);
+  const action = requireFullGameDemoPhaseAdvanceRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${action.sessionId}`);
+  const playerRef = db.doc(`sessions/${action.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(`sessions/${action.sessionId}/gmInstances/${action.instanceId}`);
+  const receiptRef = commandReceiptRef(action.sessionId, action.requestId);
+  const attackStateRef = db.doc(`sessions/${action.sessionId}/wolfAttackState/current`);
+  const fingerprint: CommandFingerprint = {
+    action: 'advance-full-game-demo-phase',
+    sessionId: action.sessionId,
+    requestId: action.requestId,
+    actorUid: uid,
+    instanceId: action.instanceId,
+    expectedRevision: action.expectedTurn,
+    payload: {},
+  };
+  const [preflightSession, preflightPlayer, preflightInstance, preflightReceipt] = await Promise.all([
+    sessionRef.get(), playerRef.get(), instanceRef.get(), receiptRef.get(),
+  ]);
+  if (!preflightSession.exists) throw new HttpsError('not-found', 'No such session.');
+  if (!isLiveGmInstance(preflightInstance, preflightPlayer, uid)) {
+    throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
+  }
+  const prior = replayBoundCommand(
+    preflightReceipt, fingerprint, value => isFullGameDemoPhaseAdvanceReply(value, action.sessionId),
+    'full-game demo phase advance',
+  );
+  if (prior) return { ...prior, status: 'replayed' as const };
+  await enforceExpensiveCallableRateLimit(db, {
+    callableName: 'advanceFullGameDemoPhase', sessionId: action.sessionId, uid,
+  });
+
+  return db.runTransaction(async tx => {
+    const [authority, attackState, receipt] = await Promise.all([
+      requireFacilitatorInstance(tx, action.sessionId, uid, action.instanceId),
+      tx.get(attackStateRef), tx.get(receiptRef),
+    ]);
+    const replay = replayBoundCommand(
+      receipt, fingerprint, value => isFullGameDemoPhaseAdvanceReply(value, action.sessionId),
+      'full-game demo phase advance',
+    );
+    if (replay) return { ...replay, status: 'replayed' as const };
+    const session = authority.session;
+    requireActiveGameplayPhase(session);
+    if (session.get('phase') !== 'active' || sessionTurn(session.get('currentTurn')) !== action.expectedTurn ||
+        fullGameDemoState(session.get('fullGameDemo'))?.status !== 'active') {
+      throw commandError('failed-precondition', 'The full-game demo phase changed; refresh before advancing.', 'stale-revision');
+    }
+    const phase = turnPhaseState(session.get('turnPhase'));
+    if (!phase || phase.progression !== 'manual' || phase.turn !== action.expectedTurn ||
+        phase.airspace.state !== 'restricted' || phase.timerPause !== undefined) {
+      throw commandError('failed-precondition', 'Manual phase advance is available only during the current restricted demo phase.', 'invalid-phase');
+    }
+    if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
+      throw commandError('failed-precondition', 'Wait for the server-controlled Wolf attack to resolve before advancing the demo phase.', 'invalid-phase');
+    }
+    const openedPhase: ActiveTurnPhase = {
+      ...phase,
+      airspace: { ...phase.airspace, state: 'lifted', tickerActive: true },
+    };
+    const turnState = phaseTransitionTurnState(session, openedPhase);
+    const transitionServerTime = new Date().toISOString();
+    const fleetTicker = publishSessionFleetTicker(action.sessionId, session, {
+      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace, passCount: 1,
+      text: FLEET_TICKER_COPY.airspaceOpen, tone: 'normal', gap: 'long',
+      sourceId: `airspace:${openedPhase.turn}:lifted`,
+    }, transitionServerTime);
+    tx.update(sessionRef, {
+      turnPhase: openedPhase,
+      ...(turnState ? { turnState } : {}),
+      fleetTicker,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    writeAirspaceOpenedEvent(tx, action.sessionId, phase, transitionServerTime);
+    const result: FullGameDemoPhaseAdvanceReply = {
+      status: 'committed', sessionId: action.sessionId, requestId: action.requestId,
+      currentTurn: action.expectedTurn,
+      fullGameDemo: { status: 'active', progression: 'manual' },
+      turnPhase: openedPhase,
+      ...(turnState ? { turnState } : {}),
+    };
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
 type ShuttleControlReply = Readonly<{
   status: 'committed' | 'replayed';
   sessionId: string;
@@ -7157,7 +7649,48 @@ function shuttleOwnerRoleForPlayer(player: DocumentSnapshot): string | undefined
   return active === 'press-officer' ? active : undefined;
 }
 
-function retainedShuttleTransitionForDestruction(
+function lostShuttlesForSession(session: DocumentSnapshot): LostShuttleState {
+  try {
+    return validatedLostShuttles(session.get('lostShuttles'), {
+      activeRoleIds: sessionActiveRoleIds(session), activeVesselIds: activeVesselIdsForSession(session),
+      currentCycle: sessionTurn(session.get('currentTurn')), shipDamage: session.get('shipDamage'),
+      vesselActionRevisions: session.get('vesselActionRevisions'),
+      dockings: session.get('shuttleDockings'), visits: session.get('shuttleVisitLog'),
+      control: session.get('shuttleControl'), retained: session.get('retainedShuttles'),
+      cargo: session.get('shuttleCargo'), fuelled: session.get('shuttleFuelled'),
+    });
+  } catch (error) {
+    throw commandError('failed-precondition', error instanceof Error ? error.message : 'Lost shuttle history is malformed.', 'conflict');
+  }
+}
+
+/** A terminal PDF projection must have the same server-authored loss evidence
+ * as its printed owner's shuttle; its shape alone is not destruction proof. */
+function pdfEscortWingStateForSession(session: DocumentSnapshot, value: unknown): PdfEscortWingState | null {
+  const state = parsePdfEscortWingState(value);
+  if (!state?.hostLoss) return state;
+  const loss = lostShuttlesForSession(session).chepu;
+  const repair = state.hostLoss.hostRepair;
+  const sameRepair = !loss?.hostRepair ? repair === undefined : !!repair &&
+    loss.hostRepair.sourceId === repair.sourceId && loss.hostRepair.requestId === repair.requestId &&
+    loss.hostRepair.revision === repair.revision && loss.hostRepair.repairedAt === repair.repairedAt;
+  return loss && loss.destroyedHostShipId === state.hostLoss.destroyedHostShipId &&
+    loss.sourceId === state.hostLoss.sourceId && loss.cycle === state.hostLoss.cycle &&
+    loss.lostAt === state.hostLoss.lostAt &&
+    sameRepair ? state : null;
+}
+
+function writeOtherHostCraftLoss(tx: Transaction, sessionId: string, other: OtherHostCraftLoss): void {
+  if (other.pdfState) tx.set(db.doc(`sessions/${sessionId}/serverState/pdfEscortWing`), other.pdfState);
+  if (other.attackPatch) tx.update(db.doc(`sessions/${sessionId}/wolfAttackState/current`), other.attackPatch);
+}
+function withoutLostCraft(value: unknown, lostIds: readonly string[]): Record<string, unknown> {
+  if (value !== undefined && !isRecord(value)) throw commandError('failed-precondition', 'Lost shuttle operational ledger is malformed.', 'conflict');
+  return Object.fromEntries(Object.entries(value ?? {}).filter(([id]) => !lostIds.includes(id)));
+}
+
+async function retainedShuttleTransitionForDestruction(
+  tx: Transaction,
   session: DocumentSnapshot,
   players: readonly DocumentSnapshot[],
   destroyedHostShipId: string,
@@ -7177,9 +7710,6 @@ function retainedShuttleTransitionForDestruction(
       'conflict',
     );
   }
-  if (!rawDockings.some((docking) => docking.shipId === destroyedHostShipId)) {
-    return undefined;
-  }
   const storedControl = session.get('shuttleControl');
   const roleHolders = players.flatMap((player) => {
     if (!player.exists || player.get('role') !== 'player' || isKickedPlayer(player)) return [];
@@ -7195,6 +7725,8 @@ function retainedShuttleTransitionForDestruction(
     )
     : parseShuttleControl(storedControl);
   const retained = parseRetainedShuttles(session.get('retainedShuttles'));
+  const lost = { ...lostShuttlesForSession(session) };
+  const lostShuttleIds: string[] = [];
   if (!control || !retained) {
     throw commandError(
       'failed-precondition',
@@ -7213,6 +7745,28 @@ function retainedShuttleTransitionForDestruction(
     const custody = control[docking.shuttleId];
     const printedOwners = roster.filter((player) =>
       shuttleOwnerRoleForPlayer(player) === craft?.ownerRoleId);
+    // No current or former player may be erased by the never-assigned rule.
+    // A present malformed custody entry and any moved history remain conflicts.
+    const anyPrintedOwner = players.some(player => player.exists && player.get('role') === 'player' &&
+      shuttleOwnerRoleForPlayer(player) === craft?.ownerRoleId);
+    if (craft && isRecord(storedControl) && !Object.hasOwn(control, docking.shuttleId) && !anyPrintedOwner &&
+        !Object.hasOwn(retained, docking.shuttleId) && !Object.hasOwn(lost, docking.shuttleId) &&
+        hasInitialOnlyShuttleHistory(docking.shuttleId, destroyedHostShipId, session.get('shuttleVisitLog'))) {
+      const cargo = session.get('shuttleCargo');
+      const fuel = session.get('shuttleFuelled');
+      if (cargo !== undefined && !isRecord(cargo) || fuel !== undefined && !isRecord(fuel) ||
+          isRecord(cargo) && Object.hasOwn(cargo, docking.shuttleId) &&
+            (!isRecord(cargo[docking.shuttleId]) || Object.entries(cargo[docking.shuttleId] as Record<string, unknown>).some(([key, value]) =>
+              !(RESOURCE_IDS as readonly string[]).includes(key) || !Number.isSafeInteger(value) || Number(value) < 0)) ||
+          isRecord(fuel) && Object.hasOwn(fuel, docking.shuttleId) && typeof fuel[docking.shuttleId] !== 'boolean') {
+        throw commandError('failed-precondition', 'Lost shuttle operational ledger is malformed.', 'conflict');
+      }
+      lost[docking.shuttleId] = { status: 'lost', shuttleId: docking.shuttleId, ownerRoleId: craft.ownerRoleId,
+        destroyedHostShipId, cycle: sessionTurn(session.get('currentTurn')),
+        sourceId: `damage-destroyed-${destroyedHostShipId}`, lostAt: retainedAt };
+      lostShuttleIds.push(docking.shuttleId);
+      continue;
+    }
     if (!craft || !custody || custody.ownerRoleId !== craft.ownerRoleId ||
         printedOwners.length !== 1 || printedOwners[0]?.id !== custody.ownerUid ||
         !rosterByUid.has(custody.holderUid)) {
@@ -7223,11 +7777,25 @@ function retainedShuttleTransitionForDestruction(
       );
     }
   }
+  let other: OtherHostCraftLoss;
+  try {
+    other = await unassignedHostCraftLoss(tx, db, { session, players, host: destroyedHostShipId,
+      cycle: sessionTurn(session.get('currentTurn')), lostAt: retainedAt, lostShuttleIds });
+  } catch (error) {
+    throw commandError('failed-precondition', error instanceof Error ? error.message : 'Craft assignment history is malformed.', 'conflict');
+  }
+  if (!rawDockings.some(docking => docking.shipId === destroyedHostShipId) && Object.keys(other.sessionPatch).length === 0) return undefined;
   return {
-    control,
+    other,
+    control, lostShuttleIds,
+    lossPatch: lostShuttleIds.length > 0 ? {
+      lostShuttles: lost,
+      shuttleCargo: withoutLostCraft(session.get('shuttleCargo'), lostShuttleIds),
+      shuttleFuelled: withoutLostCraft(session.get('shuttleFuelled'), lostShuttleIds),
+    } : {},
     ...retainShuttlesFromDestroyedHost({
       destroyedHostShipId,
-      dockings: rawDockings,
+      dockings: rawDockings.filter(docking => !lostShuttleIds.includes(docking.shuttleId)),
       control,
       retained,
       retainedAt,
@@ -7236,7 +7804,7 @@ function retainedShuttleTransitionForDestruction(
 }
 
 /** Hand a shuttle to another connected player or return it to its printed owner. */
-export const transferShuttleControlCommand = onCall<{
+export const transferShuttleControlCommand = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   instanceId?: unknown;
@@ -7244,7 +7812,7 @@ export const transferShuttleControlCommand = onCall<{
   action?: unknown;
   targetUid?: unknown;
   expectedRevision?: unknown;
-}>(async request => {
+}>('transferShuttleControlCommand', async request => {
   const uid = requireUid(request.auth);
   const occurredAt = new Date().toISOString();
   const raw = request.data;
@@ -7313,7 +7881,7 @@ export const transferShuttleControlCommand = onCall<{
     if (!isActivePlayer(actor)) {
       throw new HttpsError('permission-denied', 'Join the session before transferring a shuttle.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     const actorIsFacilitator = actor.get('role') === 'gm';
     if (actorIsFacilitator) {
       if (!instance || !isLiveGmInstance(instance, actor, uid)) {
@@ -7377,6 +7945,7 @@ export const transferShuttleControlCommand = onCall<{
     // An exact retry remains available to the still-authorized printed owner
     // or facilitator after the phase or recipient presence changes. The
     // committed reply contains no hidden state and must remain transport-safe.
+    requireCandidateActionAvailable(session, actor, [], [data.shuttleId]);
     requireActionPhase(session, 'transfer', actorIsFacilitator ? 'facilitator' : 'player');
     const activeRoleIds = configuredRoleIds(session);
     const rawDockings = session.get('shuttleDockings');
@@ -7418,6 +7987,7 @@ export const transferShuttleControlCommand = onCall<{
     if (!target || target.get('role') !== 'player') {
       throw commandError('failed-precondition', 'Choose a connected player.', 'conflict');
     }
+    requireCandidateActionAvailable(session, target);
     if (typeof owner.get('fleetGroupId') !== 'string' ||
         target.get('fleetGroupId') !== owner.get('fleetGroupId')) {
       throw new HttpsError('permission-denied', 'Choose a player in your current fleet group.');
@@ -7570,10 +8140,10 @@ function isShuttleCargoTransferReply(value: unknown, sessionId: string): value i
 }
 
 /** Move printed cargo only between a shuttle and its one authoritative docked host. */
-export const transferShuttleCargoCommand = onCall<{
+export const transferShuttleCargoCommand = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; shuttleId?: unknown; resourceId?: unknown;
   direction?: unknown; amount?: unknown; expectedControlRevision?: unknown;
-}>(async request => {
+}>('transferShuttleCargoCommand', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -7613,13 +8183,14 @@ export const transferShuttleCargoCommand = onCall<{
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only a connected shuttle holder may transfer cargo.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     const replay = replayBoundCommand(
       receipt, fingerprint,
       (value): value is ShuttleCargoTransferReply => isShuttleCargoTransferReply(value, data.sessionId),
       'shuttle cargo transfer',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireCandidateActionAvailable(session, actor, [], [data.shuttleId]);
     requireActionPhase(session, 'transfer', 'player');
     const groupId = actor.get('fleetGroupId');
     if (typeof groupId !== 'string' || groupId.length === 0) {
@@ -7711,6 +8282,16 @@ export const transferShuttleCargoCommand = onCall<{
       [`shuttleCargo.${data.shuttleId}`]: result.shuttleInventory,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    writeStandardActionAudit(tx, db, {
+      sessionId: data.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(actor),
+      action: 'shuttle-cargo', phase: vesselActionPhase(session), requestId: data.requestId,
+      revision: data.expectedControlRevision, outcome: 'committed', resolutionSource: 'server-calculated',
+      createdAt: FieldValue.serverTimestamp(),
+    }, {
+      sourceId: 'shuttle-cargo-transfer', requiredChoices: [{ actor: 'player', kind: 'cargo', value: { shuttleId: data.shuttleId, resourceId: data.resourceId, direction: data.direction, amount: data.amount } }],
+      calculation: { amount: result.amount, direction: result.direction, resourceId: result.resourceId },
+      consequences: { hostShipId: result.hostShipId, shipAmount: result.shipAmount, shuttleAmount: result.shuttleAmount }, audience: { operational: 'group', groupId },
+    });
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -7765,12 +8346,12 @@ function isServiceShuttleRechargeReply(
 }
 
 /** Add one service-shuttle charge and resolve any immediate production effect atomically. */
-export const rechargeHostConsoleFromShuttle = onCall<{
+export const rechargeHostConsoleFromShuttle = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; shuttleId?: unknown; consoleId?: unknown;
   expectedHostShipId?: unknown;
   expectedControlRevision?: unknown; expectedMaintenanceRevision?: unknown; expectedCycle?: unknown;
   productionScrap?: unknown; productionOreAmount?: unknown;
-}>(async request => {
+}>('rechargeHostConsoleFromShuttle', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -7822,7 +8403,7 @@ export const rechargeHostConsoleFromShuttle = onCall<{
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only a connected shuttle holder may recharge a console.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     const replay = replayBoundCommand(
       receipt, fingerprint,
       (value): value is ServiceShuttleRechargeReply =>
@@ -7873,6 +8454,7 @@ export const rechargeHostConsoleFromShuttle = onCall<{
       }
       return { ...replay, status: 'replayed' as const };
     }
+    requireCandidateActionAvailable(session, actor, [data.expectedHostShipId], [data.shuttleId]);
     if (event.exists) rejectLegacyEventReplay('service-shuttle recharge');
     if (session.get('phase') !== 'active') {
       throw commandError(
@@ -8021,6 +8603,16 @@ export const rechargeHostConsoleFromShuttle = onCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeStandardActionAudit(tx, db, {
+      sessionId: data.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(actor),
+      action: 'shuttle-recharge', phase: vesselActionPhase(session), requestId: data.requestId,
+      revision: result.ledger.revision, outcome: 'committed', resolutionSource: 'server-calculated',
+      createdAt: FieldValue.serverTimestamp(),
+    }, {
+      sourceId: 'service-shuttle-recharge', requiredChoices: [{ actor: 'player', kind: 'console', value: { shuttleId: data.shuttleId, consoleId: data.consoleId, productionScrap: data.productionScrap ?? null, productionOreAmount: data.productionOreAmount ?? null } }],
+      calculation: { resourcesBefore: serviceRechargeResourceState(session.get('shipResources'), result.hostShipId), resourcesAfter: result.resources, immediate: result.immediate },
+      consequences: { hostShipId: result.hostShipId, consoleId: data.consoleId, maintenanceRevision: result.maintenanceCycle.revision, rechargeRevision: result.ledger.revision, resources: result.resources }, audience: { operational: 'group', groupId },
+    });
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -8062,11 +8654,11 @@ function isBlacksmithRepairReply(
 }
 
 /** Repair one or two damaged consoles on Blacksmith's authoritative docked host. */
-export const repairConsolesFromBlacksmith = onCall<{
+export const repairConsolesFromBlacksmith = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedControlRevision?: unknown;
   expectedRepairRevision?: unknown; expectedCycle?: unknown; expectedHostShipId?: unknown;
   systemIds?: unknown;
-}>(async request => {
+}>('repairConsolesFromBlacksmith', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -8113,7 +8705,7 @@ export const repairConsolesFromBlacksmith = onCall<{
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only a connected Blacksmith holder may repair consoles.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     await rejectForeignLegacyM1Command(
       tx, data.sessionId, data.requestId, 'Blacksmith repair', [],
     );
@@ -8123,6 +8715,7 @@ export const repairConsolesFromBlacksmith = onCall<{
       'Blacksmith repair',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireCandidateActionAvailable(session, actor, [data.expectedHostShipId], ['blacksmith']);
     if (event.exists) rejectLegacyEventReplay('Blacksmith repair');
     if (session.get('phase') !== 'active') {
       throw commandError('failed-precondition', 'Blacksmith repair is available only during active gameplay.', 'invalid-phase');
@@ -8134,9 +8727,8 @@ export const repairConsolesFromBlacksmith = onCall<{
         !phase || phase.turn !== currentCycle) {
       throw commandError('failed-precondition', 'The authoritative Blacksmith Coordination cycle is unavailable.', 'conflict');
     }
-    const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
-        !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
+        turnPhaseDeadlinePassed(phase, 'open')) {
       throw commandError(
         'failed-precondition',
         'Blacksmith repair is available only during a live Coordination window.',
@@ -8252,6 +8844,16 @@ export const repairConsolesFromBlacksmith = onCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeStandardActionAudit(tx, db, {
+      sessionId: data.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(actor),
+      action: 'blacksmith-repair', phase: vesselActionPhase(session), requestId: data.requestId,
+      revision: result.ledger.revision, outcome: 'committed', resolutionSource: 'server-calculated',
+      createdAt: FieldValue.serverTimestamp(),
+    }, {
+      sourceId: 'blacksmith-repair', requiredChoices: [{ actor: 'player', kind: 'consoles', value: data.systemIds }],
+      calculation: { materialsSpent: result.repairedSystemIds.length * BLACKSMITH_REPAIR_COST },
+      consequences: { hostShipId: result.hostShipId, systemIds: result.repairedSystemIds, materialsRemaining: result.materials, damage: result.damage }, audience: { operational: 'group', groupId },
+    });
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -8293,11 +8895,11 @@ function isPhiliaRepairReply(
 }
 
 /** Repair one or two damaged consoles on Philia's authoritative docked host. */
-export const repairConsolesFromPhilia = onCall<{
+export const repairConsolesFromPhilia = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedControlRevision?: unknown;
   expectedRepairRevision?: unknown; expectedCycle?: unknown; expectedHostShipId?: unknown;
   systemIds?: unknown;
-}>(async request => {
+}>('repairConsolesFromPhilia', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -8351,6 +8953,7 @@ export const repairConsolesFromPhilia = onCall<{
       'Philia repair',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireCandidateActionAvailable(session, actor, [data.expectedHostShipId], ['philia']);
     if (event.exists) rejectLegacyEventReplay('Philia repair');
     if (session.get('phase') !== 'active') {
       throw commandError('failed-precondition', 'Philia repair is available only during active gameplay.', 'invalid-phase');
@@ -8362,9 +8965,8 @@ export const repairConsolesFromPhilia = onCall<{
         !phase || phase.turn !== currentCycle) {
       throw commandError('failed-precondition', 'The authoritative Philia Coordination cycle is unavailable.', 'conflict');
     }
-    const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
-        !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
+        turnPhaseDeadlinePassed(phase, 'open')) {
       throw commandError(
         'failed-precondition',
         'Philia repair is available only during a live Coordination window.',
@@ -8492,17 +9094,27 @@ export const repairConsolesFromPhilia = onCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeStandardActionAudit(tx, db, {
+      sessionId: data.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(actor),
+      action: 'philia-repair', phase: vesselActionPhase(session), requestId: data.requestId,
+      revision: result.ledger.revision, outcome: 'committed', resolutionSource: 'server-calculated',
+      createdAt: FieldValue.serverTimestamp(),
+    }, {
+      sourceId: 'philia-repair', requiredChoices: [{ actor: 'player', kind: 'consoles', value: data.systemIds }],
+      calculation: { materialsSpent: result.repairedSystemIds.length * PHILIA_REPAIR_COST },
+      consequences: { hostShipId: result.hostShipId, systemIds: result.repairedSystemIds, materialsRemaining: result.materials, damage: result.damage }, audience: { operational: 'group', groupId },
+    });
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
 });
 
 /** Repair one or two damaged consoles on Macaw's authoritative docked host. */
-export const repairConsolesFromMacaw = onCall<{
+export const repairConsolesFromMacaw = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedControlRevision?: unknown;
   expectedRepairRevision?: unknown; expectedCycle?: unknown; expectedHostShipId?: unknown;
   systemIds?: unknown;
-}>(async request => {
+}>('repairConsolesFromMacaw', async request => {
   const uid = requireUid(request.auth);
   const data = parseMacawRepairCallableCommand(request.data);
   if (!data) throw new HttpsError('invalid-argument', 'Invalid Macaw repair request.');
@@ -8520,7 +9132,7 @@ export const repairConsolesFromMacaw = onCall<{
         actor.get('activeConsoleRoleId') !== 'capybara-captain') {
       throw new HttpsError('permission-denied', 'Only a connected Macaw holder may repair consoles.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'Macaw repair', []);
     const replay = replayBoundCommand(
       receipt, fingerprint as CommandFingerprint,
@@ -8528,6 +9140,7 @@ export const repairConsolesFromMacaw = onCall<{
       'Macaw repair',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireCandidateActionAvailable(session, actor, [data.expectedHostShipId], ['macaw']);
     if (event.exists) rejectLegacyEventReplay('Macaw repair');
     if (session.get('phase') !== 'active') {
       throw commandError('failed-precondition', 'Macaw repair is available only during active gameplay.', 'invalid-phase');
@@ -8539,9 +9152,8 @@ export const repairConsolesFromMacaw = onCall<{
         !phase || phase.turn !== currentCycle) {
       throw commandError('failed-precondition', 'The current Coordination cycle is unavailable.', 'conflict');
     }
-    const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
-        !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
+        turnPhaseDeadlinePassed(phase, 'open')) {
       throw commandError(
         'failed-precondition',
         'Macaw repair is available only during a live Coordination window.',
@@ -8645,17 +9257,27 @@ export const repairConsolesFromMacaw = onCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeStandardActionAudit(tx, db, {
+      sessionId: data.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(actor),
+      action: 'macaw-repair', phase: vesselActionPhase(session), requestId: data.requestId,
+      revision: result.ledger.revision, outcome: 'committed', resolutionSource: 'server-calculated',
+      createdAt: FieldValue.serverTimestamp(),
+    }, {
+      sourceId: 'macaw-repair', requiredChoices: [{ actor: 'player', kind: 'consoles', value: data.systemIds }],
+      calculation: { scrapSpent: result.repairedSystemIds.length * MACAW_REPAIR_COST },
+      consequences: { hostShipId: result.hostShipId, systemIds: result.repairedSystemIds, scrapRemaining: result.scrap, damage: result.damage }, audience: { operational: 'group', groupId },
+    });
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
 });
 
 /** Recycle one printed recipe from Boa's current docked host in one server transaction. */
-export const recycleWithBoa = onCall<{
+export const recycleWithBoa = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; recipeId?: unknown;
   expectedControlRevision?: unknown; expectedRecyclingRevision?: unknown;
   expectedCycle?: unknown; expectedHostShipId?: unknown;
-}>(async request => {
+}>('recycleWithBoa', async request => {
   const uid = requireUid(request.auth);
   const data = parseBoaRecyclingCallableCommand(request.data);
   if (!data) throw new HttpsError('invalid-argument', 'Invalid Boa recycling request.');
@@ -8672,7 +9294,7 @@ export const recycleWithBoa = onCall<{
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only a connected Capybara Recycler may use Boa recycling.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'Boa recycling', []);
     const replay = replayBoundCommand(
       receipt, fingerprint,
@@ -8680,6 +9302,7 @@ export const recycleWithBoa = onCall<{
       'Boa recycling',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireCandidateActionAvailable(session, actor, [data.expectedHostShipId], ['boa']);
     if (event.exists) rejectLegacyEventReplay('Boa recycling');
     if (session.get('phase') !== 'active') {
       throw commandError('failed-precondition', 'Boa recycling is available only during active gameplay.', 'invalid-phase');
@@ -8691,9 +9314,8 @@ export const recycleWithBoa = onCall<{
         !phase || phase.turn !== currentCycle) {
       throw commandError('failed-precondition', 'The authoritative Coordination cycle is unavailable.', 'conflict');
     }
-    const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
-        !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
+        turnPhaseDeadlinePassed(phase, 'open')) {
       throw commandError(
         'failed-precondition',
         'Boa recycling is available only during a live Coordination window.',
@@ -8828,6 +9450,16 @@ export const recycleWithBoa = onCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeStandardActionAudit(tx, db, {
+      sessionId: data.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(actor),
+      action: 'boa-recycling', phase: vesselActionPhase(session), requestId: data.requestId,
+      revision: result.ledger.revision, outcome: 'committed', resolutionSource: 'server-calculated',
+      createdAt: FieldValue.serverTimestamp(),
+    }, {
+      sourceId: 'boa-recycling', requiredChoices: [{ actor: 'player', kind: 'recipe', value: data.recipeId }],
+      calculation: { resourceId: result.resourceId, resourceCost: result.resourceCost, scrapAwarded: result.scrapAwarded },
+      consequences: { hostShipId: result.hostShipId, hostResourceRemaining: result.resources[result.resourceId], scrapRemaining, exchangesThisCycle: result.ledger.exchangesThisCycle }, audience: { operational: 'group', groupId },
+    });
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -8861,7 +9493,7 @@ type ChacauRepairReply = Readonly<{
 }>;
 
 /** Repair one or two damaged consoles through Chacau's Refinery 124 authority. */
-export const repairConsolesFromChacau = onCall(async request => {
+export const repairConsolesFromChacau = auditedOnCall('repairConsolesFromChacau', async request => {
   const uid = requireUid(request.auth);
   const data = parseChacauRepairCallableCommand(request.data);
   if (!data) throw new HttpsError('invalid-argument', 'Invalid Chacau repair request.');
@@ -8878,7 +9510,7 @@ export const repairConsolesFromChacau = onCall(async request => {
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only a connected Refinery 124 Engineer may repair consoles with Chacau.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'Chacau repair', []);
     const replay = replayBoundCommand(
       receipt, fingerprint,
@@ -8886,6 +9518,7 @@ export const repairConsolesFromChacau = onCall(async request => {
       'Chacau repair',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireCandidateActionAvailable(session, actor, [data.expectedHostShipId], ['chacau']);
     if (event.exists) rejectLegacyEventReplay('Chacau repair');
     if (session.get('phase') !== 'active') {
       throw commandError('failed-precondition', 'Chacau repair is available only during active gameplay.', 'invalid-phase');
@@ -8896,9 +9529,8 @@ export const repairConsolesFromChacau = onCall(async request => {
     if (!Number.isSafeInteger(currentCycle) || !phase || phase.turn !== currentCycle) {
       throw commandError('failed-precondition', 'The current Coordination state is unavailable.', 'invalid-phase');
     }
-    const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
-        !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
+        turnPhaseDeadlinePassed(phase, 'open')) {
       throw commandError('failed-precondition', 'Chacau repair is available only during a live Coordination window.', 'invalid-phase');
     }
     const assignedRoleId = actor.get('assignedRoleId');
@@ -9022,6 +9654,16 @@ export const repairConsolesFromChacau = onCall(async request => {
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeStandardActionAudit(tx, db, {
+      sessionId: data.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(actor),
+      action: 'chacau-repair', phase: vesselActionPhase(session), requestId: data.requestId,
+      revision: result.ledger.revision, outcome: 'committed', resolutionSource: 'server-calculated',
+      createdAt: FieldValue.serverTimestamp(),
+    }, {
+      sourceId: 'chacau-repair', requiredChoices: [{ actor: 'player', kind: 'consoles', value: data.systemIds }],
+      calculation: { materialsSpent: result.repairedSystemIds.length * CHACAU_REPAIR_COST },
+      consequences: { hostShipId: result.hostShipId, systemIds: result.repairedSystemIds, materialsRemaining: result.materials, damage: result.damage }, audience: { operational: 'group', groupId },
+    });
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -9062,7 +9704,7 @@ function isEndeavourFieldUpgradeReply(
 }
 
 /** Apply Endeavour console upgrades using target-ship materials and server-owned research state. */
-export const upgradeEndeavourFieldTargets = onCall<{
+export const upgradeEndeavourFieldTargets = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedHostShipId?: unknown;
@@ -9070,7 +9712,7 @@ export const upgradeEndeavourFieldTargets = onCall<{
   expectedUpgradeRevision?: unknown;
   expectedCycle?: unknown;
   targets?: unknown;
-}>(async request => {
+}>('upgradeEndeavourFieldTargets', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowedKeys = new Set([
@@ -9138,7 +9780,7 @@ export const upgradeEndeavourFieldTargets = onCall<{
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only a connected Endeavour holder may upgrade consoles.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'Endeavour upgrade', []);
     const replay = replayBoundCommand(
       receipt,
@@ -9147,6 +9789,7 @@ export const upgradeEndeavourFieldTargets = onCall<{
       'Endeavour upgrade',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireCandidateActionAvailable(session, actor, [data.expectedHostShipId], ['endeavour']);
     if (event.exists) rejectLegacyEventReplay('Endeavour upgrade');
     if (session.get('phase') !== 'active') {
       throw commandError('failed-precondition', 'Endeavour upgrades are available only during active gameplay.', 'invalid-phase');
@@ -9158,9 +9801,8 @@ export const upgradeEndeavourFieldTargets = onCall<{
         !phase || phase.turn !== currentCycle) {
       throw commandError('failed-precondition', 'The authoritative Endeavour cycle is unavailable.', 'conflict');
     }
-    const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
-        !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
+        turnPhaseDeadlinePassed(phase, 'open')) {
       throw commandError(
         'failed-precondition',
         'Endeavour upgrades are available only during a live Coordination window.',
@@ -9334,11 +9976,11 @@ function isShuttleEvacuationReply(value: unknown, sessionId: string): value is S
 }
 
 /** Move survivors once between a cargo shuttle's docked host and one fleet-group ship. */
-export const evacuateShuttleSurvivorsCommand = onCall<{
+export const evacuateShuttleSurvivorsCommand = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; shuttleId?: unknown; destinationShipId?: unknown;
   amount?: unknown; expectedControlRevision?: unknown; expectedCycle?: unknown;
   expectedEvacuationRevision?: unknown;
-}>(async request => {
+}>('evacuateShuttleSurvivorsCommand', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -9382,7 +10024,7 @@ export const evacuateShuttleSurvivorsCommand = onCall<{
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only a connected shuttle holder may evacuate survivors.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     const replay = replayBoundCommand(
       receipt, fingerprint,
       (value): value is ShuttleEvacuationReply => isShuttleEvacuationReply(value, data.sessionId),
@@ -9390,6 +10032,7 @@ export const evacuateShuttleSurvivorsCommand = onCall<{
     );
     if (replay) return { ...replay, status: 'replayed' as const };
     if (event.exists) rejectLegacyEventReplay('shuttle survivor evacuation');
+    requireCandidateActionAvailable(session, actor, [data.destinationShipId], [data.shuttleId]);
     requireActionPhase(session, 'transfer', 'player');
     const phase = turnPhaseState(session.get('turnPhase'));
     const currentCycle = session.get('currentTurn');
@@ -9534,14 +10177,14 @@ function isShuttleDepartureReply(value: unknown, sessionId: string): value is Sh
 }
 
 /** Validate and persist one holder departure request; P366 alone enters transit. */
-export const requestShuttleDeparture = onCall<{
+export const requestShuttleDeparture = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   shuttleId?: unknown;
   destinationShipId?: unknown;
   expectedControlRevision?: unknown;
   expectedCycle?: unknown;
-}>(async request => {
+}>('requestShuttleDeparture', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -9592,7 +10235,7 @@ export const requestShuttleDeparture = onCall<{
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only a connected shuttle holder may request departure.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     if (data.shuttleId === 'snn-press-shuttle' && session.get('pressEnabled') === false) {
       throw new HttpsError('permission-denied', 'The SNN Press station is disabled.');
     }
@@ -9603,7 +10246,13 @@ export const requestShuttleDeparture = onCall<{
       'shuttle departure',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireCandidateActionAvailable(session, actor, [data.destinationShipId], [data.shuttleId]);
     requireMissionMovementAvailable(session, [data.shuttleId]);
+    requireCandidateCraftAvailable(session, [data.shuttleId]);
+    const candidateOrigin = Array.isArray(session.get('shuttleDockings'))
+      ? session.get('shuttleDockings').find((dock: unknown) => isRecord(dock) && dock.shuttleId === data.shuttleId)?.shipId
+      : undefined;
+    requireCandidateVesselsAvailable(session, [data.destinationShipId, ...(typeof candidateOrigin === 'string' ? [candidateOrigin] : [])]);
     requireActiveGameplayPhase(session);
     if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
       throw commandError(
@@ -9718,14 +10367,14 @@ function isShuttleTransitReply(value: unknown, sessionId: string): value is Shut
 }
 
 /** Atomically remove one authorized shuttle from its dock and enter server transit. */
-export const beginShuttleTransit = onCall<{
+export const beginShuttleTransit = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   shuttleId?: unknown;
   expectedDepartureRequestId?: unknown;
   expectedControlRevision?: unknown;
   expectedCycle?: unknown;
-}>(async request => {
+}>('beginShuttleTransit', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -9774,7 +10423,7 @@ export const beginShuttleTransit = onCall<{
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only a connected shuttle holder may begin transit.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     if (data.shuttleId === 'snn-press-shuttle' && session.get('pressEnabled') === false) {
       throw new HttpsError('permission-denied', 'The SNN Press station is disabled.');
     }
@@ -9785,6 +10434,7 @@ export const beginShuttleTransit = onCall<{
       'shuttle transit',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireCandidateActionAvailable(session, actor, [], [data.shuttleId]);
     requireMissionMovementAvailable(session, [data.shuttleId]);
     requireActiveGameplayPhase(session);
     if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
@@ -9808,6 +10458,8 @@ export const beginShuttleTransit = onCall<{
       transitSnapshot.exists ? { [data.shuttleId]: transitSnapshot.data() } : undefined,
     );
     const storedMovement = transitSnapshot.exists ? transitSnapshot.data() : undefined;
+    if (isRecord(storedMovement)) requireCandidateVesselsAvailable(session,
+      [storedMovement.originShipId, storedMovement.destinationShipId].filter((id): id is string => typeof id === 'string'));
     const actorFleetGroupId = actor.get('fleetGroupId');
     if (isRecord(storedMovement) && storedMovement.status === 'in-transit') {
       throw shuttleMovementConflictErrorForCurrentState({
@@ -9906,7 +10558,7 @@ export const beginShuttleTransit = onCall<{
 });
 
 /** Move one active shuttle leg to a new legal destination without exposing its route. */
-export const retargetShuttleTransit = onCall<{
+export const retargetShuttleTransit = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   shuttleId?: unknown;
@@ -9914,7 +10566,7 @@ export const retargetShuttleTransit = onCall<{
   destinationShipId?: unknown;
   expectedControlRevision?: unknown;
   expectedCycle?: unknown;
-}>(async request => {
+}>('retargetShuttleTransit', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -9979,7 +10631,7 @@ export const retargetShuttleTransit = onCall<{
     if (!isActivePlayer(actor)) {
       throw new HttpsError('permission-denied', 'Only a connected shuttle holder may retarget transit.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     if (data.shuttleId === 'snn-press-shuttle' && session.get('pressEnabled') === false) {
       throw new HttpsError('permission-denied', 'The SNN Press station is disabled.');
     }
@@ -10014,6 +10666,7 @@ export const retargetShuttleTransit = onCall<{
     if (eventSnapshot.exists) {
       throw commandError('failed-precondition', 'The shuttle retarget event already exists without its receipt.', 'conflict');
     }
+    requireCandidateActionAvailable(session, actor, [data.destinationShipId], [data.shuttleId]);
     requireActiveGameplayPhase(session);
     if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
       throw commandError(
@@ -10040,6 +10693,7 @@ export const retargetShuttleTransit = onCall<{
         transitChain: transitChainSnapshot.exists ? transitChainSnapshot.data() : undefined,
       });
     }
+    requireCandidateVesselsAvailable(session, [transit.originShipId, transit.destinationShipId]);
     const groupId = actor.get('fleetGroupId');
     if (typeof groupId !== 'string' || groupId !== transit.fleetGroupId) {
       throw new HttpsError('permission-denied', 'The shuttle holder no longer belongs to the transit fleet group.');
@@ -10165,7 +10819,7 @@ function isAwayMissionDealReply(value: unknown, sessionId: string): value is Awa
 }
 
 /** Start a source-bound mission and perform the existing private initial deal atomically. */
-export const dealPrivateInitialCards = onCall<{
+export const dealPrivateInitialCards = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -10179,12 +10833,15 @@ export const dealPrivateInitialCards = onCall<{
   sourceCycle?: unknown;
   missionLeaderUid?: unknown;
   participantUids?: unknown;
-}>(async (request) => {
+}>('dealPrivateInitialCards', async (request) => {
   const uid = requireUid(request.auth);
   const command = requireAwayMissionCardDealRequest(request.data ?? {});
   const markerRef = commandReceiptRef(command.sessionId, command.requestId);
   const eventRef = db.doc(`sessions/${command.sessionId}/events/mission-cards-dealt-${command.requestId}`);
   const opportunityRef = db.doc(missionOpportunityDocumentPath(command.sessionId, command.opportunityId));
+  const boaChoiceRef = db.doc(
+    `sessions/${command.sessionId}/boaMissionReclamationChoices/${command.opportunityId}`,
+  );
   const startSnapshotRef = db.doc(`sessions/${command.sessionId}/missionStartSnapshots/${command.opportunityId}`);
   const playersRef = db.collection(`sessions/${command.sessionId}/players`);
   const fleetGroupsRef = db.collection(`sessions/${command.sessionId}/fleetGroups`);
@@ -10220,8 +10877,8 @@ export const dealPrivateInitialCards = onCall<{
 
   return db.runTransaction(async (tx) => {
     const [marker, authority, players, fleetGroups, craftOwnershipManifest,
-      missionDeckSnapshot, gorgoneionMissionSupportViewsSnapshot, navigationSnapshot, opportunitySnapshot, startSnapshotSnapshot,
-      missionSnapshot, eventSnapshot] =
+      missionDeckSnapshot, gorgoneionMissionSupportViewsSnapshot, navigationSnapshot, opportunitySnapshot,
+      boaChoiceSnapshot, startSnapshotSnapshot, missionSnapshot, eventSnapshot] =
       await Promise.all([
         tx.get(markerRef),
         requireFacilitatorInstance(tx, command.sessionId, uid, command.instanceId),
@@ -10232,6 +10889,7 @@ export const dealPrivateInitialCards = onCall<{
         tx.get(gorgoneionMissionSupportViewsRef),
         tx.get(navigationRef),
         tx.get(opportunityRef),
+        tx.get(boaChoiceRef),
         tx.get(startSnapshotRef),
         tx.get(missionRef),
         tx.get(eventRef),
@@ -10358,6 +11016,32 @@ export const dealPrivateInitialCards = onCall<{
         'conflict',
       );
     }
+    const rawBoaChoice = boaChoiceSnapshot.exists ? boaChoiceSnapshot.data() : undefined;
+    let boaReclamationSelection: Readonly<{
+      actorUid: string; taskOpportunityId: string; controlRevision: number; revision: number;
+    }> | undefined;
+    if (rawBoaChoice !== undefined) {
+      if (!isRecord(rawBoaChoice) || rawBoaChoice.type !== 'boa-mission-reclamation-choice' ||
+          rawBoaChoice.schemaVersion !== 1 || rawBoaChoice.status !== 'selected' ||
+          rawBoaChoice.sessionId !== command.sessionId || rawBoaChoice.opportunityId !== opportunity.id ||
+          rawBoaChoice.groupId !== opportunity.groupId || rawBoaChoice.chart !== opportunity.chart ||
+          rawBoaChoice.coordinate !== opportunity.coordinate || rawBoaChoice.siteCode !== opportunity.siteCode ||
+          rawBoaChoice.sourceCycle !== opportunity.sourceCycle ||
+          typeof rawBoaChoice.actorUid !== 'string' || rawBoaChoice.actorRoleId !== 'capybara-recycler' ||
+          typeof rawBoaChoice.opportunityTaskId !== 'string' ||
+          !missionDefinition.opportunities.some(({ id }) => id === rawBoaChoice.opportunityTaskId) ||
+          !Number.isSafeInteger(rawBoaChoice.controlRevision) || (rawBoaChoice.controlRevision as number) < 0 ||
+          !Number.isSafeInteger(rawBoaChoice.revision) || (rawBoaChoice.revision as number) < 1 ||
+          typeof rawBoaChoice.requestId !== 'string') {
+        throw commandError('failed-precondition', 'The Boa mission selection is malformed; refresh before dealing.', 'conflict');
+      }
+      boaReclamationSelection = {
+        actorUid: rawBoaChoice.actorUid,
+        taskOpportunityId: rawBoaChoice.opportunityTaskId,
+        controlRevision: rawBoaChoice.controlRevision as number,
+        revision: rawBoaChoice.revision as number,
+      };
+    }
     if (missionDefinition.siteRules.repeatability === 'everyTurn' &&
         opportunity.sourceCycle < currentCycle) {
       const laterCycleOpportunitySnapshots = await Promise.all(
@@ -10435,6 +11119,7 @@ export const dealPrivateInitialCards = onCall<{
         'conflict',
       );
     }
+    requireCandidateVesselsAvailable(authority.session, opportunityGroup.vesselIds);
     if (!craftOwnershipManifest.exists ||
         !roleOwnedCraftManifestMatches(craftOwnershipManifest.data(), expectedCraftManifest)) {
       throw commandError(
@@ -10497,7 +11182,7 @@ export const dealPrivateInitialCards = onCall<{
       });
     }
     if (pdfWingCraft && pdfWingSnapshot) {
-      const pdfWingState = parsePdfEscortWingState(
+      const pdfWingState = pdfEscortWingStateForSession(authority.session,
         pdfWingSnapshot.exists ? pdfWingSnapshot.data() : undefined,
       );
       const printedHostId = startingCraftManifest.entries.find((entry) =>
@@ -10599,6 +11284,45 @@ export const dealPrivateInitialCards = onCall<{
         'conflict',
       );
     }
+    let boaReclamation: Readonly<{
+      actorUid: string; opportunityId: string; locationOpportunityId: string; choiceRevision: number;
+      printedDifficulty: number | null; effectiveDifficulty: number | null;
+      criticalThreshold: number | null; difficultyRule: unknown; rounding: 'none';
+    }> | undefined;
+    if (boaReclamationSelection) {
+      const boaControl = shuttleControls?.boa;
+      const actorPlayer = playerDocumentsByUid.get(boaReclamationSelection.actorUid);
+      const participant = participants.find(({ uid }) => uid === boaReclamationSelection.actorUid);
+      const participantCraftBinding = participantCrafts.find(({ participantUid }) =>
+        participantUid === boaReclamationSelection!.actorUid);
+      if (!actorPlayer || !isActivePlayer(actorPlayer) || actorPlayer.get('role') !== 'player' ||
+          actorPlayer.get('assignedRoleId') !== 'capybara-recycler' ||
+          actorPlayer.get('replacementStatus') != null ||
+          participant?.roleId !== 'capybara-recycler' ||
+          !participantCraftBinding?.craftIds.includes('boa') || !carrierCraftIds.includes('boa') ||
+          !boaControl || boaControl.holderUid !== boaReclamationSelection.actorUid ||
+          boaControl.ownerRoleId !== 'capybara-recycler' ||
+          boaControl.revision !== boaReclamationSelection.controlRevision) {
+        throw commandError('failed-precondition',
+          'The Boa Recycler who selected this task must remain a mission participant and current Boa holder.', 'conflict');
+      }
+      const selectedTask = missionDefinition.opportunities.find(({ id }) =>
+        id === boaReclamationSelection!.taskOpportunityId)!;
+      const printedDifficulty = Number.isSafeInteger(selectedTask.difficulty) ? selectedTask.difficulty! : null;
+      const effectiveDifficulty = printedDifficulty === null ? null : printedDifficulty / 2;
+      boaReclamation = {
+        actorUid: boaReclamationSelection.actorUid,
+        opportunityId: selectedTask.id,
+        locationOpportunityId: opportunity.id,
+        choiceRevision: boaReclamationSelection.revision,
+        printedDifficulty,
+        effectiveDifficulty,
+        criticalThreshold: Number.isSafeInteger(selectedTask.criticalThreshold)
+          ? selectedTask.criticalThreshold! : null,
+        difficultyRule: selectedTask.difficultyRule ?? null,
+        rounding: 'none',
+      };
+    }
     const pressureSnapshot = await tx.get(
       wolfArrivalPressureStateRef(command.sessionId, missionGroupId),
     );
@@ -10627,17 +11351,23 @@ export const dealPrivateInitialCards = onCall<{
       throw commandError('failed-precondition', 'Away-mission deal blocked: mission-deck.', 'conflict');
     }
     const dealtCount = missionDeckDealtCount(missionDeckSnapshot.data(), persistedDeck.order.length);
-    if (dealtCount === null) {
+    const resolvedDiscardCardIds = dealtCount === null
+      ? null
+      : missionDeckResolvedDiscardCardIds(missionDeckSnapshot.data(), persistedDeck, dealtCount);
+    if (dealtCount === null || resolvedDiscardCardIds === null) {
       throw commandError('failed-precondition', 'Away-mission deal blocked: mission-deck cursor.', 'conflict');
     }
-    const allocations = allocateMissionCards(persistedDeck, dealtCount, participants);
-    if (allocations === null) {
+    const finiteDeal = allocateMissionCardsWithResolvedDiscards(
+      persistedDeck, dealtCount, resolvedDiscardCardIds, participants,
+    );
+    if (!finiteDeal) {
       throw commandError(
         'failed-precondition',
         'The away-mission deck is depleted for this participant selection.',
         'conflict',
       );
     }
+    const allocations = finiteDeal.allocations;
 
     const missionLeader = participants.find((participant) => participant.uid === command.missionLeaderUid)!;
     const lifecycleBootstrap = createAwayMissionLifecycleBootstrap({
@@ -10645,6 +11375,9 @@ export const dealPrivateInitialCards = onCall<{
       groupId: missionGroupId,
       sourceCycle: opportunity.sourceCycle,
       participantCrafts,
+      ...(boaReclamation
+        ? { boaReclamation: { actorUid: boaReclamation.actorUid, opportunityId: boaReclamation.opportunityId } }
+        : {}),
       lifecycle: {
         missionId,
         siteCode: missionDefinition.code,
@@ -10652,13 +11385,16 @@ export const dealPrivateInitialCards = onCall<{
         participants,
         availableCarrierCraftIds: carrierCraftIds,
         deckState: persistedDeck,
-        dealtCount: dealtCount + allocations.length,
+        dealtCount: finiteDeal.dealtCountAfter,
+        availableResolvedDiscardCardIds: finiteDeal.remainingResolvedDiscardCardIds,
         initialCards: allocations.map(({ participant, card }) => ({ participantUid: participant.uid, cardId: card.id })),
       },
     });
     if (!lifecycleBootstrap) {
       throw commandError('failed-precondition', 'The initial mission lifecycle could not be validated.', 'conflict');
     }
+    requireCandidateCraftActionAvailable(authority.session, participantCrafts.flatMap(participant => participant.craftIds),
+      participants.flatMap(participant => { const shipId = typeof participant.roleId === 'string' ? shipForRole(participant.roleId) : undefined; return shipId ? [shipId] : []; }));
     const commitments = nextMissionCraftCommitments(authority.session.get('missionCraftCommitments'), {
       missionId, sourceCycle: opportunity.sourceCycle, participantCrafts, status: 'active',
     });
@@ -10699,20 +11435,36 @@ export const dealPrivateInitialCards = onCall<{
         participantCrafts,
         missionLeaderUid: missionLeader.uid,
       },
-      modifiers: [], outcome: 'started',
+      recycledCardIds: [...finiteDeal.recycledCardIds],
+      modifiers: boaReclamation ? [
+        `Boa reclamation ${boaReclamation.opportunityId} // printed difficulty ${boaReclamation.printedDifficulty ?? 'server-calculated'} // effective difficulty ${boaReclamation.effectiveDifficulty ?? 'exact half of server-calculated difficulty'} (no rounding) // reward replaced by 1 Scrap on success; no ordinary or critical bonus`,
+      ] : [],
+      ...(boaReclamation ? { boaReclamation: {
+        actorUid: boaReclamation.actorUid,
+        missionCardOpportunityId: boaReclamation.opportunityId,
+        locationOpportunityId: boaReclamation.locationOpportunityId,
+        choiceRevision: boaReclamation.choiceRevision,
+        printedDifficulty: boaReclamation.printedDifficulty,
+        effectiveDifficulty: boaReclamation.effectiveDifficulty,
+        criticalThreshold: boaReclamation.criticalThreshold,
+        difficultyRule: boaReclamation.difficultyRule,
+        rounding: boaReclamation.rounding,
+      } } : {}),
+      outcome: 'started',
       stateDelta: {
         missionSnapshotCreated: true,
         participantHandCount: participants.length,
         participantPointerCount: participants.length,
         missionDeckDealtCountBefore: dealtCount,
-        missionDeckDealtCountAfter: dealtCount + allocations.length,
+        missionDeckDealtCountAfter: finiteDeal.dealtCountAfter,
+        missionDeckRecycleCount: finiteDeal.recycledCardIds.length,
       },
       revisions: {
         startSnapshot: 0, mission: 0,
         setup: currentSetupRevision,
         phase: { cycle: currentTurnState.currentTurn, phase: currentTurnState.phase, revision: currentTurnState.phaseRevision },
         navigation: currentNavigationRevision,
-        missionDeck: { before: dealtCount, after: dealtCount + allocations.length },
+        missionDeck: { before: dealtCount, after: finiteDeal.dealtCountAfter },
       },
       replay: {
         status: 'committed', requestId: command.requestId,
@@ -10725,6 +11477,12 @@ export const dealPrivateInitialCards = onCall<{
       createdAt: FieldValue.serverTimestamp(),
     };
     tx.update(db.doc(`sessions/${command.sessionId}`), { missionCraftCommitments: commitments, updatedAt: FieldValue.serverTimestamp() });
+    if (boaReclamationSelection) {
+      tx.update(boaChoiceRef, {
+        status: 'consumed', missionId, consumedByRequestId: command.requestId,
+        consumedAt: FieldValue.serverTimestamp(),
+      });
+    }
     tx.set(missionRef, {
       schemaVersion: 1,
       lifecycleRecord: lifecycleBootstrap.record,
@@ -10750,8 +11508,9 @@ export const dealPrivateInitialCards = onCall<{
       availableCarrierCraftIds: [...carrierCraftIds],
       handIds: participants.map((participant) => awayMissionHandId(missionId, participant.uid)),
       cardIds: allocations.map(({ card }) => card.id),
+      recycledCardIds: [...finiteDeal.recycledCardIds],
       dealtFrom: dealtCount,
-      dealtThrough: dealtCount + allocations.length,
+      dealtThrough: finiteDeal.dealtCountAfter,
       createdAt: FieldValue.serverTimestamp(),
     });
     // A source opportunity can start only once, even when two valid GM
@@ -10797,8 +11556,10 @@ export const dealPrivateInitialCards = onCall<{
         updatedAt: FieldValue.serverTimestamp(),
       });
     }
+    tx.update(authority.session.ref, awayMissionPointerWriteSafetyPatch(authority.session.get('awayMissionProjectionSafety')));
     tx.update(missionDeckRef, {
-      dealtCount: dealtCount + allocations.length,
+      dealtCount: finiteDeal.dealtCountAfter,
+      resolvedDiscardCardIds: [...finiteDeal.remainingResolvedDiscardCardIds],
       updatedAt: FieldValue.serverTimestamp(),
     });
     for (const supportView of gorgoneionMissionSupportViewsSnapshot.docs) {
@@ -10872,6 +11633,7 @@ function synchronizeLegacyMissionLifecycle(
       discarded: state.privateState!.cards.some(({ status }) => status === 'discarded'),
     });
   }
+  tx.update(session.ref, awayMissionPointerWriteSafetyPatch(session.get('awayMissionProjectionSafety')));
 }
 
 type AwayMissionDiscardReadyReply = Readonly<{
@@ -10900,14 +11662,26 @@ function isAwayMissionDiscardReadyReply(value: unknown, sessionId: string): valu
       (Number.isSafeInteger(reply.currentSetupRevision) && (reply.currentSetupRevision as number) >= 0));
 }
 
+function requireCandidateMissionAvailable(session: DocumentSnapshot, mission: DocumentSnapshot,
+  participants: readonly Record<string, unknown>[]): void {
+  const rawCrafts = mission.get('participantCrafts');
+  if (rawCrafts !== undefined && !Array.isArray(rawCrafts)) {
+    throw commandError('failed-precondition', 'The mission craft authority is malformed.', 'conflict');
+  }
+  const craftIds = (Array.isArray(rawCrafts) ? rawCrafts : []).flatMap(participant =>
+    isRecord(participant) && Array.isArray(participant.craftIds) ? participant.craftIds.filter((id): id is string => typeof id === 'string') : []);
+  requireCandidateCraftActionAvailable(session, craftIds,
+    participants.flatMap(participant => { const shipId = shipForRole(participant.roleId); return shipId ? [shipId] : []; }));
+}
+
 /** Record that the facilitator has finished extra-card selection and players may discard. */
-export const openPrivateMissionDiscards = onCall<{
+export const openPrivateMissionDiscards = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   expectedSetupRevision?: unknown;
   missionId?: unknown;
-}>(async (request) => {
+}>('openPrivateMissionDiscards', async (request) => {
   const uid = requireUid(request.auth);
   const command = requireAwayMissionDiscardReadyRequest(request.data ?? {});
   const markerRef = commandReceiptRef(command.sessionId, command.requestId);
@@ -10985,6 +11759,7 @@ export const openPrivateMissionDiscards = onCall<{
         storedHandIds.some((handId) => typeof handId !== 'string')) {
       throw commandError('failed-precondition', 'The away-mission hand roster is malformed.', 'malformed-input');
     }
+    requireCandidateMissionAvailable(authority.session, missionSnapshot, participants);
     const pointerRefs = storedHandIds.map((handId) =>
       db.doc(`sessions/${command.sessionId}/awayMissionHandPointers/${handId as string}`));
     const pointerSnapshots = await Promise.all(pointerRefs.map((pointerRef) => tx.get(pointerRef)));
@@ -11041,6 +11816,9 @@ export const openPrivateMissionDiscards = onCall<{
         updatedAt: FieldValue.serverTimestamp(),
       });
     });
+    if (missionSnapshot.get('lifecycleRecord') === undefined) {
+      tx.update(authority.session.ref, awayMissionPointerWriteSafetyPatch(authority.session.get('awayMissionProjectionSafety')));
+    }
     tx.set(eventRef, buildPrivacySafeEventRecord({
       type: 'mission-discards-opened',
       payload: {},
@@ -11104,13 +11882,13 @@ function awayMissionStringLedger(value: unknown): readonly string[] | null {
 }
 
 /** Secretly consume one participant-owned card before opportunity assignment. */
-export const discardPrivateMissionCard = onCall<{
+export const discardPrivateMissionCard = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedSetupRevision?: unknown;
   missionId?: unknown;
   cardId?: unknown;
-}>(async (request) => {
+}>('discardPrivateMissionCard', async (request) => {
   const uid = requireUid(request.auth);
   const command = requireAwayMissionCardDiscardRequest(request.data ?? {});
   const markerRef = commandReceiptRef(command.sessionId, command.requestId);
@@ -11205,6 +11983,8 @@ export const discardPrivateMissionCard = onCall<{
     if (!participant) {
       throw new HttpsError('permission-denied', 'Only a current mission participant may discard that hand.');
     }
+    requireCandidateActionAvailable(session, player);
+    requireCandidateMissionAvailable(session, missionSnapshot, participants);
     if (!pointerSnapshot.exists || pointerSnapshot.get('sessionId') !== command.sessionId ||
         pointerSnapshot.get('participantUid') !== uid || pointerSnapshot.get('missionId') !== command.missionId ||
         pointerSnapshot.get('handId') !== handId || pointerSnapshot.get('phase') !== 'discarding' ||
@@ -11280,6 +12060,9 @@ export const discardPrivateMissionCard = onCall<{
         });
       });
     }
+    if (missionSnapshot.get('lifecycleRecord') === undefined) {
+      tx.update(session.ref, awayMissionPointerWriteSafetyPatch(session.get('awayMissionProjectionSafety')));
+    }
     tx.set(eventRef, buildPrivacySafeEventRecord({
       type: 'mission-card-discarded',
       payload: {},
@@ -11295,11 +12078,11 @@ export const discardPrivateMissionCard = onCall<{
 });
 
 /** Save a nonbinding vessel preference without implying an assignment. */
-export const setShipPreference = onCall<{
+export const setShipPreference = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   shipId?: unknown;
-}>(async (request) => {
+}>('setShipPreference', async (request) => {
   const uid = requireUid(request.auth);
   const preference = requireCastingPreferenceRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${preference.sessionId}`);
@@ -11364,13 +12147,13 @@ export const setShipPreference = onCall<{
 });
 
 /** Assign one printed role during the unlocked casting window. */
-export const assignRole = onCall<{
+export const assignRole = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   targetUid?: unknown;
   roleId?: unknown;
-}>(async (request) => {
+}>('assignRole', async (request) => {
   const uid = requireUid(request.auth);
   const assignment = requireRoleAssignmentRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${assignment.sessionId}`);
@@ -11494,12 +12277,12 @@ export const assignRole = onCall<{
 });
 
 /** Release a role before start so the facilitator can reassign it cleanly. */
-export const releaseRole = onCall<{
+export const releaseRole = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   targetUid?: unknown;
-}>(async (request) => {
+}>('releaseRole', async (request) => {
   const uid = requireUid(request.auth);
   const release = requireRoleReleaseRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${release.sessionId}`);
@@ -11741,7 +12524,7 @@ function replacementRoleIsOccupied(
 }
 
 /** Record the facilitator's explicit live eligibility decision. */
-export const setReplacementEligibility = onCall<{
+export const setReplacementEligibility = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -11749,7 +12532,7 @@ export const setReplacementEligibility = onCall<{
   reason?: unknown;
   expectedRevision?: unknown;
   expectedSetupRevision?: unknown;
-}>(async (request) => {
+}>('setReplacementEligibility', async (request) => {
   const uid = requireUid(request.auth);
   const decision = requireReplacementEligibilityRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${decision.sessionId}`);
@@ -11823,7 +12606,7 @@ export const setReplacementEligibility = onCall<{
 });
 
 /** Assign one source-defined replacement role after an explicit eligibility decision. */
-export const assignReplacementRole = onCall<{
+export const assignReplacementRole = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -11831,7 +12614,7 @@ export const assignReplacementRole = onCall<{
   replacementRoleId?: unknown;
   expectedRevision?: unknown;
   expectedSetupRevision?: unknown;
-}>(async (request) => {
+}>('assignReplacementRole', async (request) => {
   const uid = requireUid(request.auth);
   const assignment = requireReplacementAssignmentRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${assignment.sessionId}`);
@@ -11971,6 +12754,9 @@ export const assignReplacementRole = onCall<{
       navigation, navigationRevision, targetGroup?.vesselIds ?? [], candidateReveals,
       targetGroup?.memberShipIds?.[assignment.targetUid],
     );
+    if (role.kind === 'extra-ship' && role.vesselId && smallShipId(role.vesselId)) {
+      tx.update(sessionRef, { [`smallShipStates.${role.vesselId}.everAssigned`]: true });
+    }
     tx.update(targetRef, {
       replacementRoleId: assignment.replacementRoleId,
       replacementStatus: null,
@@ -12140,17 +12926,39 @@ function isPersistedCanonicalLoyaltyHolder(
     candidate.exists && candidate.get('assignedRoleId') === assignedRoleId);
 }
 
-function requireCanonicalLoyaltyHolder(
+/** Explicit setup may include the separately claimed Press, but never a Press-like core alias. */
+function loyaltySetupHolderRoleId(
+  session: DocumentSnapshot,
+  player: DocumentSnapshot | undefined,
+  uid: string,
+  players: readonly DocumentSnapshot[],
+  activeRoleIds: readonly string[],
+): string | undefined {
+  if (!player || !player.exists || player.id !== uid) return undefined;
+  if (hasPressState(player) || hasPressSeat(player)) {
+    const pressHolders = players.filter((candidate) => isAuthoritativePressHolder(candidate));
+    return hasStablePressAuthority(session, player, uid) && isSolePressHolder(pressHolders, uid)
+      ? 'press-officer'
+      : undefined;
+  }
+  return isCanonicalLoyaltyHolder(player, uid, players, activeRoleIds)
+    ? player.get('assignedRoleId') as string
+    : undefined;
+}
+
+function requireLoyaltySetupHolder(
+  session: DocumentSnapshot,
   player: DocumentSnapshot | undefined,
   uid: string,
   players: readonly DocumentSnapshot[],
   activeRoleIds: readonly string[],
   label: string,
-): void {
-  if (isCanonicalLoyaltyHolder(player, uid, players, activeRoleIds)) return;
+): string {
+  const roleId = loyaltySetupHolderRoleId(session, player, uid, players, activeRoleIds);
+  if (roleId) return roleId;
   throw commandError(
     'failed-precondition',
-    `${label} must be an active non-GM holder of one unique role in the configured roster.`,
+    `${label} must be an active non-GM holder of one unique configured role or the sole claimed Press Officer.`,
     'conflict',
   );
 }
@@ -12412,14 +13220,14 @@ function isFacilitatorCensusNoteResult(value: unknown, sessionId: string): value
 }
 
 /** Save a facilitator-only census note without publishing private facts. */
-export const setFacilitatorCensusNote = onCall<{
+export const setFacilitatorCensusNote = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   expectedRevision?: unknown;
   targetUid?: unknown;
   note?: unknown;
-}>(async (request) => {
+}>('setFacilitatorCensusNote', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireFacilitatorCensusNoteRequest(request.data ?? {});
   const censusRef = db.doc(`sessions/${change.sessionId}/loyaltyCensus/current`);
@@ -12540,7 +13348,7 @@ function isArrestPosseCalculationResult(
 }
 
 /** Calculate the arrest posse privately from the server-owned loyalty card. */
-export const calculateArrestPosse = onCall<{
+export const calculateArrestPosse = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -12548,7 +13356,7 @@ export const calculateArrestPosse = onCall<{
   targetUid?: unknown;
   defenders?: unknown;
   adjustment?: unknown;
-}>(async (request) => {
+}>('calculateArrestPosse', async (request) => {
   const uid = requireUid(request.auth);
   const calculation = requireArrestPosseCalculationRequest(request.data ?? {});
   const currentRef = db.doc(`sessions/${calculation.sessionId}/arrestPosseCalculations/current`);
@@ -12694,16 +13502,19 @@ type ArrestPosseOutcomeResult = Readonly<{
   presentPlayers: number;
   outcome: 'arrested' | 'not-arrested';
   deadlineCycle?: number;
+  attendanceEvidence?: 'simulated-demo';
 }>;
 
 function arrestPosseOutcomeRequest(raw: unknown): Readonly<{
   sessionId: string; instanceId: string; requestId: string; expectedCycle: number;
   expectedRevision: number; targetUid: string; presentPlayerUids: readonly string[];
+  attendanceEvidence?: 'simulated-demo';
 }> {
   const fields = ['sessionId', 'instanceId', 'requestId', 'expectedCycle', 'expectedRevision',
     'targetUid', 'presentPlayerUids'];
-  if (!isRecord(raw) || Object.keys(raw).length !== fields.length ||
-      fields.some((field) => !Object.hasOwn(raw, field)) || Object.keys(raw).some((field) => !fields.includes(field)) ||
+  if (!isRecord(raw) || fields.some((field) => !Object.hasOwn(raw, field)) ||
+      Object.keys(raw).some((field) => !fields.includes(field) && field !== 'attendanceEvidence') ||
+      (Object.hasOwn(raw, 'attendanceEvidence') && raw.attendanceEvidence !== 'simulated-demo') ||
       !isCanonicalRequestId(raw.sessionId) || !isCanonicalRequestId(raw.instanceId) ||
       !isCanonicalRequestId(raw.requestId) || !isWireSafeEntityId(raw.targetUid) ||
       !Number.isSafeInteger(raw.expectedCycle) || (raw.expectedCycle as number) < 1 ||
@@ -12719,19 +13530,21 @@ function arrestPosseOutcomeRequest(raw: unknown): Readonly<{
     requestId: raw.requestId as string, expectedCycle: raw.expectedCycle as number,
     expectedRevision: raw.expectedRevision as number, targetUid: raw.targetUid as string,
     presentPlayerUids: [...raw.presentPlayerUids as string[]].sort(),
+    ...(raw.attendanceEvidence === 'simulated-demo' ? { attendanceEvidence: 'simulated-demo' as const } : {}),
   };
 }
 
 function isArrestPosseOutcomeResult(value: unknown, sessionId: string): value is ArrestPosseOutcomeResult {
   if (!isRecord(value)) return false;
   const keys = ['status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'targetUid',
-    'requiredPlayers', 'presentPlayers', 'outcome', 'deadlineCycle'];
+    'requiredPlayers', 'presentPlayers', 'outcome', 'deadlineCycle', 'attendanceEvidence'];
   return Object.keys(value).every((key) => keys.includes(key)) &&
     value.status === 'committed' && value.type === 'arrest-posse-outcome' && value.sessionId === sessionId &&
     isCanonicalRequestId(value.requestId) && Number.isSafeInteger(value.turn) && (value.turn as number) >= 1 &&
     Number.isSafeInteger(value.revision) && (value.revision as number) >= 1 && isWireSafeEntityId(value.targetUid) &&
     Number.isSafeInteger(value.requiredPlayers) && (value.requiredPlayers as number) >= 0 &&
     Number.isSafeInteger(value.presentPlayers) && (value.presentPlayers as number) >= 0 &&
+    (value.attendanceEvidence === undefined || value.attendanceEvidence === 'simulated-demo') &&
     (value.outcome === 'arrested' || value.outcome === 'not-arrested') &&
     (value.outcome === 'arrested'
       ? Number.isSafeInteger(value.deadlineCycle) && (value.deadlineCycle as number) === (value.turn as number) + 1
@@ -12739,10 +13552,11 @@ function isArrestPosseOutcomeResult(value: unknown, sessionId: string): value is
 }
 
 /** Resolve one current GM-attested posse using only its live private calculation. */
-export const resolveArrestPosse = onCall<{
+export const resolveArrestPosse = auditedOnCall<{
   sessionId?: unknown; instanceId?: unknown; requestId?: unknown; expectedCycle?: unknown;
   expectedRevision?: unknown; targetUid?: unknown; presentPlayerUids?: unknown;
-}>(async (request) => {
+  attendanceEvidence?: unknown;
+}>('resolveArrestPosse', async (request) => {
   const uid = requireUid(request.auth);
   const command = arrestPosseOutcomeRequest(request.data ?? {});
   const currentRef = db.doc(`sessions/${command.sessionId}/arrestPosseCalculations/current`);
@@ -12756,7 +13570,8 @@ export const resolveArrestPosse = onCall<{
     action: 'resolve-arrest-posse', sessionId: command.sessionId, requestId: command.requestId,
     actorUid: uid, instanceId: command.instanceId, expectedRevision: command.expectedRevision,
     payload: { expectedCycle: command.expectedCycle, targetUid: command.targetUid,
-      presentPlayerUids: [...command.presentPlayerUids] },
+      presentPlayerUids: [...command.presentPlayerUids],
+      ...(command.attendanceEvidence ? { attendanceEvidence: command.attendanceEvidence } : {}) },
   };
 
   return db.runTransaction(async (tx): Promise<ArrestPosseOutcomeResult> => {
@@ -12771,6 +13586,13 @@ export const resolveArrestPosse = onCall<{
     if (replay) return replay;
     await rejectForeignLegacyM1Command(tx, command.sessionId, command.requestId, 'arrest-posse resolution', []);
     requireActiveGameplayPhase(authority.session);
+    const demo = authority.session.get('fullGameDemo');
+    const manualDemo = isRecord(demo) && demo.status === 'active' && demo.progression === 'manual';
+    if ((command.attendanceEvidence === 'simulated-demo') !== manualDemo) {
+      throw commandError('failed-precondition', manualDemo
+        ? 'Use the explicitly labeled virtual attendance control in this demo.'
+        : 'Simulated attendance is available only in an active manual full-game demo.', 'conflict');
+    }
     const turn = sessionTurn(authority.session.get('currentTurn'));
     if (turn !== command.expectedCycle) {
       throw commandError('failed-precondition', 'The cycle changed. Refresh the current posse calculation.', 'stale-revision');
@@ -12826,6 +13648,7 @@ export const resolveArrestPosse = onCall<{
       requestId: command.requestId, turn, revision: nextRevision, targetUid: command.targetUid,
       requiredPlayers: calculation.requiredPlayers, presentPlayers: command.presentPlayerUids.length,
       outcome, ...(deadlineCycle === undefined ? {} : { deadlineCycle }),
+      ...(command.attendanceEvidence ? { attendanceEvidence: command.attendanceEvidence } : {}),
     };
     tx.set(caseRef, {
       type: 'arrest-case', sessionId: command.sessionId, targetUid: command.targetUid,
@@ -12833,12 +13656,14 @@ export const resolveArrestPosse = onCall<{
       turn, revision: nextRevision, requiredPlayers: calculation.requiredPlayers,
       presentPlayers: command.presentPlayerUids.length,
       ...(deadlineCycle === undefined ? {} : { deadlineCycle }),
+      ...(command.attendanceEvidence ? { attendanceEvidence: command.attendanceEvidence } : {}),
       createdBy: uid, requestId: command.requestId, updatedAt: FieldValue.serverTimestamp(),
     });
     tx.set(db.doc(`sessions/${command.sessionId}/arrestCases/${command.targetUid}/audit/${command.requestId}`), {
       type: 'arrest-posse-attendance-audit', targetUid: command.targetUid, actorUid: uid,
       requestId: command.requestId, turn, requiredPlayers: calculation.requiredPlayers,
       presentPlayerUids: [...command.presentPlayerUids], outcome, createdAt: FieldValue.serverTimestamp(),
+      evidenceClass: command.attendanceEvidence ?? 'gm-physical-attestation',
     });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
@@ -12911,12 +13736,12 @@ function isArrestCaseDispositionResult(value: unknown, sessionId: string): value
     (value.ruling === undefined || typeof value.ruling === 'string' && value.ruling.length > 0 && value.ruling.length <= 240);
 }
 
-/** Record the GM's human ruling for an arrested prisoner by the next Team Phase. */
-export const resolveArrestCaseDisposition = onCall<{
+/** Record a GM's prisoner ruling before the next Team Phase deadline. */
+export const resolveArrestCaseDisposition = auditedOnCall<{
   sessionId?: unknown; instanceId?: unknown; requestId?: unknown; targetUid?: unknown;
   expectedCycle?: unknown; expectedRevision?: unknown; expectedSetupRevision?: unknown;
   disposition?: unknown; ruling?: unknown;
-}>(async (request) => {
+}>('resolveArrestCaseDisposition', async (request) => {
   const uid = requireUid(request.auth);
   const command = arrestCaseDispositionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${command.sessionId}`);
@@ -12933,9 +13758,10 @@ export const resolveArrestCaseDisposition = onCall<{
       ruling: command.ruling ?? null },
   };
   return db.runTransaction(async (tx): Promise<ArrestCaseDispositionResult> => {
-    const [authority, currentCase, eligibility, receipt, audit] = await Promise.all([
+    const [authority, currentCase, eligibility, receipt, audit, target] = await Promise.all([
       requireFacilitatorInstance(tx, command.sessionId, uid, command.instanceId),
       tx.get(caseRef), tx.get(eligibilityRef), tx.get(receiptRef), tx.get(auditRef),
+      tx.get(db.doc(`sessions/${command.sessionId}/players/${command.targetUid}`)),
     ]);
     const replay = replayBoundCommand(receipt, fingerprint,
       (value): value is ArrestCaseDispositionResult => isArrestCaseDispositionResult(value, command.sessionId),
@@ -12951,24 +13777,38 @@ export const resolveArrestCaseDisposition = onCall<{
     }
     const stored = currentCase.exists ? currentCase.data() : undefined;
     const deadlineCycle = isRecord(stored) ? stored.deadlineCycle : undefined;
+    const caseTurn = isRecord(stored) ? stored.turn : undefined;
     const caseRevision = isRecord(stored) ? stored.revision : undefined;
     if (!isRecord(stored) || stored.type !== 'arrest-case' || stored.sessionId !== command.sessionId ||
         stored.targetUid !== command.targetUid || stored.status !== 'pending-resolution' || stored.outcome !== 'arrested' ||
-        !Number.isSafeInteger(deadlineCycle) || (deadlineCycle as number) < 2 ||
+        !Number.isSafeInteger(caseTurn) || (caseTurn as number) < 1 || (caseTurn as number) >= Number.MAX_SAFE_INTEGER ||
+        !Number.isSafeInteger(deadlineCycle) || deadlineCycle !== (caseTurn as number) + 1 ||
         !Number.isSafeInteger(caseRevision) || caseRevision !== command.expectedRevision ||
         (caseRevision as number) >= Number.MAX_SAFE_INTEGER) {
       throw commandError('failed-precondition', 'This prisoner case is no longer pending at the expected revision.', 'conflict');
     }
-    if (currentTurn < (deadlineCycle as number)) {
-      throw commandError('failed-precondition', 'The prisoner outcome is due in the next Team Phase; keep the case pending.', 'invalid-phase');
-    }
     const phase = turnPhaseState(authority.session.get('turnPhase'));
-    const deadlineOpen = currentTurn === deadlineCycle && phase?.turn === currentTurn &&
-      phase.airspace.state === 'restricted' && phase.timerPause === undefined &&
-      Date.now() < Date.parse(phase.teamPhaseEndsAt);
-    if (!deadlineOpen && (command.disposition !== 'facilitator-resolution' || !command.ruling)) {
+    const nowMs = Date.now();
+    if (!phase || phase.turn !== currentTurn || phase.timerPause !== undefined ||
+        phase.progression !== 'manual' && phase.airspace.state === 'lifted' &&
+          !turnPhaseDeadlinePassed(phase, 'team', nowMs)) {
       throw commandError('failed-precondition',
-        'After the next Team Phase deadline, record a reasoned facilitator resolution.', 'invalid-phase');
+        'A current unpaused phase is required before recording a prisoner disposition.', 'invalid-phase');
+    }
+    const teamPhaseOpen = phase.airspace.state === 'restricted' && !turnPhaseDeadlinePassed(phase, 'team', nowMs);
+    const sameCyclePhaseOpen = phase.airspace.state === 'restricted'
+      ? teamPhaseOpen
+      : !turnPhaseDeadlinePassed(phase, 'open', nowMs);
+    const sameCycleOpen = currentTurn === caseTurn && sameCyclePhaseOpen;
+    const deadlineOpen = currentTurn === deadlineCycle && teamPhaseOpen;
+    const deadlineMet = sameCycleOpen || deadlineOpen;
+    const afterDeadline = currentTurn > (deadlineCycle as number) || currentTurn === deadlineCycle && !deadlineOpen;
+    if (!deadlineMet && (!afterDeadline || command.disposition !== 'facilitator-resolution' || !command.ruling)) {
+      throw commandError('failed-precondition',
+        afterDeadline
+          ? 'After the next Team Phase deadline, record a reasoned facilitator resolution.'
+          : 'Release or execute during the current Team Phase or by the next Team Phase deadline.',
+        'invalid-phase');
     }
     let eligibilityRevision: number | undefined;
     let setupRevisionAfter = setupRevisionBefore;
@@ -12991,7 +13831,7 @@ export const resolveArrestCaseDisposition = onCall<{
       status: 'committed', type: 'arrest-case-disposition', sessionId: command.sessionId,
       requestId: command.requestId, targetUid: command.targetUid, turn: currentTurn,
       revision: (caseRevision as number) + 1, deadlineCycle: deadlineCycle as number,
-      deadlineMet: deadlineOpen, disposition: command.disposition, setupRevision: setupRevisionAfter,
+      deadlineMet, disposition: command.disposition, setupRevision: setupRevisionAfter,
       ...(eligibilityRevision === undefined ? {} : { replacementEligibilityRevision: eligibilityRevision }),
       ...(command.ruling === undefined ? {} : { ruling: command.ruling }),
     };
@@ -13005,6 +13845,9 @@ export const resolveArrestCaseDisposition = onCall<{
       requestId: command.requestId, updatedAt: FieldValue.serverTimestamp(),
     });
     if (command.disposition === 'executed' && eligibilityRevision !== undefined) {
+      writePlayerRemovalAlert(tx, db, { sessionId: command.sessionId, sourceId: command.requestId,
+        player: target, cause: 'execution', cycle: currentTurn,
+        recordedAt: new Date().toISOString(), createdAt: FieldValue.serverTimestamp() });
       tx.set(eligibilityRef, {
         sessionId: command.sessionId, targetUid: command.targetUid, reason: 'arrested', eligible: true,
         revision: eligibilityRevision, actorUid: uid, requestId: command.requestId,
@@ -13016,7 +13859,7 @@ export const resolveArrestCaseDisposition = onCall<{
       type: 'arrest-case-disposition-audit', sessionId: command.sessionId,
       targetUid: command.targetUid, requestId: command.requestId, actorUid: uid,
       disposition: command.disposition, turn: currentTurn, deadlineCycle: deadlineCycle as number,
-      deadlineMet: deadlineOpen, expectedRevision: command.expectedRevision,
+      deadlineMet, expectedRevision: command.expectedRevision,
       ...(command.ruling === undefined ? {} : { ruling: command.ruling }),
       ...(eligibilityRevision === undefined ? {} : { replacementEligibilityRevision: eligibilityRevision }),
       createdAt: FieldValue.serverTimestamp(),
@@ -13049,9 +13892,9 @@ function isVipHostVisitResult(value: unknown, sessionId: string): value is VipHo
 }
 
 /** A current GM records the physical VIP Host visit for one other ship. */
-export const attestVipHostVisit = onCall<{
+export const attestVipHostVisit = auditedOnCall<{
   sessionId?: unknown; instanceId?: unknown; requestId?: unknown; expectedCycle?: unknown; shipId?: unknown;
-}>(async (request) => {
+}>('attestVipHostVisit', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'instanceId', 'requestId', 'expectedCycle', 'shipId'];
@@ -13095,7 +13938,7 @@ export const attestVipHostVisit = onCall<{
     if (session.get('phase') !== 'active' || currentTurn !== expectedCycle ||
         !phase || phase.turn !== currentTurn || phase.airspace.state !== 'restricted' ||
         phase.timerPause !== undefined || !Number.isFinite(Date.parse(phase.teamPhaseEndsAt)) ||
-        Date.now() >= Date.parse(phase.teamPhaseEndsAt)) {
+        turnPhaseDeadlinePassed(phase, 'team')) {
       throw commandError('failed-precondition', 'The VIP Host visit must be recorded during this cycle’s Team Phase.', 'invalid-phase');
     }
     const activeVessels = session.get('activeVesselIds');
@@ -13168,11 +14011,11 @@ function isHostedShipMaintenanceRerollResult(value: unknown, sessionId: string):
 }
 
 /** Consume the GM-attested grant to reroll one unrest-check die on the visited ship. */
-export const rerollHostedShipMaintenance = onCall<{
+export const rerollHostedShipMaintenance = auditedOnCall<{
   sessionId?: unknown; shipId?: unknown; requestId?: unknown; expectedCycle?: unknown;
   expectedGrantRevision?: unknown; expectedMaintenanceRevision?: unknown; dieIndex?: unknown;
   instanceId?: unknown; consoleRoleId?: unknown;
-}>(async (request) => {
+}>('rerollHostedShipMaintenance', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'shipId', 'requestId', 'expectedCycle', 'expectedGrantRevision',
@@ -13255,6 +14098,7 @@ export const rerollHostedShipMaintenance = onCall<{
       (value): value is HostedShipMaintenanceRerollResult => isHostedShipMaintenanceRerollResult(value, sessionId),
       'hosted maintenance reroll');
     if (replay) return { replay: { ...replay, status: 'replayed' as const } };
+    requireCandidateActionAvailable(authority.snapshot, authority.player, [shipId]);
     await validate(tx, authority);
     return { replay: undefined };
   });
@@ -13267,6 +14111,7 @@ export const rerollHostedShipMaintenance = onCall<{
       (value): value is HostedShipMaintenanceRerollResult => isHostedShipMaintenanceRerollResult(value, sessionId),
       'hosted maintenance reroll');
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireCandidateActionAvailable(authority.snapshot, authority.player, [shipId]);
     const current = await validate(tx, authority);
     if (!current.cycle.unrestRolls) throw commandError('failed-precondition', 'The unrest dice are unavailable.', 'conflict');
     let result: ReturnType<typeof rerollMaintenanceUnrest>;
@@ -13360,7 +14205,7 @@ function pdfFighterAceSourceState(
     throw commandError('failed-precondition', 'The selected fighter source has no explicit current-attack launch.', 'invalid-phase');
   }
   if (sourceId === 'pdf-escort-fighter-wing') {
-    const wing = parsePdfEscortWingState(pdfWing.exists ? pdfWing.data() : undefined);
+    const wing = pdfEscortWingStateForSession(session, pdfWing.exists ? pdfWing.data() : undefined);
     if (!wing || wing.attackId !== attackId || wing.attackCycle !== turn || !wing.launched || wing.fighters < 1) {
       throw commandError('failed-precondition', 'The P.D.F. fighter source is not launched and available for this attack.', 'conflict');
     }
@@ -13631,7 +14476,7 @@ function isPdfFighterAceCombatView(value: unknown, sessionId: string): value is 
 }
 
 /** Return only opaque contact labels and the current range to the active Fighter Ace. */
-export const getPdfFighterAceCombatView = onCall<{ sessionId?: unknown }>(async (request) => {
+export const getPdfFighterAceCombatView = auditedOnCall<{ sessionId?: unknown }>('getPdfFighterAceCombatView', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).length !== 1 || !isCanonicalRequestId(raw.sessionId)) {
@@ -13712,9 +14557,9 @@ function isPdfFighterAcePermissionView(value: unknown, sessionId: string): value
 }
 
 /** Show a current source commander the active Ace's eligible launched fighter slots. */
-export const getPdfFighterAcePermissionView = onCall<{
+export const getPdfFighterAcePermissionView = auditedOnCall<{
   sessionId?: unknown; sourceId?: unknown;
-}>(async (request) => {
+}>('getPdfFighterAcePermissionView', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).length !== 2 || !isCanonicalRequestId(raw.sessionId) ||
@@ -13772,10 +14617,10 @@ function isPdfFighterAcePermissionResult(value: unknown, sessionId: string): val
 }
 
 /** Commit the source officer's one explicit, attack-bound Fighter Ace authorization. */
-export const grantPdfFighterAcePermission = onCall<{
+export const grantPdfFighterAcePermission = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; attackId?: unknown; expectedRevision?: unknown;
   sourceId?: unknown; fighterIndex?: unknown;
-}>(async (request) => {
+}>('grantPdfFighterAcePermission', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'attackId', 'expectedRevision', 'sourceId', 'fighterIndex']);
@@ -13945,11 +14790,11 @@ function pdfFighterAceSourceLoss(
 }
 
 /** Commit one permission-bound Fighter Ace action before the selected range lock. */
-export const commitPdfFighterAceCombat = onCall<{
+export const commitPdfFighterAceCombat = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; attackId?: unknown; expectedRevision?: unknown;
   targetId?: unknown; range?: unknown; sourceId?: unknown; fighterIndex?: unknown;
   permissionRequestId?: unknown; permissionRevision?: unknown; targetShift?: unknown; extraTargetId?: unknown;
-}>(async (request) => {
+}>('commitPdfFighterAceCombat', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'attackId', 'expectedRevision', 'targetId', 'range', 'sourceId',
@@ -14081,7 +14926,7 @@ export const commitPdfFighterAceCombat = onCall<{
     try { targetRing = configuredWolfTargetRingForAttack(session, state); } catch {
       throw commandError('failed-precondition', 'The current target ring is unavailable.', 'conflict');
     }
-    return { replay: undefined, session, state, current: { ...current, target, extraTarget, targetRing,
+    return { replay: undefined, session, state, player, current: { ...current, target, extraTarget, targetRing,
       permission: boundPermission, source }, eligibility, seat };
   };
   const preflight = await db.runTransaction(async (tx) => validate(tx));
@@ -14188,6 +15033,9 @@ export const commitPdfFighterAceCombat = onCall<{
       tx.set(db.doc(`sessions/${sessionId}/serverState/pdfEscortWing`), pdfStateAfter);
     }
     if (combat.aceDied) {
+      writePlayerRemovalAlert(tx, db, { sessionId, sourceId: attackId, player: current.player,
+        roleId: 'pdf-fighter-ace', cause: 'fighter-ace-death', cycle: current.current.turn,
+        recordedAt: serverTime, createdAt: FieldValue.serverTimestamp() });
       const eligibilityRevision = replacementRevision(current.eligibility) + 1;
       sessionPatch.setupRevision = setupRevision(current.session) + 1;
       tx.update(playerRef, { replacementRoleId: null, replacementStatus: 'awaiting-re-role',
@@ -14246,7 +15094,7 @@ function isWolfCultIntelligenceResult(
 }
 
 /** Deliver the four source-defined Wolf Cult facts to its current holder. */
-export const deliverWolfCultIntelligence = onCall<{
+export const deliverWolfCultIntelligence = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -14255,7 +15103,7 @@ export const deliverWolfCultIntelligence = onCall<{
   suppliesCoordinate?: unknown;
   agentUid?: unknown;
   codeWord?: unknown;
-}>(async (request) => {
+}>('deliverWolfCultIntelligence', async (request) => {
   const uid = requireUid(request.auth);
   const intelligence = requireWolfCultIntelligenceRequest(request.data ?? {});
   const currentRef = db.doc(`sessions/${intelligence.sessionId}/wolfCultIntelligence/current`);
@@ -14482,7 +15330,7 @@ function isCrisisTransitionResult(value: unknown, sessionId: string): value is C
 }
 
 /** Advance one manually authored crisis through the durable facilitator lifecycle. */
-export const transitionCrisis = onCall<{
+export const transitionCrisis = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -14496,7 +15344,7 @@ export const transitionCrisis = onCall<{
   diseaseOutbreak?: unknown;
   deliveryPressure?: unknown;
   formalAnnouncement?: unknown;
-}>(async (request) => {
+}>('transitionCrisis', async (request) => {
   const uid = requireUid(request.auth);
   const crisis = requireCrisisTransitionRequest(request.data ?? {});
   const currentRef = db.doc(`sessions/${crisis.sessionId}/crisisState/current`);
@@ -14885,14 +15733,14 @@ function isDiseaseQuarantineResult(
 }
 
 /** Bind or release the current Disease Outbreak docking policy by facilitator authority. */
-export const setDiseaseQuarantine = onCall<{
+export const setDiseaseQuarantine = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   action?: unknown;
   expectedCrisisRevision?: unknown;
   expectedQuarantineRevision?: unknown;
-}>(async (request) => {
+}>('setDiseaseQuarantine', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -15109,13 +15957,13 @@ async function activateVoyage33Arrival(
 }
 
 /** Admit the printed Voyage 33-0 vessel exactly once from an active crisis. */
-export const admitVoyage33 = onCall<{
+export const admitVoyage33 = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   expectedRevision?: unknown;
   crisisId?: unknown;
-}>(async (request) => {
+}>('admitVoyage33', async (request) => {
   const uid = requireUid(request.auth);
   const admissionRequest = requireVoyage33AdmissionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${admissionRequest.sessionId}`);
@@ -15343,7 +16191,7 @@ function isApproachingVesselResponseResult(value: unknown, sessionId: string): v
 }
 
 /** Record a private reality adjudication and the bounded fleet-facing response to Approaching Vessel. */
-export const recordApproachingVesselResponse = onCall<{
+export const recordApproachingVesselResponse = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -15357,7 +16205,7 @@ export const recordApproachingVesselResponse = onCall<{
   quarantineInstructions?: unknown;
   contingencyObjectives?: unknown;
   rationale?: unknown;
-}>(async (request) => {
+}>('recordApproachingVesselResponse', async (request) => {
   const uid = requireUid(request.auth);
   const decision = requireApproachingVesselResponseRequest(request.data ?? {});
   const crisisRef = db.doc(`sessions/${decision.sessionId}/crisisState/current`);
@@ -15439,7 +16287,7 @@ export const recordApproachingVesselResponse = onCall<{
 });
 
 /** Record the facilitator's explicit source-approved response to Zealotry. */
-export const recordZealotryResponse = onCall<{
+export const recordZealotryResponse = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -15448,7 +16296,7 @@ export const recordZealotryResponse = onCall<{
   actions?: unknown;
   customResponse?: unknown;
   rationale?: unknown;
-}>(async (request) => {
+}>('recordZealotryResponse', async (request) => {
   const uid = requireUid(request.auth);
   const response = requireZealotryResponseRequest(request.data ?? {});
   const currentCrisisRef = db.doc(`sessions/${response.sessionId}/crisisState/current`);
@@ -15607,7 +16455,7 @@ function isCivilUnrestResolutionResult(value: unknown, sessionId: string): value
 }
 
 /** Record a private facilitator resolution for the current debated Civil Unrest crisis. */
-export const recordCivilUnrestResolution = onCall<{
+export const recordCivilUnrestResolution = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -15616,7 +16464,7 @@ export const recordCivilUnrestResolution = onCall<{
   presidentResponse?: unknown;
   consequence?: unknown;
   rationale?: unknown;
-}>(async (request) => {
+}>('recordCivilUnrestResolution', async (request) => {
   const uid = requireUid(request.auth);
   const response = requireCivilUnrestResolutionRequest(request.data ?? {});
   const currentCrisisRef = db.doc(`sessions/${response.sessionId}/crisisState/current`);
@@ -15745,7 +16593,7 @@ function civilUnrestTeamPhase(session: DocumentSnapshot): boolean {
 }
 
 /** A player may submit only for their live assigned ship, or one canonical union pair. */
-export const submitCivilUnrestGrievance = onCall<{
+export const submitCivilUnrestGrievance = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   crisisId?: unknown;
@@ -15754,7 +16602,7 @@ export const submitCivilUnrestGrievance = onCall<{
   affectedShipId?: unknown;
   visibility?: unknown;
   text?: unknown;
-}>(async (request) => {
+}>('submitCivilUnrestGrievance', async (request) => {
   const uid = requireUid(request.auth);
   const grievance = requireCivilUnrestGrievanceRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${grievance.sessionId}`);
@@ -15899,7 +16747,7 @@ function isArbourVisionResult(value: unknown, sessionId: string): value is Arbou
 }
 
 /** Publish one facilitator-authored Universal Arbour call to its current holder. */
-export const authorArbourVision = onCall<{
+export const authorArbourVision = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -15907,7 +16755,7 @@ export const authorArbourVision = onCall<{
   targetUid?: unknown;
   kind?: unknown;
   text?: unknown;
-}>(async (request) => {
+}>('authorArbourVision', async (request) => {
   const uid = requireUid(request.auth);
   const vision = requireArbourVisionRequest(request.data ?? {});
   const currentRef = db.doc(`sessions/${vision.sessionId}/arbourVisions/current`);
@@ -16116,7 +16964,7 @@ function isStoredFacilitatorRuleCall(value: unknown, sessionId: string): boolean
 }
 
 /** Record one durable facilitator ruling without publishing a public event. */
-export const authorFacilitatorRuleCall = onCall<{
+export const authorFacilitatorRuleCall = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -16127,7 +16975,7 @@ export const authorFacilitatorRuleCall = onCall<{
   audience?: unknown;
   recipientUid?: unknown;
   supersedesCallId?: unknown;
-}>(async request => {
+}>('authorFacilitatorRuleCall', async request => {
   const uid = requireUid(request.auth);
   const call = requireFacilitatorRuleCallRequest(request.data ?? {});
   const currentRef = db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/gm-current`);
@@ -16318,12 +17166,12 @@ function isCandidatePlanCheckpointResult(
 }
 
 /** Persist the facilitator-only Cycle 6 candidate-plan presence marker. */
-export const setCandidatePlanCheckpoint = onCall<{
+export const setCandidatePlanCheckpoint = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   planExists?: unknown;
-}>(async request => {
+}>('setCandidatePlanCheckpoint', async request => {
   const uid = requireUid(request.auth);
   const change = requireCandidatePlanCheckpointRequest(request.data ?? {});
   const navigationRef = navigationStateRef(change.sessionId);
@@ -16435,6 +17283,27 @@ function canonicalLoyaltySecret(
   return { uid, kind: decision.kind };
 }
 
+/** The IA census may count a private Press loyalty only for the currently stable sole Press holder. */
+function canonicalSetupLoyaltySecret(
+  secret: DocumentSnapshot,
+  players: readonly DocumentSnapshot[],
+  activeRoleIds: readonly string[],
+  session: DocumentSnapshot,
+): CanonicalLoyaltySecret | null {
+  const coreSecret = canonicalLoyaltySecret(secret, players, activeRoleIds);
+  if (coreSecret) {
+    const holder = players.find((candidate) => candidate.id === coreSecret.uid);
+    return holder && loyaltySetupHolderRoleId(
+      session, holder, coreSecret.uid, players, activeRoleIds,
+    ) === holder.get('assignedRoleId') ? coreSecret : null;
+  }
+  const entry = loyaltyCensusEntryFromSecret(secret, players, activeRoleIds);
+  if (!entry) return null;
+  const holder = players.find((candidate) => candidate.id === entry.uid);
+  if (loyaltySetupHolderRoleId(session, holder, entry.uid, players, activeRoleIds) !== 'press-officer') return null;
+  return { uid: entry.uid, kind: entry.kind };
+}
+
 /**
  * Return a Friend's former partner only for a complete private reciprocal
  * record. Reassignment may replace a holder's secret, but it must not erase a
@@ -16459,9 +17328,9 @@ function privateFriendPartnerUid(secret: DocumentSnapshot | undefined, uid: stri
 }
 
 function isKnownFriendRoleId(value: unknown): value is string {
-  return typeof value === 'string' && (
+  return value === 'press-officer' || (typeof value === 'string' && (
     (ROLE_IDS as readonly string[]).includes(value) || replacementRoleFor(value) !== undefined
-  );
+  ));
 }
 
 function isCompleteReciprocalFriendPair(
@@ -16488,7 +17357,7 @@ function isCompleteReciprocalFriendPair(
 }
 
 /** Assign a private loyalty card through the facilitator boundary. */
-export const assignLoyalty = onCall<{
+export const assignLoyalty = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -16496,7 +17365,7 @@ export const assignLoyalty = onCall<{
   kind?: unknown;
   suspicion?: unknown;
   partnerUid?: unknown;
-}>(async (request) => {
+}>('assignLoyalty', async (request) => {
   const uid = requireUid(request.auth);
   const assignment = requireLoyaltyAssignmentRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${assignment.sessionId}`);
@@ -16596,17 +17465,17 @@ export const assignLoyalty = onCall<{
     requireCastingWindow(authority.session);
     const activeRoleIds = configuredRoleIds(authority.session);
     const playerDocuments = players.docs;
-    requireCanonicalLoyaltyHolder(
-      target, assignment.targetUid, playerDocuments, activeRoleIds, 'That player',
+    const targetRoleId = requireLoyaltySetupHolder(
+      authority.session, target, assignment.targetUid, playerDocuments, activeRoleIds, 'That player',
     );
     if (assignment.partnerUid && assignment.partnerUid === assignment.targetUid) {
       throw new HttpsError('invalid-argument', 'A Friend partner must be another player.');
     }
-    if (assignment.partnerUid) {
-      requireCanonicalLoyaltyHolder(
-        partner, assignment.partnerUid, playerDocuments, activeRoleIds, 'The Friend partner',
-      );
-    }
+    const partnerRoleId = assignment.partnerUid
+      ? requireLoyaltySetupHolder(
+        authority.session, partner, assignment.partnerUid, playerDocuments, activeRoleIds, 'The Friend partner',
+      )
+      : undefined;
     const kind = assignment.kind as LoyaltyKind;
     const decision = loyaltyAssignmentDecision(kind, assignment.suspicion);
     if (!decision.allowed) {
@@ -16685,7 +17554,9 @@ export const assignLoyalty = onCall<{
         ...(assignment.partnerUid ? [assignment.partnerUid] : []),
       ]);
       const validSecrets = secrets.docs
-        .map((secret) => canonicalLoyaltySecret(secret, playerDocuments, activeRoleIds))
+        .map((secret) => canonicalSetupLoyaltySecret(
+          secret, playerDocuments, activeRoleIds, authority.session,
+        ))
         .filter((record): record is CanonicalLoyaltySecret => record !== null)
         .filter((record) => !replacedUids.has(record.uid));
       const wolfCount = validSecrets.filter((record) =>
@@ -16716,10 +17587,9 @@ export const assignLoyalty = onCall<{
         type: 'loyalty',
         kind,
         suspicion: validSuspicion,
+        directives: privateLoyaltyDirectives(kind),
         ...(assignment.partnerUid ? { partnerUid: assignment.partnerUid } : {}),
-        ...(kind === 'friend' && partner && typeof partner.get('assignedRoleId') === 'string'
-          ? { partnerRoleId: partner.get('assignedRoleId') }
-          : {}),
+        ...(kind === 'friend' && partnerRoleId ? { partnerRoleId } : {}),
       },
       createdAt: FieldValue.serverTimestamp(),
     });
@@ -16728,9 +17598,8 @@ export const assignLoyalty = onCall<{
         visibleToUids: [assignment.partnerUid],
         payload: {
           type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: assignment.targetUid,
-          ...(typeof target.get('assignedRoleId') === 'string'
-            ? { partnerRoleId: target.get('assignedRoleId') }
-            : {}),
+          partnerRoleId: targetRoleId,
+          directives: privateLoyaltyDirectives('friend'),
         },
         createdAt: FieldValue.serverTimestamp(),
       });
@@ -16798,10 +17667,10 @@ export const assignLoyalty = onCall<{
 });
 
 /** Let only the Android holder disclose its own proof to the shared table. */
-export const revealAndroidProof = onCall<{
+export const revealAndroidProof = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
-}>(async (request) => {
+}>('revealAndroidProof', async (request) => {
   const uid = requireUid(request.auth);
   const disclosure = requireAndroidDisclosureRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${disclosure.sessionId}`);
@@ -16922,7 +17791,7 @@ function storedGroupNotes(snapshot: DocumentSnapshot, groupId: string): readonly
 }
 
 /** Server-only storage; every read rechecks the live audience after a partition. */
-export const readFleetGroupMessages = onCall(async request => {
+export const readFleetGroupMessages = auditedOnCall('readFleetGroupMessages', async request => {
   const uid = requireUid(request.auth);
   const data = groupNoteRequest(request.data, false);
   return db.runTransaction(async tx => {
@@ -16935,9 +17804,9 @@ export const readFleetGroupMessages = onCall(async request => {
     const messages = [...new Map(notes.map(note => [note.id, note])).values()]
       .sort((a, b) => Date.parse(a.sentAt) - Date.parse(b.sentAt)).slice(-20);
     return { groupId: group.id, messages };
-  });
+  }, { readOnly: true });
 });
-export const sendFleetGroupMessage = onCall(async request => {
+export const sendFleetGroupMessage = auditedOnCall('sendFleetGroupMessage', async request => {
   const uid = requireUid(request.auth);
   const data = groupNoteRequest(request.data, true);
   const fingerprint: CommandFingerprint = { action: 'send-fleet-group-message', sessionId: data.sessionId,
@@ -17006,7 +17875,7 @@ function isFleetKnownSystemShareReply(value: unknown): value is FleetKnownSystem
 }
 
 /** Deliver only server-known scan facts, directly into selected same-group ship projections. */
-export const shareKnownSystemDetails = onCall(async request => {
+export const shareKnownSystemDetails = auditedOnCall('shareKnownSystemDetails', async request => {
   const uid = requireUid(request.auth);
   const data = parseFleetKnownSystemShareRequest(request.data);
   const fingerprint: CommandFingerprint = { action: 'share-known-system-details', sessionId: data.sessionId,
@@ -17027,7 +17896,7 @@ export const shareKnownSystemDetails = onCall(async request => {
     if (!session.exists || !isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'An active ship player is required to share scanned details.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     requireActiveGameplayPhase(session);
     const activeVesselIds = activeVesselIdsForSession(session);
     const groups = movementPursuitFleetGroups(activeVesselIds, groupSnapshots, players);
@@ -17050,6 +17919,7 @@ export const shareKnownSystemDetails = onCall(async request => {
       }
       return replay;
     }
+    requireCandidateActionAvailable(session, actor, [senderShipId, ...data.recipientShipIds]);
     if (audit.exists) throw new HttpsError('failed-precondition', 'The share audit has no matching replay receipt.');
     const navigationRevision = storedNavigation.get('revision');
     if (!storedNavigation.exists || navigationRevision !== data.expectedNavigationRevision) {
@@ -17135,7 +18005,7 @@ function parseFleetGroupNavigationRequest(raw: unknown): FleetGroupNavigationReq
 }
 
 /** Return a current group-only map and server-time shuttle samples. */
-export const readFleetGroupNavigation = onCall(async request => {
+export const readFleetGroupNavigation = auditedOnCall('readFleetGroupNavigation', async request => {
   const uid = requireUid(request.auth);
   const data = parseFleetGroupNavigationRequest(request.data);
   const gmView = data.viewerShipId !== undefined;
@@ -17241,7 +18111,7 @@ export const readFleetGroupNavigation = onCall(async request => {
       : undefined;
     const parsedWingCounts = fighterWingCounts(session.get('fighterWingCounts'));
     const pdfWingState = needsPdfWingState
-      ? parsePdfEscortWingState(pdfWingSnapshot?.exists ? pdfWingSnapshot.data() : undefined)
+      ? pdfEscortWingStateForSession(session, pdfWingSnapshot?.exists ? pdfWingSnapshot.data() : undefined)
       : undefined;
     const dockedFighterWings = activeFighterWings.flatMap(craft => {
       const hostShipId = printedFighterWingHost(craft.id);
@@ -17255,11 +18125,11 @@ export const readFleetGroupNavigation = onCall(async request => {
     return { groupId: group.id, navigationRevision: data.expectedNavigationRevision,
       fleetPartitionRevision: partitionRevision as number, sampledAt, ships, transits, dockedShuttles,
       dockedFighterWings };
-  });
+  }, { readOnly: true });
 });
 
 /** One authorized courier round trip; this never opens ordinary cross-group reads. */
-export const sendScoutTaxiCourier = onCall(async request => {
+export const sendScoutTaxiCourier = auditedOnCall('sendScoutTaxiCourier', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'requestId', 'shuttleId', 'targetShipId', 'text',
@@ -17296,7 +18166,7 @@ export const sendScoutTaxiCourier = onCall(async request => {
     if (!session.exists || !isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'A connected scout owner is required.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     const { activeRoleIds, activeVesselIds } = strictScoutRosters(session);
     const parsedGroups = movementPursuitFleetGroups(activeVesselIds, groups, players);
     if ((session.get('chartSelectionLocked') !== true && session.get('configurationLocked') !== true) || !navigation.exists) {
@@ -17343,6 +18213,7 @@ export const sendScoutTaxiCourier = onCall(async request => {
     }
     requireActiveGameplayPhase(session);
     requireActionPhase(session, 'scouting', 'player');
+    requireCandidateActionAvailable(session, actor, [data.targetShipId], [data.shuttleId]);
     requireMissionMovementAvailable(session, [data.shuttleId]);
     if (attack.exists && wolfAttackBlocksNormalMovement(attack.data())) {
       throw new HttpsError('failed-precondition', 'Wait until the Wolf attack is resolved.');
@@ -17452,7 +18323,7 @@ function isFleetTaxiTransferReply(value: unknown): value is FleetTaxiTransferRep
 }
 
 /** Commit one printed scout-taxi round trip and its selected passenger or fuel payload atomically. */
-export const sendScoutTaxiTransfer = onCall(async request => {
+export const sendScoutTaxiTransfer = auditedOnCall('sendScoutTaxiTransfer', async request => {
   const uid = requireUid(request.auth);
   const data = parseFleetTaxiTransferRequest(request.data);
   const fingerprint: CommandFingerprint = { action: 'scout-taxi-transfer', sessionId: data.sessionId,
@@ -17480,7 +18351,7 @@ export const sendScoutTaxiTransfer = onCall(async request => {
     if (!session.exists || !isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'A connected shuttle owner is required for taxi transfer.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     if (!storedNavigation.exists || (session.get('chartSelectionLocked') !== true && session.get('configurationLocked') !== true)) {
       throw new HttpsError('failed-precondition', 'The locked navigation authority is unavailable.');
     }
@@ -17500,6 +18371,7 @@ export const sendScoutTaxiTransfer = onCall(async request => {
     if (audit.exists) throw new HttpsError('failed-precondition', 'The taxi audit has no matching receipt.');
     requireActiveGameplayPhase(session);
     requireActionPhase(session, 'scouting', 'player');
+    requireCandidateActionAvailable(session, actor, [data.targetShipId], [data.shuttleId]);
     requireMissionMovementAvailable(session, [data.shuttleId]);
     if (attack.exists && wolfAttackBlocksNormalMovement(attack.data())) {
       throw new HttpsError('failed-precondition', 'Wait until the Wolf attack is resolved.');
@@ -17645,33 +18517,308 @@ function isFleetPartitionReply(value: unknown): value is FleetPartitionReply {
     value.groupIds.every(id => typeof id === 'string' && /^fleet-[1-9][0-9]*$/.test(id));
 }
 
-/** Confirm physical partitions from server coordinates; the browser cannot assign groups or pursuit. */
-export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: string; requestId: string; expectedNavigationRevision: number }>(async request => {
+interface FleetPartitionAdjudicationRequiredReply {
+  readonly status: 'adjudication-required';
+  readonly navigationRevision: number;
+  readonly fleetPartitionRevision: number;
+  readonly candidates: readonly FleetGroupRejoinCandidate[];
+  readonly previewBinding: FleetGroupRejoinPreviewBinding;
+}
+interface FleetGroupRejoinPreviewBinding {
+  readonly actorUid: string;
+  readonly instanceId: string;
+  readonly leaseClaimedAt: string | null;
+  readonly navigationRevision: number;
+  readonly fleetPartitionRevision: number;
+  readonly currentTurn: number;
+  readonly turnPhase: NonNullable<ReturnType<typeof turnPhaseState>>;
+  readonly candidates: readonly FleetGroupRejoinCandidate[];
+}
+function fleetRejoinLeaseClaimedAt(instance: Pick<DocumentSnapshot, 'get'>): string | null {
+  const value = instance.get('claimedAt');
+  if (value === undefined || value === null) return null;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'string') {
+    const milliseconds = Date.parse(value);
+    return Number.isFinite(milliseconds) ? new Date(milliseconds).toISOString() : null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) return new Date(value).toISOString();
+  if (isRecord(value) && typeof value.toDate === 'function') {
+    const date = value.toDate();
+    return date instanceof Date ? date.toISOString() : null;
+  }
+  if (isRecord(value) && typeof value.toMillis === 'function') {
+    const milliseconds = value.toMillis();
+    return typeof milliseconds === 'number' && Number.isFinite(milliseconds)
+      ? new Date(milliseconds).toISOString() : null;
+  }
+  return null;
+}
+interface FleetGroupRejoinAdjudicationReply {
+  readonly status: 'recorded'; readonly adjudicationId: string;
+  readonly navigationRevision: number; readonly fleetPartitionRevision: number;
+}
+interface RequestedFleetRejoinDecision {
+  readonly coordinate: string; readonly groupIds: readonly string[]; readonly pursuitAfter: number;
+}
+
+function isFleetGroupRejoinAdjudicationReply(value: unknown): value is FleetGroupRejoinAdjudicationReply {
+  return isRecord(value) && Object.keys(value).every(key =>
+    ['status', 'adjudicationId', 'navigationRevision', 'fleetPartitionRevision'].includes(key)) &&
+    value.status === 'recorded' && typeof value.adjudicationId === 'string' && isCanonicalRequestId(value.adjudicationId) &&
+    Number.isSafeInteger(value.navigationRevision) && (value.navigationRevision as number) >= 0 &&
+    Number.isSafeInteger(value.fleetPartitionRevision) && (value.fleetPartitionRevision as number) >= 0;
+}
+
+function requestedFleetRejoinDecisions(value: unknown): readonly RequestedFleetRejoinDecision[] | null {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 32) return null;
+  const result: RequestedFleetRejoinDecision[] = [];
+  for (const candidate of value) {
+    if (!isRecord(candidate) || Object.keys(candidate).some(key => !['coordinate', 'groupIds', 'pursuitAfter'].includes(key)) ||
+        typeof candidate.coordinate !== 'string' || !isStarSystemCoordinate(candidate.coordinate) ||
+        !Array.isArray(candidate.groupIds) || candidate.groupIds.length < 2 || candidate.groupIds.length > 32 ||
+        candidate.groupIds.some(id => typeof id !== 'string' || !/^fleet-[1-9][0-9]*$/.test(id)) ||
+        new Set(candidate.groupIds).size !== candidate.groupIds.length ||
+        !Number.isSafeInteger(candidate.pursuitAfter) || (candidate.pursuitAfter as number) < 0 ||
+        (candidate.pursuitAfter as number) > 10) return null;
+    result.push({ coordinate: candidate.coordinate, groupIds: [...candidate.groupIds] as string[],
+      pursuitAfter: candidate.pursuitAfter as number });
+  }
+  return result;
+}
+
+function fleetGroupRejoinPreviewBinding(value: unknown): FleetGroupRejoinPreviewBinding | null {
+  if (!isRecord(value) || Object.keys(value).some(key => !['actorUid', 'instanceId', 'leaseClaimedAt',
+      'navigationRevision', 'fleetPartitionRevision', 'currentTurn', 'turnPhase', 'candidates'].includes(key)) ||
+      typeof value.actorUid !== 'string' || !/^[\w-]{1,128}$/.test(value.actorUid) ||
+      typeof value.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(value.instanceId) ||
+      (value.leaseClaimedAt !== null && typeof value.leaseClaimedAt !== 'string') ||
+      !Number.isSafeInteger(value.navigationRevision) || (value.navigationRevision as number) < 0 ||
+      !Number.isSafeInteger(value.fleetPartitionRevision) || (value.fleetPartitionRevision as number) < 0 ||
+      !Number.isSafeInteger(value.currentTurn) || (value.currentTurn as number) < 1 ||
+      !Array.isArray(value.candidates) || value.candidates.length < 1 || value.candidates.length > 32) return null;
+  const turnPhase = turnPhaseState(value.turnPhase);
+  if (!turnPhase || turnPhase.turn !== value.currentTurn || !isDeepStrictEqual(value.turnPhase, turnPhase)) return null;
+  for (const candidate of value.candidates) {
+    if (!isRecord(candidate) || Object.keys(candidate).some(key => !['coordinate', 'groupIds', 'pursuitBefore'].includes(key)) ||
+        typeof candidate.coordinate !== 'string' || !isStarSystemCoordinate(candidate.coordinate) ||
+        !Array.isArray(candidate.groupIds) || candidate.groupIds.length < 2 || candidate.groupIds.length > 32 ||
+        candidate.groupIds.some(id => typeof id !== 'string' || !/^fleet-[1-9][0-9]*$/.test(id)) ||
+        new Set(candidate.groupIds).size !== candidate.groupIds.length || !isRecord(candidate.pursuitBefore) ||
+        Object.keys(candidate.pursuitBefore).length !== candidate.groupIds.length ||
+        Object.keys(candidate.pursuitBefore).some(id => !(candidate.groupIds as unknown[]).includes(id)) ||
+        candidate.groupIds.some(id => !Number.isSafeInteger((candidate.pursuitBefore as Record<string, unknown>)[id]) ||
+          ((candidate.pursuitBefore as Record<string, unknown>)[id] as number) < 0 || ((candidate.pursuitBefore as Record<string, unknown>)[id] as number) > 10)) return null;
+  }
+  return value as unknown as FleetGroupRejoinPreviewBinding;
+}
+
+function fleetPartitionPlanFromSnapshots(session: DocumentSnapshot, storedNavigation: DocumentSnapshot,
+  playerSnapshots: QuerySnapshot, groupSnapshots: QuerySnapshot) {
+  const activeVesselIds = activeVesselIdsForSession(session);
+  const groups = movementPursuitFleetGroups(activeVesselIds, groupSnapshots, playerSnapshots);
+  requireMovementPursuitAuthority(storedNavigation, session);
+  const navigation = navigationStateForSession(storedNavigation, session, activeVesselIds);
+  const players = playerSnapshots.docs.filter(player => player.exists && !isKickedPlayer(player));
+  const members = players.map(player => {
+    const currentGroup = groups.find(group => group.id === player.get('fleetGroupId'));
+    let shipId = currentGroup?.memberShipIds?.[player.id] ?? playerShipId(player) ?? playerAuthoritativeVesselIds(player)[0] ?? null;
+    if (shipId && !activeVesselIds.includes(shipId)) {
+      const id = smallShipId(shipId);
+      shipId = id ? storedSmallShipState(session, id)?.hostShipId ?? null : null;
+    }
+    return { uid: player.id, groupId: player.get('fleetGroupId') as string, shipId };
+  });
+  let plan: ReturnType<typeof planFleetPartition>;
+  try { plan = planFleetPartition(navigation, groups, members, activeVesselIds); }
+  catch (error) {
+    throw commandError('failed-precondition', error instanceof Error ? error.message : 'Fleet partition authority is malformed.', 'conflict');
+  }
+  return { activeVesselIds, groups, navigation, players, members, plan };
+}
+
+function currentFleetPartitionRevision(session: DocumentSnapshot): number {
+  const value = session.get('fleetPartitionRevision');
+  const revision = value === undefined ? 0 : value;
+  if (!Number.isSafeInteger(revision) || (revision as number) < 0 || (revision as number) >= Number.MAX_SAFE_INTEGER) {
+    throw commandError('failed-precondition', 'Fleet partition revision authority is malformed or exhausted.', 'conflict');
+  }
+  return revision as number;
+}
+
+function currentFleetRejoinTiming(session: DocumentSnapshot): Readonly<{
+  currentTurn: number; turnPhase: NonNullable<ReturnType<typeof turnPhaseState>>;
+}> {
+  const currentTurn = session.get('currentTurn');
+  const turnPhase = turnPhaseState(session.get('turnPhase'));
+  if (!Number.isSafeInteger(currentTurn) || (currentTurn as number) < 1 || !turnPhase || turnPhase.turn !== currentTurn) {
+    throw commandError('failed-precondition', 'The current facilitator turn and phase authority is malformed.', 'conflict');
+  }
+  return { currentTurn: currentTurn as number, turnPhase };
+}
+
+function recordDecisionsForCandidates(raw: unknown, candidates: readonly FleetGroupRejoinCandidate[])
+  : readonly (FleetGroupRejoinCandidate & { readonly pursuitAfter: number })[] | null {
+  const requested = requestedFleetRejoinDecisions(raw);
+  if (!requested || requested.length !== candidates.length) return null;
+  const decisions: (FleetGroupRejoinCandidate & { readonly pursuitAfter: number })[] = [];
+  for (const candidate of candidates) {
+    const matches = requested.filter(decision => decision.coordinate === candidate.coordinate &&
+      isDeepStrictEqual(decision.groupIds, candidate.groupIds));
+    if (matches.length !== 1) return null;
+    decisions.push({ ...candidate, pursuitAfter: matches[0]!.pursuitAfter });
+  }
+  return decisions;
+}
+
+function savedDecisionsForCandidates(value: unknown, candidates: readonly FleetGroupRejoinCandidate[],
+  context: Readonly<{ sessionId: string; actorUid: string; instanceId: string; navigationRevision: number;
+    leaseClaimedAt: string | null; fleetPartitionRevision: number; currentTurn: number;
+    turnPhase: ReturnType<typeof turnPhaseState> }>,
+  adjudicationId: string): readonly FleetGroupRejoinDecision[] | null {
+  if (!isRecord(value) || Object.keys(value).some(key => !['type', 'status', 'sessionId', 'requestId', 'actorUid',
+      'instanceId', 'leaseClaimedAt', 'navigationRevision', 'fleetPartitionRevision', 'currentTurn', 'turnPhase',
+      'decisions', 'createdAt'].includes(key)) ||
+      value.type !== 'fleet-group-rejoin-adjudication' || value.status !== 'recorded' ||
+      value.sessionId !== context.sessionId || value.requestId !== adjudicationId || value.actorUid !== context.actorUid ||
+      value.instanceId !== context.instanceId || value.leaseClaimedAt !== context.leaseClaimedAt ||
+      value.navigationRevision !== context.navigationRevision ||
+      value.fleetPartitionRevision !== context.fleetPartitionRevision || value.currentTurn !== context.currentTurn ||
+      !isDeepStrictEqual(value.turnPhase, context.turnPhase) || !Array.isArray(value.decisions) ||
+      value.decisions.length !== candidates.length) return null;
+  const decisions: FleetGroupRejoinDecision[] = [];
+  for (const candidate of candidates) {
+    const matches = value.decisions.filter((raw): raw is Record<string, unknown> => isRecord(raw) &&
+      raw.coordinate === candidate.coordinate && isDeepStrictEqual(raw.groupIds, candidate.groupIds));
+    if (matches.length !== 1) return null;
+    const stored = matches[0]!;
+    if (Object.keys(stored).some(key => !['coordinate', 'groupIds', 'pursuitBefore', 'pursuitAfter'].includes(key)) ||
+        !isDeepStrictEqual(stored.pursuitBefore, candidate.pursuitBefore) ||
+        !Number.isSafeInteger(stored.pursuitAfter) || (stored.pursuitAfter as number) < 0 || (stored.pursuitAfter as number) > 10) return null;
+    decisions.push({ coordinate: candidate.coordinate, groupIds: [...candidate.groupIds],
+      pursuitAfter: stored.pursuitAfter as number, adjudicationId });
+  }
+  return decisions;
+}
+
+/** Record an explicit live-GM result for the exact current exceptional rejoin candidates. */
+export const recordFleetGroupRejoinAdjudication = auditedOnCall<{
+  sessionId: string; instanceId: string; requestId: string; expectedNavigationRevision: number;
+  expectedFleetPartitionRevision: number; decisions: unknown; previewBinding: unknown;
+}>('recordFleetGroupRejoinAdjudication', async request => {
   const uid = requireUid(request.auth);
   const data = request.data;
-  if (!isRecord(data) || Object.keys(data).some(key => !['sessionId', 'instanceId', 'requestId', 'expectedNavigationRevision'].includes(key)) ||
+  const decisions = requestedFleetRejoinDecisions(data?.decisions);
+  const previewBinding = fleetGroupRejoinPreviewBinding(data?.previewBinding);
+  if (!isRecord(data) || Object.keys(data).some(key => !['sessionId', 'instanceId', 'requestId',
+      'expectedNavigationRevision', 'expectedFleetPartitionRevision', 'decisions', 'previewBinding'].includes(key)) ||
       typeof data.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(data.sessionId) ||
       typeof data.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(data.instanceId) ||
       typeof data.requestId !== 'string' || !isCanonicalRequestId(data.requestId) ||
       !Number.isSafeInteger(data.expectedNavigationRevision) || data.expectedNavigationRevision < 0 ||
-      data.expectedNavigationRevision >= Number.MAX_SAFE_INTEGER) throw new HttpsError('invalid-argument', 'Invalid fleet partition confirmation.');
+      data.expectedNavigationRevision >= Number.MAX_SAFE_INTEGER ||
+      !Number.isSafeInteger(data.expectedFleetPartitionRevision) || data.expectedFleetPartitionRevision < 0 ||
+      data.expectedFleetPartitionRevision >= Number.MAX_SAFE_INTEGER || !decisions ||
+      (previewBinding !== null && (previewBinding.navigationRevision !== data.expectedNavigationRevision ||
+        previewBinding.fleetPartitionRevision !== data.expectedFleetPartitionRevision))) {
+    throw new HttpsError('invalid-argument', 'Invalid fleet rejoin adjudication.');
+  }
+  const fingerprint: CommandFingerprint = { action: 'record-fleet-group-rejoin-adjudication', sessionId: data.sessionId,
+    requestId: data.requestId, actorUid: uid, instanceId: data.instanceId,
+    expectedRevision: data.expectedNavigationRevision,
+    payload: { expectedFleetPartitionRevision: data.expectedFleetPartitionRevision, decisions: JSON.stringify(decisions),
+      previewBinding: JSON.stringify(previewBinding) } };
+  const adjudicationRef = db.doc(`sessions/${data.sessionId}/fleetGroupRejoinAdjudications/${data.requestId}`);
+  return db.runTransaction(async tx => {
+    const { session, instance } = await requireFacilitatorInstance(tx, data.sessionId, uid, data.instanceId);
+    if (!previewBinding) throw new HttpsError('invalid-argument', 'A current exceptional rejoin preview is required.');
+    const leaseClaimedAt = fleetRejoinLeaseClaimedAt(instance);
+    if (previewBinding.actorUid !== uid || previewBinding.instanceId !== data.instanceId ||
+        previewBinding.leaseClaimedAt !== leaseClaimedAt) {
+      throw commandError('failed-precondition', 'The facilitator lease changed after this rejoin preview. Refresh before recording.', 'conflict');
+    }
+    const [storedNavigation, playerSnapshots, groupSnapshots, receipt, existingAdjudication, attackState] = await Promise.all([
+      tx.get(navigationStateRef(data.sessionId)), tx.get(db.collection(`sessions/${data.sessionId}/players`)),
+      tx.get(db.collection(`sessions/${data.sessionId}/fleetGroups`)), tx.get(commandReceiptRef(data.sessionId, data.requestId)),
+      tx.get(adjudicationRef), tx.get(db.doc(`sessions/${data.sessionId}/wolfAttackState/current`)),
+    ]);
+    const replay = replayBoundCommand(receipt, fingerprint, isFleetGroupRejoinAdjudicationReply, 'fleet rejoin adjudication');
+    if (replay) return replay;
+    requireWolfAttackMovementReleased(attackState);
+    requireActiveGameplayPhase(session);
+    requireActionPhase(session, 'jump', 'facilitator');
+    if (!storedNavigation.exists || storedNavigation.get('revision') !== data.expectedNavigationRevision) {
+      throw commandError('failed-precondition', 'Navigation changed; refresh before recording the rejoin decision.', 'conflict');
+    }
+    const partitionRevision = currentFleetPartitionRevision(session);
+    if (partitionRevision !== data.expectedFleetPartitionRevision) {
+      throw commandError('failed-precondition', 'Fleet membership changed; refresh before recording the rejoin decision.', 'conflict');
+    }
+    if (existingAdjudication.exists) throw commandError('failed-precondition', 'This rejoin decision id is already recorded.', 'conflict');
+    const current = fleetPartitionPlanFromSnapshots(session, storedNavigation, playerSnapshots, groupSnapshots);
+    const { currentTurn, turnPhase } = currentFleetRejoinTiming(session);
+    if (previewBinding.currentTurn !== currentTurn || !isDeepStrictEqual(previewBinding.turnPhase, turnPhase) ||
+        !isDeepStrictEqual(previewBinding.candidates, current.plan.adjudicationRequired)) {
+      throw commandError('failed-precondition', 'The exceptional rejoin preview inputs changed; refresh before recording a decision.', 'conflict');
+    }
+    const recordedDecisions = recordDecisionsForCandidates(decisions, current.plan.adjudicationRequired);
+    if (!recordedDecisions || current.plan.adjudicationRequired.length === 0) {
+      throw commandError('failed-precondition', 'The exceptional rejoin candidates changed; refresh before recording a decision.', 'conflict');
+    }
+    const result: FleetGroupRejoinAdjudicationReply = { status: 'recorded', adjudicationId: data.requestId,
+      navigationRevision: data.expectedNavigationRevision, fleetPartitionRevision: partitionRevision };
+    tx.create(adjudicationRef, { type: 'fleet-group-rejoin-adjudication', status: 'recorded', sessionId: data.sessionId,
+      requestId: data.requestId, actorUid: uid, instanceId: data.instanceId,
+      leaseClaimedAt, navigationRevision: data.expectedNavigationRevision, fleetPartitionRevision: partitionRevision,
+      currentTurn, turnPhase,
+      decisions: recordedDecisions, createdAt: FieldValue.serverTimestamp() });
+    tx.create(commandReceiptRef(data.sessionId, data.requestId), { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+/** Confirm physical partitions from server coordinates; an exceptional pursuit result must be previously recorded by the live GM. */
+export const confirmFleetPartition = auditedOnCall<{ sessionId: string; instanceId: string; requestId: string;
+  expectedNavigationRevision: number; rejoinAdjudicationId?: string }>('confirmFleetPartition', async request => {
+  const uid = requireUid(request.auth);
+  const data = request.data;
+  if (!isRecord(data) || Object.keys(data).some(key => !['sessionId', 'instanceId', 'requestId', 'expectedNavigationRevision',
+      'rejoinAdjudicationId'].includes(key)) ||
+      typeof data.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(data.sessionId) ||
+      typeof data.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(data.instanceId) ||
+      typeof data.requestId !== 'string' || !isCanonicalRequestId(data.requestId) ||
+      !Number.isSafeInteger(data.expectedNavigationRevision) || data.expectedNavigationRevision < 0 ||
+      data.expectedNavigationRevision >= Number.MAX_SAFE_INTEGER ||
+      (data.rejoinAdjudicationId !== undefined && (typeof data.rejoinAdjudicationId !== 'string' ||
+        !isCanonicalRequestId(data.rejoinAdjudicationId)))) throw new HttpsError('invalid-argument', 'Invalid fleet partition confirmation.');
   const fingerprint: CommandFingerprint = { action: 'confirm-fleet-partition', sessionId: data.sessionId,
     requestId: data.requestId, actorUid: uid, instanceId: data.instanceId,
-    expectedRevision: data.expectedNavigationRevision, payload: {} };
+    expectedRevision: data.expectedNavigationRevision,
+    payload: data.rejoinAdjudicationId ? { rejoinAdjudicationId: data.rejoinAdjudicationId } : {} };
   return db.runTransaction(async tx => {
-    const { session } = await requireFacilitatorInstance(tx, data.sessionId, uid, data.instanceId);
-    const [storedNavigation, playerSnapshots, groupSnapshots, receipt, attackState, opportunities, missionStarts] = await Promise.all([
+    const { session, instance } = await requireFacilitatorInstance(tx, data.sessionId, uid, data.instanceId);
+    const [storedNavigation, playerSnapshots, groupSnapshots, receipt, attackState, opportunities, missionStarts, adjudicationSnapshot] = await Promise.all([
       tx.get(navigationStateRef(data.sessionId)), tx.get(db.collection(`sessions/${data.sessionId}/players`)),
       tx.get(db.collection(`sessions/${data.sessionId}/fleetGroups`)), tx.get(commandReceiptRef(data.sessionId, data.requestId)),
       tx.get(db.doc(`sessions/${data.sessionId}/wolfAttackState/current`)),
       tx.get(db.collection(`sessions/${data.sessionId}/missionOpportunities`)),
       tx.get(db.collection(`sessions/${data.sessionId}/missionStartSnapshots`)),
+      data.rejoinAdjudicationId
+        ? tx.get(db.doc(`sessions/${data.sessionId}/fleetGroupRejoinAdjudications/${data.rejoinAdjudicationId}`))
+        : Promise.resolve(null),
     ]);
     const shuttleIds = [...AUTHORIZED_SHUTTLE_IDS].sort();
     const [shuttleDepartures, shuttleChains] = await Promise.all([
       Promise.all(shuttleIds.map(shuttleId => tx.get(db.doc(`sessions/${data.sessionId}/shuttleDepartures/${shuttleId}`)))),
       Promise.all(shuttleIds.map(shuttleId => tx.get(db.doc(`sessions/${data.sessionId}/shuttleTransitChains/${shuttleId}`)))),
     ]);
+    if (data.rejoinAdjudicationId && adjudicationSnapshot?.exists) {
+      const saved = adjudicationSnapshot.data();
+      const leaseClaimedAt = fleetRejoinLeaseClaimedAt(instance);
+      if (!isRecord(saved) || saved.leaseClaimedAt !== leaseClaimedAt) {
+        throw commandError('failed-precondition', 'The recorded GM decision is stale because the facilitator lease changed after it was recorded.', 'conflict');
+      }
+    }
     const replay = replayBoundCommand(receipt, fingerprint, isFleetPartitionReply, 'fleet partition');
     if (replay) return replay;
     requireWolfAttackMovementReleased(attackState);
@@ -17680,29 +18827,42 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
     if (!storedNavigation.exists || storedNavigation.get('revision') !== data.expectedNavigationRevision) {
       throw commandError('failed-precondition', 'Navigation changed; refresh before confirming the fleet partition.', 'conflict');
     }
-    const storedPartitionRevision = session.get('fleetPartitionRevision');
-    const partitionRevision = storedPartitionRevision === undefined ? 0 : storedPartitionRevision;
-    if (!Number.isSafeInteger(partitionRevision) || (partitionRevision as number) < 0 ||
-        (partitionRevision as number) >= Number.MAX_SAFE_INTEGER) {
-      throw commandError('failed-precondition', 'Fleet partition revision authority is malformed or exhausted.', 'conflict');
-    }
-    const activeVesselIds = activeVesselIdsForSession(session);
-    const groups = movementPursuitFleetGroups(activeVesselIds, groupSnapshots, playerSnapshots);
-    requireMovementPursuitAuthority(storedNavigation, session);
-    const navigation = navigationStateForSession(storedNavigation, session, activeVesselIds);
-    const players = playerSnapshots.docs.filter(player => player.exists && !isKickedPlayer(player));
-    const members = players.map(player => {
-      const currentGroup = groups.find(group => group.id === player.get('fleetGroupId'));
-      let shipId = currentGroup?.memberShipIds?.[player.id] ?? playerShipId(player) ?? playerAuthoritativeVesselIds(player)[0] ?? null;
-      if (shipId && !activeVesselIds.includes(shipId)) {
-        const id = smallShipId(shipId);
-        shipId = id ? storedSmallShipState(session, id)?.hostShipId ?? null : null;
+    const partitionRevision = currentFleetPartitionRevision(session);
+    const current = fleetPartitionPlanFromSnapshots(session, storedNavigation, playerSnapshots, groupSnapshots);
+    let plan = current.plan;
+    if (plan.adjudicationRequired.length > 0) {
+      if (!data.rejoinAdjudicationId) {
+        const { currentTurn, turnPhase } = currentFleetRejoinTiming(session);
+        const previewBinding: FleetGroupRejoinPreviewBinding = { actorUid: uid, instanceId: data.instanceId,
+          leaseClaimedAt: fleetRejoinLeaseClaimedAt(instance),
+          navigationRevision: data.expectedNavigationRevision, fleetPartitionRevision: partitionRevision,
+          currentTurn, turnPhase, candidates: plan.adjudicationRequired };
+        return { status: 'adjudication-required', navigationRevision: data.expectedNavigationRevision,
+          fleetPartitionRevision: partitionRevision, candidates: plan.adjudicationRequired, previewBinding } as FleetPartitionAdjudicationRequiredReply;
       }
-      return { uid: player.id, groupId: player.get('fleetGroupId') as string, shipId };
-    });
-    let plan: ReturnType<typeof planFleetPartition>;
-    try { plan = planFleetPartition(navigation, groups, members, activeVesselIds); }
-    catch (error) { throw commandError('failed-precondition', error instanceof Error ? error.message : 'Fleet partition authority is malformed.', 'conflict'); }
+      if (!adjudicationSnapshot?.exists) {
+        throw commandError('failed-precondition', 'A current recorded GM rejoin decision is required.', 'conflict');
+      }
+      const decisions = savedDecisionsForCandidates(adjudicationSnapshot.data(), plan.adjudicationRequired, {
+        sessionId: data.sessionId, actorUid: uid, instanceId: data.instanceId,
+        navigationRevision: data.expectedNavigationRevision, fleetPartitionRevision: partitionRevision,
+        leaseClaimedAt: fleetRejoinLeaseClaimedAt(instance),
+        ...currentFleetRejoinTiming(session),
+      }, data.rejoinAdjudicationId);
+      if (!decisions) throw commandError('failed-precondition',
+        'The recorded GM decision is stale, foreign, consumed, or does not match these rejoin candidates.', 'conflict');
+      try {
+        plan = planFleetPartition(current.navigation, current.groups, current.members, current.activeVesselIds, decisions);
+      } catch (error) {
+        throw commandError('failed-precondition', error instanceof Error ? error.message : 'Fleet rejoin adjudication is malformed.', 'conflict');
+      }
+      if (plan.adjudicationRequired.length > 0) {
+        throw commandError('failed-precondition', 'The recorded GM decision did not resolve every current rejoin candidate.', 'conflict');
+      }
+    } else if (data.rejoinAdjudicationId) {
+      throw commandError('failed-precondition', 'This recorded GM decision no longer matches an exceptional rejoin.', 'conflict');
+    }
+    const { groups, players } = current;
     let missionMigrations: ReturnType<typeof partitionPendingMissionOpportunities>;
     try {
       missionMigrations = partitionPendingMissionOpportunities(data.sessionId, lockedNavigationChart(session),
@@ -17745,7 +18905,7 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
     }
     const changed = !isDeepStrictEqual(groups, plan.groups) || missionMigrations.length > 0 || shuttleAudienceChanges.length > 0;
     const revision = data.expectedNavigationRevision + (changed ? 1 : 0);
-    const nextPartitionRevision = (partitionRevision as number) + (changed ? 1 : 0);
+    const nextPartitionRevision = partitionRevision + (changed ? 1 : 0);
     if (changed) {
       tx.update(db.doc(`sessions/${data.sessionId}`), { fleetPartitionRevision: nextPartitionRevision, updatedAt: FieldValue.serverTimestamp() });
       for (const group of plan.groups) tx.set(db.doc(`sessions/${data.sessionId}/fleetGroups/${group.id}`), {
@@ -17775,9 +18935,13 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
         tx.update(db.doc(`sessions/${data.sessionId}/shuttleDepartures/${change.shuttleId}`), { fleetGroupId: change.toGroupId });
       }
       if (plan.rejoins.length > 0) {
+        const resolutions = new Set(plan.rejoins.map(rejoin => rejoin.resolution));
         tx.create(db.doc(`sessions/${data.sessionId}/fleetGroupRejoinAudits/${data.requestId}`), {
           type: 'fleet-group-rejoin-audit', sessionId: data.sessionId, requestId: data.requestId,
-          actorUid: uid, policy: 'highest-pursuit-score', navigationRevision: revision,
+          actorUid: uid,
+          pursuitDecision: resolutions.size > 1 ? 'mixed-identical-and-adjudicated-inputs' : [...resolutions][0],
+          ...(data.rejoinAdjudicationId ? { adjudicationId: data.rejoinAdjudicationId } : {}),
+          navigationRevision: revision,
           migratedShuttleIds: shuttleAudienceChanges.filter(change => change.toGroupId !== NO_LOCAL_FLEET_ROUTE_AUDIENCE)
             .map(change => change.shuttleId).sort(),
           rejoins: plan.rejoins.map(rejoin => ({
@@ -17786,10 +18950,16 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
             absorbedGroupIds: [...rejoin.absorbedGroupIds],
             pursuitBefore: { ...rejoin.pursuitBefore },
             pursuitAfter: rejoin.pursuitAfter,
+            resolution: rejoin.resolution,
+            ...(rejoin.adjudicationId ? { adjudicationId: rejoin.adjudicationId } : {}),
           })),
           createdAt: FieldValue.serverTimestamp(),
         });
       }
+      if (data.rejoinAdjudicationId) tx.update(
+        db.doc(`sessions/${data.sessionId}/fleetGroupRejoinAdjudications/${data.rejoinAdjudicationId}`), {
+          status: 'consumed', consumedByRequestId: data.requestId, consumedAt: FieldValue.serverTimestamp(),
+        });
       if (shuttleAudienceChanges.length > 0) tx.create(
         db.doc(`sessions/${data.sessionId}/fleetGroupTransitPartitionAudits/${data.requestId}`), {
           type: 'fleet-group-transit-partition-audit', sessionId: data.sessionId, requestId: data.requestId,
@@ -17813,10 +18983,11 @@ function publicMemberSessionSource(sessionSnap: DocumentSnapshot, sessionId: str
   const setup = canonicalSetupForSession(sessionSnap, activeRoleIds);
   const activeVesselIds = setup.activeVesselIds;
   const retainedShuttles = publicRetainedShuttles(sessionSnap.get('retainedShuttles'));
+  const lostShuttles = lostShuttlesForSession(sessionSnap);
   const quarantineDocking = publicQuarantineDocking(sessionSnap.get('quarantineDocking'));
   const shuttleDockings = publicShuttleDockings(
     sessionSnap.get('shuttleDockings'), activeVesselIds, activeRoleIds,
-    Object.keys(retainedShuttles),
+    [...Object.keys(retainedShuttles), ...Object.keys(lostShuttles)],
   );
   const shuttleVisitLog = publicShuttleVisitLog(
     sessionSnap.get('shuttleVisitLog'), shuttleDockings, activeVesselIds,
@@ -17891,7 +19062,7 @@ function publicMemberSessionSource(sessionSnap: DocumentSnapshot, sessionId: str
     ...(publicHighwallMining(sessionSnap.get('highwallMining'))
       ? { highwallMining: publicHighwallMining(sessionSnap.get('highwallMining')) } : {}),
     shuttleFuelled: publicShuttleFuelled(sessionSnap.get('shuttleFuelled')),
-    retainedShuttles,
+    retainedShuttles, lostShuttles,
     ...(quarantineDocking ? { quarantineDocking } : {}),
     shipUpgrades: publicShipUpgrades(sessionSnap.get('shipUpgrades'), activeVesselIds),
     shipSurvivors: activeShipSurvivors(sessionSnap.get('shipSurvivors'), activeVesselIds),
@@ -17916,12 +19087,21 @@ function publicMemberSessionSource(sessionSnap: DocumentSnapshot, sessionId: str
   };
 }
 
-const currentMemberSessionReader = createCurrentMemberSessionReader({ db, projectSession: publicMemberSessionSource });
-export const getCurrentMemberSession = onCall(async request => currentMemberSessionReader(request));
+const currentMemberSessionReader = limitCurrentMemberSessionReader({
+  db, read: createCurrentMemberSessionReader({ db, projectSession: publicMemberSessionSource }),
+});
+export const getCurrentMemberSession = auditedOnCall('getCurrentMemberSession', async request => currentMemberSessionReader(request));
+const sessionDebriefCommands = createSessionDebriefCommands({ db, isLiveGmInstance });
+export const beginSessionDebrief = auditedOnCall('beginSessionDebrief', request =>
+  sessionDebriefCommands.begin(request));
+export const closeSession = auditedOnCall('closeSession', request =>
+  sessionDebriefCommands.close(request));
+export const getSessionDebrief = auditedOnCall('getSessionDebrief', request =>
+  sessionDebriefCommands.read(request));
 
 /** Redeem a legacy four-digit or current six-digit code and register presence. */
-export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
-  async (request) => {
+export const joinSession = auditedOnCall<{ joinCode?: string; displayName?: string }>(
+  'joinSession', async (request) => {
     const uid = requireUid(request.auth);
     const joinCode = request.data?.joinCode ?? '';
     if (!isJoinCode(joinCode)) {
@@ -18178,7 +19358,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
 );
 
 /** Refresh a locally remembered session after a browser reload or reopen. */
-export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
+export const resumeSession = auditedOnCall<{ sessionId?: string }>('resumeSession', async (request) => {
   const uid = requireUid(request.auth);
   const { sessionId } = requireSessionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${sessionId}`);
@@ -18193,6 +19373,31 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
   if (!playerSnap.exists) {
     throw new HttpsError('permission-denied', 'You are no longer in that session.');
   }
+  if (sessionSnap.get('phase') === 'closed') {
+    // Closed history is a read-only reconnect for a player who still belongs
+    // to this session. The current-member reader rechecks identity, group and
+    // kick status in its own read transaction before any rate-limit marker is
+    // written; this branch never restores presence, a seat, or membership.
+    const historical = await currentMemberSessionReader({ auth: { uid }, data: { sessionId } });
+    await enforceExpensiveCallableRateLimit(db, { callableName: 'resumeSession', sessionId, uid });
+    const role = playerSnap.get('role') === 'gm' ? 'gm' : 'player';
+    const connectionGeneration = playerSnap.get('connectionGeneration');
+    return {
+      player: {
+        uid,
+        sessionId,
+        displayName: cleanName(playerSnap.get('displayName'), 'Player', 40),
+        role,
+        seatId: null,
+        ...(role === 'player' ? { fleetGroupId: historical.groupId } : {}),
+        activeConsoleRoleId: null,
+        connectionGeneration: Number.isSafeInteger(connectionGeneration) && Number(connectionGeneration) >= 1
+          ? Number(connectionGeneration) : 1,
+        joinedAt: isoOf(playerSnap.get('joinedAt')),
+      },
+      session: historical.session,
+    };
+  }
   if (isKickedPlayer(playerSnap)) {
     throw commandError(
       'failed-precondition',
@@ -18200,25 +19405,20 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       'unauthorized',
     );
   }
-  if (sessionSnap.get('phase') === 'closed') {
-    throw commandError('failed-precondition', 'That session has closed.', 'terminal-session');
-  }
 
   await enforceExpensiveCallableRateLimit(db, { callableName: 'resumeSession', sessionId, uid });
 
   const membershipRef = db.doc(`activeMemberships/${uid}`);
   const movementRef = voyage33MovementRef(sessionId);
   const resumeResult = await db.runTransaction(async (tx) => {
-    const [currentSession, currentPlayer, membership, storedGroup, storedNavigation, players, movementSnapshot] = await Promise.all([
+    const [currentSession, currentPlayer, membership, storedGroup, storedNavigation, movementSnapshot] = await Promise.all([
       tx.get(sessionRef),
       tx.get(playerRef),
       tx.get(membershipRef),
       tx.get(fleetGroupRef(sessionId)),
       tx.get(navigationStateRef(sessionId)),
-      tx.get(playersRef),
       tx.get(movementRef),
     ]);
-    const playerDocs = Array.isArray(players?.docs) ? players.docs : [];
     if (!currentSession.exists || currentSession.get('deletingAt')) {
       throw new HttpsError('not-found', 'That session no longer exists.');
     }
@@ -18259,7 +19459,74 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     const returningSeat = await reconcileReturningSeat(
       tx, sessionId, uid, currentPlayer, sessionActiveRoleIds(currentSession),
     );
-    const partitions = hasFleetPartition(currentSession)
+    const partitioned = hasFleetPartition(currentSession);
+    const canonicalSetup = canonicalSetupForSession(currentSession, sessionActiveRoleIds(currentSession));
+    const currentGroup = storedGroup.exists ? fleetGroupRecord(storedGroup.data()) : undefined;
+    // An expired current core actor can reclaim its already-read canonical
+    // open seat without fleet migration. Its setup, berth and protected view
+    // must satisfy the same current-source guards as a live member. Missing
+    // seats, Press, legacy, partitioned and candidate recovery reconcile below.
+    const stablePress = hasStablePressAuthority(currentSession, currentPlayer, uid);
+    const returningCurrentCore = currentSession.get('phase') === 'active' &&
+      currentPlayer.get('role') === 'player' && currentPlayer.get('connected') === false &&
+      currentPlayer.get('lastSeenAt') instanceof Timestamp && returningSeat.canonicalOpenSeat === true &&
+      currentPlayer.get('assignedRoleId') === returningSeat.seatId &&
+      currentPlayer.get('activeConsoleRoleId') === returningSeat.seatId;
+    const stableMember = (isActivePlayer(currentPlayer) && membershipActive &&
+      membership.get('sessionId') === sessionId || returningCurrentCore) &&
+      !partitioned && (!hasPressState(currentPlayer) || stablePress) && !playerEscapeState(currentPlayer) &&
+      currentPlayer.get('replacementStatus') == null &&
+      typeof currentPlayer.get('replacementRoleId') !== 'string' &&
+      (!returningSeat.claimSeat || returningCurrentCore) && !returningSeat.clearPointer &&
+      !returningSeat.clearActiveConsoleRole && !returningSeat.stationSelectionRequired &&
+      isDeepStrictEqual(currentSession.get('setup'), canonicalSetup) &&
+      isDeepStrictEqual(currentSession.get('activeVesselIds'), canonicalSetup.activeVesselIds) &&
+      currentSession.get('deleteAfter') === null &&
+      ['shipGalacticCoordinates', 'shipNavigationLogs', 'pursuitGroups', 'voyage33Movement']
+        .every(field => currentSession.get(field) === undefined) &&
+      !movementSnapshot.exists && voyageMovementStorage.movementState === undefined &&
+      currentGroup?.id === INITIAL_FLEET_GROUP_ID &&
+      currentPlayer.get('fleetGroupId') === currentGroup.id && currentGroup.memberUids.includes(uid) &&
+      isDeepStrictEqual(currentGroup.vesselIds, canonicalSetup.activeVesselIds) &&
+      (!playerShipId(currentPlayer) || currentGroup.memberShipIds?.[uid] !== undefined) &&
+      storedNavigation.exists && Number.isSafeInteger(storedNavigation.get('revision')) &&
+      (storedNavigation.get('revision') as number) >= 0;
+    if (stableMember && currentGroup) {
+      const navigation = navigationStateForSession(storedNavigation, currentSession, canonicalSetup.activeVesselIds);
+      const noCandidateArrivals = Object.values(navigation.systemHistory ?? {}).every(history =>
+        Object.values(history).every(entry => entry.candidateDiscovery === undefined));
+      if (noCandidateArrivals) {
+        const discovery = await tx.get(playerDiscoveryProjectionRef(sessionId, uid));
+        const view = { ...(discovery.data() ?? {}) };
+        delete view.createdAt;
+        delete view.updatedAt;
+        const emptyCandidates = view.candidateReveals === undefined ||
+          Array.isArray(view.candidateReveals) && view.candidateReveals.length === 0;
+        const expectedView = playerDiscoveryProjection(currentPlayer, navigation,
+          storedNavigation.get('revision') as number, currentGroup.vesselIds,
+          view.candidateReveals === undefined ? undefined : [], uid, currentGroup.memberShipIds?.[uid]);
+        const pressHolders = stablePress
+          ? await tx.get(playersRef.where('activeConsoleRoleId', '==', 'press-officer')) : undefined;
+        if (discovery.exists && emptyCandidates && isDeepStrictEqual(view, expectedView) &&
+            (!pressHolders || isSolePressHolder(pressHolders.docs, uid))) {
+          if (returningCurrentCore && returningSeat.seatId) {
+            tx.update(db.doc(`sessions/${sessionId}/seats/${returningSeat.seatId}`), {
+              status: 'claimed', holderUid: uid, claimedAt: FieldValue.serverTimestamp(),
+            });
+          }
+          ensureFleetTickerBaseline(tx, sessionRef, currentSession, new Date().toISOString());
+          reconcilePresenceTimer(tx, sessionRef, currentSession, attackState, true);
+          tx.update(playerRef, {
+            connected: true, connectionGeneration, lastSeenAt: FieldValue.serverTimestamp(),
+          });
+          tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
+          return { seatId: returningSeat.seatId, connectionGeneration, stationSelectionRequired: false };
+        }
+      }
+    }
+    const players = await tx.get(playersRef);
+    const playerDocs = Array.isArray(players?.docs) ? players.docs : [];
+    const partitions = partitioned
       ? await tx.get(db.collection(`sessions/${sessionId}/fleetGroups`)) : undefined;
     const setup = await hydrateCanonicalSessionSetup(tx, sessionId, currentSession);
     if (clearStaleMembership) tx.delete(membershipRef);
@@ -18364,6 +19631,25 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     };
   });
 
+  await db.runTransaction(async (tx) => {
+    const loyaltyRef = db.doc(`sessions/${sessionId}/secrets/loyalty-${uid}`);
+    const [currentSession, currentPlayer, membership, secret] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(membershipRef), tx.get(loyaltyRef),
+    ]);
+    if (!currentSession.exists || currentSession.get('deletingAt') || currentSession.get('phase') === 'closed' ||
+        !isConnectedPlayer(currentPlayer) || currentPlayer.get('role') !== 'player' ||
+        currentPlayer.get('replacementStatus') != null || playerEscapeState(currentPlayer) ||
+        currentPlayer.get('connectionGeneration') !== resumeResult.connectionGeneration ||
+        !membership.exists || membership.get('sessionId') !== sessionId) return;
+    const card = privateLoyaltyPayload(secret, uid);
+    const payload = secret.get('payload');
+    if (!card || !isRecord(payload)) return;
+    const directives = privateLoyaltyDirectives(card.kind);
+    if (!directives || (Array.isArray(payload.directives) && payload.directives.length === directives.length &&
+        payload.directives.every((value, index) => value === directives[index]))) return;
+    tx.update(loyaltyRef, { payload: { ...payload, directives } });
+  });
+
   playerSnap = await playerRef.get();
 
   const reply = {
@@ -18385,6 +19671,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       ...(typeof playerSnap.get('shipPreferenceId') === 'string' || playerSnap.get('shipPreferenceId') === null
         ? { shipPreferenceId: playerSnap.get('shipPreferenceId') } : {}),
       ...(playerEscapeState(playerSnap) ? { escapeState: playerEscapeState(playerSnap) } : {}),
+      ...(typeof playerSnap.get('connected') === 'boolean' ? { connected: playerSnap.get('connected') } : {}),
       activeConsoleRoleId:
         (playerSnap.get('activeConsoleRoleId') as string | null) ?? null,
       connectionGeneration: resumeResult.connectionGeneration,
@@ -18453,7 +19740,7 @@ function gmInstanceClaimedAtToken(value: unknown): string | undefined {
 }
 
 /** Establish persistent GM access for this anonymous browser identity. */
-export const loginGmAccess = onCall<{ password?: string }>(async (request) => {
+export const loginGmAccess = auditedOnCall<{ password?: string }>('loginGmAccess', async (request) => {
   const uid = requireUid(request.auth);
   const { password } = requireGmAccessLoginRequest(request.data ?? {});
   if (!isGmAccessPassword(password)) {
@@ -18467,10 +19754,10 @@ export const loginGmAccess = onCall<{ password?: string }>(async (request) => {
 });
 
 /** Revoke persistent GM access and release this browser's active GM instance. */
-export const logoutGmAccess = onCall<{
+export const logoutGmAccess = auditedOnCall<{
   sessionId?: string | null;
   instanceId?: string | null;
-}>(async (request) => {
+}>('logoutGmAccess', async (request) => {
   const uid = requireUid(request.auth);
   const logout = requireGmAccessLogoutRequest(request.data ?? {});
   const logoutSessionId = logout.sessionId;
@@ -18502,14 +19789,14 @@ export const logoutGmAccess = onCall<{
 });
 
 /** Claim GM authority for one named browser/device instance. */
-export const claimGmInstance = onCall<{
+export const claimGmInstance = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   name?: string;
   deviceLabel?: string;
   resume?: true;
   expectedClaimedAt?: string;
-}>(async (request) => {
+}>('claimGmInstance', async (request) => {
   const uid = requireUid(request.auth);
   const claim = requireGmClaimRequest(request.data ?? {});
   const accessRef = db.doc(`gmAccess/${uid}`);
@@ -18638,13 +19925,13 @@ export const claimGmInstance = onCall<{
 });
 
 /** Grant or revoke one browser-scoped ship-console write target. */
-export const setGmShipConsoleWriteGrant = onCall<{
+export const setGmShipConsoleWriteGrant = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   shipId?: unknown;
   enabled?: unknown;
   claimedAt?: unknown;
-}>(async (request) => {
+}>('setGmShipConsoleWriteGrant', async (request) => {
   const uid = requireUid(request.auth);
   const grant = requireGmShipConsoleWriteGrantRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${grant.sessionId}`);
@@ -18693,7 +19980,7 @@ export const setGmShipConsoleWriteGrant = onCall<{
 });
 
 /** Return every active GM browser instance to a session member. */
-export const listGmInstances = onCall<{ sessionId?: string }>(async (request) => {
+export const listGmInstances = auditedOnCall<{ sessionId?: string }>('listGmInstances', async (request) => {
   const uid = requireUid(request.auth);
   const { sessionId } = requireSessionRequest(request.data ?? {});
   const player = await db.doc(`sessions/${sessionId}/players/${uid}`).get();
@@ -18803,11 +20090,11 @@ async function removeGmInstance(
 }
 
 /** Remove another active GM instance. The caller must itself be an active instance. */
-export const kickGmInstance = onCall(async (request) =>
+export const kickGmInstance = auditedOnCall('kickGmInstance', async (request) =>
   removeGmInstance(requireUid(request.auth), request.data, true));
 
 /** Release only the calling browser's own GM instance. */
-export const releaseGmInstance = onCall(async (request) =>
+export const releaseGmInstance = auditedOnCall('releaseGmInstance', async (request) =>
   removeGmInstance(requireUid(request.auth), request.data, false));
 
 async function removePlayer(
@@ -18893,8 +20180,12 @@ async function removePlayer(
       const partitions = await tx.get(db.collection(`sessions/${action.sessionId}/fleetGroups`));
       const groups = movementPursuitFleetGroups(activeVesselIdsForSession(session), partitions, playersSnapshot);
       for (const group of groups) if (group.memberUids.includes(action.targetUid)) {
+        const memberShipIds = group.memberShipIds && Object.fromEntries(
+          Object.entries(group.memberShipIds).filter(([memberUid]) => memberUid !== action.targetUid),
+        );
         tx.update(db.doc(`sessions/${action.sessionId}/fleetGroups/${group.id}`), {
           memberUids: group.memberUids.filter(memberUid => memberUid !== action.targetUid),
+          ...(memberShipIds ? { memberShipIds } : {}),
           updatedAt: FieldValue.serverTimestamp(),
         });
       }
@@ -18902,6 +20193,10 @@ async function removePlayer(
       ensureInitialFleetGroup(tx, action.sessionId, activeVesselIdsForSession(session),
         activeFleetGroupMemberUids(survivingPlayers), storedGroup, survivingPlayers);
     }
+    writePlayerRemovalAlert(tx, db, { sessionId: action.sessionId,
+      sourceId: action.requestId ?? `kick-${action.targetUid}`, player: target,
+      cause: 'gm-removal', cycle: sessionTurn(session.get('currentTurn')),
+      recordedAt: new Date().toISOString(), createdAt: FieldValue.serverTimestamp() });
     tx.update(targetRef, {
       connected: false,
       ...disconnectedRoleState(),
@@ -18942,14 +20237,14 @@ async function removePlayer(
 }
 
 /** Remove a player browser from this session and permanently deny its return. */
-export const kickPlayer = onCall(async (request) =>
+export const kickPlayer = auditedOnCall('kickPlayer', async (request) =>
   removePlayer(requireUid(request.auth), request.data));
 
 /** Start one shared DRADIS transit from an active, named GM browser. */
-export const triggerDradisContact = onCall<{
+export const triggerDradisContact = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
-}>(async (request) => {
+}>('triggerDradisContact', async (request) => {
   const uid = requireUid(request.auth);
   const action = requireGmInstanceRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${action.sessionId}`);
@@ -18978,23 +20273,23 @@ export const triggerDradisContact = onCall<{
 });
 
 /** Include or remove the optional Capybara expansion ship for the whole session. */
-export const setCapybaraEnabled = onCall<{
+export const setCapybaraEnabled = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   capybaraEnabled?: boolean;
-}>(async (request) => {
+}>('setCapybaraEnabled', async (request) => {
   requireUid(request.auth);
   return rejectLegacySetupMutation();
 });
 
 /** Include or remove the optional SNN Press station independently of the core roster. */
-export const setPressEnabled = onCall<{
+export const setPressEnabled = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   requestId?: string;
   pressEnabled?: boolean;
   expectedRevision?: number;
-}>(async (request) => {
+}>('setPressEnabled', async (request) => {
   const uid = requireUid(request.auth);
   const setting = requirePressAvailabilityRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${setting.sessionId}`);
@@ -19147,24 +20442,24 @@ export const setPressEnabled = onCall<{
 });
 
 /** Include or remove Dione for the whole session. */
-export const setDioneEnabled = onCall<{
+export const setDioneEnabled = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   dioneEnabled?: boolean;
-}>(async (request) => {
+}>('setDioneEnabled', async (request) => {
   requireUid(request.auth);
   return rejectLegacySetupMutation();
 });
 
 /** Move one fleet ship on the organiser chart and write the bridge audit trail. */
-export const moveShipToLocation = onCall<{
+export const moveShipToLocation = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   shipId?: string;
   destination?: string;
   requestId?: string;
   expectedRevision?: number;
-}>(async (request) => {
+}>('moveShipToLocation', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipNavigationMoveRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
@@ -19199,6 +20494,7 @@ export const moveShipToLocation = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'ship movement');
     if (replay) return replay;
+    requireCandidateActionAvailable(session, player, [change.shipId]);
     requireWolfAttackMovementReleased(attackState);
     requireActionPhase(session, 'movement', 'facilitator');
     requireHostMissionMovementAvailable(session, change.shipId);
@@ -19474,6 +20770,12 @@ async function jumpDamageConsequences(input: {
       if (crossedUnrestThreshold) unrestAlerts[shipId] = alert;
     }
   }
+
+  const newlyDestroyed = !previousDamage.destroyed && nextDamage.destroyed;
+  const destruction = newlyDestroyed ? destructionTransition(shipId, previousDamage.destroyed, false) : undefined;
+  const retainedShuttleTransition = newlyDestroyed
+    ? await retainedShuttleTransitionForDestruction(tx, session, affectedPlayers, shipId, occurredAt)
+    : undefined;
   if (nextPopulation !== beforePopulation) {
     writePressLogEvent(tx, sessionId, buildSurvivorChangePressLogEntry({
       sourceId: `ship-damage:${requestId}`,
@@ -19486,14 +20788,11 @@ async function jumpDamageConsequences(input: {
     }));
   }
 
-  const newlyDestroyed = !previousDamage.destroyed && nextDamage.destroyed;
-  const destruction = newlyDestroyed ? destructionTransition(shipId, previousDamage.destroyed, false) : undefined;
-  const retainedShuttleTransition = newlyDestroyed
-    ? retainedShuttleTransitionForDestruction(session, affectedPlayers, shipId, occurredAt)
-    : undefined;
   if (newlyDestroyed && destruction) {
-    markPlayersForShipEscape(tx, affectedPlayers, shipId, destruction.eventId, revision);
-    for (const shuttleId of retainedShuttleTransition?.retainedShuttleIds ?? []) {
+    if (retainedShuttleTransition) writeOtherHostCraftLoss(tx, sessionId, retainedShuttleTransition.other);
+    markPlayersForShipEscape(tx, sessionId, affectedPlayers, shipId, destruction.eventId, revision,
+      sessionTurn(session.get('currentTurn')), `jump-damage:${requestId}`);
+    for (const shuttleId of retainedShuttleTransition ? [...retainedShuttleTransition.retainedShuttleIds, ...retainedShuttleTransition.lostShuttleIds] : []) {
       tx.delete(db.doc(`sessions/${sessionId}/shuttleDepartures/${shuttleId}`));
       tx.delete(db.doc(`sessions/${sessionId}/shuttleTransitChains/${shuttleId}`));
     }
@@ -19519,13 +20818,15 @@ async function jumpDamageConsequences(input: {
       shuttleDockings: retainedShuttleTransition.dockings,
       shuttleControl: retainedShuttleTransition.control,
       retainedShuttles: retainedShuttleTransition.retained,
+      ...retainedShuttleTransition.lossPatch,
+      ...retainedShuttleTransition.other.sessionPatch,
     } : {}),
     ...terminalPatch,
   };
 }
 
 /** Resolve one shipboard, coordinate-locked FTL jump. */
-export const jumpShip = onCall<{
+export const jumpShip = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   shipId?: string;
@@ -19535,7 +20836,7 @@ export const jumpShip = onCall<{
   expectedRevision?: number;
   emergency?: boolean;
   failureRequestId?: string;
-}>(async (request) => {
+}>('jumpShip', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipJumpRequest(request.data ?? {});
   const requestedDestination = change.destination;
@@ -19585,6 +20886,7 @@ export const jumpShip = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'ship jump');
     if (replay) return replay;
+    requireCandidateActionAvailable(session, player, [change.shipId]);
     requireWolfAttackMovementReleased(attackState);
     const emergencyWindow = pursuitEmergencyWindowState(session, storedNavigation);
     if (emergencyWindow) {
@@ -19968,9 +21270,11 @@ export const jumpShip = onCall<{
       }
     }
 
+    const freeExitFuel = hasMissionNebulaBenefit(currentNavigation.missionNebulaBenefitsByShip,
+      change.shipId, currentCoordinate, chart, 'freeExitFuel');
     const attemptedLength = jumpLengthBetween(currentCoordinate, destination);
     if (attemptedLength) {
-      const requiredFuel = jumpFuelCost(change.shipId, attemptedLength, upgraded);
+      const requiredFuel = freeExitFuel ? 0 : jumpFuelCost(change.shipId, attemptedLength, upgraded);
       if (inventory.fuel < requiredFuel) {
         supersedeEarlierFailure(identity.requestId);
         const failureState = { ...state, lastFailureRequestId: identity.requestId };
@@ -20017,6 +21321,7 @@ export const jumpShip = onCall<{
         charged: true,
         damaged: damage.damagedSystemIds.includes('jump-drive'),
         upgraded,
+        freeExitFuel,
         now,
         transitionId,
         state,
@@ -20094,7 +21399,7 @@ export const jumpShip = onCall<{
         requestId: identity.requestId, shipId: change.shipId, origin: currentCoordinate,
         destination, failureStatus: 'drive-failure', failureRevision: currentRevision,
         currentTurn, fuelAtFailure: inventory.fuel,
-        requiredFuel: attemptedLength ? jumpFuelCost(change.shipId, attemptedLength, upgraded) : undefined,
+        requiredFuel: attemptedLength ? freeExitFuel ? 0 : jumpFuelCost(change.shipId, attemptedLength, upgraded) : undefined,
         failureRoll: integrityRoll, failureThreshold: upgraded ? 1 : 3, adjudicable: true,
         actorUid: uid, occurredAt: now.toISOString(),
       }));
@@ -20288,10 +21593,10 @@ export const jumpShip = onCall<{
 });
 
 /** Active-GM view of only still-current, unresolved failed jumps. */
-export const listUnresolvedJumpFailures = onCall<{
+export const listUnresolvedJumpFailures = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
-}>(async (request) => {
+}>('listUnresolvedJumpFailures', async (request) => {
   const uid = requireUid(request.auth);
   const query = requireJumpFailureListRequest(request.data ?? {});
   return db.runTransaction(async (tx) => {
@@ -20350,7 +21655,7 @@ export const listUnresolvedJumpFailures = onCall<{
 });
 
 /** A facilitator may complete one exact failed jump with full d6 common damage draws. */
-export const adjudicateFailedJump = onCall<{
+export const adjudicateFailedJump = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   requestId?: string;
@@ -20358,7 +21663,7 @@ export const adjudicateFailedJump = onCall<{
   failureRequestId?: string;
   destination?: string;
   consequence?: string;
-}>(async (request) => {
+}>('adjudicateFailedJump', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireFailedJumpAdjudicationRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
@@ -20505,8 +21810,10 @@ export const adjudicateFailedJump = onCall<{
     const upgrades = isRecord(session.get('shipUpgrades')) ? session.get('shipUpgrades') : {};
     const upgradeList = upgrades[shipId];
     const upgraded = Array.isArray(upgradeList) && upgradeList.includes('jump-drive');
-    const requiredFuel = jumpFuelCost(shipId, length, upgraded);
-    const fuelSpent = failure.failureStatus === 'fuel-shortage'
+    const freeExitFuel = hasMissionNebulaBenefit(currentNavigation.missionNebulaBenefitsByShip,
+      shipId, origin, lockedNavigationChart(session), 'freeExitFuel');
+    const requiredFuel = freeExitFuel ? 0 : jumpFuelCost(shipId, length, upgraded);
+    const fuelSpent = freeExitFuel ? 0 : failure.failureStatus === 'fuel-shortage'
       ? inventory.fuel
       : Math.min(inventory.fuel, requiredFuel);
     if (change.consequence === 'wrong-location' && inventory.fuel < requiredFuel) {
@@ -20680,14 +21987,14 @@ export const adjudicateFailedJump = onCall<{
 });
 
 /** Lock one ship's command console while it is travelling. */
-export const setShipConsoleLock = onCall<{
+export const setShipConsoleLock = auditedOnCall<{
   sessionId?: string;
   shipId?: string;
   instanceId?: string;
   locked?: boolean;
   requestId?: string;
   expectedRevision?: number;
-}>(async (request) => {
+}>('setShipConsoleLock', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipConsoleLockRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
@@ -20709,6 +22016,7 @@ export const setShipConsoleLock = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'console lock');
     if (replay) return replay;
+    requireCandidateActionAvailable(session, player, [change.shipId]);
     requireActiveGameplayPhase(session);
 
     const currentRevision = vesselActionRevision(session, change.shipId);
@@ -20741,11 +22049,11 @@ export const setShipConsoleLock = onCall<{
 });
 
 /** Lock or unlock subsequent GM registration. */
-export const setGmControlsLocked = onCall<{
+export const setGmControlsLocked = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   locked?: boolean;
-}>(async (request) => {
+}>('setGmControlsLocked', async (request) => {
   const uid = requireUid(request.auth);
   const setting = requireGmControlsLockRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${setting.sessionId}`);
@@ -20775,11 +22083,11 @@ export const setGmControlsLocked = onCall<{
 });
 
 /** Lower or retract the shared visual finale from an active GM browser. */
-export const setDebriefMode = onCall<{
+export const setDebriefMode = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   active?: boolean;
-}>(async (request) => {
+}>('setDebriefMode', async (request) => {
   const uid = requireUid(request.auth);
   const setting = requireDebriefModeRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${setting.sessionId}`);
@@ -20828,7 +22136,7 @@ export const setDebriefMode = onCall<{
 });
 
 /** Advance the shared game turn from the value shown on an active GM instance. */
-export const advanceTurn = onCall<{
+export const advanceTurn = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   requestId?: string;
@@ -20837,7 +22145,7 @@ export const advanceTurn = onCall<{
   skipTurnStartAnnouncement?: boolean;
   pursuitEmergencyDecision?: 'offer' | 'decline';
   expectedPursuitNavigationRevision?: number;
-}>(async (request) => {
+}>('advanceTurn', async (request) => {
   const uid = requireUid(request.auth);
   const advance = requireTurnAdvanceRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${advance.sessionId}`);
@@ -21041,7 +22349,7 @@ export const advanceTurn = onCall<{
     const ordinaryAirspaceClosed = ordinaryAirspaceClosureWindow(activePhase) &&
       activePhase.timerPause === undefined &&
       (!attackState.exists || !wolfAttackBlocksNormalMovement(attackState.data())) &&
-      Date.now() >= Date.parse(activePhase.openAirspaceEndsAt);
+      turnPhaseDeadlinePassed(activePhase, 'open');
     if (ordinaryAirspaceClosed) {
       await parkAtOrdinaryAirspaceDeadline(
         tx,
@@ -21066,13 +22374,11 @@ export const advanceTurn = onCall<{
       pursuitAuthority,
       ordinaryAirspaceClosed,
     );
-    if (result.status === 'complete' || result.phase === 'debrief' || result.phase === 'failure' || result.pursuitEmergencyWindow) {
-      tx.set(receiptRef, {
-        fingerprint,
-        result,
-        createdAt: FieldValue.serverTimestamp(),
-      });
-    }
+    tx.set(receiptRef, {
+      fingerprint,
+      result,
+      createdAt: FieldValue.serverTimestamp(),
+    });
     return result;
   });
 });
@@ -21087,9 +22393,9 @@ export const parkShuttlesAtAirspaceClosure = createAirspaceClosureParkingTask();
 export { reconcileAirspaceClosureTasks };
 
 /** Allow the sole connected player to enter Turn 1 for a demo session. */
-export const startSinglePlayerDemo = onCall<{
+export const startSinglePlayerDemo = auditedOnCall<{
   sessionId?: string;
-}>(async (request) => {
+}>('startSinglePlayerDemo', async (request) => {
   const uid = requireUid(request.auth);
   const { sessionId } = requireSessionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${sessionId}`);
@@ -21129,10 +22435,10 @@ export const startSinglePlayerDemo = onCall<{
 });
 
 /** Replay the latest turn transmission on every connected console. */
-export const replayTurnStartAnnouncement = onCall<{
+export const replayTurnStartAnnouncement = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
-}>(async (request) => {
+}>('replayTurnStartAnnouncement', async (request) => {
   const uid = requireUid(request.auth);
   const action = requireGmInstanceRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${action.sessionId}`);
@@ -21171,10 +22477,10 @@ export const replayTurnStartAnnouncement = onCall<{
 });
 
 /** Promote the shared real-time turn clock into its coordination/open-airspace phase. */
-export const beginOpenAirspacePhase = onCall<{
+export const beginOpenAirspacePhase = auditedOnCall<{
   sessionId?: unknown;
   expectedTurn?: unknown;
-}>(async request => {
+}>('beginOpenAirspacePhase', async request => {
   const uid = requireUid(request.auth);
   const requestData = requireOpenAirspacePhaseRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${requestData.sessionId}`);
@@ -21204,7 +22510,7 @@ export const beginOpenAirspacePhase = onCall<{
       );
     }
     requireLiveAirspaceWindow(phase);
-    if (Date.now() < Date.parse(phase.teamPhaseEndsAt)) {
+    if (!turnPhaseDeadlinePassed(phase, 'team')) {
       throw commandError('failed-precondition', 'The airspace-closed timer is still active.', 'invalid-phase');
     }
     if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
@@ -21240,12 +22546,12 @@ export const beginOpenAirspacePhase = onCall<{
 });
 
 /** Add one confirmed five-minute increment to the live airspace window. */
-export const extendAirspaceWindow = onCall<{
+export const extendAirspaceWindow = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   expectedTurn?: unknown;
   window?: unknown;
-}>(async request => {
+}>('extendAirspaceWindow', async request => {
   const uid = requireUid(request.auth);
   const requestData = requireAirspaceWindowExtensionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${requestData.sessionId}`);
@@ -21381,7 +22687,7 @@ function isWolfAttackTimerInterventionResult(value: unknown): value is WolfAttac
 }
 
 /** Hold or resume the live turn clock through the GM emergency interlock. */
-export const setEmergencyTimerPaused = onCall<{
+export const setEmergencyTimerPaused = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   expectedTurn?: unknown;
@@ -21390,7 +22696,7 @@ export const setEmergencyTimerPaused = onCall<{
   expectedAttackRevision?: unknown;
   reason?: unknown;
   dangerConfirmed?: unknown;
-}>(async request => {
+}>('setEmergencyTimerPaused', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data ?? {};
   const allowedRequestFields = new Set([
@@ -21756,12 +23062,52 @@ export const setEmergencyTimerPaused = onCall<{
   });
 });
 
-/** Read server-scheduled base/Station triggers for one current fleet group. */
-export const getWolfAttackThreatWindowOptions = onCall<{
+/** Protected K source uses the actual mission attempt, independently of caller-selected timing. */
+function missionWolfSourceRef(sessionId: string, sourceId: string): DocumentReference {
+  if (!/^mission-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(sourceId)) {
+    throw commandError('failed-precondition', 'The K mission source identity is malformed.', 'conflict');
+  }
+  return db.doc(`sessions/${sessionId}/serverState/awayMissions/instances/${sourceId.slice(8)}`);
+}
+
+function requireLiveMissionWolfThreatSource(
+  session: DocumentSnapshot, targetGroupId: string, sourceId: string,
+  groupSnapshot: DocumentSnapshot | undefined, schedule: DocumentSnapshot | undefined,
+  mission: DocumentSnapshot | undefined, currentCycle: number,
+): MissionWolfPressure {
+  const group = groupSnapshot?.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+  if (!group || group.id !== targetGroupId || groupSnapshot!.id !== targetGroupId ||
+      !schedule?.exists || schedule.id !== sourceId || !mission?.exists || mission.id !== sourceId.slice(8)) {
+    throw commandError('failed-precondition', 'The protected K mission source is unavailable for this group.', 'conflict');
+  }
+  return requireLiveMissionWolfSource({ sessionId: session.id, sourceId, currentCycle,
+    chart: lockedNavigationChart(session), group, activeVesselIds: wolfAttackActiveVesselIds(session),
+    mission: mission.data(), pressure: schedule.data() });
+}
+
+function missionWolfCarryoverContext(
+  source: MissionWolfPressure, parent: unknown,
+): MissionKCarryoverContext {
+  if (!isRecord(parent) || typeof parent.attackId !== 'string') {
+    throw commandError('failed-precondition', 'The prior K attack parent identity is unavailable.', 'conflict');
+  }
+  const attackNumber = parent.attackNumber === undefined ? 1 : parent.attackNumber;
+  if (!Number.isSafeInteger(attackNumber) || (attackNumber as number) < 1 ||
+      (attackNumber as number) >= Number.MAX_SAFE_INTEGER) {
+    throw commandError('failed-precondition', 'The prior attack identity is malformed.', 'conflict');
+  }
+  return { type: 'mission-k', sourceId: `mission-${source.missionId}`, missionId: source.missionId,
+    resolutionRevision: source.resolutionRevision, resolutionRequestId: source.resolutionRequestId,
+    sourceCycle: source.sourceCycle, groupId: source.groupId, parentAttackId: parent.attackId,
+    nextAttackNumber: (attackNumber as number) + 1 };
+}
+
+/** Read server-scheduled base, Station and resolved K triggers for one current fleet group. */
+export const getWolfAttackThreatWindowOptions = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   targetGroupId?: unknown;
-}>(async request => {
+}>('getWolfAttackThreatWindowOptions', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some((key) => !['sessionId', 'instanceId', 'targetGroupId'].includes(key)) ||
@@ -21803,7 +23149,7 @@ export const getWolfAttackThreatWindowOptions = onCall<{
       (entry.siteCode === 'L' || entry.siteCode === 'M' || entry.siteCode === 'P') &&
       (entry.siteCode !== 'P' || entry.cycle === cycle));
     const sources = [] as Array<Readonly<{
-      siteCode: WolfThreatSiteCode;
+      siteCode: 'K' | WolfThreatSiteCode;
       sourceId: string;
       sourceCycle: number;
       coordinate: string;
@@ -21820,13 +23166,23 @@ export const getWolfAttackThreatWindowOptions = onCall<{
       }
       sources.push({ siteCode: entry.siteCode, sourceId, sourceCycle: entry.cycle, coordinate: entry.coordinate });
     }
+    const missionSchedules = await tx.get(db.collection(`sessions/${sessionId}/wolfAttackPressure`).where('groupId', '==', targetGroupId));
+    for (const schedule of missionSchedules.docs) {
+      if (schedule.get('type') !== 'mission-k-attack-schedule' || schedule.get('status') !== 'scheduled' ||
+          schedule.get('groupId') !== targetGroupId || !/^mission-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(schedule.id)) continue;
+      const mission = await tx.get(missionWolfSourceRef(sessionId, schedule.id));
+      try {
+        const source = requireLiveMissionWolfThreatSource(session, targetGroupId, schedule.id, groupSnapshot, schedule, mission, cycle);
+        sources.push({ siteCode: 'K', sourceId: schedule.id, sourceCycle: source.sourceCycle, coordinate: source.coordinate });
+      } catch { continue; }
+    }
     sources.sort((left, right) => left.sourceCycle - right.sourceCycle || left.siteCode.localeCompare(right.siteCode));
     return { type: 'wolf-attack-threat-window-options', sessionId, targetGroupId, cycle, sources };
   });
 });
 
 /** Record the facilitator's approximate first Wolf-attack timing decision. */
-export const setWolfAttackWindow = onCall<{
+export const setWolfAttackWindow = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -21835,9 +23191,9 @@ export const setWolfAttackWindow = onCall<{
   targetGroupId?: unknown;
   threatSiteCode?: unknown;
   threatSourceId?: unknown;
-}>(async request => {
+}>('setWolfAttackWindow', async request => {
   const uid = requireUid(request.auth);
-  const change = requireWolfAttackWindowRequest(request.data ?? {});
+  const change = requireMissionAwareWolfAttackWindowRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
   const projectionRef = db.doc(`sessions/${change.sessionId}/wolfAttackWindow/current`);
   const attackStateRef = db.doc(`sessions/${change.sessionId}/wolfAttackState/current`);
@@ -21926,6 +23282,21 @@ export const setWolfAttackWindow = onCall<{
         );
       }
     }
+    let selectedGroupSnapshot: DocumentSnapshot | undefined;
+    if (change.status === 'due' && change.targetGroupId) {
+      selectedGroupSnapshot = await tx.get(
+        db.doc(`sessions/${change.sessionId}/fleetGroups/${change.targetGroupId}`),
+      );
+      const selectedGroup = selectedGroupSnapshot.exists
+        ? fleetGroupRecord(selectedGroupSnapshot.data()) : undefined;
+      if (selectedGroup && candidateAvailableVesselIds(session, selectedGroup.vesselIds).length === 0) {
+        throw commandError('failed-precondition', 'This group has a committed candidate disposition and no vessels available for a new attack.', 'conflict');
+      }
+      if (!selectedGroup || selectedGroup.id !== change.targetGroupId ||
+          selectedGroupSnapshot.id !== change.targetGroupId) {
+        throw commandError('failed-precondition', 'Select a current fleet group for this attack.', 'conflict');
+      }
+    }
     const sameState = current?.status === change.status &&
       (change.status === 'deferred' ? current.turn === 2 : current.turn === currentTurn) &&
       (change.status !== 'due' || (current?.targetGroupId === change.targetGroupId &&
@@ -21938,6 +23309,15 @@ export const setWolfAttackWindow = onCall<{
         'Wolf attack timing changed. Wait for the live facilitator marker and try again.',
         'stale-revision',
       );
+    }
+    let missionSource: MissionWolfPressure | undefined;
+    if (change.status === 'due' && change.threatSiteCode === 'K') {
+      const [schedule, mission] = await Promise.all([
+        tx.get(db.doc(`sessions/${change.sessionId}/wolfAttackPressure/${change.threatSourceId!}`)),
+        tx.get(missionWolfSourceRef(change.sessionId, change.threatSourceId!)),
+      ]);
+      missionSource = requireLiveMissionWolfThreatSource(session, change.targetGroupId!, change.threatSourceId!,
+        selectedGroupSnapshot, schedule, mission, currentTurn);
     }
     if (sameState && current) {
       tx.set(receiptRef, { fingerprint, result: current, createdAt: FieldValue.serverTimestamp() });
@@ -21954,6 +23334,27 @@ export const setWolfAttackWindow = onCall<{
         );
       }
       turn = 2;
+    } else if (change.status === 'due' && missionSource) {
+      if ((projection.exists && !current) || (current && current.status !== 'resolved')) {
+        throw commandError('failed-precondition', 'A live attack timing window must finish before selecting K.', 'conflict');
+      }
+      if (attackState.exists) {
+        const parent = attackState.data();
+        const parentTurn = isRecord(parent) ? parent.turn : undefined;
+        const audit = Number.isSafeInteger(parentTurn) ? await tx.get(db.doc(
+          `sessions/${change.sessionId}/wolfAttackState/current/audit/wolf-finalized-${parentTurn}`,
+        )) : undefined;
+        try {
+          const previous = resolvedWolfAttackForCarryover(parent, audit?.exists ? audit.data() : undefined,
+            currentTurn, missionWolfCarryoverContext(missionSource, parent));
+          if (current && previous.turn !== current.turn) throw new Error('The finalized parent does not match the resolved window.');
+        } catch (cause) {
+          throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'The prior attack is not finalized.', 'conflict');
+        }
+      } else if (current) {
+        throw commandError('failed-precondition', 'The resolved timing window has no finalized parent attack.', 'conflict');
+      }
+      turn = currentTurn;
     } else if (change.status === 'due') {
       const initialWindow = (currentTurn === 1 && current === undefined) ||
         (currentTurn === 2 && current?.status === 'deferred' && current.turn === 2);
@@ -22027,18 +23428,6 @@ export const setWolfAttackWindow = onCall<{
       turn = currentTurn;
     }
 
-    let selectedGroupSnapshot: DocumentSnapshot | undefined;
-    if (change.status === 'due' && change.targetGroupId) {
-      selectedGroupSnapshot = await tx.get(
-        db.doc(`sessions/${change.sessionId}/fleetGroups/${change.targetGroupId}`),
-      );
-      const selectedGroup = selectedGroupSnapshot.exists
-        ? fleetGroupRecord(selectedGroupSnapshot.data()) : undefined;
-      if (!selectedGroup || selectedGroup.id !== change.targetGroupId ||
-          selectedGroupSnapshot.id !== change.targetGroupId) {
-        throw commandError('failed-precondition', 'Select a current fleet group for this attack.', 'conflict');
-      }
-    }
     if (change.status === 'due' &&
         (change.threatSiteCode === 'L' || change.threatSiteCode === 'M' || change.threatSiteCode === 'P')) {
       const sourceId = change.threatSourceId!;
@@ -22090,13 +23479,13 @@ export const setWolfAttackWindow = onCall<{
 });
 
 /** Commit the assigned Commander's private once-per-cycle attack dial. */
-export const commitWolfCommanderAttackDial = onCall<{
+export const commitWolfCommanderAttackDial = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedCycle?: unknown;
   expectedNavigationRevision?: unknown;
   targetGroupId?: unknown;
-}>(async request => {
+}>('commitWolfCommanderAttackDial', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedCycle', 'expectedNavigationRevision', 'targetGroupId']);
@@ -22157,8 +23546,8 @@ export const commitWolfCommanderAttackDial = onCall<{
       throw commandError('failed-precondition', 'The cycle changed. Refresh the Commander attack dial.', 'stale-revision');
     }
     const phase = turnPhaseState(session.get('turnPhase'));
-    if (!phase || phase.turn !== cycle || phase.timerPause !== undefined ||
-        Date.now() >= Date.parse(phase.teamPhaseEndsAt)) {
+    if (!phase || phase.turn !== cycle || phase.airspace.state !== 'restricted' || phase.timerPause !== undefined ||
+        turnPhaseDeadlinePassed(phase, 'team')) {
       throw commandError('failed-precondition', 'The Commander attack dial is available only during the live Team Phase.', 'invalid-phase');
     }
     if (ledger.exists) {
@@ -22266,7 +23655,7 @@ export const commitWolfCommanderAttackDial = onCall<{
 });
 
 /** Read only the live group pursuit choices and once-per-cycle dial status. */
-export const getWolfCommanderCycleAttackDial = onCall<{ sessionId?: unknown }>(async request => {
+export const getWolfCommanderCycleAttackDial = auditedOnCall<{ sessionId?: unknown }>('getWolfCommanderCycleAttackDial', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
@@ -22295,8 +23684,8 @@ export const getWolfCommanderCycleAttackDial = onCall<{ sessionId?: unknown }>(a
     const cycle = sessionTurn(session.get('currentTurn'));
     if (cycle < 1) throw commandError('failed-precondition', 'No live cycle is available for the Commander dial.', 'invalid-phase');
     const phase = turnPhaseState(session.get('turnPhase'));
-    const teamPhaseLive = Boolean(phase && phase.turn === cycle && phase.timerPause === undefined &&
-      Date.now() < Date.parse(phase.teamPhaseEndsAt));
+    const teamPhaseLive = Boolean(phase && phase.turn === cycle && phase.airspace.state === 'restricted' && phase.timerPause === undefined &&
+      !turnPhaseDeadlinePassed(phase, 'team'));
     const window = windowProjection.exists ? wolfAttackWindowState(windowProjection.data()) : undefined;
     if (windowProjection.exists && !window) {
       throw commandError('failed-precondition', 'The private Wolf timing marker is malformed.', 'conflict');
@@ -22387,12 +23776,12 @@ export const getWolfCommanderCycleAttackDial = onCall<{ sessionId?: unknown }>(a
 });
 
 /** Publish the assigned Commander's single, attributed fleet message this Team Phase. */
-export const publishWolfCommanderAddress = onCall<{
+export const publishWolfCommanderAddress = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedCycle?: unknown;
   message?: unknown;
-}>(async request => {
+}>('publishWolfCommanderAddress', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedCycle', 'message']);
@@ -22447,13 +23836,17 @@ export const publishWolfCommanderAddress = onCall<{
     }
     const phase = turnPhaseState(session.get('turnPhase'));
     const nowMs = Date.now();
-    if (!phase || phase.turn !== cycle || phase.timerPause !== undefined || nowMs >= Date.parse(phase.teamPhaseEndsAt)) {
+    if (!phase || phase.turn !== cycle || phase.airspace.state !== 'restricted' || phase.timerPause !== undefined ||
+        turnPhaseDeadlinePassed(phase, 'team', nowMs)) {
       throw commandError('failed-precondition', 'The Commander address is available only during the live Team Phase.', 'invalid-phase');
     }
     if (address.exists || event.exists) {
       throw commandError('failed-precondition', 'The Commander has already addressed the fleet this cycle.', 'conflict');
     }
-    const expiresAt = new Date(nowMs + 30_000).toISOString();
+    const manualDemo = fullGameDemoState(session.get('fullGameDemo'))?.status === 'active';
+    const expiresAt = manualDemo
+      ? '9999-12-31T23:59:59.999Z'
+      : new Date(nowMs + 30_000).toISOString();
     const serverTime = new Date(nowMs);
     const result = {
       type: 'wolf-commander-address-result', status: 'committed', sessionId, requestId: raw.requestId,
@@ -22485,13 +23878,13 @@ export const publishWolfCommanderAddress = onCall<{
 });
 
 /** Offer the printed medium-jump amnesty condition to one active ship's captain. */
-export const createWolfAmnestyOffer = onCall<{
+export const createWolfAmnestyOffer = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedCycle?: unknown;
   targetShipId?: unknown;
   responseDeadlineMinutes?: unknown;
-}>(async request => {
+}>('createWolfAmnestyOffer', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedCycle', 'targetShipId', 'responseDeadlineMinutes']);
@@ -22511,7 +23904,6 @@ export const createWolfAmnestyOffer = onCall<{
   const sessionRef = db.doc(`sessions/${sessionId}`);
   const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
   const playersRef = db.collection(`sessions/${sessionId}/players`);
-  const addressRef = db.doc(`sessions/${sessionId}/wolfCommanderAddresses/cycle-${cycle}`);
   const offerRef = db.doc(`sessions/${sessionId}/wolfCommanderAmnesty/current`);
   const auditRef = db.doc(`sessions/${sessionId}/wolfCommanderAmnesty/current/audit/${raw.requestId}`);
   const receiptRef = commandReceiptRef(sessionId, raw.requestId);
@@ -22521,8 +23913,8 @@ export const createWolfAmnestyOffer = onCall<{
     payload: { expectedCycle: cycle, targetShipId, responseDeadlineMinutes: deadlineMinutes },
   };
   return db.runTransaction(async (tx: Transaction) => {
-    const [session, player, players, address, current, receipt, audit] = await Promise.all([
-      tx.get(sessionRef), tx.get(playerRef), tx.get(playersRef), tx.get(addressRef),
+    const [session, player, players, current, receipt, audit] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(playersRef),
       tx.get(offerRef), tx.get(receiptRef), tx.get(auditRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
@@ -22544,12 +23936,8 @@ export const createWolfAmnestyOffer = onCall<{
       throw commandError('failed-precondition', 'The cycle changed. Refresh the amnesty offer.', 'stale-revision');
     }
     const phase = turnPhaseState(session.get('turnPhase'));
-    if (!phase || phase.turn !== cycle || phase.timerPause !== undefined || Date.now() >= Date.parse(phase.openAirspaceEndsAt)) {
+    if (!phase || phase.turn !== cycle || phase.timerPause !== undefined || turnPhaseDeadlinePassed(phase, 'open')) {
       throw commandError('failed-precondition', 'Offer amnesty during the current live cycle.', 'invalid-phase');
-    }
-    if (!address.exists || address.get('type') !== 'wolf-commander-address' ||
-        address.get('status') !== 'committed' || address.get('actorUid') !== uid || address.get('cycle') !== cycle) {
-      throw commandError('failed-precondition', 'The Commander must address the fleet before offering amnesty.', 'conflict');
     }
     if (!activeVesselIdsForSession(session).includes(targetShipId)) {
       throw commandError('failed-precondition', 'Choose a currently active ship for the amnesty offer.', 'conflict');
@@ -22569,8 +23957,11 @@ export const createWolfAmnestyOffer = onCall<{
       throw commandError('failed-precondition', 'Resolve the existing private amnesty offer before making another.', 'conflict');
     }
     const now = Date.now();
+    const manualFullGameDemo = fullGameDemoState(session.get('fullGameDemo'))?.status === 'active';
     const offerId = `amnesty-${cycle}-${raw.requestId}`;
-    const responseDeadline = new Date(now + deadlineMinutes * 60_000).toISOString();
+    const responseDeadline = manualFullGameDemo
+      ? '9999-12-31T23:59:59.999Z'
+      : new Date(now + deadlineMinutes * 60_000).toISOString();
     const revision = (previous?.revision ?? 0) + 1;
     const offer = {
       type: 'wolf-amnesty-offer', sessionId, offerId, cycle, revision,
@@ -22597,12 +23988,12 @@ export const createWolfAmnestyOffer = onCall<{
 });
 
 /** Record the target captain's explicit accept/decline without applying a bargain. */
-export const respondToWolfAmnesty = onCall<{
+export const respondToWolfAmnesty = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedRevision?: unknown;
   answer?: unknown;
-}>(async request => {
+}>('respondToWolfAmnesty', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedRevision', 'answer']);
@@ -22656,6 +24047,7 @@ export const respondToWolfAmnesty = onCall<{
     try {
       resolved = resolveWolfAmnestyDecision(
         current, { kind: 'response', answer }, current.cycle, new Date().toISOString(),
+        fullGameDemoState(session.get('fullGameDemo'))?.status === 'active' ? { progression: 'manual' } : undefined,
       );
     } catch (error) {
       throw commandError(
@@ -22688,13 +24080,13 @@ export const respondToWolfAmnesty = onCall<{
 });
 
 /** Require a current GM ruling after acceptance or after an unanswered deadline. */
-export const recordWolfAmnestyConsequence = onCall<{
+export const recordWolfAmnestyConsequence = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   expectedRevision?: unknown;
   text?: unknown;
-}>(async request => {
+}>('recordWolfAmnestyConsequence', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'instanceId', 'requestId', 'expectedRevision', 'text']);
@@ -22746,6 +24138,7 @@ export const recordWolfAmnestyConsequence = onCall<{
     try {
       resolved = resolveWolfAmnestyDecision(
         current, { kind: 'facilitator-consequence', text }, current.cycle, new Date().toISOString(),
+        fullGameDemoState(session.get('fullGameDemo'))?.status === 'active' ? { progression: 'manual' } : undefined,
       );
     } catch (error) {
       throw commandError(
@@ -22781,7 +24174,7 @@ export const recordWolfAmnestyConsequence = onCall<{
 });
 
 /** Return only the current amnesty offer to its Commander, target captain, or facilitator. */
-export const getWolfAmnestyView = onCall<{ sessionId?: unknown }>(async request => {
+export const getWolfAmnestyView = auditedOnCall<{ sessionId?: unknown }>('getWolfAmnestyView', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
@@ -22839,7 +24232,7 @@ export const getWolfAmnestyView = onCall<{ sessionId?: unknown }>(async request 
 });
 
 /** Stage private Wolf cards, targets, modifiers, and notes before declaration. */
-export const stageWolfAttackPreparation = onCall<{
+export const stageWolfAttackPreparation = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -22850,7 +24243,7 @@ export const stageWolfAttackPreparation = onCall<{
   targetAssignments?: unknown;
   modifiers?: unknown;
   notes?: unknown;
-}>(async request => {
+}>('stageWolfAttackPreparation', async request => {
   const uid = requireUid(request.auth);
   const change = requireWolfAttackPreparationRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
@@ -23002,6 +24395,15 @@ export const stageWolfAttackPreparation = onCall<{
           window.threatSourceId, groupSnapshot, schedule, pressure, currentTurn,
         );
         compositionRule = { kind: window.threatSiteCode, targetGroupId: window.targetGroupId };
+      } else if (window.threatSiteCode === 'K') {
+        const [groupSnapshot, schedule, mission] = await Promise.all([
+          tx.get(db.doc(`sessions/${change.sessionId}/fleetGroups/${window.targetGroupId}`)),
+          tx.get(db.doc(`sessions/${change.sessionId}/wolfAttackPressure/${window.threatSourceId!}`)),
+          tx.get(missionWolfSourceRef(change.sessionId, window.threatSourceId!)),
+        ]);
+        requireLiveMissionWolfThreatSource(session, window.targetGroupId, window.threatSourceId!,
+          groupSnapshot, schedule, mission, currentTurn);
+        compositionRule = { kind: 'K', targetGroupId: window.targetGroupId };
       } else {
         const [navigation, groups, players] = await Promise.all([
           tx.get(navigationRef), tx.get(fleetGroupsRef), tx.get(playersRef),
@@ -23201,9 +24603,10 @@ function wolfAttackPursuitSnapshot(
   } catch (error) {
     throw commandError('failed-precondition', error instanceof Error ? error.message : 'Target-group pursuit is unavailable.', 'conflict');
   }
-  const targetGroupVesselIds = canonicalGroups.find(({ id }) => id === resolvedTargetGroupId)?.vesselIds;
+  const groupVesselIds = canonicalGroups.find(({ id }) => id === resolvedTargetGroupId)?.vesselIds;
+  const targetGroupVesselIds = groupVesselIds ? candidateAvailableVesselIds(session, groupVesselIds) : undefined;
   if (!targetGroupVesselIds || targetGroupVesselIds.length === 0) {
-    throw commandError('failed-precondition', 'The selected fleet group has no active vessels.', 'conflict');
+    throw commandError('failed-precondition', 'The selected fleet group has no vessels available after its committed candidate disposition.', 'conflict');
   }
   return {
     navigationRevision: revision as number,
@@ -23356,7 +24759,7 @@ function wolfAttackActiveVesselIds(session: DocumentSnapshot): readonly string[]
   return [...stored] as string[];
 }
 
-function configuredWolfTargetRingForSession(session: DocumentSnapshot): WolfTargetRing {
+function configuredWolfPrintedTargetRingForSession(session: DocumentSnapshot): WolfTargetRing {
   const activeVesselIds = wolfAttackActiveVesselIds(session);
   const storedPlayerCount = session.get('playerCount');
   const storedExpansion = session.get('expansion');
@@ -23381,11 +24784,26 @@ function configuredWolfTargetRingForSession(session: DocumentSnapshot): WolfTarg
   }
 }
 
+function availableWolfTargetRingForSession(session: DocumentSnapshot): WolfTargetRing {
+  const printedRing = configuredWolfPrintedTargetRingForSession(session);
+  try {
+    const ring = candidateAvailableVesselIds(session, printedRing);
+    if (!ring.length) throw new Error('All combat vessels have a committed candidate disposition.');
+    return ring as WolfTargetRing;
+  } catch (error) {
+    throw commandError(
+      'failed-precondition',
+      error instanceof Error ? error.message : 'The active fleet cannot supply a valid Wolf target ring.',
+      'conflict',
+    );
+  }
+}
+
 function configuredWolfTargetRingForGroup(
   session: DocumentSnapshot,
   targetGroupVesselIds: readonly string[],
 ): WolfTargetRing {
-  const fullRing = configuredWolfTargetRingForSession(session);
+  const fullRing = availableWolfTargetRingForSession(session);
   const members = new Set(targetGroupVesselIds);
   const ring = fullRing.filter((target) => members.has(target));
   if (ring.length === 0 || ring.length !== new Set(ring).size) {
@@ -23402,7 +24820,7 @@ function configuredWolfTargetRingForAttack(
   return Array.isArray(targetGroupVesselIds) && targetGroupVesselIds.length > 0 &&
     targetGroupVesselIds.every((vesselId) => typeof vesselId === 'string')
     ? configuredWolfTargetRingForGroup(session, targetGroupVesselIds as string[])
-    : configuredWolfTargetRingForSession(session);
+    : availableWolfTargetRingForSession(session);
 }
 
 function wolfAttackCarryoverDocumentRefs(
@@ -23555,7 +24973,7 @@ function wolfAttackThreatSourceDocumentRefs(
   windowProjection: DocumentSnapshot,
 ): Readonly<{ schedule: DocumentReference; pressure: DocumentReference }> | undefined {
   const window = windowProjection.exists ? wolfAttackWindowState(windowProjection.data()) : undefined;
-  if (!window || (window.threatSiteCode !== 'L' && window.threatSiteCode !== 'M' && window.threatSiteCode !== 'P')) {
+  if (!window || (window.threatSiteCode !== 'K' && window.threatSiteCode !== 'L' && window.threatSiteCode !== 'M' && window.threatSiteCode !== 'P')) {
     return undefined;
   }
   if (!window.targetGroupId || !window.threatSourceId) {
@@ -23563,7 +24981,8 @@ function wolfAttackThreatSourceDocumentRefs(
   }
   return {
     schedule: db.doc(`sessions/${sessionId}/wolfAttackPressure/${window.threatSourceId}`),
-    pressure: wolfArrivalPressureStateRef(sessionId, window.targetGroupId),
+    pressure: window.threatSiteCode === 'K' ? missionWolfSourceRef(sessionId, window.threatSourceId)
+      : wolfArrivalPressureStateRef(sessionId, window.targetGroupId),
   };
 }
 
@@ -23617,7 +25036,7 @@ function validateWolfAttackDeclaration(
     );
   }
   const deadlineMs = Date.parse(phase.openAirspaceEndsAt);
-  if (!Number.isFinite(deadlineMs) || Date.now() >= deadlineMs) {
+  if (!Number.isFinite(deadlineMs) || turnPhaseDeadlinePassed(phase, 'open')) {
     throw commandError('failed-precondition', 'The configured airspace deadline has passed.', 'invalid-phase');
   }
   const window = windowProjection.exists ? wolfAttackWindowState(windowProjection.data()) : undefined;
@@ -23628,6 +25047,9 @@ function validateWolfAttackDeclaration(
       'invalid-phase',
     );
   }
+  const missionSource = window.threatSiteCode === 'K' ? requireLiveMissionWolfThreatSource(session,
+    window.targetGroupId!, window.threatSourceId!, fleetGroups.docs.find(snapshot => snapshot.id === window.targetGroupId),
+    threatScheduleProjection, threatPressureProjection, currentTurn) : undefined;
   const preparation = preparationProjection.exists
     ? wolfAttackPreparationState(preparationProjection.data())
     : undefined;
@@ -23704,6 +25126,9 @@ function validateWolfAttackDeclaration(
           repeatContext,
         );
         previous = pStationPrevious;
+      } else if (missionSource) {
+        previous = resolvedWolfAttackForCarryover(rawPrior, rawFinalizationAudit, currentTurn,
+          missionWolfCarryoverContext(missionSource, rawPrior));
       } else if (commanderCarryoverContext) {
         previous = resolvedWolfAttackForCarryover(
           rawPrior,
@@ -23726,7 +25151,7 @@ function validateWolfAttackDeclaration(
       );
     }
     const isPStationRepeat = pStationPrevious !== undefined;
-    if (!isPStationRepeat && previous.attackNumber >= 3 && !commanderCycleAttack) {
+    if (!isPStationRepeat && previous.attackNumber >= 3 && !commanderCycleAttack && !missionSource) {
       throw commandError(
         'failed-precondition',
         'Only one or two additional Wolf attacks may be selected after the first.',
@@ -23749,7 +25174,7 @@ function validateWolfAttackDeclaration(
         );
       }
       pStationRepeatContext = pStationPrevious!.repeatContext;
-    } else if (currentTurn === previous.turn) {
+    } else if (currentTurn === previous.turn && !missionSource) {
       throw commandError(
         'failed-precondition',
         'Only an audited P Station sequence may repeat in the same cycle.',
@@ -23876,6 +25301,7 @@ function wolfTargetingStageReceipt(
   preparation: WolfAttackPreparation,
   declaredAt: string,
   targetRing: WolfTargetRing,
+  sourceRing: WolfTargetRing,
   pursuit: WolfAttackPursuitSnapshot,
 ): Record<string, unknown> {
   const composition = wolfAttackCompositionForPreparation(preparation);
@@ -23887,6 +25313,7 @@ function wolfTargetingStageReceipt(
     {},
     targetRing,
     (upperBound) => randomInt(upperBound),
+    sourceRing,
   );
   return {
     type: 'wolf-combat-calculation-stage',
@@ -23988,12 +25415,12 @@ function requireLiveWolfThreatSource(
 }
 
 /** Atomically begin the server-owned Wolf attack lifecycle. */
-export const declareWolfAttack = onCall<{
+export const declareWolfAttack = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   expectedRevision?: unknown;
-}>(async request => {
+}>('declareWolfAttack', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (isRecord(raw)) {
@@ -24110,7 +25537,8 @@ export const declareWolfAttack = onCall<{
       preflight.phase.turn, preflight.preparation, declaredAt, preflight.targetRing, preflightPursuit,
     )
     : wolfTargetingStageReceipt(
-      preflight.phase.turn, preflight.preparation, declaredAt, preflight.targetRing, preflightPursuit,
+      preflight.phase.turn, preflight.preparation, declaredAt, preflight.targetRing,
+      configuredWolfPrintedTargetRingForSession(preflightSession), preflightPursuit,
     );
   const announcementId = `wolf-attack-${declaration.requestId}`;
   const result: WolfAttackDeclarationResult = {
@@ -24232,7 +25660,7 @@ export const declareWolfAttack = onCall<{
       action.ownerRoleId === 'refinery-124-pdf-colonel');
     let nextPdfEscortWingState: PdfEscortWingState | undefined;
     if (pdfEscortWingRegistered) {
-      const currentPdfEscortWingState = parsePdfEscortWingState(
+      const currentPdfEscortWingState = pdfEscortWingStateForSession(session,
         pdfEscortWingState.exists ? pdfEscortWingState.data() : undefined,
       );
       if (!currentPdfEscortWingState) {
@@ -24338,6 +25766,11 @@ export const declareWolfAttack = onCall<{
     }
     if (carryoverRefs && state.exists && inputs.previousAttackId) {
       tx.set(carryoverRefs.archive, state.data()!);
+    }
+    if (inputs.window.threatSiteCode === 'K') {
+      tx.update(db.doc(`sessions/${declaration.sessionId}/wolfAttackPressure/${inputs.window.threatSourceId!}`), {
+        status: 'declared', attackId: announcementId, declaredAt, updatedAt: FieldValue.serverTimestamp(),
+      });
     }
     tx.set(stateRef, { ...stageState, updatedAt: FieldValue.serverTimestamp() });
     tx.set(audienceRef, projectWolfAttackMemberView({
@@ -24605,7 +26038,7 @@ type WolfFighterRangeBundle = Readonly<{
   shifts?: readonly WolfRangeTargetShiftChoice[];
 }>;
 
-type WolfRangeSupportSourceId = 'highwall' | 'gorgoneion-missile-array' | 'boa';
+type WolfRangeSupportSourceId = 'highwall' | 'gorgoneion-missile-array' | 'vulcan-laser-cannon' | 'boa';
 type WolfRangeSupportChoiceRecord = Readonly<{
   type: 'wolf-range-support-action-choice'; status: 'committed'; sourceId: WolfRangeSupportSourceId;
   range: WolfCombatRange; turn: number; attackId: string; revision: number; actorUid: string;
@@ -24631,7 +26064,7 @@ type WolfRangeSupportBundle = Readonly<{
 }>;
 
 function wolfRangeSupportSourceId(value: unknown): WolfRangeSupportSourceId | null {
-  return value === 'highwall' || value === 'gorgoneion-missile-array' || value === 'boa' ? value : null;
+  return value === 'highwall' || value === 'gorgoneion-missile-array' || value === 'vulcan-laser-cannon' || value === 'boa' ? value : null;
 }
 
 function wolfRangeSupportChoiceValue(
@@ -24683,11 +26116,27 @@ function wolfRangeSupportChoiceMap(attack: DocumentSnapshot, range: WolfCombatRa
   return result;
 }
 
+type WolfRangeSupportShuttleCustody = Readonly<{
+  hostShipId: string; controlRevision: number; holderUid: string; scrap?: number; fuelled?: boolean;
+}>;
+
 function wolfRangeSupportShuttleHost(
   session: DocumentSnapshot,
   shuttleId: 'highwall' | 'boa',
   ownerRoleId: string,
-): Readonly<{ hostShipId: string; controlRevision: number; holderUid: string; scrap?: number; fuelled?: boolean }> {
+): WolfRangeSupportShuttleCustody;
+function wolfRangeSupportShuttleHost(
+  session: DocumentSnapshot,
+  shuttleId: 'highwall' | 'boa',
+  ownerRoleId: string,
+  allowUnheld: boolean,
+): WolfRangeSupportShuttleCustody | undefined;
+function wolfRangeSupportShuttleHost(
+  session: DocumentSnapshot,
+  shuttleId: 'highwall' | 'boa',
+  ownerRoleId: string,
+  allowUnheld = false,
+): WolfRangeSupportShuttleCustody | undefined {
   const rawDockings = session.get('shuttleDockings');
   const activeVessels = wolfAttackActiveVesselIds(session);
   if (!Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings as AuthoritativeShuttleDocking[], activeVessels)) {
@@ -24698,7 +26147,14 @@ function wolfRangeSupportShuttleHost(
       !activeVessels.includes(dockings[0].shipId)) {
     throw commandError('failed-precondition', `The ${shuttleId} is not docked with an active host.`, 'conflict');
   }
-  const control = parseShuttleControl(session.get('shuttleControl'))?.[shuttleId];
+  const controls = parseShuttleControl(session.get('shuttleControl'));
+  if (!controls) {
+    throw commandError('failed-precondition', `The ${shuttleId} custody authority is malformed.`, 'conflict');
+  }
+  const control = controls[shuttleId];
+  // Normal startup omits custody for configured craft whose role has no
+  // holder. Such craft remain parked/registered but offer no crew action.
+  if (!control && allowUnheld) return undefined;
   if (!control || control.ownerRoleId !== ownerRoleId) {
     throw commandError('failed-precondition', `The ${shuttleId} custody authority is malformed.`, 'conflict');
   }
@@ -24718,9 +26174,9 @@ function wolfRangeSupportShuttleHost(
     holderUid: control.holderUid, scrap: boaCargo.scrap ?? 0 };
 }
 
-function currentWolfGorgoneionCaptains(players: readonly DocumentSnapshot[]): readonly DocumentSnapshot[] {
+function currentWolfSmallShipCaptains(players: readonly DocumentSnapshot[], smallShipId: 'gorgoneion' | 'vulcan'): readonly DocumentSnapshot[] {
   return players.filter((player) => player.get('role') === 'player' &&
-    player.get('replacementRoleId') === 'gorgoneion-captain' && player.get('replacementStatus') == null &&
+    player.get('replacementRoleId') === `${smallShipId}-captain` && player.get('replacementStatus') == null &&
     !isKickedPlayer(player) && playerEscapeState(player) === undefined);
 }
 
@@ -24747,9 +26203,11 @@ function wolfRangeSupportAvailability(input: Readonly<{
       isRecord(action) && action.craftId === sourceId && action.kind === 'shuttle' && action.ownerRoleId === roleId);
     if (!activeRoles.includes(roleId) || !registered) return empty(roleId);
     if (!activeVessels.includes(vesselId)) return empty(roleId);
+    if (lostShuttlesForSession(session)[sourceId]) return { ...empty(roleId), applicable: true };
     const owners = currentWolfRoleOwners(players, fleetGroups, roleId, vesselId);
     if (owners.length > 1) throw commandError('failed-precondition', `The ${sourceId} source owner is ambiguous.`, 'conflict');
-    const custody = wolfRangeSupportShuttleHost(session, sourceId, roleId);
+    const custody = wolfRangeSupportShuttleHost(session, sourceId, roleId, owners.length === 0);
+    if (!custody) return { ...empty(roleId), applicable: true };
     const holder = players.find((player) => player.id === custody.holderUid);
     const holderGroupId = holder?.get('fleetGroupId');
     const group = typeof holderGroupId === 'string'
@@ -24769,15 +26227,17 @@ function wolfRangeSupportAvailability(input: Readonly<{
       actionAvailable: actionAvailable && actions.length > 0, ...(sourceId === 'boa' ? { scrapAvailable: custody.scrap ?? 0 } : {}),
       actions, contacts };
   }
-  const roleId = 'gorgoneion-captain';
+  const smallShipId = sourceId === 'vulcan-laser-cannon' ? 'vulcan' : 'gorgoneion';
+  const roleId = `${smallShipId}-captain`;
+  if (smallShipId === 'vulcan' && range === 'long-range') return empty(roleId);
   const smallShipStates = session.get('smallShipStates');
-  if (!isRecord(smallShipStates) || !Object.hasOwn(smallShipStates, 'gorgoneion')) return empty(roleId);
+  if (!isRecord(smallShipStates) || !Object.hasOwn(smallShipStates, smallShipId)) return empty(roleId);
   const admitted = isExtraShipAdmitted({ activeVesselIds: activeVessels, smallShipStates,
-    smallShipId: 'gorgoneion', expansion: session.get('expansion'), capybaraEnabled: session.get('capybaraEnabled') });
-  const smallShip = storedSmallShipState(session, 'gorgoneion');
+    smallShipId, expansion: session.get('expansion'), capybaraEnabled: session.get('capybaraEnabled') });
+  const smallShip = storedSmallShipState(session, smallShipId);
   if (!admitted || !smallShip?.hostShipId) return { ...empty(roleId), applicable: true };
-  const captains = currentWolfGorgoneionCaptains(players);
-  if (captains.length > 1) throw commandError('failed-precondition', 'The Gorgoneion Captain is ambiguous.', 'conflict');
+  const captains = currentWolfSmallShipCaptains(players, smallShipId);
+  if (captains.length > 1) throw commandError('failed-precondition', `The ${smallShipId} Captain is ambiguous.`, 'conflict');
   const captain = captains[0];
   const groupId = captain?.get('fleetGroupId');
   const group = typeof groupId === 'string'
@@ -24786,8 +26246,8 @@ function wolfRangeSupportAvailability(input: Readonly<{
   const ownerUid = captain && group && group.vesselIds.includes(smallShip.hostShipId) &&
     fleetGroupMemberShipId([group], captain.id, group.id) === smallShip.hostShipId ? captain.id : undefined;
   const actionAvailable = smallShip.population > 0 && !isSmallShipInMutiny(smallShip) &&
-    smallShip.cycle.turn === turn && smallShip.cycle.charges.includes('missile-array');
-  const actions = gorgoneionWolfRangeActions({ range, charged: actionAvailable, damaged: false, destroyed: false });
+    smallShip.cycle.turn === turn && smallShip.cycle.charges.includes(smallShipId === 'vulcan' ? 'laser-cannon' : 'missile-array');
+  const actions = (smallShipId === 'vulcan' ? vulcanWolfRangeActions : gorgoneionWolfRangeActions)({ range, charged: actionAvailable, damaged: false, destroyed: false });
   return { applicable: true, sourceId, actorRoleId: roleId, hostShipId: smallShip.hostShipId,
     ...(ownerUid ? { ownerUid } : {}), actionAvailable: actionAvailable && actions.length > 0, actions, contacts };
 }
@@ -24801,7 +26261,7 @@ function collectWolfEscortRangeChoices(input: Readonly<{
   if (input.range !== 'medium-range' && input.range !== 'short-range') return { status: 'not-applicable' };
   const attackId = input.attack.get('attackId');
   if (typeof attackId !== 'string' || !attackId) return { status: 'unsupported' };
-  const pdf = parsePdfEscortWingState(input.pdfWing.exists ? input.pdfWing.data() : undefined);
+  const pdf = pdfEscortWingStateForSession(input.session, input.pdfWing.exists ? input.pdfWing.data() : undefined);
   const maliades = parseMaliadesState(input.session.get('maliadesState'));
   if (!pdf || !maliades) return { status: 'unsupported' };
   const launchChoices = wolfFighterLaunchChoiceMap(input.attack, input.turn, attackId);
@@ -24843,7 +26303,7 @@ function collectWolfRangeSupportChoices(input: Readonly<{
   const unavailableSourceIds: WolfRangeSupportSourceId[] = [];
   const sourceIds: WolfRangeSupportSourceId[] = [];
   let waiting = false;
-  for (const sourceId of ['highwall', 'gorgoneion-missile-array', 'boa'] as const) {
+  for (const sourceId of ['highwall', 'gorgoneion-missile-array', 'vulcan-laser-cannon', 'boa'] as const) {
     let available: WolfRangeSupportAvailability;
     try {
       available = wolfRangeSupportAvailability({ session: input.session, attack: input.attack,
@@ -24868,7 +26328,7 @@ function collectWolfRangeSupportChoices(input: Readonly<{
           ? highwallWolfRangeActions({ range: input.range, fuelled: true, destroyed: false })
           : sourceId === 'boa'
             ? boaWolfRangeActions({ range: input.range, scrapAvailable: Math.max(1, choice.scrapBefore ?? 0), destroyed: false })
-            : gorgoneionWolfRangeActions({ range: input.range, charged: true, damaged: false, destroyed: false });
+            : (sourceId === 'vulcan-laser-cannon' ? vulcanWolfRangeActions : gorgoneionWolfRangeActions)({ range: input.range, charged: true, damaged: false, destroyed: false });
         if (sourceActions.length !== 1 || (!available.actionAvailable && sourceId !== 'boa')) {
           return { status: 'unsupported', actions: [], actionTargets: {}, automaticSourceIds: [], sourceIds: [], unavailableSourceIds: [] };
         }
@@ -25252,12 +26712,13 @@ function appendWolfRangeSupportMemberResults(
   if (!applied) return results;
   const assignmentByAction = new Map(assignments.map(({ actionId, targetInstanceIds }) => [actionId, targetInstanceIds]));
   for (const action of actions) {
-    if (action.sourceId !== 'highwall' && action.sourceId !== 'gorgoneion-missile-array' && action.sourceId !== 'boa') continue;
+    if (action.sourceId !== 'highwall' && action.sourceId !== 'gorgoneion-missile-array' && action.sourceId !== 'vulcan-laser-cannon' && action.sourceId !== 'boa') continue;
     const roll = applied.receipt.dice.find(({ actionId }) => actionId === action.actionId);
     if (!roll) continue;
     const targets = assignmentByAction.get(action.actionId) ?? [];
     const label = action.sourceId === 'highwall' ? 'Highwall Cannon'
-      : action.sourceId === 'gorgoneion-missile-array' ? 'Gorgoneion Missile Array' : 'Boa Scrap Strike';
+      : action.sourceId === 'gorgoneion-missile-array' ? 'Gorgoneion Missile Array'
+        : action.sourceId === 'vulcan-laser-cannon' ? 'Vulcan Laser Cannon' : 'Boa Scrap Strike';
     if (targets.length === 0) {
       results.push({ status: 'committed', range, sourceId: action.sourceId, targetId: null, bearing: null,
         contactReference: label, effect: roll.successes > 0 ? `${label} hit had no distinct live contact` : `${label} missed`,
@@ -25622,7 +27083,7 @@ async function reconcileWolfAttackBoarding(
     tx.set(db.doc(`sessions/${sessionId}/wolfAttackState/current/audit/wolf-boarding-commander-ruling-${currentTurn}`), {
       type: 'wolf-boarding-commander-ruling-required', turn: currentTurn, revision: nextRevision,
       actorUid: 'server', targetShipId: commanderTarget,
-      condition: 'All Commander-led Wolf Boarding Parties were destroyed.',
+      condition: 'HOUSE RULE: The optional +2 Commander boarding request remains pending until the current live GM records the consequence for what happens if all Commander-led Wolf Boarding Parties are destroyed. No automatic consequence or default outcome is assumed.',
       boardingResolution, createdAt: FieldValue.serverTimestamp(),
     });
     return;
@@ -25832,14 +27293,16 @@ async function reconcileWolfAttackBoarding(
   }
 
   const destroyedPlayers = players;
-  const shuttleTransitions = destructionTargets.map((target) => ({
+  const shuttleTransitions = (await Promise.all(destructionTargets.map(async (target) => ({
     target,
-    transition: retainedShuttleTransitionForDestruction(session, destroyedPlayers, target, committedAt),
-  })).filter(({ transition }) => transition !== undefined);
+    transition: await retainedShuttleTransitionForDestruction(tx, session, destroyedPlayers, target, committedAt),
+  })))).filter(({ transition }) => transition !== undefined);
   let shuttleDockings = session.get('shuttleDockings');
   let shuttleControl = session.get('shuttleControl');
   let retainedShuttles = session.get('retainedShuttles');
   const retainedShuttleIds: string[] = [];
+  const lostShuttleIds: string[] = [];
+  let lostShuttles = session.get('lostShuttles') ?? {};
   for (const { target, transition } of shuttleTransitions) {
     if (!transition) continue;
     const affectedIds = (Array.isArray(session.get('shuttleDockings')) ? session.get('shuttleDockings') as Array<{ shuttleId?: unknown; shipId?: unknown }> : [])
@@ -25855,7 +27318,9 @@ async function reconcileWolfAttackBoarding(
     ];
     shuttleControl = { ...(isRecord(shuttleControl) ? shuttleControl : {}), ...transition.control };
     retainedShuttles = { ...(isRecord(retainedShuttles) ? retainedShuttles : {}), ...transition.retained };
-    retainedShuttleIds.push(...transition.retainedShuttleIds);
+    retainedShuttleIds.push(...transition.retainedShuttleIds, ...transition.lostShuttleIds);
+    lostShuttleIds.push(...transition.lostShuttleIds);
+    lostShuttles = { ...lostShuttles, ...(transition.lossPatch.lostShuttles ?? {}) };
   }
 
   const memberResults = Array.isArray(state.get('memberResults')) ? [...state.get('memberResults')] : [];
@@ -25945,6 +27410,11 @@ async function reconcileWolfAttackBoarding(
     return;
   }
   if (pStationRepeat) resolvedState.pStationRepeat = pStationRepeat;
+  const stationLiberation = candidateStationLiberationFromFinalization(
+    sessionId, resolvedState, receipt, pStationRepeat, committedAt,
+  );
+  const stationLiberationsRef = db.doc(`sessions/${sessionId}/serverState/candidateStationLiberations`);
+  const priorStationLiberations = stationLiberation ? await tx.get(stationLiberationsRef) : undefined;
   const reopenedPhase: ActiveTurnPhase = {
     ...phase, airspace: { ...phase.airspace, state: 'lifted', tickerActive: true },
   };
@@ -25981,10 +27451,20 @@ async function reconcileWolfAttackBoarding(
   for (const [target, securityTeams] of Object.entries(nextResources)) {
     sessionPatch[`shipResources.${target}.securityTeams`] = securityTeams;
   }
+  for (const { transition } of shuttleTransitions) {
+    if (!transition) continue;
+    Object.assign(sessionPatch, transition.other.sessionPatch);
+    if (transition.other.attackPatch) Object.assign(resolvedState, transition.other.attackPatch);
+  }
   if (shuttleTransitions.length > 0) {
     sessionPatch.shuttleDockings = shuttleDockings;
     sessionPatch.shuttleControl = shuttleControl;
     sessionPatch.retainedShuttles = retainedShuttles;
+    if (lostShuttleIds.length > 0) {
+      sessionPatch.lostShuttles = lostShuttles;
+      sessionPatch.shuttleCargo = withoutLostCraft(session.get('shuttleCargo'), lostShuttleIds);
+      sessionPatch.shuttleFuelled = withoutLostCraft(session.get('shuttleFuelled'), lostShuttleIds);
+    }
   }
   if (terminalOutcome) {
     sessionPatch.phase = 'failure';
@@ -25997,11 +27477,15 @@ async function reconcileWolfAttackBoarding(
     sessionPatch.turnStartAnnouncement = FieldValue.delete();
   }
 
+  for (const { transition } of shuttleTransitions) {
+    if (transition?.other.pdfState) tx.set(db.doc(`sessions/${sessionId}/serverState/pdfEscortWing`), transition.other.pdfState);
+  }
   for (const target of destructionTargets) {
     const destruction = destructionTransition(target, currentShipDamage[target]?.destroyed === true, false);
-    markPlayersForShipEscape(tx, destroyedPlayers, target, destruction.eventId, nextRevision);
+    markPlayersForShipEscape(tx, sessionId, destroyedPlayers, target, destruction.eventId, nextRevision,
+      turn as number, `wolf-attack:${attackId}`);
     for (const shuttleId of retainedShuttleIds) {
-      if (shuttleTransitions.some(({ target: host, transition }) => host === target && transition?.retainedShuttleIds.includes(shuttleId))) {
+      if (shuttleTransitions.some(({ target: host, transition }) => host === target && transition && [...transition.retainedShuttleIds, ...transition.lostShuttleIds].includes(shuttleId))) {
         tx.delete(db.doc(`sessions/${sessionId}/shuttleDepartures/${shuttleId}`));
         tx.delete(db.doc(`sessions/${sessionId}/shuttleTransitChains/${shuttleId}`));
       }
@@ -26030,6 +27514,10 @@ async function reconcileWolfAttackBoarding(
   }
 
   for (const { death, eligibility, seat } of deathAuthorities) {
+    writePlayerRemovalAlert(tx, db, { sessionId, sourceId: attackId,
+      player: players.find(player => player.id === death.actorUid)!, roleId: death.roleId,
+      cause: 'boarding-death', shipId: death.targetShipId, cycle: turn as number,
+      recordedAt: committedAt, createdAt: FieldValue.serverTimestamp() });
     const deathRequestId = `wolf-boarding-death-${attackId}-${death.actorUid}`;
     const eligibilityRevision = replacementRevision(eligibility) + 1;
     tx.update(db.doc(`sessions/${sessionId}/players/${death.actorUid}`), {
@@ -26056,6 +27544,11 @@ async function reconcileWolfAttackBoarding(
   }
 
   tx.update(db.doc(`sessions/${sessionId}`), sessionPatch);
+  if (stationLiberation && !priorStationLiberations?.get(`${stationLiberation.groupId}:${stationLiberation.coordinate}`)) {
+    tx.set(stationLiberationsRef, {
+      [`${stationLiberation.groupId}:${stationLiberation.coordinate}`]: stationLiberation,
+    }, { merge: true });
+  }
   if (pStationRepeat?.status === 'repeat') {
     const windowRef = db.doc(`sessions/${sessionId}/wolfAttackWindow/current`);
     const preparationRef = db.doc(`sessions/${sessionId}/wolfAttackPreparation/current`);
@@ -26192,7 +27685,8 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
         };
         const committedAt = new Date().toISOString();
         const targetingReceipt = wolfTargetingStageReceipt(
-          turn as number, preparation, committedAt, targetRing, pursuit,
+          turn as number, preparation, committedAt, targetRing,
+          configuredWolfPrintedTargetRingForSession(session), pursuit,
         );
         const nextRevision = (revision as number) + 1;
         tx.update(stateRef, {
@@ -26504,7 +27998,7 @@ function isWolfAttackStageAdvanceResult(value: unknown): value is WolfAttackStag
 }
 
 /** Close the server-owned targeting step and enter the printed Long Range step. */
-export const advanceWolfAttackToLongRange = onCall<{
+export const advanceWolfAttackToLongRange = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -26512,7 +28006,7 @@ export const advanceWolfAttackToLongRange = onCall<{
   expectedRevision?: unknown;
   reason?: unknown;
   dangerConfirmed?: unknown;
-}>(async request => {
+}>('advanceWolfAttackToLongRange', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -26603,7 +28097,7 @@ export const advanceWolfAttackToLongRange = onCall<{
     // targeting stage remains open. The session's current server-owned phase
     // is authoritative; do not compare it to the declaration-time deadline.
     const deadlineAt = phase.openAirspaceEndsAt;
-    if (Date.now() >= Date.parse(deadlineAt)) {
+    if (turnPhaseDeadlinePassed(phase, 'open')) {
       throw commandError(
         'failed-precondition',
         'The Coordination deadline has elapsed; recovery cannot create another attack window.',
@@ -26821,8 +28315,10 @@ function wolfCommanderTargetingInputs(
       throw new Error('The Wolf targeting receipt does not match its preparation.');
     }
     const expectedRing = configuredWolfTargetRingForAttack(session, state);
-    if (JSON.stringify(receipt.ring) !== JSON.stringify(expectedRing)) {
-      throw new Error('The Wolf targeting receipt does not match the active fleet.');
+    const expectedSourceRing = configuredWolfPrintedTargetRingForSession(session);
+    if (JSON.stringify(receipt.ring) !== JSON.stringify(expectedRing) ||
+        JSON.stringify(receipt.sourceRing) !== JSON.stringify(expectedSourceRing)) {
+      throw new Error('The Wolf targeting receipt does not match the active fleet and selected group.');
     }
   } catch (error) {
     throw commandError(
@@ -26906,7 +28402,7 @@ function requireAegisExecutiveOfficerPlayer(player: DocumentSnapshot, uid: strin
       boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) !== 'executive-officer') {
     throw new HttpsError('permission-denied', 'The active AEGIS Executive Officer console is required.');
   }
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
 }
 
 function requireAegisWingCommanderPlayer(player: DocumentSnapshot, uid: string): void {
@@ -26915,7 +28411,7 @@ function requireAegisWingCommanderPlayer(player: DocumentSnapshot, uid: string):
       boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) !== 'wing-commander') {
     throw new HttpsError('permission-denied', 'The active AEGIS Wing Commander console is required.');
   }
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
 }
 
 function currentPlayerFleetGroupId(player: DocumentSnapshot): string {
@@ -27396,9 +28892,9 @@ function aegisCommandAndControlDamageState(session: DocumentSnapshot): 'damaged'
 }
 
 /** Return a filtered targeting view; the GM-only receipt never crosses this boundary. */
-export const getWolfCommanderTargeting = onCall<{
+export const getWolfCommanderTargeting = auditedOnCall<{
   sessionId?: unknown;
-}>(async request => {
+}>('getWolfCommanderTargeting', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
@@ -27431,13 +28927,13 @@ export const getWolfCommanderTargeting = onCall<{
 });
 
 /** Apply selected targeting rerolls under the replacement-role authority. */
-export const applyWolfCommanderTargetRerolls = onCall<{
+export const applyWolfCommanderTargetRerolls = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedTurn?: unknown;
   expectedRevision?: unknown;
   rosterIndexes?: unknown;
-}>(async request => {
+}>('applyWolfCommanderTargetRerolls', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (isRecord(raw)) {
@@ -27544,12 +29040,12 @@ export const applyWolfCommanderTargetRerolls = onCall<{
 });
 
 /** Explicitly close the optional Commander window, including after zero rerolls. */
-export const finishWolfCommanderTargetingRerolls = onCall<{
+export const finishWolfCommanderTargetingRerolls = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedTurn?: unknown;
   expectedRevision?: unknown;
-}>(async request => {
+}>('finishWolfCommanderTargetingRerolls', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some((key) =>
@@ -27637,7 +29133,7 @@ export const finishWolfCommanderTargetingRerolls = onCall<{
 });
 
 /** Record the Wolf Commander's one private target-dial adjustment for a live range. */
-export const applyWolfCommanderRangeTargetAdjustment = onCall<{
+export const applyWolfCommanderRangeTargetAdjustment = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   attackId?: unknown;
@@ -27646,7 +29142,7 @@ export const applyWolfCommanderRangeTargetAdjustment = onCall<{
   range?: unknown;
   rosterIndex?: unknown;
   delta?: unknown;
-}>(async request => {
+}>('applyWolfCommanderRangeTargetAdjustment', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -27818,7 +29314,7 @@ export const applyWolfCommanderRangeTargetAdjustment = onCall<{
 });
 
 /** Read a narrow, private view of the active attack's selected-group target dial. */
-export const getWolfCommanderRangeTargetDial = onCall<{ sessionId?: unknown }>(async request => {
+export const getWolfCommanderRangeTargetDial = auditedOnCall<{ sessionId?: unknown }>('getWolfCommanderRangeTargetDial', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
@@ -27868,7 +29364,7 @@ export const getWolfCommanderRangeTargetDial = onCall<{ sessionId?: unknown }>(a
 });
 
 /** Return only eligible Wolf ship identities to the bound AEGIS Executive Officer. */
-export const getAegisCommandAndControl = onCall<{ sessionId?: unknown }>(async request => {
+export const getAegisCommandAndControl = auditedOnCall<{ sessionId?: unknown }>('getAegisCommandAndControl', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
@@ -27973,13 +29469,13 @@ export const getAegisCommandAndControl = onCall<{ sessionId?: unknown }>(async r
 });
 
 /** Redirect one targeting receipt entry under Executive Officer authority and revision CAS. */
-export const applyAegisCommandAndControl = onCall<{
+export const applyAegisCommandAndControl = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedTurn?: unknown;
   expectedRevision?: unknown;
   rosterIndex?: unknown;
-}>(async request => {
+}>('applyAegisCommandAndControl', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some((key) =>
@@ -28017,6 +29513,7 @@ export const applyAegisCommandAndControl = onCall<{
     );
     if (replay) return replay;
     requireActiveGameplayPhase(session);
+    requireCandidateActionAvailable(session, player);
     requireUsableShip(session, 'aegis');
     const inputs = wolfCommanderTargetingInputs(session, state);
     if (change.expectedTurn !== inputs.turn || change.expectedRevision !== inputs.revision) {
@@ -28143,12 +29640,12 @@ export const applyAegisCommandAndControl = onCall<{
 });
 
 /** Explicitly decline the optional current-cycle C&C redirect without changing any target. */
-export const passAegisCommandAndControl = onCall<{
+export const passAegisCommandAndControl = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedTurn?: unknown;
   expectedRevision?: unknown;
-}>(async request => {
+}>('passAegisCommandAndControl', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some((key) =>
@@ -28185,6 +29682,7 @@ export const passAegisCommandAndControl = onCall<{
     );
     if (replay) return replay;
     requireActiveGameplayPhase(session);
+    requireCandidateActionAvailable(session, player);
     requireUsableShip(session, 'aegis');
     const inputs = wolfCommanderTargetingInputs(session, state);
     if (change.expectedTurn !== inputs.turn || change.expectedRevision !== inputs.revision) {
@@ -28367,7 +29865,7 @@ function aegisEnrichedWarheadView(sessionId: string, session: DocumentSnapshot, 
 }
 
 /** Return only this EO's purchase status, without targeting or other players' decisions. */
-export const getAegisEnrichedWarheadChoice = onCall<{ sessionId?: unknown }>(async request => {
+export const getAegisEnrichedWarheadChoice = auditedOnCall<{ sessionId?: unknown }>('getAegisEnrichedWarheadChoice', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some(key => key !== 'sessionId')) {
@@ -28390,9 +29888,9 @@ export const getAegisEnrichedWarheadChoice = onCall<{ sessionId?: unknown }>(asy
 });
 
 /** Atomically purchase or pass, bound to one attack, actor, request and revision. */
-export const commitAegisEnrichedWarheadChoice = onCall<{
+export const commitAegisEnrichedWarheadChoice = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown; choice?: unknown;
-}>(async request => {
+}>('commitAegisEnrichedWarheadChoice', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some(key =>
@@ -28429,6 +29927,7 @@ export const commitAegisEnrichedWarheadChoice = onCall<{
       requireCurrentWolfAttackReceipt(session, state, replay.turn, replay.view.attackId);
       return replay;
     }
+    requireCandidateActionAvailable(session, player);
     requireUsableShip(session, 'aegis');
     const inputs = aegisEnrichedWarheadStartInputs(session, state);
     if (change.expectedTurn !== inputs.turn || change.expectedRevision !== inputs.revision ||
@@ -28665,7 +30164,7 @@ function aegisFighterWingId(value: unknown): FighterWingId | null {
 }
 
 /** Read the current Wing Commander's independent Alpha/Bravo launch gates. */
-export const getAegisFighterWingLaunch = onCall<{ sessionId?: unknown; wingId?: unknown }>(async (request) => {
+export const getAegisFighterWingLaunch = auditedOnCall<{ sessionId?: unknown; wingId?: unknown }>('getAegisFighterWingLaunch', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some((key) => key !== 'sessionId' && key !== 'wingId')) {
@@ -28691,10 +30190,10 @@ export const getAegisFighterWingLaunch = onCall<{ sessionId?: unknown; wingId?: 
 });
 
 /** Atomically launch one charged AEGIS Fighter Bay wing for the current attack. */
-export const launchAegisFighterWing = onCall<{
+export const launchAegisFighterWing = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown;
   expectedWingRevision?: unknown; wingId?: unknown;
-}>(async (request) => {
+}>('launchAegisFighterWing', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'expectedWingRevision', 'wingId']);
@@ -28737,6 +30236,7 @@ export const launchAegisFighterWing = onCall<{
     }
     if (audit.exists) rejectLegacyEventReplay('AEGIS Fighter Wing launch');
     requireActiveGameplayPhase(session);
+    requireCandidateActionAvailable(session, player);
     requireUsableShip(session, 'aegis');
     const view = aegisFighterWingLaunchView(sessionId, session, attack, wingId);
     if (view.turn !== expectedTurn || view.revision !== expectedRevision || view.wingRevision !== expectedWingRevision) {
@@ -29098,7 +30598,7 @@ function wolfRangeChoiceView(
     .filter(({ actionId }) => status !== 'targets-required' || !fixedTargets[actionId])
     .map(({ actionId, successes, damagePerHit }) => ({ actionId, count: successes, damagePerHit })) ?? [];
   const pendingSupportActions = additionalActions.filter(({ sourceId }) =>
-    sourceId === 'highwall' || sourceId === 'gorgoneion-missile-array' || sourceId === 'boa');
+    sourceId === 'highwall' || sourceId === 'gorgoneion-missile-array' || sourceId === 'vulcan-laser-cannon' || sourceId === 'boa');
   const eligibleActions = status === 'pending'
     ? [...inputs.actions, ...pendingSupportActions]
     : [...inputs.actions, ...additionalActions];
@@ -29195,7 +30695,7 @@ function isWolfRangeTargetAssignmentResult(value: unknown): value is WolfRangeTa
 }
 
 /** Read source-derived AEGIS action availability without returning composition, dice, or facilitator notes. */
-export const getWolfRangeActionChoice = onCall<{ sessionId?: unknown }>(async (request) => {
+export const getWolfRangeActionChoice = auditedOnCall<{ sessionId?: unknown }>('getWolfRangeActionChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
@@ -29249,10 +30749,10 @@ export const getWolfRangeActionChoice = onCall<{ sessionId?: unknown }>(async (r
 });
 
 /** Lock an entitled AEGIS use/pass choice and any required dice before targets are assigned. */
-export const commitWolfRangeActionChoice = onCall<{
+export const commitWolfRangeActionChoice = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown;
   range?: unknown; actionIds?: unknown;
-}>(async (request) => {
+}>('commitWolfRangeActionChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'range', 'actionIds']);
@@ -29296,6 +30796,7 @@ export const commitWolfRangeActionChoice = onCall<{
       requireCurrentWolfAttackReceipt(session, state, replay.turn, replay.attackId);
       return replay;
     }
+    requireCandidateActionAvailable(session, player);
     requireUsableShip(session, 'aegis');
     const inputs = requireWolfRangeState(session, state, range);
     if (raw.expectedTurn !== inputs.turn || raw.expectedRevision !== inputs.revision) {
@@ -29428,10 +30929,10 @@ export const commitWolfRangeActionChoice = onCall<{
 });
 
 /** Assign already-locked hits to opaque contacts; target submission never draws fresh dice. */
-export const assignWolfRangeTargets = onCall<{
+export const assignWolfRangeTargets = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown;
   range?: unknown; assignments?: unknown;
-}>(async (request) => {
+}>('assignWolfRangeTargets', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'range', 'assignments']);
@@ -29479,6 +30980,7 @@ export const assignWolfRangeTargets = onCall<{
       requireCurrentWolfAttackReceipt(session, state, replay.turn, replay.attackId);
       return replay;
     }
+    requireCandidateActionAvailable(session, player);
     requireUsableShip(session, 'aegis');
     const inputs = requireWolfRangeState(session, state, range);
     if (raw.expectedTurn !== inputs.turn || raw.expectedRevision !== inputs.revision) {
@@ -29719,9 +31221,9 @@ function isWolfFighterRangeActionResult(value: unknown): value is WolfFighterRan
 }
 
 /** Read the current Wing Commander's private, per-wing range choice. */
-export const getWolfFighterRangeActionChoice = onCall<{
+export const getWolfFighterRangeActionChoice = auditedOnCall<{
   sessionId?: unknown; range?: unknown; sourceId?: unknown;
-}>(async (request) => {
+}>('getWolfFighterRangeActionChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some((key) => !['sessionId', 'range', 'sourceId'].includes(key)) ||
@@ -29751,10 +31253,10 @@ export const getWolfFighterRangeActionChoice = onCall<{
 });
 
 /** Persist a fighter subset/action choice. Dice remain locked until range choices are reconciled. */
-export const commitWolfFighterRangeActionChoice = onCall<{
+export const commitWolfFighterRangeActionChoice = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown;
   range?: unknown; sourceId?: unknown; fighterIndexes?: unknown; actions?: unknown;
-}>(async (request) => {
+}>('commitWolfFighterRangeActionChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'range', 'sourceId',
@@ -29825,6 +31327,7 @@ export const commitWolfFighterRangeActionChoice = onCall<{
       return { ...replay, status: 'replayed' };
     }
     if (audit.exists) rejectLegacyEventReplay('Wolf fighter range choice');
+    requireCandidateActionAvailable(session, player);
     requireUsableShip(session, 'aegis');
     const inputs = requireWolfRangeState(session, attack, range);
     if (raw.expectedTurn !== inputs.turn || raw.expectedRevision !== inputs.revision) {
@@ -29940,13 +31443,13 @@ function requireWolfEscortActor(session: DocumentSnapshot, player: DocumentSnaps
       throw new HttpsError('permission-denied', 'Current Maliades custody is required.');
     }
   }
-  requireUsableShip(session, shipId);
+  requireUsableShip(session, shipId, true);
 }
 
 function wolfEscortRangeState(session: DocumentSnapshot, attack: DocumentSnapshot,
   pdfWing: DocumentSnapshot, sourceId: WolfEscortSourceId, turn: number) {
   const attackId = attack.get('attackId');
-  const pdf = parsePdfEscortWingState(pdfWing.exists ? pdfWing.data() : undefined);
+  const pdf = pdfEscortWingStateForSession(session, pdfWing.exists ? pdfWing.data() : undefined);
   const maliades = parseMaliadesState(session.get('maliadesState'));
   if (typeof attackId !== 'string' || !attackId || !pdf || !maliades) {
     throw commandError('failed-precondition', 'The current escort combat state is malformed.', 'conflict');
@@ -29972,7 +31475,7 @@ function wolfEscortChoice(attack: DocumentSnapshot, range: WolfEscortRange, sour
 }
 
 /** Read current source choices using opaque contacts; resolved dice remain private. */
-export const getWolfEscortRangeActionChoice = onCall<{ sessionId?: unknown; sourceId?: unknown; range?: unknown }>(async (request) => {
+export const getWolfEscortRangeActionChoice = auditedOnCall<{ sessionId?: unknown; sourceId?: unknown; range?: unknown }>('getWolfEscortRangeActionChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const sourceId = isRecord(raw) ? wolfEscortSourceId(raw.sourceId) : null;
@@ -29988,6 +31491,7 @@ export const getWolfEscortRangeActionChoice = onCall<{ sessionId?: unknown; sour
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${currentPlayerFleetGroupId(player)}`));
     requireWolfEscortActor(session, player, uid, group, sourceId);
+    requireCandidateActionAvailable(session, player, [], [sourceId]);
     const inputs = requireWolfRangeState(session, attack, range);
     const state = wolfEscortRangeState(session, attack, pdfWing, sourceId, inputs.turn);
     const choice = wolfEscortChoice(attack, range, sourceId);
@@ -30013,10 +31517,10 @@ export const getWolfEscortRangeActionChoice = onCall<{ sessionId?: unknown; sour
 });
 
 /** Save a zero-or-more-action choice; the complete shared range lock owns dice and costs. */
-export const commitWolfEscortRangeActionChoice = onCall<{
+export const commitWolfEscortRangeActionChoice = auditedOnCall<{
   sessionId?: unknown; sourceId?: unknown; range?: unknown; requestId?: unknown;
   expectedTurn?: unknown; expectedRevision?: unknown; actions?: unknown; fighterIndexes?: unknown; targetContactIds?: unknown;
-}>(async (request) => {
+}>('commitWolfEscortRangeActionChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const sourceId = isRecord(raw) ? wolfEscortSourceId(raw.sourceId) : null;
@@ -30079,6 +31583,7 @@ export const commitWolfEscortRangeActionChoice = onCall<{
       value.turn === raw.expectedTurn && value.revision === (raw.expectedRevision as number) + 1 &&
       value.actionCount === choices.length && value.choiceStatus === 'pending-resolution', 'Escort range choice');
     if (replay) return { ...replay, status: 'replayed' };
+    requireCandidateActionAvailable(session, player, [], [sourceId]);
     if (audit.exists) rejectLegacyEventReplay('Escort range choice');
     const inputs = requireWolfRangeState(session, attack, range);
     if (raw.expectedTurn !== inputs.turn || raw.expectedRevision !== inputs.revision) throw commandError('failed-precondition', 'The escort range choice is stale.', 'stale-revision');
@@ -30164,14 +31669,15 @@ function wolfRangeSupportActorHost(
     }
     return custody.hostShipId;
   }
+  const smallShipId = sourceId === 'vulcan-laser-cannon' ? 'vulcan' : 'gorgoneion';
   const activeVessels = wolfAttackActiveVesselIds(session);
   const smallShipStates = session.get('smallShipStates');
   const admitted = isExtraShipAdmitted({ activeVesselIds: activeVessels, smallShipStates,
-    smallShipId: 'gorgoneion', expansion: session.get('expansion'), capybaraEnabled: session.get('capybaraEnabled') });
-  const smallShip = storedSmallShipState(session, 'gorgoneion');
+    smallShipId, expansion: session.get('expansion'), capybaraEnabled: session.get('capybaraEnabled') });
+  const smallShip = storedSmallShipState(session, smallShipId);
   if (!admitted ||
       !smallShip?.hostShipId || !activeVessels.includes(smallShip.hostShipId)) {
-    throw new HttpsError('permission-denied', 'Gorgoneion is not admitted with a current host.');
+    throw new HttpsError('permission-denied', `The ${smallShipId} is not admitted with a current host.`);
   }
   return smallShip.hostShipId;
 }
@@ -30187,10 +31693,20 @@ function requireWolfRangeSupportActor(
     requireCurrentWolfForceFieldCaptain(player, uid, { docs: players });
     return;
   }
+  if (sourceId === 'vulcan-laser-cannon') {
+    if (!player.exists || player.id !== uid || !isActivePlayer(player) ||
+        player.get('role') !== 'player' || player.get('replacementRoleId') !== 'vulcan-captain' ||
+        player.get('replacementStatus') != null || player.get('activeConsoleRoleId') !== null ||
+        player.get('seatId') !== null || isKickedPlayer(player) || playerEscapeState(player) !== undefined ||
+        currentWolfSmallShipCaptains(players, 'vulcan').length !== 1) {
+      throw new HttpsError('permission-denied', 'The unique current Vulcan Captain is required.');
+    }
+    return;
+  }
   if (!player.exists || player.id !== uid || !isActivePlayer(player) || player.get('role') !== 'player') {
     throw new HttpsError('permission-denied', 'The connected current shuttle holder is required.');
   }
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
   const roleId = sourceId === 'highwall' ? 'icebreaker-miner' : 'capybara-recycler';
   if (player.get('activeConsoleRoleId') !== roleId || !sessionActiveRoleIds(session).includes(roleId)) {
     throw new HttpsError('permission-denied', 'Open the current source console before choosing this range action.');
@@ -30231,9 +31747,9 @@ function wolfRangeSupportView(
 }
 
 /** Read one safe current actor view; only opaque contacts and operational counts leave the server. */
-export const getWolfRangeSupportActionChoice = onCall<{
+export const getWolfRangeSupportActionChoice = auditedOnCall<{
   sessionId?: unknown; sourceId?: unknown; range?: unknown;
-}>(async (request) => {
+}>('getWolfRangeSupportActionChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const sourceId = isRecord(raw) ? wolfRangeSupportSourceId(raw.sourceId) : null;
@@ -30259,12 +31775,12 @@ export const getWolfRangeSupportActionChoice = onCall<{
     }
     requireWolfRangeSupportActor(session, player, uid, players.docs, sourceId);
     const actorHostShipId = wolfRangeSupportActorHost(session, uid, sourceId);
-    if (sourceId === 'gorgoneion-missile-array') {
+    if (sourceId === 'gorgoneion-missile-array' || sourceId === 'vulcan-laser-cannon') {
       const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${currentPlayerFleetGroupId(player)}`));
       const record = group.exists ? fleetGroupRecord(group.data()) : undefined;
       if (!record || record.id !== currentPlayerFleetGroupId(player) ||
           fleetGroupMemberShipId([record], uid, record.id) !== actorHostShipId) {
-        throw new HttpsError('permission-denied', 'The Gorgoneion Captain must be aboard its current host.');
+        throw new HttpsError('permission-denied', 'The small-craft Captain must be aboard its current host.');
       }
     } else {
       const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${currentPlayerFleetGroupId(player)}`));
@@ -30286,10 +31802,10 @@ export const getWolfRangeSupportActionChoice = onCall<{
 });
 
 /** Commit a use/pass choice with current actor, turn, attack revision, custody and target checks. */
-export const commitWolfRangeSupportActionChoice = onCall<{
+export const commitWolfRangeSupportActionChoice = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown;
   range?: unknown; sourceId?: unknown; use?: unknown; targetContactId?: unknown;
-}>(async (request) => {
+}>('commitWolfRangeSupportActionChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const sourceId = isRecord(raw) ? wolfRangeSupportSourceId(raw.sourceId) : null;
@@ -30335,7 +31851,8 @@ export const commitWolfRangeSupportActionChoice = onCall<{
       throw new HttpsError('permission-denied', 'The current support holder must remain aboard the source host.');
     }
     const actorRoleId = sourceId === 'highwall' ? 'icebreaker-miner'
-      : sourceId === 'boa' ? 'capybara-recycler' : 'gorgoneion-captain';
+      : sourceId === 'boa' ? 'capybara-recycler'
+        : sourceId === 'vulcan-laser-cannon' ? 'vulcan-captain' : 'gorgoneion-captain';
     const currentControlRevision = sourceId === 'highwall' || sourceId === 'boa'
       ? wolfRangeSupportShuttleHost(session, sourceId, actorRoleId).controlRevision : undefined;
     const replay = replayBoundCommand(receipt, fingerprint, isWolfRangeSupportChoiceResult, 'Wolf range support choice');
@@ -30360,6 +31877,7 @@ export const commitWolfRangeSupportActionChoice = onCall<{
       throw commandError('failed-precondition', 'The saved support receipt is malformed.', 'conflict');
     }
     if (replay) return { ...replay, status: 'replayed' };
+    requireCandidateActionAvailable(session, player, [actorHostShipId], [sourceId]);
     if (audit.exists) rejectLegacyEventReplay('Wolf range support choice');
     const inputs = requireWolfRangeState(session, attack, range);
     if (raw.expectedTurn !== inputs.turn || raw.expectedRevision !== inputs.revision) {
@@ -30691,7 +32209,7 @@ function isWolfForceFieldChoiceResult(value: unknown): value is WolfForceFieldCh
 }
 
 /** Read the configured Captain's pre-target choice without exposing force composition or private notes. */
-export const getWolfForceFieldChoice = onCall<{ sessionId?: unknown }>(async (request) => {
+export const getWolfForceFieldChoice = auditedOnCall<{ sessionId?: unknown }>('getWolfForceFieldChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
@@ -30716,9 +32234,9 @@ export const getWolfForceFieldChoice = onCall<{ sessionId?: unknown }>(async (re
 });
 
 /** Record the current Gorgoneion Captain's explicit Force Field target or pass. */
-export const commitWolfForceFieldChoice = onCall<{
+export const commitWolfForceFieldChoice = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown; targetShipId?: unknown;
-}>(async (request) => {
+}>('commitWolfForceFieldChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'targetShipId']);
@@ -30762,6 +32280,7 @@ export const commitWolfForceFieldChoice = onCall<{
       requireWolfForceFieldCaptainContext(session, player, uid, groupSnapshot, savedChoice, replay.turn);
       return replay;
     }
+    requireCandidateActionAvailable(session, player, requestedTarget === null ? [] : [requestedTarget], ['gorgoneion']);
     const view = wolfForceFieldChoiceViewInputs(sessionId, session, player, uid, groupSnapshot, state);
     if (view.type !== 'wolf-force-field-choice-view') {
       throw commandError('failed-precondition', 'The projector is unavailable for this attack.', 'invalid-phase');
@@ -31064,6 +32583,7 @@ function currentRolePlayer(player: DocumentSnapshot): boolean {
 
 function wolfBoardingCurrentAuthority(
   session: DocumentSnapshot,
+  state: DocumentSnapshot,
   players: readonly DocumentSnapshot[],
   fleetGroupSnapshots: readonly DocumentSnapshot[],
 ): Readonly<{ supportCraft: readonly WolfBoardingCraftAuthority[]; playerShipByUid: ReadonlyMap<string, string> }> {
@@ -31104,17 +32624,21 @@ function wolfBoardingCurrentAuthority(
   try {
     supportCraft = deriveWolfBoardingSupportCraft({
       activeRoleIds, activeVesselIds, dockings,
+      lostShuttleIds: Object.keys(lostShuttlesForSession(session)),
+      consumedShuttleIds: Object.keys(parseCandidateCraftReservations(session.get('candidateCraftReservations'))),
       visits: supportVisits,
       control: session.get('shuttleControl'), fuelled: session.get('shuttleFuelled'),
       roleHolders, playerUids: players.filter(currentRolePlayer)
         .map((player) => player.id),
       retainedShuttles: session.get('retainedShuttles') ?? {},
+      ...(Object.hasOwn(state.data() ?? {}, 'parkedCraftIds')
+        ? { admittedShuttleIds: state.get('parkedCraftIds') } : {}),
     });
   } catch (error) {
     throw commandError('failed-precondition',
       error instanceof Error ? error.message : 'The authoritative boarding shuttle support is malformed.', 'conflict');
   }
-  return { supportCraft, playerShipByUid };
+  return { supportCraft: supportCraft.filter(craft => candidateAvailableVesselIds(session, [craft.hostShipId]).length > 0), playerShipByUid };
 }
 
 function wolfBoardingProtocolSnapshot(
@@ -31124,7 +32648,7 @@ function wolfBoardingProtocolSnapshot(
   fleetGroupSnapshots: readonly DocumentSnapshot[],
 ): WolfBoardingProtocolSnapshot {
   const inputs = wolfBoardingDefenceInputs(session, state);
-  const { supportCraft, playerShipByUid } = wolfBoardingCurrentAuthority(session, players, fleetGroupSnapshots);
+  const { supportCraft, playerShipByUid } = wolfBoardingCurrentAuthority(session, state, players, fleetGroupSnapshots);
   const assignedCommanders = players.filter((player) => currentRolePlayer(player) &&
     player.get('replacementRoleId') === 'wolf-commander').map((player) => player.id);
   if (assignedCommanders.length > 1) {
@@ -31144,8 +32668,25 @@ function wolfBoardingProtocolSnapshot(
   }
   const commanderTarget = isRecord(commanderChoice) && typeof commanderChoice.targetShipId === 'string'
     ? commanderChoice.targetShipId : null;
+  const commanderRuling = state.get('boardingCommanderRuling');
+  const storedRulingRequiredTarget = state.get('boardingCommanderRulingRequiredTarget');
+  const commanderRulingRequiredTarget = typeof storedRulingRequiredTarget === 'string'
+    ? storedRulingRequiredTarget : commanderTarget ?? undefined;
+  if (commanderRulingRequiredTarget !== undefined &&
+      (commanderRulingRequiredTarget !== commanderTarget ||
+       !baseAttackedTargets.some(({ target }) => target === commanderRulingRequiredTarget))) {
+    throw commandError('failed-precondition', 'The pending Commander ruling target is malformed.', 'conflict');
+  }
+  if (commanderRuling !== undefined && (!isRecord(commanderRuling) ||
+      typeof commanderRuling.actorUid !== 'string' || typeof commanderRuling.text !== 'string' ||
+      !commanderRuling.text.trim() || commanderRuling.targetShipId !== commanderRulingRequiredTarget)) {
+    throw commandError('failed-precondition', 'The facilitator boarding ruling is malformed.', 'conflict');
+  }
+  const ruledCommanderTarget = typeof commanderTarget === 'string' &&
+    commanderRulingRequiredTarget === commanderTarget && isRecord(commanderRuling) &&
+    commanderRuling.targetShipId === commanderTarget ? commanderTarget : null;
   const attackedTargets = baseAttackedTargets.map(({ target, boardingParties }) => ({ target,
-    boardingParties: boardingParties + (target === commanderTarget ? 2 : 0) }));
+    boardingParties: boardingParties + (target === ruledCommanderTarget ? 2 : 0) }));
   const relocationChoicesValue = state.get('boardingRelocationChoices');
   const defenceChoicesValue = state.get('boardingDefenceChoices');
   const militiaChoicesValue = state.get('boardingMilitiaChoices');
@@ -31193,13 +32734,6 @@ function wolfBoardingProtocolSnapshot(
   const lockedDefence = (rawLocked ?? []) as readonly WolfBoardingDefence[];
   const diceCounts = Object.fromEntries(inputs.targetRing.map((target) => [target,
     lockedDefence.find((entry) => entry.target === target)?.lockedRolls?.length ?? 0]));
-  const commanderRuling = state.get('boardingCommanderRuling');
-  const commanderRulingRequiredTarget = state.get('boardingCommanderRulingRequiredTarget');
-  if (commanderRuling !== undefined && (!isRecord(commanderRuling) ||
-      typeof commanderRuling.actorUid !== 'string' || typeof commanderRuling.text !== 'string' ||
-      !commanderRuling.text.trim())) {
-    throw commandError('failed-precondition', 'The facilitator boarding ruling is malformed.', 'conflict');
-  }
   const protocol: WolfBoardingProtocolInput = {
     attackedTargets,
     ...(assignedCommanders[0] ? { commanderUid: assignedCommanders[0] } : {}),
@@ -31217,7 +32751,7 @@ function wolfBoardingProtocolSnapshot(
     ...(executiveOfficers[0] ? { aegisRerollActorUid: executiveOfficers[0].id } : {}),
     ...(pallas ? { pallasRerollActorUid: pallas.holderUid } : {}),
     rerollChoices,
-    ...(typeof commanderRulingRequiredTarget === 'string' ? { commanderRulingRequiredTarget } : {}),
+    ...(commanderRulingRequiredTarget ? { commanderRulingRequiredTarget } : {}),
     ...(isRecord(commanderRuling) ? { commanderRuling: {
       actorUid: commanderRuling.actorUid as string, text: commanderRuling.text as string,
     } } : {}),
@@ -31271,7 +32805,7 @@ function isWolfBoardingDefenceChoiceResult(value: unknown): value is WolfBoardin
 }
 
 /** Read only the current target ship's boarding choice and its team inventory. */
-export const getWolfBoardingDefenceChoice = onCall<{ sessionId?: unknown }>(async (request) => {
+export const getWolfBoardingDefenceChoice = auditedOnCall<{ sessionId?: unknown }>('getWolfBoardingDefenceChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
@@ -31333,10 +32867,10 @@ export const getWolfBoardingDefenceChoice = onCall<{ sessionId?: unknown }>(asyn
 });
 
 /** Reserve the target ship crew's explicit 0..available Security Teams choice. */
-export const commitWolfBoardingDefenceChoice = onCall<{
+export const commitWolfBoardingDefenceChoice = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown;
   targetShipId?: unknown; securityTeams?: unknown;
-}>(async (request) => {
+}>('commitWolfBoardingDefenceChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'targetShipId', 'securityTeams']);
@@ -31385,6 +32919,7 @@ export const commitWolfBoardingDefenceChoice = onCall<{
       requireCurrentWolfAttackReceipt(session, state, replay.turn, replay.attackId);
       return replay;
     }
+    requireCandidateActionAvailable(session, player, [raw.targetShipId as string]);
     const snapshot = wolfBoardingProtocolSnapshot(session, state, players.docs, groups.docs);
     const inputs = snapshot.inputs;
     if (!inputs.targetRing.includes(targetShipId) || inputs.boardingParties[targetShipId] < 1) {
@@ -31448,7 +32983,7 @@ type WolfBoardingSpecialChoiceView = Readonly<{
       dice: readonly Readonly<{ dieIndex: number; value: number }>[]; maxRerolls: 3;
       alreadyRerolled: readonly number[] }>
     | Readonly<{ kind: 'commander-ruling'; targetShipId: WolfFleetTargetId;
-      condition: 'All Commander-led Wolf Boarding Parties were destroyed.' }>;
+      condition: 'HOUSE RULE: The optional +2 Commander boarding request remains pending until the current live GM records the consequence for what happens if all Commander-led Wolf Boarding Parties are destroyed. No automatic consequence or default outcome is assumed.' }>;
 }>;
 
 type WolfBoardingSpecialChoiceReadResult = WolfBoardingSpecialChoiceView | Readonly<{
@@ -31486,13 +33021,13 @@ function requireWolfBoardingSpecialPlayer(player: DocumentSnapshot, uid: string)
       player.get('replacementStatus') != null) {
     throw new HttpsError('permission-denied', 'An active player with current boarding authority is required.');
   }
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
 }
 
 /** Return only the current actor's next boarding choice and only the dice that actor may reroll. */
-export const getWolfBoardingSpecialChoice = onCall<{
+export const getWolfBoardingSpecialChoice = auditedOnCall<{
   sessionId?: unknown; instanceId?: unknown;
-}>(async (request) => {
+}>('getWolfBoardingSpecialChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some((key) => key !== 'sessionId' && key !== 'instanceId') ||
@@ -31524,7 +33059,7 @@ export const getWolfBoardingSpecialChoice = onCall<{
       return { type: 'wolf-boarding-special-choice-view', sessionId, turn: snapshot.inputs.turn,
         revision: snapshot.inputs.revision, choice: { kind: 'commander-ruling',
           targetShipId: stage.target as WolfFleetTargetId,
-          condition: 'All Commander-led Wolf Boarding Parties were destroyed.' } };
+          condition: 'HOUSE RULE: The optional +2 Commander boarding request remains pending until the current live GM records the consequence for what happens if all Commander-led Wolf Boarding Parties are destroyed. No automatic consequence or default outcome is assumed.' } };
     }
     if (!wolfBoardingStageCanBeActedBy(stage, uid)) return noChoice('not-your-choice');
     if (stage.kind === 'commander') {
@@ -31564,7 +33099,7 @@ export const getWolfBoardingSpecialChoice = onCall<{
         revision: snapshot.inputs.revision, choice: { kind: 'militia', targetShipId: stage.target as WolfFleetTargetId,
           boardingParties, availableSecurityTeams,
           selectedSecurityTeams: defense.securityTeams as number,
-          maxFrontLineDice: Math.min(3, availableSecurityTeams),
+          maxFrontLineDice: 3,
           doubleDiceAvailable: boardingParties > availableSecurityTeams } };
     }
     if (stage.kind === 'aegis-reroll') {
@@ -31584,10 +33119,10 @@ export const getWolfBoardingSpecialChoice = onCall<{
 });
 
 /** Commit one choice made by the current Commander, craft holder, Militia Leader, reroll source, or facilitator. */
-export const commitWolfBoardingSpecialChoice = onCall<{
+export const commitWolfBoardingSpecialChoice = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown;
   instanceId?: unknown; choice?: unknown;
-}>(async (request) => {
+}>('commitWolfBoardingSpecialChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const topKeys = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'instanceId', 'choice']);
@@ -31706,7 +33241,7 @@ export const commitWolfBoardingSpecialChoice = onCall<{
         throw commandError('failed-precondition', 'The saved boarding receipt belongs to an unavailable attack.', 'stale-revision');
       }
       if (kind === 'relocation' || kind === 'reroll' && choice.source === 'pallas') {
-        const { supportCraft } = wolfBoardingCurrentAuthority(session, players.docs, groups.docs);
+        const { supportCraft } = wolfBoardingCurrentAuthority(session, state, players.docs, groups.docs);
         const craftId = kind === 'relocation' ? choice.craftId : 'pallas';
         const authority = supportCraft.find(({ shuttleId }) => shuttleId === craftId);
         const host = kind === 'relocation' ? ledger.hostAfter : ledger.targetShipId;
@@ -31718,6 +33253,8 @@ export const commitWolfBoardingSpecialChoice = onCall<{
       }
       return replay;
     }
+    requireCandidateActionAvailable(session, player, typeof choice.targetShipId === 'string' ? [choice.targetShipId] : [],
+      kind === 'relocation' ? [choice.craftId as string] : kind === 'reroll' && choice.source === 'pallas' ? ['pallas'] : []);
     if (typeof state.get('attackId') !== 'string' || !state.get('attackId')) {
       throw commandError('failed-precondition', 'The current boarding attack identity is unavailable.', 'stale-revision');
     }
@@ -31741,7 +33278,8 @@ export const commitWolfBoardingSpecialChoice = onCall<{
       }
       statePatch = { boardingCommanderChoice: { targetShipId: choiceTargetId, actorUid: uid,
         actorRoleId: 'wolf-commander', requestId, attackId: state.get('attackId'), turn: snapshot.inputs.turn,
-        committedAt, revision: snapshot.inputs.revision + 1 } };
+        committedAt, revision: snapshot.inputs.revision + 1 },
+        ...(choiceTargetId === null ? {} : { boardingCommanderRulingRequiredTarget: choiceTargetId }) };
     } else if (kind === 'relocation') {
       if (stage.kind !== 'relocation' || stage.actorUid !== uid || stage.craftId !== choice.craftId) {
         throw commandError('failed-precondition', 'This shuttle relocation is not currently open.', 'invalid-phase');
@@ -31802,8 +33340,8 @@ export const commitWolfBoardingSpecialChoice = onCall<{
       if (choice.militiaDoubleTeams === true && parties <= available) {
         throw commandError('failed-precondition', 'Double dice are available only while parties outnumber Security Teams.', 'conflict');
       }
-      if ((choice.militiaFrontLineDice as number) > Math.min(3, available)) {
-        throw commandError('failed-precondition', 'Front-line dice exceed the available team risk budget.', 'conflict');
+      if ((choice.militiaFrontLineDice as number) > 3) {
+        throw commandError('failed-precondition', 'The Militia Leader may choose no more than three front-line dice.', 'conflict');
       }
       const previous = isRecord(state.get('boardingMilitiaChoices')) ? state.get('boardingMilitiaChoices') as Record<string, unknown> : {};
       statePatch = { boardingMilitiaChoices: { ...previous, [stage.target]: {
@@ -31964,7 +33502,7 @@ function requireDioneEngineer(player: DocumentSnapshot): void {
       boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) !== 'dione-engineer') {
     throw new HttpsError('permission-denied', 'The active Dione Engineer console is required.');
   }
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
 }
 
 function requireActiveDioneMaliadesCycle(session: DocumentSnapshot): number {
@@ -32125,7 +33663,7 @@ function dioneMaliadesLaunchView(
 }
 
 /** Return only Dione Engineer launch eligibility; hidden attack composition stays server-side. */
-export const getDioneMaliadesLaunch = onCall<{ sessionId?: unknown }>(async request => {
+export const getDioneMaliadesLaunch = auditedOnCall<{ sessionId?: unknown }>('getDioneMaliadesLaunch', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some((key) => key !== 'sessionId')) {
@@ -32145,12 +33683,12 @@ export const getDioneMaliadesLaunch = onCall<{ sessionId?: unknown }>(async requ
 });
 
 /** Admit Maliades to the battle table exactly once under live Dione Engineer authority. */
-export const launchDioneMaliades = onCall<{
+export const launchDioneMaliades = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedTurn?: unknown;
   expectedRevision?: unknown;
-}>(async request => {
+}>('launchDioneMaliades', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision']);
@@ -32188,6 +33726,7 @@ export const launchDioneMaliades = onCall<{
     );
     const replay = replayBoundCommand(receipt, fingerprint, isDioneMaliadesLaunchResult, 'Maliades launch');
     if (replay) return { ...replay, status: 'replayed' };
+    requireCandidateActionAvailable(session, player);
     requireUsableShip(session, 'dione');
     if (audit.exists || event.exists) rejectLegacyEventReplay('Maliades launch');
     requireActiveGameplayPhase(session);
@@ -32302,7 +33841,7 @@ function requirePdfColonel(player: DocumentSnapshot): void {
         'refinery-124-pdf-colonel') {
     throw new HttpsError('permission-denied', 'The active P.D.F. Colonel console is required.');
   }
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
 }
 
 function isPdfEscortWingLaunchResult(value: unknown): value is PdfEscortWingLaunchResult {
@@ -32332,7 +33871,7 @@ function pdfEscortWingLaunchView(
       'invalid-phase',
     );
   }
-  const state = parsePdfEscortWingState(wing.exists ? wing.data() : undefined);
+  const state = pdfEscortWingStateForSession(session, wing.exists ? wing.data() : undefined);
   if (!state) {
     throw commandError('failed-precondition', 'The authoritative PDF Escort Wing state is malformed.', 'conflict');
   }
@@ -32424,7 +33963,7 @@ function pdfEscortWingLaunchView(
 }
 
 /** Return the current P.D.F. Colonel's server-filtered Fighter Bay launch status. */
-export const getPdfEscortWingLaunch = onCall<{ sessionId?: unknown }>(async request => {
+export const getPdfEscortWingLaunch = auditedOnCall<{ sessionId?: unknown }>('getPdfEscortWingLaunch', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some((key) => key !== 'sessionId')) {
@@ -32445,13 +33984,13 @@ export const getPdfEscortWingLaunch = onCall<{ sessionId?: unknown }>(async requ
 });
 
 /** Atomically launch the P.D.F. Escort Wing under Prompt 231's bay and attack gate. */
-export const launchPdfEscortWing = onCall<{
+export const launchPdfEscortWing = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedTurn?: unknown;
   expectedRevision?: unknown;
   expectedWingRevision?: unknown;
-}>(async request => {
+}>('launchPdfEscortWing', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'expectedWingRevision']);
@@ -32491,6 +34030,7 @@ export const launchPdfEscortWing = onCall<{
     const replay = replayBoundCommand(receipt, fingerprint, isPdfEscortWingLaunchResult, 'P.D.F. Escort Wing launch');
     if (replay) return { ...replay, status: 'replayed' };
     requireMissionMovementAvailable(session, ['pdf-escort-fighter-wing']);
+    requireCandidateActionAvailable(session, player);
     requireUsableShip(session, 'refinery-124');
     if (audit.exists) rejectLegacyEventReplay('P.D.F. Escort Wing launch');
     requireActiveGameplayPhase(session);
@@ -32513,7 +34053,7 @@ export const launchPdfEscortWing = onCall<{
               : 'No current Wolf attack is accepting the P.D.F. Escort Wing launch.';
       throw commandError('failed-precondition', message, 'invalid-phase');
     }
-    const state = parsePdfEscortWingState(wing.exists ? wing.data() : undefined);
+    const state = pdfEscortWingStateForSession(session, wing.exists ? wing.data() : undefined);
     if (!state || state.attackCycle !== view.turn || !attack.exists ||
         state.attackId !== attack.get('attackId')) {
       throw commandError('failed-precondition', 'The authoritative PDF Escort Wing state is unavailable.', 'conflict');
@@ -32586,10 +34126,10 @@ function isWolfFighterLaunchChoiceResult(value: unknown): value is WolfFighterLa
 }
 
 /** Record a source's explicit pass against its fresh, entitled launch choice. */
-export const passWolfFighterLaunchChoice = onCall<{
+export const passWolfFighterLaunchChoice = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; sourceId?: unknown; expectedTurn?: unknown;
   expectedRevision?: unknown; expectedWingRevision?: unknown;
-}>(async (request) => {
+}>('passWolfFighterLaunchChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const sourceId = isRecord(raw) && (WOLF_FIGHTER_LAUNCH_SOURCE_IDS as readonly unknown[]).includes(raw.sourceId)
@@ -32638,7 +34178,8 @@ export const passWolfFighterLaunchChoice = onCall<{
       const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
       requireAegisExecutiveOfficerCurrentBerth(player, uid, group);
       requireActiveGameplayPhase(session);
-      requireUsableShip(session, 'aegis');
+      requireCandidateActionAvailable(session, player);
+    requireUsableShip(session, 'aegis');
       view = aegisFighterWingLaunchView(sessionId, session, attack, sourceId);
     } else if (sourceId === 'pdf-escort-fighter-wing') {
       requirePdfColonel(player);
@@ -32735,14 +34276,14 @@ function isWolfConsoleVisitResult(
 }
 
 /** Begin the physical ten-second adjacency observation under live GM authority. */
-export const startWolfConsoleVisit = onCall<{
+export const startWolfConsoleVisit = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   expectedCycle?: unknown;
   targetUid?: unknown;
   targetShipId?: unknown;
-}>(async request => {
+}>('startWolfConsoleVisit', async request => {
   const uid = requireUid(request.auth);
   const observation = requireStartWolfConsoleVisitRequest(request.data ?? {});
   if (!SHIP_DAMAGE_DECKS[observation.targetShipId]) {
@@ -32780,6 +34321,7 @@ export const startWolfConsoleVisit = onCall<{
       'Wolf console visit',
     );
     if (replay) return replay;
+    requireCandidateActionAvailable(session, targetPlayer, [observation.targetShipId]);
     requireActiveGameplayPhase(session);
     const cycle = sessionTurn(session.get('currentTurn'));
     if (cycle < 1 || cycle !== observation.expectedCycle) {
@@ -32916,7 +34458,7 @@ function isWolfConsoleSabotageResult(
 }
 
 /** Resolve one observed console sabotage atomically under facilitator authority. */
-export const resolveWolfConsoleSabotage = onCall<{
+export const resolveWolfConsoleSabotage = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -32924,7 +34466,7 @@ export const resolveWolfConsoleSabotage = onCall<{
   expectedCycle?: unknown;
   mode?: unknown;
   chosenSystemId?: unknown;
-}>(async request => {
+}>('resolveWolfConsoleSabotage', async request => {
   const uid = requireUid(request.auth);
   const submission = requireResolveWolfConsoleSabotageRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${submission.sessionId}`);
@@ -33033,6 +34575,7 @@ export const resolveWolfConsoleSabotage = onCall<{
     const [targetPlayer, loyalty, assignment, currentAction] = await Promise.all([
       tx.get(targetPlayerRef), tx.get(loyaltyRef), tx.get(assignmentRef), tx.get(actionRef),
     ]);
+    requireCandidateActionAvailable(session, targetPlayer, [targetShipId]);
     const authorization = wolfActionAuthorization({
       actorUid,
       active: isActivePlayer(targetPlayer),
@@ -33326,13 +34869,13 @@ function isWolfSupplySabotageResult(
  * Resolve supply sabotage and consume the caller's Wolf-action slot in the
  * same transaction, after every action-specific eligibility check succeeds.
  */
-export const submitWolfSupplySabotage = onCall<{
+export const submitWolfSupplySabotage = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedCycle?: unknown;
   shuttleId?: unknown;
   resourceId?: unknown;
-}>(async (request) => {
+}>('submitWolfSupplySabotage', async (request) => {
   const uid = requireUid(request.auth);
   const submission = requireWolfSupplySabotageRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${submission.sessionId}`);
@@ -33435,6 +34978,7 @@ export const submitWolfSupplySabotage = onCall<{
         'unauthorized',
       );
     }
+    requireCandidateActionAvailable(session, player, [], [submission.shuttleId]);
     const pressHolderUid = session.get('pressHolderUid');
     if (authorization.coverRoleId === 'press-officer' && (
       session.get('pressEnabled') !== true ||
@@ -33890,13 +35434,13 @@ function isAcknowledgeWolfHackingAlertResult(
  * Record facilitator review of one exact private sabotage alert and publish
  * only an actor-free decorative notice to the session's player consoles.
  */
-export const acknowledgeWolfHackingAlert = onCall<{
+export const acknowledgeWolfHackingAlert = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   alertId?: unknown;
   expectedRevision?: unknown;
-}>(async (request) => {
+}>('acknowledgeWolfHackingAlert', async (request) => {
   const uid = requireUid(request.auth);
   const submission = requireAcknowledgeWolfHackingAlertRequest(request.data ?? {});
   const alertRef = db.doc(
@@ -34063,11 +35607,11 @@ function isWolfHomingBeaconResult(
  * server-owned current system. This callable never declares or starts an
  * attack; the schedule explicitly becomes eligible only after cycle start.
  */
-export const submitWolfHomingBeacon = onCall<{
+export const submitWolfHomingBeacon = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedCycle?: unknown;
-}>(async (request) => {
+}>('submitWolfHomingBeacon', async (request) => {
   const uid = requireUid(request.auth);
   const submission = requireWolfHomingBeaconRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${submission.sessionId}`);
@@ -34154,6 +35698,7 @@ export const submitWolfHomingBeacon = onCall<{
         'unauthorized',
       );
     }
+    requireCandidateActionAvailable(session, player);
     const pressHolderUid = session.get('pressHolderUid');
     if (authorization.coverRoleId === 'press-officer' && (
       session.get('pressEnabled') !== true ||
@@ -34368,12 +35913,12 @@ function isWolfIntelligenceResult(
 }
 
 /** Send the Wolf's short private handler message and apply its printed suspicion cost. */
-export const submitWolfIntelligence = onCall<{
+export const submitWolfIntelligence = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedCycle?: unknown;
   message?: unknown;
-}>(async (request) => {
+}>('submitWolfIntelligence', async (request) => {
   const uid = requireUid(request.auth);
   const submission = requireWolfIntelligenceRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${submission.sessionId}`);
@@ -34442,6 +35987,7 @@ export const submitWolfIntelligence = onCall<{
         'unauthorized',
       );
     }
+    requireCandidateActionAvailable(session, player);
     const pressHolderUid = session.get('pressHolderUid');
     if (authorization.coverRoleId === 'press-officer' && (
       session.get('pressEnabled') !== true ||
@@ -34622,12 +36168,12 @@ function privateLoyaltyPayload(
 }
 
 /** Resolve one private Intelligence Agent investigation with server-owned 4-in-5 accuracy. */
-export const investigateAsIntelligenceAgent = onCall<{
+export const investigateAsIntelligenceAgent = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedCycle?: unknown;
   targetUid?: unknown;
-}>(async (request) => {
+}>('investigateAsIntelligenceAgent', async (request) => {
   const uid = requireUid(request.auth);
   const submission = requireIntelligenceInvestigationRequest(request.data ?? {});
   if (submission.targetUid === uid) {
@@ -34764,7 +36310,7 @@ export const investigateAsIntelligenceAgent = onCall<{
       suspicion: newSuspicion,
     };
     tx.update(actorLoyaltyRef, {
-      payload: { type: 'loyalty', kind: 'intelligence-agent', suspicion: newSuspicion },
+      payload: { ...(actorLoyalty.get('payload') as Record<string, unknown>), suspicion: newSuspicion },
     });
     tx.set(censusRef, {
       type: 'loyalty-census', revision: (censusRevision as number) + 1,
@@ -34789,7 +36335,7 @@ export const investigateAsIntelligenceAgent = onCall<{
 });
 
 /** AEGIS may grant the SNN Press shuttle a limited exception during restricted airspace. */
-export const unlockPressAirspace = onCall<{ sessionId?: unknown; instanceId?: unknown }>(async request => {
+export const unlockPressAirspace = auditedOnCall<{ sessionId?: unknown; instanceId?: unknown }>('unlockPressAirspace', async request => {
   const uid = requireUid(request.auth);
   const requestData = requireAirspaceRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${requestData.sessionId}`);
@@ -34803,6 +36349,7 @@ export const unlockPressAirspace = onCall<{ sessionId?: unknown; instanceId?: un
       tx.get(sessionRef), tx.get(attackStateRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireCandidateActionAvailable(session, player, ['aegis']);
     requireActiveGameplayPhase(session);
     if (session.get('pressEnabled') === false) {
       throw commandError('failed-precondition', 'Press is disabled.', 'unauthorized');
@@ -34824,7 +36371,7 @@ export const unlockPressAirspace = onCall<{ sessionId?: unknown; instanceId?: un
     // Heal the shared clock before evaluating a restriction-only exception.
     if (
       phase.airspace.state === 'restricted' &&
-      Date.now() >= Date.parse(phase.teamPhaseEndsAt) &&
+      turnPhaseDeadlinePassed(phase, 'team') &&
       (!attackState.exists || !wolfAttackBlocksNormalMovement(attackState.data()))
     ) {
       const turnPhase = {
@@ -34865,40 +36412,40 @@ export const unlockPressAirspace = onCall<{ sessionId?: unknown; instanceId?: un
 });
 
 /** Enable or disable a playable role for this session. */
-export const setActiveRoleEnabled = onCall<{
+export const setActiveRoleEnabled = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   roleId?: string;
   enabled?: boolean;
-}>(async (request) => {
+}>('setActiveRoleEnabled', async (request) => {
   requireUid(request.auth);
   return rejectLegacySetupMutation();
 });
 
 /** Apply the GM-reviewed roster atomically; individual draft edits never reach the server. */
-export const setActiveRoleConfiguration = onCall<{
+export const setActiveRoleConfiguration = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   activeRoleIds?: unknown;
-}>(async (request) => {
+}>('setActiveRoleConfiguration', async (request) => {
   requireUid(request.auth);
   return rejectLegacySetupMutation();
 });
 
 /** Replace role availability with the recommended player-count template. */
-export const applyRolePreset = onCall<{
+export const applyRolePreset = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   playerCount?: number;
-}>(async (request) => {
+}>('applyRolePreset', async (request) => {
   requireUid(request.auth);
   return rejectLegacySetupMutation();
 });
 
 /** Fire a ship's one-use confetti dispenser and atomically add its GM log event. */
-export const popShipConfetti = onCall<{
+export const popShipConfetti = auditedOnCall<{
   sessionId?: string; shipId?: string; roleId?: string; requestId?: string; instanceId?: string;
-}>(async (request) => {
+}>('popShipConfetti', async (request) => {
   const uid = requireUid(request.auth);
   const activation = requireShipConfettiRequest(request.data ?? {});
   const shipId = activation.shipId;
@@ -34933,7 +36480,7 @@ export const popShipConfetti = onCall<{
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
-    requirePlayerShipActionAuthority(player);
+    requirePlayerShipActionAuthority(player, true);
     if (player.get('role') === 'gm' && (
       !activation.instanceId || !instance || !isLiveGmInstance(instance, player, uid) ||
       !grant || !hasGmShipConsoleWriteGrant(grant, activation.sessionId, activation.instanceId, uid, shipId)
@@ -35038,6 +36585,7 @@ export const popShipConfetti = onCall<{
       const replay = replayBoundCommand(prior, fingerprint,
         (value): value is 'fired' => value === 'fired', 'Press dispenser');
       if (replay) return replay;
+    requireCandidateActionAvailable(session, player, [shipId]);
     }
     if (decision.kind === 'awaiting-officer') {
       tx.set(approvalRef, { approvals: decision.approvals, updatedAt: FieldValue.serverTimestamp() });
@@ -35093,7 +36641,7 @@ export const popShipConfetti = onCall<{
 });
 
 /** Connected-player count used for the last-player disconnect warning. */
-export const getSessionPresence = onCall<{ sessionId?: string }>(async (request) => {
+export const getSessionPresence = auditedOnCall<{ sessionId?: string }>('getSessionPresence', async (request) => {
   const uid = requireUid(request.auth);
   const { sessionId } = requireSessionRequest(request.data ?? {});
   const member = await db.doc(`sessions/${sessionId}/players/${uid}`).get();
@@ -35125,11 +36673,11 @@ function isEscapeMutationResult(value: unknown, sessionId: string): value is Esc
 }
 
 /** The affected player explicitly leaves the destroyed ship's station. */
-export const fleeDestroyedShip = onCall<{
+export const fleeDestroyedShip = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedSetupRevision?: unknown;
-}>(async (request) => {
+}>('fleeDestroyedShip', async (request) => {
   const uid = requireUid(request.auth);
   const decision = requireEscapeRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${decision.sessionId}`);
@@ -35219,9 +36767,9 @@ export const fleeDestroyedShip = onCall<{
 });
 
 /** Renew the short server-side lease that distinguishes live devices from ghosts. */
-export const refreshPresence = onCall<{
+export const refreshPresence = auditedOnCall<{
   sessionId?: string; activeConsoleRoleId?: string | null; instanceId?: string;
-}>(async (request) => {
+}>('refreshPresence', async (request) => {
   const uid = requireUid(request.auth);
   const { sessionId, instanceId, activeConsoleRoleId } = requirePresenceRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${sessionId}`);
@@ -35237,6 +36785,115 @@ export const refreshPresence = onCall<{
   const wolfSecretRef = db.doc(`sessions/${sessionId}/secrets/wolf-assignment`);
   const censusRef = db.doc(`sessions/${sessionId}/loyaltyCensus/current`);
   const reconciliationRef = presenceReconciliationRef(sessionId, uid);
+
+  if (typeof activeConsoleRoleId === 'string' && activeConsoleRoleId !== 'press-officer' && !instanceId) {
+    const seatRef = db.doc(`sessions/${sessionId}/seats/${activeConsoleRoleId}`);
+    const holdersRef = playersRef.where('activeConsoleRoleId', '==', activeConsoleRoleId);
+    const configurationFence = (session: DocumentSnapshot) => ({
+      setupRevision: session.get('setupRevision'), setup: session.get('setup'),
+      phase: session.get('phase'), configurationLocked: session.get('configurationLocked'),
+      roleIds: configuredRoleIds(session),
+    });
+    // Query exclusivity without retaining query locks while renewing a lease.
+    // Even inactive legacy markers keep the original reconciliation below:
+    // reconnect can revive those markers without creating a new seat claim.
+    const preflight = await db.runTransaction(async tx => {
+      const [player, session, seat, membership] = await Promise.all([
+        tx.get(playerRef), tx.get(sessionRef), tx.get(seatRef), tx.get(membershipRef),
+      ]);
+      if (!hasStableCorePresenceAuthority(session, player, seat, membership, sessionId, uid, activeConsoleRoleId) ||
+          fleetTickerBaselineDecision(sessionId, session, new Date().toISOString()).changed) return null;
+      const holders = await tx.get(holdersRef);
+      if (holders.docs.length !== 1 || holders.docs[0]!.id !== uid) return null;
+      return { generation: player.get('connectionGeneration'), configuration: configurationFence(session) };
+    }, { readOnly: true });
+    if (preflight !== null) {
+      const renewed = await db.runTransaction(async tx => {
+        const [player, session, seat, membership] = await Promise.all([
+          tx.get(playerRef), tx.get(sessionRef), tx.get(seatRef), tx.get(membershipRef),
+        ]);
+        if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Reconnect to the session first.');
+        if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+        if (!hasStableCorePresenceAuthority(session, player, seat, membership, sessionId, uid, activeConsoleRoleId) ||
+            player.get('connectionGeneration') !== preflight.generation ||
+            !isDeepStrictEqual(configurationFence(session), preflight.configuration)) {
+          throw commandError(
+            'permission-denied',
+            'That station is no longer available to this browser. Return to station select and reselect your role.',
+            'station-selection-required',
+          );
+        }
+        // Expiry or a concurrent ticker producer can make a root write necessary.
+        // That calculation remains on the full authoritative transaction.
+        if (fleetTickerBaselineDecision(sessionId, session, new Date().toISOString()).changed) return false;
+        tx.update(playerRef, { lastSeenAt: FieldValue.serverTimestamp() });
+        tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
+        tx.set(reconciliationRef, {
+          lastFullReconciliationAt: presenceReconciliationTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        return true;
+      });
+      if (renewed) return { sessionId };
+    }
+  }
+  if (!instanceId && activeConsoleRoleId === 'press-officer') {
+    const stableCurrentPress = (
+      session: DocumentSnapshot, player: DocumentSnapshot, membership: DocumentSnapshot,
+    ) => {
+      const generation = player.get('connectionGeneration');
+      return session.exists && hasStablePressAuthority(session, player, uid) &&
+        player.get('uid') === uid && player.get('sessionId') === sessionId &&
+        player.get('lastSeenAt') instanceof Timestamp && player.get('escapeState') == null &&
+        Number.isSafeInteger(generation) && (generation as number) >= 1 &&
+        membership.exists && membership.get('sessionId') === sessionId;
+    };
+    const configurationFence = (session: DocumentSnapshot) => ({
+      setupRevision: session.get('setupRevision'), setup: session.get('setup'),
+      phase: session.get('phase'), configurationLocked: session.get('configurationLocked'),
+      pressEnabled: session.get('pressEnabled'), pressHolderUid: session.get('pressHolderUid'),
+    });
+    // Like Core renewal, check legacy exclusivity without retaining a query
+    // transaction while writing a lease. Canonical holder and actor authority
+    // must still match in the original atomic writing transaction.
+    const preflight = await db.runTransaction(async tx => {
+      const [player, session, membership] = await Promise.all([
+        tx.get(playerRef), tx.get(sessionRef), tx.get(membershipRef),
+      ]);
+      if (!stableCurrentPress(session, player, membership) ||
+          fleetTickerBaselineDecision(sessionId, session, new Date().toISOString()).changed) return null;
+      const holders = await tx.get(pressHoldersRef);
+      if (!isSolePressHolder(holders.docs, uid)) return null;
+      return { generation: player.get('connectionGeneration'), configuration: configurationFence(session) };
+    }, { readOnly: true });
+    if (preflight !== null) {
+      const renewed = await db.runTransaction(async tx => {
+        const [player, session, membership] = await Promise.all([
+          tx.get(playerRef), tx.get(sessionRef), tx.get(membershipRef),
+        ]);
+        if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Reconnect to the session first.');
+        if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+        if (!stableCurrentPress(session, player, membership) ||
+            player.get('connectionGeneration') !== preflight.generation ||
+            !isDeepStrictEqual(configurationFence(session), preflight.configuration)) {
+          throw commandError(
+            'permission-denied',
+            'Press is no longer available to this browser. Return to station select and reselect your role.',
+            'station-selection-required',
+          );
+        }
+        if (fleetTickerBaselineDecision(sessionId, session, new Date().toISOString()).changed) return false;
+        tx.update(playerRef, { lastSeenAt: FieldValue.serverTimestamp() });
+        tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
+        tx.set(reconciliationRef, {
+          lastFullReconciliationAt: presenceReconciliationTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        return true;
+      });
+      if (renewed) return { sessionId };
+    }
+  }
   const stationSelectionRequired = await db.runTransaction(async (tx) => {
     const requestedRoleId = activeConsoleRoleId ?? null;
     const roleHolders = requestedRoleId
@@ -35299,6 +36956,7 @@ export const refreshPresence = onCall<{
       reconciliation.get('lastFullReconciliationAt'),
     );
     const cheapHeartbeat = activeConsoleRoleId === undefined &&
+      !hasPressState(player) &&
       !invalidCurrentCoreAuthority &&
       lastFullReconciliationAt !== undefined &&
       Date.now() - lastFullReconciliationAt < PRESENCE_RECONCILIATION_INTERVAL_MS;
@@ -35314,14 +36972,38 @@ export const refreshPresence = onCall<{
       tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
       return false;
     }
+    // A current Press holder still validates exclusivity on every renewal,
+    // but needs neither other core players' locks nor private cleanup inputs.
+    // A claim, release, legacy duplicate, or invalid authority continues below.
+    if ((activeConsoleRoleId === undefined || activeConsoleRoleId === 'press-officer') &&
+        hasStablePressAuthority(session, player, uid)) {
+      const currentPressHolders = await tx.get(pressHoldersRef);
+      if (isSolePressHolder(currentPressHolders.docs, uid)) {
+        ensureFleetTickerBaseline(tx, sessionRef, session, new Date().toISOString());
+        tx.update(playerRef, { lastSeenAt: FieldValue.serverTimestamp() });
+        tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
+        tx.set(reconciliationRef, {
+          lastFullReconciliationAt: presenceReconciliationTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        return false;
+      }
+    }
+    // Only Press reconciliation can remove private loyalty state or change
+    // the shared Press holder. Ordinary console leases still validate their
+    // current/requested seats and role holder, without locking the whole table.
+    const reconcilePress = hasPressState(player) || requestedRoleId === 'press-officer';
     const [holders, pressHolders, wolfSecret, players, secrets, census] = await Promise.all([
       roleHolders ? tx.get(roleHolders) : null,
-      tx.get(pressHoldersRef),
-      tx.get(wolfSecretRef),
-      tx.get(playersRef),
-      tx.get(secretsRef),
-      tx.get(censusRef),
+      reconcilePress ? tx.get(pressHoldersRef) : null,
+      reconcilePress ? tx.get(wolfSecretRef) : null,
+      reconcilePress ? tx.get(playersRef) : null,
+      reconcilePress ? tx.get(secretsRef) : null,
+      reconcilePress ? tx.get(censusRef) : null,
     ]);
+    if (reconcilePress && !isActivePlayer(player)) {
+      throw new HttpsError('permission-denied', 'Reconnect to the session first.');
+    }
     ensureFleetTickerBaseline(tx, sessionRef, session, new Date().toISOString());
     const presenceUpdate: Record<string, unknown> = {
       lastSeenAt: FieldValue.serverTimestamp(),
@@ -35329,8 +37011,8 @@ export const refreshPresence = onCall<{
     };
     const removedLoyaltyUids = new Set<string>();
     let pressHolderUidUpdate: string | null | undefined;
-    const otherActivePressHolders = pressHolders.docs.filter((holder) =>
-      holder.id !== uid && isAuthoritativePressHolder(holder));
+    const otherActivePressHolders = pressHolders?.docs.filter((holder) =>
+      holder.id !== uid && isAuthoritativePressHolder(holder)) ?? [];
     const currentPressAuthority = player.get('activeConsoleRoleId') === 'press-officer';
     const invalidCurrentPressAuthority = currentPressAuthority && (
       session.get('pressEnabled') === false || player.get('role') !== 'player' ||
@@ -35349,7 +37031,7 @@ export const refreshPresence = onCall<{
           sessionId,
           player,
           wolfSecretRef,
-          wolfSecret,
+          wolfSecret!,
           otherActivePressHolders.length === 0,
         )) removedLoyaltyUids.add(player.id);
         const storedPressHolderUid = session.get('pressHolderUid');
@@ -35442,16 +37124,17 @@ export const refreshPresence = onCall<{
         );
       }
       if (isPressRequest) {
-        for (const holder of pressHolders.docs) {
+        for (const holder of pressHolders!.docs) {
           if (holder.id === uid || isAuthoritativePressHolder(holder)) continue;
           tx.update(holder.ref, releasedPressFields(holder));
-          if (clearPressPrivateState(tx, sessionId, holder, wolfSecretRef, wolfSecret, false)) {
+          if (clearPressPrivateState(tx, sessionId, holder, wolfSecretRef, wolfSecret!, false)) {
             removedLoyaltyUids.add(holder.id);
           }
         }
         if (player.get('assignedRoleId') === 'press-officer') {
           presenceUpdate.assignedRoleId = null;
         }
+        presenceUpdate.replacementStatus = null;
         pressHolderUidUpdate = uid;
       }
       presenceUpdate.activeConsoleRoleId = requestedRoleId;
@@ -35467,11 +37150,11 @@ export const refreshPresence = onCall<{
         tx,
         sessionId,
         setupRevision(session),
-        secrets.docs ?? [],
-        players.docs,
+        secrets!.docs ?? [],
+        players!.docs,
         configuredRoleIds(session),
         new Map([...removedLoyaltyUids].map((removedUid) => [removedUid, null])),
-        census,
+        census!,
       );
     }
     tx.update(playerRef, presenceUpdate);
@@ -35500,11 +37183,11 @@ export const refreshPresence = onCall<{
 });
 
 /** Mark this identity disconnected and start retention on a transition to empty. */
-export const disconnectFromSession = onCall<{
+export const disconnectFromSession = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   connectionGeneration?: number;
-}>(async (request) => {
+}>('disconnectFromSession', async (request) => {
   const uid = requireUid(request.auth);
   const { sessionId, instanceId, connectionGeneration } = requireDisconnectRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${sessionId}`);
@@ -35943,13 +37626,13 @@ function sameSeatMutationFingerprint(value: unknown, expected: SeatMutationFinge
 }
 
 /** Claim an open seat. First transaction wins; losers get a clean error. */
-export const claimSeat = onCall<{
+export const claimSeat = auditedOnCall<{
   sessionId: string;
   seatId: string;
   requestId: string;
   expectedSetupRevision: number;
 }>(
-  async (request) => {
+  'claimSeat', async (request) => {
     const uid = requireUid(request.auth);
     const parsed = requireSessionSeatRequest(request.data ?? {});
     const { sessionId, seatId } = parsed;
@@ -35972,7 +37655,7 @@ export const claimSeat = onCall<{
       expectedRevision: revisioned.expectedSetupRevision,
       payload: { seatId },
     };
-    return db.runTransaction(async (tx): Promise<SeatMutationReceipt> => {
+    const resolveClaim = async (tx: Transaction): Promise<SeatMutationReceipt> => {
         const [prior, marker, session, seat, player, legacyEvent] = await Promise.all([
           tx.get(requestRef), tx.get(markerRef), tx.get(sessionRef), tx.get(seatRef), tx.get(playerRef),
           tx.get(eventRef),
@@ -36082,12 +37765,24 @@ export const claimSeat = onCall<{
         });
         tx.set(markerRef, { fingerprint: markerFingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
         return reply;
-    });
+    };
+    // An exact receipt is a read of an already committed result. Use one
+    // consistent current snapshot for the original live-player, actor,
+    // fingerprint and command-namespace checks, without holding write locks
+    // against simultaneous browser presence renewals or other receipt reads.
+    const replay = await db.runTransaction(async (tx) => {
+      const prior = await tx.get(requestRef);
+      return prior.exists ? resolveClaim(tx) : null;
+    }, { readOnly: true });
+    if (replay !== null) return replay;
+    // A missing receipt still follows the unchanged authoritative mutation
+    // transaction, including casting, revision, seat and pointer checks.
+    return db.runTransaction(resolveClaim);
   },
 );
 
 /** Release a seat you hold, or -- as GM -- any seat. */
-export const releaseSeat = onCall<{
+export const releaseSeat = auditedOnCall<{
   sessionId: string;
   seatId: string;
   requestId: string;
@@ -36095,7 +37790,7 @@ export const releaseSeat = onCall<{
   instanceId?: string;
   reason?: string;
 }>(
-  async (request) => {
+  'releaseSeat', async (request) => {
     const uid = requireUid(request.auth);
     const parsed = requireSessionSeatRequest(request.data ?? {});
     const { sessionId, seatId } = parsed;
@@ -36247,8 +37942,8 @@ export const releaseSeat = onCall<{
 );
 
 /** Elevate a player to GM. Only an existing GM (or the session owner) may. */
-export const elevateToGm = onCall<{ sessionId: string; targetUid: string; instanceId?: string }>(
-  async (request) => {
+export const elevateToGm = auditedOnCall<{ sessionId: string; targetUid: string; instanceId?: string }>(
+  'elevateToGm', async (request) => {
     const uid = requireUid(request.auth);
     const { sessionId, targetUid, instanceId } = requireElevationRequest(request.data ?? {});
     const sessionRef = db.doc('sessions/' + sessionId);
@@ -36475,7 +38170,7 @@ async function requireShipCounterAuthority(
   ]);
   if (!session.exists) throw new HttpsError('not-found', 'No such session.');
   if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
   if (!activeVesselIdsForSession(session).includes(shipId)) {
     throw commandError('failed-precondition', 'That ship is not active in this session.', 'conflict');
   }
@@ -36497,7 +38192,7 @@ async function requireShipCounterAuthority(
     }
     return;
   }
-  if (!allowMutinyResolution) requireUsableShip(session, shipId);
+  if (!allowMutinyResolution) requireUsableShip(session, shipId, true);
   const ownRole = player.get('activeConsoleRoleId');
   const replacementRoleId = player.get('replacementRoleId');
   if (!replacementAuthorityAllowsRole(
@@ -36533,12 +38228,12 @@ async function requireConsoleAuthority(
   if (!session.exists) throw new HttpsError('not-found', 'No such session.');
   if (!allowMutinyResolution) {
     const targetShipId = shipForRole(targetRole);
-    if (targetShipId) requireUsableShip(session, targetShipId);
+    if (targetShipId) requireUsableShip(session, targetShipId, true);
   }
   const activeRoleIds = configuredRoleIds(session);
   const ownRole = player.get('activeConsoleRoleId');
   const replacementRoleId = player.get('replacementRoleId');
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
   if (player.get('role') !== 'gm' && !replacementAuthorityAllowsRole(
     replacementRoleId, targetRole, player.get('replacementStatus'),
   )) {
@@ -36613,14 +38308,14 @@ type StoredUnrestAlert = {
 };
 
 /** Reconcile all retained stores from one destroyed ship exactly once. */
-export const scavengeDestroyedShipStores = onCall<{
+export const scavengeDestroyedShipStores = auditedOnCall<{
   sessionId: string;
   instanceId: string;
   requestId: string;
   sourceShipId: string;
   expectedRevision: number;
   allocations: Record<string, Record<string, number>>;
-}>(async (request) => {
+}>('scavengeDestroyedShipStores', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipStoreScavengeRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
@@ -36664,7 +38359,7 @@ export const scavengeDestroyedShipStores = onCall<{
         !isLiveGmInstance(instance, player, uid)) {
       throw new HttpsError('permission-denied', 'Active GM instance required.');
     }
-    requirePlayerShipActionAuthority(player);
+    requirePlayerShipActionAuthority(player, true);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'destroyed-ship store scavenge');
     if (replay) {
       ensureVesselActionAuditForReplay(
@@ -36680,6 +38375,7 @@ export const scavengeDestroyedShipStores = onCall<{
         'conflict',
       );
     }
+    requireCandidateActionAvailable(session, player, [change.sourceShipId, ...Object.keys(change.allocations)]);
     requireActiveGameplayPhase(session);
     if (priorState.exists) {
       throw commandError(
@@ -36831,10 +38527,10 @@ export const scavengeDestroyedShipStores = onCall<{
   });
 });
 
-export const adjustShipResource = onCall<{
+export const adjustShipResource = auditedOnCall<{
   sessionId: string; shipId: string; resourceId: string; delta: number; instanceId?: string;
   requestId?: string; expectedRevision?: number;
-}>(async (request) => {
+}>('adjustShipResource', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipCounterRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
@@ -36868,6 +38564,7 @@ export const adjustShipResource = onCall<{
       throw commandError('failed-precondition',
         'This resource adjustment has a standardized audit without its bound receipt.', 'conflict');
     }
+    requireCandidateActionAvailable(session, player, [change.shipId]);
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -36904,10 +38601,10 @@ export const adjustShipResource = onCall<{
   });
 });
 
-export const adjustShipUnrest = onCall<{
+export const adjustShipUnrest = auditedOnCall<{
   sessionId: string; shipId: string; delta: number; instanceId?: string;
   requestId?: string; expectedRevision?: number;
-}>(async (request) => {
+}>('adjustShipUnrest', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipUnrestRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
@@ -36941,6 +38638,7 @@ export const adjustShipUnrest = onCall<{
       throw commandError('failed-precondition',
         'This unrest adjustment has a standardized audit without its bound receipt.', 'conflict');
     }
+    requireCandidateActionAvailable(session, player, [change.shipId]);
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -36998,9 +38696,9 @@ export const adjustShipUnrest = onCall<{
  * consent is tied to the ship's vessel revision and current turn so a later
  * counter change or captain replacement cannot authorize a stale action.
  */
-export const consentCommissarPurge = onCall<{
+export const consentCommissarPurge = auditedOnCall<{
   sessionId: string; shipId: string; requestId: string; expectedRevision: number;
-}>(async (request) => {
+}>('consentCommissarPurge', async (request) => {
   const uid = requireUid(request.auth);
   const consent = requireCommissarPurgeRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${consent.sessionId}`);
@@ -37085,9 +38783,9 @@ export const consentCommissarPurge = onCall<{
 });
 
 /** Apply one printed survivor-track loss and one unrest reduction atomically. */
-export const applyCommissarPurge = onCall<{
+export const applyCommissarPurge = auditedOnCall<{
   sessionId: string; shipId: string; requestId: string; expectedRevision: number;
-}>(async (request) => {
+}>('applyCommissarPurge', async (request) => {
   const uid = requireUid(request.auth);
   const purge = requireCommissarPurgeRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${purge.sessionId}`);
@@ -37239,9 +38937,9 @@ export const applyCommissarPurge = onCall<{
 });
 
 /** Refresh the caller's private Commissar authority projection after reconnect or role replacement. */
-export const getCommissarPurgeAuthority = onCall<{
+export const getCommissarPurgeAuthority = auditedOnCall<{
   sessionId: string;
-}>(async (request) => {
+}>('getCommissarPurgeAuthority', async (request) => {
   const uid = requireUid(request.auth);
   const authorityRequest = requireSessionRequest(request.data ?? {});
   return db.runTransaction(async (tx) => {
@@ -37262,9 +38960,9 @@ export const getCommissarPurgeAuthority = onCall<{
   });
 });
 
-export const dismissUnrestAlert = onCall<{
+export const dismissUnrestAlert = auditedOnCall<{
   sessionId: string; shipId: string; instanceId: string; requestId?: string; expectedRevision?: number;
-}>(async (request) => {
+}>('dismissUnrestAlert', async (request) => {
   const uid = requireUid(request.auth);
   const dismissal = requireUnrestDismissalRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
@@ -37284,6 +38982,7 @@ export const dismissUnrestAlert = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'unrest dismissal');
     if (replay) return replay;
+    requireCandidateActionAvailable(session, player, [dismissal.shipId]);
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, dismissal.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -37322,11 +39021,11 @@ const SMALL_SHIP_CAPTAIN_ROLE_IDS: Readonly<Record<SmallShipId, string>> = {
 type MutinyRecoveryMode = 'captain-swap' | 'replacement-transfer' | 'crew-attestation';
 
 /** Install a different captain and record the facilitator's printed 1–3 reduction. */
-export const resolveShipMutiny = onCall<{
+export const resolveShipMutiny = auditedOnCall<{
   sessionId?: unknown; instanceId?: unknown; requestId?: unknown;
   shipId?: unknown; newCaptainUid?: unknown; reduction?: unknown; expectedRevision?: unknown;
   recoveryMode?: unknown; expectedEligibilityRevision?: unknown;
-}>(async request => {
+}>('resolveShipMutiny', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = [
@@ -37518,6 +39217,9 @@ export const resolveShipMutiny = onCall<{
         mutiny: resolved.mutiny,
         cycle: { ...state.cycle, revision: currentRevision + 1 },
       };
+      writePlayerRemovalAlert(tx, db, { sessionId: data.sessionId, sourceId: data.requestId,
+        player: oldCaptain, cause: 'mutiny-replacement', shipId: id, cycle: sessionTurn(session.get('currentTurn')),
+        recordedAt: serverTime, createdAt: FieldValue.serverTimestamp() });
       tx.update(oldCaptain.ref, {
         replacementRoleId: null,
         replacementStatus: 'awaiting-re-role',
@@ -37904,10 +39606,10 @@ export const resolveShipMutiny = onCall<{
  * Draw randomly from the remaining deck for the GM damage control. Gameplay
  * mechanics use the same deck resolver inside their authoritative transactions.
  */
-export const addShipDamage = onCall<{
+export const addShipDamage = auditedOnCall<{
   sessionId: string; shipId: string; instanceId: string;
   requestId?: string; expectedRevision?: number;
-}>(async (request) => {
+}>('addShipDamage', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipDamageRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
@@ -37951,6 +39653,7 @@ export const addShipDamage = onCall<{
         'conflict',
       );
     }
+    requireCandidateActionAvailable(session, player, [change.shipId]);
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -38021,20 +39724,23 @@ export const addShipDamage = onCall<{
       ? await tx.get(db.collection(`sessions/${change.sessionId}/players`))
       : undefined;
     const retainedShuttleTransition = newlyDestroyed
-      ? retainedShuttleTransitionForDestruction(
-        session,
+      ? await retainedShuttleTransitionForDestruction(
+        tx, session,
         affectedPlayers?.docs ?? [],
         change.shipId,
         stableOccurredAt,
       )
       : undefined;
     if (newlyDestroyed && destruction) {
+      if (retainedShuttleTransition) writeOtherHostCraftLoss(tx, change.sessionId, retainedShuttleTransition.other);
       markPlayersForShipEscape(
-        tx,
+        tx, change.sessionId,
         affectedPlayers?.docs ?? [],
         change.shipId,
         destruction.eventId,
         currentRevision + 1,
+        sessionTurn(session.get('currentTurn')),
+        `ship-damage:${identity.requestId}`,
       );
     }
     if (!result.destroyed || newlyDestroyed) {
@@ -38052,6 +39758,8 @@ export const addShipDamage = onCall<{
           shuttleDockings: retainedShuttleTransition.dockings,
           shuttleControl: retainedShuttleTransition.control,
           retainedShuttles: retainedShuttleTransition.retained,
+        ...retainedShuttleTransition.lossPatch,
+        ...retainedShuttleTransition.other.sessionPatch,
         } : {}),
         ...vesselActionRevisionPatch(change.shipId, currentRevision + 1),
         ...terminalPatch,
@@ -38061,7 +39769,7 @@ export const addShipDamage = onCall<{
     const revision = newlyDestroyed ? currentRevision + 1 : currentRevision;
     if (result.destroyed) {
       if (!destruction) throw new Error('Missing destruction transition.');
-      for (const shuttleId of retainedShuttleTransition?.retainedShuttleIds ?? []) {
+      for (const shuttleId of retainedShuttleTransition ? [...retainedShuttleTransition.retainedShuttleIds, ...retainedShuttleTransition.lostShuttleIds] : []) {
         tx.delete(db.doc(`sessions/${change.sessionId}/shuttleDepartures/${shuttleId}`));
         tx.delete(db.doc(`sessions/${change.sessionId}/shuttleTransitChains/${shuttleId}`));
       }
@@ -38123,8 +39831,8 @@ export const addShipDamage = onCall<{
  * Authoritative randomness. The result is written to the session event log so
  * it cannot be quietly re-rolled, and only then returned to the caller.
  */
-export const rollDice = onCall<{ sessionId: string; sides: number; count: number }>(
-  async (request) => {
+export const rollDice = auditedOnCall<{ sessionId: string; sides: number; count: number }>(
+  'rollDice', async (request) => {
     const uid = requireUid(request.auth);
     const { sessionId, sides, count } = requireDiceRequest(request.data ?? {});
 
@@ -38162,10 +39870,10 @@ export const rollDice = onCall<{ sessionId: string; sides: number; count: number
 type StoredPopulationAlert = StoredUnrestAlert & { population: number };
 
 /** GM-only, atomic movement through the ship's printed survivor track. */
-export const adjustShipPopulation = onCall<{
+export const adjustShipPopulation = auditedOnCall<{
   sessionId: string; shipId: string; delta: number; instanceId?: string;
   requestId?: string; expectedRevision?: number;
-}>(async (request) => {
+}>('adjustShipPopulation', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipUnrestRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
@@ -38201,6 +39909,7 @@ export const adjustShipPopulation = onCall<{
       throw commandError('failed-precondition',
         'This population adjustment has a standardized audit without its bound receipt.', 'conflict');
     }
+    requireCandidateActionAvailable(session, player, [change.shipId]);
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -38285,7 +39994,7 @@ export const adjustShipPopulation = onCall<{
  * GM counter inputs can arrive as a short ordered run. The transaction applies
  * each click in sequence so threshold alerts cannot be lost by netting changes.
  */
-export const applyShipCounterSteps = onCall<{
+export const applyShipCounterSteps = auditedOnCall<{
   sessionId: string;
   instanceId: string;
   shipId: string;
@@ -38294,7 +40003,7 @@ export const applyShipCounterSteps = onCall<{
   steps: number[];
   requestId?: string;
   expectedRevision: number;
-}>(async (request) => {
+}>('applyShipCounterSteps', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipCounterBatchRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
@@ -38345,6 +40054,8 @@ export const applyShipCounterSteps = onCall<{
       throw commandError('failed-precondition',
         'This counter batch has a standardized audit without its bound receipt.', 'conflict');
     }
+    requireCandidateVesselsAvailable(session, [change.shipId]);
+    requireCandidateActionAvailable(session, player, [change.shipId]);
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -38594,14 +40305,14 @@ function fighterWingCountReceiptReply(
 }
 
 /** Correct one AEGIS fighter-wing count through a GM-owned CAS revision. */
-export const setFighterWingCount = onCall<{
+export const setFighterWingCount = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   wingId?: unknown;
   count?: unknown;
   expectedRevision?: unknown;
-}>(async request => {
+}>('setFighterWingCount', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'instanceId', 'requestId', 'wingId', 'count', 'expectedRevision'];
@@ -38650,8 +40361,12 @@ export const setFighterWingCount = onCall<{
       return replay;
     }
     if (actionAudit.exists) rejectLegacyEventReplay('fighter-wing count action audit');
+    requireCandidateActionAvailable(session, player, ['aegis']);
     requireActiveGameplayPhase(session);
 
+    if (lostShuttlesForSession(session).starlight) {
+      throw commandError('failed-precondition', 'The never-assigned wings were lost with AEGIS and cannot be restored by count correction.', 'conflict');
+    }
     const current = fighterWingCounts(session.get('fighterWingCounts'))[change.wingId];
     const currentRevision = current?.revision ?? 0;
     const capacity = fighterWingCapacity(session.get('shipUpgrades'));
@@ -38738,13 +40453,13 @@ export const setFighterWingCount = onCall<{
 });
 
 /** Build one replacement fighter through the charged, server-owned AEGIS Construction Bay. */
-export const buildFighter = onCall<{
+export const buildFighter = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   wingId?: unknown;
   expectedRevision?: unknown;
-}>(async request => {
+}>('buildFighter', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'instanceId', 'requestId', 'wingId', 'expectedRevision'];
@@ -38774,6 +40489,7 @@ export const buildFighter = onCall<{
     const replay = vesselActionReceiptReply(prior, fingerprint, 'fighter construction');
     if (replay) return replay;
 
+    requireCandidateActionAvailable(session, player, ['aegis']);
     requireActionPhase(session, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
 
     const currentRevision = vesselActionRevision(session, 'aegis');
@@ -38862,14 +40578,24 @@ export const buildFighter = onCall<{
       ...vesselActionRevisionPatch('aegis', revision),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    writeStandardActionAudit(tx, db, {
+      sessionId: change.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(player),
+      action: 'fighter-build', phase: vesselActionPhase(session), requestId: identity.requestId,
+      revision: revision, outcome: 'committed', resolutionSource: 'server-calculated',
+      createdAt: FieldValue.serverTimestamp(),
+    }, {
+      sourceId: 'aegis-construction-bay', requiredChoices: [{ actor: player.get('role') === 'gm' ? 'facilitator' : 'player', kind: 'wing', value: change.wingId }],
+      calculation: { materialsSpent: 1, fighterDelta: 1 },
+      consequences: { fighters: nextCount, materialsRemaining: resources.materials - 1, wingRevision: currentWing.revision + 1 }, audience: { operational: 'actor' },
+    });
     txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
 });
 
-export const dismissPopulationAlert = onCall<{
+export const dismissPopulationAlert = auditedOnCall<{
   sessionId: string; shipId: string; instanceId: string; requestId?: string; expectedRevision?: number;
-}>(async (request) => {
+}>('dismissPopulationAlert', async (request) => {
   const uid = requireUid(request.auth);
   const dismissal = requireUnrestDismissalRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
@@ -38887,6 +40613,7 @@ export const dismissPopulationAlert = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'population dismissal');
     if (replay) return replay;
+    requireCandidateActionAvailable(session, player, [dismissal.shipId]);
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, dismissal.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -39002,7 +40729,7 @@ function requireLiveHighwallMiningWindow(session: DocumentSnapshot): number {
     throw commandError('failed-precondition', 'The current Coordination cycle is unavailable.', 'invalid-phase');
   }
   if (phase.airspace.state !== 'lifted' || phase.timerPause ||
-      Date.now() >= Date.parse(phase.openAirspaceEndsAt)) {
+      turnPhaseDeadlinePassed(phase, 'open')) {
     throw commandError('failed-precondition', 'Highwall mining requires the live Coordination Phase.', 'invalid-phase');
   }
   return currentCycle as number;
@@ -39058,7 +40785,7 @@ async function requireHighwallMiningAuthority(
   if (!isActivePlayer(player) || player.get('role') !== 'player') {
     throw new HttpsError('permission-denied', 'Only the connected Highwall holder may mine.');
   }
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
   if (!configuredRoleIds(session).includes('icebreaker-miner') ||
       !activeVesselIdsForSession(session).includes('icebreaker')) {
     throw commandError('failed-precondition', 'Highwall is unavailable in this session.', 'conflict');
@@ -39106,10 +40833,10 @@ async function requireHighwallMiningAuthority(
 }
 
 /** Resolve one of Highwall's two standard operations, or its fuelled third operation. */
-export const runHighwallMining = onCall<{
+export const runHighwallMining = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; resource?: unknown;
   expectedRevision?: unknown; expectedControlRevision?: unknown; expectedCycle?: unknown;
-}>(async request => {
+}>('runHighwallMining', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some((key) => ![
@@ -39389,12 +41116,12 @@ function isCurrentScoutRequestRecord(
 }
 
 /** Record one legal scouting request from current server role, position, fuel, and cadence. */
-export const requestScout = onCall<{
+export const requestScout = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   entitlementId?: unknown;
   targetCoordinate?: unknown;
-}>(async request => {
+}>('requestScout', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data as unknown;
   const allowedFields = new Set(['sessionId', 'requestId', 'entitlementId', 'targetCoordinate']);
@@ -39427,7 +41154,7 @@ export const requestScout = onCall<{
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only a connected player may request scouting.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     if (session.get('phase') !== 'active') {
       throw commandError('failed-precondition', 'Scouting requests require active gameplay.', 'invalid-phase');
     }
@@ -39496,6 +41223,7 @@ export const requestScout = onCall<{
       throw commandError('failed-precondition', 'Current ship positions are unavailable for scouting.', 'malformed-input');
     }
     const receivingShipId = scoutReceivingShipId(session, entitlementId, activeRoleIds, activeVesselIds);
+    requireCandidateActionAvailable(session, actor, [entitlement.anchorShipId, receivingShipId], entitlement.source === 'craft' ? [entitlement.id] : []);
     requireUsableShip(session, entitlement.anchorShipId);
     if (receivingShipId !== entitlement.anchorShipId) requireUsableShip(session, receivingShipId);
     let scan: AuthorizedScoutScan;
@@ -39643,7 +41371,7 @@ async function requireHummingbirdAuthority(
   if (!isActivePlayer(player) || player.get('role') !== 'player') {
     throw new HttpsError('permission-denied', 'Only the connected Quellon Explorer may operate Hummingbird harvesting.');
   }
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
   const activeRoleIds = configuredRoleIds(session);
   const activeRole = player.get('activeConsoleRoleId');
   if (activeRole !== 'quellon-explorer' || !activeRoleIds.includes('quellon-explorer') ||
@@ -39743,9 +41471,9 @@ function hummingbirdHarvestStaleReply(
 }
 
 /** Roll Hummingbird's private 2d6 harvest receipt. The player allocates it in a second call. */
-export const rollHummingbirdHarvest = onCall<{
+export const rollHummingbirdHarvest = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedRevision?: unknown;
-}>(async request => {
+}>('rollHummingbirdHarvest', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
@@ -39872,9 +41600,9 @@ export const rollHummingbirdHarvest = onCall<{
 });
 
 /** Commit the player's food-die allocation and credit only Hummingbird cargo. */
-export const allocateHummingbirdHarvest = onCall<{
+export const allocateHummingbirdHarvest = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedRevision?: unknown; foodDieIndex?: unknown;
-}>(async request => {
+}>('allocateHummingbirdHarvest', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
@@ -39943,7 +41671,11 @@ export const allocateHummingbirdHarvest = onCall<{
 
 function storedSmallShipState(session: DocumentSnapshot, id: SmallShipId): SmallShipState | undefined {
   const stored = session.get('smallShipStates');
-  return isRecord(stored) ? parseSmallShipState(stored[id], id) : undefined;
+  const state = isRecord(stored) ? parseSmallShipState(stored[id], id) : undefined;
+  if (state?.loss && !smallShipHostLossIsCurrent(state.loss, { activeVesselIds: activeVesselIdsForSession(session),
+    currentCycle: sessionTurn(session.get('currentTurn')), shipDamage: session.get('shipDamage'),
+    vesselActionRevisions: session.get('vesselActionRevisions') })) return undefined;
+  return state;
 }
 
 function hasStoredSmallShipState(session: DocumentSnapshot, id: SmallShipId): boolean {
@@ -39979,6 +41711,7 @@ function requireSmallShipsDockedAtBoundary(
     if (!Object.prototype.hasOwnProperty.call(stored, id)) continue;
     requireSmallShipMode(session, id);
     const state = storedSmallShipState(session, id);
+    if (state?.loss) continue;
     if (!state || !state.hostShipId || !activeHosts.has(state.hostShipId)) {
       throw commandError(
         'failed-precondition',
@@ -40026,6 +41759,7 @@ function requireShuttlesDockedAtTeamBoundary(session: DocumentSnapshot): void {
       'conflict',
     );
   }
+  const lost = lostShuttlesForSession(session);
   const retained = parseRetainedShuttles(session.get('retainedShuttles'));
   const retainedEntries = retained ? Object.values(retained) : [];
   const control = retainedEntries.length > 0 ? parseShuttleControl(session.get('shuttleControl')) : {};
@@ -40035,7 +41769,7 @@ function requireShuttlesDockedAtTeamBoundary(session: DocumentSnapshot): void {
   const liveHosts = activeVesselIds.filter((host) => damage[host]?.destroyed !== true);
   // These rows check manifest membership only. They are never persisted or
   // interpreted as current dockings; retained custody remains unchanged.
-  const manifestRows = [...dockings, ...retainedEntries.map((entry) => ({
+  const manifestRows = [...dockings, ...Object.values(lost).map(entry => ({ shuttleId: entry.shuttleId, shipId: entry.destroyedHostShipId })), ...retainedEntries.map((entry) => ({
     shuttleId: entry.shuttleId, shipId: entry.destroyedHostShipId,
   }))];
   if (!retained || !control || !shuttleDockingsAreParked(dockings, liveHosts) ||
@@ -40047,7 +41781,8 @@ function requireShuttlesDockedAtTeamBoundary(session: DocumentSnapshot): void {
           damage[entry.destroyedHostShipId]?.destroyed !== true ||
           !custody || custody.ownerRoleId !== entry.ownerRoleId ||
           custody.holderUid !== entry.holderUid || custody.revision !== entry.controlRevision;
-      }) || !shuttleDockingsMatchRoleOwnedCraft(activeRoleIds, manifestRows)) {
+      }) || !shuttleDockingsMatchRoleOwnedCraft(activeRoleIds, manifestRows,
+        Object.keys(parseCandidateCraftReservations(session.get('candidateCraftReservations'))))) {
     throw commandError('failed-precondition',
       'Every enabled shuttle must be docked or validly retained from a destroyed host before the next Team Phase.',
       'conflict');
@@ -40082,7 +41817,7 @@ async function requireSmallShipCaptainAuthority(
   if (!isActivePlayer(player)) {
     throw new HttpsError('permission-denied', 'An active small-craft Captain or GM is required.');
   }
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
   if (player.get('role') === 'gm') {
     if (!instanceId || !isLiveGmInstance(
       await tx.get(db.doc(`sessions/${sessionId}/gmInstances/${instanceId}`)), player, uid,
@@ -40188,10 +41923,10 @@ function smallShipReceiptReply(
 }
 
 /** Atomically admit or release one optional small ship from a fleet host. */
-export const setSmallShipDocking = onCall<{
+export const setSmallShipDocking = auditedOnCall<{
   sessionId?: unknown; smallShipId?: unknown; hostShipId?: unknown; docked?: unknown;
   instanceId?: unknown; requestId?: unknown; expectedRevision?: unknown;
-}>(async request => {
+}>('setSmallShipDocking', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
@@ -40239,6 +41974,7 @@ export const setSmallShipDocking = onCall<{
     await requireShipCounterAuthority(tx, data.sessionId, uid, authorityHost, data.instanceId, true);
     const replay = smallShipReceiptReply(prior, fingerprint, uid);
     if (replay) return replay;
+    if (current.loss) throw commandError('failed-precondition', 'This never-assigned small ship was lost with its host and cannot be re-admitted.', 'conflict');
     requireMissionMovementAvailable(session, [id, authorityHost]);
     if (isSmallShipInMutiny(current)) {
       throw commandError(
@@ -40309,8 +42045,14 @@ export const setSmallShipDocking = onCall<{
         nextMovement = { ...movement, coordinate: effectiveCoordinate, revision: movement.revision + 1 };
       }
     }
+    // Only first admission can establish a negative assignment fact. Redocking
+    // an old state with absent provenance must never manufacture that fact.
+    const firstRoster = !parsedCurrent ? await tx.get(db.collection(`sessions/${data.sessionId}/players`)) : undefined;
+    const firstEverAssigned = firstRoster?.docs.some(candidate => candidate.get('role') === 'player' &&
+      candidate.get('replacementRoleId') === SMALL_SHIP_CAPTAIN_ROLE_IDS[id]);
     const next: SmallShipState = {
       ...current,
+      ...(!parsedCurrent ? { everAssigned: firstEverAssigned === true } : {}),
       hostShipId: data.docked ? data.hostShipId : null,
       dockingRevision: current.dockingRevision + 1,
     };
@@ -40338,11 +42080,11 @@ export const setSmallShipDocking = onCall<{
 });
 
 /** Run the four-step small-ship cycle against the docked host's resources. */
-export const runSmallShipMaintenance = onCall<{
+export const runSmallShipMaintenance = auditedOnCall<{
   sessionId?: unknown; smallShipId?: unknown; shipId?: unknown; requestId?: unknown; action?: unknown;
   expectedRevision?: unknown; instanceId?: unknown; foodLevel?: unknown; waterLevel?: unknown; consoles?: unknown;
   productionConsoleId?: unknown; productionOreAmount?: unknown;
-}>(async request => {
+}>('runSmallShipMaintenance', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
@@ -40391,11 +42133,12 @@ export const runSmallShipMaintenance = onCall<{
       const replay = smallShipReceiptReply(prior, fingerprint, uid);
       if (replay) return { player: undefined, state: undefined, replay };
     }
-    const { player, state } = await requireSmallShipHostAuthority(
+    const { player, session, state } = await requireSmallShipHostAuthority(
       tx, data.sessionId, uid, data.instanceId, id,
     );
     const replay = smallShipReceiptReply(prior, fingerprint, uid);
     if (replay) return { player: undefined, state: undefined, replay };
+    requireCandidateActionAvailable(session, player, [], [id]);
     return { player, state, replay: undefined };
   });
   if (preflight.replay) return preflight.replay;
@@ -40416,6 +42159,7 @@ export const runSmallShipMaintenance = onCall<{
         'conflict',
       );
     }
+    requireCandidateActionAvailable(session, player, [], [id]);
     requireTurnOneForGameplay(session);
     requireActionPhase(session, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
 
@@ -40571,11 +42315,11 @@ async function requireVoyage33MaintenanceAuthority(
 }
 
 /** Run Voyage 33-0's four-step host-funded maintenance lane. Docking remains P251. */
-export const runVoyage33Maintenance = onCall<{
+export const runVoyage33Maintenance = auditedOnCall<{
   sessionId?: unknown; shipId?: unknown; requestId?: unknown; action?: unknown;
   expectedRevision?: unknown; expectedDockingRevision?: unknown; expectedCycle?: unknown; instanceId?: unknown; reconcileOnly?: unknown;
   foodLevel?: unknown; waterLevel?: unknown; consoles?: unknown;
-}>(async request => {
+}>('runVoyage33Maintenance', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
@@ -40617,7 +42361,7 @@ export const runVoyage33Maintenance = onCall<{
     if (!isActivePlayer(player) || player.get('role') !== 'gm' || !parsed.instanceId) {
       throw new HttpsError('permission-denied', 'An active GM instance is required to reconcile maintenance.');
     }
-    requirePlayerShipActionAuthority(player);
+    requirePlayerShipActionAuthority(player, true);
     const instance = await tx.get(db.doc(`sessions/${parsed.sessionId}/gmInstances/${parsed.instanceId}`));
     if (!isLiveGmInstance(instance, player, uid)) throw new HttpsError('permission-denied', 'Active GM instance required.');
     const replay = voyage33MaintenanceReceiptReply(prior, fingerprint, uid);
@@ -40645,6 +42389,7 @@ export const runVoyage33Maintenance = onCall<{
     const authority = await requireVoyage33MaintenanceAuthority(tx, parsed.sessionId, uid, parsed.instanceId);
     const replay = voyage33MaintenanceReceiptReply(prior, fingerprint, uid);
     if (replay) return { replay, player: undefined, state: undefined };
+    requireCandidateActionAvailable(authority.session, authority.player, [], [VOYAGE_33_ID]);
     return { replay: undefined, player: authority.player, state: authority.state };
   });
   if (preflight.replay) return preflight.replay;
@@ -40656,6 +42401,7 @@ export const runVoyage33Maintenance = onCall<{
     const prior = await tx.get(requestRef);
     const replay = voyage33MaintenanceReceiptReply(prior, fingerprint, uid);
     if (replay) return replay;
+    requireCandidateActionAvailable(authority.session, authority.player, [], [VOYAGE_33_ID]);
     if (sessionTurn(authority.session.get('currentTurn')) !== expectedCycle) {
       throw commandError('failed-precondition', 'The captured cycle changed before maintenance committed; reconcile the original request.', 'conflict');
     }
@@ -40818,7 +42564,7 @@ async function requireVulcanLabourAuthority(
   if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role')))) {
     throw new HttpsError('permission-denied', 'An active Vulcan Captain or GM is required.');
   }
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
   if (player.get('role') === 'gm') {
     if (!instanceId || !isLiveGmInstance(
       await tx.get(db.doc(`sessions/${sessionId}/gmInstances/${instanceId}`)), player, uid,
@@ -40841,11 +42587,11 @@ async function requireVulcanLabourAuthority(
 }
 
 /** Resolve one of Vulcan's two Coordination-phase Additional Labour charges. */
-export const runVulcanAdditionalLabour = onCall<{
+export const runVulcanAdditionalLabour = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; instanceId?: unknown; expectedRevision?: unknown;
   targetExpectedRevision?: unknown; sourceConsoleId?: unknown; targetShipId?: unknown;
   targetConsoleId?: unknown; productionScrap?: unknown; productionOreAmount?: unknown;
-}>(async request => {
+}>('runVulcanAdditionalLabour', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = [
@@ -40879,6 +42625,7 @@ export const runVulcanAdditionalLabour = onCall<{
     );
     const prior = await tx.get(requestRef);
     const replay = vulcanLabourReceiptReply(prior, fingerprint, uid);
+    if (!replay) requireCandidateActionAvailable(session, player, [data.targetShipId], ['vulcan']);
     return { player, session, state, replay };
   });
   if (preflight.replay) return preflight.replay;
@@ -40890,6 +42637,7 @@ export const runVulcanAdditionalLabour = onCall<{
     const prior = await tx.get(requestRef);
     const replay = vulcanLabourReceiptReply(prior, fingerprint, uid);
     if (replay) return replay;
+    requireCandidateActionAvailable(session, player, [data.targetShipId], ['vulcan']);
     if (isSmallShipInMutiny(state)) {
       throw commandError(
         'failed-precondition',
@@ -41092,7 +42840,7 @@ async function requireMaintenanceAuthority(
     throw new HttpsError('permission-denied', 'An active ship officer or GM is required.');
   }
   if (!snapshot.exists) throw new HttpsError('not-found', 'No such session.');
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
   const ownRoleId = String(player.get('activeConsoleRoleId') ?? '');
   const replacementVipHost = player.get('role') === 'player' && shipId === 'dione' &&
     player.get('replacementRoleId') === 'vip-host' && player.get('activeConsoleRoleId') === null;
@@ -41121,7 +42869,7 @@ async function requireMaintenanceAuthority(
         allowMutinyResolution);
     }
   }
-  if (!allowMutinyResolution) requireUsableShip(snapshot, shipId);
+  if (!allowMutinyResolution) requireUsableShip(snapshot, shipId, true);
   return { player, snapshot };
 }
 
@@ -41153,11 +42901,11 @@ function maintenanceReceiptReply(
 }
 
 /** One atomic, revision-checked maintenance action. Dice are never supplied by a client. */
-export const runMaintenance = onCall<{
+export const runMaintenance = auditedOnCall<{
   sessionId?: unknown; shipId?: unknown; requestId?: unknown; action?: unknown; expectedRevision?: unknown;
   instanceId?: unknown; foodLevel?: unknown; waterLevel?: unknown;
   consoles?: unknown; refuels?: unknown; productionConsoleId?: unknown; productionMode?: unknown; productionScrap?: unknown; productionOreAmount?: unknown; consoleRoleId?: unknown;
-}>(async request => {
+}>('runMaintenance', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'shipId', 'requestId', 'action', 'expectedRevision', 'instanceId', 'foodLevel', 'waterLevel', 'consoles', 'refuels', 'productionConsoleId', 'productionMode', 'productionScrap', 'productionOreAmount', 'consoleRoleId'];
@@ -41216,11 +42964,14 @@ export const runMaintenance = onCall<{
   // not consume a new clock value or random draw, even if mutable game state
   // has since moved on.
   const preflightReply = await db.runTransaction(async tx => {
-    await requireMaintenanceAuthority(
+    const { player, snapshot } = await requireMaintenanceAuthority(
       tx, data.sessionId, data.shipId, data.instanceId, data.consoleRoleId, uid, ref,
     );
     const prior = await tx.get(requestRef);
-    return maintenanceReceiptReply(prior, fingerprint, uid, data.sessionId, data.shipId) ?? null;
+    const replay = maintenanceReceiptReply(prior, fingerprint, uid, data.sessionId, data.shipId);
+    if (replay) return replay;
+    requireCandidateActionAvailable(snapshot, player, [data.shipId], Object.keys(data.refuels ?? {}));
+    return null;
   });
   if (preflightReply) return preflightReply;
   await enforceExpensiveCallableRateLimit(db, {
@@ -41243,6 +42994,7 @@ export const runMaintenance = onCall<{
     const prior = await tx.get(requestRef);
     const replay = maintenanceReceiptReply(prior, fingerprint, uid, data.sessionId, data.shipId);
     if (replay) return replay;
+    requireCandidateActionAvailable(snapshot, player, [data.shipId], Object.keys(data.refuels ?? {}));
     requireTurnOneForGameplay(snapshot);
     requireActionPhase(snapshot, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
 
@@ -41395,8 +43147,8 @@ export const runMaintenance = onCall<{
       ? await tx.get(db.collection(`sessions/${data.sessionId}/players`))
       : undefined;
     const retainedShuttleTransition = destruction && !currentDamage.destroyed
-      ? retainedShuttleTransitionForDestruction(
-        snapshot,
+      ? await retainedShuttleTransitionForDestruction(
+        tx, snapshot,
         affectedPlayers?.docs ?? [],
         data.shipId,
         serverTime,
@@ -41428,6 +43180,8 @@ export const runMaintenance = onCall<{
         shuttleDockings: retainedShuttleTransition.dockings,
         shuttleControl: retainedShuttleTransition.control,
         retainedShuttles: retainedShuttleTransition.retained,
+        ...retainedShuttleTransition.lossPatch,
+        ...retainedShuttleTransition.other.sessionPatch,
       } : {}),
     };
     const terminalPatch = destruction && !currentDamage.destroyed
@@ -41441,19 +43195,22 @@ export const runMaintenance = onCall<{
       'unrestAlerts',
       'populationAlerts',
       ...(retainedShuttleTransition
-        ? ['shuttleDockings', 'shuttleControl', 'retainedShuttles'] as const
+        ? ['shuttleDockings', 'shuttleControl', 'retainedShuttles', 'lostShuttles', 'shuttleCargo', 'shuttleFuelled', 'smallShipStates', 'fighterWingCounts', 'pdfEscortWing'] as const
         : []),
     ] : [];
     entries.push({ fields: captureMaintenanceUndo(field => snapshot.get(field), patch, immutableFields) });
     if (destruction && !currentDamage.destroyed) {
+      if (retainedShuttleTransition) writeOtherHostCraftLoss(tx, data.sessionId, retainedShuttleTransition.other);
       markPlayersForShipEscape(
-        tx,
+        tx, data.sessionId,
         affectedPlayers?.docs ?? [],
         data.shipId,
         destruction.eventId,
         result.cycle.revision,
+        currentTurn,
+        `maintenance:${data.requestId}`,
       );
-      for (const shuttleId of retainedShuttleTransition?.retainedShuttleIds ?? []) {
+      for (const shuttleId of retainedShuttleTransition ? [...retainedShuttleTransition.retainedShuttleIds, ...retainedShuttleTransition.lostShuttleIds] : []) {
         tx.delete(db.doc(`sessions/${data.sessionId}/shuttleDepartures/${shuttleId}`));
         tx.delete(db.doc(`sessions/${data.sessionId}/shuttleTransitChains/${shuttleId}`));
       }
@@ -41633,10 +43390,10 @@ function vipCardEvent(
 }
 
 /** Draw one private physical card from the charged Dione VIP Lounge. */
-export const drawVipCard = onCall<{
+export const drawVipCard = auditedOnCall<{
   sessionId?: unknown; shipId?: unknown; requestId?: unknown; expectedRevision?: unknown;
   instanceId?: unknown; consoleRoleId?: unknown;
-}>(async request => {
+}>('drawVipCard', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'shipId', 'requestId', 'expectedRevision', 'instanceId', 'consoleRoleId'];
@@ -41668,6 +43425,7 @@ export const drawVipCard = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = replayBoundCommand(prior, fingerprint, isVesselActionResult, 'VIP card draw');
     if (replay) return replay.status === 'committed' ? { ...replay, status: 'replayed' } : replay;
+    requireCandidateActionAvailable(snapshot, player, ['dione']);
     requireTurnOneForGameplay(snapshot);
     requireActionPhase(snapshot, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
 
@@ -41718,6 +43476,7 @@ export const drawVipCard = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = replayBoundCommand(prior, fingerprint, isVesselActionResult, 'VIP card draw');
     if (replay) return replay.status === 'committed' ? { ...replay, status: 'replayed' } : replay;
+    requireCandidateActionAvailable(snapshot, player, ['dione']);
     requireTurnOneForGameplay(snapshot);
     requireActionPhase(snapshot, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
 
@@ -41792,10 +43551,10 @@ export const drawVipCard = onCall<{
 });
 
 /** Transfer one unspent VIP card during the printed Coordination window. */
-export const transferVipCard = onCall<{
+export const transferVipCard = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; cardId?: unknown; targetUid?: unknown;
   expectedRevision?: unknown; instanceId?: unknown;
-}>(async request => {
+}>('transferVipCard', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'requestId', 'cardId', 'targetUid', 'expectedRevision', 'instanceId'];
@@ -41834,6 +43593,8 @@ export const transferVipCard = onCall<{
     }
     const replay = replayBoundCommand(prior, fingerprint, isVesselActionResult, 'VIP card transfer');
     if (replay) return replay.status === 'committed' ? { ...replay, status: 'replayed' } : replay;
+    requireCandidateActionAvailable(snapshot, player, ['dione']);
+    requireCandidateActionAvailable(snapshot, target);
     if (!isActivePlayer(target) || target.get('role') !== 'player') {
       throw commandError('failed-precondition', 'The target player is not connected.', 'conflict');
     }
@@ -41881,10 +43642,10 @@ export const transferVipCard = onCall<{
 });
 
 /** Discard one privately held VIP card to reroll one server die before the riot step. */
-export const rerollVipUnrest = onCall<{
+export const rerollVipUnrest = auditedOnCall<{
   sessionId?: unknown; shipId?: unknown; requestId?: unknown; expectedRevision?: unknown;
   cardId?: unknown; dieIndex?: unknown; instanceId?: unknown; consoleRoleId?: unknown;
-}>(async request => {
+}>('rerollVipUnrest', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = [
@@ -41958,6 +43719,7 @@ export const rerollVipUnrest = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = replayBoundCommand(prior, fingerprint, isVesselActionResult, 'VIP unrest reroll');
     if (replay) return replay.status === 'committed' ? { ...replay, status: 'replayed' } : replay;
+    requireCandidateActionAvailable(snapshot, player, ['dione']);
     const current = await validate(tx, player, snapshot);
     if (!current.stale) return null;
     const stale = {
@@ -41980,6 +43742,7 @@ export const rerollVipUnrest = onCall<{
     const prior = await tx.get(receiptRef);
     const replay = replayBoundCommand(prior, fingerprint, isVesselActionResult, 'VIP unrest reroll');
     if (replay) return replay.status === 'committed' ? { ...replay, status: 'replayed' } : replay;
+    requireCandidateActionAvailable(snapshot, player, ['dione']);
     const current = await validate(tx, player, snapshot);
     if (current.stale || current.unrest === undefined || !current.deck) {
       const stale = {
@@ -42050,14 +43813,14 @@ function toTimestampMillis(value: unknown): number | undefined {
 }
 
 /** Publish one bounded, public Admiral directive without granting GM authority. */
-export const publishAdmiralDirectiveCommand = onCall<{
+export const publishAdmiralDirectiveCommand = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   kind?: unknown;
   text?: unknown;
   expectedRevision?: unknown;
   instanceId?: unknown;
-}>(async request => {
+}>('publishAdmiralDirectiveCommand', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'requestId', 'kind', 'text', 'expectedRevision', 'instanceId'];
@@ -42111,6 +43874,7 @@ export const publishAdmiralDirectiveCommand = onCall<{
     if (session.get('phase') === 'closed') {
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
+    requireCandidateActionAvailable(session, player, ['aegis']);
     requireActiveGameplayPhase(session);
     if (session.get('phase') !== 'active') {
       throw commandError(
@@ -42175,14 +43939,14 @@ export const publishAdmiralDirectiveCommand = onCall<{
 });
 
 /** Record one bounded President action without applying later prompt mechanics. */
-export const recordPresidentActionCommand = onCall<{
+export const recordPresidentActionCommand = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   kind?: unknown;
   text?: unknown;
   expectedRevision?: unknown;
   instanceId?: unknown;
-}>(async request => {
+}>('recordPresidentActionCommand', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'requestId', 'kind', 'text', 'expectedRevision', 'instanceId'];
@@ -42354,14 +44118,14 @@ function isPresidentialVisitResult(value: unknown, sessionId: string): value is 
 }
 
 /** Spend exactly one capital during Coordination to reduce one active ship's unrest by one. */
-export const recordPresidentialVisit = onCall<{
+export const recordPresidentialVisit = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   shipId?: unknown;
   expectedCapitalRevision?: unknown;
   expectedVesselRevision?: unknown;
   instanceId?: unknown;
-}>(async request => {
+}>('recordPresidentialVisit', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'requestId', 'shipId', 'expectedCapitalRevision', 'expectedVesselRevision', 'instanceId'];
@@ -42618,9 +44382,9 @@ function isElectionCommandReply(value: unknown): value is Record<string, unknown
 }
 
 /** Freeze roster-derived voting policy once, before the first ballot exists. */
-export const configurePresidentialElection = onCall<{
+export const configurePresidentialElection = auditedOnCall<{
   sessionId?: unknown; instanceId?: unknown; requestId?: unknown; expectedRevision?: unknown; policy?: unknown;
-}>(async request => {
+}>('configurePresidentialElection', async request => {
   const uid = requireUid(request.auth), raw = request.data;
   const base = electionRequestBase(raw, 'election policy');
   if (!isRecord(raw) || Object.keys(raw).some(key => !['sessionId','instanceId','requestId','expectedRevision','policy'].includes(key)) ||
@@ -42686,11 +44450,11 @@ export const configurePresidentialElection = onCall<{
 });
 
 /** Store one secret ballot under a server-only per-voter path; no vote returns to the caller. */
-export const castPresidentialBallot = onCall<{
+export const castPresidentialBallot = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedRevision?: unknown;
   presidentCandidateId?: unknown; vicePresidentCandidateId?: unknown;
   presidentUid?: unknown; vicePresidentUid?: unknown;
-}>(async request => {
+}>('castPresidentialBallot', async request => {
   const uid = requireUid(request.auth), raw: unknown = request.data;
   const base = electionRequestBase(raw, 'secret ballot');
   if (!isRecord(raw) || Object.keys(raw).some(key => !['sessionId','requestId','expectedRevision',
@@ -42764,11 +44528,11 @@ export const castPresidentialBallot = onCall<{
 });
 
 /** Tally server-owned ballots and commit the elected session offices once. */
-export const resolvePresidentialElection = onCall<{
+export const resolvePresidentialElection = auditedOnCall<{
   sessionId?: unknown; instanceId?: unknown; requestId?: unknown; expectedRevision?: unknown;
   presidentCandidateId?: unknown; vicePresidentCandidateId?: unknown;
   confirmVicePresidentVacancy?: unknown;
-}>(async request => {
+}>('resolvePresidentialElection', async request => {
   const uid = requireUid(request.auth), raw: unknown = request.data;
   const base = electionRequestBase(raw, 'election resolution');
   if (!isRecord(raw) || Object.keys(raw).some(key => !['sessionId','instanceId','requestId','expectedRevision',
@@ -42805,7 +44569,9 @@ export const resolvePresidentialElection = onCall<{
     if (currentCycle === election.policy.closeCycle) {
       const closePhase = turnStateForPhaseContext(session.get('turnState'), turnPhaseState(session.get('turnPhase')),
         session.get('currentTurn'), sessionTurnLimit(session));
-      if (!closePhase || (closePhase.phase === 'team' && Date.now() < Date.parse(closePhase.endsAt))) {
+      const closingPhase = turnPhaseState(session.get('turnPhase'));
+      if (!closePhase || closePhase.phase === 'team' &&
+          (closingPhase?.progression === 'manual' || Date.now() < Date.parse(closePhase.endsAt))) {
         throw commandError('failed-precondition', 'The configured close-cycle Team window is still open.', 'invalid-phase');
       }
     }
@@ -42968,7 +44734,7 @@ export const resolvePresidentialElection = onCall<{
 });
 
 /** Apply one President-authorized point against an exact resolved crisis outcome. */
-export const updatePoliticalCapital = onCall<{
+export const updatePoliticalCapital = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   action?: unknown;
@@ -42976,7 +44742,7 @@ export const updatePoliticalCapital = onCall<{
   crisisRevision?: unknown;
   expectedRevision?: unknown;
   instanceId?: unknown;
-}>(async request => {
+}>('updatePoliticalCapital', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'requestId', 'action', 'crisisId', 'crisisRevision', 'expectedRevision', 'instanceId'];
@@ -43100,9 +44866,9 @@ export const updatePoliticalCapital = onCall<{
   });
 });
 
-export const setFleetRedAlert = onCall<{
+export const setFleetRedAlert = auditedOnCall<{
   sessionId: string; active: boolean; expectedRevision: number; instanceId?: string; text?: unknown; requestId?: unknown;
-}>(async request => {
+}>('setFleetRedAlert', async request => {
   const uid = requireUid(request.auth);
   const data = request.data;
   if (!data || Object.keys(data).some(key => !['sessionId', 'active', 'expectedRevision', 'instanceId', 'text', 'requestId'].includes(key)) ||
@@ -43137,6 +44903,7 @@ export const setFleetRedAlert = onCall<{
     }
 
     if (session.get('phase') === 'closed') throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
+    requireCandidateActionAvailable(session, player, ['aegis']);
     requireActiveGameplayPhase(session);
     const current = session.get('fleetRedAlert') as
       { active: boolean; revision: number; text?: string; raisedAt?: string | Timestamp } | undefined;
@@ -43201,9 +44968,9 @@ export const setFleetRedAlert = onCall<{
 });
 
 /** Press dispatches are serialized so two open Press consoles cannot overwrite unseen copy. */
-export const publishPressDispatch = onCall<{
+export const publishPressDispatch = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; text?: unknown; expectedRevision?: unknown;
-}>(async request => {
+}>('publishPressDispatch', async request => {
   const uid = requireUid(request.auth);
   const data = requirePressDispatchRequest(request.data ?? {});
   const dispatchId = randomUUID();
@@ -43283,9 +45050,9 @@ export const publishPressDispatch = onCall<{
 });
 
 /** Only the active Press Officer may retire one fleet dispatch from the ticker. */
-export const dismissPressDispatch = onCall<{
+export const dismissPressDispatch = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; dispatchId?: unknown; expectedRevision?: unknown;
-}>(async request => {
+}>('dismissPressDispatch', async request => {
   const uid = requireUid(request.auth);
   const data = requirePressDispatchDismissalRequest(request.data ?? {});
   const ref = db.doc(`sessions/${data.sessionId}`);
@@ -43367,10 +45134,10 @@ export const dismissPressDispatch = onCall<{
 });
 
 /** GM correction: restore all systems and the deck, preserving casualty history. */
-export const repairAllShipDamage = onCall<{
+export const repairAllShipDamage = auditedOnCall<{
   sessionId: string; shipId: string; instanceId: string;
   requestId?: string; expectedRevision?: number;
-}>(async request => {
+}>('repairAllShipDamage', async request => {
   const uid = requireUid(request.auth);
   const change = requireShipDamageRequest(request.data ?? {});
   if (!SHIP_DAMAGE_DECKS[change.shipId]) throw new HttpsError('invalid-argument', 'Unknown damage deck.');
@@ -43409,6 +45176,7 @@ export const repairAllShipDamage = onCall<{
         'conflict',
       );
     }
+    requireCandidateActionAvailable(session, player, [change.shipId]);
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -43418,9 +45186,44 @@ export const repairAllShipDamage = onCall<{
       txSetIfSupported(tx, receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
       return stale;
     }
+    // Existing terminal craft remain lost after a legitimate GM host repair.
+    // Read and bind the original catastrophe before any correction writes.
+    const lost = lostShuttlesForSession(session);
+    const affectedLost = Object.entries(lost).filter(([, loss]) => loss.destroyedHostShipId === change.shipId);
+    const smallLosses = SMALL_SHIP_IDS.flatMap(id => {
+      const state = storedSmallShipState(session, id);
+      return state?.loss?.destroyedHostShipId === change.shipId ? [{ id, state }] : [];
+    });
+    const repairPatch: Record<string, unknown> = {};
+    let repairedPdf: PdfEscortWingState | undefined;
+    const hasPdfLoss = change.shipId === 'refinery-124' && isRecord(session.get('pdfEscortWing')) &&
+      Object.hasOwn(session.get('pdfEscortWing') as Record<string, unknown>, 'hostLoss');
+    if ((affectedLost.length || smallLosses.length || hasPdfLoss) && shipDamage(session.get('shipDamage'))[change.shipId]?.destroyed === true) {
+      const catastrophe = await tx.get(db.doc(`sessions/${change.sessionId}/damageDraws/${catastropheEventIdForShip(change.shipId)}`));
+      const pdf = hasPdfLoss ? await tx.get(db.doc(`sessions/${change.sessionId}/serverState/pdfEscortWing`)) : undefined;
+      if (!catastrophe.exists || catastrophe.get('type') !== 'ship-destroyed' || catastrophe.get('shipId') !== change.shipId) {
+        throw commandError('failed-precondition', 'Terminal craft loss has no original host catastrophe.', 'conflict');
+      }
+      const hostRepair = { sourceId: catastropheEventIdForShip(change.shipId), requestId: identity.requestId,
+        revision: currentRevision + 1, repairedAt: new Date().toISOString() };
+      for (const [id, loss] of affectedLost) repairPatch[`lostShuttles.${id}`] = { ...loss, hostRepair };
+      for (const { id, state } of smallLosses) repairPatch[`smallShipStates.${id}`] = {
+        ...state, loss: { ...state.loss, hostRepair },
+      };
+      if (pdf) {
+        const state = pdfEscortWingStateForSession(session, pdf.exists ? pdf.data() : undefined);
+        if (!state?.hostLoss || state.revision >= Number.MAX_SAFE_INTEGER) {
+          throw commandError('failed-precondition', 'Terminal PDF loss is not bound to the original catastrophe.', 'conflict');
+        }
+        repairedPdf = { ...state, revision: state.revision + 1, hostLoss: { ...state.hostLoss, hostRepair } };
+        repairPatch.pdfEscortWing = projectPdfEscortWingMemberView(repairedPdf);
+      }
+    }
     const revision = currentRevision + 1;
+    if (repairedPdf) tx.set(db.doc(`sessions/${change.sessionId}/serverState/pdfEscortWing`), repairedPdf);
     tx.update(ref, {
       [`shipDamage.${change.shipId}`]: { damagedSystemIds: [], destroyed: false },
+      ...repairPatch,
       ...vesselActionRevisionPatch(change.shipId, revision),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -43487,9 +45290,9 @@ function maintenanceRollbackReceiptReply(
 }
 
 /** Undo only recorded steps whose resulting state has not subsequently changed. */
-export const rollbackMaintenance = onCall<{
+export const rollbackMaintenance = auditedOnCall<{
   sessionId?: unknown; shipId?: unknown; instanceId?: unknown; requestId?: unknown; expectedRevision?: unknown;
-}>(async request => {
+}>('rollbackMaintenance', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'shipId', 'instanceId', 'requestId', 'expectedRevision'];
@@ -43510,6 +45313,7 @@ export const rollbackMaintenance = onCall<{
     const prior = await tx.get(requestRef);
     const replay = maintenanceRollbackReceiptReply(prior, fingerprint);
     if (replay) return replay;
+    requireCandidateActionAvailable(authority.session, authority.player, [change.shipId]);
     requireTurnOneForGameplay(authority.session);
     requireActionPhase(authority.session, 'maintenance', 'facilitator');
     const undo = await tx.get(undoRef);
@@ -43607,6 +45411,7 @@ function requireHostMissionMovementAvailable(session: DocumentSnapshot, shipId: 
 }
 
 function requireMissionMovementAvailable(session: DocumentSnapshot, craftIds: readonly string[]): void {
+  requireCandidateCraftActionAvailable(session, craftIds);
   try { requireMissionCraftMovementAvailable(session.get('missionCraftCommitments'), craftIds); }
   catch (cause) {
     throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Mission commitment is unavailable.',
@@ -43615,13 +45420,13 @@ function requireMissionMovementAvailable(session: DocumentSnapshot, craftIds: re
 }
 
 /** One active member clears the exact server-held cycle briefing for every console. */
-export const clearTurnAdvanceInterstitial = onCall(createTurnInterstitialHandler({
+export const clearTurnAdvanceInterstitial = auditedOnCall('clearTurnAdvanceInterstitial', createTurnInterstitialHandler({
   db, requireUid, isActivePlayer, requireActiveGameplayPhase,
   serverTimestamp: () => FieldValue.serverTimestamp(),
 }));
 
 /** Choose the unspecified initial host for an enabled printed Union craft. */
-export const setUnionCraftStartingHost = onCall(createUnionCraftStartingHostHandler({
+export const setUnionCraftStartingHost = auditedOnCall('setUnionCraftStartingHost', createUnionCraftStartingHostHandler({
   db, requireUid, requireFacilitatorInstance, requireCastingWindow,
   setupForSession: session => {
     const setup = canonicalSetupForSession(session, sessionActiveRoleIds(session));

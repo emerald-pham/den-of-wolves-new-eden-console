@@ -1,4 +1,5 @@
 import { endeavourResearchTrack } from './endeavourResearch';
+import { requireEndeavourScienceDeviceBuilt } from './endeavourScienceDevices';
 import { fleetGroupRecord, type FleetGroupRecord } from './fleetGroups';
 import type { NavigationState } from './navigationProjection';
 
@@ -66,19 +67,19 @@ function canonicalFleetGroups(value: readonly FleetGroupRecord[]): readonly Flee
 }
 
 /**
- * Consume the completed ECM Device exactly once and reduce only the fleet group
+ * Consume the paid, built ECM Device exactly once and reduce only the fleet group
  * containing Shepherd, the Endeavour's printed owner vessel.
  */
 export function activateEndeavourEcmDevice(input: Readonly<{
   progress: unknown;
+  construction: unknown;
   state: unknown;
   expectedRevision: number;
   navigation: NavigationState;
   fleetGroups: readonly FleetGroupRecord[];
 }>): EndeavourEcmDeviceResult {
-  if (!endeavourResearchTrack(input.progress, 'ecm-device').complete) {
-    throw new Error('ECM Device research must be complete before activation.');
-  }
+  endeavourResearchTrack(input.progress, 'ecm-device');
+  requireEndeavourScienceDeviceBuilt(input.construction, 'ecm-device');
   const state = parseEndeavourEcmDeviceState(input.state);
   if (!state) throw new Error('ECM Device state is malformed.');
   if (!Number.isSafeInteger(input.expectedRevision) || input.expectedRevision !== state.revision) {

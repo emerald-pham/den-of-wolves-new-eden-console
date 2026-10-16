@@ -1,0 +1,136 @@
+.endgame-debrief {
+  display: grid;
+  gap: 1rem;
+  max-height: min(62vh, 42rem);
+  overflow: auto;
+  padding-right: 0.25rem;
+}
+
+.endgame-debrief__status {
+  margin: 0;
+  color: var(--cic-ink);
+  font: 500 0.96rem/1.55 var(--cic-mono);
+}
+
+.endgame-debrief__result {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border-left: 2px solid var(--cic-cyan);
+  background: color-mix(in srgb, var(--cic-cyan) 8%, var(--cic-panel));
+  color: var(--cic-cyan);
+  font: 600 0.8rem/1.4 var(--cic-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.endgame-debrief__candidate,
+.endgame-debrief__survivors {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid var(--cic-rule);
+  background: color-mix(in srgb, var(--cic-panel) 88%, transparent);
+}
+
+.endgame-debrief__candidate > .cic-overline,
+.endgame-debrief__survivors > .cic-overline {
+  margin: 0;
+  color: var(--cic-cyan);
+}
+
+.endgame-debrief__candidate h3,
+.endgame-debrief__survivors h3,
+.endgame-debrief__group h4,
+.endgame-debrief__group h5 {
+  margin: 0;
+  color: var(--cic-ink);
+  font-family: var(--cic-display);
+  font-weight: 600;
+}
+
+.endgame-debrief__candidate h3,
+.endgame-debrief__survivors h3 {
+  font-size: 1.1rem;
+}
+
+.endgame-debrief__group {
+  display: grid;
+  gap: 0.65rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--cic-rule);
+}
+
+.endgame-debrief__group h4 {
+  color: var(--cic-cyan);
+  font: 600 0.82rem/1.4 var(--cic-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.endgame-debrief__group section {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.endgame-debrief__group h5 {
+  color: var(--cic-muted);
+  font: 600 0.72rem/1.3 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.endgame-debrief__group ul,
+.endgame-debrief__group ol {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--cic-ink);
+  font: 400 0.82rem/1.45 var(--cic-mono);
+}
+
+.endgame-debrief__group section > p {
+  margin: 0;
+  color: var(--cic-muted);
+  font: 400 0.78rem/1.4 var(--cic-mono);
+}
+
+.endgame-debrief__survivors dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin: 0;
+}
+
+.endgame-debrief__survivors dl div {
+  padding: 0.5rem;
+  border: 1px solid var(--cic-rule);
+}
+
+.endgame-debrief__survivors dt {
+  color: var(--cic-muted);
+  font: 500 0.68rem/1.35 var(--cic-mono);
+  text-transform: uppercase;
+}
+
+.endgame-debrief__survivors dd {
+  margin: 0.25rem 0 0;
+  color: var(--cic-ink);
+  font: 600 0.95rem/1.35 var(--cic-mono);
+}
+
+.endgame-debrief__message {
+  margin: 0;
+  color: var(--cic-cyan);
+  font: 500 0.8rem/1.4 var(--cic-mono);
+}
+
+.endgame-debrief__error {
+  margin: 0;
+  color: var(--cic-danger);
+  font: 500 0.8rem/1.4 var(--cic-mono);
+}
+
+@media (max-width: 520px) {
+  .endgame-debrief__survivors dl { grid-template-columns: 1fr; }
+}

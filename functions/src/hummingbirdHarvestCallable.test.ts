@@ -1,8 +1,9 @@
+import type * as NodeCrypto from 'node:crypto';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
 const cryptoMock = vi.hoisted(() => ({ randomInt: vi.fn(), randomUUID: vi.fn() }));
-vi.mock('node:crypto', () => cryptoMock);
+vi.mock('node:crypto', async (importOriginal) => ({ ...await importOriginal<typeof NodeCrypto>(), ...(cryptoMock) }));
 
 type Fields = Record<string, unknown>;
 
@@ -47,7 +48,7 @@ vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error {
     constructor(readonly code: string, message: string) { super(message); }
   },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),

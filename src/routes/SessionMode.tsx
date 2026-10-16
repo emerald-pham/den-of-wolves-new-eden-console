@@ -14,6 +14,7 @@ import { isJointEngineeringRoleAvailable } from '@/data/rolePresets';
 import type { GameSession, Player, RoleBrief, Seat, Voyage33Admission } from '@/types/game';
 import { replacementRoleFor } from '@/data/replacementRoles';
 import CandidateRevealPanel from '@/components/CandidateRevealPanel';
+import CastingPreferencePanel from '@/components/CastingPreferencePanel';
 
 const MODE_LABELS: Record<ConsoleMode, string> = {
   gm: 'GM',
@@ -50,6 +51,8 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
       <FleetRoster
         session={session}
         player={me}
+        castingSession={session}
+        castingPlayer={me}
         sessionName={session.name}
         capybaraEnabled={session.capybaraEnabled !== false}
         dioneEnabled={session.dioneEnabled !== false}
@@ -103,6 +106,8 @@ export function FleetRoster({
   sessionName,
   session,
   player,
+  castingSession,
+  castingPlayer,
   capybaraEnabled,
   dioneEnabled,
   pressEnabled,
@@ -122,6 +127,8 @@ export function FleetRoster({
 }: {
   session: Pick<GameSession, 'phase' | 'currentGroupCandidateReveals'>;
   player: Pick<Player, 'role' | 'fleetGroupId'>;
+  castingSession?: Pick<GameSession, 'id' | 'phase' | 'activeVesselIds' | 'configurationLocked'>;
+  castingPlayer?: Pick<Player, 'role' | 'uid' | 'shipPreferenceId'>;
   sessionName: string;
   capybaraEnabled: boolean;
   dioneEnabled: boolean;
@@ -175,6 +182,7 @@ export function FleetRoster({
         {gmJoinAvailable && (
           <Link
             className="session-mode__back cic-text-button"
+            aria-label="GM join"
             to="/roles"
             state={{ intent: 'gm-join' }}
           >
@@ -194,6 +202,14 @@ export function FleetRoster({
           />
         </label>
       </header>
+
+      {castingSession && castingPlayer && (
+        <CastingPreferencePanel
+          session={castingSession}
+          player={castingPlayer}
+          sessionSnapshotFreshness={sessionSnapshotFreshness}
+        />
+      )}
 
       {roleBrief && (
         <section className="role-brief-link cic-frame" aria-label="Your private casting assignment">

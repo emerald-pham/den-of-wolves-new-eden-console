@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, Player } from '@/types/game';
@@ -129,4 +129,17 @@ describe('Small Ship Jump Drive workspace', () => {
     expect(attempts[0]?.[0].requestId).toBe(attempts[1]?.[0].requestId);
     await waitFor(() => expect(within(workspace).getByText(/replayed.*5143/i)).toBeInTheDocument());
   });
+});
+
+it.each(['UID', 'session'] as const)('withdraws cached private routes and requests a fresh projection on %s change', async kind => {
+  render(<SmallShipJumpWorkspace smallShipId="gorgoneion" />);
+  await screen.findByRole('option', {name:'5143 // short // 1 host fuel'});
+  vi.mocked(movementService.getSmallShipJumpWorkspace).mockImplementation(() => new Promise(() => {}));
+  act(() => {
+    const me = useSessionStore.getState().me!;
+    if (kind === 'UID') useSessionStore.getState().setMe({...me, uid:'captain-new'});
+    else useSessionStore.getState().setIdentity({...session, id:'session-new'}, {...me, sessionId:'session-new'});
+  });
+  expect(screen.queryByRole('option', {name:'5143 // short // 1 host fuel'})).not.toBeInTheDocument();
+  expect(movementService.getSmallShipJumpWorkspace).toHaveBeenCalledTimes(2);
 });

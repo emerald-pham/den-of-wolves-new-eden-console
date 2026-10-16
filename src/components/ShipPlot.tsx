@@ -71,7 +71,7 @@ export default function ShipPlot({
   shipJumpTransitions?: GameSession['shipJumpTransitions'] | undefined;
   activeRoleIds?: readonly string[] | undefined;
   activeVesselIds?: readonly string[] | undefined;
-  ambientSession?: Pick<GameSession, 'id' | 'createdAt' | 'dradisContactTriggeredAt'> | undefined;
+  ambientSession?: Pick<GameSession, 'id' | 'phase' | 'createdAt' | 'dradisContactTriggeredAt'> | undefined;
   turnPhase?: GameSession['turnPhase'] | undefined;
   localNavigation?: LocalDradisNavigation | undefined;
   requireLocalAuthority?: boolean;
@@ -191,7 +191,7 @@ export default function ShipPlot({
   const contacts = jumpInProgress ? [] : localNavigation
     ? localDradisContacts(effectiveViewerId, localNavigation, shipDamage)
     : requireLocalAuthority ? [] : catalogContacts;
-  const attackEnabled = aboard && !jumpInProgress && Boolean(ambientSession?.id &&
+  const attackEnabled = ambientSession?.phase !== 'closed' && aboard && !jumpInProgress && Boolean(ambientSession?.id &&
     localNavigation?.ships.some((ship) => ship.shipId === effectiveViewerId && ship.fleetGroupId === localNavigation.groupId));
   const visibleAttackTargetIds = localNavigation ? contacts.flatMap((contact) =>
     'id' in contact && typeof contact.id === 'string' && contact.id.startsWith('ship:')

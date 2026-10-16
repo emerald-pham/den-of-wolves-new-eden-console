@@ -25,6 +25,7 @@ const mock = vi.hoisted(() => ({
   turnStartAnnouncement: undefined as unknown,
   pendingTeamAnnouncements: undefined as unknown,
   turnPhase: undefined as unknown, turnState: undefined as unknown, phase: 'active' as string,
+  fullGameDemo: undefined as unknown,
   smallShipStates: {} as Record<string, unknown>,
   turnLimit: 6 as 6 | 7 | 8, pressDispatch: undefined as unknown,
   fleetTicker: undefined as unknown,
@@ -195,7 +196,10 @@ vi.mock('firebase-admin/firestore', () => ({
                 } as Record<string, unknown>;
                 return { exists: true, get: (key: string) => fields[key] };
               }
-              if (path.endsWith('/gmInstances')) return { exists: true, docs: [] };
+              if (path.endsWith('/gmInstances')) return {
+                exists: true,
+                docs: Object.keys(mock.gmInstanceOwners).map((id) => ({ id })),
+              };
               return { exists: true, get: (key: string) => readSnapshot(key) };
             };
             const tx = {
@@ -523,6 +527,7 @@ beforeEach(() => {
   };
   mock.turnState = undefined;
   mock.turnLimit = 6;
+  mock.fullGameDemo = undefined;
   mock.race = undefined;
   mock.pressDispatch = undefined;
   mock.pressEnabled = true;
@@ -667,6 +672,7 @@ beforeEach(() => {
           shuttleControl: mock.shuttleControl,
           retainedShuttles: mock.retainedShuttles,
           pursuitGroups: mock.legacyPursuitGroups,
+          fullGameDemo: mock.fullGameDemo,
         };
     return { exists: true, get: (key: string) => fields[key] };
   });
@@ -872,6 +878,55 @@ it.each([
     }),
     { mergeFields: expect.arrayContaining(['systemHistory', 'revision', 'pursuitEmergencyWindow']) },
   );
+});
+
+it('applies environmental damage casualties and threshold consequences in the maintenance transaction', async () => {
+  setEnvironmentalHistoryAuthority();
+  mock.navigation = environmentalNavigation('1096');
+  mock.gmInstanceOwners.bridge = 'u1';
+  mock.randomInt.mockImplementationOnce(() => 0).mockImplementationOnce(() => 3).mockImplementationOnce(() => 3);
+  const maintenance = {
+    session: {
+      phase: 'active', currentTurn: 1, activeVesselIds: ['aegis'], activeRoleIds: ['admiral'],
+      chartId: 'A', chartSelectionLocked: true,
+      maintenanceCycles: {},
+      shipResources: { aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 } },
+      shipDamage: { aegis: { damagedSystemIds: [], destroyed: false } },
+      shipUnrest: { aegis: 7 }, shipSurvivors: { aegis: 250 },
+      shuttleDockings: [], shuttleCargo: {}, shuttleFuelled: {},
+      unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
+    } as Record<string, unknown>,
+    receipts: {}, undo: {}, events: {}, damageDraws: {},
+  };
+  mock.race = { attempts: 0, ready: Promise.resolve(), release: () => undefined, version: 0, maintenance };
+
+  await expect(runMaintenance.run(request({
+    ...data, requestId: 'environmental-casualty',
+  }))).resolves.toMatchObject({
+    status: 'committed',
+    cycle: { results: { '0': expect.stringMatching(/Ion Nebula.*causes damage/) } },
+    result: { population: 0, unrest: 9, damage: { damagedSystemIds: ['fighter-bay-alpha'], destroyed: false } },
+  });
+
+  expect(maintenance.session.shipSurvivors).toEqual({ aegis: 0 });
+  expect(maintenance.session.shipUnrest).toEqual({ aegis: 9 });
+  expect(maintenance.session.populationAlerts).toMatchObject({ aegis: { population: 0 } });
+  expect(maintenance.session.unrestAlerts).toHaveProperty('aegis');
+  expect(Object.keys(maintenance.damageDraws)).toEqual([
+    'sessions/s1/damageDraws/maintenance-environmental-casualty',
+  ]);
+});
+
+it('consumes the entitled I1 suppression in the registered maintenance handler without drawing Ion damage', async () => {
+  setEnvironmentalHistoryAuthority();
+  mock.navigation = { ...environmentalNavigation('1096'), missionNebulaBenefitsByShip: {
+    aegis: { missionId: 'mission-parity', coordinate: '1096', suppressMaintenanceDamage: true, freeExitFuel: false },
+  } };
+  mock.randomInt.mockReturnValue(6);
+  await expect(runMaintenance.run(request({ ...data, requestId: 'maintenance-ion-reward' }))).resolves.toMatchObject({
+    result: { damage: { damagedSystemIds: [], destroyed: false } },
+  });
+  expect(mock.set.mock.calls.some(([path]) => String(path).startsWith('sessions/s1/damageDraws/'))).toBe(false);
 });
 
 it('records a below-threshold Ion Nebula check without drawing damage', async () => {
@@ -2317,7 +2372,9 @@ it('rejects illegal phase transitions and advances only valid numbered turns wit
     },
   });
   expect(mock.update).toHaveBeenCalledTimes(2);
-  expect(mock.set).toHaveBeenCalledTimes(2);
+  expect(mock.set).toHaveBeenCalledTimes(3);
+  expect(mock.set).toHaveBeenCalledWith(expect.stringMatching(/\/commandReceipts\/advance-test-/),
+    expect.objectContaining({ result: expect.objectContaining({ currentTurn: 3 }) }));
   expect(mock.set).toHaveBeenCalledWith('sessions/s1/turnInterstitials/3', expect.objectContaining({
     cycle: 3, status: 'held', pausedAt: expect.any(String),
   }));
@@ -2820,7 +2877,9 @@ it('commits one server-owned Coordination completion announcement with the next-
     turnStartAnnouncement: { turn: 2, survivorPopulation: 242_541 },
     turnPhase: expect.objectContaining({ turn: 2 }),
   }));
-  expect(mock.set).toHaveBeenCalledTimes(2);
+  expect(mock.set).toHaveBeenCalledTimes(3);
+  expect(mock.set).toHaveBeenCalledWith(expect.stringMatching(/\/commandReceipts\/advance-test-/),
+    expect.objectContaining({ result: expect.objectContaining({ currentTurn: 2 }) }));
   expect(mock.set).toHaveBeenCalledWith('sessions/s1/turnInterstitials/2', expect.objectContaining({
     cycle: 2, status: 'held', pausedAt: expect.any(String),
   }));
@@ -2888,11 +2947,54 @@ it('keeps Wolf attack parking separate by rejecting cycle advancement during res
   );
 });
 
-it('freezes the configured final turn in debrief and replays the terminal receipt', async () => {
+it.each([false, true])('replays a committed ordinary cycle advance after acknowledgement loss (manual demo: %s)', async (manualDemo) => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:20:00.000Z'));
+  if (manualDemo) mock.fullGameDemo = { status: 'active', progression: 'manual' };
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
+  const advance = {
+    sessionId: 's1', instanceId: 'bridge', requestId: 'advance-test-lost-ack',
+    expectedTurn: 1,
+  };
+  const result = await advanceTurn.run(request(advance));
+  expect(result).toMatchObject({ currentTurn: 2 });
+  expect(mock.commandReceipts['sessions/s1/commandReceipts/advance-test-lost-ack'])
+    .toMatchObject({
+      fingerprint: expect.objectContaining({ actorUid: 'u1', expectedRevision: 1, action: 'advance-turn' }),
+      result,
+    });
+
+  // The live projection may have moved several cycles before the GM retries.
+  mock.currentTurn = 3;
+  mock.turnPhase = { turn: 3, airspace: { state: 'restricted', tickerActive: true, pressAccess: false } };
+  mock.update.mockClear();
+  mock.set.mockClear();
+  mock.create.mockClear();
+  await expect(advanceTurn.run(request(advance))).resolves.toEqual(result);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.create).not.toHaveBeenCalled();
+
+  await expect(advanceTurn.run(request({ ...advance, overridePhaseTimer: true })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  mock.role = 'player';
+  await expect(advanceTurn.run(request(advance)))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+async function verifyConfiguredFinalCycleFreeze(manualDemo: boolean) {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-06T12:20:00.000Z'));
   mock.currentTurn = 6;
   mock.turnLimit = 6;
+  if (manualDemo) mock.fullGameDemo = { status: 'active', progression: 'manual' };
   mock.turnStartAnnouncement = { turn: 6, survivorPopulation: 242_500 };
   mock.fleetSurvivorPopulationAdjustment = 999_999;
   mock.turnState = {
@@ -2971,7 +3073,16 @@ it('freezes the configured final turn in debrief and replays the terminal receip
       survivingShipIds: ['aegis'],
       lostOrDestroyedShipIds: [],
     }),
+    ...(manualDemo ? { fullGameDemo: { status: 'complete', progression: 'manual' } } : {}),
+    debriefSnapshot: expect.objectContaining({
+      type: 'session-debrief', source: 'final-cycle', result: 'completed', cycle: 6,
+      survivorOutcome: expect.objectContaining({ type: 'survivor-outcome', cycle: 6 }),
+    }),
   }));
+  if (!manualDemo) {
+    const sessionPatch = mock.update.mock.calls.find(([path]) => path === 'sessions/s1')?.[1];
+    expect(sessionPatch).not.toHaveProperty('fullGameDemo');
+  }
   expect(mock.set).toHaveBeenCalledWith(
     'sessions/s1/commandReceipts/advance-test-final',
     expect.objectContaining({
@@ -3011,6 +3122,14 @@ it('freezes the configured final turn in debrief and replays the terminal receip
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+}
+
+it('freezes the configured final turn in debrief and replays the terminal receipt', async () => {
+  await verifyConfiguredFinalCycleFreeze(false);
+});
+
+it('freezes the configured final full-game demo turn and its terminal receipt', async () => {
+  await verifyConfiguredFinalCycleFreeze(true);
 });
 
 it('rejects normal gameplay mutations after final-turn debrief begins', async () => {

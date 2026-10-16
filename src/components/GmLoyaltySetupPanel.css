@@ -1,0 +1,172 @@
+.gm-loyalty-setup {
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+  margin: 1rem 0;
+  padding: 0.9rem;
+  color: var(--cic-ink);
+  font-family: var(--cic-mono);
+}
+
+.gm-loyalty-setup__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.gm-loyalty-setup__eyebrow,
+.gm-loyalty-setup h3 {
+  margin: 0;
+}
+
+.gm-loyalty-setup__eyebrow,
+.gm-loyalty-setup__status {
+  color: var(--cic-amber);
+  font: 0.75rem/1.45 var(--cic-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.gm-loyalty-setup h3 {
+  color: var(--cic-scream);
+  font: 600 1rem/1.35 var(--cic-mono);
+  overflow-wrap: anywhere;
+}
+
+.gm-loyalty-setup__status {
+  flex: 0 1 auto;
+  max-width: 45%;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--cic-rule);
+  color: var(--cic-cyan);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.gm-loyalty-setup__notice,
+.gm-loyalty-setup__message,
+.gm-loyalty-setup__inline-blocker {
+  margin: 0;
+  padding: 0.65rem;
+  border-left: 2px solid var(--cic-amber);
+  background: color-mix(in srgb, var(--cic-panel) 76%, transparent);
+  color: var(--cic-muted);
+  font: 0.8rem/1.55 var(--cic-mono);
+  overflow-wrap: anywhere;
+}
+
+.gm-loyalty-setup__message {
+  border-left-color: var(--cic-cyan);
+  color: var(--cic-cyan);
+}
+
+.gm-loyalty-setup__coverage,
+.gm-loyalty-setup__checks,
+.gm-loyalty-setup__blockers {
+  min-width: 0;
+  margin: 0;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--cic-rule);
+  background: color-mix(in srgb, var(--cic-panel) 82%, transparent);
+  color: var(--cic-muted);
+  font: 0.78rem/1.5 var(--cic-mono);
+  overflow-wrap: anywhere;
+}
+
+.gm-loyalty-setup__coverage {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.gm-loyalty-setup__coverage span:last-child {
+  color: var(--cic-cyan);
+  text-align: right;
+}
+
+.gm-loyalty-setup__checks,
+.gm-loyalty-setup__blockers {
+  display: grid;
+  gap: 0.3rem;
+  padding-left: 2rem;
+}
+
+.gm-loyalty-setup__blockers {
+  border-color: color-mix(in srgb, var(--cic-danger) 62%, var(--cic-rule));
+  color: var(--cic-scream);
+}
+
+.gm-loyalty-setup__form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.gm-loyalty-setup__field {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+  color: var(--cic-muted);
+  font: 0.75rem/1.4 var(--cic-mono);
+}
+
+.gm-loyalty-setup__field select,
+.gm-loyalty-setup__fixed-value {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--cic-rule);
+  border-radius: var(--cic-radius);
+  background: var(--cic-void);
+  color: var(--cic-cyan);
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+
+.gm-loyalty-setup__fixed-value {
+  display: flex;
+  align-items: center;
+}
+
+.gm-loyalty-setup__field select:focus-visible {
+  outline: 2px solid var(--cic-amber);
+  outline-offset: 2px;
+}
+
+.gm-loyalty-setup__form .cic-action-button {
+  min-height: 44px;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.gm-loyalty-setup__inline-blocker {
+  grid-column: 1 / -1;
+  border-left-color: var(--cic-danger);
+}
+
+@media (max-width: 42rem) {
+  .gm-loyalty-setup__heading,
+  .gm-loyalty-setup__coverage {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .gm-loyalty-setup__status {
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .gm-loyalty-setup__form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gm-loyalty-setup__coverage span:last-child {
+    text-align: left;
+  }
+}

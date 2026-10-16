@@ -2,7 +2,7 @@ import { memberPhiliaRepairLedger } from '../../functions/src/memberSession';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
 import { hasFreshSessionAuthority, requireFreshSessionAuthority } from './sessionMutationAuthority';
-import { turnPhaseState } from './turnPhase';
+import { turnPhaseDeadlinePassed, turnPhaseState } from './turnPhase';
 import { useSessionStore } from '@/store/useSessionStore';
 import { CONSOLE_ROLES } from '@/data/roles';
 import type { GameSession, Player } from '@/types/game';
@@ -106,9 +106,8 @@ function hasLiveCoordination(session: GameSession): boolean {
   const cycle = session.currentTurn;
   const phase = turnPhaseState(session.turnPhase);
   if (!phase || !Number.isSafeInteger(cycle) || (cycle as number) < 1) return false;
-  const deadline = Date.parse(phase.openAirspaceEndsAt);
   return session.phase === 'active' && phase.turn === cycle && phase.airspace.state === 'lifted' &&
-    phase.timerPause === undefined && Number.isFinite(deadline) && Date.now() < deadline;
+    phase.timerPause === undefined && !turnPhaseDeadlinePassed(phase, 'open');
 }
 
 /** The current projection, Engineer role, group, holder, and dock must still authorize repair. */

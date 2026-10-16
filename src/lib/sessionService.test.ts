@@ -53,6 +53,8 @@ const {
   beginOpenAirspacePhase,
   extendAirspaceWindow,
   setEmergencyTimerPaused,
+  prepareFullGameDemo,
+  advanceFullGameDemoPhase,
   setWolfAttackWindow,
   advanceWolfAttackToLongRange,
   getDioneMaliadesLaunch,
@@ -81,6 +83,7 @@ const {
   fleeDestroyedShip,
   scavengeDestroyedShipStores,
   setFighterWingCount,
+  exchangeAegisFighterWings,
   createJumpShipAttempt,
   isJumpShipOutcomeUncertain,
   adjudicateFailedJump,
@@ -89,6 +92,7 @@ const {
   listUnresolvedJumpFailures,
   getWolfBoardingDefenceChoice,
   commitWolfBoardingDefenceChoice,
+  getWolfBoardingSpecialChoice,
   commitWolfRangeActionChoice,
   assignWolfRangeTargets,
   getWolfRangeActionChoice,
@@ -104,6 +108,9 @@ const {
   getWolfAmnestyView,
   respondToWolfAmnesty,
   recordWolfAmnestyConsequence,
+  beginSessionDebrief,
+  closeSession,
+  getSessionDebrief,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
 const { acceptCallableSessionAuthority, sessionSnapshotAuthorityFor } = await import('./firestore');
@@ -155,6 +162,210 @@ describe('Wolf range contact guidance DTO', () => {
 
     await expect(getWolfRangeActionChoice()).rejects.toThrow(/invalid Wolf range choice view/i);
   });
+});
+
+describe('Wolf boarding Militia choice DTO', () => {
+  beforeEach(() => {
+    vi.mocked(httpsCallable).mockReset();
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity({ ...session, phase: 'active' }, {
+      ...player, replacementRoleId: 'rosal-militia-leader', replacementStatus: null,
+    });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+
+  it.each([0, 1, 2])('accepts all three front-line dice with %i available Security Teams from the current callable view', async teams => {
+    const read = callableReturning({ data: {
+      type: 'wolf-boarding-special-choice-view', sessionId: 's1', turn: 1, revision: 3,
+      choice: { kind: 'militia', targetShipId: 'aegis', boardingParties: 2,
+        availableSecurityTeams: teams, selectedSecurityTeams: 0, maxFrontLineDice: 3,
+        doubleDiceAvailable: true },
+    } });
+    vi.mocked(httpsCallable).mockReturnValue(read as never);
+
+    await expect(getWolfBoardingSpecialChoice()).resolves.toMatchObject({ choice: {
+      kind: 'militia', availableSecurityTeams: teams, maxFrontLineDice: 3,
+    } });
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'getWolfBoardingSpecialChoice');
+    expect(read).toHaveBeenCalledWith({ sessionId: 's1' });
+  });
+
+  it.each([-1, 4, 1.5])('continues rejecting out-of-range front-line projections (%s)', async maxFrontLineDice => {
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: {
+      type: 'wolf-boarding-special-choice-view', sessionId: 's1', turn: 1, revision: 3,
+      choice: { kind: 'militia', targetShipId: 'aegis', boardingParties: 2,
+        availableSecurityTeams: 0, selectedSecurityTeams: 0, maxFrontLineDice,
+        doubleDiceAvailable: true },
+    } }) as never);
+
+    await expect(getWolfBoardingSpecialChoice()).rejects.toThrow(/invalid boarding choice view/i);
+  });
+});
+
+describe('session debrief lifecycle services', () => {
+  beforeEach(() => {
+    vi.mocked(httpsCallable).mockReset();
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity({ ...session, phase: 'failure' }, { ...player, role: 'gm' });
+    useSessionStore.getState().setGmInstance({ id: 'gm-1', sessionId: 's1', uid: 'u1', name: 'GM',
+      deviceLabel: 'test', claimedAt: '2026-10-05T12:00:00.000Z' });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+
+  it('uses audited session-bound lifecycle requests and parses the live GM route projection', async () => {
+    vi.mocked(httpsCallable).mockImplementation((_, name) => {
+      if (name === 'beginSessionDebrief') return callableReturning({ data: {
+        phase: 'debrief', committed: true, cycle: 4, result: 'failure',
+      } }) as never;
+      if (name === 'closeSession') return callableReturning({ data: {
+        phase: 'closed', committed: true, cycle: 4, result: 'failure',
+      } }) as never;
+      return callableReturning({ data: { type: 'session-debrief', sessionId: 's1', snapshot: {
+        type: 'session-debrief', version: 1, source: 'candidate', result: 'success',
+        cause: 'candidate-complete', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+        committedAt: '2026-10-05T12:01:00.000Z',
+        outcome: { type: 'game-outcome', result: 'success', cause: 'candidate-complete',
+          candidateCode: 'N', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' },
+        candidate: { code: 'N', groups: [{ groupId: 'fleet-a', requirements: [],
+          rolls: [{ id: 'passage', face: 4, result: 'success' }], losses: [], humanCalls: [],
+          path: [{ action: 'ring-passage', result: 'crossed', shipId: 'aegis', fuelSpent: 2 }],
+        }] },
+      } } }) as never;
+    });
+
+    await expect(beginSessionDebrief()).resolves.toEqual({ phase: 'debrief', committed: true, cycle: 4, result: 'failure' });
+    await expect(closeSession()).resolves.toEqual({ phase: 'closed', committed: true, cycle: 4, result: 'failure' });
+    await expect(getSessionDebrief()).resolves.toMatchObject({
+      candidate: { groups: [{ groupId: 'fleet-a', path: [{ action: 'ring-passage', result: 'crossed', shipId: 'aegis' }] }] },
+    });
+    expect(httpsCallable).toHaveBeenNthCalledWith(1, expect.anything(), 'beginSessionDebrief');
+    expect(httpsCallable).toHaveBeenNthCalledWith(2, expect.anything(), 'closeSession');
+    expect(httpsCallable).toHaveBeenNthCalledWith(3, expect.anything(), 'getSessionDebrief');
+  });
+
+  it('does not grant the GM-only reader to a player or accept malformed terminal receipts', async () => {
+    useSessionStore.getState().setIdentity({ ...session, phase: 'debrief' }, player);
+    await expect(getSessionDebrief()).rejects.toThrow(/live GM/i);
+    expect(httpsCallable).not.toHaveBeenCalled();
+
+    useSessionStore.getState().setIdentity({ ...session, phase: 'failure' }, { ...player, role: 'gm' });
+    useSessionStore.getState().setGmInstance({ id: 'gm-1', sessionId: 's1', uid: 'u1', name: 'GM',
+      deviceLabel: 'test', claimedAt: '2026-10-05T12:00:00.000Z' });
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: {
+      phase: 'closed', committed: true, cycle: -1, result: 'private-note',
+    } }) as never);
+    await expect(beginSessionDebrief()).rejects.toThrow(/invalid debrief action result/i);
+  });
+});
+
+describe('closed member debrief rehydration', () => {
+  let historySession: typeof session;
+  let historyPlayer: typeof player;
+  beforeEach(() => {
+    historySession = { ...session, id: 'closed-history-service' };
+    historyPlayer = { ...player, sessionId: historySession.id };
+    vi.mocked(httpsCallable).mockReset();
+    useSessionStore.getState().reset();
+  });
+
+  it('reads a server-scoped closed summary and installs it only for the same disconnected member', async () => {
+    const outcome = { type: 'game-outcome', result: 'success', cause: 'candidate-complete',
+      candidateCode: 'N', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' };
+    const snapshot = { type: 'session-debrief', version: 1, source: 'candidate', result: 'success',
+      cause: 'candidate-complete', cycle: 4, occurredAt: outcome.occurredAt,
+      committedAt: '2026-10-05T12:01:00.000Z', outcome,
+      candidate: { code: 'N', groups: [{ requirements: [{ id: 'paid-crossing', status: 'met' }],
+        rolls: [{ id: 'passage', face: 4, result: 'success' }], losses: [], humanCalls: [],
+        path: [{ action: 'ring-passage', result: 'crossed', shipId: 'aegis', fuelSpent: 5 }],
+      }] },
+    };
+    const closed = { id: 'closed-history-service', name: 'Table one', joinCode: '', phase: 'closed', currentTurn: 4,
+      playerCount: 8, turnLimit: 6, createdAt: '2026-10-05T10:00:00.000Z',
+      updatedAt: '2099-10-05T12:01:00.000Z', gameOutcome: outcome, debriefSnapshot: snapshot };
+    const returningMember = { ...historyPlayer, role: 'player' as const, fleetGroupId: 'fleet-1',
+      connectionGeneration: 4, connected: false };
+    useSessionStore.getState().setIdentity({ ...historySession, joinCode: '', phase: 'closed' } as never, returningMember);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    const reader = callableReturning({ data: { type: 'current-member-session', sessionId: 'closed-history-service', actorUid: 'u1',
+      groupId: 'fleet-1', connectionGeneration: 4, assignedRoleId: null, activeConsoleRoleId: null,
+      session: closed } });
+    vi.mocked(httpsCallable).mockReturnValue(reader as never);
+    const { readClosedSessionHistory } = await import('./sessionService') as unknown as {
+      readClosedSessionHistory: (sessionId: string) => Promise<boolean>;
+    };
+
+    await expect(readClosedSessionHistory('closed-history-service')).resolves.toBe(true);
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'getCurrentMemberSession');
+    expect(reader).toHaveBeenCalledWith({ sessionId: 'closed-history-service' });
+    expect(useSessionStore.getState().session).toMatchObject({ phase: 'closed',
+      debriefSnapshot: { source: 'candidate', outcome, candidate: { groups: [{
+        requirements: [{ id: 'paid-crossing', status: 'met' }],
+        path: [{ action: 'ring-passage', result: 'crossed', shipId: 'aegis', fuelSpent: 5 }],
+      }] } } });
+    expect(useSessionStore.getState().session?.gameOutcome).toEqual(outcome);
+    expect(useSessionStore.getState().me).toMatchObject({ uid: 'u1', fleetGroupId: 'fleet-1', connected: false });
+    expect(useSessionStore.getState().gmInstance).toBeNull();
+  });
+
+  it('does not accept a closed read for a different actor or group', async () => {
+    const returningMember = { ...historyPlayer, role: 'player' as const, fleetGroupId: 'fleet-1',
+      connectionGeneration: 4, connected: false };
+    const before = { ...historySession, joinCode: '', phase: 'closed' as const };
+    useSessionStore.getState().setIdentity(before as never, returningMember);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    const reader = callableReturning({ data: { type: 'current-member-session', sessionId: 'closed-history-service', actorUid: 'other',
+      groupId: 'fleet-2', connectionGeneration: 4, assignedRoleId: null, activeConsoleRoleId: null,
+      session: { id: 'closed-history-service', name: 'Foreign', joinCode: '', phase: 'closed', currentTurn: 4 } } });
+    vi.mocked(httpsCallable).mockReturnValue(reader as never);
+    const { readClosedSessionHistory } = await import('./sessionService') as unknown as {
+      readClosedSessionHistory: (sessionId: string) => Promise<boolean>;
+    };
+
+    await expect(readClosedSessionHistory('closed-history-service')).resolves.toBe(false);
+    expect(useSessionStore.getState().session).toEqual(before);
+  });
+
+  it.each(['actor', 'group'] as const)(
+    'drops a late closed-history reply after the current %s changes', async changedIdentity => {
+      const before = { ...historySession, joinCode: '', phase: 'closed' as const };
+      const returningMember = { ...historyPlayer, role: 'player' as const, fleetGroupId: 'fleet-1',
+        connectionGeneration: 4, connected: false };
+      useSessionStore.getState().setIdentity(before as never, returningMember);
+      useSessionStore.getState().setConnection('live');
+      useSessionStore.getState().setSessionSnapshotFreshness('server');
+      const outcome = { type: 'game-outcome', result: 'success', cause: 'candidate-complete',
+        candidateCode: 'N', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' };
+      const responseSession = { ...before, updatedAt: '2099-10-05T12:01:00.000Z', gameOutcome: outcome,
+        debriefSnapshot: { type: 'session-debrief', version: 1, source: 'candidate', result: 'success',
+          cause: 'candidate-complete', cycle: 4, occurredAt: outcome.occurredAt,
+          committedAt: '2026-10-05T12:01:00.000Z', outcome,
+          candidate: { code: 'N', groups: [{ requirements: [], rolls: [], losses: [], humanCalls: [] }] },
+        } };
+      let resolveRead: (value: { data: unknown }) => void = () => undefined;
+      const reader = vi.fn(() => new Promise<{ data: unknown }>(resolve => { resolveRead = resolve; }));
+      vi.mocked(httpsCallable).mockReturnValue(reader as never);
+      const { readClosedSessionHistory } = await import('./sessionService') as unknown as {
+        readClosedSessionHistory: (sessionId: string) => Promise<boolean>;
+      };
+
+      const pending = readClosedSessionHistory('closed-history-service');
+      await Promise.resolve();
+      useSessionStore.getState().setIdentity(before as never, changedIdentity === 'actor'
+        ? { ...returningMember, uid: 'u2' }
+        : { ...returningMember, fleetGroupId: 'fleet-2' });
+      resolveRead({ data: { type: 'current-member-session', sessionId: 'closed-history-service', actorUid: 'u1',
+        groupId: 'fleet-1', connectionGeneration: 4, assignedRoleId: null, activeConsoleRoleId: null,
+        session: responseSession } });
+
+      await expect(pending).resolves.toBe(false);
+      expect(useSessionStore.getState().session).toEqual(before);
+    },
+  );
 });
 
 describe('Wolf Commander cycle and target dial services', () => {
@@ -256,6 +467,15 @@ describe('GM Wolf threat source options service', () => {
     await expect(getWolfAttackThreatWindowOptions('fleet-2')).resolves.toEqual(result);
     expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'getWolfAttackThreatWindowOptions');
     expect(call).toHaveBeenCalledWith({ sessionId: 's1', instanceId: 'gm-1', targetGroupId: 'fleet-2' });
+  });
+  it('retains a scheduled K mission source in the existing GM options reader', async () => {
+    const result = { type: 'wolf-attack-threat-window-options', sessionId: 's1', targetGroupId: 'fleet-2', cycle: 3,
+      sources: [{ siteCode: 'K', sourceId: 'mission-mission-parity', sourceCycle: 3, coordinate: '6931' }] };
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: result }) as never);
+    await expect(getWolfAttackThreatWindowOptions('fleet-2')).resolves.toEqual(result);
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: { ...result,
+      sources: [{ ...result.sources[0], sourceId: 'arrival-forged' }] } }) as never);
+    await expect(getWolfAttackThreatWindowOptions('fleet-2')).rejects.toThrow(/invalid.*threat source options/i);
   });
 
   it('rejects malformed or cross-group source options', async () => {
@@ -1543,6 +1763,77 @@ it('starts production through one server receipt and hydrates the GM-private set
   });
   expect(useSessionStore.getState().gmSetupReceipt).toMatchObject({
     source: 'routine-start', committedSetupRevision: 5,
+  });
+});
+
+describe('authenticated full-game demo controls', () => {
+  beforeEach(() => {
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity(
+      { ...session, phase: 'casting', currentTurn: 0, setupRevision: 4 }, { ...player, role: 'gm' },
+    );
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+
+  it('prepares only the fresh Cycle 0 session through the active GM callable', async () => {
+    const callable = callableReturning({ data: {
+      status: 'committed', sessionId: 's1', requestId: 'demo-prepare-1',
+      fullGameDemo: { status: 'preparing', progression: 'manual' },
+      expectedSetupRevision: 4, currentSetupRevision: 4,
+    } });
+    vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+    await expect(prepareFullGameDemo('demo-prepare-1')).resolves.toMatchObject({
+      status: 'committed', fullGameDemo: { status: 'preparing', progression: 'manual' },
+    });
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'prepareFullGameDemo');
+    expect(callable).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 's1', instanceId: 'instance-1', expectedSetupRevision: 4,
+      requestId: expect.any(String),
+    }));
+    expect(useSessionStore.getState().session).toMatchObject({
+      fullGameDemo: { status: 'preparing', progression: 'manual' },
+    });
+  });
+
+  it('opens Coordination only by the authenticated manual phase action and hydrates the marker', async () => {
+    const teamPhase = {
+      turn: 1, teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+      openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+      airspace: { state: 'restricted' as const, tickerActive: true, pressAccess: false },
+      progression: 'manual' as const,
+    };
+    useSessionStore.getState().setSession({
+      ...useSessionStore.getState().session!, phase: 'active', currentTurn: 1,
+      fullGameDemo: { status: 'active', progression: 'manual' }, turnPhase: teamPhase,
+    } as never);
+    const openPhase = { ...teamPhase, airspace: { ...teamPhase.airspace, state: 'lifted' as const } };
+    const callable = callableReturning({ data: {
+      status: 'committed', sessionId: 's1', requestId: 'demo-phase-1', currentTurn: 1,
+      fullGameDemo: { status: 'active', progression: 'manual' }, turnPhase: openPhase,
+      turnState: { currentTurn: 1, maxTurn: 6, phase: 'coordination', phaseRevision: 2,
+        startedAt: teamPhase.teamPhaseEndsAt, endsAt: teamPhase.openAirspaceEndsAt },
+    } });
+    vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+    await expect(advanceFullGameDemoPhase('demo-phase-1')).resolves.toMatchObject({
+      currentTurn: 1, turnPhase: { progression: 'manual', airspace: { state: 'lifted' } },
+    });
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'advanceFullGameDemoPhase');
+    expect(callable).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 's1', instanceId: 'instance-1', expectedTurn: 1, requestId: expect.any(String),
+    }));
+    expect(useSessionStore.getState().session).toMatchObject({
+      currentTurn: 1, fullGameDemo: { status: 'active', progression: 'manual' },
+      turnPhase: { progression: 'manual', airspace: { state: 'lifted' } },
+    });
   });
 });
 
@@ -3000,6 +3291,19 @@ describe('GM instance commands', () => {
       requestId: expect.any(String), status: 'due',
     }));
     expect(useSessionStore.getState().session).not.toHaveProperty('wolfAttackWindow');
+  });
+  it('retains the server-confirmed K source when choosing its private timing window', async () => {
+    useSessionStore.getState().setIdentity({ ...session, phase: 'active', currentTurn: 2 }, { ...player, role: 'gm' });
+    useSessionStore.getState().setGmInstance({ id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z' });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    const source = { targetGroupId: 'fleet-1', threatSiteCode: 'K', threatSourceId: 'mission-mission-parity' };
+    const window = { status: 'due', turn: 2, revision: 3, ...source };
+    const callable = callableReturning({ data: window });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+    await expect(setWolfAttackWindow('due', 2, source as never)).resolves.toEqual(window);
+    expect(callable).toHaveBeenCalledWith(expect.objectContaining(source));
   });
 
   it('advances only the revision-bound private Wolf stage through the current GM instance', async () => {
@@ -5547,6 +5851,64 @@ describe('GM fighter-wing stale recovery', () => {
   );
 });
 
+describe('Wing Commander Fighter Wing exchange service', () => {
+  beforeEach(() => {
+    vi.mocked(httpsCallable).mockReset();
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity({
+      ...session, phase: 'active', currentTurn: 2,
+      turnPhase: {
+        turn: 2, teamPhaseEndsAt: new Date(Date.now() + 60_000).toISOString(),
+        openAirspaceEndsAt: new Date(Date.now() + 120_000).toISOString(),
+        airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+      },
+      fighterWingCounts: {
+        'fighter-wing-alpha': { count: 3, revision: 4 },
+        'fighter-wing-bravo': { count: 2, revision: 7 },
+      },
+      shipUpgrades: { aegis: [] },
+    }, {
+      ...player, assignedRoleId: 'wing-commander', seatId: 'wing-commander',
+      activeConsoleRoleId: 'wing-commander',
+    });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+
+  it('sends both current wing revisions and applies the paired server result', async () => {
+    let request: Record<string, unknown> | undefined;
+    const call = Object.assign(vi.fn((payload: Record<string, unknown>) => {
+      request = payload;
+      return Promise.resolve({ data: {
+        status: 'committed', sessionId: 's1', requestId: payload.requestId,
+        sourceWingId: 'fighter-wing-alpha', amount: 1, turn: 2, capacity: 4,
+        counts: {
+          'fighter-wing-alpha': { count: 2, revision: 5 },
+          'fighter-wing-bravo': { count: 3, revision: 8 },
+        },
+      } });
+    }), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(call as never);
+
+    await expect(exchangeAegisFighterWings('fighter-wing-alpha', 1)).resolves.toMatchObject({
+      status: 'committed', sourceWingId: 'fighter-wing-alpha', amount: 1,
+      counts: {
+        'fighter-wing-alpha': { count: 2, revision: 5 },
+        'fighter-wing-bravo': { count: 3, revision: 8 },
+      },
+    });
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'exchangeAegisFighterWings');
+    expect(request).toMatchObject({
+      sessionId: 's1', sourceWingId: 'fighter-wing-alpha', amount: 1,
+      expectedTurn: 2, expectedAlphaRevision: 4, expectedBravoRevision: 7,
+    });
+    expect(useSessionStore.getState().session?.fighterWingCounts).toMatchObject({
+      'fighter-wing-alpha': { count: 2, revision: 5 },
+      'fighter-wing-bravo': { count: 3, revision: 8 },
+    });
+  });
+});
 
 describe('GM recovery reconciliation', () => {
   const remembered = { id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge',

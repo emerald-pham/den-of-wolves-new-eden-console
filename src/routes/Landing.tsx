@@ -1,6 +1,6 @@
 import ArrivalDisplay, { LAUNCHER_HACKING_MESSAGES_ENABLED } from './ArrivalDisplay';
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createSession, joinSession } from '@/lib/sessionService';
 import { APP_VERSION } from '@/version';
 import { setMotionOverride, useMotionPreference } from '@/lib/motionPreference';
@@ -13,6 +13,11 @@ const CODE_LENGTH = 6;
 
 function isCompleteCode(code: string): boolean {
   return code.length === LEGACY_CODE_LENGTH || code.length === CODE_LENGTH;
+}
+
+function initialJoinCode(search: string): string {
+  const value = new URLSearchParams(search).get('joinCode') ?? '';
+  return isCompleteCode(value) && /^\d+$/.test(value) ? value : '';
 }
 
 type LandingError = Pick<NormalizedCommandError, 'message' | 'retryAfterSeconds'>;
@@ -32,7 +37,8 @@ function landingError(cause: unknown): LandingError {
 
 export default function Landing() {
   const navigate = useNavigate();
-  const [code, setCode] = useState('');
+  const location = useLocation();
+  const [code, setCode] = useState(() => initialJoinCode(location.search));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<LandingError | null>(null);
   const session = useSessionStore((state) => state.session);

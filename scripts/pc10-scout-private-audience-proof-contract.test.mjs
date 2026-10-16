@@ -1,0 +1,194 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import test from 'node:test';
+import vm from 'node:vm';
+import { pc11ProofTiming } from './qualification/pc11-normal-start-adapter.mjs';
+
+// Exercise finite native consumers without importing their executable runner.
+// The test-first baseline is the accepted two-actor Highwall driver, whose
+// cohort/cleanup/timing cannot establish this distinct three-actor audience claim.
+const path = process.env.PC10_SCOUT_PRIVACY_RUNNER ?? new URL('./pc10-scout-private-audience-ui-proof.mjs', import.meta.url);
+const source = await readFile(path, 'utf8'), require = createRequire(import.meta.url), ts = require('typescript');
+const ast = ts.createSourceFile(String(path), source, ts.ScriptTarget.Latest, true);
+const mainTry = ast.statements.find(ts.isTryStatement), work = [];
+assert.ok(mainTry);
+function visit(node) {
+  if (ts.isArrowFunction(node) && ts.isBlock(node.body) && node.body.getText(ast).includes("launchSurface('browser-A-normal-GM')")) work.push(node.body);
+  ts.forEachChild(node, visit);
+}
+visit(mainTry.tryBlock); assert.equal(work.length, 1);
+const main = work[0].statements;
+const plain = value => JSON.parse(JSON.stringify(value));
+const check = { ...assert, deepEqual: (a, b, message) => assert.deepEqual(plain(a), plain(b), message) };
+const execute = (body, context) => vm.runInNewContext(`(async()=>{${body}})()`, { assert: check, ...context });
+
+test('private scout audience proof launches independent normal GM, Scientist and ordinary peer', async () => {
+  const end = main.findIndex(node => node.getText(ast).includes("await mark('normal GM create and consent')"));
+  assert.ok(end > 0); const launched = [];
+  await execute(main.slice(0, end).map(node => node.getText(ast)).join('\n'), {
+    mark: async () => {}, launchSurface: async label => { launched.push(label); return { label }; },
+  });
+  assert.deepEqual(launched, ['browser-A-normal-GM', 'browser-B-normal-Scientist', 'browser-C-normal-Peer']);
+});
+
+test('private scout proof admits and assigns both original normal members through the actual casting controls', async () => {
+  const loop = main.find(node => ts.isForOfStatement(node) && node.getText(ast).includes('normalJoin(surface,label)'));
+  assert.ok(loop); const joined = [], assigned = [], entered = [];
+  const gm = { page: { getByRole: () => ({ getByLabel: () => ({ selectOption: async role => assigned.push(role) }),
+    getByRole: () => ({ click: async () => {} }) }) } };
+  await execute(loop.getText(ast), { gm, miner: { label: 'Miner' }, scientist: { label: 'Scientist' }, peer: { label: 'Peer' },
+    roleIds: { Miner: 'icebreaker-miner', Scientist: 'shepherd-scientist', Peer: 'icebreaker-miner' },
+    mark: async () => {}, normalJoin: async (_surface, label) => joined.push(label),
+    observeLifecycleActor: async surface => ({ displayName: surface.label }), action: async (_s, _e, choose) => choose(),
+    memberReady: async () => {}, enterRole: async (_s, label) => entered.push(label), claims: [] });
+  assert.deepEqual(joined, ['Scientist', 'Peer']);
+  assert.deepEqual(assigned, ['shepherd-scientist', 'icebreaker-miner']);
+  assert.deepEqual(entered, ['Scientist', 'Peer']);
+});
+
+test('absolute parent allocation includes all earlier startup and retains the original cleanup reserve', () => {
+  const start = ast.statements.findIndex(node => node.getText(ast).startsWith('startAt=Date.now()'));
+  const end = ast.statements.indexOf(mainTry); assert.ok(start >= 0 && end > start);
+  const FakeDate = class extends Date { static now() { return 1000000; } };
+  const observed = vm.runInNewContext(`let startAt,totalEnd,workEnd;${ast.statements.slice(start, end).map(node => node.getText(ast)).join('\n')}\n({startAt,totalEnd,workEnd})`, {
+    Date: FakeDate, evidence: {}, pc11ProofTiming,
+    freeze: { macAllocation: { parentDeadlineEpochMs: 1140000 } }, process: { env: { PC10_PARENT_ALLOCATION_DEADLINE_MS: '1140000' } },
+  });
+  assert.equal(observed.totalEnd, 1140000);
+  assert.equal(observed.workEnd, 1080000);
+});
+
+async function pointerCleanup({ foreign = false } = {}) {
+  const nodes = [];
+  function find(node) {
+    if (ts.isArrowFunction(node) && ts.isBlock(node.body) && node.body.getText(ast).includes("where('sessionId','==',sid)") &&
+        node.body.getText(ast).includes('Refuse unknown actor cleanup.')) nodes.push(node.body);
+    ts.forEachChild(node, find);
+  }
+  find(mainTry.finallyBlock); assert.equal(nodes.length, 1);
+  const actorUids = new Map([['GM1', 'own-gm'], ['Scientist', 'own-scientist'], ['Peer', 'own-peer']]);
+  const ids = [...actorUids.values()]; if (foreign) ids[2] = 'foreign-actor';
+  const docs = ids.map(id => ({ id, exists: true, ref: { id }, get: () => 'owned-session' }));
+  const deleted = []; let reads = 0;
+  const db = { collection: () => ({ where: () => ({ get: async () => reads++ === 0 ? { docs, size: 3 } : { docs: [], size: 0 } }) }),
+    runTransaction: async consume => consume({ get: async ref => docs.find(doc => doc.id === ref.id), delete: ref => deleted.push(ref.id) }) };
+  const cleanup = {};
+  await execute(nodes[0].statements.map(node => node.getText(ast)).join('\n'), { db, actorUids, sid: 'owned-session', cleanup });
+  return { cleanup, deleted };
+}
+test('cleanup handles all three verified original members without relaxing exact-session ownership', async () => {
+  const { cleanup, deleted } = await pointerCleanup();
+  assert.equal(cleanup.deletedOwnPointers, 3); assert.equal(cleanup.remainingOwnPointers, 0);
+  assert.deepEqual(deleted, ['own-gm', 'own-scientist', 'own-peer']);
+});
+test('three-member cleanup still refuses an unknown actor before any deletion', async () => {
+  await assert.rejects(pointerCleanup({ foreign: true }), /Refuse unknown actor cleanup/);
+});
+
+// Additional source-only validation of the new audience consumer. These were
+// added after the four discriminating cohort/timing REDs and driver adaptation;
+// they do not backfill native gameplay or separate test-first chronology.
+async function audienceConsumer({ fault, serverShape = true, berth = false } = {}) {
+  const node = ast.statements.find(statement => ts.isFunctionDeclaration(statement) && statement.name?.text === 'privateReadAudience');
+  assert.ok(node);
+  const member = { documentTimeOrigin: 1000, uidHash: 'peer-hash', sessionId: 'owned-session', meSessionId: 'owned-session',
+    assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: 'icebreaker-miner', seatId: 'icebreaker-miner',
+    fleetGroupId: 'fleet-1', connectionGeneration: 2, identityHydrationRevision: 1,
+    currentMemberBerthPresent: berth, currentMemberBerthMatches: berth, currentMemberBerthNull: false,
+    replacementRoleId: null, replacementStatus: null };
+  const discovery = { requestId: 'original-scout', noteId: 'original-note', noteRecordedAt: '2026-10-08T05:57:56.000Z',
+    fact: { coordinate: '6798', code: 'N', title: 'Ancient Jump Ring' } };
+  let peerObservations = 0, worldReads = 0; const calls = [];
+  const scientist = { callable: async (name, payload) => {
+    calls.push({ actor: 'requester', name, payload });
+    return { status: 'committed', result: name === 'listMyScoutReports'
+      ? [{ requestId: discovery.requestId, noteId: discovery.noteId, status: 'resolved', cycle: 1,
+        entitlementId: fault === 'index-entitlement' ? 'hummingbird' : 'endeavour', targetCoordinate: '6798' }]
+      : name === 'readPrivateScoutResult'
+        ? { type: 'private-scout-result', sessionId: fault === 'result-session' ? 'foreign-session' : 'owned-session',
+          requesterUid: 'own-scientist', requestId: discovery.requestId, systemFact: discovery.fact,
+          sourceId: fault === 'result-source' ? 'hummingbird' : 'endeavour', cycle: fault === 'result-cycle' ? 2 : 1,
+          targetCoordinate: '6798', ...(fault === 'result-extra-field' ? { organiserSites: {} } : {}) }
+        : { type: 'player-discovery-note', id: discovery.noteId, systemFact: discovery.fact,
+          cycle: fault === 'note-cycle' ? 2 : 1, targetCoordinate: '6798', recordedAt: discovery.noteRecordedAt,
+          ...(fault === 'note-extra-field' ? { organiserSites: {} } : {}) } };
+  } };
+  const peer = { callable: async (name, payload) => {
+    calls.push({ actor: 'peer', name, payload });
+    if (name === 'listMyScoutReports') return { status: 'committed', result: fault === 'peer-index-leak' ? [{ requestId: discovery.requestId }] : [] };
+    if (name === 'getCurrentMemberSession') return { status: 'committed', result: {
+      type: 'current-member-session', sessionId: 'owned-session', actorUid: 'own-peer', groupId: 'fleet-1',
+      ...(serverShape ? {
+        ...(fault === 'missing-generation' ? {} : { connectionGeneration: fault === 'foreign-generation' ? 3 : 2 }),
+        assignedRoleId: fault === 'foreign-assigned-role' ? 'shepherd-scientist' : 'icebreaker-miner',
+        activeConsoleRoleId: fault === 'foreign-console-role' ? 'shepherd-scientist' : 'icebreaker-miner',
+        ...(berth ? { currentActorBerthAuthority: {
+          sessionId: 'owned-session', actorUid: fault === 'foreign-berth-actor' ? 'own-scientist' : 'own-peer',
+          groupId: 'fleet-1', role: 'player', connectionGeneration: 2,
+          assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: 'icebreaker-miner',
+          replacementRoleId: null, replacementStatus: null,
+          shipId: fault === 'foreign-berth-ship' ? 'shepherd' : 'icebreaker',
+          ...(fault === 'berth-private-field' ? { scoutResults: {} } : {}),
+        } } : {}),
+      } : {}),
+      session: { id: 'owned-session', currentTurn: 1, ...(fault === 'server-session-leak' ? { scoutResults: {} } : {}) },
+      ...(fault === 'member-top-level-private' ? { scoutResults: {} } : {}),
+    } };
+    return fault === 'borrowed-gm-leak' && payload.instanceId
+      ? { status: 'committed', result: {} } : { status: 'denied', code: 'functions/permission-denied' };
+  }, page: { evaluate: async () => ({ candidateReveals: [{ code: 'N', title: 'Ancient Jump Ring', ...(fault === 'coordinate-leak' ? { coordinate: '6798' } : {}) }],
+    reads: fault === 'missing-populated-read' ? [] : ['private-result', 'private-request', 'private-audit', 'requester-note',
+      'requester-discovery', 'results-query', 'requests-query', 'audit-query', 'requester-notes-query', 'discovery-query']
+      .map(kind => ({ kind, status: fault === 'private-doc-leak' && kind === 'private-result' ? 'allowed' : 'denied', code: 'permission-denied' })),
+    currentMemberPrivateKeys: fault === 'member-session-leak' ? ['scoutResults'] : [], privatePayloadRecorded: false }) } };
+  peer.storeModuleUrl = () => 'mounted-store';
+  const consume = vm.runInNewContext(`(${node.getText(ast)})`, { assert: check, scientist, peer, sid: 'owned-session', gm1Instance: 'own-gm-instance',
+    actorUids: new Map([['Scientist', 'own-scientist'], ['Peer', 'own-peer']]),
+    memberReady: async (_surface, label) => label === 'Scientist' ? { ...member, fleetGroupId: fault === 'foreign-group' ? 'fleet-2' : 'fleet-1' }
+      : { ...member, connectionGeneration: fault === 'changed-peer-epoch' && peerObservations++ > 0 ? 3 : 2 },
+    candidateWait: run => run(), scoutPrivateWorld: async () => ({ hash: fault === 'durable-effect' && worldReads++ > 0 ? 'changed' : 'original' }) });
+  return { result: await consume(discovery, Date.now() + 1000), calls };
+}
+test('actual audience consumer permits only requester data and same-group candidate names', async () => {
+  const { result, calls } = await audienceConsumer();
+  assert.equal(result.requesterIndexCount, 1); assert.equal(result.peerIndexCount, 0);
+  assert.equal(result.requesterFullResultAllowed, true); assert.equal(result.scopedDurableStateUnchanged, true);
+  assert.equal(calls.filter(call => call.actor === 'peer' && call.name === 'readPrivateScoutResult').length, 2);
+  assert.equal(calls.some(call => call.actor === 'peer' && call.name === 'getCurrentMemberSession'), true,
+    'Read the real server envelope; a filtered mounted store cannot prove server allowlist privacy.');
+});
+for (const fault of ['peer-index-leak', 'borrowed-gm-leak', 'coordinate-leak', 'private-doc-leak', 'member-session-leak',
+  'foreign-group', 'changed-peer-epoch', 'durable-effect', 'server-session-leak']) {
+  test(`actual audience consumer refuses ${fault} without granting proof credit`, async () => {
+    await assert.rejects(audienceConsumer({ fault }));
+  });
+}
+
+// These actual wire-shape negatives precede stricter native assertions. The
+// valid fixtures above now include the reader authority fields; the two F1
+// positive REDs were recorded before adapting their default envelope. No
+// existing consumer assertion or native privacy target is removed.
+for (const fault of ['result-extra-field', 'result-source', 'result-cycle', 'result-session',
+  'note-extra-field', 'note-cycle', 'index-entitlement', 'member-top-level-private', 'missing-populated-read']) {
+  test(`actual audience consumer rejects incomplete or leaked wire contract ${fault}`, async () => {
+    await assert.rejects(audienceConsumer({ fault }));
+  });
+}
+
+// Independent review F1: the actual protected reader always returns all three
+// authority fields and conditionally the caller's own berth. These positive
+// cases must fail against the five-key proof before adapting that consumer.
+for (const berth of [false, true]) {
+  test(`actual reader-shaped member envelope succeeds with own berth ${berth}`, async () => {
+    const { result } = await audienceConsumer({ serverShape: true, berth });
+    assert.equal(result.actualServerMemberAllowlistPrivateKeysAbsent, true);
+    assert.equal(result.scopedDurableStateUnchanged, true);
+  });
+}
+for (const fault of ['missing-generation', 'foreign-generation', 'foreign-assigned-role', 'foreign-console-role',
+  'foreign-berth-actor', 'foreign-berth-ship', 'berth-private-field']) {
+  test(`reader-shaped member envelope refuses ${fault}`, async () => {
+    await assert.rejects(audienceConsumer({ serverShape: true, berth: true, fault }));
+  });
+}

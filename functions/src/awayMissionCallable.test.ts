@@ -1,3 +1,4 @@
+import type * as NodeCrypto from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 import { Timestamp } from 'firebase-admin/firestore';
@@ -28,6 +29,7 @@ const mock = vi.hoisted(() => ({
   shuttleMovements: {} as Record<string, Record<string, unknown>>,
   pdfEscortWingState: undefined as Record<string, unknown> | undefined,
   capybaraAdmitted: false,
+  expansionCapybara: false,
   navigationState: {} as Record<string, unknown>,
   fleetGroups: [] as Array<{ id: string; fields: Record<string, unknown> }>,
 }));
@@ -52,7 +54,10 @@ vi.mock('firebase-admin/firestore', () => ({
   }),
   FieldValue: { serverTimestamp: () => 'server-time', delete: () => 'delete-field' },
 }));
-vi.mock('node:crypto', () => ({ randomInt: vi.fn(() => 0), randomUUID: vi.fn(() => 'uuid') }));
+vi.mock('node:crypto', async (importOriginal) => ({
+  ...await importOriginal<typeof NodeCrypto>(),
+  randomInt: vi.fn(() => 0), randomUUID: vi.fn(() => 'uuid'),
+}));
 
 import {
   applyGorgoneionMissionSupport,
@@ -69,10 +74,14 @@ import { activeVesselIdsForRoles } from './gameSetup';
 import { initialPdfEscortWingState } from './pdfEscortWingState';
 import { emptySmallShipState } from './smallShip';
 import { awayMissionHandId } from './awayMissionCards';
+import { organiserSitesForChart } from './starChartLookup';
 import { applyAwayMissionLifecycleCommand, createAwayMissionLifecycleBootstrap, projectAwayMissionPrivateState, projectAwayMissionPublicState, type AwayMissionLifecycleCommand } from './awayMissionLifecycleAdapter';
 
 const activeRoleIds = [...recommendedRoleIds(8)];
 const activeVesselIds = [...activeVesselIdsForRoles(activeRoleIds)];
+const expansionCapybaraRoleIds = [...recommendedRoleIds(19)];
+const expansionCapybaraVesselIds = [...activeVesselIdsForRoles(expansionCapybaraRoleIds)];
+const expansionCapybaraManifest = roleOwnedCraftManifestForSetup(expansionCapybaraRoleIds, 'expansion-capybara');
 const teamPhaseEndsAt = '2099-09-28T12:00:00.000Z';
 const openAirspaceEndsAt = '2099-09-28T12:15:00.000Z';
 const sessionFields = {
@@ -180,6 +189,9 @@ beforeEach(() => {
     const handId = ref.path.split('/').at(-1)!;
     mock.pointerDocuments[handId] = { ...(mock.pointerDocuments[handId] ?? {}), ...patch };
   });
+  delete (sessionFields as Record<string, unknown>).candidateVesselOutcomes;
+  delete (sessionFields as Record<string, unknown>).awayMissionProjectionSafety;
+  delete (sessionFields as Record<string, unknown>).candidateCraftReservations;
   sessionFields.currentTurn = 2;
   delete (sessionFields as Record<string, unknown>).fleetPartitionRevision;
   (sessionFields.turnPhase as Record<string, unknown>).turn = 2;
@@ -210,6 +222,7 @@ beforeEach(() => {
   mock.shuttleMovements = {};
   mock.pdfEscortWingState = undefined;
   mock.capybaraAdmitted = false;
+  mock.expansionCapybara = false;
   mock.navigationState = {
     revision: 4,
     shipGalacticCoordinates: Object.fromEntries(activeVesselIds.map((vesselId) => [vesselId, '5143'])),
@@ -234,6 +247,10 @@ beforeEach(() => {
     if (mock.documents[ref.path]) return snapshot(mock.documents[ref.path]!, ref.path);
     if (ref.path === 'sessions/s1') return snapshot({
       ...sessionFields,
+      ...(mock.expansionCapybara ? {
+        expansion: 'capybara', capybaraEnabled: true, playerCount: 19,
+        activeRoleIds: expansionCapybaraRoleIds, activeVesselIds: expansionCapybaraVesselIds,
+      } : {}),
       ...(mock.gorgoneionCaptain ? {
         smallShipStates: {
           gorgoneion: { ...emptySmallShipState('gorgoneion', 'aegis'), dockingRevision: 1 },
@@ -255,6 +272,10 @@ beforeEach(() => {
           shuttleId: 'highwall', ownerRoleId: 'icebreaker-miner',
           ownerUid: 'bob', holderUid: 'bob', revision: 0,
         },
+        ...(mock.expansionCapybara ? {
+          boa: { shuttleId: 'boa', ownerRoleId: 'capybara-recycler',
+            ownerUid: 'capybara', holderUid: 'capybara', revision: 1 },
+        } : {}),
       },
       retainedShuttles: {},
     }, ref.path);
@@ -289,7 +310,8 @@ beforeEach(() => {
       return snapshot({ uid: 'gm1', connected: true, claimedAt: Timestamp.fromDate(now), lastSeenAt: Timestamp.fromDate(now) }, ref.path);
     }
     if (ref.path === 'sessions/s1/craftOwnership/manifest') return snapshot(
-      mock.capybaraAdmitted ? { ...manifest, vesselMode: 'base-capybara' } : manifest,
+      mock.expansionCapybara ? expansionCapybaraManifest :
+        mock.capybaraAdmitted ? { ...manifest, vesselMode: 'base-capybara' } : manifest,
       ref.path,
     );
     if (ref.path === 'sessions/s1/serverState/missionDeck') return snapshot(deck, ref.path);
@@ -417,6 +439,27 @@ describe('discardPrivateMissionCard', () => {
       missionId: 'mission-1', handId: 'm9_mission-1u5_alice', phase: 'discarding',
       revision: 1, discarded: false,
     };
+  });
+
+  it('denies a fresh legacy discard for a settled vessel while retaining the original receipt', async () => {
+    const original = await discardPrivateMissionCard.run(request(command, 'alice'));
+    mock.discardMarker = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/commandReceipts/discard-1')?.[1];
+    (sessionFields as Record<string, unknown>).candidateVesselOutcomes = { aegis: { code: 'O', groupId: 'fleet-1',
+      shipId: 'aegis', sourceId: 'nebula-final', cycle: 2, outcome: 'reached' } };
+    await expect(discardPrivateMissionCard.run(request(command, 'alice'))).resolves.toMatchObject({ ...original, status: 'replayed' });
+    mock.discardMarker = undefined;
+    mock.set.mockClear(); mock.update.mockClear();
+    await expect(discardPrivateMissionCard.run(request({ ...command, requestId: 'new-discard' }, 'alice')))
+      .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringContaining('candidate disposition') });
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+  it('denies a fresh legacy discard carried by an Engineering Shuttle permanently consumed for Ring repair', async () => {
+    (sessionFields as Record<string, unknown>).candidateCraftReservations = { philia: { code: 'N', groupId: 'fleet-1',
+      coordinate: '3232', sourceId: 'ring-craft', cycle: 2 } };
+    mock.discardMission = { ...mock.discardMission, participantCrafts: [{ participantUid: 'alice', craftIds: ['philia'] }] };
+    await expect(discardPrivateMissionCard.run(request(command, 'alice'))).rejects.toMatchObject({ code: 'failed-precondition',
+      message: expect.stringContaining('permanently consumed') });
+    expect(mock.update).not.toHaveBeenCalled();
   });
 
   it('rejects a malformed lifecycle record at the legacy discard endpoint without desynchronizing projections', async () => {
@@ -614,6 +657,39 @@ describe('dealPrivateInitialCards', () => {
     participantUids: ['alice', 'bob'],
   };
 
+  it('advances the private K repair generation in the same actual initial-deal transaction as all participant pointers', async () => {
+    const marker = { policyVersion: 1, epoch: 3, state: 'held', writeRevision: 17 };
+    (sessionFields as Record<string, unknown>).awayMissionProjectionSafety = marker;
+
+    const reply = await dealPrivateInitialCards.run(request(command));
+
+    expect(reply.status).toBe('committed');
+    expect(mock.set.mock.calls.filter(([ref]) => ref.path.includes('/awayMissionHandPointers/'))).toHaveLength(2);
+    expect(Object.values(mock.pointerDocuments)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ participantUid: 'alice', phase: 'awaiting-card-selection', revision: 0 }),
+      expect.objectContaining({ participantUid: 'bob', phase: 'awaiting-card-selection', revision: 0 }),
+    ]));
+    const committedUpdates = [...mock.update.mock.calls];
+    mock.marker = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/commandReceipts/deal-1')?.[1];
+    mock.missionStartSnapshots[defaultOpportunity.id] = mock.create.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/missionStartSnapshots/${defaultOpportunity.id}`)?.[1] as Record<string, unknown>;
+    mock.set.mockClear(); mock.update.mockClear();
+    expect((await dealPrivateInitialCards.run(request(command))).status).toBe('replayed');
+    expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+    expect(committedUpdates).toEqual(expect.arrayContaining([[expect.objectContaining({ path: 'sessions/s1' }),
+      expect.objectContaining({ 'awayMissionProjectionSafety.writeRevision': 18 })]]));
+  });
+
+  it('advances a known prior epoch when an actual initial deal recovers malformed legacy privacy state', async () => {
+    (sessionFields as Record<string, unknown>).awayMissionProjectionSafety = {
+      policyVersion: 1, epoch: 3, state: 'READY', writeRevision: 17,
+    };
+    expect((await dealPrivateInitialCards.run(request(command))).status).toBe('committed');
+    expect(mock.set.mock.calls.filter(([ref]) => ref.path.includes('/awayMissionHandPointers/'))).toHaveLength(2);
+    expect(mock.update).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1' }),
+      expect.objectContaining({ awayMissionProjectionSafety: { policyVersion: 1, epoch: 4, state: 'held', writeRevision: 1 } }));
+  });
+
   it('rejects a team-selected Mission Leader who is outside the source-bound participant roster', async () => {
     await expect(dealPrivateInitialCards.run(request({
       ...command,
@@ -699,6 +775,62 @@ describe('dealPrivateInitialCards', () => {
     );
   });
 
+  it('recycles resolved mission discards for an initial deal only after the undealt deck is empty', async () => {
+    const recycledIds = ['Q♣', 'K♣'];
+    mock.documents['sessions/s1/serverState/missionDeck'] = {
+      ...deck,
+      dealtCount: 33,
+      resolvedDiscardCardIds: recycledIds,
+    };
+
+    await expect(dealPrivateInitialCards.run(request(command))).resolves.toMatchObject({
+      status: 'committed', participantCount: 2,
+    });
+
+    const handWrites = mock.set.mock.calls.filter(([ref]) => ref.path.includes('/awayMissionHands/'));
+    expect(handWrites.map(([, hand]) => hand.cardId)).toEqual(recycledIds);
+    const missionWrite = mock.set.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/serverState/awayMissions/instances/mission-${defaultOpportunity.id}`);
+    expect(missionWrite?.[1]).toMatchObject({
+      cardIds: recycledIds,
+      recycledCardIds: recycledIds,
+      dealtFrom: 33,
+      dealtThrough: 33,
+    });
+    expect(mock.update).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'sessions/s1/serverState/missionDeck' }),
+      expect.objectContaining({ dealtCount: 33, resolvedDiscardCardIds: [] }),
+    );
+    const markerWrite = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/commandReceipts/deal-1');
+    mock.marker = markerWrite?.[1];
+    const startWrite = mock.create.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/missionStartSnapshots/${defaultOpportunity.id}`);
+    mock.missionStartSnapshots[defaultOpportunity.id] = startWrite?.[1] as Record<string, unknown>;
+    mock.set.mockClear();
+    mock.create.mockClear();
+    mock.update.mockClear();
+    await expect(dealPrivateInitialCards.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.create).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+
+  it('does not partially deal when the remaining resolved-discard pool cannot cover the participant roster', async () => {
+    mock.documents['sessions/s1/serverState/missionDeck'] = {
+      ...deck,
+      dealtCount: 33,
+      resolvedDiscardCardIds: ['Q♣'],
+    };
+
+    await expect(dealPrivateInitialCards.run(request(command))).rejects.toMatchObject({
+      code: 'failed-precondition',
+    });
+
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.create).not.toHaveBeenCalled();
+  });
+
   it('seeds reconnect lifecycle and isolated own-hand projections atomically with the first deal', async () => {
     await dealPrivateInitialCards.run(request(command));
     const mission = mock.set.mock.calls.find(([ref]) =>
@@ -763,6 +895,106 @@ describe('dealPrivateInitialCards', () => {
         { participantUid: 'capybara', craftIds: ['capybara-small'] },
       ],
     });
+  });
+
+  it('binds a pre-deal Boa mission-card choice and records the exact half-point threshold privately', async () => {
+    mock.expansionCapybara = true;
+    const asteroidCoordinate = Object.entries(organiserSitesForChart('A'))
+      .find(([, site]) => site.code === 'A')?.[0];
+    if (!asteroidCoordinate) throw new Error('Expected a chart A lichen asteroid location.');
+    const asteroidOpportunityId = `arrival-fleet-1-A-${asteroidCoordinate}`;
+    mock.missionOpportunities = {
+      [asteroidOpportunityId]: {
+        ...defaultOpportunity, id: asteroidOpportunityId, coordinate: asteroidCoordinate, siteCode: 'A',
+      },
+    };
+    const boaPlayer = players.find(({ id }) => id === 'capybara')!;
+    Object.assign(boaPlayer.fields, {
+      assignedRoleId: 'capybara-recycler', replacementRoleId: null, replacementStatus: null,
+      activeConsoleRoleId: 'capybara-recycler', seatId: 'capybara-recycler',
+    });
+    mock.fleetGroups[0]!.fields.vesselIds = expansionCapybaraVesselIds;
+    mock.navigationState = {
+      revision: 5,
+      shipGalacticCoordinates: Object.fromEntries(
+        expansionCapybaraVesselIds.map((vesselId) => [vesselId, asteroidCoordinate]),
+      ),
+    };
+    mock.shuttleDockings.push({ shuttleId: 'boa', shipId: 'capybara', dockedAt: 'now' });
+    mock.documents[`sessions/s1/boaMissionReclamationChoices/${asteroidOpportunityId}`] = {
+      type: 'boa-mission-reclamation-choice', schemaVersion: 1, status: 'selected', sessionId: 's1',
+      opportunityId: asteroidOpportunityId, groupId: 'fleet-1', chart: 'A',
+      coordinate: asteroidCoordinate, siteCode: 'A', sourceCycle: 2, actorRoleId: 'capybara-recycler',
+      actorUid: 'capybara', opportunityTaskId: 'A-1', controlRevision: 1,
+      requestId: 'boa-choice-1', revision: 1,
+    };
+    const capybaraCommand = {
+      sessionId: 's1', instanceId: 'bridge', requestId: 'deal-boa',
+      expectedSetupRevision: 1, expectedPhaseRevision: 3, expectedCycle: 2,
+      opportunityId: asteroidOpportunityId, groupId: 'fleet-1', chart: 'A',
+      coordinate: asteroidCoordinate, sourceCycle: 2, missionLeaderUid: 'alice',
+      participantUids: ['alice', 'bob', 'capybara'],
+    };
+
+    await expect(dealPrivateInitialCards.run(request(capybaraCommand))).resolves.toMatchObject({
+      status: 'committed', participantCount: 3, missionLeaderUid: 'alice',
+    });
+    const missionWrite = mock.set.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/serverState/awayMissions/instances/mission-${asteroidOpportunityId}`);
+    const startWrite = mock.create.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/missionStartSnapshots/${asteroidOpportunityId}`);
+    expect(missionWrite?.[1]).toMatchObject({
+      participantCrafts: expect.arrayContaining([{ participantUid: 'capybara', craftIds: ['boa'] }]),
+      lifecycleRecord: { boaReclamation: { actorUid: 'capybara', opportunityId: 'A-1' } },
+    });
+    expect(startWrite?.[1]).toMatchObject({
+      modifiers: [expect.stringContaining('Boa reclamation A-1')],
+      boaReclamation: expect.objectContaining({
+        actorUid: 'capybara', missionCardOpportunityId: 'A-1',
+        rounding: 'none', printedDifficulty: 17, effectiveDifficulty: 8.5,
+      }),
+    });
+    expect(mock.update).toHaveBeenCalledWith(
+      expect.objectContaining({ path: `sessions/s1/boaMissionReclamationChoices/${asteroidOpportunityId}` }),
+      expect.objectContaining({ status: 'consumed', missionId: `mission-${asteroidOpportunityId}` }),
+    );
+  });
+
+  it('refuses to consume a Boa choice when its selecting player is absent from the mission roster', async () => {
+    mock.expansionCapybara = true;
+    const boaPlayer = players.find(({ id }) => id === 'capybara')!;
+    Object.assign(boaPlayer.fields, {
+      assignedRoleId: 'capybara-recycler', replacementRoleId: null, replacementStatus: null,
+      activeConsoleRoleId: 'capybara-recycler', seatId: 'capybara-recycler',
+    });
+    mock.fleetGroups[0]!.fields.vesselIds = expansionCapybaraVesselIds;
+    mock.navigationState = {
+      revision: 5,
+      shipGalacticCoordinates: Object.fromEntries(expansionCapybaraVesselIds.map((vesselId) => [vesselId, '5143'])),
+    };
+    mock.shuttleDockings.push({ shuttleId: 'boa', shipId: 'capybara', dockedAt: 'now' });
+    mock.documents[`sessions/s1/boaMissionReclamationChoices/${defaultOpportunity.id}`] = {
+      type: 'boa-mission-reclamation-choice', schemaVersion: 1, status: 'selected', sessionId: 's1',
+      opportunityId: defaultOpportunity.id, groupId: 'fleet-1', chart: 'A',
+      coordinate: '5143', siteCode: 'L', sourceCycle: 2, actorRoleId: 'capybara-recycler',
+      actorUid: 'capybara', opportunityTaskId: 'L-1', controlRevision: 1,
+      requestId: 'boa-choice-1', revision: 1,
+    };
+
+    await expect(dealPrivateInitialCards.run(request({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'deal-boa-without-recycler',
+      expectedSetupRevision: 1, expectedPhaseRevision: 3, expectedCycle: 2,
+      opportunityId: defaultOpportunity.id, groupId: 'fleet-1', chart: 'A',
+      coordinate: '5143', sourceCycle: 2, missionLeaderUid: 'alice', participantUids: ['alice', 'bob'],
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ path: `sessions/s1/serverState/awayMissions/instances/mission-${defaultOpportunity.id}` }),
+      expect.anything(),
+    );
+    expect(mock.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ path: `sessions/s1/boaMissionReclamationChoices/${defaultOpportunity.id}` }),
+      expect.anything(),
+    );
   });
 
   it('clears private Gorgoneion projections in the same committed card-deal transaction', async () => {

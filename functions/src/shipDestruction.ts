@@ -31,6 +31,57 @@ export function catastropheEventIdForShip(shipId: string): string {
   return `damage-destroyed-${shipId}`;
 }
 
+/** Terminal provenance for the owner's never-assigned craft ruling. */
+export interface UnassignedCraftHostLoss {
+  readonly status: 'lost';
+  readonly destroyedHostShipId: string;
+  readonly sourceId: string;
+  readonly cycle: number;
+  readonly lostAt: string;
+  readonly hostRepair?: CraftHostRepair;
+}
+export interface CraftHostRepair {
+  readonly sourceId: string;
+  readonly requestId: string;
+  readonly revision: number;
+  readonly repairedAt: string;
+}
+export function parseCraftHostRepair(value: unknown, sourceId: string, lostAt: string): CraftHostRepair | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  if (Object.keys(raw).length !== 4 || Object.keys(raw).some(key => !['sourceId', 'requestId', 'revision', 'repairedAt'].includes(key)) ||
+      raw.sourceId !== sourceId || typeof raw.requestId !== 'string' || !/^[\w-]{1,128}$/.test(raw.requestId) ||
+      !Number.isSafeInteger(raw.revision) || Number(raw.revision) < 1 || typeof raw.repairedAt !== 'string' ||
+      !Number.isFinite(Date.parse(raw.repairedAt)) || Date.parse(raw.repairedAt) < Date.parse(lostAt)) return undefined;
+  return raw as unknown as CraftHostRepair;
+}
+
+/** A repair acknowledgement is authored only by the ordinary correction after
+ * reading the original catastrophe. It never restores the terminal craft. */
+export function craftHostLossHasCurrentProof(loss: UnassignedCraftHostLoss, damage: unknown, revisions: unknown): boolean {
+  if (!damage || typeof damage !== 'object' || Array.isArray(damage)) return false;
+  const host = (damage as Record<string, unknown>)[loss.destroyedHostShipId];
+  if (!host || typeof host !== 'object' || Array.isArray(host)) return false;
+  const destroyed = (host as Record<string, unknown>).destroyed;
+  if (destroyed === true) return true;
+  const revision = revisions && typeof revisions === 'object' && !Array.isArray(revisions)
+    ? (revisions as Record<string, unknown>)[loss.destroyedHostShipId] : undefined;
+  return destroyed === false && !!loss.hostRepair && Number.isSafeInteger(revision) && Number(revision) >= loss.hostRepair.revision;
+}
+export function parseUnassignedCraftHostLoss(value: unknown): UnassignedCraftHostLoss | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  if (Object.keys(raw).length !== (Object.hasOwn(raw, 'hostRepair') ? 6 : 5) || Object.keys(raw).some(key =>
+    !['status', 'destroyedHostShipId', 'sourceId', 'cycle', 'lostAt', 'hostRepair'].includes(key)) ||
+    raw.status !== 'lost' || typeof raw.destroyedHostShipId !== 'string' ||
+    !escapePodCapacityForShip(raw.destroyedHostShipId) ||
+    raw.sourceId !== catastropheEventIdForShip(raw.destroyedHostShipId) ||
+    !Number.isSafeInteger(raw.cycle) || Number(raw.cycle) < 1 ||
+    typeof raw.lostAt !== 'string' || !Number.isFinite(Date.parse(raw.lostAt)) ||
+    Object.hasOwn(raw, 'hostRepair') && !parseCraftHostRepair(raw.hostRepair, String(raw.sourceId), String(raw.lostAt))) return undefined;
+  return raw as unknown as UnassignedCraftHostLoss;
+}
+
 export interface DestructionTransition {
   readonly eventId: string;
   readonly capacity: EscapePodCapacity;

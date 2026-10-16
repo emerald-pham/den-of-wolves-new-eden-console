@@ -27,31 +27,34 @@ const currentOffer = {
   responseDeadline: new Date(Date.now() + 60_000).toISOString(), status: 'offered' as const,
 };
 
-function setCommander(): void {
+function setCommander(manualDemo = false): void {
   useSessionStore.getState().setIdentity(
     { id: 's1', name: 'Table one', joinCode: '4821', phase: 'active', currentTurn: 4,
       activeVesselIds: ['dione', 'aegis'], ownerUid: 'gm1',
-      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+      ...(manualDemo ? { fullGameDemo: { status: 'active' as const, progression: 'manual' as const } } : {}) },
     { uid: 'u1', sessionId: 's1', displayName: 'Commander', role: 'player', seatId: null,
       assignedRoleId: null, replacementRoleId: 'wolf-commander', fleetGroupId: 'fleet-1',
       joinedAt: '2026-01-01T00:00:00.000Z' },
   );
 }
 
-function setCaptain(): void {
+function setCaptain(manualDemo = false): void {
   useSessionStore.getState().setIdentity(
     { id: 's1', name: 'Table one', joinCode: '4821', phase: 'active', currentTurn: 4,
-      ownerUid: 'gm1', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+      ownerUid: 'gm1', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+      ...(manualDemo ? { fullGameDemo: { status: 'active' as const, progression: 'manual' as const } } : {}) },
     { uid: 'captain', sessionId: 's1', displayName: 'Dione captain', role: 'player', seatId: null,
       assignedRoleId: 'dione-captain', activeConsoleRoleId: 'dione-captain',
       joinedAt: '2026-01-01T00:00:00.000Z' },
   );
 }
 
-function setGm(): void {
+function setGm(manualDemo = false): void {
   useSessionStore.getState().setIdentity(
     { id: 's1', name: 'Table one', joinCode: '4821', phase: 'active', currentTurn: 4,
-      ownerUid: 'gm1', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+      ownerUid: 'gm1', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+      ...(manualDemo ? { fullGameDemo: { status: 'active' as const, progression: 'manual' as const } } : {}) },
     { uid: 'gm1', sessionId: 's1', displayName: 'Facilitator', role: 'gm', seatId: null,
       joinedAt: '2026-01-01T00:00:00.000Z' },
   );
@@ -77,22 +80,20 @@ beforeEach(() => {
   useSessionStore.getState().setSessionSnapshotFreshness('server');
 });
 
-it('requires a live address before offering the printed condition to an active ship', async () => {
+it('offers the printed condition without publishing an address first', async () => {
   const user = userEvent.setup();
   render(<WolfCommanderAddressAmnestyPanel />);
 
   expect(await screen.findByRole('heading', { name: 'Commander address and amnesty' })).toBeVisible();
-  expect(screen.queryByRole('button', { name: 'Offer amnesty' })).not.toBeInTheDocument();
-  await user.type(screen.getByRole('textbox', { name: 'Fleet address' }), 'The fleet has one chance to yield.');
-  await user.click(screen.getByRole('button', { name: 'Address fleet for 30 seconds' }));
-  await waitFor(() => expect(mocks.address).toHaveBeenCalledWith('The fleet has one chance to yield.', 4));
-  expect(await screen.findByText(/Fleet address published for 30 seconds/i)).toBeVisible();
-
+  expect(screen.getByRole('textbox', { name: 'Fleet address' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Address fleet for 30 seconds' })).toBeVisible();
   await user.selectOptions(screen.getByRole('combobox', { name: 'Target ship' }), 'dione');
   await user.selectOptions(screen.getByRole('combobox', { name: 'Response deadline' }), '10');
   await user.click(screen.getByRole('button', { name: 'Offer amnesty' }));
   await waitFor(() => expect(mocks.offer).toHaveBeenCalledWith('dione', 4, 10));
+  expect(mocks.address).not.toHaveBeenCalled();
   expect((await screen.findAllByText(/surrender by medium jump to 0101/i)).length).toBeGreaterThanOrEqual(1);
+  expect(screen.getAllByText(/purge survivors based on potential Wolf loyalty and keep the ship undamaged/i)).toHaveLength(2);
   expect(screen.getByText(/Response due/i)).toBeVisible();
   expect(screen.queryByText(/targetUid|damage capacity|fleet composition/i)).not.toBeInTheDocument();
 });
@@ -145,4 +146,47 @@ it('requires facilitator text for an accepted offer and for an unanswered expire
   await user.click(screen.getByRole('button', { name: 'Refresh amnesty record' }));
   expect(await screen.findByText(/no response before the deadline/i)).toBeVisible();
   expect(screen.getByRole('button', { name: 'Record facilitator consequence' })).toBeEnabled();
+});
+
+it('keeps a target captain response available after the recorded deadline in manual full-game demo', async () => {
+  setCaptain(true);
+  const expiredOffer = { ...currentOffer, responseDeadline: '2000-01-01T00:00:00.000Z' };
+  mocks.get.mockResolvedValue({ type: 'wolf-amnesty-view', sessionId: 's1', offer: expiredOffer });
+  const user = userEvent.setup();
+  render(<WolfAmnestyCaptainPanel shipId="dione" />);
+
+  expect(await screen.findByRole('region', { name: 'Wolf amnesty offer' })).toHaveTextContent(/no wall-clock expiry/i);
+  expect(screen.queryByText(/response deadline passed/i)).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Accept offer' })).toBeEnabled();
+  await user.click(screen.getByRole('button', { name: 'Accept offer' }));
+  await waitFor(() => expect(mocks.respond).toHaveBeenCalledWith(1, 'accept'));
+});
+
+it('allows a current GM to make an explicit manual demo amnesty ruling without a timer expiry', async () => {
+  setGm(true);
+  mocks.get.mockResolvedValue({ type: 'wolf-amnesty-view', sessionId: 's1', offer: {
+    ...currentOffer, responseDeadline: '2099-01-01T00:00:00.000Z', targetUid: 'captain',
+  } });
+  const user = userEvent.setup();
+  render(<GmWolfAmnestyPanel />);
+
+  expect(await screen.findByText(/manual full-game demo.*no response countdown/i)).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Record facilitator consequence' })).toBeDisabled();
+  const consequence = 'A deliberate training consequence after a captain review.';
+  await user.type(screen.getByRole('textbox', { name: 'Facilitator consequence' }), consequence);
+  expect(screen.getByRole('button', { name: 'Record facilitator consequence' })).toBeEnabled();
+  await user.click(screen.getByRole('button', { name: 'Record facilitator consequence' }));
+  await waitFor(() => expect(mocks.consequence).toHaveBeenCalledWith(1, consequence));
+});
+
+it('removes the unused response deadline control from a manual full-game demo offer', async () => {
+  setCommander(true);
+  mocks.get.mockResolvedValue({
+    type: 'wolf-amnesty-view', sessionId: 's1', offer: null, commanderAddressPublished: true,
+  });
+  render(<WolfCommanderAddressAmnestyPanel />);
+
+  expect(await screen.findByRole('heading', { name: 'Commander address and amnesty' })).toBeVisible();
+  expect(screen.getByText(/no wall-clock expiry in this manual full-game demo/i)).toBeVisible();
+  expect(screen.queryByRole('combobox', { name: 'Response deadline' })).not.toBeInTheDocument();
 });

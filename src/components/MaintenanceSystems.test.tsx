@@ -598,6 +598,42 @@ it.each(['aegis', 'capybara'])('lets only a GM assign damage beneath %s maintena
   view.unmount();
 });
 
+it.each(['aegis', 'dione', 'capybara'])('explains %s damage as one printed survivor-track step before a GM draw', shipId => {
+  assign.mockClear();
+  act(() => useSessionStore.setState({
+    me: { ...me, role: 'gm' },
+    gmInstance: { id: 'gm1', uid: 'u1', sessionId: 's1', name: 'GM', deviceLabel: '', claimedAt: '' },
+  }));
+  render(<MaintenanceSystems name={shipId} shipId={shipId} systems={[]} renderSystem={() => null} rations={null} />);
+
+  const button = screen.getByRole('button', { name: 'Assign damage' });
+  expect(button).toHaveAccessibleDescription(/moves Survivors down 1 step on the printed track/i);
+  expect(button).not.toHaveAccessibleDescription(/removes 1 survivor/i);
+  expect(assign).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['aegis', 'AEGIS', /Armoured Hull.*without survivor loss.*cycles back.*other card remains/i, /empty deck.*required draw.*destroys the ship/i],
+  ['dione', 'Dione', /non-armoured hit moves Survivors down 1 step on the printed track/i, /card is required.*deck is empty.*Dione is destroyed/i],
+  ['capybara', 'Capybara', /non-armoured hit moves Survivors down 1 step on the printed track/i, /expansion rules.*empty-deck draw.*facilitator/i],
+] as const)('explains %s damage outcomes only beside the GM Assign damage control', (shipId, name, exception, exhaustion) => {
+  const props = { name, shipId, systems: [], renderSystem: () => null, rations: null };
+  render(<MaintenanceSystems {...props} />);
+  expect(screen.queryByRole('button', { name: 'Assign damage' })).not.toBeInTheDocument();
+  expect(screen.queryByText(/The server picks 1 card at random from the cards still in the .* damage deck/i)).not.toBeInTheDocument();
+
+  act(() => useSessionStore.setState({
+    me: { ...me, role: 'gm' },
+    gmInstance: { id: 'gm1', uid: 'u1', sessionId: 's1', name: 'GM', deviceLabel: '', claimedAt: '' },
+  }));
+
+  const button = screen.getByRole('button', { name: 'Assign damage' });
+  const help = screen.getByText(/The server picks 1 card at random from the cards still in the .* damage deck/i);
+  expect(button).toHaveAccessibleDescription(help.textContent ?? '');
+  expect(help).toHaveTextContent(exception);
+  expect(help).toHaveTextContent(exhaustion);
+});
+
 it('notes the drawn card beside the GM control that applied damage', async () => {
   assign.mockResolvedValue({
     destroyed: false,

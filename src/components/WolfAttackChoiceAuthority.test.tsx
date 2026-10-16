@@ -18,6 +18,7 @@ import WolfBoardingSpecialChoicePanel from './WolfBoardingSpecialChoicePanel';
 import WolfForceFieldChoicePanel, { WolfForceFieldChoicePanelView } from './WolfForceFieldChoicePanel';
 import WolfRangeActionPanel, { WolfRangeActionPanelView } from './WolfRangeActionPanel';
 import WolfRangeSupportActionPanel from './WolfRangeSupportActionPanel';
+import { acceptServerSessionAuthority, sessionSnapshotAuthorityFor } from '@/lib/sessionSnapshotAuthority';
 
 const mocks = vi.hoisted(() => ({
   subscribe: vi.fn(),
@@ -167,6 +168,89 @@ beforeEach(() => {
   mocks.getSupport.mockReset();
   mocks.commitSupport.mockReset();
   Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: true });
+});
+
+let snapshotFixture = 0;
+
+function connectSnapshotActor(overrides: Partial<Player> = {}): string {
+  snapshotFixture += 1;
+  const sessionId = `wolf-snapshot-${snapshotFixture}`;
+  const initial: GameSession = { ...session(), id: sessionId,
+    turnState: { currentTurn: 1, maxTurn: 6, phase: 'coordination', phaseRevision: 4,
+      startedAt: deadlineAt, endsAt: deadlineAt },
+    turnPhase: { turn: 1, teamPhaseEndsAt: deadlineAt, openAirspaceEndsAt: deadlineAt,
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false }, progression: 'manual' },
+  };
+  const actor = player({ ...overrides, uid: `snapshot-actor-${snapshotFixture}` as Player['uid'], sessionId });
+  useSessionStore.getState().setIdentity(initial, actor);
+  useSessionStore.setState({ connection: 'live', sessionSnapshotFreshness: 'server' });
+  expect(acceptServerSessionAuthority(sessionSnapshotAuthorityFor(sessionId, actor.uid), initial, undefined, false, true)).toBe(true);
+  return sessionId;
+}
+
+function advanceSnapshot(patch: Partial<GameSession> = {}): void {
+  const { session: current, me } = useSessionStore.getState();
+  const next: GameSession = { ...current!, ...patch };
+  expect(acceptServerSessionAuthority(sessionSnapshotAuthorityFor(next.id, me!.uid), next, undefined, false, true)).toBe(true);
+  useSessionStore.getState().setSession(next);
+}
+
+it.each(['identity', 'role', 'group', 'generation', 'cycle', 'phase', 'airspace', 'cache', 'offline'] as const)(
+  'keeps a delayed range reply withdrawn after its original %s authority changes', async (changed) => {
+    const sessionId = connectSnapshotActor({ assignedRoleId: 'executive-officer', replacementRoleId: null,
+      activeConsoleRoleId: 'executive-officer' });
+    const pending = deferred<WolfRangeActionChoiceView>();
+    mocks.getRange.mockReset().mockReturnValue(pending.promise);
+    render(<WolfRangeActionPanel />);
+    publish({ ...mediumRange, sessionId });
+    await waitFor(() => expect(mocks.getRange).toHaveBeenCalledTimes(1));
+    act(() => {
+      const { session: current, me } = useSessionStore.getState();
+      if (changed === 'identity') useSessionStore.getState().setMe({ ...me!, uid: 'another-actor' as Player['uid'] });
+      if (changed === 'role') useSessionStore.getState().setMe({ ...me!, activeConsoleRoleId: null });
+      if (changed === 'group') useSessionStore.getState().setMe({ ...me!, fleetGroupId: 'fleet-2' as NonNullable<Player['fleetGroupId']> });
+      if (changed === 'generation') useSessionStore.getState().setMe({ ...me!, connectionGeneration: 2 });
+      if (changed === 'cycle') advanceSnapshot({ currentTurn: 2,
+        turnState: { ...current!.turnState!, currentTurn: 2, phase: 'team', phaseRevision: 5 },
+        turnPhase: { ...current!.turnPhase!, turn: 2 } });
+      if (changed === 'phase') advanceSnapshot({ turnState: { ...current!.turnState!, phaseRevision: 5 } });
+      if (changed === 'airspace') advanceSnapshot({ turnPhase: { ...current!.turnPhase!,
+        airspace: { ...current!.turnPhase!.airspace, state: 'lifted' } } });
+      if (changed === 'cache') useSessionStore.getState().setSessionSnapshotFreshness('cache');
+      if (changed === 'offline') useSessionStore.getState().setConnection('offline');
+    });
+    await act(async () => pending.resolve({ ...rangeView, sessionId }));
+    expect(screen.queryByRole('button', { name: /pass this range/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: /missile launchers/i })).not.toBeInTheDocument();
+    expect(mocks.getRange).toHaveBeenCalledTimes(1);
+    expect(mocks.commitRange).not.toHaveBeenCalled();
+  },
+);
+
+it('discards a superseded Captain read and never reuses its private targets when the audience changes during recovery', async () => {
+  const sessionId = connectSnapshotActor();
+  const first = deferred<WolfForceFieldChoiceView>();
+  const recovery = deferred<WolfForceFieldChoiceView>();
+  const nextAttack = deferred<WolfForceFieldChoiceView>();
+  mocks.getForceField.mockReset().mockReturnValueOnce(first.promise)
+    .mockReturnValueOnce(recovery.promise).mockReturnValueOnce(nextAttack.promise);
+  render(<WolfForceFieldChoicePanel />);
+  publish({ ...targeting, sessionId });
+  await waitFor(() => expect(mocks.getForceField).toHaveBeenCalledTimes(1));
+  act(() => advanceSnapshot());
+  await act(async () => first.resolve({ ...forceFieldView, sessionId }));
+  await waitFor(() => expect(mocks.getForceField).toHaveBeenCalledTimes(2));
+  expect(screen.queryByRole('radio', { name: /dione/i })).not.toBeInTheDocument();
+
+  publish({ ...targeting, sessionId, attackId: 'attack-current' });
+  await act(async () => recovery.resolve({ ...forceFieldView, sessionId }));
+  await waitFor(() => expect(mocks.getForceField).toHaveBeenCalledTimes(3));
+  expect(screen.queryByRole('radio', { name: /dione/i })).not.toBeInTheDocument();
+  await act(async () => nextAttack.resolve({ ...forceFieldView, sessionId,
+    attackId: 'attack-current', targetShipIds: ['aegis'] }));
+  await screen.findByRole('radio', { name: /aegis/i });
+  expect(screen.queryByRole('radio', { name: /dione/i })).not.toBeInTheDocument();
+  expect(mocks.commitForceField).not.toHaveBeenCalled();
 });
 
 it('mounts the admitted replacement Captain range choice without adding extra ships or roles to the core roster', async () => {
@@ -326,7 +410,7 @@ it('shows the Commander ruling only to the current live GM instance and sends th
   const rulingView: WolfBoardingSpecialChoiceReadResult = {
     type: 'wolf-boarding-special-choice-view', sessionId: 's1', turn: 1, revision: 7,
     choice: { kind: 'commander-ruling', targetShipId: 'aegis',
-      condition: 'All Commander-led Wolf Boarding Parties were destroyed.' },
+      condition: 'HOUSE RULE: The optional +2 Commander boarding request remains pending until the current live GM records the consequence for what happens if all Commander-led Wolf Boarding Parties are destroyed. No automatic consequence or default outcome is assumed.' },
   };
   mocks.getBoardingSpecial.mockResolvedValue(rulingView);
   render(<WolfBoardingSpecialChoicePanel facilitator />);

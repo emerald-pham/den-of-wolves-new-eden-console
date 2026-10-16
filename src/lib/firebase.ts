@@ -1,4 +1,4 @@
-import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
+import { getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import {
   initializeAppCheck,
   ReCaptchaEnterpriseProvider,
@@ -17,6 +17,7 @@ import {
   firebaseConfigured,
   useEmulators,
 } from './firebaseConfig';
+import { demoActorAppName, type DemoActorProfile } from './demoActorContext';
 
 /**
  * Lazy, single-instance Firebase wiring.
@@ -26,19 +27,27 @@ import {
  * errors observable and the module straightforward to test.
  */
 
-function firebaseApp(): FirebaseApp {
+const appsByName = new Map<string, FirebaseApp>();
+
+function firebaseApp(name = demoActorAppName()): FirebaseApp {
   if (!firebaseConfigured) {
     throw new Error(
       'Firebase is not configured yet. Fill in src/lib/firebaseConfig.ts ' +
         '(or set VITE_FIREBASE_* env vars) before using shared state.',
     );
   }
-  return getApps().length ? getApp() : initializeApp(firebaseConfig);
+  const cached = appsByName.get(name);
+  if (cached) return cached;
+  const instance = getApps().find(candidate => candidate.name === name) ??
+    (name === '[DEFAULT]' ? initializeApp(firebaseConfig) : initializeApp(firebaseConfig, name));
+  appsByName.set(name, instance);
+  return instance;
 }
 
-let authInstance: Auth | undefined;
-let functionsInstance: Functions | undefined;
-let appCheckInstance: AppCheck | undefined;
+const authInstances = new Map<string, Auth>();
+const functionsInstances = new Map<string, Functions>();
+const appCheckInstances = new Map<string, AppCheck>();
+const actorServices = new Map<string, Readonly<{ auth: Auth; functions: Functions }>>();
 
 /**
  * Production App Check starts before Firebase services. The explicitly selected
@@ -46,46 +55,62 @@ let appCheckInstance: AppCheck | undefined;
  * there would still exchange tokens with the remote App Check service.
  * The production site key is public; its domains live in reCAPTCHA Enterprise.
  */
-export function appCheck(): AppCheck | undefined {
+export function appCheck(name = demoActorAppName()): AppCheck | undefined {
   if (useEmulators) return undefined;
-  if (!appCheckInstance) {
+  let instance = appCheckInstances.get(name);
+  if (!instance) {
     if (!appCheckSiteKey) {
       throw new Error(
         'Firebase App Check is not configured. Set VITE_APP_CHECK_SITE_KEY before using Firebase services.',
       );
     }
-    appCheckInstance = initializeAppCheck(firebaseApp(), {
+    instance = initializeAppCheck(firebaseApp(name), {
       provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
       isTokenAutoRefreshEnabled: true,
     });
+    appCheckInstances.set(name, instance);
   }
-  return appCheckInstance;
-}
-
-export function app(): FirebaseApp {
-  const instance = firebaseApp();
-  appCheck();
   return instance;
 }
 
-export function auth(): Auth {
-  if (!authInstance) {
-    authInstance = getAuth(app());
+export function app(name = demoActorAppName()): FirebaseApp {
+  const instance = firebaseApp(name);
+  appCheck(name);
+  return instance;
+}
+
+export function auth(name = demoActorAppName()): Auth {
+  let instance = authInstances.get(name);
+  if (!instance) {
+    instance = getAuth(app(name));
     if (useEmulators) {
-      connectAuthEmulator(authInstance, `http://127.0.0.1:${emulatorPorts.auth}`, {
+      connectAuthEmulator(instance, `http://127.0.0.1:${emulatorPorts.auth}`, {
         disableWarnings: true,
       });
     }
+    authInstances.set(name, instance);
   }
-  return authInstance;
+  return instance;
 }
 
-export function functions(): Functions {
-  if (!functionsInstance) {
-    functionsInstance = getFunctions(app());
+export function functions(name = demoActorAppName()): Functions {
+  let instance = functionsInstances.get(name);
+  if (!instance) {
+    instance = getFunctions(app(name));
     if (useEmulators) {
-      connectFunctionsEmulator(functionsInstance, '127.0.0.1', emulatorPorts.functions);
+      connectFunctionsEmulator(instance, '127.0.0.1', emulatorPorts.functions);
     }
+    functionsInstances.set(name, instance);
   }
-  return functionsInstance;
+  return instance;
+}
+
+/** Independent SDK identities used only by the disclosed demo crew manager. */
+export function demoActorServices(profile: DemoActorProfile): Readonly<{ auth: Auth; functions: Functions }> {
+  const name = demoActorAppName(profile);
+  const existing = actorServices.get(name);
+  if (existing) return existing;
+  const services = { auth: auth(name), functions: functions(name) };
+  actorServices.set(name, services);
+  return services;
 }

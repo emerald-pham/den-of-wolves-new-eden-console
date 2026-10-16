@@ -1,23 +1,34 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
+import { deleteApp, initializeApp } from 'firebase/app';
+import { connectFunctionsEmulator, getFunctions, httpsCallable } from 'firebase/functions';
+import { Link, MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { SHUTTLECRAFT } from '@/data/shuttles';
 import { findConsoleRole } from '@/data/roles';
 import { consoleRoleRoute } from '@/lib/consoleRole';
 import { recommendedRoleIds } from '@/data/rolePresets';
+import { sessionSubscriptionOwner } from '@/lib/sessionSubscriptionOwner';
+import type * as FirebaseModule from '@/lib/firebase';
 import type * as FirestoreModule from '@/lib/firestore';
 import type * as ScoutRequestServiceModule from '@/lib/scoutRequestService';
 import type * as ShuttleEvacuationServiceModule from '@/lib/shuttleEvacuationService';
 import type * as BlacksmithRepairServiceModule from '@/lib/blacksmithRepairService';
 import type * as ServiceShuttleRechargeServiceModule from '@/lib/serviceShuttleRechargeService';
+import type { EndeavourEcmDeviceWorkspace } from '@/lib/endeavourEcmDeviceService';
 import ShuttleConsole from './ShuttleConsole';
 
 const endeavourResearchMocks = vi.hoisted(() => ({ read: vi.fn(), advance: vi.fn() }));
 const endeavourEcmMocks = vi.hoisted(() => ({ read: vi.fn(), activate: vi.fn() }));
 const scoutRequestMock = vi.hoisted(() => ({ request: vi.fn() }));
 const dismantlingPanelMock = vi.hoisted(() => ({ render: vi.fn() }));
+const arrivalAuthorityFixture = vi.hoisted(() => ({ authUid: null as string | null }));
+vi.mock('@/lib/firebase', async (importOriginal) => ({
+  ...(await importOriginal<typeof FirebaseModule>()),
+  auth: () => ({ currentUser: arrivalAuthorityFixture.authUid
+    ? { uid: arrivalAuthorityFixture.authUid } : null }),
+}));
 vi.mock('@/components/PermissionedDismantlingPanel', () => ({
   default: (props: unknown) => {
     dismantlingPanelMock.render(props);
@@ -110,6 +121,7 @@ vi.mock('@/lib/shuttleEvacuationService', async (importOriginal) => ({
 }));
 const { dismissPressDispatch, publishPressDispatch } = await import('@/lib/pressDispatchService');
 const { releaseConsoleRole, selectConsoleRole } = await import('@/lib/sessionService');
+const { confirmCurrentMemberSessionProjection } = await import('@/lib/firestore');
 const { subscribeConnectedPlayers } = await import('@/lib/firestore');
 const { subscribeShuttleDeparture } = await import('@/lib/firestore');
 const { transferShuttleControl } = await import('@/lib/shuttleControlService');
@@ -145,6 +157,39 @@ function reachedTransit(holderUid: string, transitRequestId = 'transit-arrived')
     velocity: { x: 0.004, y: -0.002, z: 0.004 },
     departedAt: '2026-01-01T00:10:01.000Z', arrivesAt: '2026-01-01T00:11:01.000Z',
   };
+}
+
+async function installShuttleArrivalAuthority(sessionId: string, uid: string): Promise<void> {
+  const store = useSessionStore.getState();
+  const session = store.session!;
+  const me = store.me!;
+  const assignedRoleId = me.assignedRoleId ?? 'wing-commander';
+  const activeConsoleRoleId = me.activeConsoleRoleId ?? 'wing-commander';
+  const connectionGeneration = 3;
+  const token = Symbol(`shuttle-arrival:${sessionId}:${uid}`);
+  store.setSession({
+    ...session,
+    memberSessionScope: { groupId: 'fleet-1', vesselIds: ['aegis', 'icebreaker'], craftIds: ['starlight'] },
+    currentActorBerthAuthority: {
+      sessionId, actorUid: uid, groupId: 'fleet-1', role: 'player', connectionGeneration,
+      assignedRoleId, activeConsoleRoleId, replacementRoleId: null, replacementStatus: null, shipId: 'aegis',
+    },
+  });
+  store.setMe({
+    ...me, uid, sessionId, role: 'player', connected: true, fleetGroupId: 'fleet-1', connectionGeneration,
+    assignedRoleId, activeConsoleRoleId, replacementRoleId: null, replacementStatus: null,
+  });
+  store.setConnection('live');
+  store.setSessionSnapshotFreshness('server');
+  arrivalAuthorityFixture.authUid = uid;
+  sessionSubscriptionOwner.token = token;
+  sessionSubscriptionOwner.memberProjectionConfirmation = {
+    sessionId, uid, subscriptionToken: token, cancel: vi.fn(),
+    confirm: async (current) => current(),
+  };
+  if (!await confirmCurrentMemberSessionProjection(sessionId, uid)) {
+    throw new Error('Expected the current member projection to confirm this shuttle arrival fixture.');
+  }
 }
 
 function prepareBlacksmithRepairState() {
@@ -189,6 +234,10 @@ function staleBlacksmithReply(requestId: string) {
 }
 
 beforeEach(() => {
+  sessionSubscriptionOwner.memberProjectionConfirmation?.cancel();
+  sessionSubscriptionOwner.memberProjectionConfirmation = undefined;
+  sessionSubscriptionOwner.token = undefined;
+  arrivalAuthorityFixture.authUid = null;
   dismantlingPanelMock.render.mockClear();
   endeavourResearchMocks.read.mockReset();
   endeavourResearchMocks.advance.mockReset();
@@ -204,9 +253,9 @@ beforeEach(() => {
   endeavourResearchMocks.advance.mockResolvedValue(undefined);
   endeavourEcmMocks.read.mockResolvedValue({
     status: 'ready', sessionId: 's1', cycle: 3, controlRevision: 4,
-    researchComplete: false, device: { status: 'ready', revision: 0 },
+    researchComplete: false, built: false, device: { status: 'ready', revision: 0 },
     pursuit: { groupId: 'fleet-1', current: 8 },
-  });
+  } satisfies EndeavourEcmDeviceWorkspace);
   endeavourEcmMocks.activate.mockResolvedValue(undefined);
   vi.mocked(requestScout).mockReset();
   vi.mocked(requestScout).mockResolvedValue(undefined as never);
@@ -249,6 +298,7 @@ beforeEach(() => {
     hostShipId: 'quellon', consoleId: 'hydroponics', cycle: 2, maintenanceRevision: 10,
     rechargeRevision: 1, immediate: true, message: 'Hydroponics: spent 1 water, generated 3 food.',
   });
+  vi.mocked(replayServiceShuttleRecharge).mockReset();
   vi.mocked(repairConsolesFromBlacksmith).mockReset();
   vi.mocked(repairConsolesFromBlacksmith).mockResolvedValue({
     status: 'committed', hostShipId: 'icebreaker', systemIds: ['reactor', 'storage'],
@@ -318,6 +368,36 @@ it('shows permissioned dismantling to the active Philia holder with a live targe
   }));
 });
 
+it('shows Macaw salvage permission to the current Capybara Captain at its docked host', () => {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active',
+    activeRoleIds: ['capybara-captain', 'dione-captain'],
+    activeVesselIds: ['capybara', 'dione'],
+    shuttleDockings: [{ shuttleId: 'macaw', shipId: 'dione', dockedAt: 'SESSION START' }],
+    shuttleControl: {
+      macaw: { shuttleId: 'macaw', ownerRoleId: 'capybara-captain',
+        ownerUid: 'u1', holderUid: 'u1', revision: 9 },
+    },
+    shipDamage: { dione: { damagedSystemIds: ['reactor'], destroyed: false } },
+  });
+  state.setMe({
+    ...state.me!, role: 'player', assignedRoleId: 'capybara-captain',
+    activeConsoleRoleId: 'capybara-captain', replacementStatus: null,
+  });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+
+  render(<MemoryRouter initialEntries={['/shuttles/macaw']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  expect(dismantlingPanelMock.render).toHaveBeenCalledWith(expect.objectContaining({
+    mode: 'proposer', sessionId: 's1', currentPlayerUid: 'u1', craftId: 'macaw',
+    targetShipId: 'dione', damagedSystemIds: ['reactor'], connection: 'live', canAct: true,
+  }));
+});
+
 it('keeps permissioned dismantling inactive for stale snapshots and out of GM consoles', () => {
   const state = useSessionStore.getState();
   state.setSession({
@@ -376,6 +456,99 @@ it('keeps a rejected Press claim locked and provides a keyboard return to Indepe
   await user.keyboard('{Enter}');
   expect(screen.getByText('Independent Stations')).toBeInTheDocument();
   expect(releaseConsoleRole).not.toHaveBeenCalled();
+});
+
+function prepareOwnedPressEntry(activeConsoleRoleId: string | null = null) {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', currentTurn: 1, pressEnabled: true,
+    shuttleControl: {
+      'snn-press-shuttle': {
+        shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer',
+        ownerUid: 'u1', holderUid: 'u1', revision: 0,
+      },
+    },
+  });
+  state.setMe({ ...state.me!, role: 'player', assignedRoleId: null,
+    activeConsoleRoleId, replacementStatus: null });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+  return useSessionStore.getState();
+}
+
+function renderPressEntry() {
+  return render(<MemoryRouter initialEntries={['/press']}><Routes>
+    <Route path="/console" element={<><p>Independent Stations chooser</p>
+      <Link to="/press">Press Officer</Link></>} />
+    <Route path="/press" element={<ShuttleConsole shuttleId="snn-press-shuttle" />} />
+  </Routes></MemoryRouter>);
+}
+
+it('re-enters a released owned Press station through normal selection without a local authority grant', async () => {
+  prepareOwnedPressEntry();
+  const selection = deferred<void>();
+  vi.mocked(selectConsoleRole).mockReturnValueOnce(selection.promise);
+  renderPressEntry();
+
+  await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledExactlyOnceWith('press-officer'));
+  expect(useSessionStore.getState().me!.activeConsoleRoleId).toBeNull();
+  expect(useSessionStore.getState().session!.shuttleControl!['snn-press-shuttle']!.holderUid).toBe('u1');
+  await act(async () => selection.resolve());
+});
+
+it('keeps a pending Press release released and selects again only after the visible return and re-entry', async () => {
+  const user = userEvent.setup();
+  const state = prepareOwnedPressEntry('press-officer');
+  const release = deferred<void>();
+  vi.mocked(releaseConsoleRole).mockReturnValueOnce(release.promise);
+  renderPressEntry();
+  expect(selectConsoleRole).not.toHaveBeenCalled();
+
+  const back = screen.getByRole('button', { name: /back to independent stations/i });
+  back.focus();
+  await user.keyboard('{Enter}');
+  await waitFor(() => expect(releaseConsoleRole).toHaveBeenCalledOnce());
+  // The committed presence projection may arrive before the original reply.
+  act(() => state.setMe({ ...useSessionStore.getState().me!, activeConsoleRoleId: null }));
+  await act(async () => { await Promise.resolve(); });
+  expect(selectConsoleRole).not.toHaveBeenCalled();
+  expect(screen.queryByText('Independent Stations chooser')).not.toBeInTheDocument();
+
+  await act(async () => release.resolve());
+  expect(await screen.findByText('Independent Stations chooser')).toBeVisible();
+  expect(selectConsoleRole).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('link', { name: 'Press Officer' }));
+  await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledExactlyOnceWith('press-officer'));
+});
+
+it.each(['cache snapshot', 'offline connection', 'foreign session member', 'foreign printed owner', 'revoked player'] as const)(
+  'does not reactivate an owned Press entry with %s', async (condition) => {
+    const state = prepareOwnedPressEntry();
+    if (condition === 'cache snapshot') state.setSessionSnapshotFreshness('cache');
+    if (condition === 'offline connection') state.setConnection('offline');
+    if (condition === 'foreign session member') state.setMe({ ...state.me!, sessionId: 'foreign-session' });
+    if (condition === 'revoked player') state.setMe({ ...state.me!, replacementStatus: 'awaiting-re-role' });
+    if (condition === 'foreign printed owner') state.setSession({ ...state.session!, shuttleControl: {
+      'snn-press-shuttle': { ...state.session!.shuttleControl!['snn-press-shuttle']!, ownerUid: 'foreign-owner' },
+    } });
+    renderPressEntry();
+    await act(async () => { await Promise.resolve(); });
+    expect(selectConsoleRole).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().me!.activeConsoleRoleId).toBeNull();
+  },
+);
+
+it('keeps foreign-held Press control locked after the normal selection is denied', async () => {
+  const state = prepareOwnedPressEntry();
+  state.setSession({ ...state.session!, shuttleControl: {
+    'snn-press-shuttle': { ...state.session!.shuttleControl!['snn-press-shuttle']!, holderUid: 'foreign-holder' },
+  } });
+  vi.mocked(selectConsoleRole).mockRejectedValueOnce(new Error('Role already held.'));
+  renderPressEntry();
+  await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledExactlyOnceWith('press-officer'));
+  expect(screen.getByRole('button', { name: /open newspaper confetti cover/i })).toBeDisabled();
+  expect(useSessionStore.getState().me!.activeConsoleRoleId).toBeNull();
+  expect(useSessionStore.getState().session!.shuttleControl!['snn-press-shuttle']!.holderUid).toBe('foreign-holder');
 });
 
 it('does not claim the Press role while another console is held', async () => {
@@ -1226,21 +1399,17 @@ it('keeps survivor destinations inside the projected fleet group and closes inva
   expect(evacuateShuttleSurvivors).not.toHaveBeenCalled();
 });
 
-it('opens Endeavour for the Shepherd Scientist with every printed registration fact', async () => {
-  const user = userEvent.setup();
+function seedEndeavourScientistRoute(): void {
   const state = useSessionStore.getState();
   state.setSession({
-    ...state.session!,
-    phase: 'active', currentTurn: 3,
-    activeRoleIds: ['shepherd-scientist'],
-    activeVesselIds: ['shepherd', 'aegis'],
+    ...state.session!, phase: 'active', currentTurn: 3,
+    activeRoleIds: ['shepherd-scientist'], activeVesselIds: ['shepherd', 'aegis'],
     playerDiscovery: {
       groupId: 'fleet-1', fleetGroupVesselIds: ['shepherd', 'aegis'],
       knownCoordinates: [], knownSystems: {}, pursuitDistance: 0, navigationLogs: [], revision: 1,
     },
     turnPhase: {
-      turn: 3,
-      teamPhaseEndsAt: '2099-09-23T12:00:00.000Z',
+      turn: 3, teamPhaseEndsAt: '2099-09-23T12:00:00.000Z',
       openAirspaceEndsAt: '2099-09-23T12:15:00.000Z',
       airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
     },
@@ -1252,6 +1421,101 @@ it('opens Endeavour for the Shepherd Scientist with every printed registration f
   });
   state.setMe({ ...state.me!, assignedRoleId: 'shepherd-scientist',
     activeConsoleRoleId: 'shepherd-scientist', fleetGroupId: 'fleet-1' });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+}
+
+const endeavourRouteEcmReady: EndeavourEcmDeviceWorkspace = {
+  status: 'ready', sessionId: 's1', cycle: 3, controlRevision: 4,
+  researchComplete: true, built: true, device: { status: 'ready', revision: 0 },
+  pursuit: { groupId: 'fleet-1', current: 8 },
+};
+
+function renderEndeavourRoute() {
+  return render(<MemoryRouter initialEntries={['/shuttles/endeavour']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+}
+
+it.each([false, true])(
+  'Endeavour route ECM contract keeps an unbuilt device unavailable with researchComplete=%s',
+  async (researchComplete) => {
+    seedEndeavourScientistRoute();
+    endeavourEcmMocks.read.mockResolvedValue({
+      ...endeavourRouteEcmReady, researchComplete, built: false,
+    } satisfies EndeavourEcmDeviceWorkspace);
+    renderEndeavourRoute();
+
+    expect(await screen.findByText('Status: Unavailable')).toBeVisible();
+    const ecm = screen.getByRole('region', { name: 'Endeavour ECM Device controls' });
+    expect(within(ecm).getByText('Build the ECM Device before use.')).toBeVisible();
+    expect(within(ecm).getByRole('button', { name: 'Use ECM Device' })).toBeDisabled();
+    expect(endeavourEcmMocks.activate).not.toHaveBeenCalled();
+  },
+);
+
+it('Endeavour route ECM contract enables only the built ready device for the live Scientist holder', async () => {
+  seedEndeavourScientistRoute();
+  endeavourEcmMocks.read.mockResolvedValue(endeavourRouteEcmReady);
+  renderEndeavourRoute();
+
+  expect(await screen.findByText('Status: Ready')).toBeVisible();
+  const ecm = screen.getByRole('region', { name: 'Endeavour ECM Device controls' });
+  expect(within(ecm).getByText('Shepherd group pursuit: 8.')).toBeVisible();
+  expect(within(ecm).getByRole('button', { name: 'Use ECM Device' })).toBeEnabled();
+  expect(endeavourEcmMocks.activate).not.toHaveBeenCalled();
+});
+
+it.each(['offline connection', 'cache snapshot'] as const)(
+  'Endeavour route ECM contract blocks a built ready device with %s', async (condition) => {
+    seedEndeavourScientistRoute();
+    endeavourEcmMocks.read.mockResolvedValue(endeavourRouteEcmReady);
+    renderEndeavourRoute();
+    expect(await screen.findByText('Status: Ready')).toBeVisible();
+    await act(async () => {
+      if (condition === 'offline connection') useSessionStore.getState().setConnection('offline');
+      else useSessionStore.getState().setSessionSnapshotFreshness('cache');
+    });
+    const ecm = screen.getByRole('region', { name: 'Endeavour ECM Device controls' });
+    expect(within(ecm).getByText('Status: Ready')).toBeVisible();
+    expect(within(ecm).getByRole('button', { name: 'Use ECM Device' })).toBeDisabled();
+    expect(endeavourEcmMocks.activate).not.toHaveBeenCalled();
+  },
+);
+
+it('Endeavour route ECM contract restores the persisted spent result without offering another use', async () => {
+  seedEndeavourScientistRoute();
+  endeavourEcmMocks.read.mockResolvedValue({
+    ...endeavourRouteEcmReady, device: {
+      status: 'used', revision: 1, ownerGroupId: 'fleet-1', pursuitBefore: 8, pursuitAfter: 5,
+    }, pursuit: { groupId: 'fleet-1', current: 5 },
+  } satisfies EndeavourEcmDeviceWorkspace);
+  renderEndeavourRoute();
+
+  expect(await screen.findByText('Status: Spent')).toBeVisible();
+  const ecm = screen.getByRole('region', { name: 'Endeavour ECM Device controls' });
+  expect(within(ecm).getByText('ECM Device spent; Shepherd group pursuit changed from 8 to 5.'))
+    .toBeVisible();
+  expect(within(ecm).queryByRole('button', { name: 'Use ECM Device' })).not.toBeInTheDocument();
+  expect(endeavourEcmMocks.activate).not.toHaveBeenCalled();
+});
+
+it('Endeavour route ECM contract withholds the device read after current shuttle custody is revoked', () => {
+  seedEndeavourScientistRoute();
+  const state = useSessionStore.getState();
+  state.setSession({ ...state.session!, shuttleControl: { endeavour: {
+    ...state.session!.shuttleControl!.endeavour!, holderUid: 'other-current-holder', revision: 5,
+  } } });
+  renderEndeavourRoute();
+
+  expect(screen.queryByRole('region', { name: 'Endeavour ECM Device controls' })).not.toBeInTheDocument();
+  expect(endeavourEcmMocks.read).not.toHaveBeenCalled();
+  expect(endeavourEcmMocks.activate).not.toHaveBeenCalled();
+});
+
+it('opens Endeavour for the Shepherd Scientist with every printed registration fact', async () => {
+  const user = userEvent.setup();
+  seedEndeavourScientistRoute();
 
   render(
     <MemoryRouter initialEntries={['/shuttles/endeavour']}>
@@ -1274,7 +1538,11 @@ it('opens Endeavour for the Shepherd Scientist with every printed registration f
   expect(await screen.findByRole('region', { name: 'Endeavour research controls' })).toBeVisible();
   expect(await screen.findByRole('region', { name: 'Endeavour field-upgrade purchase controls' })).toBeVisible();
   expect(await screen.findByRole('region', { name: 'Endeavour ECM Device controls' })).toBeVisible();
-  expect(await screen.findByText('Complete ECM Device research before use.')).toBeVisible();
+  expect(await screen.findByText('Status: Unavailable')).toBeVisible();
+  const ecm = screen.getByRole('region', { name: 'Endeavour ECM Device controls' });
+  expect(within(ecm).getByText('Build the ECM Device before use.')).toBeVisible();
+  expect(within(ecm).getByRole('button', { name: 'Use ECM Device' })).toBeDisabled();
+  expect(endeavourEcmMocks.activate).not.toHaveBeenCalled();
   expect(screen.getByRole('button', { name: 'Advance standard research' })).toBeEnabled();
   expect(screen.getByRole('list', { name: 'Research progress' })).toHaveTextContent(
     'Reactor: 0 of 5 boxes crossed; next field-upgrade cost is 8 materials.',
@@ -2235,6 +2503,144 @@ it('preserves a service recharge selection and waits for current revisions befor
   expect(within(screen.getByRole('region', { name: 'Shuttle control' })).getByRole('status', { name: '' })).toHaveTextContent(/spent 4 ore, generated 4 fuel/i);
 });
 
+async function firebaseRechargeFetchFailure(): Promise<unknown> {
+  // Exercise the installed public SDK, with all fetches intercepted. A lost
+  // acknowledgement must use its actual error taxonomy, not an invented code.
+  const app = initializeApp({ projectId: 'demo-pc10-recharge-sdk-unit' }, crypto.randomUUID());
+  const transport = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
+  try {
+    const functions = getFunctions(app);
+    connectFunctionsEmulator(functions, '127.0.0.1', 1);
+    const failure: unknown = await httpsCallable(functions, 'rechargeHostConsoleFromShuttle')({})
+      .then(() => undefined, (cause: unknown) => cause);
+    expect(transport).toHaveBeenCalledTimes(1);
+    expect(transport.mock.calls[0]![0]).toBe(
+      'http://127.0.0.1:1/demo-pc10-recharge-sdk-unit/us-central1/rechargeHostConsoleFromShuttle',
+    );
+    expect(failure).toMatchObject({ code: 'functions/internal', details: undefined });
+    return failure;
+  } finally {
+    transport.mockRestore();
+    await deleteApp(app);
+  }
+}
+
+async function interruptCommittedBlackSheepRecharge() {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  const pending = deferred<Awaited<ReturnType<typeof rechargeHostConsoleFromShuttle>>>();
+  const failure = await firebaseRechargeFetchFailure();
+  state.setSession({
+    ...state.session!, phase: 'active', currentTurn: 2,
+    activeRoleIds: ['shepherd-engineer', 'shepherd-captain'], activeVesselIds: ['shepherd'],
+    turnPhase: {
+      turn: 2, teamPhaseEndsAt: '2026-09-21T12:00:00.000Z',
+      openAirspaceEndsAt: '2026-09-21T12:15:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    },
+    shuttleDockings: [{ shuttleId: 'black-sheep', shipId: 'shepherd', dockedAt: 'now' }],
+    shuttleFuelled: { 'black-sheep': true },
+    shuttleControl: { 'black-sheep': {
+      shuttleId: 'black-sheep', ownerRoleId: 'shepherd-engineer', ownerUid: 'u2',
+      holderUid: 'u1', revision: 1,
+    } },
+    maintenanceCycles: { shepherd: {
+      step: 0, revision: 8, turn: 2, results: { '7': 'Maintenance cycle complete.' },
+      charges: ['jump-drive'], refuelled: ['black-sheep'], completedAt: 'now',
+    } },
+    shipDamage: { shepherd: { damagedSystemIds: [], destroyed: false } },
+    shipResources: { shepherd: {
+      ore: 8, fuel: 3, food: 2, water: 2, materials: 0, securityTeams: 2,
+    } },
+    serviceShuttleRecharges: {},
+  });
+  state.setMe({
+    ...state.me!, assignedRoleId: 'shepherd-captain', activeConsoleRoleId: 'shepherd-captain',
+    fleetGroupId: 'fleet-1',
+  });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+  vi.mocked(rechargeHostConsoleFromShuttle).mockReturnValueOnce(pending.promise);
+  render(<MemoryRouter initialEntries={['/shuttles/black-sheep']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+  const panel = screen.getByRole('region', { name: 'Service shuttle recharge' });
+  expect(within(panel).getByLabelText('Host console')).toHaveValue('');
+  await user.selectOptions(within(panel).getByLabelText('Host console'), 'water-reclamation');
+  await user.click(within(panel).getByRole('button', { name: 'Recharge console' }));
+  expect(rechargeHostConsoleFromShuttle).toHaveBeenCalledTimes(1);
+  const original = vi.mocked(rechargeHostConsoleFromShuttle).mock.calls[0]![0];
+  expect(original).toEqual({
+    requestId: expect.any(String), shuttleId: 'black-sheep', consoleId: 'water-reclamation',
+    expectedControlRevision: 1, expectedMaintenanceRevision: 8, expectedCycle: 2,
+    expectedHostShipId: 'shepherd',
+  });
+
+  // The member snapshot can arrive before the callable acknowledgement, as it
+  // did in the retained native failure. Publish its committed state first.
+  const current = useSessionStore.getState().session!;
+  act(() => state.setSession({
+    ...current,
+    maintenanceCycles: { shepherd: { ...current.maintenanceCycles!.shepherd!, revision: 10 } },
+    shipResources: { shepherd: { ...current.shipResources!.shepherd!, water: 4 } },
+    serviceShuttleRecharges: { 'black-sheep': {
+      cycle: 2, hostShipId: 'shepherd', consoleId: 'water-reclamation', revision: 1,
+    } },
+  }));
+  await act(async () => pending.reject(failure));
+  expect(within(panel).getByText('Recharged water-reclamation on Shepherd this cycle.')).toBeVisible();
+  expect(within(panel).getByRole('button', { name: 'Recharge console' })).toBeDisabled();
+  return { user, state, panel, original };
+}
+
+it('recovers the exact committed Water request after the installed Firebase SDK loses its acknowledgement', async () => {
+  const { user, panel, original } = await interruptCommittedBlackSheepRecharge();
+  expect(within(panel).getByText(
+    'Recharge result could not be confirmed. Retry the exact request; its request ID prevents a second charge.',
+  )).toBeVisible();
+  const committed = useSessionStore.getState().session;
+  vi.mocked(replayServiceShuttleRecharge).mockResolvedValueOnce({
+    status: 'replayed', sessionId: 's1', requestId: original.requestId,
+    shuttleId: 'black-sheep', hostShipId: 'shepherd', consoleId: 'water-reclamation',
+    cycle: 2, maintenanceRevision: 10, rechargeRevision: 1, immediate: true,
+    message: 'Water Reclamation: generated 2 water.',
+  });
+  await user.click(within(panel).getByRole('button', { name: 'Retry exact recharge request' }));
+  expect(replayServiceShuttleRecharge).toHaveBeenCalledTimes(1);
+  expect(replayServiceShuttleRecharge).toHaveBeenCalledWith(original);
+  expect(rechargeHostConsoleFromShuttle).toHaveBeenCalledTimes(1);
+  expect(useSessionStore.getState().session).toEqual(committed);
+  expect(within(screen.getByRole('region', { name: 'Shuttle control' })).getByRole('status', { name: '' }))
+    .toHaveTextContent('Water Reclamation: generated 2 water.');
+  expect(within(panel).queryByRole('button', { name: 'Retry exact recharge request' })).not.toBeInTheDocument();
+  expect(within(panel).getByRole('button', { name: 'Recharge console' })).toBeDisabled();
+});
+
+it.each(['holder revoked', 'actor changed', 'cache-backed snapshot'] as const)(
+  'withholds lost-acknowledgement recharge replay when its %s', async (change) => {
+    const { state, panel } = await interruptCommittedBlackSheepRecharge();
+    expect(within(panel).getByRole('button', { name: 'Retry exact recharge request' })).toBeEnabled();
+    act(() => {
+      if (change === 'holder revoked') {
+        const current = useSessionStore.getState().session!;
+        state.setSession({
+          ...current,
+          shuttleControl: { 'black-sheep': {
+            ...current.shuttleControl!['black-sheep']!, holderUid: 'next-holder', revision: 2,
+          } },
+        });
+      } else if (change === 'actor changed') {
+        state.setMe({ ...useSessionStore.getState().me!, uid: 'next-actor' });
+      } else {
+        state.setSessionSnapshotFreshness('cache');
+      }
+    });
+    expect(within(panel).queryByRole('button', { name: 'Retry exact recharge request' })).not.toBeInTheDocument();
+    expect(replayServiceShuttleRecharge).not.toHaveBeenCalled();
+    expect(rechargeHostConsoleFromShuttle).toHaveBeenCalledTimes(1);
+  },
+);
+
 it('retains the original request for exact replay after an uncertain result and closed Coordination', async () => {
   const user = userEvent.setup();
   const state = useSessionStore.getState();
@@ -2326,6 +2732,34 @@ it.each([
       code: 'functions/unavailable', details: { commandError: 'stale-revision' },
     }),
     /old recharge request cannot carry into this cycle/i,
+  ],
+  [
+    'an internal code with a classified server rejection',
+    Object.assign(new Error('The Coordination cycle changed.'), {
+      code: 'functions/internal', details: { commandError: 'stale-revision' },
+    }),
+    /old recharge request cannot carry into this cycle/i,
+  ],
+  [
+    'an internal code with a nested classified server response',
+    Object.assign(new Error('The Coordination cycle changed.'), {
+      code: 'functions/internal', customData: { serverResponse: { details: { commandError: 'stale-revision' } } },
+    }),
+    /old recharge request cannot carry into this cycle/i,
+  ],
+  [
+    'an internal code with an explicit error kind',
+    Object.assign(new Error('The server classified this outcome.'), {
+      code: 'functions/internal', kind: 'unavailable-service',
+    }),
+    /fleet service is temporarily unavailable/i,
+  ],
+  [
+    'an internal code with opaque server details',
+    Object.assign(new Error('The server returned outcome details.'), {
+      code: 'functions/internal', details: { serverResult: 'classified' },
+    }),
+    /fleet service is temporarily unavailable/i,
   ],
   ['an unclassified error', new Error('The recharge outcome could not be classified.'), /fleet service is temporarily unavailable/i],
 ])('does not offer exact replay after %s', async (_label, failure, expectedStatus) => {
@@ -2853,6 +3287,7 @@ it('completes a reached transit automatically and exposes the server-confirmed d
   state.setMe({ ...state.me!, assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander' });
   state.setConnection('live');
   state.setSessionSnapshotFreshness('server');
+  await installShuttleArrivalAuthority('s1', 'u1');
   vi.mocked(subscribeShuttleDeparture).mockImplementation((_sessionId, _shuttleId, onDeparture) => {
     onDeparture({
       status: 'in-transit', requestId: 'departure-1', transitRequestId: 'transit-arrived',
@@ -2894,6 +3329,7 @@ it.each(['success', 'error'] as const)(
     state.setMe({ ...state.me!, assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander' });
     state.setConnection('live');
     state.setSessionSnapshotFreshness('server');
+    await installShuttleArrivalAuthority('s1', 'u1');
     vi.mocked(subscribeShuttleDeparture).mockImplementation((sessionId, _shuttleId, onDeparture) => {
       onDeparture(reachedTransit(sessionId === 's2' ? 'u2' : 'u1'));
       return vi.fn();
@@ -2914,7 +3350,10 @@ it.each(['success', 'error'] as const)(
       },
     };
     const nextMember = { ...current.me!, uid: 'u2', sessionId: 's2', displayName: 'Member two' };
-    act(() => useSessionStore.getState().setIdentity(nextSession, nextMember));
+    await act(async () => {
+      useSessionStore.getState().setIdentity(nextSession, nextMember);
+      await installShuttleArrivalAuthority('s2', 'u2');
+    });
     view.rerender(<MemoryRouter initialEntries={['/shuttles/starlight']}><Routes>
       <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
     </Routes></MemoryRouter>);
@@ -2960,6 +3399,7 @@ it('ignores a deferred manual retry after identity changes and preserves the new
   state.setMe({ ...state.me!, assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander' });
   state.setConnection('live');
   state.setSessionSnapshotFreshness('server');
+  await installShuttleArrivalAuthority('s1', 'u1');
   vi.mocked(subscribeShuttleDeparture).mockImplementation((sessionId, _shuttleId, onDeparture) => {
     onDeparture(reachedTransit(sessionId === 's2' ? 'u2' : 'u1'));
     return vi.fn();
@@ -2985,7 +3425,10 @@ it('ignores a deferred manual retry after identity changes and preserves the new
     },
   };
   const nextMember = { ...current.me!, uid: 'u2', sessionId: 's2', displayName: 'Member two' };
-  act(() => useSessionStore.getState().setIdentity(nextSession, nextMember));
+  await act(async () => {
+    useSessionStore.getState().setIdentity(nextSession, nextMember);
+    await installShuttleArrivalAuthority('s2', 'u2');
+  });
   view.rerender(<MemoryRouter initialEntries={['/shuttles/starlight']}><Routes>
     <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
   </Routes></MemoryRouter>);

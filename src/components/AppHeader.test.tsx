@@ -147,7 +147,7 @@ it('explains awaiting CIC authentication before the GM starts Cycle 1', async ()
   expect(indicator).toHaveTextContent('In session');
   expect(indicator).toHaveAttribute('data-status', 'green');
   expect(indicator).toHaveAttribute('title', 'Fleet link connected // session active');
-  expect(within(settings).queryByText('Awaiting CIC authentication means waiting for the GM to start the game.')).not.toBeInTheDocument();
+  expect(within(settings).queryByText('Awaiting CIC handshake means waiting for the GM to start the game.')).not.toBeInTheDocument();
 });
 
 it('defaults to a connected light for five seconds before revealing offline reality', async () => {
@@ -482,6 +482,171 @@ it('shows the last-player warning inside settings', async () => {
   expect(screen.getByText(`Build ${APP_VERSION}`)).toBeInTheDocument();
 });
 
+it('shows the ordinary join QR and accessible link in joined session Settings', async () => {
+  const user = userEvent.setup();
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...session, currentTurn: 1 });
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /^Settings$/ }));
+  const settings = screen.getByRole('dialog', { name: 'Session settings' });
+  expect(within(settings).getByRole('img', { name: 'QR code for session 4821' })).toBeVisible();
+  expect(within(settings).getByRole('link', { name: 'Open join screen for session 4821' }))
+    .toHaveAttribute('href', expect.stringContaining('#/?joinCode=4821'));
+  expect(within(settings).getByLabelText('Session code 4821')).toBeVisible();
+});
+
+it('contains the responsive QR inside the joined Settings card content', async () => {
+  const user = userEvent.setup();
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...session, currentTurn: 1 });
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /^Settings$/ }));
+  const settings = screen.getByRole('dialog', { name: 'Session settings' });
+  const qr = within(settings).getByRole('img', { name: 'QR code for session 4821' });
+  expect(qr).toBeVisible();
+  expect(within(settings).getByRole('heading', { name: 'Join this session' })).toBeVisible();
+  expect(within(settings).getByRole('link', { name: 'Open join screen for session 4821' }))
+    .toBeVisible();
+
+  // The 320px/200% capture measures a 166.39px QR within a 256px outer dialog,
+  // yet visibly shows it overhanging the inner cyan join frame. JSDOM cannot
+  // measure the inner frame, so guard the real consumer's image sizing contract.
+  const stylesheet = readFileSync('src/index.css', 'utf8');
+  const qrRule = stylesheet.match(/\.session-join-qr__image\s*\{([^}]*)\}/)?.[1] ?? '';
+  expect(qrRule).toMatch(/max-width:\s*100%/);
+});
+
+it('lets the joined Settings GM password field shrink within its grid column', async () => {
+  const user = userEvent.setup();
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...session, currentTurn: 1 });
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /^Settings$/ }));
+  const settings = screen.getByRole('dialog', { name: 'Session settings' });
+  const password = within(settings).getByLabelText('GM access password');
+  expect(password).toBeVisible();
+
+  // The 320px/200% native row records document/body width 402 with a fitted
+  // outer dialog. The default grid track and password input min size are a
+  // source-level candidate only; no native overflow descendant was identified.
+  const stylesheet = readFileSync('src/index.css', 'utf8');
+  const formRule = stylesheet.match(/\.settings-dialog__gm-access-form\s*\{([^}]*)\}/)?.[1] ?? '';
+  const inputRule = stylesheet.match(
+    /\.settings-dialog__gm-access-form input\s*\{([^}]*)\}/,
+  )?.[1] ?? '';
+  expect(formRule).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+  expect(inputRule).toMatch(/min-width:\s*0/);
+  expect(inputRule).toMatch(/max-width:\s*100%/);
+});
+
+it('lets joined Settings join-card copy shrink and wrap inside its frame', async () => {
+  const user = userEvent.setup();
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...session, currentTurn: 1 });
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /^Settings$/ }));
+  const settings = screen.getByRole('dialog', { name: 'Session settings' });
+  expect(within(settings).getByRole('heading', { name: 'Join this session' })).toBeVisible();
+  expect(within(settings).getByText('Scan to open the ordinary join screen.')).toBeVisible();
+  expect(within(settings).getByRole('link', { name: 'Open join screen for session 4821' }))
+    .toBeVisible();
+
+  // The enlarged capture shows join-card text over the cyan frame. JSDOM cannot
+  // measure that geometry, so assert shrinkable copy in the real Settings consumer.
+  const stylesheet = readFileSync('src/index.css', 'utf8');
+  const cardRule = stylesheet.match(/\.session-join-qr\s*\{([^}]*)\}/)?.[1] ?? '';
+  const copyRule = stylesheet.match(
+    /\.session-join-qr h3,\s*\.session-join-qr p,\s*\.session-join-qr__link\s*\{([^}]*)\}/,
+  )?.[1] ?? '';
+  expect(cardRule).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+  expect(copyRule).toMatch(/min-width:\s*0/);
+  expect(copyRule).toMatch(/max-width:\s*100%/);
+  expect(copyRule).toMatch(/overflow-wrap:\s*anywhere/);
+});
+
+it('keeps joined Settings text inside the narrow enlarged-text viewport', async () => {
+  const user = userEvent.setup();
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...session, currentTurn: 1 });
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /^Settings$/ }));
+  const settings = screen.getByRole('dialog', { name: 'Session settings' });
+  expect(within(settings).getByLabelText('Session code 4821')).toBeVisible();
+  expect(within(settings).getByRole('heading', { name: 'Join this session' })).toBeVisible();
+  expect(within(settings).getByRole('link', { name: 'Open join screen for session 4821' }))
+    .toBeVisible();
+
+  // The rendered 320px/200%-text capture showed these consumer elements outside
+  // the viewport. JSDOM cannot measure that geometry, so guard the responsive
+  // CSS contract here and retain browser review for the painted layout.
+  const stylesheet = readFileSync('src/index.css', 'utf8');
+  const compactRules = stylesheet.match(
+    /@media \(max-width: 42rem\), \(max-height: 42rem\)\s*\{([\s\S]*?)\n\}/,
+  )?.[1] ?? '';
+  expect(compactRules).toMatch(
+    /\.settings-backdrop\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)[^}]*place-items:\s*start center/s,
+  );
+  expect(compactRules).toMatch(/\.settings-dialog\s*\{[^}]*min-width:\s*0/s);
+  expect(compactRules).toMatch(/\.settings-dialog__header h2\s*\{[^}]*min-width:\s*0/s);
+  expect(compactRules).toMatch(
+    /\.settings-dialog > \.session-readouts\s*\{[^}]*flex-direction:\s*column/s,
+  );
+});
+
+it('gives compact Settings headings whole-word full-width rows without shrinking enlarged type', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+  await user.click(screen.getByRole('button', { name: /^Settings$/ }));
+  const dialog = screen.getByRole('dialog', { name: 'Session settings' });
+  expect(within(dialog).getByRole('heading', { name: 'Session settings' })).toHaveAttribute('id', 'settings-title');
+  expect(within(dialog).getByRole('heading', { name: 'Join this session' })).toBeVisible();
+  expect(within(dialog).getByRole('button', { name: 'Close settings' })).toBeVisible();
+  const css = readFileSync('src/index.css', 'utf8');
+  const compact = css.match(/@media \(max-width: 42rem\), \(max-height: 42rem\)\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+  // Saved200% title was98px wide and join-copy content113.4px wide. Move
+  // Close to its own row and reclaim padding, rather than reducing font size.
+  expect.soft(compact).toMatch(/\.settings-backdrop\s*\{[^}]*padding:[^;]*min\(1rem,\s*2\.5vw\)/s);
+  expect.soft(compact).toMatch(/\.settings-dialog\s*\{[^}]*padding:\s*min\(1\.25rem,\s*4vw\)/s);
+  expect.soft(compact).toMatch(/\.settings-dialog__header\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
+  expect.soft(compact).toMatch(/\.settings-dialog__header h2\s*\{[^}]*grid-row:\s*2[^}]*overflow-wrap:\s*normal/s);
+  expect.soft(compact).toMatch(/\.settings-dialog__close\s*\{[^}]*grid-row:\s*1[^}]*justify-self:\s*end/s);
+  expect.soft(compact).toMatch(/\.session-join-qr\s*\{[^}]*padding:\s*min\(0\.9rem,\s*3vw\)/s);
+  expect.soft(compact).toMatch(/\.session-join-qr h3\s*\{[^}]*overflow-wrap:\s*normal/s);
+  expect.soft(compact).not.toMatch(/font(?:-size)?:|overflow(?:-x)?:\s*(?:hidden|clip)/);
+});
+
+it('keeps measured compact Settings contact and changelog controls reachable', async () => {
+  const user = userEvent.setup();
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+  await user.click(screen.getByRole('button', { name: /^Settings$/ }));
+  const dialog = screen.getByRole('dialog', { name: 'Session settings' });
+  expect(within(dialog).getByRole('link', { name: 'emerald.pham@hey.com' })).toHaveAttribute('href', 'mailto:emerald.pham@hey.com');
+  expect(within(dialog).getByRole('button', { name: 'View changelog' })).toBeVisible();
+  expect(within(dialog).getByRole('button', { name: 'Authorize GM access' })).toBeDisabled();
+  const compact = readFileSync('src/index.css', 'utf8').match(
+    /@media \(max-width: 42rem\), \(max-height: 42rem\)\s*\{([\s\S]*?)\n\}/,
+  )?.[1] ?? '';
+  // The saved fixed-modal census records the email at327.5px and the
+  // changelog toggle ending atx476.875. These differ from the roster402px cause.
+  // These base rules occur later in the stylesheet: the compact consumer
+  // selectors must outrank them, rather than merely appear in an earlier block.
+  expect.soft(compact).toMatch(/\.settings-dialog \.settings-dialog__gm-access a\s*\{[^}]*display:\s*block[^}]*max-width:\s*100%[^}]*overflow-wrap:\s*anywhere/s);
+  expect.soft(compact).toMatch(/\.settings-dialog \.settings-changelog__header\s*\{[^}]*flex-direction:\s*column[^}]*align-items:\s*stretch/s);
+  expect.soft(compact).toMatch(/\.settings-dialog button:not\(\.settings-dialog__close\)\s*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%[^}]*white-space:\s*normal/s);
+  expect.soft(compact).not.toMatch(/overflow(?:-x)?:\s*(?:hidden|clip)|font(?:-size)?:/);
+});
+
 it('offers the single-player demo only to the sole Turn Zero player and closes settings when started', async () => {
   const user = userEvent.setup();
   const session = useSessionStore.getState().session!;
@@ -642,7 +807,7 @@ it('opens a readable changelog in a bounded scroll region from settings', async 
   expect(screen.getByRole('heading', { name: 'Changelog' })).toBeVisible();
   expect(screen.getByRole('region', { name: /changelog entries/i })).toBeVisible();
   expect(await screen.findByText(/current build catalog: 703 of 751 complete \(93\.61%\)/i)).toBeVisible();
-  expect(screen.getByText(/6 partial · 42 not yet implemented/i)).toBeVisible();
+  expect(screen.getByText(/13 partial · 35 not yet implemented/i)).toBeVisible();
   expect(await screen.findByRole('heading', { name: `Build ${APP_VERSION}` })).toBeVisible();
   expect(screen.getByText(/read what changed without leaving your session/i)).toBeVisible();
   expect(screen.queryByText(/component|refactor|typescript/i)).not.toBeInTheDocument();
@@ -970,6 +1135,24 @@ it('keeps the long settings changelog independently scrollable', () => {
 
   expect(changelogRule).toMatch(/max-height:/);
   expect(changelogRule).toMatch(/overflow-y:\s*auto/);
+});
+
+it('gives the existing GM access email a 44px target without changing its link or copy', async () => {
+  const stylesheet = readFileSync('src/index.css', 'utf8');
+  const style = document.createElement('style');
+  // Select the exact base rule, not the suffix of a qualified compact override.
+  style.textContent = stylesheet.match(/^\.settings-dialog__gm-access a\s*\{[^}]*\}/m)?.[0] ?? '';
+  document.head.append(style);
+  try {
+    render(<MemoryRouter><AppHeader /></MemoryRouter>);
+    await userEvent.setup().click(screen.getByRole('button', { name: /^Settings$/ }));
+    const contact = within(screen.getByRole('dialog', { name: 'Session settings' }))
+      .getByRole('link', { name: 'emerald.pham@hey.com' });
+    expect(contact).toHaveAttribute('href', 'mailto:emerald.pham@hey.com');
+    expect(Number.parseFloat(getComputedStyle(contact).minHeight)).toBeGreaterThanOrEqual(44);
+    expect(Number.parseFloat(getComputedStyle(contact).minWidth)).toBeGreaterThanOrEqual(44);
+    expect(getComputedStyle(contact).display).toBe('inline-flex');
+  } finally { style.remove(); }
 });
 
 it('focuses the dialog, closes it with Escape, and restores settings focus', async () => {

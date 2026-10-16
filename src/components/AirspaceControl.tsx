@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { unlockPressAirspace } from '@/lib/airspaceService';
 import { useConsoleAccess } from '@/lib/consoleAccess';
-import { phaseForSession } from '@/lib/turnPhase';
+import { phaseForSession, turnPhaseDeadlinePassed } from '@/lib/turnPhase';
 import { useSessionStore } from '@/store/useSessionStore';
 import { AirspaceTimerControls } from './TurnPhaseTimer';
 import AirspaceStatusView from './AirspaceStatusView';
@@ -27,9 +27,9 @@ export default function AirspaceControl() {
   const pressAccess = phase?.airspace.pressAccess === true;
   const current = connection === 'live' && freshness === 'server' && hasFreshSessionAuthority();
   const clearanceCurrent = current && phase?.turn === session?.currentTurn && !phase?.timerPause &&
-    Date.now() < Date.parse(phase?.openAirspaceEndsAt ?? '');
+    !turnPhaseDeadlinePassed(phase, 'open');
   const canUnlock = restricted && !pressAccess && !phase?.timerPause && access.writable && current &&
-    !unlocking && Date.now() < Date.parse(phase!.openAirspaceEndsAt);
+    !unlocking && !turnPhaseDeadlinePassed(phase, 'open');
 
   async function unlock(): Promise<void> {
     if (!canUnlock) return;

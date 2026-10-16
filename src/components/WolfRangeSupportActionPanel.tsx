@@ -15,11 +15,13 @@ type SupportRange = 'long-range' | 'medium-range' | 'short-range';
 function sourceLabel(sourceId: WolfRangeSupportSourceId): string {
   if (sourceId === 'highwall') return 'Highwall Cannon';
   if (sourceId === 'gorgoneion-missile-array') return 'Gorgoneion Missile Array';
+  if (sourceId === 'vulcan-laser-cannon') return 'Vulcan Laser Cannon';
   return 'Boa Scrap Strike';
 }
 
-function sourceActor(sourceId: WolfRangeSupportSourceId): 'ship-crew' | 'gorgoneion-captain' {
-  return sourceId === 'gorgoneion-missile-array' ? 'gorgoneion-captain' : 'ship-crew';
+function sourceActor(sourceId: WolfRangeSupportSourceId): 'ship-crew' | 'gorgoneion-captain' | 'vulcan-captain' {
+  return sourceId === 'gorgoneion-missile-array' ? 'gorgoneion-captain'
+    : sourceId === 'vulcan-laser-cannon' ? 'vulcan-captain' : 'ship-crew';
 }
 
 function currentSourceActor(
@@ -29,9 +31,10 @@ function currentSourceActor(
 ): boolean {
   if (!session || !me || session.phase !== 'active' || me.role !== 'player' ||
       me.sessionId !== session.id || me.replacementStatus != null) return false;
-  if (sourceId === 'gorgoneion-missile-array') {
-    const ship = session.smallShipStates?.gorgoneion;
-    return me.replacementRoleId === 'gorgoneion-captain' &&
+  if (sourceId === 'gorgoneion-missile-array' || sourceId === 'vulcan-laser-cannon') {
+    const smallShipId = sourceId === 'vulcan-laser-cannon' ? 'vulcan' : 'gorgoneion';
+    const ship = session.smallShipStates?.[smallShipId];
+    return me.replacementRoleId === `${smallShipId}-captain` &&
       typeof ship?.hostShipId === 'string' &&
       session.activeVesselIds?.includes(ship.hostShipId) === true &&
       session.playerDiscovery?.fleetGroupVesselIds?.includes(ship.hostShipId) === true;
@@ -164,6 +167,9 @@ function supportRule(sourceId: WolfRangeSupportSourceId, range: SupportRange): s
   if (sourceId === 'gorgoneion-missile-array') {
     const threshold = range === 'long-range' ? 6 : range === 'medium-range' ? 5 : 4;
     return `Charged Missile Array fires three dice at ${threshold}+; each hit deals 1 damage.`;
+  }
+  if (sourceId === 'vulcan-laser-cannon') {
+    return 'Charged Laser Cannon fires two dice at 4+ at Medium and Short range; each hit deals 1 damage. The same current-cycle charge powers both ranges.';
   }
   return 'Spend one Scrap for 1 damage to one live contact. A successful use spends Scrap with this choice.';
 }

@@ -30,6 +30,7 @@ describe('Wolf boarding decision presenters', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /lead at aegis/i }));
     expect(onChoose).toHaveBeenCalledWith('aegis');
+    expect(screen.getByText(/HOUSE RULE.*request.*remains pending until the current live GM records the consequence/i)).toBeVisible();
   });
 
   it('makes Militia double-team and front-line risk explicit before submission', () => {
@@ -46,6 +47,23 @@ describe('Wolf boarding decision presenters', () => {
     fireEvent.change(screen.getByLabelText(/front-line dice/i), { target: { value: '2' } });
     fireEvent.click(screen.getByRole('button', { name: /commit militia risk/i }));
     expect(onChoose).toHaveBeenCalledWith({ militiaDoubleTeams: true, militiaFrontLineDice: 2 });
+  });
+
+  it('offers all three front-line dice with no Security Teams and explains the printed 1 consequence', () => {
+    const onChoose = vi.fn();
+    render(<WolfBoardingMilitiaChoicePanelView view={{
+      type: 'wolf-boarding-militia-choice-view', status: 'pending',
+      targetShipId: 'aegis', boardingParties: 2, availableSecurityTeams: 0,
+      selectedSecurityTeams: 0, maxFrontLineDice: 3, doubleDiceAvailable: true,
+    }} onChoose={onChoose} />);
+
+    const select = screen.getByRole('combobox', { name: /front-line dice/i });
+    expect(Array.from((select as HTMLSelectElement).options).map(option => option.value)).toEqual(['0', '1', '2', '3']);
+    expect(screen.getByText('A front-line 1 kills the Militia Leader. Team losses apply only up to the available Security Teams.'))
+      .toBeVisible();
+    fireEvent.change(select, { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: /commit militia risk/i }));
+    expect(onChoose).toHaveBeenCalledWith({ militiaDoubleTeams: false, militiaFrontLineDice: 3 });
   });
 
   it('selects indexed defense dice for each independent reroll allowance', () => {
@@ -77,12 +95,15 @@ describe('Wolf boarding decision presenters', () => {
     expect(onChoose).toHaveBeenCalledWith([{ targetShipId: 'aegis', dieIndex: 0 }]);
   });
 
-  it('requires a non-empty GM ruling only when all Commander-led parties are lost', () => {
+  it('labels the optional Commander consequence as a house rule and keeps the live GM control explicit', () => {
     const onChoose = vi.fn();
     render(<WolfBoardingCommanderRulingPanelView view={{
       type: 'wolf-boarding-commander-ruling-view', status: 'pending',
-      targetShipId: 'aegis', condition: 'All Commander-led Wolf Boarding Parties were destroyed.',
+      targetShipId: 'aegis', condition: 'HOUSE RULE: The action stays pending until the live GM records what happens if all Commander-led Wolf Boarding Parties are destroyed. No automatic consequence is assumed.',
     }} onChoose={onChoose} />);
+
+    expect(screen.getByRole('region', { name: /facilitator ruling for the optional wolf commander boarding action/i })).toBeVisible();
+    expect(screen.getByText(/HOUSE RULE.*live GM.*no automatic consequence/i)).toBeVisible();
 
     const submit = screen.getByRole('button', { name: /record facilitator ruling/i });
     expect(submit).toBeDisabled();

@@ -351,3 +351,12 @@ describe('security-team location and boarding authority', () => {
     })).toThrow();
   });
 });
+
+
+it('keeps the immutable starting manifest while excluding source-consumed Ring craft from current boarding teams', () => {
+  const authority = boardingSecurityTeamAuthority({ ...base, consumedShuttleIds: ['philia'],
+    shuttleDockings: base.shuttleDockings.filter(docking => docking.shuttleId !== 'philia') } as Parameters<typeof boardingSecurityTeamAuthority>[0]);
+  expect(authority.boardingSecurityTeamsByHost).toEqual({ aegis: 6, dione: 5 });
+  expect(authority.shuttleSecurityTeams).not.toHaveProperty('philia');
+  expect(base.shuttleCargo.philia).toEqual({ securityTeams: 1, food: 2 });
+});

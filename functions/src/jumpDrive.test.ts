@@ -10,6 +10,11 @@ import * as jumpDrive from './jumpDrive';
 const now = new Date('2026-09-07T13:04:09.000Z');
 
 describe('authoritative jump-drive resolution', () => {
+  it('classifies the printed direct 5143–1413 edge as a short jump in either direction', () => {
+    expect.soft(jumpLengthBetween('5143', '1413')).toBe('short');
+    expect.soft(jumpLengthBetween('1413', '5143')).toBe('short');
+  });
+
   it.each([
     ['aegis', 2, 3, 6],
     ['dione', 2, 4, 8],

@@ -2,6 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { buildActionAuditRecord } from './actionAudit';
 
 describe('buildActionAuditRecord', () => {
+  it.each(['macaw-consented-dismantling', 'boa-mission-reclamation-choice'])(
+    'registers the workspace %s choice with a calculated source contract', action => {
+      const common = { sessionId: 'session-1', actorUid: 'player-1', actorRoleId: 'capybara-captain',
+        action, phase: 'active', requestId: 'workspace-1', revision: 2, outcome: 'committed', createdAt: 'server-time' };
+      expect(buildActionAuditRecord({ ...common, resolutionSource: 'server-calculated' })).toMatchObject({
+        action, resolutionSource: 'server-calculated', redactionPolicy: 'action-audit-metadata-only-v1',
+      });
+      expect(() => buildActionAuditRecord({ ...common, resolutionSource: 'facilitator' })).toThrow(/must be server-calculated/);
+      expect(() => buildActionAuditRecord({ ...common, resolutionSource: 'server-random' })).toThrow(/must be server-calculated/);
+    },
+  );
   it('creates a queryable metadata-only record for a server-random action', () => {
     expect(buildActionAuditRecord({
       sessionId: 'session-1',
@@ -101,6 +112,7 @@ describe('buildActionAuditRecord', () => {
     'ship-counter-batch',
     'fighter-wing-count',
     'repair-damage',
+    'candidate-edition-selection',
   ])('registers %s as facilitator sourced without accepting action payloads', (action) => {
     const record = buildActionAuditRecord({
       sessionId: 'session-1', actorUid: 'gm-1', actorRoleId: 'facilitator',

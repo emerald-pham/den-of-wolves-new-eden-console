@@ -6,6 +6,7 @@ import {
 } from './sessionMutationAuthority';
 import { useSessionStore } from '@/store/useSessionStore';
 import { parseChacauRepairLedger } from './chacauRepairLedger';
+import { turnPhaseDeadlinePassed } from './turnPhase';
 import type { GameSession, Player } from '@/types/game';
 
 const CHACAU_ENGINEER_ROLE_ID = 'refinery-124-engineer';
@@ -87,12 +88,10 @@ function currentChacauDockings(
 function hasLiveCoordination(session: GameSession): boolean {
   const cycle = session.currentTurn;
   const phase = session.turnPhase;
-  const deadlineValue = phase?.openAirspaceEndsAt;
-  if (!phase || typeof deadlineValue !== 'string') return false;
-  const deadline = Date.parse(deadlineValue);
+  if (!phase) return false;
   return session.phase === 'active' && Number.isSafeInteger(cycle) && (cycle as number) >= 1 &&
     phase.turn === cycle && phase.airspace.state === 'lifted' && phase.timerPause === undefined &&
-    Number.isFinite(deadline) && Date.now() < deadline;
+    !turnPhaseDeadlinePassed(phase, 'open');
 }
 
 /** Recheck the exact actor, Chacau holder, group, host and live phase after async results. */

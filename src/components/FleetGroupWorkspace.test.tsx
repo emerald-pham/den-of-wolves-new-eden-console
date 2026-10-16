@@ -3,10 +3,12 @@ import { readFileSync } from 'node:fs';
 import { beforeEach, expect, it, vi } from 'vitest';
 import FleetGroupWorkspace from './FleetGroupWorkspace';
 import { useSessionStore } from '@/store/useSessionStore';
-const mocks = vi.hoisted(() => ({ read: vi.fn(), send: vi.fn(), confirm: vi.fn(), readNavigation: vi.fn(), share: vi.fn(), transferTaxi: vi.fn(),
+const mocks = vi.hoisted(() => ({ read: vi.fn(), send: vi.fn(), confirm: vi.fn(), recordAdjudication: vi.fn(),
+  readNavigation: vi.fn(), share: vi.fn(), transferTaxi: vi.fn(),
   roster: [{ uid: 'crew-1', displayName: 'Pilot Mira', role: 'player', connected: true, fleetGroupId: 'fleet-2', assignedRoleId: 'quellon-engineer' }] }));
 vi.mock('@/lib/fleetGroupService', () => ({ createCurrentFleetGroupActions: () => ({
   read: mocks.read, send: mocks.send, confirmPartition: mocks.confirm,
+  recordRejoinAdjudication: mocks.recordAdjudication,
   readNavigation: mocks.readNavigation, share: mocks.share, transferTaxi: mocks.transferTaxi,
 }) }));
 vi.mock('@/lib/firestore', () => ({ subscribeConnectedPlayers: (_sessionId: string, onPlayers: (players: unknown[]) => void) => {
@@ -17,6 +19,7 @@ beforeEach(() => {
   mocks.read.mockReset().mockResolvedValue({ groupId: 'fleet-2', messages: [{ id: 'r1', actorUid: 'bob', text: 'Hold here.', sentAt: '2026-09-30T10:00:00Z' }] });
   mocks.send.mockReset().mockResolvedValue({ status: 'committed', groupId: 'fleet-2', messageId: 'r2' });
   mocks.confirm.mockReset().mockResolvedValue({ status: 'committed', navigationRevision: 2, groupIds: ['fleet-1', 'fleet-2'] });
+  mocks.recordAdjudication.mockReset().mockResolvedValue({ status: 'recorded', adjudicationId: 'decision-1' });
   mocks.readNavigation.mockReset().mockResolvedValue({ groupId: 'fleet-2', navigationRevision: 1, fleetPartitionRevision: 1,
     sampledAt: '2026-10-02T10:00:00Z', ships: [
       { shipId: 'quellon', fleetGroupId: 'fleet-2', coordinate: '0000' },
@@ -56,6 +59,83 @@ it('mounts the facilitator partition confirmation but hides notes when context g
   expect(screen.queryByRole('button', { name: 'Send group note' })).toBeNull();
 });
 
+it('shows a blank live-GM pursuit decision form when group values differ before rejoin', async () => {
+  seed('gm');
+  mocks.confirm.mockResolvedValue({ status: 'adjudication-required', navigationRevision: 1, fleetPartitionRevision: 4,
+    candidates: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 } }] });
+  render(<FleetGroupWorkspace />);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm separated fleet groups' }));
+  const decision = await screen.findByRole('region', { name: 'Pursuit rejoin adjudication' });
+  expect(decision).toHaveTextContent('HOUSE RULE // EXCEPTIONAL REJOIN');
+  expect(decision).toHaveTextContent('FLEET-1: 2');
+  expect(decision).toHaveTextContent('FLEET-2: 5');
+  expect(screen.getByLabelText('Pursuit after merge at 1413')).toHaveValue(null);
+  expect(screen.queryByRole('button', { name: 'Apply recorded rejoin adjudication' })).toBeNull();
+  expect(mocks.recordAdjudication).not.toHaveBeenCalled();
+});
+
+it.each(['actor', 'role', 'lease', 'navigation revision', 'partition revision', 'cycle', 'phase',
+  'pursuit inputs', 'candidate identity'] as const)(
+  'withdraws the displayed exceptional rejoin form when its %s changes', async change => {
+    seed('gm');
+    const phase = { turn: 3, teamPhaseEndsAt: '2026-10-08T12:05:00.000Z', openAirspaceEndsAt: '2026-10-08T12:20:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false } };
+    useSessionStore.setState(state => ({ session: { ...state.session!, gmNavigationRevision: 4,
+      fleetPartitionRevision: 1, turnPhase: phase, pursuitGroups: { 'fleet-1': 2, 'fleet-2': 5 },
+      shipFleetGroupIds: { aegis: 'fleet-1', quellon: 'fleet-2' },
+      shipGalacticCoordinates: { aegis: '1413', quellon: '1413' } } as never,
+    gmInstance: { ...state.gmInstance!, claimedAt: '2026-10-08T10:00:00.000Z' } as never }));
+    mocks.confirm.mockResolvedValue({ status: 'adjudication-required', navigationRevision: 4, fleetPartitionRevision: 1,
+      candidates: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'],
+        pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 } }] });
+    render(<FleetGroupWorkspace />);
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm separated fleet groups' }));
+    await screen.findByRole('region', { name: 'Pursuit rejoin adjudication' });
+    fireEvent.change(screen.getByLabelText('Pursuit after merge at 1413'), { target: { value: '4' } });
+
+    act(() => useSessionStore.setState(state => {
+      const session = state.session!;
+      if (change === 'actor') return { me: { ...state.me!, uid: 'other-gm' } as never };
+      if (change === 'role') return { me: { ...state.me!, role: 'player' } as never };
+      if (change === 'lease') return { gmInstance: { ...state.gmInstance!, claimedAt: '2026-10-08T10:01:00.000Z' } as never };
+      if (change === 'navigation revision') return { session: { ...session, gmNavigationRevision: 5 } as never };
+      if (change === 'partition revision') return { session: { ...session, fleetPartitionRevision: 2 } as never };
+      if (change === 'cycle') return { session: { ...session, currentTurn: 4, turnPhase: { ...phase, turn: 4 } } as never };
+      if (change === 'phase') return { session: { ...session,
+        turnPhase: { ...phase, teamPhaseEndsAt: '2026-10-08T12:06:00.000Z' } } as never };
+      if (change === 'pursuit inputs') return { session: { ...session, pursuitGroups: { 'fleet-1': 3, 'fleet-2': 7 } } as never };
+      return { session: { ...session, shipGalacticCoordinates: { aegis: '1513', quellon: '1413' } } as never };
+    }));
+
+    expect(screen.queryByRole('region', { name: 'Pursuit rejoin adjudication' })).toBeNull();
+    expect(mocks.recordAdjudication).not.toHaveBeenCalled();
+  });
+
+it('records a blank-by-default explicit GM choice before enabling the exceptional rejoin', async () => {
+  seed('gm');
+  mocks.confirm.mockReset()
+    .mockResolvedValueOnce({ status: 'adjudication-required', navigationRevision: 1, fleetPartitionRevision: 4,
+      candidates: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 } }] })
+    .mockResolvedValueOnce({ status: 'committed', navigationRevision: 2, groupIds: ['fleet-1'] });
+  mocks.recordAdjudication.mockReset().mockResolvedValue({
+    status: 'recorded', adjudicationId: 'decision-1', navigationRevision: 1, fleetPartitionRevision: 4,
+  });
+  render(<FleetGroupWorkspace />);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm separated fleet groups' }));
+  const input = await screen.findByLabelText('Pursuit after merge at 1413');
+  fireEvent.change(input, { target: { value: '4' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Record live-GM pursuit decision' }));
+  await waitFor(() => expect(mocks.recordAdjudication).toHaveBeenCalledWith([
+    { coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter: 4 },
+  ]));
+  expect(await screen.findByRole('button', { name: 'Apply recorded rejoin adjudication' })).toBeEnabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Apply recorded rejoin adjudication' }));
+  await waitFor(() => expect(mocks.confirm).toHaveBeenNthCalledWith(2, 'decision-1'));
+  expect(await screen.findByText(/recorded live-GM pursuit decision was applied/i)).toBeInTheDocument();
+});
+
 it('shares only a known coordinate to selected ships from the fresh current-group projection', async () => {
   seed(); render(<FleetGroupWorkspace />);
   const system = await screen.findByLabelText('Scanned system to share');
@@ -74,6 +154,33 @@ it('offers a legal taxi payload form and reports the server committed fuel resul
   fireEvent.click(screen.getByRole('button', { name: 'Send scout taxi' }));
   await waitFor(() => expect(mocks.transferTaxi).toHaveBeenCalledWith({ shuttleId: 'hummingbird', targetShipId: 'aegis', payload: { kind: 'fuel', units: 1 } }));
   expect(await screen.findByRole('status')).toHaveTextContent(/fuel/i);
+});
+
+it('shows the current player group pursuit from its own authoritative projection and labels the house rule', async () => {
+  seed();
+  useSessionStore.setState(state => ({ session: { ...state.session!, playerDiscovery: {
+    ...state.session!.playerDiscovery!, pursuitValue: 7,
+  } } as never }));
+  render(<FleetGroupWorkspace />);
+
+  const pursuit = await screen.findByRole('region', { name: 'Current fleet group pursuit' });
+  expect(pursuit).toHaveTextContent('HOUSE RULE // SPLIT-GROUP PURSUIT');
+  expect(pursuit).toHaveTextContent('Each separated group tracks its own pursuit.');
+  expect(pursuit).toHaveTextContent('FLEET-2');
+  expect(pursuit).toHaveTextContent('7 / 10');
+});
+
+it('shows only the selected group pursuit in the current facilitator workspace', async () => {
+  seed('gm');
+  useSessionStore.setState(state => ({ session: { ...state.session!, pursuitGroups: {
+    'fleet-1': 3, 'fleet-2': 8,
+  } } as never }));
+  render(<FleetGroupWorkspace />);
+
+  const pursuit = await screen.findByRole('region', { name: 'Current fleet group pursuit' });
+  expect(pursuit).toHaveTextContent('FLEET-2');
+  expect(pursuit).toHaveTextContent('8 / 10');
+  expect(pursuit).not.toHaveTextContent('3 / 10');
 });
 
 it('lets the current taxi owner select at most two connected members from the server scoped group roster', async () => {

@@ -80,6 +80,23 @@ function targetRingIsValid(ring: WolfTargetRing): void {
   }
 }
 
+function canonicalSourceRingIsValid(ring: WolfTargetRing): boolean {
+  const reducedRing = CORE_WOLF_TARGET_RING.filter(target => target !== 'dione');
+  return JSON.stringify(ring) === JSON.stringify(reducedRing) ||
+    JSON.stringify(ring) === JSON.stringify(CORE_WOLF_TARGET_RING) ||
+    JSON.stringify(ring) === JSON.stringify(EXPANDED_WOLF_TARGET_RING);
+}
+
+function targetRingIsOrderedSubset(ring: WolfTargetRing, sourceRing: WolfTargetRing): boolean {
+  let previousIndex = -1;
+  return ring.every((target) => {
+    const index = sourceRing.indexOf(target);
+    if (index <= previousIndex) return false;
+    previousIndex = index;
+    return true;
+  });
+}
+
 /** Convert a d6/d8 result into the configured target ring. */
 export function wolfTargetForDie(die: number, ring: WolfTargetRing = CORE_WOLF_TARGET_RING): WolfFleetTargetId {
   targetRingIsValid(ring);
@@ -116,7 +133,11 @@ export interface WolfTargetingRollReceipt {
   readonly rosterIndex: number;
   readonly shipId: WolfShipId;
   readonly initialDie: number;
+  readonly sourceDie?: number;
+  readonly nonparticipatingTargetRerolls?: 1;
   readonly rerollDie?: number;
+  readonly commanderSourceDie?: number;
+  readonly commanderNonparticipatingTargetRerolls?: 1;
   readonly shiftedDie?: number;
   readonly finalDie: number;
   readonly target: WolfFleetTargetId;
@@ -126,7 +147,10 @@ export interface WolfTargetingRollReceipt {
 }
 
 export interface WolfTargetingReceipt {
+  /** Ordered targets that participated in this attack group. */
   readonly ring: WolfTargetRing;
+  /** Full printed ring used for the source die, when distinct. */
+  readonly sourceRing?: WolfTargetRing;
   readonly rolls: readonly WolfTargetingRollReceipt[];
   readonly modifierOrder: readonly ['commander-reroll', 'target-shift', 'command-and-control-redirect'];
 }
@@ -150,18 +174,36 @@ export function resolveWolfTargeting(
   modifiers: WolfTargetingModifierInput = {},
   ring: WolfTargetRing = CORE_WOLF_TARGET_RING,
   random: WolfRandomInt = secureRandomInt,
+  sourceRing: WolfTargetRing = ring,
 ): WolfTargetingReceipt {
   targetRingIsValid(ring);
-  const expansionRing = ring.includes('capybara');
-  const dieUpperBound = expansionRing ? 8 : ring.length;
-  const rollConfiguredDie = (): { readonly die: number; readonly printedRerolls: readonly number[] } => {
+  targetRingIsValid(sourceRing);
+  if (!canonicalSourceRingIsValid(sourceRing) || !targetRingIsOrderedSubset(ring, sourceRing)) {
+    throw new Error('The participating Wolf targets must follow the configured printed target ring.');
+  }
+  const expansionRing = sourceRing.includes('capybara');
+  const dieUpperBound = expansionRing ? 8 : sourceRing.length;
+  const rollConfiguredDie = (): {
+    readonly die: number;
+    readonly sourceDie: number;
+    readonly printedRerolls: readonly number[];
+    readonly nonparticipatingTargetRerolls: 0 | 1;
+  } => {
     const printedRerolls: number[] = [];
-    let die = boundedRandomInt(random, dieUpperBound) + 1;
-    while (expansionRing && die === 8) {
-      printedRerolls.push(die);
-      die = boundedRandomInt(random, dieUpperBound) + 1;
+    let sourceDie = boundedRandomInt(random, dieUpperBound) + 1;
+    while (expansionRing && sourceDie === 8) {
+      printedRerolls.push(sourceDie);
+      sourceDie = boundedRandomInt(random, dieUpperBound) + 1;
     }
-    return { die, printedRerolls };
+    const sourceTarget = wolfTargetForDie(sourceDie, sourceRing);
+    const participatingDie = ring.indexOf(sourceTarget);
+    if (participatingDie >= 0) {
+      return { die: participatingDie + 1, sourceDie, printedRerolls, nonparticipatingTargetRerolls: 0 };
+    }
+    // This is the exact conditional reroll over participating targets. One
+    // bounded draw avoids an unbounded rejection loop when a group is small.
+    const die = boundedRandomInt(random, ring.length) + 1;
+    return { die, sourceDie, printedRerolls, nonparticipatingTargetRerolls: 1 };
   };
   const rerollIndexes = modifiers.commanderRerollIndexes ?? [];
   validateRosterIndexes(rerollIndexes, composition.shipIds.length, 'Commander rerolls');
@@ -195,7 +237,13 @@ export function resolveWolfTargeting(
       rosterIndex,
       shipId,
       initialDie,
+      sourceDie: initial.sourceDie,
+      ...(initial.nonparticipatingTargetRerolls === 0
+        ? {} : { nonparticipatingTargetRerolls: 1 as const }),
       ...(rerollDie === undefined ? {} : { rerollDie }),
+      ...(commanderReroll === undefined ? {} : { commanderSourceDie: commanderReroll.sourceDie }),
+      ...(commanderReroll === undefined || commanderReroll.nonparticipatingTargetRerolls === 0
+        ? {} : { commanderNonparticipatingTargetRerolls: 1 as const }),
       ...(shiftedDie === undefined ? {} : { shiftedDie }),
       finalDie,
       target: redirectIndex === rosterIndex ? 'aegis' : wolfTargetForDie(finalDie, ring),
@@ -207,6 +255,7 @@ export function resolveWolfTargeting(
   });
   return {
     ring: [...ring],
+    sourceRing: [...sourceRing],
     rolls,
     modifierOrder: ['commander-reroll', 'target-shift', 'command-and-control-redirect'],
   };
@@ -897,9 +946,6 @@ export function resolveWolfBoarding(
     if (!Number.isSafeInteger(militiaFrontLineDice) || militiaFrontLineDice < 0 || militiaFrontLineDice > 3) {
       throw new Error('The Militia Leader may choose zero to three front-line dice.');
     }
-    if (militiaFrontLineDice > availableSecurityTeams) {
-      throw new Error('The Militia Leader cannot risk more teams than the available inventory.');
-    }
     const commanderBonus = chosen.commanderLed === true ? 2 : 0;
     const boardingParties = baseBoardingParties + commanderBonus;
     const militiaDoubleTeams = chosen.militiaDoubleTeams === true;
@@ -1555,7 +1601,7 @@ function phaseReceipt(phase: TurnPhase, now: number, allowRestricted = false): W
     throw new Error('The Wolf combat deadline is not a valid server instant.');
   }
   if (canonical.timerPause !== undefined) throw new Error('Wolf attack resolution is paused by the shared session clock.');
-  const overrun = now >= Date.parse(canonical.openAirspaceEndsAt);
+  const overrun = canonical.progression !== 'manual' && now >= Date.parse(canonical.openAirspaceEndsAt);
   if (canonical.airspace.state !== 'lifted' && !overrun && !allowRestricted) {
     throw new Error('Wolf combat resolves during the Coordination phase.');
   }

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Timestamp } from 'firebase-admin/firestore';
 import type { CallableRequest } from 'firebase-functions/v2/https';
+import type { Firestore } from 'firebase-admin/firestore';
 
 type StoredDocument = Record<string, unknown>;
 
@@ -196,6 +197,7 @@ import {
   refreshPresence,
   expireStalePlayers,
 } from './index';
+import { createCurrentMemberSessionReader } from './memberSessionCallable';
 import { GM_ACCESS_TIMEOUT_MS } from './gmAccess';
 import { PRESENCE_LEASE_MS } from './sessionLifecycle';
 import { callableRateLimitDocumentId } from './callableRateLimit';
@@ -252,6 +254,11 @@ async function login() {
 function request<T extends Record<string, unknown>>(data: T, uid = 'u1') {
   return { data, auth: { uid } } as CallableRequest<T>;
 }
+
+const readCurrentMemberSession = createCurrentMemberSessionReader({
+  db: mock.db as unknown as Firestore,
+  projectSession: (source, sessionId) => ({ ...source.data(), id: sessionId }),
+});
 
 beforeEach(() => {
   mock.authRevoked = false;
@@ -1086,6 +1093,45 @@ describe('GM instance ownership', () => {
     expect(read('sessions/s1/fleetGroups/fleet-1')).toEqual({ id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'] });
     expect(read('sessions/s1/fleetGroups/fleet-2')).toMatchObject({ id: 'fleet-2', vesselIds: ['dione'], memberUids: ['u3'] });
     expect(read('sessions/s1/players/u3')).toMatchObject({ fleetGroupId: 'fleet-2' });
+  });
+
+  it.each([
+    ['initial', false],
+    ['partitioned', true],
+  ] as const)('atomically removes a kicked berth from %s membership and preserves the survivor current-member read', async (_layout, partitioned) => {
+    session({ activeVesselIds: ['aegis'], ...(partitioned ? { fleetPartitionRevision: 1 } : {}) });
+    player('u1', { role: 'gm', fleetGroupId: 'fleet-1' });
+    player('u2', { fleetGroupId: 'fleet-1' });
+    player('u3', { fleetGroupId: 'fleet-1' });
+    put('sessions/s1/fleetGroups/fleet-1', {
+      id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1', 'u2', 'u3'],
+      memberShipIds: { u1: 'aegis', u2: 'aegis', u3: 'aegis' },
+    });
+    instance('bridge', 'u1');
+    const command = { sessionId: 's1', instanceId: 'bridge', targetUid: 'u2', requestId: 'kick-berth-1' };
+
+    await expect(kickPlayer.run(request(command))).resolves.toEqual({ targetUid: 'u2' });
+
+    await expect(readCurrentMemberSession({ auth: { uid: 'u3' }, data: { sessionId: 's1' } }))
+      .resolves.toMatchObject({ actorUid: 'u3', session: {
+        memberSessionScope: { groupId: 'fleet-1', vesselIds: ['aegis'] },
+      } });
+    const group = read('sessions/s1/fleetGroups/fleet-1')!;
+    expect(group.memberUids).toEqual(['u1', 'u3']);
+    expect(group.memberShipIds).toEqual({ u1: 'aegis', u3: 'aegis' });
+    expect(read('sessions/s1/players/u2')).toMatchObject({ connected: false, fleetGroupId: null });
+    expect(read('sessions/s1/players/u3')).toMatchObject({ connected: true, fleetGroupId: 'fleet-1' });
+    await expect(readCurrentMemberSession({ auth: { uid: 'u2' }, data: { sessionId: 's1' } }))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(readCurrentMemberSession({ auth: { uid: 'foreign' }, data: { sessionId: 's1' } }))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+
+    await expect(kickPlayer.run(request(command))).resolves.toEqual({ targetUid: 'u2' });
+    await expect(kickPlayer.run(request({ ...command, requestId: 'kick-berth-stale' })))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(read('sessions/s1/fleetGroups/fleet-1')!.memberShipIds).toEqual({ u1: 'aegis', u3: 'aegis' });
+    await expect(readCurrentMemberSession({ auth: { uid: 'u3' }, data: { sessionId: 's1' } }))
+      .resolves.toMatchObject({ actorUid: 'u3' });
   });
 
   it('replays a player kick receipt without applying the irreversible mutation twice', async () => {

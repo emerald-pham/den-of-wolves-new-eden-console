@@ -306,3 +306,13 @@ describe('role-owned craft composition', () => {
     expect(manifest.entries.find((entry) => entry.id === 'starlight')?.startingHostId).toBe('quellon');
   });
 });
+
+
+it('validates the remaining parked roster when a source-consumed Engineering Shuttle is omitted', () => {
+  const roles = ['dione-engineer'];
+  const dockings = initialShuttleDockingsForRoles(roles).filter(docking => docking.shuttleId !== 'philia');
+  const matches = shuttleDockingsMatchRoleOwnedCraft as (roles: readonly string[], dockings: Parameters<typeof shuttleDockingsMatchRoleOwnedCraft>[1], consumed?: readonly string[]) => boolean;
+  expect(matches(roles, dockings)).toBe(false);
+  expect(matches(roles, dockings, ['philia'])).toBe(true);
+  expect(matches(roles, initialShuttleDockingsForRoles(roles), ['philia'])).toBe(false);
+});

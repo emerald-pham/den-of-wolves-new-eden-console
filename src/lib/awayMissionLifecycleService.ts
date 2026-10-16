@@ -11,6 +11,8 @@ import {
 import { httpsCallable } from 'firebase/functions';
 import { app, auth, functions } from './firebase';
 import { useSessionStore } from '@/store/useSessionStore';
+import { subscribeAwayMissionProjectionAccess, hasAwayMissionOwnerAccess } from './awayMissionProjectionBarrier';
+import { validMissionRewardChoiceProjection, type MissionRewardChoice, type MissionRewardSelection, type MissionRewardChoiceOptions } from './missionRewardChoices';
 import {
   captureSessionAuthority,
   hasFreshSessionAuthority,
@@ -54,6 +56,9 @@ export interface AwayMissionPublicState {
 }
 
 export interface AwayMissionPrivateState {
+  readonly rewardOptions?: readonly MissionRewardChoiceOptions[];
+  readonly rewardChoices?: readonly MissionRewardSelection[];
+  readonly extraCardRecipientUids?: readonly string[];
   readonly assignmentCommitted?: boolean;
   readonly canUseReclamator?: boolean;
   readonly missionId: string;
@@ -82,6 +87,7 @@ type LifecycleCommandType =
   | 'addFacilitatorCards'
   | 'resolve'
   | 'exploreSystems'
+  | 'chooseRewardTargets'
   | 'dropOff';
 
 export interface AwayMissionLifecycleMission {
@@ -162,6 +168,7 @@ export interface AwayMissionLifecycleCallablePayload {
   readonly opportunityId?: string;
   readonly cardId?: string;
   readonly choices?: readonly Readonly<{ cardId: string; resource: 'food' | 'water' | 'materials' }>[];
+  readonly choice?: MissionRewardChoice;
   readonly placements?: readonly Readonly<{ cardId: string; opportunityId: string }> [];
   readonly targetCoordinates?: readonly string[];
   readonly shipId?: string;
@@ -196,6 +203,7 @@ export interface AwayMissionLifecycleClientActions {
   readonly resolve: () => Promise<void>;
   readonly exploreSystems: (opportunityId: string, targetCoordinates: readonly string[]) => Promise<void>;
   readonly dropOff: (shipId: string) => Promise<void>;
+  readonly chooseRewardTargets: (opportunityId: string, choice: MissionRewardChoice) => Promise<void>;
 }
 
 export interface AwayMissionLifecycleActionDependencies {
@@ -230,7 +238,7 @@ const AMBIGUOUS_TRANSPORT_ERRORS = new Set([
   'functions/unavailable', 'functions/unknown',
 ]);
 const GM_COMMANDS = new Set<LifecycleCommandType>(['openDiscards', 'addFacilitatorCards', 'resolve', 'exploreSystems']);
-const LEADER_COMMANDS = new Set<LifecycleCommandType>(['distributeExtraCard', 'dropOff']);
+const LEADER_COMMANDS = new Set<LifecycleCommandType>(['distributeExtraCard', 'dropOff', 'chooseRewardTargets']);
 
 function isRecord(value: unknown): value is Data {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -248,6 +256,11 @@ function isNonEmptyString(value: unknown): value is string {
 
 function isRevision(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) >= 0;
+}
+
+function isNonnegativeIntegerOrHalfPoint(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 &&
+    (Number.isSafeInteger(value) || Number.isSafeInteger(value * 2));
 }
 
 function isUniqueStringArray(value: unknown): value is string[] {
@@ -271,7 +284,7 @@ function validPublicOutcomes(value: unknown, opportunityIds: ReadonlySet<string>
         seen.has(entry.opportunityId) || !Number.isSafeInteger(entry.contributorCount) ||
         (entry.contributorCount as number) < 0 || !Number.isSafeInteger(entry.total) ||
         !Number.isSafeInteger(entry.bonusTotal) ||
-        (entry.difficulty !== null && !Number.isSafeInteger(entry.difficulty)) ||
+        (entry.difficulty !== null && !isNonnegativeIntegerOrHalfPoint(entry.difficulty)) ||
         (entry.criticalThreshold !== null && !Number.isSafeInteger(entry.criticalThreshold)) ||
         !['automatic-failure', 'failure', 'success', 'critical-success'].includes(String(entry.outcome))) {
       return false;
@@ -349,7 +362,13 @@ export function parseAwayMissionLifecyclePublicState(
       !validRewardResults(value.rewards, opportunityIds) ||
       !validSpecialRewards(value.specialRewards, opportunityIds)) return null;
 
-  return value as unknown as AwayMissionPublicState;
+  const projection = value as unknown as AwayMissionPublicState;
+  if (projection.siteCode === 'K' && projection.outcomes) {
+    return { ...projection, outcomes: projection.outcomes.map(outcome => ({
+      ...outcome, difficulty: null, criticalThreshold: null,
+    })) };
+  }
+  return projection;
 }
 
 export function parseAwayMissionLifecyclePrivateState(
@@ -359,8 +378,13 @@ export function parseAwayMissionLifecyclePrivateState(
   if (!isRecord(value) || !hasExactKeys(value, [...PRIVATE_KEYS,
       ...(Object.hasOwn(value, 'canUseReclamator') ? ['canUseReclamator'] : []),
       ...(Object.hasOwn(value, 'assignmentCommitted') ? ['assignmentCommitted'] : []),
+      ...(Object.hasOwn(value, 'extraCardRecipientUids') ? ['extraCardRecipientUids'] : []),
+      ...(Object.hasOwn(value, 'rewardOptions') ? ['rewardOptions'] : []),
+      ...(Object.hasOwn(value, 'rewardChoices') ? ['rewardChoices'] : []),
     ]) || (value.canUseReclamator !== undefined && typeof value.canUseReclamator !== 'boolean') ||
       (value.assignmentCommitted !== undefined && typeof value.assignmentCommitted !== 'boolean') ||
+      (value.extraCardRecipientUids !== undefined && !isUniqueStringArray(value.extraCardRecipientUids)) ||
+      ((value.rewardOptions !== undefined || value.rewardChoices !== undefined) && !validMissionRewardChoiceProjection(value.rewardOptions, value.rewardChoices)) ||
       value.missionId !== expected.missionId || value.participantUid !== expected.participantUid ||
       value.revision !== expected.revision || typeof value.phase !== 'string' ||
       !MISSION_PHASES.has(value.phase) || !Array.isArray(value.cards) || value.cards.length > 33) return null;
@@ -411,7 +435,7 @@ function productionProjectionReader(): AwayMissionLifecycleProjectionReader {
   const database = getFirestore(app());
   return {
     watchAuth: (onUid) => onAuthStateChanged(auth(), (user) => onUid(user?.uid ?? null)),
-    watchOwnPointers: (sessionId, actorUid, onNext, onError) => onSnapshot(
+    watchOwnPointers: (sessionId, actorUid, onNext, onError) => hasAwayMissionOwnerAccess(sessionId, actorUid) ? onSnapshot(
       query(
         collection(database, `sessions/${sessionId}/awayMissionHandPointers`),
         where('sessionId', '==', sessionId),
@@ -424,8 +448,8 @@ function productionProjectionReader(): AwayMissionLifecycleProjectionReader {
         docs: snapshot.docs.map((entry) => ({ id: entry.id, data: () => entry.data() })),
       }),
       onError,
-    ),
-    watchOwnHand: (sessionId, _actorUid, handId, onNext, onError) => onSnapshot(
+    ) : () => undefined,
+    watchOwnHand: (sessionId, actorUid, handId, onNext, onError) => hasAwayMissionOwnerAccess(sessionId, actorUid) ? onSnapshot(
       doc(database, `sessions/${sessionId}/awayMissionHands/${handId}`),
       { includeMetadataChanges: true },
       (snapshot) => onNext({
@@ -435,7 +459,7 @@ function productionProjectionReader(): AwayMissionLifecycleProjectionReader {
         data: () => snapshot.data(),
       }),
       onError,
-    ),
+    ) : () => undefined,
   };
 }
 
@@ -678,12 +702,29 @@ export function subscribeToOwnAwayMissionLifecycles(
   actorUid: string,
   onState: (state: AwayMissionLifecycleFeedState) => void,
 ): Unsubscribe {
-  return createAwayMissionLifecycleProjectionSubscription({
-    sessionId,
-    actorUid,
-    onState,
-    reader: productionProjectionReader(),
+  let closed = false;
+  let generation = 0;
+  let stopProjection: Unsubscribe | undefined;
+  onState({ status: 'loading', missions: [], projectionMissing: false });
+  const stopAccess = subscribeAwayMissionProjectionAccess(sessionId, actorUid, access => {
+    if (closed) return;
+    if (!access.owner) {
+      generation += 1; stopProjection?.(); stopProjection = undefined;
+      onState({ status: 'stale', missions: [], projectionMissing: false });
+      return;
+    }
+    if (stopProjection) return;
+    const currentGeneration = ++generation;
+    stopProjection = createAwayMissionLifecycleProjectionSubscription({ sessionId, actorUid,
+      onState: state => {
+        if (!closed && currentGeneration === generation && hasAwayMissionOwnerAccess(sessionId, actorUid)) onState(state);
+      }, reader: productionProjectionReader(),
+    });
   });
+  return () => {
+    if (closed) return;
+    closed = true; generation += 1; stopAccess(); stopProjection?.(); stopProjection = undefined;
+  };
 }
 
 function parseLifecycleReply(
@@ -843,6 +884,7 @@ export function createAwayMissionLifecycleActions(
     resolve: () => submit('resolve'),
     exploreSystems: (opportunityId, targetCoordinates) => submit('exploreSystems', { opportunityId, targetCoordinates }),
     dropOff: (shipId) => submit('dropOff', { shipId }),
+    chooseRewardTargets: (opportunityId, choice) => submit('chooseRewardTargets', { opportunityId, choice }),
   };
 }
 

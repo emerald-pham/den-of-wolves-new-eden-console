@@ -50,6 +50,10 @@ vi.mock('firebase-admin/firestore', () => ({
         });
       };
       const readFixture = async (reference: { path: string }) => {
+        if (reference.path.includes('/serverState/callableRateLimit-')) {
+          const marker = mock.committedWrites.get(reference.path)?.fields;
+          return { exists: marker !== undefined, data: () => marker, get: (field: string) => marker?.[field] };
+        }
         let base;
         try { base = await mock.get(reference); }
         catch (error) {
@@ -1032,7 +1036,9 @@ it('sanitizes nested operational data on live refresh before applying the curren
   });
   expect(response.session.shipResources).not.toHaveProperty('shepherd');
   expect(mock.update).not.toHaveBeenCalled();
-  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.set.mock.calls).toEqual([[expect.objectContaining({
+    path: expect.stringMatching(/^sessions\/s1\/serverState\/callableRateLimit-[a-f0-9]{64}$/),
+  }), expect.objectContaining({ type: 'callable-rate-limit', callableName: 'getCurrentMemberSession', requestCount: 1 })]]);
 });
 
 it('retains only the current in-transit craft’s local history without inventing a docking', async () => {
@@ -1063,5 +1069,7 @@ it('retains only the current in-transit craft’s local history without inventin
   expect(response.session.shuttleDockings).toEqual([]);
   expect(response.session.shuttleVisitLog).toEqual([visit]);
   expect(mock.update).not.toHaveBeenCalled();
-  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.set.mock.calls).toEqual([[expect.objectContaining({
+    path: expect.stringMatching(/^sessions\/s1\/serverState\/callableRateLimit-[a-f0-9]{64}$/),
+  }), expect.objectContaining({ type: 'callable-rate-limit', callableName: 'getCurrentMemberSession', requestCount: 1 })]]);
 });

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { findShip } from '@/data/ships';
+import { turnPhaseDeadlinePassed } from '@/lib/turnPhase';
 import {
   capturePhiliaRepairAuthority,
   hasCurrentPhiliaRepairAuthority,
@@ -101,13 +102,11 @@ export default function PhiliaRepairPanel({ control, docking, fuelled }: Props) 
   const repairOptions = docking
     ? (damage?.damagedSystemIds ?? []).filter((id) => !repairedOnHost.includes(id)) : [];
   const materials = docking ? session.shipResources?.[docking.shipId]?.materials ?? 0 : 0;
-  const repairDeadline = session.turnPhase?.openAirspaceEndsAt
-    ? Date.parse(session.turnPhase.openAirspaceEndsAt) : Number.NaN;
   const turnPhase = session.turnPhase;
   const repairWindowOpen = session.phase === 'active' &&
     (session.currentTurn ?? 0) >= 1 && turnPhase !== undefined && turnPhase.turn === session.currentTurn &&
     turnPhase.airspace.state === 'lifted' && turnPhase.timerPause === undefined &&
-    Number.isFinite(repairDeadline) && Date.now() < repairDeadline;
+    !turnPhaseDeadlinePassed(turnPhase, 'open');
   const currentControl = session.shuttleControl?.philia;
   const currentDockedHost = currentPhiliaHost(session as GameSession);
   const hostMatchesProjection = Boolean(docking && currentDockedHost === docking.shipId);

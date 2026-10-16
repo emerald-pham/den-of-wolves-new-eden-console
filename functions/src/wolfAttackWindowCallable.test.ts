@@ -40,7 +40,7 @@ vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error {
     constructor(readonly code: string, message: string) { super(message); }
   },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
@@ -613,4 +613,19 @@ it('denies non-GM, stale instances, malformed, closed, and out-of-window command
   await expect(setWolfAttackWindow.run({ data: baseData } as CallableRequest<typeof baseData>))
     .rejects.toMatchObject({ code: 'unauthenticated' });
   expect(mock.update).not.toHaveBeenCalled();
+});
+
+
+it('rejects a fresh GM attack window for a wholly settled group but preserves its original receipt', async () => {
+  session({ activeVesselIds: ['aegis', 'dione'] });
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'] });
+  const command = { ...baseData, targetGroupId: 'fleet-1' };
+  const original = await setWolfAttackWindow.run(request(command));
+  mock.documents.get('sessions/s1')!.candidateVesselOutcomes = { aegis: { code: 'N', groupId: 'fleet-1', shipId: 'aegis',
+    sourceId: 'candidate-n-3232', cycle: 1, outcome: 'left-behind' } };
+  const writes = mock.set.mock.calls.length;
+  await expect(setWolfAttackWindow.run(request(command))).resolves.toEqual(original);
+  await expect(setWolfAttackWindow.run(request({ ...command, requestId: 'new-settled-target', expectedRevision: 1 })))
+    .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringContaining('candidate disposition') });
+  expect(mock.set.mock.calls.length).toBe(writes);
 });

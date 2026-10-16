@@ -1,3 +1,4 @@
+import { requireCandidateCraftActionAvailable } from './candidateAvailability';
 import { HttpsError } from 'firebase-functions/v2/https';
 import {
   commandReceiptDisposition,
@@ -354,6 +355,7 @@ function requireCurrentMissionSupportContext(
   if (!smallShipState || smallShipState.hostShipId === null || smallShipState.dockingRevision < 1) {
     failClosed('The current Gorgoneion docking authority is unavailable.');
   }
+  requireCandidateCraftActionAvailable(session, [SMALL_SHIP_ID], [smallShipState.hostShipId]);
   if (!deckSnapshot.exists) failClosed('The server-owned mission deck is missing.');
   const deckData = snapshotData(deckSnapshot, 'The server-owned mission deck is malformed.');
   const deckState = parseMissionDeckState(deckData);

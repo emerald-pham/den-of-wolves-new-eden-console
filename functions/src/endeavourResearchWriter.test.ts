@@ -72,6 +72,52 @@ const request = (data: Fields, uid = 'scientist') =>
   ({ data, auth: { uid } }) as CallableRequest<Fields>;
 const put = (path: string, fields: Fields) => mock.documents.set(path, { ...fields });
 
+it('finishes after four earned marks and retains the final price while rejecting a fifth research choice', async () => {
+  put('sessions/s1/serverState/endeavourResearch', { reactor: 3 });
+  await expect(advanceEndeavourResearchTrack.run(request(command))).resolves.toMatchObject({
+    progress: { reactor: 4 }, previousMaterialCost: 5, currentMaterialCost: 4,
+  });
+  const view = await readEndeavourResearchWorkspace.run(request({ sessionId: 's1' }));
+  expect(view.tracks).toEqual(expect.arrayContaining([
+    expect.objectContaining({ trackId: 'reactor', crossedBoxes: 5, complete: true, currentMaterialCost: 4 }),
+  ]));
+  const session = mock.documents.get('sessions/s1')!;
+  session.currentTurn = 4;
+  (session.turnPhase as Fields).turn = 4;
+  mock.set.mockClear(); mock.update.mockClear();
+  await expect(advanceEndeavourResearchTrack.run(request({ ...command, requestId: 'fifth-mark',
+    expectedCycle: 4, expectedResearchRevision: 1,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('walks Detector unavailable states before unlocking eighteen, twelve and ten materials', async () => {
+  for (const [marks, previousMaterialCost, currentMaterialCost] of [
+    [0, null, null], [1, null, 18], [2, 18, 12], [3, 12, 10],
+  ] as const) {
+    mock.documents.delete('sessions/s1/serverState/endeavourResearchCadence');
+    put('sessions/s1/serverState/endeavourResearch', { 'wolf-agent-detector': marks });
+    const detectorCommand = { ...command, requestId: `detector-research-${marks}`, trackId: 'wolf-agent-detector' };
+    await expect(advanceEndeavourResearchTrack.run(request(detectorCommand))).resolves.toMatchObject({
+      progress: { 'wolf-agent-detector': marks + 1 }, previousMaterialCost, currentMaterialCost,
+    });
+    await expect(advanceEndeavourResearchTrack.run(request(detectorCommand))).resolves.toMatchObject({
+      status: 'replayed', previousMaterialCost, currentMaterialCost,
+    });
+  }
+});
+
+it('reads a mission-advanced revision without spending Team quota and accepts the next ordinary research choice', async () => {
+  put('sessions/s1/serverState/endeavourResearch', { reactor: 1 });
+  put('sessions/s1/serverState/endeavourResearchCadence', { cycle: 3, revision: 1, choices: [] });
+  await expect(readEndeavourResearchWorkspace.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
+    researchRevision: 1, cadence: { cycle: 3, revision: 1, choices: [] },
+  });
+  await expect(advanceEndeavourResearchTrack.run(request({ ...command, expectedResearchRevision: 1 })))
+    .resolves.toMatchObject({ researchRevision: 2, progress: { reactor: 2 },
+      cadence: { choices: [{ trackId: 'reactor', funding: 'standard', oreCost: 0 }] } });
+});
+
 function seedSession(): void {
   put('sessions/s1', {
     phase: 'active', currentTurn: 3, activeRoleIds: ['shepherd-scientist'],
@@ -565,7 +611,7 @@ describe('Endeavour Team research writer', () => {
       sessionId: 's1', cycle: 3, researchRevision: 1, shepherdOre: 10,
       progress: { reactor: 1 },
       tracks: expect.arrayContaining([
-        { trackId: 'reactor', name: 'Reactor', crossedBoxes: 1, totalBoxes: 5, currentMaterialCost: 7, complete: false },
+        { trackId: 'reactor', name: 'Reactor', crossedBoxes: 2, totalBoxes: 5, currentMaterialCost: 7, complete: false },
       ]),
     });
     await expect(readEndeavourResearchWorkspace.run(request({ sessionId: 's1' }, 'intruder')))
@@ -596,7 +642,7 @@ describe('Endeavour Team research writer', () => {
     });
     const tracks = (result as Fields).tracks as Fields[];
     expect(tracks.find((track) => track.trackId === 'reactor')).toMatchObject({
-      crossedBoxes: 2, currentMaterialCost: 6, complete: false,
+      crossedBoxes: 3, currentMaterialCost: 6, complete: false,
     });
     expect(result).not.toHaveProperty('fieldUpgradeState.targets');
     expect(JSON.stringify(result)).not.toContain('"shipId"');
@@ -655,4 +701,14 @@ describe('Endeavour Team research writer', () => {
       mock.documents.delete('sessions/s1/serverState/endeavourFieldUpgrades');
     }
   });
+});
+
+
+it('denies a fresh Endeavour operation after its source vessel reaches a candidate disposition', async () => {
+  mock.documents.get('sessions/s1')!.candidateVesselOutcomes = { shepherd: { code: 'N', groupId: 'fleet-1', shipId: 'shepherd',
+    sourceId: 'candidate-n-3232', cycle: 3, outcome: 'left-behind' } };
+  await expect(advanceEndeavourResearchTrack.run(request(command))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
 });

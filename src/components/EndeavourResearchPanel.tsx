@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSessionStore } from '@/store/useSessionStore';
+import { turnPhaseDeadlinePassed } from '@/lib/turnPhase';
 import {
   advanceEndeavourResearchTrack,
   createEndeavourResearchAttempt,
@@ -22,6 +23,7 @@ import EndeavourResearchChoices from './EndeavourResearchChoices';
 import './EndeavourResearchPanel.css';
 import EndeavourEcmDevicePanel from './EndeavourEcmDevicePanel';
 import { WolfAgentDetectorPanel } from './Pc09SpecialistPresenters';
+import EndeavourScienceDevicePanel from './EndeavourScienceDevicePanel';
 
 const EndeavourFieldUpgradePanel = lazy(() => import('./EndeavourFieldUpgradePanel'));
 
@@ -61,10 +63,9 @@ function mayRetryExactRequest(cause: unknown): boolean {
 function hasLiveTeamPhase(session: ReturnType<typeof useSessionStore.getState>['session'], workspace: EndeavourResearchWorkspace): boolean {
   if (!session || session.phase !== 'active' || session.currentTurn !== workspace.cycle) return false;
   const phase = session.turnPhase;
-  const deadline = Date.parse(phase?.teamPhaseEndsAt ?? '');
   return Boolean(
     phase && phase.turn === workspace.cycle && phase.airspace.state === 'restricted' &&
-    phase.timerPause === undefined && Number.isFinite(deadline) && Date.now() < deadline,
+    phase.timerPause === undefined && !turnPhaseDeadlinePassed(phase, 'team'),
   );
 }
 
@@ -403,8 +404,9 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
         </div>}
       </>}
     />
-    {workspace && <EndeavourEcmDevicePanel control={control} />}
-    {workspace?.tracks.some((track) => track.trackId === 'wolf-agent-detector' && track.complete) &&
+    {workspace && <EndeavourScienceDevicePanel workspace={workspace} liveTeamPhase={liveTeamPhase} onRefresh={reload} />}
+    {workspace && <EndeavourEcmDevicePanel key={`${identityKey}-${workspace.scienceDevices?.revision}`} control={control} />}
+    {workspace?.scienceDevices?.detectorBuilt &&
       currentDetectorState && currentCycle !== null && uid && <WolfAgentDetectorPanel
       cycle={currentCycle}
       testsUsed={currentDetectorState.cycle === currentCycle ? currentDetectorState.testsUsed : 0}
@@ -417,6 +419,7 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
         reportedLoyalty: currentDetectorReport.reportedWolf ? 'wolf' : 'loyal',
         cycle: currentDetectorReport.cycle,
       } : null}
+      canTest={liveTeamPhase}
       onTest={(targetUid) => runWolfAgentDetectorTest(targetUid, currentDetectorState.revision)}
     />}
     {workspace && <Suspense fallback={<p className="console-workspace__status" role="status">

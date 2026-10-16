@@ -295,7 +295,7 @@ and actual versus hypothetical damage states.
 ### GM starmap instrument
 
 The GM-only starmap is a ruled navigation instrument in the main GM workspace.
-It renders the printed 22-system, 40-link topology and swaps only the selected
+It renders the printed 22-system, 41-link topology and swaps only the selected
 organiser A/B/C site-code overlay. Its CSS perspective is display-only: no third
 gameplay coordinate is implied. Coordinate nodes remain square native buttons
 with at least 44px targets, while the selected-system readout keeps the chart
@@ -1371,18 +1371,20 @@ Skip to Turn 1 has its own confirmation and suppresses that transmission.
 Advance's in-flight state must not rewrite Skip's `SKIP TO TURN 1` wording.
 
 Before a browser joins a session, the top-right default connection light uses
-the established uppercase label `CONNECTED`. Only after joining, while Turn 1
-has not yet occurred, the light uses cyan-blue instrumentation and says
-`NOT CONNECTED — AWAITING IRIS AUTHENTICATION`. The first Turn 1 snapshot
-restores the usual green in-session light, marking CIC as fully uplinked and the
-fleet as ready to launch. These labels describe the player-facing game uplink;
-they do not grant or withhold command authority by themselves.
+the established uppercase label `CONNECTED`. Only after joining, while Cycle 1
+has not yet occurred, the light uses the established danger-red token and says
+`CONNECTED // AWAITING CIC AUTHENTICATION`. Settings explains: “Awaiting CIC
+authentication means waiting for the GM to start the game.” The first Cycle 1
+snapshot restores the usual green in-session light, marking CIC as fully
+uplinked and the fleet as ready to launch. These labels describe the
+player-facing game uplink; they do not grant or withhold command authority by
+themselves.
 
 The indicator's accessible name/title describes the same live state as its
 visible label. Pre-session startup optimism may show `CONNECTED` only while no
 explicit offline signal exists; joined Turn 0 offline after the grace window is
-announced as offline, never as “Connected to Firebase” beside a visible
-`NOT CONNECTED` label. Turn 1 and legacy `currentTurn` snapshots retain the
+announced as offline, never as “Connected to Firebase” beside an offline label.
+Cycle 1 and legacy `currentTurn` snapshots retain the
 same live/offline/grace semantics.
 
 When a browser restores a cached in-session identity after a refresh, loses page

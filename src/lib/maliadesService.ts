@@ -3,7 +3,7 @@ import { functions } from './firebase';
 import { useSessionStore } from '@/store/useSessionStore';
 import { captureSessionAuthority, hasFreshSessionAuthority, isCurrentSessionAuthority, requireFreshSessionAuthority } from './sessionMutationAuthority';
 import { parseMaliadesState } from './maliadesLedger';
-import { turnPhaseState } from './turnPhase';
+import { turnPhaseDeadlinePassed, turnPhaseState } from './turnPhase';
 import type { GameSession, MaliadesStateRecord } from '@/types/game';
 
 export type MaliadesMediumChoice =
@@ -85,9 +85,8 @@ function liveTeamPhase(session: GameSession): boolean {
   const cycle = session.currentTurn;
   const phase = turnPhaseState(session.turnPhase);
   if (!phase || !Number.isSafeInteger(cycle) || (cycle as number) < 1) return false;
-  const teamEnds = Date.parse(phase.teamPhaseEndsAt);
   return session.phase === 'active' && phase.turn === cycle && phase.airspace.state === 'restricted' &&
-    Number.isFinite(teamEnds) && Date.now() < teamEnds;
+    !turnPhaseDeadlinePassed(phase, 'team');
 }
 
 function currentMaliadesDockings(session: GameSession): readonly Record<string, unknown>[] | null {

@@ -14,6 +14,12 @@ import { useWolfAttackChoiceAuthority, useWolfAttackChoiceController } from '@/l
 import './WolfRangeActionPanel.css';
 
 type RangeAssignment = Readonly<{ actionId: string; contactIds: readonly string[] }>;
+type ActionSelection = readonly string[];
+type ActionSelectionUpdate = (previous: ActionSelection) => ActionSelection;
+type BoundActionSelection = Readonly<{ scopeKey: string; formKey: string; actionIds: ActionSelection }>;
+type TargetSelection = Readonly<Record<string, readonly string[]>>;
+type TargetSelectionUpdate = (previous: TargetSelection) => TargetSelection;
+type BoundTargetSelection = Readonly<{ scopeKey: string; formKey: string; assignmentsByAction: TargetSelection }>;
 type WolfRangeActionOption = WolfRangeActionChoiceView['eligibleActions'][number];
 type WolfWingCommanderTargetAction = WolfRangeActionOption & Readonly<{
   range: 'medium-range';
@@ -44,6 +50,16 @@ function shipLabel(shipId: string): string {
   return shipId.replaceAll('-', ' ').toUpperCase();
 }
 
+function rangeDraftKey(view: WolfRangeActionChoiceView): string {
+  return JSON.stringify([
+    view.sessionId, view.turn, view.revision, view.currentStep, view.range, view.choiceStatus,
+    view.eligibleActions.map(({ actionId, sourceId, range }) => [actionId, sourceId, range]),
+    view.hitSlots.map(({ actionId, count, damagePerHit }) => [actionId, count, damagePerHit]),
+    view.contacts.map(({ contactId, targetShipId, available, requiredCoverageDamage }) =>
+      [contactId, targetShipId, available, requiredCoverageDamage]),
+  ]);
+}
+
 export function WolfRangeActionPanelView({
   view,
   onUseActions,
@@ -51,6 +67,8 @@ export function WolfRangeActionPanelView({
   onAssignTargets,
   busy = false,
   message,
+  actionSelection,
+  targetSelection,
 }: Readonly<{
   view: WolfRangeActionChoiceView;
   onUseActions: (actionIds: readonly string[]) => void;
@@ -58,22 +76,22 @@ export function WolfRangeActionPanelView({
   onAssignTargets: (assignments: readonly RangeAssignment[]) => void;
   busy?: boolean;
   message?: string;
+  actionSelection?: Readonly<{ actionIds: ActionSelection; update: (change: ActionSelectionUpdate) => void }>;
+  targetSelection?: Readonly<{ assignmentsByAction: TargetSelection; update: (change: TargetSelectionUpdate) => void }>;
 }>) {
-  const [selectedActions, setSelectedActions] = useState<readonly string[]>([]);
-  const [assignmentsByAction, setAssignmentsByAction] = useState<Readonly<Record<string, readonly string[]>>>({});
+  const [localSelectedActions, setLocalSelectedActions] = useState<ActionSelection>([]);
+  const selectedActions = actionSelection?.actionIds ?? localSelectedActions;
+  const setSelectedActions = actionSelection?.update ?? setLocalSelectedActions;
+  const [localAssignmentsByAction, setLocalAssignmentsByAction] = useState<TargetSelection>({});
+  const assignmentsByAction = targetSelection?.assignmentsByAction ?? localAssignmentsByAction;
+  const setAssignmentsByAction = targetSelection?.update ?? setLocalAssignmentsByAction;
   const selectableActions = useMemo(() => view.eligibleActions.filter(({ sourceId }) =>
     sourceId.startsWith('aegis-')),
   [view.eligibleActions]);
-  const draftKey = JSON.stringify([
-    view.sessionId, view.turn, view.revision, view.currentStep, view.range, view.choiceStatus,
-    view.eligibleActions.map(({ actionId, sourceId, range }) => [actionId, sourceId, range]),
-    view.hitSlots.map(({ actionId, count, damagePerHit }) => [actionId, count, damagePerHit]),
-    view.contacts.map(({ contactId, targetShipId, available, requiredCoverageDamage }) =>
-      [contactId, targetShipId, available, requiredCoverageDamage]),
-  ]);
+  const draftKey = rangeDraftKey(view);
   useEffect(() => {
-    setSelectedActions([]);
-    setAssignmentsByAction({});
+    setLocalSelectedActions([]);
+    setLocalAssignmentsByAction({});
   }, [draftKey]);
   const availableContacts = useMemo(() => view.contacts.filter(({ available }) => available), [view.contacts]);
   const wingCommanderTargetIds = useMemo(() => new Set(view.eligibleActions
@@ -144,9 +162,12 @@ export function WolfRangeActionPanelView({
                   <input
                     type="checkbox"
                     checked={selectedActions.includes(action.actionId)}
-                    onChange={(event) => setSelectedActions((previous) => event.target.checked
-                      ? [...previous, action.actionId]
-                      : previous.filter((id) => id !== action.actionId))}
+                    onChange={(event) => {
+                      const checked = event.currentTarget.checked;
+                      setSelectedActions((previous) => checked
+                        ? [...previous, action.actionId]
+                        : previous.filter((id) => id !== action.actionId));
+                    }}
                   />
                   <span>{actionLabel(action.sourceId)}</span>
                 </label>
@@ -281,6 +302,23 @@ export default function WolfRangeActionPanel({
     mutationFailureMessage: 'The choice could not be committed. Refresh before retrying.',
   });
   const sessionId = authority.sessionId;
+  const [selection, setSelection] = useState<BoundActionSelection | null>(null);
+  const [targetDraft, setTargetDraft] = useState<BoundTargetSelection | null>(null);
+  const scopeKey = authority.ready && memberView ? JSON.stringify([
+    authority.key, memberView.sessionId, memberView.attackId, memberView.turn, memberView.revision,
+    memberView.status, memberView.currentStep, memberView.range,
+  ]) : null;
+  const formKey = view?.type === 'wolf-range-action-choice-view' ? rangeDraftKey(view) : null;
+  const hasView = view !== null;
+  useEffect(() => {
+    // A superseded read temporarily withdraws controls while its existing
+    // bounded recovery revalidates the same window. Keep only the local draft;
+    // no prior view is displayed or allowed to submit during that withdrawal.
+    setSelection((previous) => previous && (!scopeKey || previous.scopeKey !== scopeKey ||
+      (hasView && previous.formKey !== formKey)) ? null : previous);
+    setTargetDraft((previous) => previous && (!scopeKey || previous.scopeKey !== scopeKey ||
+      (hasView && previous.formKey !== formKey)) ? null : previous);
+  }, [scopeKey, formKey, hasView]);
 
   if (!sessionId || !authority.actorReady) return null;
   if (!authority.ready) {
@@ -306,6 +344,22 @@ export default function WolfRangeActionPanel({
   return <WolfRangeActionPanelView
     view={view}
     busy={busy}
+    actionSelection={{
+      actionIds: selection?.scopeKey === scopeKey && selection.formKey === formKey ? selection.actionIds : [],
+      update: (change) => setSelection((previous) => ({
+        scopeKey: scopeKey!, formKey: formKey!,
+        actionIds: change(previous?.scopeKey === scopeKey && previous.formKey === formKey ? previous.actionIds : []),
+      })),
+    }}
+    targetSelection={{
+      assignmentsByAction: targetDraft?.scopeKey === scopeKey && targetDraft.formKey === formKey
+        ? targetDraft.assignmentsByAction : {},
+      update: (change) => setTargetDraft((previous) => ({
+        scopeKey: scopeKey!, formKey: formKey!,
+        assignmentsByAction: change(previous?.scopeKey === scopeKey && previous.formKey === formKey
+          ? previous.assignmentsByAction : {}),
+      })),
+    }}
     {...(displayMessage ? { message: displayMessage } : {})}
     onUseActions={(actionIds) => runMutation(
       () => commitWolfRangeActionChoice(view.turn, view.revision, view.range, actionIds),

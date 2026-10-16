@@ -74,13 +74,28 @@ export async function assertMemberTurnContext(context) {
 }
 
 /** No private contents, raw UID, auth token or command payload leaves the page. */
-export async function observeLifecycleActor(surface, expectedSessionId) {
-  return surface.page.evaluate(async ({ moduleUrl, expectedSessionId }) => {
+export async function observeLifecycleActor(surface, expectedSessionId, { sdkAuthority = false } = {}) {
+  const authorityModuleUrl = sdkAuthority ? surface.sessionAuthorityModuleUrl?.() : undefined;
+  if (sdkAuthority) {
+    assert.ok(typeof authorityModuleUrl === 'string' && authorityModuleUrl.length > 0,
+      'Observe the mounted App SDK authority module before dispatch.');
+    const storeUrl = new URL(surface.storeModuleUrl(), 'http://127.0.0.1');
+    const authorityUrl = new URL(authorityModuleUrl, storeUrl);
+    assert.equal(authorityUrl.origin, storeUrl.origin);
+    assert.equal(authorityUrl.pathname, '/src/lib/sessionSnapshotAuthority.ts');
+  }
+  return surface.page.evaluate(async ({ moduleUrl, expectedSessionId, authorityModuleUrl }) => {
     const { auth } = await import('/src/lib/firebase.ts');
+    const { activeDemoActorProfile } = await import('/src/lib/demoActorContext.ts');
     const { useSessionStore } = await import(moduleUrl);
-    const s = useSessionStore.getState(), user = auth().currentUser, session = s.session;
+    const sdk = authorityModuleUrl ? await import(authorityModuleUrl) : null;
     const hash = async value => value ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))))
       .map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) : null;
+    const originalUid = auth().currentUser?.uid, uidHash = await hash(originalUid);
+    // Take the store and SDK cursor after all asynchronous preparation, together.
+    const s = useSessionStore.getState(), user = auth().currentUser, session = s.session;
+    if (user?.uid !== originalUid) throw new Error('Original Auth UID changed during lifecycle observation.');
+    const authority = sdk && originalUid && session?.id ? sdk.sessionSnapshotAuthorityFor(session.id, originalUid) : null;
     const privateKeys = Object.keys(s).filter(key =>
       /^gm[A-Z]/.test(key) && !['gmInstance', 'gmAccessAuthenticatedAt'].includes(key) ||
       ['privateLoyalty', 'roleBrief', 'wolfCult', 'arbourVision', 'intelligenceInvestigation', 'awayMissionHand',
@@ -104,10 +119,10 @@ export async function observeLifecycleActor(surface, expectedSessionId) {
     // These two non-nullable Source defaults must be present and valid.
     if (!pointerDefaultPresent) privatePayloadCount++;
     if (!censusStatusPresent) privatePayloadCount++;
-    return { sessionId: session?.id ?? null, uidHash: await hash(user?.uid), hasAuth: !!user,
+    return { sessionId: session?.id ?? null, uidHash, hasAuth: !!user,
       sameActor: !!user && s.me?.uid === user.uid, connection: s.connection, freshness: s.sessionSnapshotFreshness,
       generation: s.me?.connectionGeneration ?? null, hydrationRevision: s.identityHydrationRevision,
-      playerRole: s.me?.role ?? null, profileRoleId: null,
+      playerRole: s.me?.role ?? null, profileRoleId: activeDemoActorProfile?.roleId ?? null,
       displayName: s.me?.displayName ?? null, assignedRoleId: s.me?.assignedRoleId ?? null,
       activeConsoleRoleId: s.me?.activeConsoleRoleId ?? null, seatId: s.me?.seatId ?? null,
       instanceId: s.gmInstance?.id ?? null, claimedAt: s.gmInstance?.claimedAt ?? null,
@@ -134,8 +149,13 @@ export async function observeLifecycleActor(surface, expectedSessionId) {
         cycle: session.debriefSnapshot.cycle } : null,
       pursuitEmergency: Boolean(session?.pursuitEmergencyWindowAuthority ?? session?.pursuitEmergencyWindow),
       // Buttons remain the actual source guard. Absence of this hint never grants authority.
-      attackLocked: null };
-  }, { moduleUrl: surface.storeModuleUrl(), expectedSessionId });
+      attackLocked: null,
+      ...(sdk ? { sdkHasServerAuthority: authority?.hasServerSessionAuthority === true,
+        sdkResumePending: authority ? sdk.memberSessionResumeBlocksFreshness(authority) : true,
+        recoveryPending: s.gmRecoveryPending, connected: s.me?.connected === true,
+        currentOwnPlayerConfirmed: s.me?.connected === true, kicked: s.me?.kickedAt != null,
+        escapeLocked: s.me?.escapeState != null, profileSessionId: activeDemoActorProfile?.sessionId ?? null } : {}) };
+  }, { moduleUrl: surface.storeModuleUrl(), expectedSessionId, authorityModuleUrl });
 }
 
 export async function untilLifecycle(surface, expected, predicate, description, { timeout = 60_000, ...authority } = {}) {
@@ -195,17 +215,19 @@ export async function captureLifecycleUiAction(surface, endpoint, choose, option
     intendedRequests.set(request, { requestId: data.requestId, payload: JSON.stringify(data) });
   };
   if (options.correlateRequests) surface.page.on('request', captureRequest);
-  const consumed = { endpoint, deadlineAt: options.deadlineAt, originalTimeoutMs: options.timeout ?? 60_000,
+  const deadlineAt = options.deadlineAt ?? (options.normalSetup ? Date.now() + Math.min(options.timeout ?? 60_000, 60_000) : undefined);
+  const consumed = { endpoint, deadlineAt, originalTimeoutMs: options.timeout ?? 60_000,
     original: options.original, gm: options.gm };
   try {
     before = await observeLifecycleActor(surface);
     consumed.before = before;
     assertOriginalActor(before, before, { gm: options.gm ?? before.gmInstanceOwned });
     if (options.original) assertObserverOperationActor(options.original, before);
+    if (options.normalSetup) assertNormalSetupOperation(options.original, endpoint);
     response = await observeUiReceipt({ page: surface.page, consumed,
       waitForResponse: () => {
-        consumed.responseObserverTimeoutMs = options.deadlineAt === undefined ? options.timeout ?? 60_000 :
-          remainingLifecycleOperation(options.deadlineAt, options.timeout ?? 60_000);
+        consumed.responseObserverTimeoutMs = deadlineAt === undefined ? options.timeout ?? 60_000 :
+          remainingLifecycleOperation(deadlineAt, options.timeout ?? 60_000);
         return surface.page.waitForResponse(response => {
           if (!new URL(response.url()).pathname.endsWith(`/us-central1/${endpoint}`) || response.request().method() !== 'POST') return false;
           const data = response.request().postDataJSON()?.data;
@@ -223,7 +245,17 @@ export async function captureLifecycleUiAction(surface, endpoint, choose, option
         assertLateReplyAuthority(before, current);
         if (options.original) assertObserverOperationActor(options.original, current);
         await retainUiReceiptContext(surface.page, consumed);
-        if (options.deadlineAt !== undefined) remainingLifecycleOperation(options.deadlineAt);
+        if (options.beforeDispatch) await options.beforeDispatch();
+        if (options.original || options.beforeDispatch) {
+          current = await observeLifecycleActor(surface, before.sessionId, { sdkAuthority: options.sdkAuthority });
+          consumed.current = current;
+          assertLateReplyAuthority(before, current);
+          if (options.original) assertObserverOperationActor(options.original, current);
+          if (options.normalSetup) assert.equal(current.setupRevision, before.setupRevision,
+            'Normal setup revision changed before dispatch.');
+          if (options.sdkAuthority) assertLifecycleSdkAuthority(current, options.gm ?? before.gmInstanceOwned);
+        }
+        if (deadlineAt !== undefined) remainingLifecycleOperation(deadlineAt);
         choosing = true;
         await choose();
       },
@@ -233,7 +265,27 @@ export async function captureLifecycleUiAction(surface, endpoint, choose, option
     body = await response.json();
     assert.ok(response.status() < 400 && !body.error && Object.hasOwn(body, 'result'), `${endpoint}: actual UI request rejected.`);
     assert.ok(!['queued', 'stale', 'denied'].includes(body.result?.status), `${endpoint}: no committed result.`);
-    if (options.original) assertObserverOperationActor(options.original, await observeLifecycleActor(surface, before.sessionId));
+    if (options.original) {
+      if (options.normalSetup) {
+        assertNormalSetupReply(options.original, endpoint, requestData, body.result);
+        // The command reply and server session publication are independent.
+        // Observe only the original or exact reply-bound state, never resend.
+        while (true) {
+          assert.ok(Date.now() < deadlineAt, 'Normal setup phase publication exhausted its original operation deadline.');
+          current = await observeLifecycleActor(surface, before.sessionId, { sdkAuthority: options.sdkAuthority });
+          consumed.current = current;
+          assert.ok(Date.now() < deadlineAt, 'Normal setup phase publication arrived after its original operation deadline.');
+          if (options.sdkAuthority) assertLifecycleSdkAuthority(current, true);
+          if (normalSetupPublicationMatches(options.original, current, endpoint, body.result)) break;
+          await delay(Math.min(200, remainingLifecycleOperation(deadlineAt)));
+        }
+      } else {
+        current = await observeLifecycleActor(surface, before.sessionId);
+        consumed.current = current;
+        assertObserverOperationActor(options.original, current);
+      }
+    }
+    if (deadlineAt !== undefined) remainingLifecycleOperation(deadlineAt);
     const capture = { endpoint, data: requestData, result: body.result, before, httpStatus: response.status() };
     observedUiCaptures.add(capture); return capture;
   } catch (error) {
@@ -288,8 +340,118 @@ async function immediateLifecycleAffordance(locator) {
 
 function assertObserverOperationActor(original, current) {
   assertOriginalActor(original, current, { gm: true });
+  assertLateReplyAuthority(original, current);
   assert.equal(current.phase, original.phase, 'Observer operation must retain its original phase.');
   assert.equal(current.cycle, original.cycle, 'Observer operation must retain its original cycle.');
+}
+
+// P181's ordinary setup actions alone opt in. The pre-dispatch phase/cycle
+// remains immutable; a reply must prove the exact production transition.
+function assertNormalSetupOperation(original, endpoint) {
+  assert.ok(original && original.profileRoleId == null && original.fullGameDemo == null && original.singlePlayerDemo == null,
+    'Normal setup requires the original ordinary GM, without a demo profile or mode.');
+  assert.ok(['confirmSetup', 'assignRole', 'startGame', 'clearTurnAdvanceInterstitial'].includes(endpoint),
+    'No normal setup transition contract for this endpoint.');
+  if (endpoint === 'clearTurnAdvanceInterstitial') {
+    assert.equal(original.phase, 'active', 'Clear only the original active cycle briefing.');
+    assert.equal(original.cycle, 1, 'P181 clears only its original first-cycle briefing.');
+    assert.equal(original.timerPause?.reason, 'turn-interstitial', 'The original cycle briefing must own its pause.');
+  } else {
+    assert.ok(['lobby', 'casting'].includes(original.phase), 'Normal setup must start in its original lobby or casting phase.');
+    assert.equal(original.cycle, 0, 'Normal setup must retain its original Cycle 0 before dispatch.');
+    assert.ok(Number.isSafeInteger(original.setupRevision) && original.setupRevision >= 0,
+      'Normal setup must bind the original setup revision.');
+  }
+}
+
+function assertLifecycleSdkAuthority(current, gm) {
+  assert.equal(current.sdkHasServerAuthority, true, 'Current mounted SDK server authority is required before dispatch or qualification.');
+  assert.equal(current.sdkResumePending, false, 'Current mounted SDK resume must not be pending before dispatch or qualification.');
+  assert.equal(current.connected, true); assert.equal(current.currentOwnPlayerConfirmed, true);
+  assert.equal(current.kicked, false); assert.equal(current.profileRoleId, null); assert.equal(current.profileSessionId, null);
+  if (gm) assert.equal(current.recoveryPending, false, 'Current GM recovery must not be pending.');
+  else assert.equal(current.escapeLocked, false);
+}
+
+function assertNormalSetupReply(original, endpoint, data, result) {
+  assertNormalSetupOperation(original, endpoint);
+  assert.ok(result && typeof result === 'object' && !Array.isArray(result), 'Normal setup requires its committed production reply.');
+  assert.ok(typeof data.requestId === 'string' && data.requestId.length > 0, 'Normal setup must capture its original request id.');
+  if (endpoint === 'clearTurnAdvanceInterstitial') {
+    assert.equal(data.expectedCycle, original.cycle, 'Clear the exact original briefing cycle.');
+    assert.equal(data.expectedPausedAt, original.timerPause.pausedAt, 'Clear the exact original briefing hold.');
+    assert.equal(result.status, 'cleared', 'Require the production briefing-clear receipt.');
+    assert.equal(result.cycle, data.expectedCycle, 'Briefing reply must retain the original cycle.');
+    assert.equal(result.pausedAt, data.expectedPausedAt, 'Briefing reply must retain the original paused timestamp.');
+    assert.equal(result.turnPhase?.turn, original.cycle, 'Briefing clock must describe the original cycle.');
+    assert.equal(result.turnPhase.timerPause, undefined, 'The exact briefing hold must be released.');
+    return;
+  }
+  assert.equal(data.instanceId, original.instanceId, 'Normal setup must capture the original owned GM instance.');
+  assert.equal(result.setupRevision, original.setupRevision + 1, 'Normal setup reply must commit exactly the original next revision.');
+  if (endpoint === 'assignRole') {
+    assert.equal(result.sessionId, original.sessionId, 'Role assignment reply must retain the original session.');
+    assert.ok(typeof data.targetUid === 'string' && data.targetUid.length > 0 && typeof data.roleId === 'string' && data.roleId.length > 0,
+      'Capture the actual role assignment target and role.');
+    return;
+  }
+  assert.ok(['committed', 'replayed'].includes(result.status), 'Require the committed or exact replayed normal setup receipt.');
+  assert.equal(data.expectedSetupRevision, original.setupRevision, 'Normal setup request must use the original setup revision.');
+  assert.equal(result.requestId, data.requestId, 'Normal setup reply must match the exact captured request.');
+  if (endpoint === 'confirmSetup') {
+    assert.equal(result.setupConfirmed, true, 'Observe the production setup confirmation.');
+    return;
+  }
+  assert.equal(result.sessionId, original.sessionId, 'Game start reply must retain the original session.');
+  assert.equal(result.currentTurn, 1, 'The original game start must commit exactly Cycle 1.');
+  assert.equal(result.turnPhase?.turn, result.currentTurn, 'The game start clock must match its committed cycle.');
+  assert.equal(result.turnPhase.timerPause?.reason, 'turn-interstitial', 'The ordinary first cycle must retain its server-held briefing.');
+}
+
+function normalSetupPublicationMatches(original, current, endpoint, result) {
+  assertOriginalActor(original, current, { gm: true });
+  assertLateReplyAuthority(original, current);
+  assert.ok(current.profileRoleId == null && current.fullGameDemo == null && current.singlePlayerDemo == null,
+    'Normal setup publication must retain its ordinary original actor and mode.');
+  if (endpoint === 'clearTurnAdvanceInterstitial') {
+    assert.equal(current.phase, original.phase, 'Briefing clear cannot change the active phase.');
+    assert.equal(current.cycle, original.cycle, 'Briefing clear cannot advance a cycle.');
+    assert.equal(current.setupRevision, original.setupRevision, 'Briefing clear cannot change the setup revision.');
+    if (current.timerPause != null) {
+      assert.equal(fingerprint(current.timerPause), fingerprint(original.timerPause), 'Wait only for the exact original briefing hold.');
+      assert.equal(current.teamEndsAt, original.teamEndsAt); assert.equal(current.openEndsAt, original.openEndsAt);
+      return false;
+    }
+    assert.equal(current.teamEndsAt, result.turnPhase.teamPhaseEndsAt, 'Observe the exact resumed briefing clock.');
+    assert.equal(current.openEndsAt, result.turnPhase.openAirspaceEndsAt, 'Observe the exact resumed airspace clock.');
+    return true;
+  }
+  assert.ok(current.setupRevision === original.setupRevision || current.setupRevision === result.setupRevision,
+    'Normal setup publication must retain the original or exact committed revision.');
+  if (endpoint === 'startGame' && current.phase === 'active') {
+    assert.equal(current.setupRevision, result.setupRevision, 'Observe the committed game start revision.');
+    assert.equal(current.cycle, result.currentTurn, 'Observe exactly the cycle committed by the original game start.');
+    assert.equal(current.timerPause?.reason, 'turn-interstitial', 'Observe the original first-cycle briefing hold.');
+    assert.equal(current.timerPause.pausedAt, result.turnPhase.timerPause.pausedAt, 'Observe exactly the game start briefing hold.');
+    return true;
+  }
+  assert.equal(current.cycle, 0, 'Setup publication cannot advance an unrelated cycle.');
+  if (current.setupRevision === original.setupRevision) {
+    assert.equal(current.phase, original.phase, 'Wait only for the original phase at its original revision.');
+    assert.equal(fingerprint(current.timerPause), fingerprint(original.timerPause), 'The pre-commit snapshot must retain its original hold.');
+    assert.equal(current.teamEndsAt, original.teamEndsAt); assert.equal(current.openEndsAt, original.openEndsAt);
+    return false;
+  }
+  if (endpoint === 'assignRole') {
+    assert.ok(current.phase === original.phase || current.phase === 'casting',
+      'Role assignment publication must retain the original phase or exact casting transition.');
+    // The actual assignRole client applies only setupRevision; phase arrives
+    // independently. Neither intermediate tuple earns a completed capture.
+    return current.phase === 'casting' && current.setupRevision === result.setupRevision;
+  }
+  assert.equal(current.phase, original.phase, 'Setup publication cannot change the original phase before its exact reply transition.');
+  if (endpoint === 'confirmSetup') return current.setupRevision === result.setupRevision;
+  assert.fail('Game start phase and cycle must match its exact committed revision.');
 }
 
 function remainingLifecycleOperation(deadlineAt, maximum = 60_000) {

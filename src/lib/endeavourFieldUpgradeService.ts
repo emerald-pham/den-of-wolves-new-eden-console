@@ -1,6 +1,7 @@
 import { httpsCallable } from 'firebase/functions';
 import { SHIPS } from '@/data/ships';
 import type { GameSession, ShuttleControlEntry } from '@/types/game';
+import { turnPhaseDeadlinePassed } from './turnPhase';
 import { functions } from './firebase';
 import {
   captureSessionAuthority,
@@ -199,7 +200,6 @@ function currentScientistAuthorityMatches(
     ? currentEndeavourHostShipId(session, me.fleetGroupId ?? '') : null;
   const currentCycle = session?.currentTurn;
   const phase = session?.turnPhase;
-  const endsAt = Date.parse(phase?.openAirspaceEndsAt ?? '');
   return hasFreshSessionAuthority() && session?.id === binding.sessionId &&
     me?.sessionId === binding.sessionId && me.uid === binding.uid &&
     me.role === 'player' && isBoundScientist(me) && me.assignedRoleId === binding.assignedRoleId &&
@@ -212,15 +212,14 @@ function currentScientistAuthorityMatches(
     control.revision >= binding.expectedControlRevision && isCounter(currentCycle) &&
     currentCycle >= binding.expectedCycle && (!requireLiveCoordination ||
       (phase?.turn === currentCycle && phase.airspace?.state === 'lifted' &&
-        phase.timerPause === undefined && Number.isFinite(endsAt) && Date.now() < endsAt));
+        phase.timerPause === undefined && !turnPhaseDeadlinePassed(phase, 'open')));
 }
 
 function hasLiveCoordinationWindow(session: GameSession, expectedCycle: number): boolean {
   const phase = session.turnPhase;
-  const endsAt = Date.parse(phase?.openAirspaceEndsAt ?? '');
   return session.phase === 'active' && session.currentTurn === expectedCycle &&
     phase?.turn === expectedCycle && phase.airspace?.state === 'lifted' &&
-    phase.timerPause === undefined && Number.isFinite(endsAt) && Date.now() < endsAt;
+    phase.timerPause === undefined && !turnPhaseDeadlinePassed(phase, 'open');
 }
 
 function researchTrackId(systemId: string, workspace: EndeavourResearchWorkspace): string | null {
@@ -246,7 +245,7 @@ export function availableEndeavourFieldUpgradeOptions(
       if (installed.has(system.id)) return [];
       const trackId = researchTrackId(system.id, workspace);
       const track = trackId ? workspace.tracks.find((candidate) => candidate.trackId === trackId) : undefined;
-      if (!track || track.complete || track.currentMaterialCost === null) return [];
+      if (!track || track.currentMaterialCost === null) return [];
       return [{
         shipId: ship.id,
         shipName: ship.name,

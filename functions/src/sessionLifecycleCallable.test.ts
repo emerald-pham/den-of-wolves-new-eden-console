@@ -75,6 +75,14 @@ const mock = vi.hoisted(() => {
   };
   const documents = new Map<string, StoredDocument>();
   let beforeTransaction: (() => void) | undefined;
+  let afterReadOnlyTransaction: (() => void | Promise<void>) | undefined;
+  type TransactionTrace = {
+    readOnly: boolean;
+    reads: { path: string; query: boolean }[];
+    writes: string[];
+  };
+  const transactionTraces: TransactionTrace[] = [];
+  let rejectQueryLeaseWrites = false;
   let transactionDepth = 0;
   let transactionWrote = false;
   let rejectReadsAfterWrite = false;
@@ -179,7 +187,10 @@ const mock = vi.hoisted(() => {
     return 'query' in target ? querySnapshot(target)
       : 'id' in target ? snapshot(target) : querySnapshot(query(target.path));
   });
-  const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) => {
+  const runTransaction = vi.fn(async (
+    callback: (tx: unknown) => unknown,
+    options?: { readOnly?: boolean },
+  ) => {
     const hook = beforeTransaction;
     beforeTransaction = undefined;
     hook?.();
@@ -187,12 +198,49 @@ const mock = vi.hoisted(() => {
     const previousWrote = transactionWrote;
     transactionDepth += 1;
     transactionWrote = false;
+    const trace: TransactionTrace = { readOnly: options?.readOnly === true, reads: [], writes: [] };
+    transactionTraces.push(trace);
+    const recordWrite = (target: Ref, fields?: StoredDocument) => {
+      if (trace.readOnly) throw new Error('Write in read-only Firestore transaction');
+      // This is a topology contract, not a simulation of emulator capacity.
+      // A stable lease write must not upgrade a player query's transaction.
+      if (rejectQueryLeaseWrites && fields?.lastSeenAt !== undefined &&
+          target.path.startsWith('sessions/s1/players/') &&
+          trace.reads.some(read => read.query && read.path === 'sessions/s1/players')) {
+        throw new Error('Lease renewal attempted a query-plus-write transaction');
+      }
+      trace.writes.push(target.path);
+    };
+    let result: unknown;
     try {
-      return await callback({ get, update, set, delete: remove });
+      result = await callback({
+        get: (target: Ref | Query | Collection) => {
+          trace.reads.push({ path: target.path, query: !('id' in target) });
+          return get(target);
+        },
+        update: (target: Ref, fields: StoredDocument) => {
+          recordWrite(target, fields);
+          return update(target, fields);
+        },
+        set: (target: Ref, fields: StoredDocument, settings?: { merge?: boolean; mergeFields?: string[] }) => {
+          recordWrite(target, fields);
+          return set(target, fields, settings);
+        },
+        delete: (target: Ref) => {
+          recordWrite(target);
+          return remove(target);
+        },
+      });
     } finally {
       transactionDepth = previousDepth;
       transactionWrote = previousWrote;
     }
+    if (trace.readOnly && afterReadOnlyTransaction) {
+      const after = afterReadOnlyTransaction;
+      afterReadOnlyTransaction = undefined;
+      await after();
+    }
+    return result;
   });
 
   return {
@@ -204,7 +252,10 @@ const mock = vi.hoisted(() => {
     remove,
     runTransaction,
     recursiveDelete,
+    transactionTraces,
     setBeforeTransaction: (hook: (() => void) | undefined) => { beforeTransaction = hook; },
+    setAfterReadOnlyTransaction: (hook: (() => void | Promise<void>) | undefined) => { afterReadOnlyTransaction = hook; },
+    setRejectQueryLeaseWrites: (value: boolean) => { rejectQueryLeaseWrites = value; },
     setRejectReadsAfterWrite: (value: boolean) => { rejectReadsAfterWrite = value; },
     db: {
       doc: ref,
@@ -229,13 +280,14 @@ vi.mock('firebase-functions/v2/https', () => ({
       super(message);
     }
   },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
 }));
 
 import {
+  assignRole,
   beginOpenAirspacePhase,
   claimSeat,
   deleteInactiveSessions,
@@ -243,6 +295,7 @@ import {
   expireStalePlayers,
   getSessionPresence,
   refreshPresence,
+  releaseRole,
   rollDice,
   resumeSession,
 } from './index';
@@ -349,10 +402,204 @@ beforeEach(() => {
   mock.runTransaction.mockClear();
   mock.recursiveDelete.mockClear();
   mock.setBeforeTransaction(undefined);
+  mock.setAfterReadOnlyTransaction(undefined);
+  mock.setRejectQueryLeaseWrites(false);
+  mock.transactionTraces.length = 0;
   mock.setRejectReadsAfterWrite(false);
 });
 
 afterEach(() => vi.useRealTimers());
+
+/** Warm the real ticker producer, then retain a fully materialized live seat. */
+async function stableCorePresence(fields: StoredDocument = {}) {
+  session({ currentTurn: 0, activeRoleIds: recommendedRoleIds(18), setupRevision: 4, ...fields });
+  player({ assignedRoleId: 'admiral', seatId: 'admiral', activeConsoleRoleId: 'admiral', connectionGeneration: 7 });
+  put('sessions/s1/seats/admiral', {
+    roleId: 'admiral', status: 'claimed', holderUid: 'u1', claimedAt: mock.Timestamp.fromDate(NOW),
+  });
+  put('activeMemberships/u1', { sessionId: 's1', connectedAt: mock.Timestamp.fromDate(NOW) });
+  await refreshPresence.run(request({ sessionId: 's1' }));
+  put('sessions/s1/players/u1', { ...read('sessions/s1/players/u1'), lastSeenAt: mock.Timestamp.fromDate(NOW) });
+  put('sessions/s1/presenceReconciliations/u1', {
+    lastFullReconciliationAt: mock.Timestamp.fromMillis(NOW.getTime() - 10_000),
+  });
+  mock.transactionTraces.length = 0;
+  mock.get.mockClear();
+  mock.update.mockClear();
+  mock.set.mockClear();
+}
+
+describe('unchanged core presence transaction boundary', () => {
+  it('renews all 20 explicit core holders concurrently with read-only exclusivity checks and point-only lease writes', async () => {
+    const roles = recommendedRoleIds(20);
+    session({ phase: 'active', currentTurn: 2, turnPhase: ACTIVE_TURN_PHASE,
+      activeRoleIds: roles, setupRevision: 40, configurationLocked: true,
+      connectedPlayerCount: 21, connectedGmCount: 1 });
+    for (const [index, roleId] of roles.entries()) {
+      const uid = `core-${index}`;
+      livePlayer(uid, { assignedRoleId: roleId, seatId: roleId, activeConsoleRoleId: roleId, connectionGeneration: 7 });
+      put(`sessions/s1/seats/${roleId}`, { roleId, status: 'claimed', holderUid: uid });
+      put(`activeMemberships/${uid}`, { sessionId: 's1', connectedAt: mock.Timestamp.fromDate(NOW) });
+      put(`sessions/s1/presenceReconciliations/${uid}`, {
+        lastFullReconciliationAt: mock.Timestamp.fromMillis(NOW.getTime() - 10_000),
+      });
+    }
+    await refreshPresence.run(request({ sessionId: 's1' }, 'core-0'));
+    put('sessions/s1/players/core-0', { ...read('sessions/s1/players/core-0'), lastSeenAt: mock.Timestamp.fromDate(NOW) });
+    const sessionBefore = read('sessions/s1');
+    mock.transactionTraces.length = 0;
+    mock.setRejectQueryLeaseWrites(true);
+
+    const replies = await Promise.all(roles.map((roleId, index) => refreshPresence.run(request({
+      sessionId: 's1', activeConsoleRoleId: roleId,
+    }, `core-${index}`))));
+    expect(replies).toEqual(roles.map(() => ({ sessionId: 's1' })));
+    expect(read('sessions/s1')).toEqual(sessionBefore);
+    const checks = mock.transactionTraces.filter(trace => trace.readOnly);
+    const renewals = mock.transactionTraces.filter(trace => !trace.readOnly);
+    expect(checks).toHaveLength(20);
+    expect(renewals).toHaveLength(20);
+    for (const [index, roleId] of roles.entries()) {
+      const uid = `core-${index}`;
+      expect(read(`sessions/s1/players/${uid}`)).toMatchObject({
+        activeConsoleRoleId: roleId, assignedRoleId: roleId, seatId: roleId,
+        connected: true, connectionGeneration: 7, lastSeenAt: 'server-time',
+      });
+      expect(read(`sessions/s1/seats/${roleId}`)).toMatchObject({ status: 'claimed', holderUid: uid });
+      expect(read(`activeMemberships/${uid}`)).toMatchObject({ sessionId: 's1' });
+      expect(read(`sessions/s1/presenceReconciliations/${uid}`)?.lastFullReconciliationAt)
+        .toEqual(mock.Timestamp.fromDate(NOW));
+      expect(renewals[index].reads.every(value => !value.query)).toBe(true);
+      expect(renewals[index].writes.sort()).toEqual([
+        `activeMemberships/${uid}`, `sessions/s1/players/${uid}`, `sessions/s1/presenceReconciliations/${uid}`,
+      ].sort());
+      expect(checks[index].writes).toEqual([]);
+      expect(checks[index].reads.filter(value => value.query)).toEqual([{ path: 'sessions/s1/players', query: true }]);
+    }
+  });
+
+  it.each([
+    ['disconnected', { connected: false }],
+    ['kicked', { kickedAt: mock.Timestamp.fromDate(NOW) }],
+    ['generation', { connectionGeneration: 8 }],
+    ['assignment', { assignedRoleId: 'dione-captain' }],
+    ['seat pointer', { seatId: null }],
+    ['console selection', { activeConsoleRoleId: null }],
+    ['replacement', { replacementStatus: 'awaiting-re-role' }],
+    ['replacement identity', { replacementRoleId: 'vulcan-captain' }],
+  ])('rejects a %s authority change after read-only preflight without renewing the lease', async (_label, change) => {
+    await stableCorePresence();
+    const marker = read('sessions/s1/presenceReconciliations/u1');
+    mock.setAfterReadOnlyTransaction(() => {
+      put('sessions/s1/players/u1', { ...read('sessions/s1/players/u1'), ...change });
+    });
+    await expect(refreshPresence.run(request({ sessionId: 's1', activeConsoleRoleId: 'admiral' })))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(read('sessions/s1/players/u1')?.lastSeenAt).toEqual(mock.Timestamp.fromDate(NOW));
+    expect(read('sessions/s1/presenceReconciliations/u1')).toEqual(marker);
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+  });
+
+  it.each(['seat', 'seat role', 'setup revision', 'configured roles', 'setup', 'phase', 'membership', 'membership removed'])(
+    'rejects a changed %s fence after preflight without recovering it through a mutation', async field => {
+      await stableCorePresence();
+      mock.setAfterReadOnlyTransaction(() => {
+        if (field === 'seat') put('sessions/s1/seats/admiral', { roleId: 'admiral', status: 'claimed', holderUid: 'u2' });
+        else if (field === 'seat role') put('sessions/s1/seats/admiral', { roleId: 'dione-captain', status: 'claimed', holderUid: 'u1' });
+        else if (field === 'setup revision') put('sessions/s1', { ...read('sessions/s1'), setupRevision: 5 });
+        else if (field === 'configured roles') put('sessions/s1', { ...read('sessions/s1'), activeRoleIds: ['dione-captain'] });
+        else if (field === 'setup') put('sessions/s1', { ...read('sessions/s1'), setup: { configurationVersion: 'changed' } });
+        else if (field === 'phase') put('sessions/s1', { ...read('sessions/s1'), phase: 'active' });
+        else if (field === 'membership') put('activeMemberships/u1', { sessionId: 'other' });
+        else mock.documents.delete('activeMemberships/u1');
+      });
+      await expect(refreshPresence.run(request({ sessionId: 's1', activeConsoleRoleId: 'admiral' })))
+        .rejects.toMatchObject({ code: 'permission-denied' });
+      expect(read('sessions/s1/players/u1')?.lastSeenAt).toEqual(mock.Timestamp.fromDate(NOW));
+      expect(mock.update).not.toHaveBeenCalled();
+      expect(mock.set).not.toHaveBeenCalled();
+    },
+  );
+
+  it('checks the actual 45-second lease again after the read-only preflight', async () => {
+    await stableCorePresence();
+    mock.setAfterReadOnlyTransaction(() => { vi.setSystemTime(NOW.getTime() + PRESENCE_LEASE_MS); });
+    await expect(refreshPresence.run(request({ sessionId: 's1', activeConsoleRoleId: 'admiral' })))
+      .rejects.toMatchObject({ code: 'permission-denied', message: 'Reconnect to the session first.' });
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+  });
+
+  it('rejects the old holder after a valid release, reassignment, seat claim and selection between stages', async () => {
+    await stableCorePresence({ phase: 'casting', configurationLocked: false, playerCount: 18 });
+    livePlayer('gm', { role: 'gm' });
+    livePlayer('u2');
+    put('sessions/s1/gmInstances/bridge', { uid: 'gm', connected: true,
+      lastSeenAt: mock.Timestamp.fromDate(NOW), claimedAt: mock.Timestamp.fromDate(NOW) });
+    mock.setAfterReadOnlyTransaction(async () => {
+      await releaseRole.run(request({ sessionId: 's1', instanceId: 'bridge', targetUid: 'u1', requestId: 'renew-race-release' }, 'gm'));
+      await assignRole.run(request({ sessionId: 's1', instanceId: 'bridge', targetUid: 'u2', roleId: 'admiral', requestId: 'renew-race-assign' }, 'gm'));
+      const revision = read('sessions/s1')?.setupRevision as number;
+      await expect(claimSeat.run(request({ sessionId: 's1', seatId: 'admiral', requestId: 'renew-race-claim', expectedSetupRevision: revision }, 'u2')))
+        .resolves.toMatchObject({ status: 'committed', holderUid: 'u2' });
+      await refreshPresence.run(request({ sessionId: 's1', activeConsoleRoleId: 'admiral' }, 'u2'));
+    });
+    await expect(refreshPresence.run(request({ sessionId: 's1', activeConsoleRoleId: 'admiral' })))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(read('sessions/s1/players/u1')).toMatchObject({ assignedRoleId: null, seatId: null, activeConsoleRoleId: null });
+    expect(read('sessions/s1/players/u1')?.lastSeenAt).toEqual(mock.Timestamp.fromDate(NOW));
+    expect(read('sessions/s1/players/u2')).toMatchObject({ assignedRoleId: 'admiral', seatId: 'admiral', activeConsoleRoleId: 'admiral' });
+    expect(read('sessions/s1/seats/admiral')).toMatchObject({ status: 'claimed', holderUid: 'u2' });
+  });
+
+  it('retains full duplicate reconciliation when another stored marker is inactive', async () => {
+    await stableCorePresence();
+    livePlayer('legacy', { connected: false, assignedRoleId: 'admiral', seatId: null, activeConsoleRoleId: 'admiral' });
+    await expect(refreshPresence.run(request({ sessionId: 's1', activeConsoleRoleId: 'admiral' })))
+      .resolves.toEqual({ sessionId: 's1' });
+    expect(mock.transactionTraces.filter(trace => !trace.readOnly).some(trace =>
+      trace.reads.some(value => value.query && value.path === 'sessions/s1/players'))).toBe(true);
+    expect(read('sessions/s1/players/legacy')).toMatchObject({ connected: false, activeConsoleRoleId: 'admiral' });
+  });
+
+  it('retains the live duplicate denial even for a fully materialized own seat', async () => {
+    await stableCorePresence();
+    livePlayer('duplicate', { activeConsoleRoleId: 'admiral' });
+    await expect(refreshPresence.run(request({ sessionId: 's1', activeConsoleRoleId: 'admiral' })))
+      .rejects.toMatchObject({ code: 'already-exists' });
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+  });
+
+  it('keeps ticker migration on the original authoritative mutation transaction', async () => {
+    await stableCorePresence();
+    const { fleetTicker: _ticker, ...legacy } = read('sessions/s1')!;
+    void _ticker;
+    put('sessions/s1', legacy);
+    await expect(refreshPresence.run(request({ sessionId: 's1', activeConsoleRoleId: 'admiral' })))
+      .resolves.toEqual({ sessionId: 's1' });
+    expect(mock.update.mock.calls.some(([target, fields]) =>
+      target.path === 'sessions/s1' && fields.fleetTicker !== undefined)).toBe(true);
+    expect(mock.transactionTraces.filter(trace => !trace.readOnly).some(trace =>
+      trace.reads.some(value => value.query && value.path === 'sessions/s1/players'))).toBe(true);
+  });
+
+  it('returns to the full transaction if ticker migration becomes necessary between stages', async () => {
+    await stableCorePresence();
+    mock.setAfterReadOnlyTransaction(() => {
+      const { fleetTicker: _ticker, ...legacy } = read('sessions/s1')!;
+      void _ticker;
+      put('sessions/s1', legacy);
+    });
+    await expect(refreshPresence.run(request({ sessionId: 's1', activeConsoleRoleId: 'admiral' })))
+      .resolves.toEqual({ sessionId: 's1' });
+    expect(mock.transactionTraces.filter(trace => trace.readOnly)).toHaveLength(1);
+    const fallback = mock.transactionTraces.find(trace => trace.writes.includes('sessions/s1'));
+    expect(fallback?.reads.some(value => value.query && value.path === 'sessions/s1/players')).toBe(true);
+    expect(read('sessions/s1')?.fleetTicker).toBeDefined();
+  });
+});
 
 describe('expensive session callable rate limits', () => {
   it('limits roster reads per authenticated player and ignores client-supplied identity or bypass markers', async () => {
@@ -446,7 +693,10 @@ describe('presence lease', () => {
 
     expect(read('sessions/s1/players/u1')).toMatchObject({ lastSeenAt: 'server-time' });
     expect(read('activeMemberships/u1')).toMatchObject({ sessionId: 's1' });
-    expect(readPaths()).toContain('sessions/s1/players');
+    expect(readPaths()).toEqual(expect.arrayContaining([
+      'sessions/s1/players/u1', 'sessions/s1', 'sessions/s1/presenceReconciliations/u1',
+    ]));
+    expect(readPaths()).not.toContain('sessions/s1/players');
     expect(read('sessions/s1/presenceReconciliations/u1')?.lastFullReconciliationAt)
       .toEqual(expect.any(mock.Timestamp));
   });
@@ -473,9 +723,25 @@ describe('presence lease', () => {
     });
   });
 
-  it('performs full reconciliation once the marker interval elapses', async () => {
+  it('reconciles a passive non-Press lease without locking every other player or private census', async () => {
     session();
     player();
+    const prior = mock.Timestamp.fromMillis(NOW.getTime() - PRESENCE_RECONCILIATION_INTERVAL_MS - 1);
+    put('sessions/s1/presenceReconciliations/u1', { lastFullReconciliationAt: prior });
+
+    await expect(refreshPresence.run(request({ sessionId: 's1' }))).resolves.toEqual({ sessionId: 's1' });
+
+    expect(readPaths()).not.toContain('sessions/s1/players');
+    expect(readPaths()).not.toContain('sessions/s1/secrets');
+    expect(readPaths()).not.toContain('sessions/s1/loyaltyCensus/current');
+    expect(read('sessions/s1/presenceReconciliations/u1')?.lastFullReconciliationAt).not.toBe(prior);
+    expect(read('sessions/s1/players/u1')).toMatchObject({ connected: true, lastSeenAt: 'server-time' });
+    expect(read('activeMemberships/u1')).toMatchObject({ sessionId: 's1' });
+  });
+
+  it('performs full reconciliation once the marker interval elapses', async () => {
+    session();
+    player({ activeConsoleRoleId: 'press-officer', assignedRoleId: null });
     put('sessions/s1/presenceReconciliations/u1', {
       lastFullReconciliationAt: mock.Timestamp.fromMillis(
         NOW.getTime() - PRESENCE_RECONCILIATION_INTERVAL_MS - 1,
@@ -487,8 +753,54 @@ describe('presence lease', () => {
     });
 
     expect(readPaths()).toContain('sessions/s1/players');
+    expect(readPaths()).toContain('sessions/s1/secrets');
+    expect(readPaths()).toContain('sessions/s1/loyaltyCensus/current');
     expect(read('sessions/s1/presenceReconciliations/u1')?.lastFullReconciliationAt)
       .toEqual(expect.any(mock.Timestamp));
+  });
+
+  it.each([undefined, 'press-officer'])('renews unchanged exclusive Press authority without locking core players or rewriting the session (%s)', async activeConsoleRoleId => {
+    session({ phase: 'active', currentTurn: 2, turnPhase: ACTIVE_TURN_PHASE,
+      pressEnabled: true, pressHolderUid: 'u1' });
+    player({ activeConsoleRoleId: 'press-officer', assignedRoleId: null });
+    livePlayer('core', { assignedRoleId: 'admiral', seatId: 'admiral', activeConsoleRoleId: 'admiral' });
+    put('sessions/s1/secrets/loyalty-u1', { payload: { type: 'private-marker' } });
+    await refreshPresence.run(request({ sessionId: 's1' }));
+    put('sessions/s1/players/u1', { ...read('sessions/s1/players/u1'), lastSeenAt: mock.Timestamp.fromDate(NOW) });
+    put('sessions/s1/presenceReconciliations/u1', {
+      lastFullReconciliationAt: mock.Timestamp.fromMillis(NOW.getTime() - PRESENCE_RECONCILIATION_INTERVAL_MS - 1),
+    });
+    mock.get.mockClear(); mock.update.mockClear(); mock.set.mockClear();
+    mock.setRejectReadsAfterWrite(true);
+
+    await expect(refreshPresence.run(request({ sessionId: 's1',
+      ...(activeConsoleRoleId ? { activeConsoleRoleId } : {}) }))).resolves.toEqual({ sessionId: 's1' });
+
+    const playerQueries = mock.get.mock.calls.map(([target]) => target as { path: string; filters?: unknown[] })
+      .filter(target => target.path === 'sessions/s1/players');
+    expect(playerQueries).toHaveLength(1);
+    expect(playerQueries[0].filters).toEqual([['activeConsoleRoleId', '==', 'press-officer']]);
+    expect(readPaths()).not.toContain('sessions/s1/secrets');
+    expect(readPaths()).not.toContain('sessions/s1/loyaltyCensus/current');
+    expect(mock.update.mock.calls.map(([ref]) => (ref as { path: string }).path)).toEqual(['sessions/s1/players/u1']);
+    expect(read('sessions/s1/secrets/loyalty-u1')).toEqual({ payload: { type: 'private-marker' } });
+    expect(read('activeMemberships/u1')).toMatchObject({ sessionId: 's1' });
+  });
+
+  it.each(['disabled', 'duplicate'])('rechecks canonical Press %s authority even inside the prior cheap-heartbeat interval', async condition => {
+    session({ pressEnabled: condition !== 'disabled', pressHolderUid: 'u1' });
+    player({ assignedRoleId: null, activeConsoleRoleId: 'press-officer' });
+    put('sessions/s1/presenceReconciliations/u1', { lastFullReconciliationAt: mock.Timestamp.fromDate(NOW) });
+    put('sessions/s1/secrets/loyalty-u1', { payload: { type: 'private-marker' } });
+    if (condition === 'duplicate') livePlayer('u2', { activeConsoleRoleId: 'press-officer' });
+    mock.setRejectReadsAfterWrite(true);
+
+    await expect(refreshPresence.run(request({ sessionId: 's1' }))).resolves.toEqual({ sessionId: 's1', stationSelectionRequired: true });
+
+    expect(read('sessions/s1/players/u1')?.activeConsoleRoleId).toBeNull();
+    expect(read('sessions/s1/secrets/loyalty-u1')).toBeUndefined();
+    expect(read('sessions/s1')?.pressHolderUid).toBe(condition === 'duplicate' ? 'u2' : null);
+    expect(mock.get.mock.calls.some(([target]) => 'path' in target && target.path === 'sessions/s1/players' && !('filters' in target))).toBe(true);
   });
 
   it('keeps the full marker isolated by session and player identity', async () => {
@@ -515,22 +827,29 @@ describe('presence lease', () => {
     mock.get.mockClear();
     await expect(refreshPresence.run(request({ sessionId: 's2' })))
       .resolves.toEqual({ sessionId: 's2' });
-    expect(readPaths()).toContain('sessions/s2/players');
+    expect(readPaths()).toContain('sessions/s2/presenceReconciliations/u1');
+    expect(readPaths()).not.toContain('sessions/s1/presenceReconciliations/u1');
+    expect(readPaths()).not.toContain('sessions/s2/players');
     expect(read('sessions/s2/presenceReconciliations/u1')?.lastFullReconciliationAt)
       .toEqual(expect.any(mock.Timestamp));
   });
 
   it('never takes the cheap path for an explicit role claim or release', async () => {
     session({ pressEnabled: true, activeRoleIds: ['admiral'] });
-    player();
-    put('sessions/s1/presenceReconciliations/u1', {
-      lastFullReconciliationAt: mock.Timestamp.fromDate(NOW),
-    });
+    player({ seatId: 'admiral', assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral' });
+    put('sessions/s1/seats/admiral', { status: 'claimed', holderUid: 'u1' });
+    const marker = mock.Timestamp.fromDate(NOW);
+    put('sessions/s1/presenceReconciliations/u1', { lastFullReconciliationAt: marker });
 
     await expect(refreshPresence.run(request({ sessionId: 's1', activeConsoleRoleId: null })))
       .resolves.toEqual({ sessionId: 's1' });
 
-    expect(readPaths()).toContain('sessions/s1/players');
+    expect(readPaths()).toContain('sessions/s1/seats/admiral');
+    expect(readPaths()).not.toContain('sessions/s1/players');
+    expect(read('sessions/s1/players/u1')).toMatchObject({
+      activeConsoleRoleId: null, assignedRoleId: 'admiral', seatId: 'admiral',
+    });
+    expect(read('sessions/s1/presenceReconciliations/u1')?.lastFullReconciliationAt).not.toBe(marker);
     expect(read('sessions/s1/presenceReconciliations/u1')?.lastFullReconciliationAt)
       .toEqual(expect.any(mock.Timestamp));
   });
@@ -657,7 +976,10 @@ describe('presence lease', () => {
     await expect(refreshPresence.run(request({ sessionId: 's1' })))
       .resolves.toEqual({ sessionId: 's1', stationSelectionRequired: true });
 
-    expect(readPaths()).toContain('sessions/s1/players');
+    expect(readPaths()).toEqual(expect.arrayContaining([
+      'sessions/s1/players/u1', 'sessions/s1/seats/admiral', 'sessions/s1/seats/dione-captain',
+    ]));
+    expect(readPaths()).not.toContain('sessions/s1/players');
     expect(read('sessions/s1/players/u1')).toMatchObject({ activeConsoleRoleId: null });
   });
 
@@ -975,6 +1297,9 @@ describe('presence lease', () => {
       sessionId: 's1', activeConsoleRoleId: null,
     }))).resolves.toEqual({ sessionId: 's1' });
 
+    expect(readPaths()).toEqual(expect.arrayContaining([
+      'sessions/s1/players', 'sessions/s1/secrets', 'sessions/s1/loyaltyCensus/current',
+    ]));
     expect(read('sessions/s1/players/u1')).toMatchObject({
       activeConsoleRoleId: null,
       assignedRoleId: null,

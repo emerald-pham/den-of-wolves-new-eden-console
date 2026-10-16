@@ -1,3 +1,4 @@
+import type * as NodeCrypto from 'node:crypto';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
@@ -34,7 +35,7 @@ const mock = vi.hoisted(() => {
 });
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
-vi.mock('node:crypto', () => cryptoMock);
+vi.mock('node:crypto', async (importOriginal) => ({ ...await importOriginal<typeof NodeCrypto>(), ...(cryptoMock) }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => mock.db,
   FieldValue: { serverTimestamp: () => 'server-time', delete: () => 'deleted' },
@@ -52,13 +53,14 @@ vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error {
     constructor(readonly code: string, message: string) { super(message); }
   },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
 }));
 
 import { investigateAsIntelligenceAgent } from './index';
+import { privateLoyaltyDirectives } from './privateLoyaltyDirectives';
 
 const data = {
   sessionId: 's1', requestId: 'investigate-1', expectedCycle: 2, targetUid: 'u3',
@@ -147,6 +149,25 @@ it('inverts the private answer on the fifth accuracy outcome', async () => {
   });
   expect(mock.documents.get('sessions/s1/intelligenceInvestigationAudits/investigate-1'))
     .toMatchObject({ actualWolf: false, reportedWolf: true, accurate: false, accuracyRoll: 5 });
+});
+
+it('retains the current Intelligence Agent private directives when its suspicion changes', async () => {
+  const directives = privateLoyaltyDirectives('intelligence-agent');
+  put('sessions/s1/secrets/loyalty-u2', {
+    visibleToUids: ['u2'],
+    payload: { type: 'loyalty', kind: 'intelligence-agent', suspicion: 6, directives },
+  });
+
+  await investigateAsIntelligenceAgent.run(request());
+
+  expect(mock.documents.get('sessions/s1/secrets/loyalty-u2')).toEqual({
+    visibleToUids: ['u2'],
+    payload: { type: 'loyalty', kind: 'intelligence-agent', suspicion: 8, directives },
+  });
+  expect(mock.documents.get('sessions/s1/intelligenceInvestigations/u2')).not.toHaveProperty('directives');
+  expect(mock.documents.get('sessions/s1/secrets/loyalty-u3')).toEqual({
+    visibleToUids: ['u3'], payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 },
+  });
 });
 
 it('treats Wolf Cult as Wolf aligned for the private report', async () => {

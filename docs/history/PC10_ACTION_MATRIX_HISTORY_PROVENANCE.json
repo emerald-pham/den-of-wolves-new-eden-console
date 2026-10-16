@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "status": "historical records are byte-preserved; current counts are recorded by the regenerated canonical matrix",
+  "oldCanonicalMatrix": {
+    "path": "docs/history/PC10_ACTION_ROLE_MATRIX_241_exports_232_callables.json",
+    "sha256": "bdd64af30a867de22a2c0abb3513bea94fc5ef618ac909188d7072baee53f224",
+    "bytes": 2002854,
+    "sourceBinding": {
+      "generatedAtSourceCommit": "68d4429fd9d4c16060da85e0df9a591b0e6db76f",
+      "functionsSourceCommit": "191f1cc8ccfd4050b8400d1e16acc2d0e299ad8c",
+      "functionsSourceTree": {
+        "fileCount": 511,
+        "sha256": "a6149c62f8aeed71851d237478212855b59cc5772d7fd4674e2d967629ca6ab7"
+      },
+      "functionsEntrypointSha256": "a6044467b839d2b29a4ffd02232ca74c00563f2e25c287eddd8e92b6a750509f",
+      "clientSourceTree": {
+        "fileCount": 806,
+        "sha256": "ca46c5a74b0b5c1850948e709ffc71b2db1ddceb34d18cfe92ed64253f4ef87e"
+      },
+      "compiledTree": {
+        "fileCount": 434,
+        "sha256": "73ad876f12bd2b4d4e368f4d452d4a0020e55ddfdc0ddb9086a218ef38d82a8b"
+      },
+      "compiledEntrypointSha256": "37929071d3e7aca81556291cd55304879d08d3d0861a6ce4ae96f81094155b4d",
+      "buildCommand": "npm run build --prefix functions",
+      "buildScope": "isolated action-matrix worktree; does not assert the root owner checkout was rebuilt",
+      "runtimeTesting": "No emulator, browser, native callable, or gameplay request was run for this matrix."
+    },
+    "accounting": {
+      "actualExports": 241,
+      "callableExports": 232,
+      "scheduleExports": 3,
+      "backgroundExports": 6,
+      "roles": 42,
+      "callableWithClientSourceReference": 226,
+      "callableWithStaticImportChainToApp": 226,
+      "callableWithNoStaticClientReference": 6,
+      "servingStatus": "No row is credited as a visible, enabled, eligible, or usable control from static imports alone.",
+      "nativeOnlyStatus": "Not classified; no native runtime probe was performed for this source revision.",
+      "unavailableStatus": "No-static-client-reference rows are candidates for owner review, not proof of product unavailability.",
+      "humanPhysicalStatus": "No human or physical-device play evidence is claimed."
+    },
+    "acceptanceAccounting": {
+      "fixedPromptClosures": 48,
+      "a01QrCredit": 0,
+      "a02Credit": 0,
+      "pc11Executed": false,
+      "pc12Executed": false,
+      "gameplayProofCredit": 0
+    }
+  },
+  "oldRootAnnotationArtifact": {
+    "path": "docs/history/PC10_ACTION_REVIEW_ANNOTATIONS_20_reviewed_rows_212_unreviewed.json",
+    "sha256": "fc19cf4c80ba7f76bc53562d1916ceb6533ffe3239e9c9bf9875f34c099a61e9",
+    "bytes": 100958,
+    "sourceBinding": {
+      "ownerRevision": "9681f7aad0451f125dad4b2296f80ebe2b3330cc",
+      "sourceCommit": "08b21c99702c2532221b8072b48f29dd22e820c1",
+      "functionsSource": {
+        "fileCount": 217,
+        "sha256": "bd2632edaf6f6147732f8207d8f1159bc5206e940f07fd6467b511622f8b84ca"
+      },
+      "clientSource": {
+        "fileCount": 395,
+        "sha256": "5dde0517e8c2f118656a4fea009c9a0d51b5dfcd7bf3af4f171bce15e846c4de"
+      },
+      "buildArtifactsIncluded": false,
+      "runtimeChecks": "not run",
+      "scope": "Current TypeScript/JavaScript source only. No Functions rebuild, browser, native, emulator, HTTP, or gameplay request was run for this annotation snapshot."
+    },
+    "coverageAccounting": {
+      "baselineCallableExports": 232,
+      "annotatedCallables": 20,
+      "remainingCallableRowsNotReviewed": 212,
+      "baselineRoleIdentities": 42,
+      "baselineCallableRoleCells": 9744,
+      "callableRoleCellsReviewed": 0,
+      "gameplayAcceptanceCredit": 0,
+      "canonicalSnapshotPath": "docs/PC10_ACTION_ROLE_MATRIX.json",
+      "canonicalSnapshotSha256": "bdd64af30a867de22a2c0abb3513bea94fc5ef618ac909188d7072baee53f224",
+      "canonicalSnapshotModified": false,
+      "clarification": "The canonical generator snapshot is preserved. Its unresolved inConsoleGuidance sentinel is not treated here as proof that every remaining action is a PC11 guidance gap; only the reviewed rows below have an explicit source-traced guidance status. Unreviewed rows remain unreviewed.",
+      "explicitPc11GuidanceGaps": [
+        {
+          "exportName": "submitWolfSupplySabotage",
+          "status": "server-action-not-surfaced-to-member-ui",
+          "summary": "The current member panel wires other Wolf actions while the GM console presents this action\u2019s receipt. If this callable is later exposed as a member control, add adjacent requirements, selected-cargo loss and next-step guidance; this source pass does not claim that UI flow complete.",
+          "sourceAnchorIds": [
+            "supply.handler",
+            "supply.otherWolfControls",
+            "supply.receiptUi"
+          ]
+        }
+      ]
+    }
+  },
+  "previousFullSourceReviewOverlay": {
+    "path": "/tmp/dow-pc10-evidence/action-review/PC10_ACTION_REVIEW_ANNOTATIONS.json",
+    "sha256": "d2abe3867f7a9ed5247d6bfec719609bab2699113fd63b724947f6b106439cfb",
+    "bytes": 2896051,
+    "sourceBinding": {
+      "ownerRevision": "7581cb14bd3a6ab0967fc21936a5aac35bfed69f",
+      "sourceCommit": "7581cb14bd3a6ab0967fc21936a5aac35bfed69f",
+      "generatedAtRevision": "09fab742d81e6ce12f0a97a3e62681b9acd6d8a1",
+      "functionsSource": {
+        "fileCount": 217,
+        "sha256": "61d51efa0ff0295531b8c6fd4f677b5c48dd13bd609bde3cf080964db64cbe49"
+      },
+      "clientSource": {
+        "fileCount": 395,
+        "sha256": "f1689ca473389b2da517ac47fbddfca01196c3e8dbc68972f7d97bfb45e76625"
+      },
+      "buildArtifactsIncluded": false,
+      "runtimeChecks": "not run",
+      "scope": "Current source only. No Functions rebuild, browser, native, emulator, HTTP, or gameplay request was run for this annotation snapshot."
+    },
+    "coverageAccounting": {
+      "baselineCallableExports": 232,
+      "annotatedCallables": 20,
+      "supplementalSourceReviewedCallables": 6,
+      "endingsShardSourceReviewedCallables": 68,
+      "workspaceShardSourceReviewedCallables": 69,
+      "demoShardSourceReviewedCallables": 69,
+      "sourceReviewedCanonicalCallableRows": 232,
+      "sourceInventoryDeltaCallableRows": 1,
+      "totalDetailedActionContractReviews": 233,
+      "callableRowsWithExplicitUnresolvedContractFields": 0,
+      "remainingCallableRowsNotReviewed": 0,
+      "baselineRoleIdentities": 42,
+      "baselineCallableRoleCells": 9744,
+      "callableRoleCellsReviewed": 0,
+      "gameplayAcceptanceCredit": 0,
+      "canonicalSnapshotPath": "docs/PC10_ACTION_ROLE_MATRIX.json",
+      "canonicalSnapshotSha256": "bdd64af30a867de22a2c0abb3513bea94fc5ef618ac909188d7072baee53f224",
+      "canonicalSnapshotModified": false,
+      "clarification": "The canonical 232-callable and 42-role generator snapshot is preserved. The 20 primary annotations, 6 Scout reviews, and three exact source shards cover its 232 callable contracts at the source-description layer. Role cells, actual usability, browser/native gameplay acceptance, and physical-play evidence remain uncredited. One additional transferWarriorCargo source export is recorded separately when present; it is not inserted into the frozen snapshot.",
+      "explicitPc11GuidanceGaps": [
+        {
+          "exportName": "submitWolfSupplySabotage",
+          "status": "server-action-not-surfaced-to-member-ui",
+          "summary": "The current member panel wires other Wolf actions while the GM console presents this action\u2019s receipt. If this callable is later exposed as a member control, add adjacent requirements, selected-cargo loss and next-step guidance; this source pass does not claim that UI flow complete.",
+          "sourceAnchorIds": [
+            "supply.handler",
+            "supply.otherWolfControls",
+            "supply.receiptUi"
+          ]
+        }
+      ]
+    },
+    "retention": "Existing task evidence retained under /tmp; this manifest records its exact hash and binding without rewriting it."
+  },
+  "inventoryTransition": {
+    "historicalCounts": {
+      "sdkExports": 241,
+      "callables": 232,
+      "roles": 42
+    },
+    "currentCounts": {
+      "sdkExports": 242,
+      "callables": 233,
+      "roles": 42
+    },
+    "addedCallable": "transferWarriorCargo",
+    "sourceCategory": "A02 ability repair",
+    "acceptanceCredit": 0,
+    "addedFixedCatalogClosures": 0,
+    "note": "The callable is counted and source-reviewed; the inventory row does not add a fixed catalog closure, role eligibility, usability, or gameplay evidence."
+  }
+}

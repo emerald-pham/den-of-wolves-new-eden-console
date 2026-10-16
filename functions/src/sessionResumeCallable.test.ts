@@ -44,6 +44,7 @@ vi.mock('firebase-admin/firestore', () => ({
     collection: (path: string) => ({
       path,
       doc: (id?: string) => ({ path: path + '/' + (id ?? 'generated-session') }),
+      where: (field: string, operator: string, value: unknown) => ({ path, filters: [[field, operator, value]] }),
     }),
     runTransaction: (callback: (tx: unknown) => unknown) => {
       let writeStarted = false;
@@ -122,6 +123,8 @@ vi.mock('firebase-admin/firestore', () => ({
 import { resumeSession } from './index';
 import { recommendedRoleIds } from './roleConfiguration';
 import { callableRateLimitDocumentId } from './callableRateLimit';
+import { canonicalSessionSetup, normalizeSessionConfiguration, stableSeatsForRoles } from './gameSetup';
+import { navigationState, playerDiscoveryProjection } from './navigationProjection';
 
 function request(sessionId: string) {
   return {
@@ -190,6 +193,7 @@ function prepareResume(
     if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path === 'sessions/s1') return session;
     if (path === 'sessions/s1/players/u1') return player;
+    if (path === 'sessions/s1/secrets/loyalty-u1') return snapshot({}, false);
     if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (storedSeatId !== null && path === `sessions/s1/seats/${storedSeatId}`) {
@@ -211,6 +215,23 @@ function prepareResume(
   return { playerData, sessionData };
 }
 
+function enableClosedHistoryReads(groupId = 'fleet-1', memberUids = ['u1']) {
+  const previousGet = mock.get.getMockImplementation();
+  mock.get.mockImplementation((reference: { path: string }) => {
+    if (reference.path === 'sessions/s1/fleetGroups') {
+      const fields = { id: groupId, vesselIds: ['aegis'], memberUids };
+      const groups = [{ id: groupId, data: () => fields, get: (field: string) => fields[field as keyof typeof fields] }];
+      return { docs: groups };
+    }
+    if (reference.path === 'sessions/s1/shuttleDepartures') return { docs: [] };
+    if (reference.path === 'sessions/s1/presidentialElections/current' ||
+        reference.path === 'sessions/s1/presidentialElections/current/ballots/u1') {
+      return snapshot({}, false);
+    }
+    return previousGet?.(reference);
+  });
+}
+
 beforeEach(() => {
   mock.rateLimitMarkers.clear();
   mock.get.mockReset();
@@ -224,6 +245,222 @@ beforeEach(() => {
       mock.rateLimitMarkers.set(ref.path, value);
     }
   });
+});
+
+function prepareCurrentResume() {
+  const setup = canonicalSessionSetup(normalizeSessionConfiguration({
+    playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+    dioneEnabled: false, capybaraEnabled: false, universalArbourEnabled: false, wolfCultEnabled: false,
+  }), recommendedRoleIds(8));
+  const navigation = { ...navigationState({
+    shipGalacticCoordinates: Object.fromEntries(setup.activeVesselIds.map(shipId => [shipId, '0000'])),
+    shipNavigationLogs: Object.fromEntries(setup.activeVesselIds.map(shipId => [shipId, []])),
+    pursuitGroups: { 'fleet-1': 2 },
+  }, setup.activeVesselIds), missionCommittedCraftIdsByHostShip: {} };
+  const current = prepareResume(
+    { ...stableSeatsForRoles(setup.activeRoleIds).find(seat => seat.id === 'admiral')!, status: 'claimed', holderUid: 'u1' },
+    { connected: true, lastSeenAt: mock.Timestamp.fromDate(new Date()), connectionGeneration: 3,
+      seatId: 'admiral', assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', fleetGroupId: 'fleet-1' },
+    { ...setup, setup, deleteAfter: null }, { ...navigation, revision: 5 }, true,
+  );
+  const group = { id: 'fleet-1', vesselIds: [...setup.activeVesselIds], memberUids: ['u1'], memberShipIds: { u1: 'aegis' } };
+  const discovery = playerDiscoveryProjection(snapshot(current.playerData), navigation, 5, group.vesselIds, undefined, 'u1', 'aegis');
+  const underlying = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation((ref: { path: string; filters?: unknown[] }) => {
+    if (ref.path === 'sessions/s1/players' && ref.filters) {
+      return { docs: [{ ...snapshot(current.playerData), id: 'u1' }] };
+    }
+    if (ref.path === 'sessions/s1/fleetGroups/fleet-1') return snapshot(group);
+    if (ref.path === 'sessions/s1/fleetGroups') return { docs: [{ ...snapshot(group), id: 'fleet-1' }] };
+    if (ref.path === 'sessions/s1/playerDiscoveries/u1') return snapshot({ ...discovery, updatedAt: 'prior-server-time' });
+    if (ref.path === 'activeMemberships/u1') return snapshot({ sessionId: 's1' });
+    return underlying(ref);
+  });
+  return current;
+}
+
+it('renews a current live member without scanning every player or rewriting shared discovery', async () => {
+  prepareCurrentResume();
+  mock.enforceReadOrder = true;
+
+  const reply = await resumeSession.run(request('s1'));
+
+  expect(reply.player).toMatchObject({ connectionGeneration: 4, assignedRoleId: 'admiral', seatId: 'admiral', activeConsoleRoleId: 'admiral' });
+  expect(reply.player.connected).toBe(true);
+  expect(mock.get.mock.calls.map(([ref]) => ref.path)).not.toContain('sessions/s1/players');
+  expect(nonRateLimitSetCalls().map(([ref]) => ref.path)).toEqual(['activeMemberships/u1']);
+  expect(mock.update.mock.calls.map(([ref]) => ref.path)).not.toContain('sessions/s1/serverState/navigation');
+});
+
+it('returns the observed post-commit disconnect instead of manufacturing a connected resume player', async () => {
+  prepareCurrentResume();
+  const read = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation((reference: { path: string }) => {
+    const current = read(reference);
+    if (reference.path !== 'sessions/s1/players/u1' || !mock.committedWrites.has(reference.path)) return current;
+    return snapshot({ ...current.data(), connected: false });
+  });
+
+  const reply = await resumeSession.run(request('s1'));
+
+  expect(reply.player).toMatchObject({ connectionGeneration: 4, connected: false });
+});
+
+it('restores missing printed loyalty directives from the current holder private secret on resume', async () => {
+  prepareResume({ status: 'open', holderUid: null });
+  const secretPath = 'sessions/s1/secrets/loyalty-u1';
+  overrideResumeRead(secretPath, {
+    visibleToUids: ['u1'],
+    payload: { type: 'loyalty', kind: 'android', suspicion: null, proofRevealed: true },
+  });
+  mock.enforceReadOrder = true;
+
+  await resumeSession.run(request('s1'));
+
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: secretPath }),
+    expect.objectContaining({ payload: expect.objectContaining({
+      type: 'loyalty', kind: 'android', suspicion: null, proofRevealed: true,
+      directives: expect.arrayContaining([expect.stringMatching(/android identity secret/i)]),
+    }) }),
+  );
+});
+
+it.each([
+  ['GM', { role: 'gm' }],
+  ['replacement', { replacementStatus: 'awaiting-re-role', replacementRoleId: 'cadet' }],
+  ['foreign audience', { secretAudience: ['u2'] }],
+] as const)('does not backfill a private loyalty card for a %s resume', async (_label, override) => {
+  const playerPatch = 'secretAudience' in override ? {} : { ...override };
+  prepareResume({ status: 'open', holderUid: null }, playerPatch);
+  const secretPath = 'sessions/s1/secrets/loyalty-u1';
+  const visibleToUids = 'secretAudience' in override ? override.secretAudience : ['u1'];
+  overrideResumeRead(secretPath, {
+    visibleToUids,
+    payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 },
+  });
+  mock.enforceReadOrder = true;
+
+  await resumeSession.run(request('s1'));
+
+  expect(mock.update.mock.calls.some(([reference]) =>
+    (reference as { path: string }).path === secretPath)).toBe(false);
+});
+
+function overrideResumeRead(path: string, fields: Readonly<Record<string, unknown>>, exists = true) {
+  const underlying = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation((ref: { path: string }) => ref.path === path ? snapshot(fields, exists) : underlying(ref));
+}
+
+function prepareCurrentPressResume() {
+  const current = prepareCurrentResume();
+  Object.assign(current.playerData, { assignedRoleId: null, seatId: null, activeConsoleRoleId: 'press-officer' });
+  current.sessionData.pressEnabled = true;
+  current.sessionData.pressHolderUid = 'u1';
+  const group = { id: 'fleet-1', vesselIds: current.sessionData.activeVesselIds as string[], memberUids: ['u1'] };
+  const underlying = mock.get.getMockImplementation()!;
+  const navigation = underlying({ path: 'sessions/s1/serverState/navigation' }).data();
+  const projection = playerDiscoveryProjection(snapshot(current.playerData), navigation, 5, group.vesselIds, undefined, 'u1');
+  mock.get.mockImplementation((ref: { path: string }) => {
+    if (ref.path === 'sessions/s1/fleetGroups/fleet-1') return snapshot(group);
+    if (ref.path === 'sessions/s1/fleetGroups') return { docs: [{ ...snapshot(group), id: 'fleet-1' }] };
+    if (ref.path === 'sessions/s1/playerDiscoveries/u1') return snapshot({ ...projection, updatedAt: 'prior-server-time' });
+    return underlying(ref);
+  });
+  return current;
+}
+
+it('renews an unchanged current Press member without locking all core players or shared navigation', async () => {
+  prepareCurrentPressResume();
+  mock.enforceReadOrder = true;
+
+  const reply = await resumeSession.run(request('s1'));
+
+  expect(reply.player).toMatchObject({ connectionGeneration: 4, assignedRoleId: null, seatId: null, activeConsoleRoleId: 'press-officer' });
+  const playerQueries = mock.get.mock.calls.map(([ref]) => ref as { path: string; filters?: unknown[] })
+    .filter(ref => ref.path === 'sessions/s1/players');
+  expect(playerQueries).toHaveLength(1);
+  expect(playerQueries[0].filters).toEqual([['activeConsoleRoleId', '==', 'press-officer']]);
+  expect(nonRateLimitSetCalls().map(([ref]) => ref.path)).toEqual(['activeMemberships/u1']);
+  expect(mock.update.mock.calls.map(([ref]) => ref.path)).toEqual(['sessions/s1/players/u1']);
+});
+
+it.each(['disabled', 'foreign-holder', 'legacy-assignment', 'stale-view'])('keeps noncanonical Press %s on full protected recovery', async condition => {
+  const current = prepareCurrentPressResume();
+  if (condition === 'disabled') current.sessionData.pressEnabled = false;
+  if (condition === 'foreign-holder') current.sessionData.pressHolderUid = 'u2';
+  if (condition === 'legacy-assignment') current.playerData.assignedRoleId = 'press-officer';
+  if (condition === 'stale-view') overrideResumeRead('sessions/s1/playerDiscoveries/u1', { revision: 4, loyalty: 'private-marker' });
+  mock.enforceReadOrder = true;
+
+  const reply = await resumeSession.run(request('s1'));
+
+  const fullPlayerReads = mock.get.mock.calls.map(([ref]) => ref as { path: string; filters?: unknown[] })
+    .filter(ref => ref.path === 'sessions/s1/players' && !ref.filters);
+  expect(fullPlayerReads).toHaveLength(1);
+  if (condition === 'disabled' || condition === 'foreign-holder') {
+    expect(reply).toMatchObject({ stationSelectionRequired: true, player: { activeConsoleRoleId: null } });
+  }
+  if (condition === 'foreign-holder') expect(current.sessionData.pressHolderUid).toBe('u2');
+  if (condition === 'legacy-assignment') expect(reply.player.assignedRoleId).toBeNull();
+  if (condition === 'stale-view') expect(mock.committedWrites.get('sessions/s1/playerDiscoveries/u1')?.fields).not.toHaveProperty('loyalty');
+});
+
+it('uses full recovery when a live member has lost the active membership marker', async () => {
+  prepareCurrentResume();
+  overrideResumeRead('activeMemberships/u1', {}, false);
+  mock.enforceReadOrder = true;
+
+  const reply = await resumeSession.run(request('s1'));
+
+  expect(reply.player).toMatchObject({ connectionGeneration: 4, seatId: 'admiral', assignedRoleId: 'admiral' });
+  expect(mock.get.mock.calls.map(([ref]) => ref.path)).toContain('sessions/s1/players');
+  expect(mock.committedWrites.get('activeMemberships/u1')?.fields).toMatchObject({ sessionId: 's1' });
+});
+
+it('keeps disconnected actors on the seat and membership recovery path', async () => {
+  const current = prepareCurrentResume();
+  current.playerData.connected = false;
+  overrideResumeRead('sessions/s1/seats/admiral', { status: 'open', holderUid: null });
+  mock.enforceReadOrder = true;
+
+  const reply = await resumeSession.run(request('s1'));
+
+  expect(reply.player).toMatchObject({ connectionGeneration: 4, seatId: 'admiral', assignedRoleId: 'admiral' });
+  expect(mock.get.mock.calls.map(([ref]) => ref.path)).toContain('sessions/s1/players');
+  expect(mock.committedWrites.get('sessions/s1/seats/admiral')?.fields).toMatchObject({ status: 'claimed', holderUid: 'u1' });
+  expect(current.playerData).toMatchObject({ connected: true, lastSeenAt: 'server-time' });
+});
+
+it('does not let an otherwise current resume reclaim a foreign seat', async () => {
+  prepareCurrentResume();
+  overrideResumeRead('sessions/s1/seats/admiral', { status: 'claimed', holderUid: 'u2' });
+  mock.enforceReadOrder = true;
+
+  const reply = await resumeSession.run(request('s1'));
+
+  expect(reply).toMatchObject({ stationSelectionRequired: true, player: {
+    connectionGeneration: 4, seatId: null, activeConsoleRoleId: null, assignedRoleId: 'admiral',
+  } });
+  expect(mock.get.mock.calls.map(([ref]) => ref.path)).toContain('sessions/s1/players');
+  const foreignSeatWrite = mock.committedWrites.get('sessions/s1/seats/admiral')?.fields ?? {};
+  expect(foreignSeatWrite).not.toHaveProperty('holderUid');
+  expect(foreignSeatWrite).not.toHaveProperty('status');
+  expect(foreignSeatWrite).not.toHaveProperty('claimedAt');
+});
+
+it('rebuilds a stale or extra private discovery field instead of accepting it as current', async () => {
+  prepareCurrentResume();
+  overrideResumeRead('sessions/s1/playerDiscoveries/u1', { groupId: 'fleet-1', revision: 4, loyalty: 'private-marker' });
+  mock.enforceReadOrder = true;
+
+  await resumeSession.run(request('s1'));
+
+  expect(mock.get.mock.calls.map(([ref]) => ref.path)).toContain('sessions/s1/players');
+  const projection = mock.committedWrites.get('sessions/s1/playerDiscoveries/u1');
+  expect(projection?.replace).toBe(true);
+  expect(projection?.fields).toMatchObject({ revision: 5, groupId: 'fleet-1', shipId: 'aegis' });
+  expect(projection?.fields).not.toHaveProperty('loyalty');
 });
 
 it('allows normal resume retries by the authenticated member and ignores spoofed rate-limit fields', async () => {
@@ -611,6 +848,84 @@ it('rejects a kicked browser before restoring its session', async () => {
   expect(nonRateLimitSetCalls()).toEqual([]);
 });
 
+it('resumes an existing disconnected member into a privacy-scoped immutable closed history without restoring presence', async () => {
+  const { sessionData, playerData } = prepareResume(
+    { status: 'open', holderUid: null },
+    { role: 'player', connected: false, fleetGroupId: 'fleet-1' },
+    {
+      phase: 'closed', currentTurn: 5, playerCount: 2, turnLimit: 7, activeVesselIds: ['aegis', 'shepherd'],
+      chartId: 'C', setup: { secret: 'chart-route' }, loyalty: { u1: 'wolf' },
+      fullGameDemo: { status: 'complete', progression: 'manual' },
+      gameOutcome: { type: 'game-outcome', result: 'success', cause: 'candidate-complete', candidateCode: 'N',
+        cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z', sourceId: 'private-source', groupId: 'foreign-group' },
+      survivorOutcome: { type: 'survivor-outcome', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+        fleetShipPopulation: 100, survivingShipPopulation: 50, evacuatedPopulation: 0, escapePodCapacity: 0,
+        lostPopulation: 50, smallVesselPopulation: 0, admittedVesselPopulation: 0, finalSurvivors: 50,
+        survivingShipIds: ['aegis', 'shepherd'], lostOrDestroyedShipIds: [] },
+      debriefSnapshot: { type: 'session-debrief', version: 1, source: 'candidate', result: 'success',
+        cause: 'candidate-complete', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+        committedAt: '2026-10-05T12:01:00.000Z',
+        outcome: { type: 'game-outcome', result: 'success', cause: 'candidate-complete', candidateCode: 'N',
+          cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' },
+        survivorOutcome: { type: 'survivor-outcome', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+          fleetShipPopulation: 100, survivingShipPopulation: 50, evacuatedPopulation: 0, escapePodCapacity: 0,
+          lostPopulation: 50, smallVesselPopulation: 0, admittedVesselPopulation: 0, finalSurvivors: 50,
+          survivingShipIds: ['aegis'], lostOrDestroyedShipIds: [] },
+        candidate: { code: 'N', groups: [
+          { groupId: 'fleet-1', requirements: [{ id: 'paid-crossing', status: 'met' }],
+            rolls: [{ id: 'passage', face: 4, result: 'success', audience: 'members' },
+              { id: 'nebula-bonus', face: 2, result: 'success', audience: 'gm' }],
+            losses: [{ shipId: 'aegis', reason: 'candidate-loss', audience: 'members' },
+              { shipId: 'shepherd', reason: 'foreign-loss', audience: 'members' }],
+            humanCalls: [{ id: 'opposite-side-sabotage', cycle: 4, audience: 'members' }] },
+          { groupId: 'fleet-2', requirements: [{ id: 'foreign-route', status: 'met' }], rolls: [], losses: [], humanCalls: [] },
+        ] },
+      },
+    },
+  );
+  enableClosedHistoryReads();
+
+  const response = await resumeSession.run(request('s1')) as {
+    session: Record<string, unknown>;
+    player: Record<string, unknown>;
+  };
+
+  expect(response.session).toMatchObject({ phase: 'closed', fullGameDemo: { status: 'complete', progression: 'manual' },
+    gameOutcome: { result: 'success', cause: 'candidate-complete', candidateCode: 'N' },
+    debriefSnapshot: { candidate: { groups: [{
+      requirements: [{ id: 'paid-crossing', status: 'met' }],
+      rolls: [{ id: 'passage', face: 4, result: 'success' }],
+      losses: [{ shipId: 'aegis', reason: 'candidate-loss' }],
+      humanCalls: [{ id: 'opposite-side-sabotage', cycle: 4 }],
+    }] } } });
+  expect(response.session).not.toHaveProperty('chartId');
+  expect(response.session).not.toHaveProperty('setup');
+  expect(response.session).not.toHaveProperty('loyalty');
+  expect(JSON.stringify(response.session)).not.toMatch(/foreign-group|foreign-route|nebula-bonus|private-source|shepherd/);
+  expect(response.player).toMatchObject({ uid: 'u1', role: 'player', fleetGroupId: 'fleet-1' });
+  expect(response.player).not.toHaveProperty('connected');
+  expect(sessionData.phase).toBe('closed');
+  expect(playerData.connected).toBe(false);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+  expect(nonRateLimitSetCalls()).toEqual([]);
+});
+
+it.each([
+  ['outsider', { role: 'player', connected: false, fleetGroupId: 'fleet-1', kickedAt: undefined }],
+  ['kicked member', { role: 'player', connected: false, fleetGroupId: 'fleet-1', kickedAt: 'removed' }],
+  ['observer', { role: 'observer', connected: false, fleetGroupId: 'fleet-1' }],
+])('does not restore %s into closed history', async (_label, actorFields) => {
+  prepareResume({ status: 'open', holderUid: null }, actorFields,
+    { phase: 'closed', activeVesselIds: ['aegis'] });
+  enableClosedHistoryReads('fleet-1', _label === 'outsider' ? ['u2'] : ['u1']);
+
+  await expect(resumeSession.run(request('s1'))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+  expect(nonRateLimitSetCalls()).toEqual([]);
+});
+
 it('returns a replacement awaiting re-role to station selection without reviving historical assignment', async () => {
   prepareResume({ status: 'open', holderUid: null }, {
     assignedRoleId: 'admiral', replacementRoleId: null, replacementStatus: 'awaiting-re-role',
@@ -875,6 +1190,7 @@ it('returns fresh server state after the resume transaction instead of its initi
       });
     }
     if (path === 'sessions/s1/players') return snapshot({}, true);
+    if (path === 'sessions/s1/secrets/loyalty-u1') return snapshot({}, false);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
@@ -910,6 +1226,7 @@ it('replaces a stale membership lock but refuses an active membership in another
         activeConsoleRoleId: null,
       });
       if (path === 'sessions/s1/players') return snapshot({}, true);
+      if (path === 'sessions/s1/secrets/loyalty-u1') return snapshot({}, false);
       if (path === 'activeMemberships/u1') return snapshot(membership);
       if (path === 'sessions/s2/players/u1') return snapshot(otherPlayer);
       if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);

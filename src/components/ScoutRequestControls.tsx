@@ -84,7 +84,15 @@ export default function ScoutRequestControls({ entitlementId }: Props) {
   const me = useSessionStore((state) => state.me);
   const connection = useSessionStore((state) => state.connection);
   const freshness = useSessionStore((state) => state.sessionSnapshotFreshness);
-  const [targetCoordinate, setTargetCoordinate] = useState('');
+  const savedDraft = useSessionStore((state) => state.scoutCoordinateDraft);
+  const draftKey = session && me?.sessionId === session.id
+    ? JSON.stringify([session.id, me.uid, me.role, entitlementId]) : '';
+  const savedCoordinate = savedDraft && savedDraft.sessionId === session?.id &&
+    savedDraft.actorUid === me?.uid && savedDraft.entitlementId === entitlementId
+    ? savedDraft.value : '';
+  const [coordinateDraft, setCoordinateDraft] = useState(() => ({ key: draftKey, value: savedCoordinate }));
+  const targetCoordinate = coordinateDraft.key === draftKey ? coordinateDraft.value : savedCoordinate;
+  const previousDraftKey = useRef(draftKey);
   const [retryAttempt, setRetryAttempt] = useState<RetryAttempt | null>(null);
   const [busyAttempt, setBusyAttempt] = useState<RetryAttempt | null>(null);
   const [error, setError] = useState('');
@@ -99,6 +107,12 @@ export default function ScoutRequestControls({ entitlementId }: Props) {
   const retry = retryAttempt?.authorityKey === authorityKey ? retryAttempt : null;
   const busy = busyAttempt?.authorityKey === authorityKey;
   const coordinateIsValid = /^\d{4}$/.test(targetCoordinate);
+
+  useLayoutEffect(() => {
+    if (previousDraftKey.current === draftKey) return;
+    previousDraftKey.current = draftKey;
+    setCoordinateDraft({ key: draftKey, value: savedCoordinate });
+  }, [draftKey, savedCoordinate]);
 
   useLayoutEffect(() => {
     if (previousAuthorityKey.current === authorityKey) return;
@@ -124,6 +138,9 @@ export default function ScoutRequestControls({ entitlementId }: Props) {
     if (!/^\d{4}$/.test(attempt.targetCoordinate)) return;
 
     const attemptEpoch = authorityEpoch.current;
+    // Once dispatched, this text is no longer a safe unsent draft. The
+    // original form alone retains its exact uncertain-request retry state.
+    rememberCoordinate('');
     setRetryAttempt(attempt);
     setBusyAttempt(attempt);
     setError('');
@@ -159,9 +176,18 @@ export default function ScoutRequestControls({ entitlementId }: Props) {
   }
 
   function updateTarget(value: string): void {
-    setTargetCoordinate(value.slice(0, 4));
+    const next = value.slice(0, 4);
+    setCoordinateDraft({ key: draftKey, value: next });
+    rememberCoordinate(next);
     setError('');
     setConfirmation('');
+  }
+
+  function rememberCoordinate(value: string): void {
+    if (!session || !me || me.sessionId !== session.id) return;
+    useSessionStore.getState().setScoutCoordinateDraft({
+      sessionId: session.id, actorUid: me.uid, entitlementId, value,
+    });
   }
 
   const label = LABELS[entitlementId];

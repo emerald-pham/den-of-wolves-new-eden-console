@@ -48,7 +48,7 @@ describe('extra-ship Captain workspace catalog', () => {
       });
   });
 
-  it('connects Jump Drive only for the Gorgoneion and base small-ship Capybara Captains', () => {
+  it('retains charged Jump Drives and distinguishes the printed uncharged Warrior/Vulcan drives', () => {
     for (const roleId of ['gorgoneion-captain', 'capybara-small-captain'] as const) {
       expect(extraShipCaptainWorkspaceFor(roleId)?.actions.find(({ id }) => id === 'jump-drive'))
         .toMatchObject({
@@ -58,7 +58,7 @@ describe('extra-ship Captain workspace catalog', () => {
     }
     for (const roleId of ['warrior-captain', 'vulcan-captain'] as const) {
       expect(extraShipCaptainWorkspaceFor(roleId)?.actions.find(({ id }) => id === 'jump-drive'))
-        .toMatchObject({ control: 'unavailable' });
+        .toMatchObject({ phase: 'Coordination', charge: 'none', control: 'live-below' });
     }
   });
 
@@ -94,4 +94,22 @@ describe('extra-ship Captain workspace catalog', () => {
     expect(extraShipCaptainWorkspaceFor('doctor')).toBeUndefined();
     expect(extraShipCaptainWorkspaceFor(null)).toBeUndefined();
   });
+
+  it.each([
+    ['gorgoneion-captain', 'mission-support'],
+    ['warrior-captain', 'reclamator'],
+    ['warrior-captain', 'salvage-drones'],
+    ['capybara-small-captain', 'bulk-haulage'],
+  ] as const)('identifies the already mounted or automatic %s %s procedure as live', (roleId, actionId) => {
+    const action = extraShipCaptainWorkspaceFor(roleId)?.actions.find(({ id }) => id === actionId);
+    expect(action).toMatchObject({ control: 'live-below' });
+    expect(action?.availability).not.toMatch(/awaiting|not available yet|unavailable/i);
+  });
+});
+
+it('offers current Warrior cargo and charged Vulcan Medium/Short laser controls without promising Long range', () => {
+  expect(extraShipCaptainWorkspaceFor('warrior-captain')?.actions.find(({id}) => id === 'cargo-transfer'))
+    .toMatchObject({ phase: 'Coordination', charge: 'none', control: 'live-below' });
+  expect(extraShipCaptainWorkspaceFor('vulcan-captain')?.actions.find(({id}) => id === 'laser-cannon'))
+    .toMatchObject({ charge: 'reactor', control: 'live-below', effect: expect.stringMatching(/Medium and Short.*4\+/) });
 });

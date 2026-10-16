@@ -40,7 +40,7 @@ vi.mock('firebase-admin/firestore', () => ({
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
 vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error { constructor(readonly code: string, message: string) { super(message); } },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
@@ -133,4 +133,52 @@ it('replays an exact result without changing the arrest case and rejects a diffe
   await expect(resolveArrestPosse.run(request())).resolves.toEqual(first);
   expect(mock.set).not.toHaveBeenCalled();
   await expect(resolveArrestPosse.run(request(baseData, 'u8'))).rejects.toMatchObject({ code: 'permission-denied' });
+});
+
+it('labels a demo-only simulated posse in its receipt, case and private audit without changing source arithmetic', async () => {
+  put('sessions/s1', { ...mock.documents.get('sessions/s1'),
+    fullGameDemo: { status: 'active', progression: 'manual' } });
+  const data = { ...baseData, attendanceEvidence: 'simulated-demo' };
+  const result = await resolveArrestPosse.run(request(data));
+  expect(result).toMatchObject({ attendanceEvidence: 'simulated-demo', requiredPlayers: 5,
+    presentPlayers: 5, outcome: 'arrested', deadlineCycle: 4 });
+  expect(mock.documents.get('sessions/s1/arrestCases/u2')).toMatchObject({ attendanceEvidence: 'simulated-demo' });
+  expect(mock.documents.get('sessions/s1/arrestCases/u2/audit/arrest-resolution-1'))
+    .toMatchObject({ evidenceClass: 'simulated-demo', presentPlayerUids: baseData.presentPlayerUids });
+  mock.set.mockClear();
+  await expect(resolveArrestPosse.run(request(data))).resolves.toEqual(result);
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects simulated attendance in normal, preparing and completed games and requires explicit simulation in an active demo', async () => {
+  const simulated = { ...baseData, attendanceEvidence: 'simulated-demo' };
+  for (const marker of [undefined, { status: 'preparing', progression: 'manual' },
+    { status: 'complete', progression: 'manual' }, { status: 'active', progression: 'automatic' }]) {
+    put('sessions/s1', { ...mock.documents.get('sessions/s1'), fullGameDemo: marker });
+    await expect(resolveArrestPosse.run(request(simulated))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.documents.has('sessions/s1/arrestCases/u2')).toBe(false);
+  }
+  put('sessions/s1', { ...mock.documents.get('sessions/s1'),
+    fullGameDemo: { status: 'active', progression: 'manual' } });
+  await expect(resolveArrestPosse.run(request())).rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
+it('keeps simulated attendance on the same authenticated current roster and rejects relabeling an exact request', async () => {
+  put('sessions/s1', { ...mock.documents.get('sessions/s1'),
+    fullGameDemo: { status: 'active', progression: 'manual' } });
+  const simulated = { ...baseData, attendanceEvidence: 'simulated-demo' };
+  await expect(resolveArrestPosse.run(request(simulated, 'u8'))).rejects.toMatchObject({ code: 'permission-denied' });
+  await expect(resolveArrestPosse.run(request({ ...simulated, presentPlayerUids: ['unknown'] })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  await resolveArrestPosse.run(request(simulated));
+  await expect(resolveArrestPosse.run(request())).rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(resolveArrestPosse.run(request({ ...simulated, attendanceEvidence: 'physical' })))
+    .rejects.toMatchObject({ code: 'invalid-argument' });
+});
+
+it('keeps normal physical-attestation receipts unchanged and labels the private source of evidence', async () => {
+  const result = await resolveArrestPosse.run(request());
+  expect(result).not.toHaveProperty('attendanceEvidence');
+  expect(mock.documents.get('sessions/s1/arrestCases/u2/audit/arrest-resolution-1'))
+    .toMatchObject({ evidenceClass: 'gm-physical-attestation' });
 });

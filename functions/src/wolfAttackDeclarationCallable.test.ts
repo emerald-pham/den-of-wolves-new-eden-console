@@ -389,6 +389,23 @@ function resetFixture(): void {
 beforeEach(resetFixture);
 afterEach(() => vi.useRealTimers());
 
+it('uses the explicit manual marker instead of its compatibility timestamp for the attack window', async () => {
+  const currentPhase = mock.documents.get('sessions/s1')!.turnPhase as Fields;
+  patchSession({
+    fullGameDemo: { status: 'active', progression: 'manual' },
+    turnPhase: {
+      ...currentPhase,
+      teamPhaseEndsAt: '1999-12-31T23:50:00.000Z',
+      progression: 'manual',
+      openAirspaceEndsAt: '2000-01-01T00:00:00.000Z',
+    },
+  });
+
+  await expect(declareWolfAttack.run(request())).resolves.toMatchObject({
+    status: 'committed', type: 'wolf-attack-declaration', turn: 1,
+  });
+});
+
 it('atomically locks airspace, snapshots parked craft, records a hidden stage receipt, and emits one safe announcement', async () => {
   const result = await declareWolfAttack.run(request());
   expect(result).toEqual(expect.objectContaining({
@@ -2278,6 +2295,85 @@ it('returns only current group pursuit values to the assigned Commander before a
     .rejects.toMatchObject({ code: 'permission-denied' });
 });
 
+it.each(['manual', 'automatic'] as const)('does not commit a new Commander Team dial in %s Coordination', async progression => {
+  commanderCycleActionFixture(4, 3);
+  mock.documents.delete('sessions/s1/wolfAttackWindow/current');
+  const stored = mock.documents.get('sessions/s1')!;
+  const phase = stored.turnPhase as Fields;
+  patchSession({
+    ...(progression === 'manual' ? { fullGameDemo: { status: 'active', progression: 'manual' } } : {}),
+    turnPhase: { ...phase, ...(progression === 'manual' ? { progression: 'manual' } : {}),
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false } },
+  });
+  const before = structuredClone([...mock.documents]);
+  await expect(commitWolfCommanderAttackDial.run(request({
+    sessionId: 's1', requestId: `coordination-dial-${progression}`, expectedCycle: 4,
+    expectedNavigationRevision: 7, targetGroupId: 'fleet-2',
+  }, 'wolfcmd'))).rejects.toMatchObject({ code: 'failed-precondition',
+    message: expect.stringMatching(/live Team Phase/) });
+  expect([...mock.documents]).toEqual(before);
+  expect(mock.documents.has('sessions/s1/wolfCommanderCycleDials/cycle-4')).toBe(false);
+});
+
+it.each(['manual', 'automatic'] as const)('does not offer a new Commander Team dial in %s Coordination', async progression => {
+  commanderCycleActionFixture(4, 3);
+  mock.documents.delete('sessions/s1/wolfAttackWindow/current');
+  const phase = mock.documents.get('sessions/s1')!.turnPhase as Fields;
+  patchSession({
+    ...(progression === 'manual' ? { fullGameDemo: { status: 'active', progression: 'manual' } } : {}),
+    turnPhase: { ...phase, ...(progression === 'manual' ? { progression: 'manual' } : {}),
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false } },
+  });
+  await expect(getWolfCommanderCycleAttackDial.run(request({ sessionId: 's1' }, 'wolfcmd')))
+    .resolves.toMatchObject({ status: 'unavailable', reason: 'team-phase-closed' });
+  expect(mock.documents.has('sessions/s1/wolfCommanderCycleDials/cycle-4')).toBe(false);
+});
+
+it('keeps a manual Team dial available without a wall clock, then recovers only its exact current-actor receipt in Coordination', async () => {
+  commanderCycleActionFixture(4, 3);
+  mock.documents.delete('sessions/s1/wolfAttackWindow/current');
+  const phase = mock.documents.get('sessions/s1')!.turnPhase as Fields;
+  patchSession({ fullGameDemo: { status: 'active', progression: 'manual' }, turnPhase: {
+    ...phase, progression: 'manual', teamPhaseEndsAt: '2020-01-01T00:00:00.000Z',
+    openAirspaceEndsAt: '2020-01-01T00:10:00.000Z',
+  } });
+  await expect(getWolfCommanderCycleAttackDial.run(request({ sessionId: 's1' }, 'wolfcmd')))
+    .resolves.toMatchObject({ status: 'available' });
+  const payload = { sessionId: 's1', requestId: 'manual-team-dial', expectedCycle: 4,
+    expectedNavigationRevision: 7, targetGroupId: 'fleet-2' };
+  const committed = await commitWolfCommanderAttackDial.run(request(payload, 'wolfcmd'));
+  const current = mock.documents.get('sessions/s1')!;
+  patchSession({ turnPhase: { ...(current.turnPhase as Fields),
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false } } });
+  const before = structuredClone([...mock.documents]);
+  await expect(commitWolfCommanderAttackDial.run(request(payload, 'wolfcmd'))).resolves.toEqual(committed);
+  await expect(getWolfCommanderCycleAttackDial.run(request({ sessionId: 's1' }, 'wolfcmd')))
+    .resolves.toMatchObject({ status: 'committed', groupId: 'fleet-2' });
+  await expect(commitWolfCommanderAttackDial.run(request({ ...payload, targetGroupId: 'fleet-1' }, 'wolfcmd')))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(commitWolfCommanderAttackDial.run(request(payload, 'u1')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect([...mock.documents]).toEqual(before);
+  const player = mock.documents.get('sessions/s1/players/wolfcmd')!;
+  put('sessions/s1/players/wolfcmd', { ...player, connected: false });
+  await expect(commitWolfCommanderAttackDial.run(request(payload, 'wolfcmd')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+});
+
+it('still closes an ordinary Commander Team dial at its deadline even with restricted airspace', async () => {
+  commanderCycleActionFixture(4, 3);
+  mock.documents.delete('sessions/s1/wolfAttackWindow/current');
+  const phase = mock.documents.get('sessions/s1')!.turnPhase as Fields;
+  patchSession({ turnPhase: { ...phase, teamPhaseEndsAt: '2020-01-01T00:00:00.000Z' } });
+  await expect(getWolfCommanderCycleAttackDial.run(request({ sessionId: 's1' }, 'wolfcmd')))
+    .resolves.toMatchObject({ status: 'unavailable', reason: 'team-phase-closed' });
+  await expect(commitWolfCommanderAttackDial.run(request({
+    sessionId: 's1', requestId: 'expired-normal-team-dial', expectedCycle: 4,
+    expectedNavigationRevision: 7, targetGroupId: 'fleet-2',
+  }, 'wolfcmd'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.has('sessions/s1/wolfCommanderCycleDials/cycle-4')).toBe(false);
+});
+
 it('commits and replays a Commander dial using valid documents under its exact cycle ledger', async () => {
   commanderCycleActionFixture(4, 3);
   mock.documents.delete('sessions/s1/wolfAttackWindow/current');
@@ -2781,3 +2877,30 @@ it.each((['pdf-escort-fighter-wing', 'maliades'] as const).flatMap(sourceId =>
     expect([...mock.documents]).toEqual(saved);
     expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
   });
+
+
+it('declares against remaining ships after genuine Ring craft consumption without recreating its parking or battle action', async () => {
+  const root = mock.documents.get('sessions/s1')!;
+  root.candidateCraftReservations = { philia: { code: 'N', groupId: 'fleet-1', coordinate: '3232',
+    sourceId: 'ring-craft', cycle: 1 } };
+  root.shuttleDockings = initialShuttleDockingsForRoles(root.activeRoleIds as string[]).filter(docking => docking.shuttleId !== 'philia');
+  await expect(declareWolfAttack.run(request())).resolves.toMatchObject({ status: 'committed' });
+  const attack = mock.documents.get('sessions/s1/wolfAttackState/current')!;
+  expect(attack.parkedCraftIds).not.toContain('philia');
+  expect((mock.documents.get('sessions/s1')!.shuttleDockings as { shuttleId: string }[])
+    .some(docking => docking.shuttleId === 'philia')).toBe(false);
+});
+
+it('declares against remaining ships after a vessel candidate disposition settles', async () => {
+  patchSession({ candidateVesselOutcomes: { icebreaker: { code: 'O', groupId: 'fleet-1', shipId: 'icebreaker',
+    sourceId: 'candidate-O-1', cycle: 1, outcome: 'settled' } } });
+
+  await expect(declareWolfAttack.run(request({ ...baseData, requestId: 'settled-icebreaker-declaration' })))
+    .resolves.toMatchObject({ status: 'committed', type: 'wolf-attack-declaration' });
+
+  const state = mock.documents.get('sessions/s1/wolfAttackState/current')!;
+  const targeting = (state.calculationReceipt as Fields).targeting as Fields;
+  expect(targeting.ring).toEqual(['aegis', 'dione', 'quellon', 'shepherd', 'refinery-124']);
+  expect(targeting.sourceRing).toEqual(['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124']);
+  expect((targeting.rolls as Fields[]).every((roll) => roll.target !== 'icebreaker')).toBe(true);
+});

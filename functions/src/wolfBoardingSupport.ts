@@ -22,6 +22,11 @@ export interface WolfBoardingCraftAuthorityInput {
   readonly roleHolders: readonly Readonly<{ uid: string; roleId: string }>[];
   readonly playerUids: readonly string[];
   readonly retainedShuttles: unknown;
+  readonly consumedShuttleIds?: readonly string[];
+  /** Only from the caller's strict terminal provenance validation. */
+  readonly lostShuttleIds?: readonly string[];
+  /** Existing declaration parking admission; omitted legacy inputs stay strict. */
+  readonly admittedShuttleIds?: readonly string[];
 }
 
 export interface WolfBoardingCraftAuthority {
@@ -88,7 +93,7 @@ export function deriveWolfBoardingSupportCraft(
 ): readonly WolfBoardingCraftAuthority[] {
   if (!Array.isArray(input.activeRoleIds) || new Set(input.activeRoleIds).size !== input.activeRoleIds.length ||
       !Array.isArray(input.activeVesselIds) || new Set(input.activeVesselIds).size !== input.activeVesselIds.length ||
-      !Array.isArray(input.dockings) || !Array.isArray(input.roleHolders) || !Array.isArray(input.playerUids)) {
+      !Array.isArray(input.dockings) || !Array.isArray(input.visits) || !Array.isArray(input.roleHolders) || !Array.isArray(input.playerUids)) {
     throw new Error('Wolf boarding craft authority is malformed.');
   }
   if (!shuttleDockingsAreKnownAndUnique(input.dockings) ||
@@ -98,10 +103,25 @@ export function deriveWolfBoardingSupportCraft(
   }
   const retained = parseRetainedShuttles(input.retainedShuttles);
   if (!retained) throw new Error('Retained shuttle authority is malformed.');
-  const supportCraft = roleOwnedCraftForRoles(input.activeRoleIds)
-    .filter((craft) => craft.kind === 'shuttle' && craft.boardingSupport !== undefined);
+  const configuredCraft = roleOwnedCraftForRoles(input.activeRoleIds);
+  if (Object.hasOwn(input, 'admittedShuttleIds') && (!Array.isArray(input.admittedShuttleIds) ||
+      new Set(input.admittedShuttleIds).size !== input.admittedShuttleIds.length ||
+      input.admittedShuttleIds.some(id => !configuredCraft.some(craft => craft.id === id)))) {
+    throw new Error('Declared boarding craft admission is malformed.');
+  }
+  const supportCraft = configuredCraft
+    .filter((craft) => craft.kind === 'shuttle' && craft.boardingSupport !== undefined &&
+      !input.consumedShuttleIds?.includes(craft.id) && !input.lostShuttleIds?.includes(craft.id))
+    // Optional Union craft need an explicit starting host. A never-admitted
+    // craft has no history to validate; every declared or represented craft
+    // still takes the existing strict location/history/custody path below.
+    .filter(craft => craft.enabledMode === 'standard' || input.admittedShuttleIds === undefined ||
+      input.admittedShuttleIds.includes(craft.id) || input.dockings.some(docking => docking.shuttleId === craft.id) ||
+      Object.hasOwn(retained, craft.id) || input.visits.some(visit => visit?.shuttleId === craft.id) ||
+      input.control !== null && typeof input.control === 'object' && Object.hasOwn(input.control, craft.id));
   const supportIds = new Set(supportCraft.map(({ id }) => id));
-  validateSupportVisitHistory(supportIds, input.dockings, input.visits, input.activeVesselIds, retained);
+  validateSupportVisitHistory(supportIds, input.dockings,
+    input.visits.filter(visit => !input.consumedShuttleIds?.includes(visit.shuttleId) && !input.lostShuttleIds?.includes(visit.shuttleId)), input.activeVesselIds, retained);
   const dockById = new Map(input.dockings.map((docking) => [docking.shuttleId, docking.shipId]));
   const rawControl = input.control === undefined
     ? initialShuttleControl(supportCraft, input.roleHolders)

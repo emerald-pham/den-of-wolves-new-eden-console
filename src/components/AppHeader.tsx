@@ -24,6 +24,7 @@ import { useDialogFocus } from '@/hooks/useDialogFocus';
 import FleetBroadcast from './FleetBroadcast';
 import PrimaryStatus from './PrimaryStatus';
 import SettingsDisconnectAction from './SettingsDisconnectAction';
+import SessionJoinQr from './SessionJoinQr';
 import { FleetDirectives } from './AdmiralDirectives';
 import {
   applyServiceWorkerUpdate,
@@ -553,6 +554,9 @@ export default function AppHeader() {
                 connectedPlayers={connectedPlayers}
                 label="Session status"
               />
+            )}
+            {hasSession && playerUid && joinCode !== undefined && (
+              <SessionJoinQr joinCode={joinCode} />
             )}
             <p className="settings-dialog__version">Build {APP_VERSION}</p>
             {hasSession && currentTurn === 0 && (

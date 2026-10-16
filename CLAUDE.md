@@ -54,13 +54,15 @@ system. Keep the workflow proportionate to the risk of the change.
    behavior to `docs/PRODUCT_MILESTONE_CANDIDATES.md` rather than enlarging it.
 
 For numbered-prompt work, follow the one-sitting playtest checkpoints and
-shaping, assumptions, test-first commits, feedback, and cooldown process in
+shaping, assumptions, feedback and cooldown process in
 [`docs/PRODUCT_MILESTONES.md`](docs/PRODUCT_MILESTONES.md). M1–M13 are internal
 gates. Explicit owner authorization accepts a checkpoint; review-scene play
 and written UI feedback are optional. Agents own gameplay proof. Build without
 prebuild approval or routine owner questions: resolve choices from evidence,
 log assumptions and report proof gaps. Do not pause for owner feedback or a rules ruling; ask only when higher authority requires it or no useful work remains.
-Before each checkpoint transition, reconcile owner decisions into all affected future prompts and checkpoint plans under that guide.
+Before each checkpoint transition, reconcile owner decisions into all affected future prompts and checkpoint plans under that guide. Apply the October 7
+[risk-based verification policy](docs/AGENT_EXECUTION_POLICY.md#risk-based-verification-for-remaining-checkpoints)
+to remaining PC10, post-PC10, PC11 and conditional PC12.
 
 Keep unrelated agent-policy and workflow edits out of an in-flight feature
 release. Queue them for the next safe checkpoint unless the user explicitly
@@ -155,19 +157,28 @@ need focused rules and callable tests: assert Firestore denies privileged
 client writes, callable authorization rejects the wrong actor, and the server
 transaction owns the mutation. New routes need a route-level test that activates
 the visible return control. Components should use accessible roles and text;
-pure logic belongs in focused unit tests. For every functional change, including
-repairs and interactive layout, visibility, defaults, parsers and provider behavior,
-run and observe a meaningful failing test before implementation; commit the test
-before code, in separate commits. Risk determines test selection, execution
-breadth and regression depth, never permission to implement low-risk functionality
-first. Later base-versus-fixed validation does not establish test-first chronology. Never weaken, skip, or delete an
-existing test to pass; leave a suspect test intact and flag it. Never modify
-an existing test in the code commit it covers. Record reasons for every test
-added, changed, skipped, or deleted in the nontechnical checkpoint report.
-Pure prose/documentation without functional changes needs consistency review.
+pure logic belongs in focused unit tests. Apply the linked risk-based policy:
+every functional change needs a meaningful observed failing regression before
+implementation, followed by GREEN, with the test-first change in a separate
+commit. Risk determines test selection, execution breadth and regression depth;
+it never permits implementation-first for low-risk functionality. Navigation,
+integration, interactive layout, visibility, defaults, parsers and provider
+features count as functionality. Pure prose/docs use consistency review.
+For behavior-changing transitions, exercise the real consumer or change handler
+from its previous state. A helper test or fixture already in the final state
+does not prove the transition. Check equivalent entry points that must share
+the rule, using focused regressions proportional to the risk.
+Audit current candidates change by change. Distinguish contemporaneous RED from
+retrospective base-versus-fixed verification; never rewrite history or claim a
+later failure was observed first. Record historical timing gaps honestly, add
+meaningful regression validation, and hold release of unvalidated functionality.
+Never weaken, skip, or delete an existing test to pass; leave a suspect test
+intact and flag it. Never modify an existing test in the code commit it covers.
+Record reasons for every test added, changed, skipped, or deleted in the
+nontechnical checkpoint report. Reuse unaffected evidence and justify actor
+counts by the claim; 21 accounts are a conditional scale case, not a default.
 Interactive presentation changes require a meaningful failing rendered/consumer
 check first, then the smallest implementation and a passing check.
-Use the smallest cohort per distinct claim; avoid blanket suites/account matrices.
 Future gameplay proof uses normal authenticated local/emulator native, HTTP/UI and rules paths; prepared scenes alone do not establish behavior. Keep local tests, gameplay, rendered QA, CI, production deployment and actual production behavior distinct. Independent risk review, CI and deployment remain required; production-GM gameplay is not a closure prerequisite.
 
 Typical checks are:
@@ -190,10 +201,11 @@ review and reconciliation, not a ceremonial rerun of every matrix.
 Use existing cheap checks for affected contracts before pushing. After the
 planned web build, run `node scripts/check-bundle-size.mjs` when startup or lazy
 imports, web dependencies, or bundle configuration changed; reuse that build's
-output. When agent guidance changes, run
-`npx vitest run --project unit src/repositoryGuidance.test.ts`. These are targeted
-checks, not a reason to add another build, reviewer, enforcement mechanism, or
-full application-suite run for an instructions-only change.
+output. Agent-guidance-only changes use `npm run coordination:docs`, catalog
+view consistency and `git diff --check`; run the focused repository-guidance
+unit test when its executable validator contract changes. These are targeted
+checks, not a reason to add another build, reviewer, enforcement mechanism or
+application-suite run for an instructions-only change.
 
 For every UI change, inspect the rendered result at narrow phone, wide desktop,
 and short landscape sizes. Check contrast, readable font sizes, spacing,

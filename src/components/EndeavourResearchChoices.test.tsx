@@ -16,6 +16,25 @@ const workspace: EndeavourResearchWorkspace = {
   fieldUpgradeState: { upgradeRevision: 0, targetsUsedThisCycle: 0 },
 };
 
+it('keeps the final purchase price visible and allows research through an unavailable Detector stage', async () => {
+  const advance = vi.fn();
+  render(<EndeavourResearchChoices workspace={{ ...workspace, cadence: { cycle: 3, revision: 1, choices: [] }, tracks: [
+    { trackId: 'reactor', name: 'Reactor', crossedBoxes: 5, totalBoxes: 5, currentMaterialCost: 4, complete: true },
+    { trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector', crossedBoxes: 2, totalBoxes: 5,
+      currentMaterialCost: null, complete: false },
+  ] }} selectedTrackId="wolf-agent-detector" liveTeamPhase onSelectTrack={vi.fn()}
+    onAdvance={advance} onRefresh={vi.fn()} />);
+  expect(screen.getByRole('list', { name: 'Research progress' })).toHaveTextContent(
+    'Reactor: 5 of 5 boxes crossed; current purchase cost is 4 materials. Research complete.');
+  expect(screen.getByRole('list', { name: 'Research progress' })).toHaveTextContent(
+    'Wolf Agent Detector: 2 of 5 boxes crossed; purchase unavailable. Available for a research choice.');
+  expect(screen.getByRole('option', { name: 'Reactor' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Advance standard research' })).toBeEnabled();
+  await userEvent.click(screen.getByRole('button', { name: 'Advance standard research' }));
+  expect(advance).toHaveBeenCalledExactlyOnceWith('standard');
+  expect(screen.queryByText(/null materials|no further field-upgrade cost/i)).not.toBeInTheDocument();
+});
+
 it('renders the production research controls with current prices, used choices, and a selectable sample action', async () => {
   const onSelect = vi.fn();
   const onAdvance = vi.fn();

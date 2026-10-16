@@ -29,8 +29,8 @@ export type AirspaceClosureTaskDecision =
 
 /** Ordinary deadlines apply to lifted airspace and the restricted Press window. */
 export function ordinaryAirspaceClosureWindow(phase: TurnPhase | undefined): boolean {
-  return phase?.airspace.state === 'lifted' ||
-    (phase?.airspace.state === 'restricted' && phase.airspace.pressAccess);
+  return phase?.progression !== 'manual' && (phase?.airspace.state === 'lifted' ||
+    (phase?.airspace.state === 'restricted' && phase.airspace.pressAccess));
 }
 
 /**

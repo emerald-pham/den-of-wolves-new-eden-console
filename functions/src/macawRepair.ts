@@ -34,6 +34,51 @@ export interface MacawRepairReadyResult {
   readonly repairedSystemIds: readonly string[];
 }
 
+/** Add one salvaged console to the same per-cycle usage ledger as repairs. */
+export function recordMacawSalvageUse(input: Readonly<{
+  readonly currentCycle: number;
+  readonly hostShipId: string;
+  readonly systemId: string;
+  readonly fuelled: boolean;
+  readonly ledger: MacawRepairLedger;
+}>): MacawRepairLedger {
+  if (!Number.isSafeInteger(input.currentCycle) || input.currentCycle < 1 ||
+      !Number.isSafeInteger(input.ledger.cycle) || input.ledger.cycle < 0 ||
+      !Number.isSafeInteger(input.ledger.revision) || input.ledger.revision < 0 ||
+      input.ledger.cycle > input.currentCycle || input.ledger.revision >= Number.MAX_SAFE_INTEGER) {
+    throw new Error('Macaw use history is outside the safe cycle range.');
+  }
+  if (!isResourceShipId(input.hostShipId) ||
+      !(SHIP_DAMAGE_DECKS[input.hostShipId] ?? []).some(({ systemId }) => systemId === input.systemId)) {
+    throw new Error('Choose a known console on Macaw\'s docked host.');
+  }
+
+  const priorHosts = input.ledger.cycle === input.currentCycle ? input.ledger.hosts : [];
+  const priorHost = priorHosts.find(({ shipId }) => shipId === input.hostShipId);
+  const priorSystemIds = priorHost?.systemIds ?? [];
+  if (priorSystemIds.includes(input.systemId)) {
+    throw new Error('This console has already used Macaw\'s Coordination allowance this cycle.');
+  }
+  if (priorSystemIds.length >= MACAW_MAX_CONSOLES_PER_HOST) {
+    throw new Error('Macaw may repair or salvage at most two consoles on one ship each cycle.');
+  }
+  if (!priorHost && priorHosts.length === 1 && !input.fuelled) {
+    throw new Error('Fuel Macaw before repairing or salvaging from a second ship this cycle.');
+  }
+  if (!priorHost && priorHosts.length >= MACAW_MAX_HOSTS_PER_CYCLE) {
+    throw new Error('Macaw may repair or salvage from at most two ships each cycle.');
+  }
+
+  const nextHost = { shipId: input.hostShipId, systemIds: [...priorSystemIds, input.systemId] };
+  return {
+    cycle: input.currentCycle,
+    revision: input.ledger.revision + 1,
+    hosts: priorHost
+      ? priorHosts.map((entry) => entry.shipId === input.hostShipId ? nextHost : entry)
+      : [...priorHosts, nextHost],
+  };
+}
+
 function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>

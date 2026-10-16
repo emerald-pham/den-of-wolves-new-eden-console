@@ -1,3 +1,6 @@
+import { shipForRole } from './crewAccess';
+import { awayMissionPointerWriteSafetyPatch } from './awayMissionProjectionSafety';
+import { requireCandidateCraftActionAvailable } from './candidateAvailability';
 import { randomInt } from 'node:crypto';
 import { HttpsError } from 'firebase-functions/v2/https';
 import {
@@ -5,8 +8,10 @@ import {
   type CommandFingerprint,
 } from './commandIdempotency';
 import {
+  addResolvedMissionDiscards,
   awayMissionHandId,
   missionDeckDealtCount,
+  missionDeckResolvedDiscardCardIds,
   type AwayMissionParticipantSnapshot,
 } from './awayMissionCards';
 import {
@@ -34,6 +39,7 @@ import {
   type MissionLifecycleStateInput,
   type MissionBonusSourceInput,
 } from './missionLifecycle';
+import { validMissionRewardChoice, validMissionRewardChoiceProjection, type MissionRewardConsoleTarget } from './missionRewardDelivery';
 
 type Data = Record<string, unknown>;
 type LifecycleCommandType = AwayMissionLifecycleCommand['type'];
@@ -89,6 +95,8 @@ export interface AwayMissionLifecycleParticipantCraftContext {
 }
 
 export interface AwayMissionLifecycleGameContext {
+  readonly rewardConsoleTargets?: readonly MissionRewardConsoleTarget[];
+  readonly currentGroupId?: string;
   readonly currentCycle: number;
   readonly teamPhase: boolean;
   readonly legalDropOffShipIds: readonly string[];
@@ -134,6 +142,15 @@ export interface AwayMissionLifecycleCallableDependencies {
     readonly nextRecord: AwayMissionLifecycleRecord;
     readonly shipId: string;
   }) => Promise<() => void>;
+  /** Source-deterministic research, nebula and attack consequences at the real resolution transition. */
+  readonly prepareResolvedConsequences?: (context: AwayMissionLifecycleAuthorityContext & {
+    readonly nextRecord: AwayMissionLifecycleRecord;
+    readonly currentGroupId?: string | undefined;
+  }) => Promise<() => void>;
+  /** Recheck private targets against current server authority before storing the choice. */
+  readonly validateRewardChoice?: (context: AwayMissionLifecycleAuthorityContext & {
+    readonly nextRecord: AwayMissionLifecycleRecord;
+  }) => Promise<void>;
   /** Validate printed chart targets and prepare UID-private knowledge in this transaction. */
   readonly prepareExplorationApplication: (context: AwayMissionLifecycleAuthorityContext & {
     readonly opportunityId: string;
@@ -183,6 +200,7 @@ interface P403MissionContext {
   readonly participantCrafts?: readonly AwayMissionParticipantCrafts[];
   readonly handIds: readonly string[];
   readonly cardIds: readonly MissionCardId[];
+  readonly recycledCardIds: readonly MissionCardId[];
   readonly dealtFrom: number;
   readonly dealtThrough: number;
   readonly discardedParticipantUids: readonly string[];
@@ -215,12 +233,13 @@ const COMMAND_FIELDS: Readonly<Record<LifecycleCommandType, readonly string[]>> 
   addFacilitatorCards: [],
   resolve: [],
   exploreSystems: ['opportunityId', 'targetCoordinates'],
+  chooseRewardTargets: ['opportunityId', 'choice'],
   dropOff: ['shipId'],
 };
 
 const COMMAND_TYPES = Object.keys(COMMAND_FIELDS) as LifecycleCommandType[];
 const GM_COMMANDS = new Set<LifecycleCommandType>(['openDiscards', 'addFacilitatorCards', 'resolve', 'exploreSystems']);
-const LEADER_COMMANDS = new Set<LifecycleCommandType>(['distributeExtraCard', 'dropOff']);
+const LEADER_COMMANDS = new Set<LifecycleCommandType>(['distributeExtraCard', 'dropOff', 'chooseRewardTargets']);
 const PARTICIPANT_COMMANDS = new Set<LifecycleCommandType>([
   'requestExtraCards', 'discardCard', 'reclamatorSalvage', 'assignCards',
 ]);
@@ -293,7 +312,10 @@ export function createAwayMissionLifecycleCallables(
         const deckData = requireSnapshotData(deckSnapshot, 'The shared away-mission deck is missing.');
         const deckState = parseMissionDeckState(deckData);
         const deckCount = deckState ? missionDeckDealtCount(deckData, deckState.order.length) : null;
-        if (!deckState || deckCount === null) {
+        const resolvedDiscardCardIds = deckState && deckCount !== null
+          ? missionDeckResolvedDiscardCardIds(deckData, deckState, deckCount)
+          : null;
+        if (!deckState || deckCount === null || resolvedDiscardCardIds === null) {
           fail('failed-precondition', 'The shared away-mission deck is malformed.');
         }
         if (p403.dealtThrough > deckCount) {
@@ -372,6 +394,7 @@ export function createAwayMissionLifecycleCallables(
             p403,
             deckState,
             deckCount,
+            resolvedDiscardCardIds,
             loadedParticipants,
             parsed.sessionId,
           );
@@ -431,6 +454,10 @@ export function createAwayMissionLifecycleCallables(
         }
 
         authorizeMissionActor(record, parsed.command.type, actorUid);
+        requireCandidateCraftActionAvailable(sessionSnapshot, record.participantCrafts.flatMap(participant => participant.craftIds),
+          [...p403.participantSnapshots.flatMap(participant => {
+            const shipId = shipForRole(participant.roleId); return shipId ? [shipId] : [];
+          }), ...(parsed.command.type === 'dropOff' ? [parsed.command.shipId] : [])]);
         if (sessionData.phase !== 'active') {
           fail('failed-precondition', 'Away-mission lifecycle commands require an active game.');
         }
@@ -454,7 +481,7 @@ export function createAwayMissionLifecycleCallables(
         });
         validateGameContext(context, record.sourceCycle);
 
-        let recordForCommand = rebasePreResolutionDeckCursor(record, deckCount);
+        let recordForCommand = rebasePreResolutionDeckCursor(record, deckCount, resolvedDiscardCardIds);
         recordForCommand = markAwayMissionOverrun(
           recordForCommand,
           context.teamPhase || context.currentCycle > recordForCommand.sourceCycle,
@@ -465,6 +492,7 @@ export function createAwayMissionLifecycleCallables(
           teamPhase: context.teamPhase,
           currentCycle: context.currentCycle,
           legalDropOffShipIds: context.legalDropOffShipIds,
+          ...(context.rewardConsoleTargets ? { rewardConsoleTargets: context.rewardConsoleTargets } : {}),
           ...(context.bonusSources === undefined ? {} : { bonusSources: context.bonusSources }),
           ...(parsed.command.type === 'addFacilitatorCards' ? { randomIndex: random.next } : {}),
           ...(parsed.command.type === 'resolve'
@@ -502,6 +530,8 @@ export function createAwayMissionLifecycleCallables(
           nextRecord = {
             ...resolved.record,
             revision: result.record.revision,
+            resolutionRevision: result.record.revision,
+            resolutionRequestId: parsed.requestId,
             commandReceipts: result.record.commandReceipts,
           };
         }
@@ -513,6 +543,31 @@ export function createAwayMissionLifecycleCallables(
         const nextDeckCount = Math.max(deckCount, nextRecord.lifecycle.dealtCount);
         if (nextDeckCount > deckState.order.length) {
           fail('failed-precondition', 'The away-mission command exhausted the shared deck.');
+        }
+        let nextResolvedDiscardCardIds = resolvedDiscardCardIds;
+        if (!sameJson(
+          nextRecord.lifecycle.availableResolvedDiscardCardIds,
+          recordForCommand.lifecycle.availableResolvedDiscardCardIds,
+        )) {
+          const consumedPool = missionDeckResolvedDiscardCardIds({
+            resolvedDiscardCardIds: nextRecord.lifecycle.availableResolvedDiscardCardIds,
+          }, deckState, nextDeckCount);
+          if (consumedPool === null) {
+            fail('failed-precondition', 'The mission lifecycle resolved-discard allocation is malformed.');
+          }
+          nextResolvedDiscardCardIds = consumedPool;
+        }
+        if (record.status === 'active' && nextRecord.status === 'resolved') {
+          const resolvedPool = addResolvedMissionDiscards(
+            deckState,
+            nextDeckCount,
+            nextResolvedDiscardCardIds,
+            nextRecord.lifecycle.discardedCardIds,
+          );
+          if (!resolvedPool) {
+            fail('failed-precondition', 'Resolved mission discards do not match the shared deck ledger.');
+          }
+          nextResolvedDiscardCardIds = resolvedPool;
         }
 
         const commitCraftCommitments = await dependencies.prepareCraftCommitments({
@@ -531,10 +586,21 @@ export function createAwayMissionLifecycleCallables(
             session: sessionSnapshot, mission: missionSnapshot, record,
             commandType: parsed.command.type, nextRecord, shipId: parsed.command.shipId,
           }) : undefined;
+        if (parsed.command.type === 'chooseRewardTargets') await dependencies.validateRewardChoice?.({
+          transaction: rawTransaction, sessionId: parsed.sessionId, missionId: parsed.missionId,
+          session: sessionSnapshot, mission: missionSnapshot, record, commandType: parsed.command.type, nextRecord,
+        });
+        const commitConsequences = record.status === 'active' && nextRecord.status === 'resolved'
+          ? await dependencies.prepareResolvedConsequences?.({
+            transaction: rawTransaction, sessionId: parsed.sessionId, missionId: parsed.missionId,
+            session: sessionSnapshot, mission: missionSnapshot, record, commandType: parsed.command.type, nextRecord,
+            currentGroupId: context.currentGroupId,
+          }) : undefined;
         const updatedAt = dependencies.serverTimestamp();
         commitCraftCommitments();
         commitExploration?.();
         commitDelivery?.();
+        commitConsequences?.();
         transaction.update(dependencies.db.doc(p.mission), {
           phase: nextRecord.lifecycle.phase,
           revision: nextRecord.revision,
@@ -545,8 +611,13 @@ export function createAwayMissionLifecycleCallables(
           lifecycleRecord: nextRecord,
           updatedAt,
         });
-        if (nextDeckCount !== deckCount) {
-          transaction.update(dependencies.db.doc(p.deck), { dealtCount: nextDeckCount, updatedAt });
+        if (nextDeckCount !== deckCount ||
+            !sameJson(nextResolvedDiscardCardIds, resolvedDiscardCardIds)) {
+          transaction.update(dependencies.db.doc(p.deck), {
+            ...(nextDeckCount !== deckCount ? { dealtCount: nextDeckCount } : {}),
+            resolvedDiscardCardIds: nextResolvedDiscardCardIds,
+            updatedAt,
+          });
         }
         loadedParticipants.forEach(({ participant, handRef, pointerRef }) => {
           const privateState = privateProjections.get(participant.uid)!;
@@ -569,6 +640,8 @@ export function createAwayMissionLifecycleCallables(
             updatedAt,
           });
         });
+        transaction.update(dependencies.db.doc(`sessions/${parsed.sessionId}`),
+          awayMissionPointerWriteSafetyPatch(sessionSnapshot.get('awayMissionProjectionSafety')));
         transaction.create(dependencies.db.doc(p.event), {
           type: 'away-mission-lifecycle-command',
           sessionId: parsed.sessionId,
@@ -700,6 +773,17 @@ function parseCallableCommand(value: unknown): ParsedCallableCommand {
       if (!safePathSegment(value.shipId)) fail('invalid-argument', 'Invalid mission reward drop-off ship.');
       command = { type, requestId, expectedRevision: expectedRevision as number, shipId: value.shipId as string };
       break;
+    case 'chooseRewardTargets': {
+      if (!safePathSegment(value.opportunityId) || !isRecord(value.choice)) fail('invalid-argument', 'Choose the printed reward targets.');
+      // The selected reward's structural/target validation is authoritative in the adapter and delivery preparation.
+      const definition = missionCardForCode((value.opportunityId as string).split('-')[0] as string);
+      const opportunity = definition?.opportunities.find(opportunity => opportunity.id === value.opportunityId);
+      const effectReward = opportunity && { opportunityId: opportunity.id, branch: 'critical' as const,
+        resources: {}, effects: [...opportunity.reward.successEffects, ...(opportunity.reward.criticalEffects ?? [])], bulkHaulageApplied: false };
+      if (!effectReward || !validMissionRewardChoice(effectReward, value.choice)) fail('invalid-argument', 'The targets do not match a printed reward choice.');
+      command = { type, requestId, expectedRevision: expectedRevision as number, opportunityId: value.opportunityId as string, choice: value.choice };
+      break;
+    }
   }
   return {
     sessionId,
@@ -729,6 +813,9 @@ function parseP403MissionContext(value: Data, requestedMissionId: string): P403M
     : undefined;
   const handIds = stringArray(value.handIds);
   const cardIds = stringArray(value.cardIds) as readonly MissionCardId[] | null;
+  const recycledCardIds = Object.hasOwn(value, 'recycledCardIds')
+    ? stringArray(value.recycledCardIds) as readonly MissionCardId[] | null
+    : [];
   const discardedParticipantUids = uniqueStringArray(value.discardedParticipantUids);
   const discardedCardIds = uniqueStringArray(value.discardedCardIds) as readonly MissionCardId[] | null;
   const dealtFrom = value.dealtFrom;
@@ -747,12 +834,12 @@ function parseP403MissionContext(value: Data, requestedMissionId: string): P403M
       !missionLeaderUid || !missionLeaderRoleId || !leader || leader.roleId !== missionLeaderRoleId ||
       !availableCarrierCraftIds || availableCarrierCraftIds.length === 0 ||
       (Object.hasOwn(value, 'participantCrafts') && participantCrafts === null) ||
-      !handIds || !cardIds || handIds.length !== participantSnapshots.length ||
+      !handIds || !cardIds || !recycledCardIds || handIds.length !== participantSnapshots.length ||
       cardIds.length !== participantSnapshots.length ||
       !discardedParticipantUids || !discardedCardIds ||
       !Number.isSafeInteger(dealtFrom) || (dealtFrom as number) < 0 ||
-      !Number.isSafeInteger(dealtThrough) || (dealtThrough as number) <= (dealtFrom as number) ||
-      (dealtThrough as number) - (dealtFrom as number) !== participantSnapshots.length ||
+      !Number.isSafeInteger(dealtThrough) || (dealtThrough as number) < (dealtFrom as number) ||
+      (dealtThrough as number) - (dealtFrom as number) + recycledCardIds.length !== participantSnapshots.length ||
       !Number.isSafeInteger(revision) || (revision as number) < 0 ||
       typeof phase !== 'string' || !LIFECYCLE_PHASES.has(phase)) {
     fail('failed-precondition', 'The P403 away-mission record is malformed.');
@@ -762,6 +849,8 @@ function parseP403MissionContext(value: Data, requestedMissionId: string): P403M
   }
   if (new Set(cardIds).size !== cardIds.length ||
       cardIds.some((cardId) => !CANONICAL_MISSION_CARD_IDS.has(cardId)) ||
+      new Set(recycledCardIds).size !== recycledCardIds.length ||
+      recycledCardIds.some((cardId) => !CANONICAL_MISSION_CARD_IDS.has(cardId)) ||
       discardedCardIds.some((cardId) => !CANONICAL_MISSION_CARD_IDS.has(cardId)) ||
       discardedParticipantUids.some((uid) => !participantSnapshots.some((participant) => participant.uid === uid))) {
     fail('failed-precondition', 'The P403 initial card ledger is malformed.');
@@ -782,6 +871,7 @@ function parseP403MissionContext(value: Data, requestedMissionId: string): P403M
     ...(participantCrafts == null ? {} : { participantCrafts }),
     handIds,
     cardIds,
+    recycledCardIds,
     dealtFrom: dealtFrom as number,
     dealtThrough: dealtThrough as number,
     discardedParticipantUids,
@@ -799,6 +889,7 @@ async function bootstrapLifecycleRecord(
   p403: P403MissionContext,
   deckState: MissionDeckState,
   deckCount: number,
+  resolvedDiscardCardIds: readonly MissionCardId[],
   participants: readonly LoadedParticipantDocuments[],
   sessionId: string,
 ): Promise<AwayMissionLifecycleRecord> {
@@ -806,9 +897,13 @@ async function bootstrapLifecycleRecord(
     fail('failed-precondition', 'The legacy P403 mission phase cannot initialize the lifecycle safely.');
   }
   const cardsById = new Map(missionCardsForState(deckState).map((card) => [card.id, card]));
-  const orderedP403Cards = deckState.order.slice(p403.dealtFrom, p403.dealtThrough);
+  const orderedP403Cards = [
+    ...deckState.order.slice(p403.dealtFrom, p403.dealtThrough),
+    ...p403.recycledCardIds,
+  ];
   if (orderedP403Cards.length !== p403.cardIds.length ||
-      p403.cardIds.some((cardId, index) => orderedP403Cards[index] !== cardId)) {
+      p403.cardIds.some((cardId, index) => orderedP403Cards[index] !== cardId) ||
+      p403.recycledCardIds.some((cardId) => deckState.order.indexOf(cardId) >= p403.dealtFrom)) {
     fail('failed-precondition', 'The P403 initial cards do not match the shared deck order.');
   }
   const initialCards = participants.map(({ participant, hand }) => ({
@@ -828,6 +923,7 @@ async function bootstrapLifecycleRecord(
     availableCarrierCraftIds: p403.availableCarrierCraftIds,
     deckState,
     dealtCount: deckCount,
+    availableResolvedDiscardCardIds: resolvedDiscardCardIds,
     initialCards,
     phase: p403.phase as 'awaiting-card-selection' | 'discarding' | 'assignment-ready',
     discardedParticipantUids: p403.discardedParticipantUids,
@@ -907,9 +1003,19 @@ function requireStoredLifecycleRecord(
     if (!expectedPrivate || !expectedPublic) {
       fail('failed-precondition', 'A stored participant projection could not be derived safely.');
     }
+    // Older K pointers included the protected thresholds. Accept only that
+    // exact canonical representation; replies still use the redacted projector.
+    const legacyKPublic = record.lifecycle.siteCode === 'K' && record.status !== 'active' && record.outcomes
+      ? { ...expectedPublic, outcomes: record.outcomes.map(({ opportunityId, contributorCount,
+        total, bonusTotal, difficulty, criticalThreshold, outcome }) => ({
+        opportunityId, contributorCount, total, bonusTotal, difficulty, criticalThreshold, outcome,
+      })) }
+      : null;
+    const publicProjectionMatches = sameJson(pointer.lifecyclePublicState, expectedPublic) ||
+      (legacyKPublic !== null && sameJson(pointer.lifecyclePublicState, legacyKPublic));
     const initialCard = expectedPrivate.cards.find(({ id }) => id === p403.cardIds[index]);
     if (!sameJson(hand.lifecyclePrivateState, expectedPrivate) ||
-        !sameJson(pointer.lifecyclePublicState, expectedPublic) ||
+        !publicProjectionMatches ||
         hand.revision !== record.revision || hand.phase !== expectedPrivate.phase ||
         hand.discarded !== (initialCard?.status === 'discarded') ||
         pointer.phase !== expectedPublic.phase || pointer.revision !== record.revision ||
@@ -918,6 +1024,70 @@ function requireStoredLifecycleRecord(
     }
   }
   return record;
+}
+
+/** Reuse the command loader's immutable authority for administrative repair.
+ * This read never bootstraps gameplay, rolls dice, or changes a command receipt. */
+export async function readAwayMissionProjectionRepairAuthority(input: Readonly<{
+  db: AwayMissionLifecycleCallableDatabase;
+  transaction: unknown;
+  sessionId: string;
+  mission: AwayMissionLifecycleCallableSnapshot;
+  deck: AwayMissionLifecycleCallableSnapshot;
+}>): Promise<Readonly<{
+  missionId: string;
+  handIds: readonly string[];
+  pointers: readonly Readonly<{ handId: string; publicState: AwayMissionPublicState | null; needsSanitation: boolean }>[];
+}>> {
+  const transaction = input.transaction as LifecycleTransaction;
+  const missionId = input.mission.id;
+  if (!missionId || !input.mission.exists) fail('failed-precondition', 'The protected mission is unavailable.');
+  const mission = requireSnapshotData(input.mission, 'The protected mission is malformed.');
+  const p403 = parseP403MissionContext(mission, missionId);
+  const deckData = requireSnapshotData(input.deck, 'The shared mission deck is unavailable.');
+  const deck = parseMissionDeckState(deckData);
+  const deckCount = deck ? missionDeckDealtCount(deckData, deck.order.length) : null;
+  const discardIds = deck && deckCount !== null ? missionDeckResolvedDiscardCardIds(deckData, deck, deckCount) : null;
+  if (!deck || deckCount === null || discardIds === null || p403.dealtThrough > deckCount) {
+    fail('failed-precondition', 'The protected mission deck authority is malformed.');
+  }
+  validateP403DeckSlice(p403, deck);
+  const start = await transaction.get(input.db.doc(`sessions/${input.sessionId}/missionStartSnapshots/${p403.opportunityId}`));
+  if (!start.exists) fail('failed-precondition', 'The immutable mission-start receipt is missing.');
+  validateStartSnapshot(requireSnapshotData(start, 'The mission-start receipt is malformed.'), p403, input.sessionId);
+  const cards = new Map(missionCardsForState(deck).map(card => [card.id, card]));
+  const participants: LoadedParticipantDocuments[] = await Promise.all(p403.participantSnapshots.map(async (participant, index) => {
+    const handId = p403.handIds[index]!;
+    const handRef = input.db.doc(`sessions/${input.sessionId}/awayMissionHands/${handId}`);
+    const pointerRef = input.db.doc(`sessions/${input.sessionId}/awayMissionHandPointers/${handId}`);
+    const [handSnapshot, pointerSnapshot] = await Promise.all([transaction.get(handRef), transaction.get(pointerRef)]);
+    if (!handSnapshot.exists || !pointerSnapshot.exists) fail('failed-precondition', 'A canonical participant hand or pointer is missing.');
+    const hand = requireSnapshotData(handSnapshot, 'A canonical participant hand is malformed.');
+    const pointer = requireSnapshotData(pointerSnapshot, 'A canonical participant pointer is malformed.');
+    const card = cards.get(p403.cardIds[index]!);
+    if (!card || hand.type !== 'away-mission-hand' || hand.sessionId !== input.sessionId ||
+        hand.missionId !== missionId || hand.handId !== handId || hand.participantUid !== participant.uid ||
+        hand.cardId !== card.id || hand.rank !== card.rank || hand.suit !== card.suit || hand.value !== card.value ||
+        (hand.discarded !== undefined && typeof hand.discarded !== 'boolean')) {
+      fail('failed-precondition', 'A canonical participant hand no longer matches its initial deal.');
+    }
+    validatePointerIdentity(pointer, p403, participant, handId, input.sessionId);
+    return { participant, handId, handRef, pointerRef, hand, pointer };
+  }));
+  if (!Object.hasOwn(mission, 'lifecycleRecord')) {
+    if (mission.status !== undefined || mission.overrun !== undefined || !INITIAL_P403_PHASES.has(p403.phase) ||
+        participants.some(({ hand, pointer }) => hand.lifecyclePrivateState !== undefined || pointer.lifecyclePublicState !== undefined)) {
+      fail('failed-precondition', 'A projected mission lacks its canonical protected record.');
+    }
+    validateLegacyDiscardProjections(p403, participants);
+    return { missionId, handIds: p403.handIds,
+      pointers: participants.map(({ handId }) => ({ handId, publicState: null, needsSanitation: false })) };
+  }
+  const record = requireStoredLifecycleRecord(mission.lifecycleRecord, mission, input.sessionId, p403, deck, deckCount, participants);
+  return { missionId, handIds: p403.handIds, pointers: participants.map(({ participant, handId, pointer }) => {
+    const publicState = safePublicProjection(record, participant.uid)!;
+    return { handId, publicState, needsSanitation: !sameJson(pointer.lifecyclePublicState, publicState) };
+  }) };
 }
 
 function validateStartSnapshot(value: Data, p403: P403MissionContext, sessionId: string): void {
@@ -934,10 +1104,13 @@ function validateStartSnapshot(value: Data, p403: P403MissionContext, sessionId:
       value.siteCode !== p403.siteCode || value.sourceCycle !== p403.sourceCycle ||
       !inputs || !sameJson(inputs.participantSnapshots, p403.participantSnapshots) ||
       !sameJson(inputs.availableCarrierCraftIds, p403.availableCarrierCraftIds) ||
+      !sameJson(value.recycledCardIds ?? [], p403.recycledCardIds) ||
       (p403.participantCrafts !== undefined && !sameJson(inputs.participantCrafts, p403.participantCrafts)) ||
       inputs.missionLeaderUid !== p403.missionLeaderUid ||
       !stateDelta || stateDelta.missionDeckDealtCountBefore !== p403.dealtFrom ||
       stateDelta.missionDeckDealtCountAfter !== p403.dealtThrough ||
+      (stateDelta.missionDeckRecycleCount !== undefined &&
+        stateDelta.missionDeckRecycleCount !== p403.recycledCardIds.length) ||
       !deckRevision || deckRevision.before !== p403.dealtFrom || deckRevision.after !== p403.dealtThrough ||
       !leader || leader.uid !== p403.missionLeaderUid || leader.roleId !== p403.missionLeaderRoleId) {
     fail('failed-precondition', 'The P403 mission-start receipt does not match the active mission instance.');
@@ -945,9 +1118,13 @@ function validateStartSnapshot(value: Data, p403: P403MissionContext, sessionId:
 }
 
 function validateP403DeckSlice(p403: P403MissionContext, deckState: MissionDeckState): void {
-  const originalDeal = deckState.order.slice(p403.dealtFrom, p403.dealtThrough);
+  const originalDeal = [
+    ...deckState.order.slice(p403.dealtFrom, p403.dealtThrough),
+    ...p403.recycledCardIds,
+  ];
   if (originalDeal.length !== p403.cardIds.length ||
-      originalDeal.some((cardId, index) => cardId !== p403.cardIds[index])) {
+      originalDeal.some((cardId, index) => cardId !== p403.cardIds[index]) ||
+      p403.recycledCardIds.some((cardId) => deckState.order.indexOf(cardId) >= p403.dealtFrom)) {
     fail('failed-precondition', 'The P403 initial cards no longer match the shared deck order.');
   }
 }
@@ -1019,15 +1196,21 @@ function validateGameContext(context: AwayMissionLifecycleGameContext, sourceCyc
 function rebasePreResolutionDeckCursor(
   record: AwayMissionLifecycleRecord,
   deckCount: number,
+  availableResolvedDiscardCardIds: readonly MissionCardId[],
 ): AwayMissionLifecycleRecord {
   if (record.status !== 'active' || record.lifecycle.phase === 'facilitator-cards-added') return record;
   if (record.lifecycle.dealtCount > deckCount) {
     fail('failed-precondition', 'The lifecycle deck cursor is ahead of the shared mission deck.');
   }
-  if (record.lifecycle.dealtCount === deckCount) return record;
+  if (record.lifecycle.dealtCount === deckCount &&
+      sameJson(record.lifecycle.availableResolvedDiscardCardIds, availableResolvedDiscardCardIds)) return record;
   return {
     ...record,
-    lifecycle: { ...record.lifecycle, dealtCount: deckCount },
+    lifecycle: {
+      ...record.lifecycle,
+      dealtCount: deckCount,
+      availableResolvedDiscardCardIds,
+    },
   };
 }
 
@@ -1178,8 +1361,17 @@ function validateStoredCommandReply(
       'missionId', 'participantUid', 'revision', 'phase', 'cards', 'reclamatorSalvage',
       ...(Object.hasOwn(privateState, 'canUseReclamator') ? ['canUseReclamator'] : []),
       ...(Object.hasOwn(privateState, 'assignmentCommitted') ? ['assignmentCommitted'] : []),
+      ...(Object.hasOwn(privateState, 'extraCardRecipientUids') ? ['extraCardRecipientUids'] : []),
+      ...(Object.hasOwn(privateState, 'rewardOptions') ? ['rewardOptions'] : []),
+      ...(Object.hasOwn(privateState, 'rewardChoices') ? ['rewardChoices'] : []),
     ]) || (privateState.canUseReclamator !== undefined && typeof privateState.canUseReclamator !== 'boolean') || privateState.missionId !== command.missionId || privateState.participantUid !== actorUid ||
         (privateState.assignmentCommitted !== undefined && typeof privateState.assignmentCommitted !== 'boolean') ||
+        (privateState.extraCardRecipientUids !== undefined &&
+          (publicState.missionLeaderUid !== actorUid || !Array.isArray(privateState.extraCardRecipientUids) ||
+            privateState.extraCardRecipientUids.some(uid => !safePathSegment(uid)) ||
+            new Set(privateState.extraCardRecipientUids).size !== privateState.extraCardRecipientUids.length)) ||
+        ((privateState.rewardChoices !== undefined || privateState.rewardOptions !== undefined) &&
+          (publicState.missionLeaderUid !== actorUid || !validMissionRewardChoiceProjection(privateState.rewardOptions, privateState.rewardChoices))) ||
         privateState.revision !== value.revision || !Array.isArray(privateState.cards) ||
         privateState.cards.some((card) => !isRecord(card) ||
           !hasExactKeys(card, ['id', 'value', 'status', 'opportunityId']))) {

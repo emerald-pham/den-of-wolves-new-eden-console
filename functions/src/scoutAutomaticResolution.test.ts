@@ -35,7 +35,7 @@ vi.mock('firebase-functions/v2/firestore', () => ({
 }));
 
 import { createAutomaticScoutResolver } from './scoutAutomaticResolution';
-import { createResolvePendingScoutRequest, readPrivateScoutResult, listGmScoutResolutionLog } from './scoutResultCallable';
+import { createResolvePendingScoutRequest, readPrivateScoutResult, listPendingScoutRequests, listGmScoutResolutionLog } from './scoutResultCallable';
 
 const commitMap = vi.fn(async () => undefined);
 const resolver = createAutomaticScoutResolver(commitMap);
@@ -80,6 +80,28 @@ beforeEach(() => {
 });
 
 describe('automatic committed scouting', () => {
+  it('resolves an ordinary started game whose chart is locked by its confirmed configuration', async () => {
+    put('sessions/session-1', { ...mock.documents.get('sessions/session-1'),
+      chartSelectionLocked: false, configurationLocked: true });
+    await resolver.run(event());
+    expect(mock.documents.get('sessions/session-1/scoutResults/scan-1')).toMatchObject({
+      requesterUid: 'comms-1', systemFact: { coordinate: '0408', code: 'O' } });
+    const audit = mock.documents.get('sessions/session-1/scoutResolutionAudits/scan-1');
+    vi.advanceTimersByTime(10_000);
+    await resolver.run(event());
+    expect(mock.documents.get('sessions/session-1/scoutResolutionAudits/scan-1')).toEqual(audit);
+    expect(commitMap).toHaveBeenCalledTimes(1);
+    expect(mock.create).toHaveBeenCalledTimes(4);
+  });
+
+  it.each([false, undefined, 'true'])('rejects an unconfirmed configuration lock %s without any map or private-result write', async lock => {
+    put('sessions/session-1', { ...mock.documents.get('sessions/session-1'),
+      chartSelectionLocked: false, configurationLocked: lock });
+    await expect(resolver.run(event())).rejects.toThrow(/current authority/);
+    expect(commitMap).not.toHaveBeenCalled();
+    expect(mock.create).not.toHaveBeenCalled();
+  });
+
   it('resolves the current Comms player choice without any GM identity or extra input', async () => {
     expect(resolver.options).toMatchObject({ document: 'sessions/{sessionId}/scoutRequests/{requestId}', retry: true });
     await resolver.run(event());
@@ -161,6 +183,46 @@ describe('automatic committed scouting', () => {
 
 
 describe('private automatic scout GM log', () => {
+  it.each([
+    ['resolution log', () => listGmScoutResolutionLog.run({ auth: { uid: 'gm-1' }, data: {
+      sessionId: 'session-1', instanceId: 'gm-browser' } } as never)],
+    ['pending queue', () => listPendingScoutRequests.run({ auth: { uid: 'gm-1' }, data: {
+      sessionId: 'session-1', instanceId: 'gm-browser' } } as never)],
+  ])('reads the %s after a legitimate presence renewal during transaction admission', async (_label, read) => {
+    put('sessions/session-1/players/gm-1', { role: 'gm', connected: true, lastSeenAt: now - 10_000 });
+    put('sessions/session-1/gmInstances/gm-browser', { uid: 'gm-1', connected: true, lastSeenAt: now - 10_000 });
+    mock.db.runTransaction.mockImplementationOnce(async fn => {
+      // The native trace renews presence after callable entry and before its reads.
+      vi.advanceTimersByTime(20);
+      put('sessions/session-1/players/gm-1', { role: 'gm', connected: true, lastSeenAt: now + 17 });
+      put('sessions/session-1/gmInstances/gm-browser', { uid: 'gm-1', connected: true, lastSeenAt: now + 17 });
+      return fn({ get: mock.get, create: mock.create });
+    });
+    await expect(read()).resolves.toEqual(expect.any(Array));
+    expect(mock.create).not.toHaveBeenCalled();
+    expect(commitMap).not.toHaveBeenCalled();
+  });
+
+  it.each(['expired', 'future', 'demoted', 'disconnected', 'foreign-instance'])(
+    'keeps %s GM authority denied after delayed transaction admission', async state => {
+      const player = { role: 'gm', connected: true, lastSeenAt: now - 1_000 };
+      const instance = { uid: 'gm-1', connected: true, lastSeenAt: now - 1_000 };
+      mock.db.runTransaction.mockImplementationOnce(async fn => {
+        vi.advanceTimersByTime(20);
+        if (state === 'expired') player.lastSeenAt = now - 120_000;
+        if (state === 'future') player.lastSeenAt = now + 10_000;
+        if (state === 'demoted') player.role = 'player';
+        if (state === 'disconnected') instance.connected = false;
+        if (state === 'foreign-instance') instance.uid = 'other-gm';
+        put('sessions/session-1/players/gm-1', player);
+        put('sessions/session-1/gmInstances/gm-browser', instance);
+        return fn({ get: mock.get, create: mock.create });
+      });
+      await expect(listGmScoutResolutionLog.run({ auth: { uid: 'gm-1' }, data: {
+        sessionId: 'session-1', instanceId: 'gm-browser' } } as never))
+        .rejects.toMatchObject({ code: 'permission-denied' });
+      expect(mock.create).not.toHaveBeenCalled();
+    });
   it('returns a bounded result log to an owned live GM without chart or identity fields', async () => {
     await resolver.run(event());
     put('sessions/session-1/players/gm-1', { role: 'gm', connected: true, lastSeenAt: now });

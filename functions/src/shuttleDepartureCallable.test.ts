@@ -51,7 +51,7 @@ vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error {
     constructor(readonly code: string, message: string, readonly details?: unknown) { super(message); }
   },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
@@ -109,6 +109,34 @@ beforeEach(() => {
   put('sessions/s1/fleetGroups/fleet-1', {
     id: 'fleet-1', vesselIds: ['aegis', 'icebreaker'], memberUids: ['holder', 'owner'],
   });
+});
+
+it('denies a fresh shuttle departure to a candidate-settled target while another vessel remains active', async () => {
+  const current = mock.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...current, candidateVesselOutcomes: { icebreaker: {
+    code: 'N', groupId: 'fleet-1', shipId: 'icebreaker', sourceId: 'ring-pass', cycle: 2, outcome: 'crossed',
+  } } });
+  await expect(requestShuttleDeparture.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+it('denies a consumed Engineering Shuttle and keeps its original departure receipt recoverable', async () => {
+  const current = mock.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...current,
+    activeRoleIds: [...current.activeRoleIds as string[], 'icebreaker-engineer'],
+    shuttleDockings: [...current.shuttleDockings as Fields[], { shuttleId: 'blacksmith', shipId: 'aegis', dockedAt: 'SESSION START' }],
+    shuttleControl: { ...current.shuttleControl as Fields, blacksmith: {
+      shuttleId: 'blacksmith', ownerRoleId: 'icebreaker-engineer', ownerUid: 'owner', holderUid: 'holder', revision: 0,
+    } },
+  });
+  const original = { ...command, shuttleId: 'blacksmith', requestId: 'craft-original' };
+  const result = await requestShuttleDeparture.run(request(original));
+  const after = mock.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...after, candidateCraftReservations: { blacksmith: {
+    code: 'N', groupId: 'fleet-1', coordinate: '6798', sourceId: 'ring-craft', cycle: 2,
+  } } });
+  await expect(requestShuttleDeparture.run(request(original))).resolves.toMatchObject({ ...result, status: 'replayed' });
+  await expect(requestShuttleDeparture.run(request({ ...original, requestId: 'craft-new' })))
+    .rejects.toThrow(/consumed|Ring/i);
 });
 
 it('persists one holder departure request and replays without another write', async () => {

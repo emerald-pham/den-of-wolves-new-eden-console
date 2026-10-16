@@ -1,12 +1,13 @@
 import { fleetGroupRecord, type FleetGroupRecord } from './fleetGroups';
 import { isStarSystemCoordinate } from './navigation';
 import { splitPursuitGroup, isValidPursuitAuthority, type NavigationState } from './navigationProjection';
-import { planFleetGroupRejoins } from './fleetGroupOperations';
+import { planFleetGroupRejoins, type FleetGroupRejoinDecision } from './fleetGroupOperations';
 export interface PartitionMember { readonly uid: string; readonly groupId: string; readonly shipId: string | null }
 
 /** A facilitator confirms physical partitions after movement; no client chooses its audience. */
 export function planFleetPartition(navigation: NavigationState, groups: readonly FleetGroupRecord[],
-  members: readonly PartitionMember[], activeVesselIds: readonly string[]) {
+  members: readonly PartitionMember[], activeVesselIds: readonly string[],
+  rejoinDecisions: readonly FleetGroupRejoinDecision[] = []) {
   const vesselIds = groups.flatMap(group => group.vesselIds);
   const memberIds = groups.flatMap(group => group.memberUids);
   if (!groups.length || groups.some(group => !fleetGroupRecord(group) || !/^fleet-[1-9][0-9]*$/.test(group.id)) ||
@@ -59,11 +60,11 @@ export function planFleetPartition(navigation: NavigationState, groups: readonly
     }
     nextGroups.push(...partitions);
   }
-  const reconciled = planFleetGroupRejoins(nextNavigation, nextGroups);
+  const reconciled = planFleetGroupRejoins(nextNavigation, nextGroups, rejoinDecisions);
   const finalMemberGroups = Object.create(null) as Record<string, string>;
   for (const group of reconciled.groups) for (const uid of group.memberUids) finalMemberGroups[uid] = group.id;
   return { navigation: reconciled.navigation, groups: reconciled.groups,
-    memberGroups: finalMemberGroups, rejoins: reconciled.rejoins };
+    memberGroups: finalMemberGroups, rejoins: reconciled.rejoins, adjudicationRequired: reconciled.adjudicationRequired };
 }
 
 /** Returning members retain their authority; a new browser cannot choose another partition. */

@@ -1,3 +1,4 @@
+import { requireCandidateCraftActionAvailable } from './candidateAvailability';
 import { HttpsError } from 'firebase-functions/v2/https';
 import type { Firestore, Transaction } from 'firebase-admin/firestore';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
@@ -645,6 +646,7 @@ export function createVoyage33MovementCallables(dependencies: Voyage33MovementCa
         return replay;
       }
       await requireMovementActor(dependencies, tx, parsed.sessionId, uid, parsed.hostShipId, parsed.instanceId);
+      requireCandidateCraftActionAvailable(session, [VOYAGE_33_ID], [parsed.hostShipId]);
       requireAdmission(session, parsed.sessionId);
       requireLiveSessionPhase(session, 'team');
       const activeVesselIds = requireActiveCoreRoster(session.get('activeVesselIds'));
@@ -749,6 +751,7 @@ export function createVoyage33MovementCallables(dependencies: Voyage33MovementCa
         await requireMovementActor(dependencies, tx, parsed.sessionId, uid, storedHost, parsed.instanceId);
         return replay;
       }
+      requireCandidateCraftActionAvailable(session, [VOYAGE_33_ID], [parsed.hostShipId]);
       requireAdmission(session, parsed.sessionId);
       const currentTurn = requireLiveSessionPhase(session, 'coordination');
       const maintenance = maintenanceStateFromSession(session);

@@ -44,6 +44,16 @@ describe('role brief projection', () => {
     expect(serializedRoleBrief('s1', 'alice', 'unknown-role', 4)).toBeUndefined();
   });
 
+  it('ships the Rosal Militia briefing with its Boarding ability usable on the ship where the leader is present', () => {
+    const brief = serializedRoleBrief('s1', 'militia-leader', 'rosal-militia-leader', 4);
+
+    expect(brief).toMatchObject({ roleId: 'rosal-militia-leader', assignmentUid: 'militia-leader' });
+    expect(brief?.text).toContain('defend on the ship where you are present');
+    expect(brief?.text).toContain('Whether or not they outnumber the teams, you may lead from the front and roll up to three extra defence dice; a front-line 1 kills you.');
+    expect(brief?.text).toContain('a front-line 1 kills you');
+    expect(brief?.text).not.toContain('Shepherd security teams');
+  });
+
   it('keeps replacement briefs private and free of loyalty data', () => {
     const record = serializedRoleBrief('s1', 'alice', 'wolf-commander', 5);
     expect(record).toMatchObject({
@@ -53,6 +63,21 @@ describe('role brief projection', () => {
     });
     expect(JSON.stringify(record)).not.toContain('loyalty');
     expect(JSON.stringify(record)).not.toContain('wolf-agent');
+  });
+
+  it('labels both Wolf targeting and optional Commander boarding rules as house rules', () => {
+    const brief = roleBriefFor('wolf-commander');
+
+    expect(brief?.text).toMatch(/HOUSE RULE.*nonparticipating target results are rerolled/i);
+    expect(brief?.text).toMatch(/HOUSE RULE.*live GM records the consequence/i);
+    expect(brief?.text).toMatch(/no automatic consequence/i);
+  });
+
+  it('does not give the Wolf Commander the fleet survival objective from common role rules', () => {
+    const brief = serializedRoleBrief('s1', 'commander', 'wolf-commander', 5);
+
+    expect(brief?.text).toContain('Goal // Prevent the fleet from escaping');
+    expect(brief?.commonRules).not.toContain('The fleet objective is to reach New Eden');
   });
 
   it('projects only the assigned role’s active craft', () => {

@@ -58,6 +58,9 @@ describe('expensive callable rate limits', () => {
 
   it('sets budgets for the audited expensive callables and excludes client identity from the policy', () => {
     expect(CALLABLE_RATE_LIMIT_POLICIES).toEqual({
+      prepareFullGameDemo: { windowMs: 60_000, maxRequests: 6 },
+      advanceFullGameDemoPhase: { windowMs: 60_000, maxRequests: 6 },
+      getCurrentMemberSession: { windowMs: 60_000, maxRequests: 120 },
       resumeSession: { windowMs: 60_000, maxRequests: 10 },
       getSessionPresence: { windowMs: 60_000, maxRequests: 12 },
       listGmInstances: { windowMs: 60_000, maxRequests: 60 },

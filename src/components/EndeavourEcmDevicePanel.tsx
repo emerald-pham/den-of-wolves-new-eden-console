@@ -38,7 +38,7 @@ function currentResult(value: EndeavourEcmDeviceWorkspace): EndeavourEcmDevicePr
       pursuitBefore: value.device.pursuitBefore, pursuitAfter: value.device.pursuitAfter,
     };
   }
-  if (!value.researchComplete) return { status: 'unavailable' };
+  if (!value.built) return { status: 'unavailable' };
   return { status: 'ready', groupId: value.pursuit.groupId, pursuit: value.pursuit.current };
 }
 
@@ -90,7 +90,7 @@ export default function EndeavourEcmDevicePanel({ control }: { readonly control:
   );
   const canActivate = Boolean(
     entitled && connection === 'live' && snapshotFreshness === 'server' &&
-    window.navigator.onLine && workspace?.device.status === 'ready' && workspace.researchComplete,
+    window.navigator.onLine && workspace?.device.status === 'ready' && workspace.built,
   );
 
   const reload = useCallback(async (): Promise<EndeavourEcmDeviceWorkspace | null> => {

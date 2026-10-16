@@ -1,10 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { useSessionStore } from '@/store/useSessionStore';
+import type { Player } from '@/types/game';
 import { revealAndroidProof } from '@/lib/androidProofService';
-import { submitWolfHomingBeacon, submitWolfIntelligence } from '@/lib/wolfActionService';
+import {
+  submitWolfHomingBeacon,
+  submitWolfIntelligence,
+  submitWolfSupplySabotage,
+} from '@/lib/wolfActionService';
 import { investigatePlayer } from '@/lib/intelligenceInvestigationService';
 import {
   subscribeConnectedPlayers,
@@ -16,6 +21,7 @@ vi.mock('@/lib/androidProofService', () => ({ revealAndroidProof: vi.fn() }));
 vi.mock('@/lib/wolfActionService', () => ({
   submitWolfHomingBeacon: vi.fn(),
   submitWolfIntelligence: vi.fn(),
+  submitWolfSupplySabotage: vi.fn(),
 }));
 vi.mock('@/lib/intelligenceInvestigationService', () => ({ investigatePlayer: vi.fn() }));
 vi.mock('@/lib/firestore', () => ({
@@ -36,6 +42,7 @@ beforeEach(() => {
   vi.mocked(revealAndroidProof).mockReset();
   vi.mocked(submitWolfIntelligence).mockReset();
   vi.mocked(submitWolfHomingBeacon).mockReset();
+  vi.mocked(submitWolfSupplySabotage).mockReset();
   vi.mocked(investigatePlayer).mockReset();
   vi.mocked(subscribeConnectedPlayers).mockReset();
   vi.mocked(subscribeConnectedPlayers).mockReturnValue(vi.fn());
@@ -81,6 +88,79 @@ it('shows only the current core player loyalty card and suspicion', () => {
   expect(screen.queryByText(/fleet loyalist/i)).not.toBeInTheDocument();
 });
 
+it('renders the directives delivered on the current holder private loyalty payload', () => {
+  act(() => useSessionStore.getState().setPrivateLoyalty({
+    kind: 'fleet-loyalist', suspicion: 5,
+    directives: ['Server-assigned private objective for this holder.'],
+  } as never));
+
+  render(<PrivateLoyaltyPanel />);
+
+  expect(screen.getByRole('region', { name: 'Private loyalty goals' }))
+    .toHaveTextContent('Server-assigned private objective for this holder.');
+});
+
+it.each([
+  ['fleet-loyalist', 'Objective // Reach New Eden with as many survivors as possible; keep faith with the fleet.'],
+  ['wolf-agent', 'Your sleeper priority overrides your former loyalty objective when you activate. Objective // Keep the fleet from escaping by spreading fear or confusion, weakening its infrastructure or defences, or reducing morale.'],
+  ['intelligence-agent', 'Keep your Intelligence Bureau cover hidden while identifying Wolf agents. Your undercover assignment has no working chain of command to contact or prove your credentials.'],
+  ['universal-arbour', 'Objective // Recruit fleet members and spread Universal Arbour influence.'],
+  ['wolf-cult', 'Override // Your Arbour is a Wolf-created cult. Objective // Prevent the Survivor Fleet from escaping through the Wolf-created Arbour cult; pass Wolf intelligence as religious insight.'],
+  ['android', 'Objective // Reach New Eden with as many survivors as possible and keep your android identity secret. You may choose to show your card as proof that you are not a Wolf agent.'],
+  ['friend', 'Objective // Reach New Eden with as many survivors as possible and trust your reciprocal Friend. Your matching Friend card names you back as someone known not to be a Wolf agent.'],
+] as const)('shows the printed private goal for %s to its current holder', (kind, expected) => {
+  useSessionStore.getState().setPrivateLoyalty({
+    kind, suspicion: kind === 'android' ? null : 0,
+    directives: [expected],
+    ...(kind === 'friend' ? { partnerUid: 'u3', partnerRoleId: 'admiral' } : {}),
+  } as never);
+
+  render(<PrivateLoyaltyPanel />);
+
+  expect(within(screen.getByRole('region', { name: 'Private loyalty card' })).getByText(new RegExp(expected, 'i')))
+    .toBeVisible();
+});
+
+it.each([
+  { role: 'gm' as const }, { sessionId: 'another-session' }, { replacementStatus: 'awaiting-re-role' as const },
+] satisfies Partial<Player>[])('keeps every loyalty goal out of a non-holder view %j', patch => {
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+  useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, ...patch });
+
+  render(<PrivateLoyaltyPanel />);
+
+  expect(screen.queryByRole('region', { name: 'Private loyalty card' })).not.toBeInTheDocument();
+  expect(screen.queryByText(/sleeper priority overrides/i)).not.toBeInTheDocument();
+});
+
+it('shows Arbour and Wolf Cult variable intel only when its live recipient projection belongs to this holder', () => {
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'universal-arbour', suspicion: 10 });
+  useSessionStore.getState().setArbourVision({
+    sessionId: 's1', recipientUid: 'u2', revision: 1, kind: 'danger',
+    text: 'Current private vision: danger at 0101.', label: 'FACILITATOR CALL',
+  });
+  const first = render(<PrivateLoyaltyPanel />);
+  expect(screen.getByText('Current private vision: danger at 0101.')).toBeVisible();
+  first.unmount();
+
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-cult', suspicion: 15 });
+  useSessionStore.getState().setWolfCultIntelligence({
+    sessionId: 's1', recipientUid: 'u2', revision: 1, fortressCoordinate: '0101',
+    suppliesCoordinate: '0202', agentUid: 'u3', codeWord: 'private-token', label: 'WOLF INTEL',
+  });
+  const second = render(<PrivateLoyaltyPanel />);
+  expect(within(screen.getByRole('region', { name: 'Private loyalty card' }))
+    .getByText('Code word // private-token')).toBeVisible();
+  second.unmount();
+
+  useSessionStore.getState().setWolfCultIntelligence({
+    sessionId: 's1', recipientUid: 'u3', revision: 2, fortressCoordinate: '0303',
+    suppliesCoordinate: '0404', agentUid: 'u4', codeWord: 'foreign-token', label: 'WOLF INTEL',
+  });
+  render(<PrivateLoyaltyPanel />);
+  expect(screen.queryByText(/foreign-token/)).not.toBeInTheDocument();
+});
+
 it('sends a short private Wolf handler message and applies the server suspicion result', async () => {
   const user = userEvent.setup();
   prepareLivePlayer();
@@ -103,6 +183,147 @@ it('sends a short private Wolf handler message and applies the server suspicion 
   expect(useSessionStore.getState().privateLoyalty).toMatchObject({
     kind: 'wolf-agent', suspicion: 3,
   });
+});
+
+it('explains rounded-down cargo loss and the two-suspicion cost before a supply sabotage is submitted', () => {
+  useSessionStore.getState().setSession({
+    id: 's1', phase: 'active', currentTurn: 2,
+    activeRoleIds: ['dione-engineer'], shuttleCargo: { maliades: { fuel: 5 } },
+  } as never);
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!,
+    assignedRoleId: 'dione-engineer', activeConsoleRoleId: 'dione-engineer',
+  });
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+
+  render(<PrivateLoyaltyPanel />);
+
+  expect(screen.getByText(/half the selected cargo, rounded down/i)).toBeVisible();
+  expect(screen.getByText(/adds 2 suspicion/i)).toBeVisible();
+  expect(screen.getByText(/one Wolf action for this active cycle/i)).toBeVisible();
+  expect(submitWolfSupplySabotage).not.toHaveBeenCalled();
+});
+
+it('offers only positive cargo on the active cover-role shuttle and commits a private one-action result', async () => {
+  const user = userEvent.setup();
+  prepareLivePlayer();
+  useSessionStore.getState().setSession({
+    id: 's1', phase: 'active', currentTurn: 2,
+    activeRoleIds: ['dione-engineer', 'wing-commander'],
+    shuttleCargo: {
+      maliades: { fuel: 5, ore: 0 },
+      philia: { ore: 0 },
+      starlight: { materials: 7 },
+    },
+  } as never);
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!,
+    assignedRoleId: 'dione-engineer', activeConsoleRoleId: 'dione-engineer',
+  });
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+  vi.mocked(submitWolfSupplySabotage).mockImplementation(async (_shuttleId, _resourceId, requestId = 'sabotage-1') => ({
+    status: 'committed', type: 'wolf-supply-sabotage', sessionId: 's1',
+    requestId, cycle: 2, revision: 1,
+    coverRoleId: 'dione-engineer', shuttleId: 'maliades', resourceId: 'fuel',
+    destroyedAmount: 2, remainingAmount: 3, suspicion: 4,
+    actorUid: 'u2', actorRoleId: 'dione-engineer', vesselId: 'maliades', turn: 2,
+    phase: 'active', idempotencyKey: requestId,
+    auditId: `wolf-supply-sabotage-${requestId}`,
+  }));
+
+  render(<PrivateLoyaltyPanel />);
+  const target = screen.getByRole('combobox', { name: 'Shuttle cargo target' });
+  expect(within(target).getAllByRole('option').map((option) => option.textContent)).toEqual([
+    'Choose a shuttle cargo resource', 'F.S.F. Maliades // Strytium Fuel (5)',
+  ]);
+  expect(screen.getByText(/one Wolf action for this active cycle/i)).toBeVisible();
+  const sabotage = screen.getByRole('button', { name: 'Sabotage selected supply' });
+  expect(sabotage).toBeDisabled();
+
+  await user.selectOptions(target, 'maliades|fuel');
+  expect(sabotage).toBeEnabled();
+  await user.click(sabotage);
+
+  await waitFor(() => expect(submitWolfSupplySabotage).toHaveBeenCalledTimes(1));
+  expect(vi.mocked(submitWolfSupplySabotage).mock.calls[0]?.slice(0, 2)).toEqual(['maliades', 'fuel']);
+  expect(vi.mocked(submitWolfSupplySabotage).mock.calls[0]?.[2]).toEqual(expect.any(String));
+  expect(await screen.findByRole('status')).toHaveTextContent(
+    /2 Strytium Fuel destroyed.*3 remain.*Suspicion \/\/ 4/i,
+  );
+  expect(useSessionStore.getState().privateLoyalty).toEqual({ kind: 'wolf-agent', suspicion: 4 });
+  expect(screen.getByRole('button', { name: 'Deploy homing beacon' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Sabotage selected supply' })).toBeDisabled();
+});
+
+it('reuses the same sabotage request identity after an uncertain transport failure', async () => {
+  const user = userEvent.setup();
+  prepareLivePlayer();
+  useSessionStore.getState().setSession({
+    id: 's1', phase: 'active', currentTurn: 2,
+    activeRoleIds: ['dione-engineer'],
+    shuttleCargo: { maliades: { fuel: 5 } },
+  } as never);
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!,
+    assignedRoleId: 'dione-engineer', activeConsoleRoleId: 'dione-engineer',
+  });
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+  vi.mocked(submitWolfSupplySabotage)
+    .mockRejectedValueOnce(new Error('Temporary transport failure'))
+    .mockImplementationOnce(async (_shuttleId, _resourceId, requestId = 'sabotage-1') => ({
+      status: 'committed', type: 'wolf-supply-sabotage', sessionId: 's1',
+      requestId, cycle: 2, revision: 1,
+      coverRoleId: 'dione-engineer', shuttleId: 'maliades', resourceId: 'fuel',
+      destroyedAmount: 2, remainingAmount: 3, suspicion: 4,
+      actorUid: 'u2', actorRoleId: 'dione-engineer', vesselId: 'maliades', turn: 2,
+      phase: 'active', idempotencyKey: requestId,
+      auditId: `wolf-supply-sabotage-${requestId}`,
+    }));
+
+  render(<PrivateLoyaltyPanel />);
+  const target = screen.getByRole('combobox', { name: 'Shuttle cargo target' });
+  await user.selectOptions(target, 'maliades|fuel');
+  const sabotage = screen.getByRole('button', { name: 'Sabotage selected supply' });
+  await user.click(sabotage);
+  expect(await screen.findByRole('alert')).toHaveTextContent(/fleet service is temporarily unavailable/i);
+  await user.click(sabotage);
+
+  await waitFor(() => expect(submitWolfSupplySabotage).toHaveBeenCalledTimes(2));
+  expect(vi.mocked(submitWolfSupplySabotage).mock.calls[1])
+    .toEqual(vi.mocked(submitWolfSupplySabotage).mock.calls[0]);
+  expect(await screen.findByRole('status')).toHaveTextContent(/2 Strytium Fuel destroyed/i);
+});
+
+it('does not apply a supply result whose authenticated actor envelope belongs to another player', async () => {
+  const user = userEvent.setup();
+  prepareLivePlayer();
+  useSessionStore.getState().setSession({
+    id: 's1', phase: 'active', currentTurn: 2,
+    activeRoleIds: ['dione-engineer'],
+    shuttleCargo: { maliades: { fuel: 5 } },
+  } as never);
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!,
+    assignedRoleId: 'dione-engineer', activeConsoleRoleId: 'dione-engineer',
+  });
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+  vi.mocked(submitWolfSupplySabotage).mockImplementation(async (_shuttleId, _resourceId, requestId = 'sabotage-1') => ({
+    status: 'committed', type: 'wolf-supply-sabotage', sessionId: 's1',
+    requestId, cycle: 2, revision: 1, coverRoleId: 'dione-engineer',
+    shuttleId: 'maliades', resourceId: 'fuel', destroyedAmount: 2, remainingAmount: 3,
+    suspicion: 4, actorUid: 'u3', actorRoleId: 'dione-engineer', vesselId: 'maliades',
+    turn: 2, phase: 'active', idempotencyKey: requestId,
+    auditId: `wolf-supply-sabotage-${requestId}`,
+  }));
+
+  render(<PrivateLoyaltyPanel />);
+  const target = screen.getByRole('combobox', { name: 'Shuttle cargo target' });
+  await user.selectOptions(target, 'maliades|fuel');
+  await user.click(screen.getByRole('button', { name: 'Sabotage selected supply' }));
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(/fleet service is temporarily unavailable/i);
+  expect(useSessionStore.getState().privateLoyalty).toEqual({ kind: 'wolf-agent', suspicion: 0 });
+  expect(screen.queryByText(/Fuel destroyed/i)).not.toBeInTheDocument();
 });
 
 it('announces a private result in a focus-contained dialog and restores its review control', async () => {
@@ -212,8 +433,8 @@ it('privately investigates one selected player and locks the action for that cyc
   useSessionStore.getState().setPrivateLoyalty({ kind: 'intelligence-agent', suspicion: 6 });
   vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
     onPlayers([
-      { uid: 'u2', role: 'player', displayName: 'Agent' },
-      { uid: 'u3', role: 'player', displayName: 'Morgan' },
+      { uid: 'u2', role: 'player', displayName: 'Agent', fleetGroupId: 'fleet-1', connected: true },
+      { uid: 'u3', role: 'player', displayName: 'Morgan', fleetGroupId: 'fleet-1', connected: true },
     ] as never);
     return vi.fn();
   });
@@ -233,6 +454,127 @@ it('privately investigates one selected player and locks the action for that cyc
   expect(useSessionStore.getState().privateLoyalty).toEqual({
     kind: 'intelligence-agent', suspicion: 8,
   });
+});
+
+it('limits Intelligence Agent choices to connected, non-self players in the current fleet group', () => {
+  prepareLivePlayer();
+  useSessionStore.getState().setSession({ id: 's1', phase: 'active', currentTurn: 2 } as never);
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, fleetGroupId: 'fleet-1',
+  });
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'intelligence-agent', suspicion: 6 });
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([
+      { uid: 'u2', role: 'player', displayName: 'Agent', fleetGroupId: 'fleet-1', connected: true },
+      { uid: 'u3', role: 'player', displayName: 'Morgan', fleetGroupId: 'fleet-1', connected: true },
+      { uid: 'u4', role: 'player', displayName: 'Riley', fleetGroupId: 'fleet-2', connected: true },
+      { uid: 'u5', role: 'player', displayName: 'Jordan', fleetGroupId: 'fleet-1', connected: false },
+      { uid: 'u6', role: 'gm', displayName: 'Facilitator', fleetGroupId: 'fleet-1', connected: true },
+    ] as never);
+    return vi.fn();
+  });
+
+  render(<PrivateLoyaltyPanel />);
+
+  const target = screen.getByRole('combobox', { name: 'Investigation target' });
+  expect(target).toHaveValue('u3');
+  expect(within(target).getAllByRole('option').map((option) => option.textContent)).toEqual([
+    'Choose a connected player in your fleet group', 'Morgan',
+  ]);
+});
+
+it('clears a selected Intelligence Agent target after reassignment or disconnect until the user chooses again', async () => {
+  const user = userEvent.setup();
+  prepareLivePlayer();
+  useSessionStore.getState().setSession({ id: 's1', phase: 'active', currentTurn: 2 } as never);
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, fleetGroupId: 'fleet-1',
+  });
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'intelligence-agent', suspicion: 6 });
+  let publishPlayers: ((players: readonly Player[]) => void) | undefined;
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    publishPlayers = onPlayers;
+    onPlayers([
+      { uid: 'u3', role: 'player', displayName: 'Morgan', fleetGroupId: 'fleet-1', connected: true },
+      { uid: 'u4', role: 'player', displayName: 'Riley', fleetGroupId: 'fleet-1', connected: true },
+    ] as never);
+    return vi.fn();
+  });
+
+  render(<PrivateLoyaltyPanel />);
+  const target = screen.getByRole('combobox', { name: 'Investigation target' });
+  const investigate = screen.getByRole('button', { name: 'Run private investigation' });
+  expect(target).toHaveValue('u3');
+
+  act(() => publishPlayers?.([
+    { uid: 'u3', role: 'player', displayName: 'Morgan', fleetGroupId: 'fleet-2', connected: true },
+    { uid: 'u4', role: 'player', displayName: 'Riley', fleetGroupId: 'fleet-1', connected: true },
+  ] as never));
+  expect(target).toHaveValue('');
+  expect(investigate).toBeDisabled();
+  await user.click(investigate);
+  expect(investigatePlayer).not.toHaveBeenCalled();
+
+  await user.selectOptions(target, 'u4');
+  expect(investigate).toBeEnabled();
+  act(() => publishPlayers?.([
+    { uid: 'u4', role: 'player', displayName: 'Riley', fleetGroupId: 'fleet-1', connected: false },
+  ] as never));
+  expect(target).toHaveValue('');
+  expect(investigate).toBeDisabled();
+  await user.click(investigate);
+  expect(investigatePlayer).not.toHaveBeenCalled();
+});
+
+it('ignores an Intelligence Agent reply and old roster callback after the actor changes fleet groups', async () => {
+  const user = userEvent.setup();
+  const reply = deferred<Awaited<ReturnType<typeof investigatePlayer>>>();
+  const rosterCallbacks: Array<(players: readonly Player[]) => void> = [];
+  prepareLivePlayer();
+  useSessionStore.getState().setSession({ id: 's1', phase: 'active', currentTurn: 2 } as never);
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, fleetGroupId: 'fleet-1',
+  });
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'intelligence-agent', suspicion: 6 });
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    rosterCallbacks.push(onPlayers);
+    onPlayers([] as never);
+    return vi.fn();
+  });
+  vi.mocked(investigatePlayer).mockReturnValue(reply.promise);
+
+  render(<PrivateLoyaltyPanel />);
+  act(() => rosterCallbacks[0]?.([
+    { uid: 'u3', role: 'player', displayName: 'Morgan', fleetGroupId: 'fleet-1', connected: true },
+  ] as never));
+  await user.click(screen.getByRole('button', { name: 'Run private investigation' }));
+  await waitFor(() => expect(investigatePlayer).toHaveBeenCalledWith('u3'));
+
+  act(() => useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, fleetGroupId: 'fleet-2',
+  }));
+  act(() => rosterCallbacks[0]?.([
+    { uid: 'u4', role: 'player', displayName: 'Taylor', fleetGroupId: 'fleet-1', connected: true },
+  ] as never));
+  act(() => rosterCallbacks[1]?.([
+    { uid: 'u5', role: 'player', displayName: 'Casey', fleetGroupId: 'fleet-2', connected: true },
+  ] as never));
+  expect(screen.getByRole('combobox', { name: 'Investigation target' })).toHaveValue('u5');
+
+  await act(async () => reply.resolve({
+    status: 'committed', type: 'intelligence-investigation', sessionId: 's1',
+    requestId: 'investigate-old-group', cycle: 2, revision: 1, investigatorUid: 'u2',
+    targetUid: 'u3', targetDisplayName: 'Morgan', reportedWolf: true, suspicion: 8,
+  }));
+
+  expect(useSessionStore.getState().privateLoyalty).toEqual({
+    kind: 'intelligence-agent', suspicion: 6,
+  });
+  expect(screen.queryByText(/Cycle 2 \/\/ Morgan/)).not.toBeInTheDocument();
+  expect(within(screen.getByRole('combobox', { name: 'Investigation target' }))
+    .getAllByRole('option').map((option) => option.textContent)).toEqual([
+    'Choose a connected player in your fleet group', 'Casey',
+  ]);
 });
 
 it('hydrates a prior private investigation without exposing a new action outside active cycles', () => {

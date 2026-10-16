@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSessionStore } from '@/store/useSessionStore';
-import type { IntelligenceInvestigation, Player, PrivateLoyalty } from '@/types/game';
+import type { GameSession, IntelligenceInvestigation, Player, PrivateLoyalty } from '@/types/game';
 import FocusDialog from './FocusDialog';
 import { findConsoleRole } from '@/data/roles';
+import { RESOURCE_DEFINITIONS, type ResourceId } from '@/data/resources';
+import { SHUTTLECRAFT } from '@/data/shuttles';
 import { revealAndroidProof } from '@/lib/androidProofService';
-import { submitWolfHomingBeacon, submitWolfIntelligence } from '@/lib/wolfActionService';
+import {
+  submitWolfHomingBeacon,
+  submitWolfIntelligence,
+  submitWolfSupplySabotage,
+} from '@/lib/wolfActionService';
 import { normalizeCommandError } from '@/lib/commandErrors';
 import { captureSessionAuthority, isCurrentSessionAuthority } from '@/lib/sessionMutationAuthority';
 import { replacementRoleFor } from '@/data/replacementRoles';
@@ -50,19 +56,69 @@ function isEndgameEvaluationPhase(phase: unknown): boolean {
   return phase === 'success' || phase === 'failure' || phase === 'debrief' || phase === 'closed';
 }
 
+interface WolfSupplyTarget {
+  readonly key: string;
+  readonly shuttleId: string;
+  readonly resourceId: ResourceId;
+  readonly label: string;
+}
+
+function wolfCoverRoleId(me: Player | null): string | null {
+  if (me?.assignedRoleId && me.assignedRoleId !== 'press-officer') return me.assignedRoleId;
+  return me?.activeConsoleRoleId === 'press-officer' ? 'press-officer' : null;
+}
+
+function wolfSupplyTargets(session: GameSession | null, me: Player | null): readonly WolfSupplyTarget[] {
+  if (!session || !me || me.role !== 'player' || me.sessionId !== session.id ||
+      me.replacementStatus != null || me.replacementRoleId != null || me.escapeState != null) return [];
+  const coverRoleId = wolfCoverRoleId(me);
+  if (!coverRoleId || (me.activeConsoleRoleId != null && me.activeConsoleRoleId !== coverRoleId)) return [];
+  const roleIsActive = coverRoleId === 'press-officer'
+    ? session.pressEnabled !== false
+    : session.activeRoleIds?.includes(coverRoleId) === true;
+  if (!roleIsActive) return [];
+
+  return SHUTTLECRAFT.filter((shuttle) => shuttle.captainRoleId === coverRoleId)
+    .flatMap((shuttle) => RESOURCE_DEFINITIONS.flatMap((resource) => {
+      const amount = session.shuttleCargo?.[shuttle.id]?.[resource.id];
+      if (!Number.isSafeInteger(amount) || (amount as number) <= 0) return [];
+      return [{
+        key: `${shuttle.id}|${resource.id}`,
+        shuttleId: shuttle.id,
+        resourceId: resource.id,
+        label: `${shuttle.name} // ${resource.label} (${amount})`,
+      }];
+    }));
+}
+
+function wolfSupplyLoadingShuttles(session: GameSession | null, me: Player | null) {
+  if (!session || !me || me.role !== 'player' || me.sessionId !== session.id ||
+      me.replacementStatus != null || me.replacementRoleId != null || me.escapeState != null) return [];
+  const coverRoleId = wolfCoverRoleId(me);
+  if (!coverRoleId || (me.activeConsoleRoleId != null && me.activeConsoleRoleId !== coverRoleId)) return [];
+  const roleIsActive = coverRoleId === 'press-officer'
+    ? session.pressEnabled !== false
+    : session.activeRoleIds?.includes(coverRoleId) === true;
+  if (!roleIsActive) return [];
+  return SHUTTLECRAFT.filter(shuttle => shuttle.captainRoleId === coverRoleId &&
+    (shuttle.cargoTransferTypes?.length ?? 0) > 0);
+}
+
 /** The current browser's private setup card; never accepts another player's id. */
 export default function PrivateLoyaltyPanel() {
   const loyalty = useSessionStore((state) => state.privateLoyalty);
   const wolfCultIntelligence = useSessionStore((state) => state.wolfCultIntelligence);
+  const arbourVision = useSessionStore((state) => state.arbourVision);
   const setPrivateLoyalty = useSessionStore((state) => state.setPrivateLoyalty);
-  const sessionId = useSessionStore((state) => state.session?.id);
-  const sessionPhase = useSessionStore((state) => state.session?.phase);
-  const currentCycle = useSessionStore((state) => state.session?.currentTurn);
+  const session = useSessionStore((state) => state.session);
+  const sessionId = session?.id;
+  const sessionPhase = session?.phase;
+  const currentCycle = session?.currentTurn;
   const endgameEvaluation = useSessionStore((state) =>
     isEndgameEvaluationPhase(state.session?.phase));
   const me = useSessionStore((state) => state.me);
   const identity = JSON.stringify([
-    sessionId, me?.uid, me?.role, me?.activeConsoleRoleId, me?.replacementRoleId,
+    sessionId, me?.uid, me?.role, me?.assignedRoleId, me?.activeConsoleRoleId, me?.replacementRoleId,
     me?.replacementStatus, me?.fleetGroupId,
   ]);
   const [feedback, setFeedback] = useState<{
@@ -71,11 +127,15 @@ export default function PrivateLoyaltyPanel() {
   const [wolfMessage, setWolfMessage] = useState('');
   const [wolfPending, setWolfPending] = useState(false);
   const [wolfResult, setWolfResult] = useState<{
-    identity: string; loyaltyKind: string; requestId: string; text: string;
+    identity: string; loyaltyKind: string; requestId: string; cycle: number; text: string;
   } | null>(null);
   const [dismissedResultKey, setDismissedResultKey] = useState<string | null>(null);
   const resultReviewRef = useRef<HTMLButtonElement | null>(null);
   const [wolfError, setWolfError] = useState('');
+  const [wolfSupplyTargetKey, setWolfSupplyTargetKey] = useState('');
+  const [wolfSupplyAttempt, setWolfSupplyAttempt] = useState<{
+    targetKey: string; requestId: string;
+  } | null>(null);
   const [investigationTargets, setInvestigationTargets] = useState<readonly Player[]>([]);
   const [investigationTargetUid, setInvestigationTargetUid] = useState('');
   const [investigation, setInvestigation] = useState<IntelligenceInvestigation | null>(null);
@@ -88,11 +148,15 @@ export default function PrivateLoyaltyPanel() {
     me.sessionId === sessionId && me.replacementStatus == null);
   const currentWolfResult = privateReader && wolfResult?.identity === identity &&
     wolfResult.loyaltyKind === loyalty?.kind ? wolfResult : null;
+  const wolfActionUsedLocally = currentWolfResult?.cycle === currentCycle;
   const currentInvestigation = privateReader && investigation && investigation.sessionId === sessionId &&
     investigation.investigatorUid === me?.uid ? investigation : null;
   const currentWolfCultIntelligence = privateReader && wolfCultIntelligence &&
     wolfCultIntelligence.sessionId === sessionId && wolfCultIntelligence.recipientUid === me?.uid
     ? wolfCultIntelligence : null;
+  const currentArbourVision = privateReader && arbourVision &&
+    arbourVision.sessionId === sessionId && arbourVision.recipientUid === me?.uid
+    ? arbourVision : null;
   const privateResultKey = currentWolfResult || currentInvestigation || currentWolfCultIntelligence
     ? [
       identity,
@@ -104,16 +168,33 @@ export default function PrivateLoyaltyPanel() {
   const privateResultReviewAvailable = privateResultKey !== null && !endgameEvaluation;
   const wolfActionAvailable = sessionPhase === 'active' && Number.isSafeInteger(currentCycle) &&
     (currentCycle as number) >= 1;
+  const supplyTargets = wolfSupplyTargets(session, me);
+  const supplyLoadingShuttles = wolfSupplyLoadingShuttles(session, me);
+  const selectedSupplyTarget = supplyTargets.find((target) => target.key === wolfSupplyTargetKey);
+  const selectedInvestigationTarget = investigationTargets.find((player) =>
+    player.uid === investigationTargetUid && player.connected === true &&
+    typeof me?.fleetGroupId === 'string' && me.fleetGroupId.length > 0 &&
+    player.fleetGroupId === me.fleetGroupId);
+  const investigationRosterInitialized = useRef(false);
   useEffect(() => { setFeedback(null); }, [identity, loyalty]);
   useEffect(() => {
     setWolfMessage('');
     setWolfPending(false);
     setWolfResult(null);
     setWolfError('');
-  }, [identity, loyalty?.kind]);
+    setWolfSupplyTargetKey('');
+    setWolfSupplyAttempt(null);
+  }, [identity, loyalty?.kind, currentCycle]);
+  useEffect(() => {
+    if (wolfSupplyTargetKey && !supplyTargets.some((target) => target.key === wolfSupplyTargetKey)) {
+      setWolfSupplyTargetKey('');
+      setWolfSupplyAttempt(null);
+    }
+  }, [supplyTargets, wolfSupplyTargetKey]);
   useEffect(() => {
     setInvestigationTargets([]);
     setInvestigationTargetUid('');
+    investigationRosterInitialized.current = false;
     setInvestigation(null);
     setInvestigationPending(false);
     setInvestigationError('');
@@ -122,15 +203,27 @@ export default function PrivateLoyaltyPanel() {
     const stopInvestigation = subscribeIntelligenceInvestigation(
       sessionId, me.uid, setInvestigation,
     );
+    let active = true;
+    const currentGroupId = me.fleetGroupId;
     const stopTargets = subscribeConnectedPlayers(sessionId, (players) => {
+      if (!active) return;
       const next = players
-        .filter((player) => player.role === 'player' && player.uid !== me.uid)
+        .filter((player) => typeof currentGroupId === 'string' && currentGroupId.length > 0 &&
+          player.role === 'player' && player.uid !== me.uid && player.connected === true &&
+          player.fleetGroupId === currentGroupId)
         .sort((left, right) => left.displayName.localeCompare(right.displayName));
       setInvestigationTargets(next);
-      setInvestigationTargetUid((current) =>
-        next.some((player) => player.uid === current) ? current : next[0]?.uid ?? '');
+      setInvestigationTargetUid((current) => {
+        if (next.some((player) => player.uid === current)) return current;
+        if (!investigationRosterInitialized.current && next.length > 0) {
+          investigationRosterInitialized.current = true;
+          return next[0]!.uid;
+        }
+        return '';
+      });
     });
     return () => {
+      active = false;
       stopTargets();
       stopInvestigation();
     };
@@ -170,7 +263,7 @@ export default function PrivateLoyaltyPanel() {
   };
 
   const sendWolfIntelligence = async () => {
-    if (wolfPending || !wolfActionAvailable ||
+    if (wolfPending || !wolfActionAvailable || wolfActionUsedLocally ||
         (loyalty.kind !== 'wolf-agent' && loyalty.kind !== 'wolf-cult')) return;
     const state = useSessionStore.getState();
     const checkpoint = captureSessionAuthority(state.session?.id ?? '', state.me?.uid);
@@ -190,6 +283,7 @@ export default function PrivateLoyaltyPanel() {
           identity,
           loyaltyKind: dispatchedCard.kind,
           requestId: result.requestId,
+          cycle: result.cycle,
           text: `Handler message sent privately. Suspicion // ${result.suspicion}.`,
         });
       }
@@ -204,7 +298,7 @@ export default function PrivateLoyaltyPanel() {
   };
 
   const deployHomingBeacon = async () => {
-    if (wolfPending || !wolfActionAvailable ||
+    if (wolfPending || !wolfActionAvailable || wolfActionUsedLocally ||
         (loyalty.kind !== 'wolf-agent' && loyalty.kind !== 'wolf-cult')) return;
     const state = useSessionStore.getState();
     const checkpoint = captureSessionAuthority(state.session?.id ?? '', state.me?.uid);
@@ -223,6 +317,7 @@ export default function PrivateLoyaltyPanel() {
           identity,
           loyaltyKind: dispatchedCard.kind,
           requestId: result.requestId,
+          cycle: result.cycle,
           text: `Homing beacon scheduled at ${result.coordinate}. Pressure becomes eligible after ` +
             `cycle ${result.dueCycle} starts. Suspicion // ${result.suspicion}.`,
         });
@@ -237,32 +332,122 @@ export default function PrivateLoyaltyPanel() {
     }
   };
 
+  const sabotageShuttleSupply = async () => {
+    if (wolfPending || !wolfActionAvailable || wolfActionUsedLocally || !selectedSupplyTarget ||
+        (loyalty.kind !== 'wolf-agent' && loyalty.kind !== 'wolf-cult')) return;
+    const state = useSessionStore.getState();
+    const currentTarget = wolfSupplyTargets(state.session, state.me)
+      .find((target) => target.key === selectedSupplyTarget.key);
+    const dispatchedCycle = state.session?.currentTurn;
+    const dispatchedRoleId = wolfCoverRoleId(state.me);
+    const dispatchedCard = loyalty;
+    const checkpoint = captureSessionAuthority(state.session?.id ?? '', state.me?.uid);
+    if (!currentTarget || !dispatchedRoleId || !Number.isSafeInteger(dispatchedCycle) ||
+        state.session?.phase !== 'active' || dispatchedCard !== state.privateLoyalty ||
+        !checkpoint || !isCurrentSessionAuthority(checkpoint)) return;
+
+    const requestId = wolfSupplyAttempt?.targetKey === currentTarget.key
+      ? wolfSupplyAttempt.requestId
+      : window.crypto.randomUUID();
+    setWolfSupplyAttempt({ targetKey: currentTarget.key, requestId });
+    setWolfPending(true);
+    setWolfResult(null);
+    setWolfError('');
+    try {
+      const result = await submitWolfSupplySabotage(
+        currentTarget.shuttleId, currentTarget.resourceId, requestId,
+      );
+      const current = useSessionStore.getState();
+      if (!isCurrentSessionAuthority(checkpoint) || current.privateLoyalty !== dispatchedCard ||
+          current.me?.assignedRoleId !== state.me?.assignedRoleId ||
+          current.me?.activeConsoleRoleId !== state.me?.activeConsoleRoleId ||
+          current.session?.currentTurn !== dispatchedCycle) return;
+      if (result.status !== 'committed' || result.type !== 'wolf-supply-sabotage' ||
+          result.sessionId !== checkpoint.sessionId || result.requestId !== requestId ||
+          result.idempotencyKey !== requestId || result.actorUid !== checkpoint.uid ||
+          result.actorRoleId !== dispatchedRoleId || result.coverRoleId !== dispatchedRoleId ||
+          result.vesselId !== currentTarget.shuttleId || result.shuttleId !== currentTarget.shuttleId ||
+          result.resourceId !== currentTarget.resourceId || result.turn !== dispatchedCycle ||
+          result.cycle !== dispatchedCycle || result.phase !== 'active') {
+        throw new Error('The supply result did not match this player, role, cycle, or selected cargo. Refresh before continuing.');
+      }
+      const resourceLabel = RESOURCE_DEFINITIONS.find((resource) =>
+        resource.id === result.resourceId)?.label ?? result.resourceId;
+      const shuttleLabel = SHUTTLECRAFT.find((shuttle) =>
+        shuttle.id === result.shuttleId)?.name ?? result.shuttleId;
+      setPrivateLoyalty({ ...dispatchedCard, suspicion: result.suspicion });
+      setWolfSupplyAttempt(null);
+      setWolfResult({
+        identity,
+        loyaltyKind: dispatchedCard.kind,
+        requestId: result.requestId,
+        cycle: result.cycle,
+        text: `${shuttleLabel} // ${result.destroyedAmount} ${resourceLabel} destroyed; ` +
+          `${result.remainingAmount} remain. Suspicion // ${result.suspicion}. ` +
+          `Your Wolf action for cycle ${result.cycle} is committed; continue through your assigned station.`,
+      });
+    } catch (cause) {
+      const current = useSessionStore.getState();
+      if (isCurrentSessionAuthority(checkpoint) && current.privateLoyalty === dispatchedCard &&
+          current.me?.assignedRoleId === state.me?.assignedRoleId &&
+          current.me?.activeConsoleRoleId === state.me?.activeConsoleRoleId &&
+          current.session?.currentTurn === dispatchedCycle) {
+        setWolfError(normalizeCommandError(cause).message);
+      }
+    } finally {
+      if (isCurrentSessionAuthority(checkpoint)) setWolfPending(false);
+    }
+  };
+
   const runInvestigation = async () => {
     if (investigationPending || !wolfActionAvailable || loyalty.kind !== 'intelligence-agent' ||
-        !investigationTargetUid || investigation?.cycle === currentCycle) return;
+        !selectedInvestigationTarget || investigation?.cycle === currentCycle) return;
     const state = useSessionStore.getState();
+    const dispatchedGroupId = state.me?.fleetGroupId;
+    const dispatchedCycle = state.session?.currentTurn;
+    const dispatchedTargetUid = selectedInvestigationTarget.uid;
+    if (!state.session || state.session.id !== sessionId || state.session.phase !== 'active' ||
+        !Number.isSafeInteger(dispatchedCycle) || dispatchedCycle !== currentCycle ||
+        state.me?.role !== 'player' || state.me.sessionId !== state.session.id ||
+        typeof dispatchedGroupId !== 'string' || dispatchedGroupId.length === 0 ||
+        selectedInvestigationTarget.connected !== true ||
+        selectedInvestigationTarget.fleetGroupId !== dispatchedGroupId ||
+        selectedInvestigationTarget.role !== 'player' ||
+        selectedInvestigationTarget.uid === state.me.uid ||
+        investigationTargetUid !== dispatchedTargetUid) return;
     const checkpoint = captureSessionAuthority(state.session?.id ?? '', state.me?.uid);
     const dispatchedCard = loyalty;
     if (!checkpoint || !isCurrentSessionAuthority(checkpoint)) return;
+    const currentInvestigationContext = () => {
+      const current = useSessionStore.getState();
+      return isCurrentSessionAuthority(checkpoint) && current.me?.role === 'player' &&
+        current.me.fleetGroupId === dispatchedGroupId && current.session?.phase === 'active' &&
+        current.session.currentTurn === dispatchedCycle ? current : undefined;
+    };
     setInvestigationPending(true);
     setInvestigationError('');
     try {
-      const result = await investigatePlayer(investigationTargetUid);
-      const current = useSessionStore.getState();
-      if (isCurrentSessionAuthority(checkpoint) && current.privateLoyalty === dispatchedCard &&
-          dispatchedCard.kind === 'intelligence-agent') {
+      const result = await investigatePlayer(dispatchedTargetUid);
+      const current = currentInvestigationContext();
+      if (current?.privateLoyalty === dispatchedCard && dispatchedCard.kind === 'intelligence-agent') {
+        if (result.status !== 'committed' || result.type !== 'intelligence-investigation' ||
+            result.sessionId !== checkpoint.sessionId || result.investigatorUid !== checkpoint.uid ||
+            result.targetUid !== dispatchedTargetUid || result.cycle !== dispatchedCycle ||
+            typeof result.targetDisplayName !== 'string' || result.targetDisplayName.length === 0 ||
+            typeof result.reportedWolf !== 'boolean') {
+          throw new Error('The investigation result did not match this player, target, or cycle. Refresh before continuing.');
+        }
         setInvestigation(result);
         if (typeof result.suspicion === 'number') {
           setPrivateLoyalty({ ...dispatchedCard, suspicion: result.suspicion });
         }
       }
     } catch (cause) {
-      const current = useSessionStore.getState();
-      if (isCurrentSessionAuthority(checkpoint) && current.privateLoyalty === dispatchedCard) {
+      if (currentInvestigationContext()?.privateLoyalty === dispatchedCard) {
         setInvestigationError(normalizeCommandError(cause).message);
       }
     } finally {
-      if (isCurrentSessionAuthority(checkpoint)) setInvestigationPending(false);
+      if (currentInvestigationContext()) setInvestigationPending(false);
     }
   };
 
@@ -274,6 +459,17 @@ export default function PrivateLoyaltyPanel() {
         <p className="private-loyalty-panel__suspicion">
           Suspicion // {loyalty.suspicion === null ? 'unassigned' : loyalty.suspicion}
         </p>
+        {((loyalty.directives?.length ?? 0) > 0 || loyalty.kind === 'universal-arbour' || loyalty.kind === 'arbour') && (
+          <section className="role-brief__rules private-loyalty-panel__directives" aria-label="Private loyalty goals">
+            {loyalty.directives?.map((directive, index) => <p key={`${index}:${directive}`}>{directive}</p>)}
+            {(loyalty.kind === 'universal-arbour' || loyalty.kind === 'arbour') && (
+              <>
+                <p>Private vision //</p>
+                <p>{currentArbourVision?.text ?? 'No session-specific facilitator vision is assigned yet.'}</p>
+              </>
+            )}
+          </section>
+        )}
         {partnerLabel(loyalty) && (
           <p className="private-loyalty-panel__partner">
             {loyalty.kind === 'friend' ? 'Friend trust // partner role' : 'Partner assignment'} // {partnerLabel(loyalty)}
@@ -320,7 +516,7 @@ export default function PrivateLoyaltyPanel() {
             <button
               className="cic-action-button"
               type="button"
-              disabled={wolfPending || !wolfActionAvailable}
+              disabled={wolfPending || !wolfActionAvailable || wolfActionUsedLocally}
               onClick={() => void deployHomingBeacon()}
             >
               {wolfPending ? 'Committing…' : 'Deploy homing beacon'}
@@ -332,17 +528,60 @@ export default function PrivateLoyaltyPanel() {
               maxLength={240}
               rows={3}
               value={wolfMessage}
-              disabled={wolfPending || !wolfActionAvailable}
+              disabled={wolfPending || !wolfActionAvailable || wolfActionUsedLocally}
               onChange={(event) => setWolfMessage(event.target.value)}
             />
             <button
               className="cic-action-button"
               type="button"
-              disabled={wolfPending || !wolfActionAvailable || !wolfMessage.trim()}
+              disabled={wolfPending || !wolfActionAvailable || wolfActionUsedLocally || !wolfMessage.trim()}
               onClick={() => void sendWolfIntelligence()}
             >
               {wolfPending ? 'Sending…' : 'Send private intelligence'}
             </button>
+            <h3>Sabotage shuttle supplies</h3>
+            <p>
+              Choose a positive cargo balance on a shuttle assigned to your current cover role. The server
+              checks the live assignment and cargo, destroys half the selected cargo, rounded down,
+              adds 2 suspicion, and spends your one Wolf action for this active cycle.
+            </p>
+            <label htmlFor="wolf-supply-target">Shuttle cargo target</label>
+            <select
+              id="wolf-supply-target"
+              value={wolfSupplyTargetKey}
+              disabled={wolfPending || !wolfActionAvailable || wolfActionUsedLocally || supplyTargets.length === 0}
+              onChange={(event) => {
+                setWolfSupplyTargetKey(event.target.value);
+                setWolfSupplyAttempt(null);
+              }}
+            >
+              <option value="">Choose a shuttle cargo resource</option>
+              {supplyTargets.map((target) => (
+                <option value={target.key} key={target.key}>{target.label}</option>
+              ))}
+            </select>
+            <button
+              className="cic-action-button"
+              type="button"
+              disabled={wolfPending || !wolfActionAvailable || wolfActionUsedLocally || !selectedSupplyTarget}
+              onClick={() => void sabotageShuttleSupply()}
+            >
+              {wolfPending ? 'Committing…' : 'Sabotage selected supply'}
+            </button>
+            {wolfActionAvailable && supplyTargets.length === 0 && (
+              <>
+                <p className="private-loyalty-panel__proof-status">
+                  No positive cargo is available on an active shuttle assigned to your current cover role.
+                  Refresh after the crew’s cargo projection changes.
+                </p>
+                {supplyLoadingShuttles.map(shuttle => <p className="private-loyalty-panel__proof-status" key={shuttle.id}>
+                  Next actor // Current entitled {shuttle.name} holder: open that shuttle’s console and Transfer cargo.
+                  {' '}{shuttle.name} // {shuttle.cargoTransfer}.
+                  {' '}Choose a permitted Resource and Amount, then Load at a legal dock with current host stock
+                  and available capacity. Return here after the crew’s cargo projection changes.
+                </p>)}
+              </>
+            )}
             {!wolfActionAvailable && (
               <p className="private-loyalty-panel__proof-status" role="status">
                 Private Wolf actions are available during active cycles.
@@ -368,6 +607,7 @@ export default function PrivateLoyaltyPanel() {
                 investigation?.cycle === currentCycle || investigationTargets.length === 0}
               onChange={(event) => setInvestigationTargetUid(event.target.value)}
             >
+              <option value="">Choose a connected player in your fleet group</option>
               {investigationTargets.map((player) => (
                 <option value={player.uid} key={player.uid}>{player.displayName}</option>
               ))}
@@ -376,7 +616,7 @@ export default function PrivateLoyaltyPanel() {
               className="cic-action-button"
               type="button"
               disabled={investigationPending || !wolfActionAvailable ||
-                investigation?.cycle === currentCycle || !investigationTargetUid}
+                investigation?.cycle === currentCycle || !selectedInvestigationTarget}
               onClick={() => void runInvestigation()}
             >
               {investigationPending ? 'Investigating…' : 'Run private investigation'}

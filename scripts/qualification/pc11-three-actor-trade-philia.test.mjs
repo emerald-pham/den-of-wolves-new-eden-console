@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { PC11_NORMAL_START } from './pc11-normal-start-adapter.mjs';
+import { PC11_NORMAL_START, pc11SameActorEpoch } from './pc11-normal-start-adapter.mjs';
 
 const runnerUrl = new URL('./pc11-three-actor-trade-philia.mjs', import.meta.url);
 const runnerSource = await readFile(runnerUrl, 'utf8');
@@ -67,7 +67,7 @@ function namedRegion(source, startMarker, endMarker) {
   return source.slice(start, end);
 }
 
-test('every active mounted browser source import exists in the clean source checkout', async () => {
+test('every active mounted browser source import exists and the PC11 runner retains its clean-baseline guard', async () => {
   const lifecycleSource = await readFile(new URL('../pc10-member-gm-lifecycle-ui-proof.mjs', import.meta.url), 'utf8');
   const memberSource = await readFile(new URL('../pc10-full-game-demo-proof-helpers.mjs', import.meta.url), 'utf8');
   const lifecycleObserver = namedRegion(lifecycleSource,
@@ -89,12 +89,23 @@ test('every active mounted browser source import exists in the clean source chec
     }
   }
   assert.deepEqual(missing, [], `Mounted source imports must exist before runtime: ${JSON.stringify(missing)}`);
-  assert.equal(existsSync(resolve(repoRoot, 'src/lib/demoActorContext.ts')), false,
-    'The selected normal baseline must not silently acquire demo actor profile semantics.');
+  const publishedDemoContext = existsSync(resolve(repoRoot, 'src/lib/demoActorContext.ts'));
   assert.match(runnerSource, /existsSync\(`\$\{root\}\/src\/lib\/demoActorContext\.ts`\)/);
+  assert.match(runnerSource, /assert\.equal\(existsSync\(`\$\{root\}\/src\/lib\/demoActorContext\.ts`\),false/);
   assert.match(runnerSource, /profileRoleId: null, profileSessionId: null/);
-  assert.match(lifecycleObserver, /profileRoleId: null/);
-  assert.match(memberObserver, /profileRoleId: null,[\s\S]*?profileSessionId: null/);
+  if (publishedDemoContext) {
+    // P181 uses the published observer with an ordinary null profile. The
+    // actual callback, profile rejection and resume-fence cases are exercised
+    // in pc11-live-base-contract.test.mjs by this same canonical preflight.
+    assert.match(lifecycleObserver, /profileRoleId: activeDemoActorProfile\?\.roleId \?\? null/);
+    assert.match(memberObserver, /profileRoleId: roleId\('profileRoleId', activeDemoActorProfile\?\.roleId\)/);
+    assert.match(memberObserver, /profileSessionId: sessionId\('profileSessionId', activeDemoActorProfile\?\.sessionId\)/);
+  } else {
+    assert.equal(publishedDemoContext, false,
+      'The selected normal baseline must not silently acquire demo actor profile semantics.');
+    assert.match(lifecycleObserver, /profileRoleId: null/);
+    assert.match(memberObserver, /profileRoleId: null,[\s\S]*?profileSessionId: null/);
+  }
 });
 
 test('normal readiness binds only to the clean client server-authority contract', async () => {
@@ -109,10 +120,18 @@ test('normal readiness binds only to the clean client server-authority contract'
 
   assert.ok(exportedNames.includes('sessionSnapshotAuthorityFor'));
   assert.ok(exportedNames.includes('sessionSnapshotAuthorityVersion'));
-  assert.ok(!exportedNames.includes('memberSessionResumeBlocksFreshness'));
-  assert.doesNotMatch(memberObserver, /memberSessionResumeBlocksFreshness/);
+  if (exportedNames.includes('memberSessionResumeBlocksFreshness')) {
+    assert.match(memberObserver, /sdkResumePending: authority \? memberSessionResumeBlocksFreshness\(authority\) : true/);
+  } else {
+    assert.ok(!exportedNames.includes('memberSessionResumeBlocksFreshness'));
+    assert.doesNotMatch(memberObserver, /memberSessionResumeBlocksFreshness/);
+  }
   assert.doesNotMatch(gmObserver, /memberSessionResumeBlocksFreshness/);
-  assert.doesNotMatch(adapterSource, /sdkResumePending/);
+  // Baseline readiness uses the clean mounted authority tuple. The separate
+  // document-change witness also consumes the published SDK resume fence.
+  const baselineReadiness = namedRegion(adapterSource,
+    'function commonLiveMember', '/** Preserve the same Auth/session epoch');
+  assert.doesNotMatch(baselineReadiness, /sdkResumePending/);
   assert.match(memberObserver, /sdkHasServerAuthority: authority\?\.hasServerSessionAuthority === true/);
   assert.match(adapterSource, /value\.sdkHasServerAuthority === true/);
   assert.match(adapterSource, /value\.connection === 'live'/);
@@ -149,4 +168,23 @@ test('PR17 consumes the real legacy reply, role card hrefs and committed mainten
   assert.match(proof, /a\[href="#\/ships\/dione\/roles\/dione-engineer"\]/);
   assert.match(proof, /waitForMaintenanceReceipt/);
   assert.match(proof, /expectedMaintenance:checked\.result\.cycle/);
+});
+
+test('published resume fence must be cleared for an exact newer-document epoch witness', () => {
+  const before = { uidHash: 'original-member', sessionId: 'normal-proof',
+    profileRoleId: null, profileSessionId: null, documentTimeOrigin: 100,
+    connectionGeneration: 2, identityHydrationRevision: 3 };
+  const after = { ...before, documentTimeOrigin: 200, connectionGeneration: 3,
+    identityHydrationRevision: 1 };
+  const receipt = { status: 'accepted', source: 'normal-resumeSession',
+    uidHash: after.uidHash, sessionId: after.sessionId,
+    documentTimeOrigin: after.documentTimeOrigin,
+    connectionGeneration: after.connectionGeneration,
+    identityHydrationRevision: after.identityHydrationRevision,
+    sdkHasServerAuthority: true, sdkResumePending: false };
+  assert.equal(pc11SameActorEpoch(before, after, receipt), true);
+  for (const change of [{ sdkResumePending: true }, { sdkResumePending: undefined },
+    { sdkHasServerAuthority: false }, { documentTimeOrigin: 100 }, { uidHash: 'foreign-member' }]) {
+    assert.equal(pc11SameActorEpoch(before, after, { ...receipt, ...change }), false);
+  }
 });

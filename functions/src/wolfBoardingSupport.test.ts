@@ -96,3 +96,10 @@ describe('Wolf boarding support-craft authority', () => {
     expect(unavailable.map(({ shuttleId }) => shuttleId)).toEqual(['philia', 'macaw', 'chepu']);
   });
 });
+
+
+it('excludes permanently consumed Ring craft from current boarding support while preserving other custody', () => {
+  const remaining = deriveWolfBoardingSupportCraft({ ...input, consumedShuttleIds: ['philia'],
+    dockings: input.dockings.filter(docking => docking.shuttleId !== 'philia') } as WolfBoardingCraftAuthorityInput);
+  expect(remaining.map(craft => craft.shuttleId)).toEqual(['pallas', 'macaw', 'chepu']);
+});

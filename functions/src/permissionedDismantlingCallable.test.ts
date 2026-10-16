@@ -1,5 +1,7 @@
 import { expect, it } from 'vitest';
 import { createPermissionedDismantlingCallables } from './permissionedDismantlingCallable';
+import { SHIP_DAMAGE_DECKS } from './shipDamage';
+import { startTurnPhase } from './turnZero';
 
 type Fields = Record<string, unknown>;
 type Write = { readonly kind: 'set' | 'create' | 'update'; readonly path: string; readonly data: Fields };
@@ -119,6 +121,48 @@ function seededStore(): FakeStore {
   store.records.set(p.targetPlayer, activePlayer('dione-captain'));
   store.records.set(p.otherShipPlayer, activePlayer('icebreaker-miner'));
   return store;
+}
+
+function macawSeededStore(): FakeStore {
+  const store = seededStore();
+  const p = paths();
+  const session = store.records.get(p.session)!;
+  session.activeRoleIds = ['capybara-captain', 'dione-captain', 'icebreaker-miner'];
+  session.activeVesselIds = ['dione', 'icebreaker', 'capybara'];
+  session.currentTurn = 2;
+  const restricted = startTurnPhase(2, Date.parse('2026-09-30T17:00:00.000Z'), { progression: 'manual' });
+  session.turnPhase = {
+    ...restricted,
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+  };
+  session.shuttleFuelled = { macaw: false };
+  session.shuttleDockings = [{ shuttleId: 'macaw', shipId: 'dione', dockedAt: 'SESSION START' }];
+  session.shuttleControl = {
+    macaw: {
+      shuttleId: 'macaw', ownerRoleId: 'capybara-captain', ownerUid: 'engineer',
+      holderUid: 'engineer', revision: 9,
+    },
+  };
+  session.shipResources = {
+    dione: { ore: 0, fuel: 3, food: 13, water: 14, materials: 5, securityTeams: 2 },
+    capybara: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 3 },
+  };
+  store.records.set(p.proposer, activePlayer('capybara-captain'));
+  return store;
+}
+
+function settleCandidateVessel(store: FakeStore, shipId = 'dione') {
+  const session = store.records.get(paths().session)!;
+  session.candidateVesselOutcomes = {
+    [shipId]: { code: 'N', groupId: 'fleet-1', shipId, sourceId: 'nebula-1', cycle: 2, outcome: 'reached' },
+  };
+}
+
+function consumeMacawCandidateCraft(store: FakeStore) {
+  const session = store.records.get(paths().session)!;
+  session.candidateCraftReservations = {
+    macaw: { code: 'N', groupId: 'fleet-1', coordinate: '1234', sourceId: 'repair-1', cycle: 2 },
+  };
 }
 
 function dependencies(store: FakeStore) {
@@ -250,6 +294,201 @@ it('proposes, grants one exact target-ship consent, and atomically applies damag
   await expect(callables.applyPermissionedDismantling(applyRequest({ requestId: 'apply-2' })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(store.committedWrites).toHaveLength(applyWrites);
+});
+
+it('lets the current Macaw holder request distinct-host permission and atomically receives one Scrap', async () => {
+  const store = macawSeededStore();
+  const callables = createPermissionedDismantlingCallables(dependencies(store));
+  const proposed = await callables.proposePermissionedDismantling(proposeRequest({
+    craftId: 'macaw', targetShipId: 'dione', targetConsoleId: 'reactor', expectedControlRevision: 9,
+  }));
+  expect(proposed).toMatchObject({
+    status: 'proposed', craftId: 'macaw', targetShipId: 'dione', targetConsoleId: 'reactor', scrapGain: 1,
+  });
+  expect(store.records.get(paths().inbox)).toMatchObject({
+    craftId: 'macaw', targetShipId: 'dione', targetConsoleId: 'reactor', scrapGain: 1, status: 'pending',
+  });
+
+  await callables.consentToPermissionedDismantling(consentRequest());
+  const applied = await callables.applyPermissionedDismantling(applyRequest());
+  expect(applied).toMatchObject({ status: 'applied', scrapGain: 1, scrapAfter: 4 });
+  expect(store.records.get(`sessions/${SESSION_ID}/actionAudits/${APPLY_ID}`)).toMatchObject({
+    sessionId: SESSION_ID,
+    actorUid: 'engineer',
+    actorRoleId: 'capybara-captain',
+    action: 'macaw-consented-dismantling',
+    phase: 'active',
+    requestId: APPLY_ID,
+    revision: 1,
+    outcome: 'committed',
+    resolutionSource: 'server-calculated',
+  });
+  expect(store.records.get(`sessions/${SESSION_ID}/procedureAudits/${APPLY_ID}`)).toMatchObject({
+    sourceId: 'macaw',
+    requiredChoices: [{ actor: 'player', kind: 'target-player-console-consent', value: {
+      targetShipId: 'dione', targetConsoleId: 'reactor',
+    } }],
+    calculation: { targetRevisionBefore: 0, targetRevisionAfter: 1, scrapGain: 1 },
+    consequences: { damagedConsoleId: 'reactor', capybaraScrapAfter: 4 },
+    audience: { operational: 'actor' },
+  });
+  expect(store.records.get(paths().session)).toMatchObject({
+    shipDamage: { dione: { damagedSystemIds: ['storage', 'reactor'], destroyed: false } },
+    macawRepairs: { cycle: 2, revision: 1, hosts: [{ shipId: 'dione', systemIds: ['reactor'] }] },
+    shipResources: {
+      dione: { ore: 0, fuel: 3, food: 13, water: 14, materials: 5, securityTeams: 2 },
+      capybara: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 4 },
+    },
+  });
+  const session = store.records.get(paths().session)!;
+  session.phase = 'success';
+  settleCandidateVessel(store);
+  settleCandidateVessel(store, 'capybara');
+  consumeMacawCandidateCraft(store);
+  const writes = store.committedWrites.length;
+  await expect(callables.applyPermissionedDismantling(applyRequest())).resolves.toMatchObject({ status: 'replayed' });
+  expect(store.committedWrites).toHaveLength(writes);
+  expect(store.committedWrites.filter(({ path }) => path === `sessions/${SESSION_ID}/actionAudits/${APPLY_ID}`))
+    .toHaveLength(1);
+  expect(store.committedWrites.filter(({ path }) => path === `sessions/${SESSION_ID}/procedureAudits/${APPLY_ID}`))
+    .toHaveLength(1);
+});
+
+it.each([
+  ['Team Phase', (store: FakeStore) => {
+    const session = store.records.get(paths().session)!;
+    const coordination = session.turnPhase as ReturnType<typeof startTurnPhase>;
+    session.turnPhase = {
+      ...coordination,
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    };
+  }],
+  ['a stale phase cycle', (store: FakeStore) => {
+    const session = store.records.get(paths().session)!;
+    session.currentTurn = 3;
+  }],
+  ['two prior consoles on this host', (store: FakeStore) => {
+    const session = store.records.get(paths().session)!;
+    session.macawRepairs = {
+      cycle: 2,
+      revision: 2,
+      hosts: [{
+        shipId: 'dione',
+        systemIds: SHIP_DAMAGE_DECKS.dione!
+          .filter(({ systemId }) => systemId !== 'reactor')
+          .slice(0, 2)
+          .map(({ systemId }) => systemId),
+      }],
+    };
+  }],
+  ['an unfuelled second host', (store: FakeStore) => {
+    const session = store.records.get(paths().session)!;
+    session.macawRepairs = {
+      cycle: 2,
+      revision: 1,
+      hosts: [{ shipId: 'icebreaker', systemIds: [SHIP_DAMAGE_DECKS.icebreaker![0]!.systemId] }],
+    };
+  }],
+] as const)('rejects a fresh Macaw salvage action during %s without consuming the consent', async (_label, boundary) => {
+  const store = macawSeededStore();
+  const callables = createPermissionedDismantlingCallables(dependencies(store));
+  await callables.proposePermissionedDismantling(proposeRequest({
+    craftId: 'macaw', targetShipId: 'dione', targetConsoleId: 'reactor', expectedControlRevision: 9,
+  }));
+  await callables.consentToPermissionedDismantling(consentRequest());
+  boundary(store);
+  const before = store.committedWrites.length;
+
+  await expect(callables.applyPermissionedDismantling(applyRequest())).rejects.toMatchObject({
+    code: 'failed-precondition',
+  });
+  expect(store.committedWrites).toHaveLength(before);
+  expect(store.records.has(paths().applyReceipt)).toBe(false);
+  expect(store.records.get(paths().consent)).toMatchObject({ status: 'granted' });
+});
+
+it('rejects fresh Macaw salvage after its Capybara source and holder settle without consuming consent', async () => {
+  const store = macawSeededStore();
+  const callables = createPermissionedDismantlingCallables(dependencies(store));
+  await callables.proposePermissionedDismantling(proposeRequest({
+    craftId: 'macaw', targetShipId: 'dione', targetConsoleId: 'reactor', expectedControlRevision: 9,
+  }));
+  await callables.consentToPermissionedDismantling(consentRequest());
+  settleCandidateVessel(store, 'capybara');
+  store.records.get(paths().proposer)!.candidateDisposition = { code: 'N', outcome: 'reached', cycle: 2 };
+  const before = store.committedWrites.length;
+
+  await expect(callables.applyPermissionedDismantling(applyRequest())).rejects.toMatchObject({
+    code: 'failed-precondition',
+  });
+  expect(store.committedWrites).toHaveLength(before);
+  expect(store.records.has(paths().applyReceipt)).toBe(false);
+  expect(store.records.get(paths().consent)).toMatchObject({ status: 'granted' });
+});
+
+it('rejects fresh Macaw salvage when its Capybara Scrap source has settled', async () => {
+  const store = macawSeededStore();
+  const callables = createPermissionedDismantlingCallables(dependencies(store));
+  await callables.proposePermissionedDismantling(proposeRequest({
+    craftId: 'macaw', targetShipId: 'dione', targetConsoleId: 'reactor', expectedControlRevision: 9,
+  }));
+  await callables.consentToPermissionedDismantling(consentRequest());
+  settleCandidateVessel(store, 'capybara');
+  const before = store.committedWrites.length;
+
+  await expect(callables.applyPermissionedDismantling(applyRequest())).rejects.toMatchObject({
+    code: 'failed-precondition',
+  });
+  expect(store.committedWrites).toHaveLength(before);
+  expect(store.records.has(paths().applyReceipt)).toBe(false);
+  expect(store.records.get(paths().consent)).toMatchObject({ status: 'granted' });
+});
+
+it.each([
+  ['target vessel disposition', (store: FakeStore) => settleCandidateVessel(store)],
+  ['permanent Macaw candidate-craft use', (store: FakeStore) => consumeMacawCandidateCraft(store)],
+] as const)('blocks a fresh Macaw proposal after %s', async (_label, changeAvailability) => {
+  const store = macawSeededStore();
+  changeAvailability(store);
+  const callables = createPermissionedDismantlingCallables(dependencies(store));
+  const before = store.committedWrites.length;
+  await expect(callables.proposePermissionedDismantling(proposeRequest({
+    craftId: 'macaw', targetShipId: 'dione', targetConsoleId: 'reactor', expectedControlRevision: 9,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(store.committedWrites).toHaveLength(before);
+  expect(store.records.has(paths().proposal)).toBe(false);
+});
+
+it.each([
+  ['target vessel disposition', (store: FakeStore) => settleCandidateVessel(store)],
+  ['permanent Macaw candidate-craft use', (store: FakeStore) => consumeMacawCandidateCraft(store)],
+] as const)('blocks a fresh Macaw apply after %s without consuming the approved request', async (_label, changeAvailability) => {
+  const store = macawSeededStore();
+  const callables = createPermissionedDismantlingCallables(dependencies(store));
+  await callables.proposePermissionedDismantling(proposeRequest({
+    craftId: 'macaw', targetShipId: 'dione', targetConsoleId: 'reactor', expectedControlRevision: 9,
+  }));
+  await callables.consentToPermissionedDismantling(consentRequest());
+  changeAvailability(store);
+  const before = store.committedWrites.length;
+
+  await expect(callables.applyPermissionedDismantling(applyRequest())).rejects.toMatchObject({
+    code: 'failed-precondition',
+  });
+  expect(store.committedWrites).toHaveLength(before);
+  expect(store.records.has(paths().applyReceipt)).toBe(false);
+  expect(store.records.get(paths().consent)).toMatchObject({ status: 'granted' });
+});
+
+it('rejects Macaw-to-Capybara self-target proposals before creating a receipt or inbox row', async () => {
+  const store = macawSeededStore();
+  const callables = createPermissionedDismantlingCallables(dependencies(store));
+  const before = store.committedWrites.length;
+  await expect(callables.proposePermissionedDismantling(proposeRequest({
+    craftId: 'macaw', targetShipId: 'capybara', targetConsoleId: 'advanced-hydroponics', expectedControlRevision: 9,
+  }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(store.committedWrites).toHaveLength(before);
+  expect([...store.records.keys()].some((key) => key.includes('permissionedDismantlingProposals'))).toBe(false);
 });
 
 it('binds an omitted private target revision to the server-observed proposal state and replays safely', async () => {

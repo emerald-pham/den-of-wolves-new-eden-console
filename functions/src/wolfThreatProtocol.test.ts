@@ -122,4 +122,31 @@ describe('group-bound Wolf threat protocol', () => {
       ruling: 'No response by deadline; facilitator adjudicates the printed surrender terms.',
     });
   });
+
+  it('leaves full-game manual amnesty decisions available without a wall-clock expiry', () => {
+    const expiredOffer = {
+      cycle: 5,
+      offerId: 'amnesty-5-aegis',
+      targetShipId: 'aegis',
+      condition: 'surrender-by-medium-jump-to-0101' as const,
+      responseDeadline: '2026-10-04T11:00:00.000Z',
+      status: 'offered' as const,
+    };
+
+    expect(resolveWolfAmnestyDecision(
+      expiredOffer,
+      { kind: 'response', answer: 'accept' },
+      5,
+      '2026-10-05T12:00:00.000Z',
+      { progression: 'manual' },
+    )).toMatchObject({ status: 'accepted-pending-facilitator', response: 'accept' });
+
+    expect(resolveWolfAmnestyDecision(
+      expiredOffer,
+      { kind: 'facilitator-consequence', text: 'The facilitator records a reasoned consequence.' },
+      5,
+      '2026-10-05T12:00:00.000Z',
+      { progression: 'manual' },
+    )).toMatchObject({ status: 'facilitator-ruled', ruling: 'The facilitator records a reasoned consequence.' });
+  });
 });

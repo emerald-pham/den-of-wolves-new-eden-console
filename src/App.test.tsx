@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -53,6 +54,7 @@ vi.mock('@/lib/sessionService', () => ({
   logoutGmAccess: vi.fn(),
   popShipConfetti: vi.fn(),
   reconcileGmAuthority: vi.fn().mockResolvedValue(undefined),
+  readClosedSessionHistory: vi.fn().mockResolvedValue(false),
   refreshPresence: vi.fn().mockResolvedValue(undefined),
   refreshCommissarPurgeAuthority: vi.fn().mockResolvedValue(null),
   requireStationReselectionForCurrentSession: vi.fn(),
@@ -64,6 +66,7 @@ vi.mock('@/lib/sessionService', () => ({
 }));
 
 vi.mock('@/lib/firestore', () => ({
+  subscribeShuttleDeparture: vi.fn(() => vi.fn()),
   subscribeCrisisReport: vi.fn(() => vi.fn()),
   sessionSnapshotAuthorityFor: vi.fn(() => ({ hasServerSessionAuthority: false })),
   subscribeConnectedPlayers: vi.fn(() => vi.fn()),
@@ -105,6 +108,7 @@ const {
   joinSession,
   logoutGmAccess,
   reconcileGmAuthority,
+  readClosedSessionHistory,
   refreshPresence,
   requireStationReselectionForCurrentSession,
   releaseConsoleRole,
@@ -113,7 +117,9 @@ const {
   await import('@/lib/sessionService');
 const {
   sessionSnapshotAuthorityFor,
+  subscribeCrisisReport,
   subscribeLoyaltyCensus,
+  subscribePlayerHackingNotices,
   subscribeSessionState,
 } = await import('@/lib/firestore');
 const { startVersionUpgradeMonitor } = await import('@/lib/versionUpgrade');
@@ -416,6 +422,177 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: 'Stations and consoles' })).toBeInTheDocument();
     expect(useSessionStore.getState().communicationError?.kind).toBe('station-selection-required');
+  });
+
+  it.each([
+    ['Starlight, player freshness first', 'starlight', 'wing-commander', false],
+    ['Starlight, session freshness first', 'starlight', 'wing-commander', true],
+    ['Ally, Union owner', 'ally', 'joint-engineering-shepherd-icebreaker', false],
+  ] as const)('returns the released canonical shuttle owner to station selection: %s', async (
+    _name, shuttleId, roleId, sessionFreshFirst,
+  ) => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    window.location.hash = `#/shuttles/${shuttleId}`;
+    const assigned: Player = {
+      ...player, role: 'player', assignedRoleId: roleId, seatId: roleId,
+      activeConsoleRoleId: roleId,
+    };
+    useSessionStore.getState().setIdentity({
+      ...session, phase: 'casting', activeRoleIds: recommendedRoleIds(8),
+      activeVesselIds: ['aegis', 'shepherd', 'icebreaker', 'quellon', 'refinery-124'],
+    }, assigned);
+    useSessionStore.getState().setMode('console');
+    useSessionStore.getState().setRoleBrief({
+      assignmentUid: 'u1', roleId, roleName: 'Current station', vesselName: 'Current vessel',
+      text: 'Own private assignment.', commonRules: 'Shared rules.', setupRevision: 3,
+    });
+    if (shuttleId === 'starlight') useSessionStore.getState().setScoutCoordinateDraft({
+      sessionId: 's1', actorUid: 'u1', entitlementId: 'starlight', value: '5143',
+    });
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    if (shuttleId === 'starlight') {
+      expect(await screen.findByRole('textbox', { name: 'Printed system coordinate' })).toHaveValue('5143');
+      expect(screen.getByRole('button', { name: 'Record request' })).toBeDisabled();
+    } else {
+      expect(await screen.findByRole('heading', { name: 'U.S. Ally' })).toBeInTheDocument();
+    }
+
+    if (sessionFreshFirst) act(() => handlers?.onSessionFreshness?.(true));
+    act(() => handlers?.onPlayer?.({
+      ...assigned, assignedRoleId: null, seatId: null, activeConsoleRoleId: null,
+    }));
+    expect(useSessionStore.getState().communicationError).toBeNull();
+    expect(useSessionStore.getState().roleBrief).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Printed system coordinate' })).not.toBeInTheDocument();
+    if (!sessionFreshFirst) {
+      act(() => handlers?.onPlayerFreshness?.(true));
+      expect(useSessionStore.getState().communicationError).toBeNull();
+      act(() => handlers?.onSessionFreshness?.(true));
+    } else {
+      act(() => handlers?.onPlayerFreshness?.(true));
+    }
+
+    expect(await screen.findByRole('heading', { name: 'Stations and consoles' })).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Your previous station is no longer available. Return to station select and reselect your role.',
+    );
+    expect(window.location.hash).toBe('#/console');
+    expect(useSessionStore.getState().me).toMatchObject({
+      uid: 'u1', sessionId: 's1', assignedRoleId: null, seatId: null, activeConsoleRoleId: null,
+    });
+    if (shuttleId === 'starlight') expect(useSessionStore.getState().scoutCoordinateDraft).toEqual({
+      sessionId: 's1', actorUid: 'u1', entitlementId: 'starlight', value: '5143',
+    });
+  });
+
+  it('keeps the Starlight owner whose assignment is restored before fresh reconciliation', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    window.location.hash = '#/shuttles/starlight';
+    const assigned: Player = {
+      ...player, role: 'player', assignedRoleId: 'wing-commander', seatId: 'wing-commander',
+      activeConsoleRoleId: 'wing-commander',
+    };
+    useSessionStore.getState().setIdentity({ ...session, phase: 'casting' }, assigned);
+    useSessionStore.getState().setMode('console');
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    vi.mocked(requireStationReselectionForCurrentSession).mockClear();
+    act(() => {
+      handlers?.onPlayer?.({ ...assigned, assignedRoleId: null, seatId: null, activeConsoleRoleId: null });
+      handlers?.onPlayerFreshness?.(true);
+      handlers?.onPlayer?.(assigned);
+      handlers?.onPlayerFreshness?.(true);
+      handlers?.onSessionFreshness?.(true);
+    });
+    expect(requireStationReselectionForCurrentSession).not.toHaveBeenCalled();
+    expect(window.location.hash).toBe('#/shuttles/starlight');
+    expect(useSessionStore.getState().communicationError).toBeNull();
+  });
+
+  it.each(['visitor', 'other-role control holder', 'GM'] as const)(
+    'keeps the Starlight %s outside canonical owner-release routing', async (audience) => {
+      let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+      vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+        handlers = nextHandlers;
+        return vi.fn();
+      });
+      window.location.hash = '#/shuttles/starlight';
+      const member: Player = {
+        ...player, role: audience === 'GM' ? 'gm' : 'player',
+        assignedRoleId: audience === 'other-role control holder' ? 'shepherd-captain' : null,
+        seatId: audience === 'other-role control holder' ? 'shepherd-captain' : null,
+        activeConsoleRoleId: audience === 'other-role control holder' ? 'shepherd-captain' : null,
+      };
+      useSessionStore.getState().setIdentity({
+        ...session, phase: 'casting',
+        shuttleControl: { starlight: {
+          shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'u2',
+          holderUid: audience === 'other-role control holder' ? 'u1' : 'u2', revision: 2,
+        } },
+      }, member);
+      useSessionStore.getState().setMode('console');
+      render(<App />);
+      await waitFor(() => expect(handlers).toBeDefined());
+      vi.mocked(requireStationReselectionForCurrentSession).mockClear();
+      act(() => {
+        handlers?.onSessionFreshness?.(true);
+        handlers?.onPlayer?.({ ...member, assignedRoleId: null, seatId: null, activeConsoleRoleId: null });
+        handlers?.onPlayerFreshness?.(true);
+      });
+      expect(requireStationReselectionForCurrentSession).not.toHaveBeenCalled();
+      expect(useSessionStore.getState().communicationError).toBeNull();
+      expect(window.location.hash).toBe('#/shuttles/starlight');
+    },
+  );
+
+  it.each(['UID', 'session'] as const)('discards pending Starlight release and draft across changed %s', async (changed) => {
+    const subscriptions: Parameters<typeof subscribeSessionState>[2][] = [];
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      subscriptions.push(nextHandlers);
+      return vi.fn();
+    });
+    window.location.hash = '#/shuttles/starlight';
+    const assigned: Player = {
+      ...player, role: 'player', assignedRoleId: 'wing-commander', seatId: 'wing-commander',
+      activeConsoleRoleId: 'wing-commander',
+    };
+    useSessionStore.getState().setIdentity({ ...session, phase: 'casting' }, assigned);
+    useSessionStore.getState().setMode('console');
+    useSessionStore.getState().setScoutCoordinateDraft({
+      sessionId: 's1', actorUid: 'u1', entitlementId: 'starlight', value: '5143',
+    });
+    render(<App />);
+    await waitFor(() => expect(subscriptions).toHaveLength(1));
+    const former = subscriptions[0]!;
+    act(() => {
+      former.onPlayer?.({ ...assigned, assignedRoleId: null, seatId: null, activeConsoleRoleId: null });
+      former.onPlayerFreshness?.(true);
+    });
+    const nextSession = { ...session, id: changed === 'session' ? 's2' : 's1', phase: 'casting' as const };
+    const nextPlayer = { ...assigned, uid: changed === 'UID' ? 'u2' : 'u1', sessionId: nextSession.id };
+    act(() => useSessionStore.getState().setIdentity(nextSession, nextPlayer));
+    await waitFor(() => expect(subscriptions).toHaveLength(2));
+    vi.mocked(requireStationReselectionForCurrentSession).mockClear();
+    act(() => {
+      former.onSessionFreshness?.(true);
+      former.onPlayer?.({ ...assigned, assignedRoleId: null, seatId: null, activeConsoleRoleId: null });
+      former.onPlayerFreshness?.(true);
+    });
+    expect(requireStationReselectionForCurrentSession).not.toHaveBeenCalled();
+    expect(useSessionStore.getState()).toMatchObject({
+      session: { id: nextSession.id }, me: { uid: nextPlayer.uid },
+      scoutCoordinateDraft: null, communicationError: null,
+    });
+    expect(window.location.hash).toBe('#/shuttles/starlight');
   });
 
   it('drops a pending station release when the listener identity changes', async () => {
@@ -814,6 +991,169 @@ describe('App', () => {
     expect(refreshPresence).toHaveBeenCalled();
   });
 
+  it('keeps a hard-reloaded closed-history view read-only and clears transient private projections', async () => {
+    vi.useFakeTimers();
+    const closedSession: GameSession = { ...session, joinCode: '', phase: 'closed', currentTurn: 4,
+      debriefSnapshot: { type: 'session-debrief', version: 1, source: 'final-cycle', result: 'completed',
+        cause: 'final-cycle', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+        committedAt: '2026-10-05T12:01:00.000Z' } };
+    const returningMember = { ...player, role: 'player' as const, fleetGroupId: 'fleet-1', connected: false };
+    const store = useSessionStore.getState();
+    store.setIdentity(closedSession, returningMember);
+    store.setPrivateLoyalty({ kind: 'wolf-cult' } as never);
+    store.setRoleBrief({ assignmentUid: 'u1', roleId: 'admiral', roleName: 'Admiral', vesselName: 'AEGIS',
+      text: 'private brief', commonRules: 'private rules', setupRevision: 1 });
+    store.setAwayMissionHands([{ handId: 'private-hand' }] as never);
+    store.setAwayMissionHandPointers([{ handId: 'private-pointer' }] as never);
+    store.setConnection('live');
+    store.setSessionSnapshotFreshness('server');
+    vi.mocked(subscribeSessionState).mockClear();
+    vi.mocked(refreshPresence).mockClear();
+
+    const { unmount } = render(<App />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+
+    expect(subscribeSessionState).not.toHaveBeenCalled();
+    expect(refreshPresence).not.toHaveBeenCalled();
+    expect(readClosedSessionHistory).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().session).toMatchObject({ phase: 'closed', debriefSnapshot: { result: 'completed' } });
+    expect(useSessionStore.getState().privateLoyalty).toBeNull();
+    expect(useSessionStore.getState().roleBrief).toBeNull();
+    expect(useSessionStore.getState().awayMissionHands).toEqual([]);
+    expect(useSessionStore.getState().awayMissionHandPointers).toEqual([]);
+    unmount();
+  });
+
+  it('refetches an entitled closed debrief after cold rehydration without restoring live listeners or presence', async () => {
+    vi.useFakeTimers();
+    const closedWithoutCachedDebrief: GameSession = {
+      ...session, joinCode: '', phase: 'closed', currentTurn: 4,
+      gameOutcome: { type: 'game-outcome', result: 'failure', cause: 'total-fleet-loss',
+        cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' },
+    };
+    const committed = { type: 'session-debrief', version: 1, source: 'failure-review', result: 'failure',
+      cause: 'total-fleet-loss', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+      committedAt: '2026-10-05T12:01:00.000Z',
+      outcome: closedWithoutCachedDebrief.gameOutcome } as never;
+    const returningMember = { ...player, role: 'player' as const, fleetGroupId: 'fleet-1', connected: false };
+    useSessionStore.getState().setIdentity(closedWithoutCachedDebrief, returningMember);
+    useSessionStore.getState().setConnection('offline');
+    useSessionStore.getState().setSessionSnapshotFreshness('cache');
+    vi.mocked(connectAutomatically).mockImplementationOnce(async () => {
+      const store = useSessionStore.getState();
+      store.setConnection('live');
+      store.setSessionSnapshotFreshness('server');
+    });
+    vi.mocked(readClosedSessionHistory).mockImplementationOnce(async sessionId => {
+      expect(sessionId).toBe('s1');
+      const current = useSessionStore.getState().session;
+      if (current?.id === 's1' && current.phase === 'closed') {
+        useSessionStore.getState().setSession({ ...current, debriefSnapshot: committed });
+      }
+      return true;
+    });
+
+    render(<App />);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    expect(readClosedSessionHistory).toHaveBeenCalledTimes(1);
+    expect(useSessionStore.getState().session).toMatchObject({ phase: 'closed', debriefSnapshot: committed });
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+
+    expect(readClosedSessionHistory).toHaveBeenCalledTimes(1);
+    expect(subscribeSessionState).not.toHaveBeenCalled();
+    expect(refreshPresence).not.toHaveBeenCalled();
+  });
+
+  it('retries a transient closed-history read with bounded delay and then keeps accepted history read-only', async () => {
+    vi.mocked(readClosedSessionHistory).mockReset().mockResolvedValue(false);
+    vi.useFakeTimers();
+    const closedWithoutCachedDebrief: GameSession = { ...session, joinCode: '', phase: 'closed', currentTurn: 4 };
+    const returningMember = { ...player, role: 'player' as const, fleetGroupId: 'fleet-1', connected: false };
+    const committed = { type: 'session-debrief', version: 1, source: 'final-cycle', result: 'completed',
+      cause: 'final-cycle', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+      committedAt: '2026-10-05T12:01:00.000Z' } as const;
+    useSessionStore.getState().setIdentity(closedWithoutCachedDebrief, returningMember);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    vi.mocked(readClosedSessionHistory).mockRejectedValueOnce(new Error('temporarily unavailable'))
+      .mockImplementationOnce(async () => {
+        const current = useSessionStore.getState().session!;
+        useSessionStore.getState().setSession({ ...current, debriefSnapshot: committed });
+        return true;
+      });
+    render(<App />);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    expect(readClosedSessionHistory).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+      await vi.advanceTimersByTimeAsync(4_000);
+    });
+    expect(readClosedSessionHistory).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(6_000); });
+    expect(readClosedSessionHistory).toHaveBeenCalledTimes(2);
+    expect(useSessionStore.getState().session?.debriefSnapshot).toEqual(committed);
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    expect(readClosedSessionHistory).toHaveBeenCalledTimes(2);
+    expect(subscribeSessionState).not.toHaveBeenCalled();
+    expect(refreshPresence).not.toHaveBeenCalled();
+  });
+
+  it('keeps one pending closed-history request across online signals and cancels retries after unmount', async () => {
+    vi.mocked(readClosedSessionHistory).mockReset().mockResolvedValue(false);
+    vi.useFakeTimers();
+    const closed: GameSession = { ...session, joinCode: '', phase: 'closed', currentTurn: 4 };
+    useSessionStore.getState().setIdentity(closed, { ...player, role: 'player', connected: false, fleetGroupId: 'fleet-1' });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    let finish: (result: boolean) => void = () => undefined;
+    vi.mocked(readClosedSessionHistory).mockImplementationOnce(() => new Promise<boolean>(resolve => { finish = resolve; }));
+    const view = render(<App />);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    await act(async () => {
+      for (let index = 0; index < 3; index += 1) window.dispatchEvent(new Event('online'));
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(readClosedSessionHistory).toHaveBeenCalledTimes(1);
+    view.unmount();
+    await act(async () => { finish(false); await Promise.resolve(); await vi.advanceTimersByTimeAsync(10_000); });
+    expect(readClosedSessionHistory).toHaveBeenCalledTimes(1);
+    expect(subscribeSessionState).not.toHaveBeenCalled();
+    expect(refreshPresence).not.toHaveBeenCalled();
+  });
+
+  it('does not open crisis or player hacking listeners for closed history', () => {
+    const closedSession: GameSession = { ...session, joinCode: '', phase: 'closed',
+      debriefSnapshot: { type: 'session-debrief', version: 1, source: 'final-cycle', result: 'completed',
+        cause: 'final-cycle', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+        committedAt: '2026-10-05T12:01:00.000Z' } };
+    const returningPlayer = { ...player, role: 'player' as const, fleetGroupId: 'fleet-1' };
+    useSessionStore.getState().setIdentity(closedSession, returningPlayer);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    vi.mocked(subscribeCrisisReport).mockClear();
+    vi.mocked(subscribePlayerHackingNotices).mockClear();
+
+    render(<App />);
+
+    expect(subscribeCrisisReport).not.toHaveBeenCalled();
+    expect(subscribePlayerHackingNotices).not.toHaveBeenCalled();
+  });
+
+  it('deduplicates the cold closed-session resume during StrictMode effect replay', async () => {
+    const closedSession: GameSession = { ...session, joinCode: '', phase: 'closed',
+      debriefSnapshot: { type: 'session-debrief', version: 1, source: 'final-cycle', result: 'completed',
+        cause: 'final-cycle', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+        committedAt: '2026-10-05T12:01:00.000Z' } };
+    useSessionStore.getState().setIdentity(closedSession, { ...player, role: 'player', fleetGroupId: 'fleet-1' });
+    useSessionStore.getState().setConnection('offline');
+    useSessionStore.getState().setSessionSnapshotFreshness('cache');
+    vi.mocked(connectAutomatically).mockClear();
+
+    render(<StrictMode><App /></StrictMode>);
+
+    await waitFor(() => expect(connectAutomatically).toHaveBeenCalledTimes(1));
+  });
+
   it.each(['connect', 'heartbeat', 'reconcile'] as const)(
     'keeps slow %s checks to one pending request and resumes after settlement', async (kind) => {
       vi.useFakeTimers();
@@ -939,6 +1279,107 @@ describe('App', () => {
     expect(useSessionStore.getState().roleBrief).toEqual(brief);
     expect(window.location.hash).toBe('#/ships/aegis/roles/admiral');
     unmount();
+  });
+
+  it.each(['admiral', 'wing-commander'] as const)(
+    'omits the GM setup-receipt subscription for ordinary %s across the cycle-phase rebind',
+    async (roleId) => {
+      const subscriptions: Parameters<typeof subscribeSessionState>[2][] = [];
+      vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, handlers) => {
+        subscriptions.push(handlers);
+        return vi.fn();
+      });
+      const member: Player = {
+        ...player, role: 'player', connected: true, assignedRoleId: roleId,
+        activeConsoleRoleId: roleId, seatId: roleId,
+      };
+      const casting: GameSession = { ...session, phase: 'casting', currentTurn: 0 };
+      useSessionStore.getState().setIdentity(casting, member);
+      render(<App />);
+      await waitFor(() => expect(subscriptions).toHaveLength(1));
+      expect(subscriptions[0]?.sessionReadAudience).toBe('member');
+      expect(subscriptions[0]?.onSetupReceipt).toBeUndefined();
+
+      act(() => useSessionStore.getState().setSession({ ...casting, phase: 'active', currentTurn: 1 }));
+      await waitFor(() => expect(subscriptions).toHaveLength(2));
+      expect(subscriptions[1]?.sessionReadAudience).toBe('member');
+      expect(subscriptions[1]?.onSetupReceipt).toBeUndefined();
+      expect(subscriptions[1]?.onError).toEqual(expect.any(Function));
+    },
+  );
+
+  it('composes the setup-receipt subscription at GM promotion and rejects its retained callback on demotion', async () => {
+    const subscriptions: Parameters<typeof subscribeSessionState>[2][] = [];
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, handlers) => {
+      subscriptions.push(handlers);
+      return vi.fn();
+    });
+    const member: Player = { ...player, role: 'player', connected: true };
+    const receipt = {
+      source: 'routine-start', playerCount: 8, mode: 'base', rosterIds: ['admiral'],
+      pressEligibility: {}, excludedGmCount: 1, wolfCount: 1 as const,
+      wolfRule: 'one-wolf-at-8-13', selectedWolfRoleIds: ['admiral'],
+      eligibleRoleIds: ['admiral'], orderedModifiers: [], resultCount: 1,
+      loyaltySource: 'automatic-default' as const, request: {}, expectedSetupRevision: 0,
+      committedSetupRevision: 1, actorUid: 'u1', serverTime: '2026-01-01T00:00:00.000Z',
+      event: 'game-started',
+    } satisfies SetupReceipt;
+    useSessionStore.getState().setIdentity(session, member);
+    render(<App />);
+    await waitFor(() => expect(subscriptions).toHaveLength(1));
+    expect(subscriptions[0]?.onSetupReceipt).toBeUndefined();
+
+    act(() => subscriptions[0]?.onPlayer({ ...player, connected: true }));
+    await waitFor(() => expect(subscriptions).toHaveLength(2));
+    const gmHandlers = subscriptions[1]!;
+    expect(gmHandlers.sessionReadAudience).toBe('gm');
+    expect(gmHandlers.onSetupReceipt).toEqual(expect.any(Function));
+    const retainedReceipt = gmHandlers.onSetupReceipt!;
+    act(() => retainedReceipt(receipt));
+    expect(useSessionStore.getState().gmSetupReceipt).toEqual(receipt);
+
+    act(() => {
+      gmHandlers.onPlayer(member);
+      retainedReceipt(receipt);
+    });
+    expect(useSessionStore.getState().gmSetupReceipt).toBeNull();
+    await waitFor(() => expect(subscriptions).toHaveLength(3));
+    expect(subscriptions[2]?.sessionReadAudience).toBe('member');
+    expect(subscriptions[2]?.onSetupReceipt).toBeUndefined();
+    act(() => retainedReceipt(receipt));
+    expect(useSessionStore.getState().gmSetupReceipt).toBeNull();
+  });
+
+  it('keeps current error withdrawal intact when the setup-receipt subscription is omitted', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, next) => {
+      handlers = next;
+      return vi.fn();
+    });
+    const member: Player = {
+      ...player, role: 'player', connected: true, fleetGroupId: 'fleet-1', connectionGeneration: 1,
+      assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander', seatId: 'wing-commander',
+    };
+    const active: GameSession = {
+      ...session, phase: 'active', currentTurn: 1,
+      memberSessionScope: { groupId: 'fleet-1', vesselIds: ['aegis'], craftIds: ['starlight'] },
+      currentActorBerthAuthority: {
+        sessionId: 's1', actorUid: 'u1', groupId: 'fleet-1', role: 'player', connectionGeneration: 1,
+        assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander',
+        replacementRoleId: null, replacementStatus: null, shipId: 'aegis',
+      },
+    };
+    useSessionStore.getState().setIdentity(active, member);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    expect(useSessionStore.getState().session?.currentActorBerthAuthority).toEqual(active.currentActorBerthAuthority);
+    act(() => handlers?.onError());
+    expect(useSessionStore.getState()).toMatchObject({
+      connection: 'offline', sessionSnapshotFreshness: 'cache',
+      session: { id: 's1', currentTurn: 1, currentActorBerthAuthority: null },
+    });
   });
 
   it('keeps ordinary members online without opening the GM-only census listener', async () => {
@@ -1609,7 +2050,10 @@ describe('App', () => {
 
   it('starts and tears down the census at authoritative GM promotion and demotion', async () => {
     let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
-    const censusCallbacks: Array<(next: LoyaltyCensus | null) => void> = [];
+    const censusCallbacks: Array<(
+      next: LoyaltyCensus | null,
+      status: 'present' | 'empty' | 'error',
+    ) => void> = [];
     const censusUnsubscribe = vi.fn();
     vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
       handlers = nextHandlers;
@@ -1655,8 +2099,11 @@ describe('App', () => {
     act(() => censusCallbacks.at(-1)?.({
       revision: 4,
       entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 7 }],
-    }));
+    }, 'present'));
     expect(useSessionStore.getState().gmLoyaltyCensus).toMatchObject({ revision: 4 });
+    expect(useSessionStore.getState().gmLoyaltyCensusStatus).toBe('present');
+    act(() => censusCallbacks.at(-1)?.(null, 'empty'));
+    expect(useSessionStore.getState().gmLoyaltyCensusStatus).toBe('empty');
     const ownDiscovery = {
       groupId: 'fleet-1', shipId: 'aegis', currentCoordinate: '5143',
       knownCoordinates: ['0000', '5143'], knownSystems: { 'system-01': '0000', 'system-02': '5143' },
@@ -1691,11 +2138,12 @@ describe('App', () => {
     expect(useSessionStore.getState().session?.shipGalacticCoordinates).toEqual({ aegis: '5143' });
     expect(useSessionStore.getState().session?.organiserSystems).toBeUndefined();
     expect(useSessionStore.getState().gmLoyaltyCensus).toBeNull();
+    expect(useSessionStore.getState().gmLoyaltyCensusStatus).toBe('loading');
     expect(useSessionStore.getState().gmSetupReceipt).toBeNull();
     act(() => censusCallbacks.at(-1)?.({
       revision: 5,
       entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 99 }],
-    }));
+    }, 'present'));
     expect(useSessionStore.getState().gmLoyaltyCensus).toBeNull();
     act(() => handlers?.onSetupReceipt?.(receipt));
     expect(useSessionStore.getState().gmSetupReceipt).toBeNull();
@@ -1705,9 +2153,113 @@ describe('App', () => {
     act(() => censusCallbacks.at(-1)?.({
       revision: 6,
       entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 100 }],
-    }));
+    }, 'present'));
     expect(useSessionStore.getState().gmLoyaltyCensus).toBeNull();
   });
+
+  it.each(['empty', 'present'] as const)(
+    'rebinds the GM census after a freshness interruption drops its one-shot %s projection',
+    async (status) => {
+      let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+      const censusCallbacks: Array<Parameters<typeof subscribeLoyaltyCensus>[1]> = [];
+      const censusStops: Array<ReturnType<typeof vi.fn>> = [];
+      vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+        handlers = nextHandlers;
+        return vi.fn();
+      });
+      vi.mocked(subscribeLoyaltyCensus).mockImplementation((_sessionId, onCensus) => {
+        censusCallbacks.push(onCensus);
+        const stop = vi.fn();
+        censusStops.push(stop);
+        return stop;
+      });
+      const connectedGm = { ...player, connected: true };
+      useSessionStore.getState().setIdentity({ ...session, phase: 'casting' }, connectedGm);
+      const { unmount } = render(<App />);
+      await waitFor(() => expect(handlers).toBeDefined());
+      act(() => {
+        handlers?.onSessionFreshness?.(true);
+        handlers?.onPlayer(connectedGm);
+        handlers?.onPlayerFreshness?.(true);
+      });
+      expect(censusCallbacks).toHaveLength(1);
+      const firstCallback = censusCallbacks[0]!;
+      const value = status === 'empty' ? null : {
+        revision: 1, entries: [{ uid: 'u2', kind: 'wolf-agent' as const, suspicion: 7 }],
+      };
+
+      act(() => handlers?.onSessionFreshness?.(false));
+      act(() => firstCallback(value, status));
+      expect(useSessionStore.getState().gmLoyaltyCensus).toBeNull();
+      expect(useSessionStore.getState().gmLoyaltyCensusStatus).toBe('loading');
+      act(() => handlers?.onSessionFreshness?.(true));
+      expect(useSessionStore.getState().gmLoyaltyCensusStatus).toBe('loading');
+
+      act(() => {
+        handlers?.onPlayer(connectedGm);
+        handlers?.onPlayerFreshness?.(true);
+      });
+      expect(censusStops[0]).toHaveBeenCalledTimes(1);
+      expect(censusCallbacks).toHaveLength(2);
+      act(() => firstCallback(value, status));
+      expect(useSessionStore.getState().gmLoyaltyCensusStatus).toBe('loading');
+      act(() => censusCallbacks[1]?.(value, status));
+      expect(useSessionStore.getState().gmLoyaltyCensusStatus).toBe(status);
+      expect(useSessionStore.getState().gmLoyaltyCensus).toEqual(value);
+      unmount();
+    },
+  );
+
+  it.each(['empty', 'present'] as const)(
+    'rebinds a current census whose one-shot %s reply races a renewed own-player projection',
+    async (status) => {
+      let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+      const callbacks: Array<Parameters<typeof subscribeLoyaltyCensus>[1]> = [];
+      const stops: Array<ReturnType<typeof vi.fn>> = [];
+      vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+        handlers = nextHandlers;
+        return vi.fn();
+      });
+      vi.mocked(subscribeLoyaltyCensus).mockImplementation((_sessionId, onCensus) => {
+        callbacks.push(onCensus);
+        const stop = vi.fn();
+        stops.push(stop);
+        return stop;
+      });
+      const connectedGm = { ...player, connected: true };
+      useSessionStore.getState().setIdentity({ ...session, phase: 'casting' }, connectedGm);
+      const { unmount } = render(<App />);
+      await waitFor(() => expect(handlers).toBeDefined());
+      act(() => {
+        handlers?.onSessionFreshness?.(true);
+        handlers?.onPlayer(connectedGm);
+        handlers?.onPlayerFreshness?.(true);
+      });
+      expect(callbacks).toHaveLength(1);
+      const first = callbacks[0]!;
+      const value = status === 'empty' ? null : {
+        revision: 1, entries: [{ uid: 'u2', kind: 'wolf-agent' as const, suspicion: 7 }],
+      };
+      // The actual browser trace kept the same GM/session/generation and live
+      // public cursor while the own-player freshness guard rejected this
+      // one-shot census. Retire that subscription; do not accept private data.
+      act(() => handlers?.onPlayer(connectedGm));
+      act(() => first(value, status));
+      expect(useSessionStore.getState().connection).toBe('live');
+      expect(useSessionStore.getState().sessionSnapshotFreshness).toBe('server');
+      expect(useSessionStore.getState().gmLoyaltyCensus).toBeNull();
+      expect(useSessionStore.getState().gmLoyaltyCensusStatus).toBe('loading');
+      expect(stops[0]).toHaveBeenCalledTimes(1);
+      act(() => handlers?.onPlayerFreshness?.(true));
+      expect(callbacks).toHaveLength(2);
+      act(() => first(value, status));
+      expect(useSessionStore.getState().gmLoyaltyCensusStatus).toBe('loading');
+      act(() => callbacks[1]?.(value, status));
+      expect(useSessionStore.getState().gmLoyaltyCensusStatus).toBe(status);
+      expect(useSessionStore.getState().gmLoyaltyCensus).toEqual(value);
+      unmount();
+    },
+  );
 
   it('holds a new own brief until the matching player assignment arrives', async () => {
     let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;

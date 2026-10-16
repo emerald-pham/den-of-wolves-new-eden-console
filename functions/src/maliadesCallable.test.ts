@@ -1,9 +1,10 @@
+import type * as NodeCrypto from 'node:crypto';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
 type Fields = Record<string, unknown>;
 const cryptoMock = vi.hoisted(() => ({ randomInt: vi.fn() }));
-vi.mock('node:crypto', () => cryptoMock);
+vi.mock('node:crypto', async (importOriginal) => ({ ...await importOriginal<typeof NodeCrypto>(), ...(cryptoMock) }));
 
 const mock = vi.hoisted(() => {
   const documents = new Map<string, Fields>();
@@ -175,6 +176,52 @@ it('repairs one damage only with fuelled Team Phase docking', async () => {
   await expect(repairMaliades.run(request(repairRequest({
     requestId: 'repair-1', expectedRevision: 2,
   })))).resolves.toMatchObject({ status: 'replayed', revision: 3 });
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+});
+
+it.each(['dione', 'aegis'])('denies fresh Maliades repair when source or actual host %s has settled', async (settledShipId) => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.activeVesselIds = ['dione', 'aegis'];
+  session.shuttleDockings = [{ shuttleId: 'maliades', shipId: 'aegis', dockedAt: 'SESSION START' }];
+  session.shipDamage = { aegis: { damagedSystemIds: [], destroyed: false } };
+  session.shipResources = { aegis: (baseSession().shipResources.dione) };
+  session.maliadesState = {
+    revision: 2, attackId: 'attack-2', attackCycle: 2, launched: true,
+    damage: 1, destroyed: false, medium: null, short: null,
+  };
+  session.candidateVesselOutcomes = { [settledShipId]: {
+    code: 'N', groupId: 'fleet-1', shipId: settledShipId,
+    sourceId: 'ring-cutoff', cycle: 2, outcome: 'left-behind',
+  } };
+  mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.vesselIds = ['dione', 'aegis'];
+  const before = structuredClone(session);
+
+  await expect(repairMaliades.run(request(repairRequest({ expectedRevision: 2, expectedHostShipId: 'aegis' }))))
+    .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/candidate disposition/) });
+
+  expect(mock.documents.get('sessions/s1')).toEqual(before);
+  expectNoRepairWrites('repair-stale-1');
+});
+
+it('recovers the exact paid Maliades repair after settlement while still requiring the live Engineer', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.maliadesState = {
+    revision: 2, attackId: 'attack-2', attackCycle: 2, launched: true,
+    damage: 1, destroyed: false, medium: null, short: null,
+  };
+  const command = repairRequest({ requestId: 'repair-before-settlement', expectedRevision: 2 });
+  const original = await repairMaliades.run(request(command));
+  session.candidateVesselOutcomes = { dione: {
+    code: 'N', groupId: 'fleet-1', shipId: 'dione',
+    sourceId: 'ring-cutoff', cycle: 2, outcome: 'crossed',
+  } };
+  // The mock replaces the root object when an update commits.
+  mock.documents.get('sessions/s1')!.candidateVesselOutcomes = session.candidateVesselOutcomes;
+  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
+  await expect(repairMaliades.run(request(command))).resolves.toEqual({ ...original, status: 'replayed' });
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+  mock.documents.get('sessions/s1/players/holder')!.connected = false;
+  await expect(repairMaliades.run(request(command))).rejects.toMatchObject({ code: 'permission-denied' });
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
 });
 

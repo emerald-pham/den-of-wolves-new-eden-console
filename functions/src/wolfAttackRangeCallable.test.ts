@@ -5,6 +5,7 @@ import { wolfThreatComposition } from './wolfThreatProtocol';
 import { CORE_WOLF_TARGET_RING, EXPANDED_WOLF_TARGET_RING } from './wolfCombatMath';
 import { resolveLockedWolfRange, resolveWolfRange, resolveWolfTargeting, wolfCombatRoster } from './wolfCombatMath';
 import { projectWolfAttackMemberView } from './wolfAttackAudience';
+import { resolvedWolfAttackForCarryover } from './wolfAttackCarryover';
 
 type Fields = Record<string, unknown>;
 
@@ -55,7 +56,7 @@ vi.mock('firebase-admin/firestore', () => ({
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
 vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error { constructor(readonly code: string, message: string) { super(message); } },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 vi.mock('firebase-functions/v2/firestore', () => ({
   onDocumentWritten: (_path: string, handler: (event: unknown) => unknown) => ({ run: handler }),
@@ -322,6 +323,40 @@ function admitRangeSupportChoices(): void {
       { craftId: 'boa', kind: 'shuttle', ownerRoleId: 'capybara-recycler' },
     ], rangeReceipts: [emptyLong, emptyMedium] });
 }
+
+function admitVulcanRange(): void {
+  admitRangeSupportChoices();
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, smallShipStates: { ...(session.smallShipStates as Fields),
+    vulcan: { id:'vulcan',hostShipId:'aegis',dockingRevision:1,population:15000,unrest:0,
+      cycle:{step:0,revision:5,results:{'4':'Charged.'},charges:['laser-cannon'],turn:1} } } });
+  put('sessions/s1/players/vulcan-captain-1', {uid:'vulcan-captain-1',role:'player',connected:true,
+    assignedRoleId:'wing-commander',replacementRoleId:'vulcan-captain',replacementStatus:null,
+    seatId:null,activeConsoleRoleId:null,fleetGroupId:'fleet-1'});
+  const group = testState.documents.get('sessions/s1/fleetGroups/fleet-1')!;
+  put('sessions/s1/fleetGroups/fleet-1',{...group,memberUids:[...(group.memberUids as string[]),'vulcan-captain-1'],
+    memberShipIds:{...(group.memberShipIds as Fields),'vulcan-captain-1':'aegis'}});
+}
+
+it('offers only the entitled Vulcan safe range view and records/replays a source choice without early dice', async () => {
+  admitVulcanRange();
+  const read = {sessionId:'s1',sourceId:'vulcan-laser-cannon',range:'short-range'};
+  const view = await getWolfRangeSupportActionChoice.run(request(read,'vulcan-captain-1'));
+  expect(view).toMatchObject({sourceId:'vulcan-laser-cannon',actorRoleId:'vulcan-captain',eligible:true,actionAvailable:true});
+  expect(JSON.stringify(view)).not.toMatch(/combatRoster|targetInstanceIds|privateNotes|dice/);
+  await expect(getWolfRangeSupportActionChoice.run(request(read,'gorg-captain-1')))
+    .rejects.toMatchObject({code:'permission-denied'});
+  const command={...read,requestId:'actual-vulcan-use',expectedTurn:1,expectedRevision:view.revision,use:true};
+  await expect(commitWolfRangeSupportActionChoice.run(request(command,'vulcan-captain-1')))
+    .resolves.toMatchObject({status:'committed',choiceStatus:'used',actionCount:1});
+  await expect(commitWolfRangeSupportActionChoice.run(request(command,'vulcan-captain-1')))
+    .resolves.toMatchObject({status:'replayed'});
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+  const captain=testState.documents.get('sessions/s1/players/vulcan-captain-1')!;
+  put('sessions/s1/players/vulcan-captain-1',{...captain,replacementRoleId:'doctor'});
+  await expect(commitWolfRangeSupportActionChoice.run(request(command,'vulcan-captain-1')))
+    .rejects.toMatchObject({code:'permission-denied'});
+});
 
 it('returns only safe escort contacts and operational durability to the assigned current role', async () => {
   admitEscortRange();
@@ -1422,6 +1457,33 @@ function openBoardingFixture(targetingReceipt = targeting): void {
   });
 }
 
+it('accepts a bound K attempt only after actual boarding finalization in the same cycle', async () => {
+  openBoardingFixture();
+  const declared = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...declared, announcementId: declared.attackId, attackNumber: 1 });
+  await commitWolfBoardingDefenceChoice.run(request({ sessionId: 's1', requestId: 'boarding-k-prior', expectedTurn: 1,
+    expectedRevision: 10, targetShipId: 'aegis', securityTeams: 2 }));
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  await commitWolfBoardingSpecialChoice.run(request({ sessionId: 's1', requestId: 'boarding-k-aegis-pass', expectedTurn: 1,
+    expectedRevision: 12, choice: { kind: 'reroll', source: 'aegis', targetShipId: 'aegis', dieIndexes: [] } }));
+  await commitWolfBoardingSpecialChoice.run(request({ sessionId: 's1', requestId: 'boarding-k-pallas-pass', expectedTurn: 1,
+    expectedRevision: 13, choice: { kind: 'reroll', source: 'pallas', targetShipId: 'aegis', dieIndexes: [] } }));
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  const state = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const audit = testState.documents.get('sessions/s1/wolfAttackState/current/audit/wolf-finalized-1')!;
+  expect(state).toMatchObject({ status: 'resolved', currentStep: 'resolved', airspaceLocked: false });
+  expect(resolvedWolfAttackForCarryover(state, audit, 2)).toMatchObject({ attackId: state.attackId, attackNumber: 1 });
+  const context = { type: 'mission-k', sourceId: 'mission-mission-parity', missionId: 'mission-parity',
+    resolutionRevision: 10, resolutionRequestId: 'assign-final-k', sourceCycle: 1, groupId: 'fleet-1',
+    parentAttackId: state.attackId, nextAttackNumber: 2 };
+  const read = resolvedWolfAttackForCarryover as (...args: unknown[]) => { attackId: string; attackNumber: number };
+  expect(read(state, audit, 1, context)).toMatchObject({ attackId: state.attackId, attackNumber: 1 });
+  expect(() => resolvedWolfAttackForCarryover(state, audit, 1)).toThrow(/verifiable finalized/i);
+  expect(() => read(state, { ...audit, attackId: 'wolf-attack-foreign' }, 1, context)).toThrow();
+  expect(() => read(state, audit, 1, { ...context, parentAttackId: 'wolf-attack-foreign' })).toThrow();
+  expect(() => read(state, audit, 1, { ...context, sourceCycle: 2 })).toThrow();
+});
+
 it('commits only the target ship crew boarding choice, reserves teams, then auto-resolves and reopens once', async () => {
   openBoardingFixture();
   const view = await getWolfBoardingDefenceChoice.run(request({ sessionId: 's1' }));
@@ -1510,6 +1572,13 @@ it('finalizes a source reroll on its own target when another attacked target fol
   await commitWolfBoardingSpecialChoice.run(request({ sessionId: 's1', requestId: 'multi-target-commander',
     expectedTurn: 1, expectedRevision: 10, choice: { kind: 'commander', targetShipId: 'aegis' },
   }, 'commander-1'));
+  put('sessions/s1/players/gm-1', { uid: 'gm-1', role: 'gm', connected: true });
+  put('sessions/s1/gmInstances/gm-instance', { uid: 'gm-1', connected: true, lastSeenAt: new Date() });
+  await commitWolfBoardingSpecialChoice.run(request({ sessionId: 's1', requestId: 'multi-target-ruling',
+    expectedTurn: 1, expectedRevision: 11,
+    instanceId: 'gm-instance',
+    choice: { kind: 'commander-ruling', targetShipId: 'aegis', rulingText: 'The facilitator records the consequence.' },
+  }, 'gm-1'));
 
   for (const { targetShipId, uid } of [
     { targetShipId: 'aegis', uid: 'xo-1' }, { targetShipId: 'dione', uid: 'dione-crew' },
@@ -1595,6 +1664,13 @@ it('finalizes the four-target max-team defence with Pallas rerolls at its reloca
   await commitWolfBoardingSpecialChoice.run(request({ sessionId: 's1', requestId: 'four-target-commander',
     expectedTurn: 1, expectedRevision: 10, choice: { kind: 'commander', targetShipId: 'aegis' },
   }, 'commander-1'));
+  put('sessions/s1/players/gm-1', { uid: 'gm-1', role: 'gm', connected: true });
+  put('sessions/s1/gmInstances/gm-instance', { uid: 'gm-1', connected: true, lastSeenAt: new Date() });
+  await commitWolfBoardingSpecialChoice.run(request({ sessionId: 's1', requestId: 'four-target-ruling',
+    expectedTurn: 1, expectedRevision: 11,
+    instanceId: 'gm-instance',
+    choice: { kind: 'commander-ruling', targetShipId: 'aegis', rulingText: 'The facilitator records the consequence.' },
+  }, 'gm-1'));
   const relocation = await getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }));
   expect(relocation).toMatchObject({ choice: { kind: 'relocation', craftId: 'pallas' } });
   await commitWolfBoardingSpecialChoice.run(request({ sessionId: 's1', requestId: 'four-target-pallas-move',
@@ -1638,7 +1714,8 @@ it('finalizes the four-target max-team defence with Pallas rerolls at its reloca
       expect.objectContaining({ target: 'refinery-124', survivingBoardingParties: 0, rerolls: [] }),
     ], returningInstanceIds: Array.from({ length: 9 }, (_, index) => `${index + 1}:wolf-fighter-wing`) },
   });
-  expect(resolved).not.toHaveProperty('boardingCommanderRulingRequiredTarget');
+  expect(resolved).toMatchObject({ boardingCommanderRulingRequiredTarget: 'aegis',
+    boardingCommanderRuling: { targetShipId: 'aegis', text: 'The facilitator records the consequence.' } });
   expect(resolved).not.toHaveProperty('resolutionBlocker');
   const finalAudit = testState.documents.get(`${statePath}/audit/wolf-finalized-1`);
   const drawCount = entropy.randomInt.mock.calls.length;
@@ -1922,6 +1999,37 @@ it('rolls targeting once after the committed Captain choice and continues from t
   const afterProgress = testState.documents.get('sessions/s1/wolfAttackState/current')!;
   expect((afterProgress.calculationReceipt as Fields).targeting).toEqual(targetingReceipt);
   expect(entropy.randomInt).toHaveBeenCalledTimes(drawCount);
+});
+
+it('releases deferred Force Field targeting with the canonical source ring after a candidate disposition settles', async () => {
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, candidateVesselOutcomes: { icebreaker: { code: 'O', groupId: 'fleet-1',
+    shipId: 'icebreaker', sourceId: 'candidate-O-1', cycle: 1, outcome: 'settled' } } });
+  openForceFieldFixture();
+
+  const attackPath = 'sessions/s1/wolfAttackState/current';
+  const attack = testState.documents.get(attackPath)!;
+  const calculation = attack.calculationReceipt as Fields;
+  const participatingRing = CORE_WOLF_TARGET_RING.filter((target) => target !== 'icebreaker');
+  put(attackPath, { ...attack, calculationReceipt: { ...calculation, targetRing: participatingRing } });
+
+  entropy.randomInt.mockReset().mockImplementation(() => 5)
+    .mockReturnValueOnce(2)
+    .mockReturnValueOnce(0);
+  await commitWolfForceFieldChoice.run(request({ sessionId: 's1', requestId: 'candidate-force-field',
+    expectedTurn: 1, expectedRevision: 4, targetShipId: 'aegis' }, 'gorg-1'));
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+
+  const targeted = testState.documents.get(attackPath)!;
+  expect(targeted).toMatchObject({ currentStep: 'targeting', revision: 6,
+    calculationReceipt: { step: 'targeting', targeting: {
+      ring: participatingRing,
+      sourceRing: CORE_WOLF_TARGET_RING,
+    } },
+    forceFieldChoice: { status: 'selected', targetShipId: 'aegis', actorUid: 'gorg-1' } });
+  const rolls = ((targeted.calculationReceipt as Fields).targeting as Fields).rolls as Fields[];
+  expect(rolls[0]).toMatchObject({ rosterIndex: 0, sourceDie: 3, initialDie: 1,
+    nonparticipatingTargetRerolls: 1, target: 'aegis' });
 });
 
 
@@ -2962,9 +3070,57 @@ it('acknowledges the same committed fatal Ace action without rolling or applying
   const payload = { ...f.actionPayload(), targetId: 'contact-1' };
   const committed = await commitPdfFighterAceCombat.run(request(payload, 'ace-current'));
   expect(committed).toMatchObject({ aceDied: true, fighterDestroyed: true });
+  expect([...testState.documents.values()].filter(value => value.type === 'player-removal')).toEqual([expect.objectContaining({ playerUid: 'ace-current', roleId: 'pdf-fighter-ace', cause: 'fighter-ace-death' })]);
   expect(testState.documents.get('sessions/s1/players/ace-current')).toMatchObject({ replacementStatus: 'awaiting-re-role' });
   const saved = structuredClone([...testState.documents]);
   await expect(commitPdfFighterAceCombat.run(request(payload, 'ace-current'))).resolves.toEqual({ ...committed, status: 'replayed' });
   expect([...testState.documents]).toEqual(saved);
   expect(entropy.randomInt).toHaveBeenCalledTimes(3);
+});
+
+
+it('denies a fresh combat action from a settled AEGIS while another group is active', async () => {
+  testState.documents.get('sessions/s1')!.candidateVesselOutcomes = { aegis: { code: 'O', groupId: 'fleet-1', shipId: 'aegis',
+    sourceId: 'candidate-o-3131', cycle: 1, outcome: 'reached' } };
+  await expect(commitWolfRangeActionChoice.run(request({ sessionId: 's1', requestId: 'settled-combat',
+    expectedTurn: 1, expectedRevision: 4, range: 'long-range', actionIds: [] }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(testState.update).not.toHaveBeenCalled(); expect(testState.set).not.toHaveBeenCalled();
+});
+
+it('holds a charged Vulcan choice until explicit use/pass and includes only its printed dice in the normal range lock', async () => {
+  admitVulcanRange();
+  const uid='vulcan-captain-1';
+  await advanceWolfAttackLifecycle.run({params:{sessionId:'s1'}});
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+  for(const [sourceId,actorUid] of [['highwall','miner-1'],['gorgoneion-missile-array','gorg-captain-1'],['boa','recycler-1'],['vulcan-laser-cannon',uid]]) {
+    const view=await getWolfRangeSupportActionChoice.run(request({sessionId:'s1',sourceId,range:'short-range'},actorUid));
+    await commitWolfRangeSupportActionChoice.run(request({sessionId:'s1',requestId:`vulcan-lock-${sourceId}`,sourceId,range:'short-range',
+      expectedTurn:1,expectedRevision:view.revision,use:sourceId==='vulcan-laser-cannon'},actorUid));
+  }
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+  const eo=await getWolfRangeActionChoice.run(request({sessionId:'s1'}));
+  const lock=await commitWolfRangeActionChoice.run(request({sessionId:'s1',requestId:'vulcan-only-lock',expectedTurn:1,
+    expectedRevision:eo.revision,range:'short-range',actionIds:[]}));
+  expect(lock).toMatchObject({choiceStatus:'targets-required',hitSlots:[{actionId:'vulcan-laser-cannon-short',count:2,damagePerHit:1}]});
+  expect(entropy.randomInt).toHaveBeenCalledTimes(2);
+  const current=await getWolfRangeActionChoice.run(request({sessionId:'s1'}));
+  await assignWolfRangeTargets.run(request({sessionId:'s1',requestId:'vulcan-only-targets',expectedTurn:1,expectedRevision:current.revision,
+    range:'short-range',assignments:[{actionId:'vulcan-laser-cannon-short',contactIds:['contact-1','contact-2']}]}));
+  const attack=testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  expect((attack.rangeReceipts as Fields[]).at(-1)!.dice).toEqual([expect.objectContaining({sourceId:'vulcan-laser-cannon',rolls:[6,6],successes:2,damage:2})]);
+  expect(attack.memberResults).toEqual(expect.arrayContaining([expect.objectContaining({sourceId:'vulcan-laser-cannon',outcome:expect.objectContaining({damage:1})})]));
+  expect(entropy.randomInt).toHaveBeenCalledTimes(2);
+});
+it('rejects unprinted Vulcan Long Range and unavailable charge/custody use with zero early dice', async () => {
+  admitVulcanRange();
+  await expect(getWolfRangeSupportActionChoice.run(request({sessionId:'s1',sourceId:'vulcan-laser-cannon',range:'long-range'},'vulcan-captain-1'))).rejects.toBeDefined();
+  const s=testState.documents.get('sessions/s1')!, state=(s.smallShipStates as Fields).vulcan as Fields;
+  (state.cycle as Fields).charges=[];
+  const view=await getWolfRangeSupportActionChoice.run(request({sessionId:'s1',sourceId:'vulcan-laser-cannon',range:'short-range'},'vulcan-captain-1'));
+  expect(view).toMatchObject({actionAvailable:false,eligible:true});
+  await expect(commitWolfRangeSupportActionChoice.run(request({sessionId:'s1',requestId:'vulcan-uncharged-use',sourceId:'vulcan-laser-cannon',range:'short-range',
+    expectedTurn:1,expectedRevision:view.revision,use:true},'vulcan-captain-1'))).rejects.toMatchObject({code:'failed-precondition'});
+  expect(entropy.randomInt).not.toHaveBeenCalled();
 });

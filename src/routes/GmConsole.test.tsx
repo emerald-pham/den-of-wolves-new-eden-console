@@ -16,6 +16,7 @@ import {
   SESSION_WAIVER_STORAGE_KEY,
 } from '@/lib/sessionWaiver';
 import { getBoardingSecurityTeamLocations } from '@/lib/boardingSecurityTeamService';
+import type { ArrestCase, ArrestPosseCalculation } from '@/types/game';
 import GmConsole from './GmConsole';
 
 const ORGANISER_SYSTEMS = Object.fromEntries(LEGACY_SYSTEMS.map((system, index) => [
@@ -41,6 +42,8 @@ vi.mock('@/lib/sessionService', () => ({
   setGmControlsLocked: vi.fn(),
   advanceTurn: vi.fn(),
   startGame: vi.fn(),
+  prepareFullGameDemo: vi.fn(),
+  advanceFullGameDemoPhase: vi.fn(),
   setFighterWingCount: vi.fn(),
   extendAirspaceWindow: vi.fn(),
   setWolfAttackWindow: vi.fn(),
@@ -99,6 +102,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeGmArrestPosseCalculation: vi.fn(),
   subscribeGmArrestCase: vi.fn(() => vi.fn()),
   subscribeSessionEvents: vi.fn(),
+  subscribeGmPlayerRemovalEvents: vi.fn(),
   subscribeDamageDraws: vi.fn(),
 }));
 
@@ -123,11 +127,12 @@ vi.mock('@/lib/sameTableTradeService', () => ({
 
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligibility, assignReplacementRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
   replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, getWolfAttackThreatWindowOptions, stageWolfAttackPreparation, declareWolfAttack, startWolfConsoleVisit, resolveWolfConsoleSabotage, setEmergencyTimerPaused, calculateArrestPosse,
+  prepareFullGameDemo, advanceFullGameDemoPhase,
   advanceWolfAttackToLongRange,
   confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, setCandidatePlanCheckpoint, transitionCrisis, setDiseaseQuarantine, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, scavengeDestroyedShipStores, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeReplacementEligibility, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeWolfAttackMemberView, subscribeGmWolfAssignment, subscribeGmWolfActionReceipt, subscribeGmWolfSuspicionHistory, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmApproachingVesselResponse, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeGmArrestPosseCalculation, subscribeSessionEvents, subscribeDamageDraws } =
+const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeReplacementEligibility, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeWolfAttackMemberView, subscribeGmWolfAssignment, subscribeGmWolfActionReceipt, subscribeGmWolfSuspicionHistory, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmApproachingVesselResponse, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeGmArrestPosseCalculation, subscribeGmArrestCase, subscribeSessionEvents, subscribeGmPlayerRemovalEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 const { runSmallShipMaintenance } = await import('@/lib/smallShipService');
 
@@ -218,9 +223,13 @@ beforeEach(() => {
       joinedAt: '2026-01-01T00:00:00.000Z',
     },
   );
-  // This prepared GM fixture represents verified live authority; startup/cache cases opt out explicitly.
+  // The default mocked manifest represents a live server-backed GM. Tests for
+  // cache/reconnect authority explicitly override these runtime fields.
   useSessionStore.getState().setConnection('live');
   useSessionStore.getState().setSessionSnapshotFreshness('server');
+  vi.mocked(subscribeGmPlayerRemovalEvents).mockImplementation((_sessionId, onEvents) => {
+    onEvents([]); return vi.fn();
+  });
   vi.mocked(subscribeSessionEvents).mockImplementation((_sessionId, onEvents) => {
     onEvents([]);
     return vi.fn();
@@ -321,6 +330,50 @@ const productionReceipt = {
   expectedSetupRevision: 0, committedSetupRevision: 1, actorUid: 'u1',
   serverTime: '2026-09-09T00:00:00.000Z', event: 'game-started',
 };
+
+it('makes automatic loyalty guidance reachable beside full-game preparation in normal GM setup', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+  await userEvent.click(screen.getByRole('button', { name: 'Setup' }));
+
+  const panel = screen.getByRole('region', { name: 'Explicit loyalty setup' });
+  expect(panel).toHaveTextContent('Wolf designation and routine loyalty are assigned automatically');
+  expect(within(panel).queryByRole('button', { name: 'Assign private loyalty' })).not.toBeInTheDocument();
+  expect(screen.getByRole('group', { name: 'Full-game demo preparation' })).toBeInTheDocument();
+});
+
+it('makes the confirmed optional loyalty editor reachable for actual GM roster holders', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!, phase: 'casting', currentTurn: 0,
+    setupConfirmed: true, configurationLocked: false, setupRevision: 4,
+    playerCount: 14, wolfCultEnabled: true,
+    activeRoleIds: ['admiral', 'president'],
+  });
+  useSessionStore.getState().setGmLoyaltyCensus({ revision: 4, entries: [] });
+  vi.mocked(subscribeSessionPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([
+      { uid: 'crew-admiral', sessionId: 's1', displayName: 'Admiral station', role: 'player',
+        assignedRoleId: 'admiral', seatId: 'admiral', connected: true, joinedAt: '2026-01-01T00:00:00.000Z' },
+      { uid: 'crew-president', sessionId: 's1', displayName: 'President station', role: 'player',
+        assignedRoleId: 'president', seatId: 'president', connected: true, joinedAt: '2026-01-01T00:00:00.000Z' },
+    ]);
+    return vi.fn();
+  });
+  renderConsole();
+  await userEvent.click(screen.getByRole('button', { name: 'Setup' }));
+
+  const panel = screen.getByRole('region', { name: 'Explicit loyalty setup' });
+  expect(within(panel).getByRole('combobox', { name: 'Loyalty holder' })).toBeEnabled();
+  expect(within(panel).getByRole('option', { name: /Admiral station/ })).toBeInTheDocument();
+  expect(within(panel).getByRole('option', { name: 'Wolf Cult' })).toBeInTheDocument();
+  expect(panel).toHaveTextContent('Current core holders // 0 of 2 configured');
+  act(() => useSessionStore.getState().setSessionSnapshotFreshness('cache'));
+  expect(within(panel).queryByRole('combobox', { name: 'Loyalty holder' })).not.toBeInTheDocument();
+  expect(panel).toHaveTextContent('Live GM session authority is required');
+});
 
 function productionReply(status: 'committed' | 'replayed' = 'committed') {
   return {
@@ -466,6 +519,105 @@ it('mounts the private arrest calculator only on the verified GM console and sub
 
   await waitFor(() => expect(calculateArrestPosse).toHaveBeenCalledWith('u2', 2, 1, 0));
   expect(await within(panel).findByRole('status')).toHaveTextContent('7 players needed');
+});
+
+it('routes only a current unpaused arrest phase to mounted prisoner actions', async () => {
+  let publishCalculation: ((calculation: ArrestPosseCalculation | null) => void) | undefined;
+  let publishCase: ((caseRecord: ArrestCase | null) => void) | undefined;
+  vi.mocked(subscribeGmArrestPosseCalculation).mockImplementation((_sessionId, onCalculation) => {
+    publishCalculation = onCalculation;
+    onCalculation(null);
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmArrestCase).mockImplementation((_sessionId, _targetUid, onCase) => {
+    publishCase = onCase;
+    onCase(null);
+    return vi.fn();
+  });
+  const teamPhaseEndsAt = '2000-01-01T00:00:00.000Z';
+  const openAirspaceEndsAt = '2000-01-02T00:00:00.000Z';
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    phase: 'active', currentTurn: 3,
+    turnPhase: {
+      turn: 3, teamPhaseEndsAt, openAirspaceEndsAt,
+      airspace: { state: 'lifted', tickerActive: false, pressAccess: true },
+      progression: 'manual',
+    },
+  });
+  useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setGmLoyaltyCensus({
+    revision: 9, entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 14 }],
+  });
+  streamInstances([local]);
+  renderConsole();
+
+  const panel = await screen.findByRole('region', { name: 'Arrest posse calculator' });
+  await waitFor(() => expect(publishCalculation).toBeDefined());
+  act(() => publishCalculation?.({
+    type: 'arrest-posse-calculation', sessionId: 's1', revision: 1,
+    requestId: 'route-phase-calculation', targetUid: 'u2', defenders: 0,
+    requiredPlayers: 5, censusRevision: 9,
+  }));
+  await waitFor(() => expect(publishCase).toBeDefined());
+  const pendingCase: ArrestCase = {
+    type: 'arrest-case', sessionId: 's1', targetUid: 'u2', status: 'pending-resolution',
+    outcome: 'arrested', turn: 3, revision: 1, requiredPlayers: 5, presentPlayers: 5,
+    deadlineCycle: 4, requestId: 'route-phase-case',
+  };
+  act(() => publishCase?.(pendingCase));
+
+  expect(within(panel).getByRole('button', { name: 'Release prisoner' })).toBeVisible();
+  expect(within(panel).getByRole('button', { name: 'Execute prisoner' })).toBeVisible();
+
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    currentTurn: 4,
+    turnPhase: {
+      turn: 4, teamPhaseEndsAt, openAirspaceEndsAt,
+      airspace: { state: 'lifted', tickerActive: false, pressAccess: true },
+      timerPause: { window: 'open', remainingMs: 30_000, pausedAt: new Date().toISOString(), reason: 'turn-interstitial' },
+    },
+  }));
+  expect(within(panel).queryByRole('button', { name: 'Release prisoner' })).not.toBeInTheDocument();
+  expect(within(panel).queryByRole('button', { name: 'Execute prisoner' })).not.toBeInTheDocument();
+  expect(within(panel).queryByRole('button', { name: 'Record facilitator resolution' })).not.toBeInTheDocument();
+  expect(within(panel).getByText(/a current unpaused phase is required/i)).toBeVisible();
+  expect(within(panel).queryByText(/team phase ruling window is closed/i)).not.toBeInTheDocument();
+
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    turnPhase: {
+      turn: 3, teamPhaseEndsAt, openAirspaceEndsAt,
+      airspace: { state: 'lifted', tickerActive: false, pressAccess: true },
+    },
+  }));
+  expect(within(panel).queryByRole('button', { name: 'Release prisoner' })).not.toBeInTheDocument();
+  expect(within(panel).queryByRole('button', { name: 'Execute prisoner' })).not.toBeInTheDocument();
+  expect(within(panel).queryByRole('button', { name: 'Record facilitator resolution' })).not.toBeInTheDocument();
+  expect(within(panel).getByText(/a current unpaused phase is required/i)).toBeVisible();
+
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    turnPhase: {
+      turn: 4, teamPhaseEndsAt: new Date(Date.now() + 60_000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.now() + 120_000).toISOString(),
+      airspace: { state: 'lifted', tickerActive: false, pressAccess: true },
+    },
+  }));
+  expect(within(panel).queryByRole('button', { name: 'Release prisoner' })).not.toBeInTheDocument();
+  expect(within(panel).queryByRole('button', { name: 'Execute prisoner' })).not.toBeInTheDocument();
+  expect(within(panel).queryByRole('button', { name: 'Record facilitator resolution' })).not.toBeInTheDocument();
+  expect(within(panel).getByText(/a current unpaused phase is required/i)).toBeVisible();
+
+  act(() => {
+    const withoutPhase = { ...useSessionStore.getState().session! };
+    delete withoutPhase.turnPhase;
+    useSessionStore.getState().setSession(withoutPhase);
+  });
+  expect(within(panel).queryByRole('button', { name: 'Release prisoner' })).not.toBeInTheDocument();
+  expect(within(panel).queryByRole('button', { name: 'Record facilitator resolution' })).not.toBeInTheDocument();
+  expect(within(panel).getByText(/a current unpaused phase is required/i)).toBeVisible();
 });
 
 it('clears a successful arrest reply when the live projection is invalidated', async () => {
@@ -1902,6 +2054,70 @@ it('keeps held core seats and Press stations out of facilitator casting controls
   expect(releaseRole).not.toHaveBeenCalled();
 });
 
+function preparedCastingActor(seatChanges: Record<string, unknown> = {}, cached = false,
+  playerChanges: Record<string, unknown> = {}) {
+  const current = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...current, phase: 'casting', currentTurn: 0,
+    playerCount: 20, expansion: 'capybara', activeRoleIds: recommendedRoleIds(20) });
+  useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness(cached ? 'cache' : 'server');
+  useSessionStore.getState().setSeats([{ id: 'admiral', sessionId: 's1', roleId: 'admiral',
+    label: 'Admiral', factionId: 'aegis', status: 'claimed', holderUid: 'crew-admiral', claimedAt: '2026-01-01T00:00:00.000Z',
+    ...seatChanges } as never]);
+  streamInstances([local]);
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([{ uid: 'crew-admiral', sessionId: 's1', displayName: 'DEMO // admiral', role: 'player',
+      seatId: 'admiral', assignedRoleId: null, activeConsoleRoleId: null, joinedAt: '2026-01-01T00:00:00.000Z', ...playerChanges }]);
+    return vi.fn();
+  });
+}
+
+it('offers only the same canonical held role to an unassigned prepared actor through normal GM casting', async () => {
+  preparedCastingActor();
+  vi.mocked(assignRole).mockResolvedValue('applied');
+  renderConsole();
+  const casting = await screen.findByRole('region', { name: 'Facilitator casting' });
+  const role = within(casting).getByRole('combobox', { name: 'Role for DEMO // admiral' });
+  expect(within(role).getAllByRole('option')).toHaveLength(1);
+  expect(role).toHaveValue('admiral');
+  expect(within(role).queryByRole('option', { name: 'Wing Commander' })).not.toBeInTheDocument();
+  fireEvent.click(within(casting).getByRole('button', { name: 'Assign role to DEMO // admiral' }));
+  await waitFor(() => expect(assignRole).toHaveBeenCalledWith('crew-admiral', 'admiral'));
+});
+
+it.each([{ roleId: undefined }, { roleId: 'wing-commander' }, { holderUid: 'foreign-actor' },
+  { status: 'open' }, { sessionId: 'other-session' }, { id: 'wing-commander' }])('keeps malformed, foreign or stale held seats restricted in casting: %j', async changed => {
+  preparedCastingActor(changed);
+  renderConsole();
+  const casting = await screen.findByRole('region', { name: 'Facilitator casting' });
+  expect(within(casting).queryByRole('combobox', { name: 'Role for DEMO // admiral' })).not.toBeInTheDocument();
+  expect(within(casting).getByText(/Station held.*release it before casting/)).toBeInTheDocument();
+  expect(assignRole).not.toHaveBeenCalled();
+});
+
+it.each([{ assignedRoleId: 'wing-commander' }, { sessionId: 'other-session' }])('keeps mismatched player assignment or membership out of same-held-seat casting: %j', async changed => {
+  preparedCastingActor({}, false, changed);
+  renderConsole();
+  const casting = await screen.findByRole('region', { name: 'Facilitator casting' });
+  expect(within(casting).queryByRole('combobox', { name: 'Role for DEMO // admiral' })).not.toBeInTheDocument();
+  expect(assignRole).not.toHaveBeenCalled();
+});
+
+it('does not offer same-held-seat casting from a cached projection or an active game', async () => {
+  preparedCastingActor({}, true);
+  renderConsole();
+  const casting = await screen.findByRole('region', { name: 'Facilitator casting' });
+  expect(within(casting).queryByRole('combobox', { name: 'Role for DEMO // admiral' })).not.toBeInTheDocument();
+  await act(async () => {
+    const current = useSessionStore.getState().session!;
+    useSessionStore.getState().setSession({ ...current, phase: 'active', currentTurn: 1 });
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+  expect(screen.queryByRole('region', { name: 'Facilitator casting' })).not.toBeInTheDocument();
+  expect(assignRole).not.toHaveBeenCalled();
+});
+
 it('shows fleet DRADIS and jumps between ship perspectives', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
@@ -2894,6 +3110,36 @@ it('traps Press confirmation focus, cancels on Escape, and restores the trigger 
   expect(trigger).toHaveFocus();
 });
 
+it.each([
+  { trigger: 'Disable Capybara', dialog: 'Change convoy manifest', cancel: 'Cancel convoy change' },
+  { trigger: 'Disable Dione', dialog: 'Change convoy manifest', cancel: 'Cancel convoy change' },
+  { trigger: 'Disable Press', dialog: 'Change Press availability', cancel: 'Cancel Press change' },
+])('keeps $trigger confirmation outside the GM pane stacking context with keyboard focus intact', async ({ trigger: triggerName, dialog: dialogName, cancel: cancelName }) => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  const rendered = renderConsole();
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  const trigger = screen.getByRole('button', { name: triggerName });
+  await user.click(trigger);
+  const dialog = screen.getByRole('alertdialog', { name: dialogName });
+  expect(document.body).toContainElement(dialog);
+  expect(rendered.container).not.toContainElement(dialog);
+  expect(dialog.closest('.gm-console')).toBeNull();
+  const cancel = within(dialog).getByRole('button', { name: cancelName });
+  expect(cancel).toHaveFocus();
+  await user.tab();
+  expect(within(dialog).getAllByRole('button')[1]).toHaveFocus();
+  await user.tab();
+  expect(cancel).toHaveFocus();
+  await user.keyboard('{Escape}');
+  expect(screen.queryByRole('alertdialog', { name: dialogName })).not.toBeInTheDocument();
+  expect(trigger).toHaveFocus();
+  expect(setCapybaraEnabled).not.toHaveBeenCalled();
+  expect(setDioneEnabled).not.toHaveBeenCalled();
+  expect(setPressEnabled).not.toHaveBeenCalled();
+});
+
 it('keeps roster edits local until the GM confirms one complete configuration', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
@@ -3179,6 +3425,174 @@ it('exposes ordinary production start and retires caller-controlled Wolf assignm
   expect(start).toBeEnabled();
   await user.click(start);
   expect(screen.getByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO CYCLE 1' })).toBeInTheDocument();
+});
+
+it('withholds full-game preparation while the original GM claim is recovering', async () => {
+  const user = userEvent.setup();
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...session, phase: 'casting', currentTurn: 0, setupRevision: 4 });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  await user.click(screen.getByRole('button', { name: /^setup$/i }));
+  expect(screen.getByRole('button', { name: /prepare full-game demo/i })).toBeVisible();
+
+  // Exercise the existing recovery consumer after the active route mounts.
+  act(() => useSessionStore.getState().setGmRecoveryPending(true));
+
+  expect(screen.queryByRole('button', { name: /prepare full-game demo/i })).not.toBeInTheDocument();
+  expect(screen.getByRole('status', { name: 'GM connection recovery' })).toBeVisible();
+  expect(prepareFullGameDemo).not.toHaveBeenCalled();
+
+  act(() => useSessionStore.getState().setGmRecoveryPending(false));
+  expect(screen.getByRole('button', { name: /prepare full-game demo/i })).toBeVisible();
+  expect(screen.queryByRole('status', { name: 'GM connection recovery' })).not.toBeInTheDocument();
+  expect(prepareFullGameDemo).not.toHaveBeenCalled();
+});
+
+it('requires a separate deliberate preparation before fresh full-game demo actors may join', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (activeSession) useSessionStore.getState().setSession({
+    ...activeSession, phase: 'casting', currentTurn: 0, setupRevision: 4,
+  });
+  useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  streamInstances([local]);
+  vi.mocked(prepareFullGameDemo).mockImplementation(async () => {
+    const current = useSessionStore.getState().session;
+    if (current) useSessionStore.getState().setSession({
+      ...current, fullGameDemo: { status: 'preparing', progression: 'manual' },
+    });
+    return {
+      status: 'committed', sessionId: 's1', requestId: 'prepare-demo',
+      fullGameDemo: { status: 'preparing', progression: 'manual' },
+      expectedSetupRevision: 4, currentSetupRevision: 4,
+    };
+  });
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  await user.click(await screen.findByRole('button', { name: /prepare full-game demo/i }));
+  expect(screen.getByRole('status', { name: /training session preparation/i })).toHaveTextContent(/permanent/i);
+  await user.click(screen.getByRole('button', { name: /are you sure.*prepare full-game demo/i }));
+
+  expect(prepareFullGameDemo).toHaveBeenCalledOnce();
+  expect(screen.getByRole('button', { name: /start full-game demo/i })).toBeInTheDocument();
+});
+
+it('opens a manual Coordination phase only through the GM full-game demo action', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (activeSession) useSessionStore.getState().setSession({
+    ...activeSession, phase: 'active', currentTurn: 1,
+    fullGameDemo: { status: 'active', progression: 'manual' },
+    turnPhase: {
+      turn: 1, teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+      openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false }, progression: 'manual',
+    },
+  } as never);
+  useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  streamInstances([local]);
+  vi.mocked(advanceFullGameDemoPhase).mockResolvedValue({
+    status: 'committed', sessionId: 's1', requestId: 'demo-phase', currentTurn: 1,
+    fullGameDemo: { status: 'active', progression: 'manual' },
+    turnPhase: {
+      turn: 1, teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+      openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false }, progression: 'manual',
+    },
+  } as never);
+  renderConsole();
+
+  expect(await screen.findByRole('region', { name: /full-game training session/i })).toHaveTextContent(/manual/i);
+  await user.click(screen.getByRole('button', { name: /open coordination manually/i }));
+  expect(advanceFullGameDemoPhase).toHaveBeenCalledOnce();
+  expect(advanceTurn).not.toHaveBeenCalled();
+});
+
+function prepareManualEmergencyFixture(status: 'awaiting-gm-decision' | 'offered') {
+  const current = useSessionStore.getState().session;
+  if (!current) throw new Error('Expected the manual demo session.');
+  const window = {
+    type: 'pursuit-emergency-window' as const, status, cycle: 5,
+    openedAt: '2026-01-01T00:00:00.000Z',
+  };
+  useSessionStore.getState().setSession({
+    ...current, phase: 'active', currentTurn: 5,
+    fullGameDemo: { status: 'active', progression: 'manual' },
+    turnPhase: {
+      turn: 5, progression: 'manual', teamPhaseEndsAt: '9999-12-31T23:59:59.999Z',
+      openAirspaceEndsAt: '9999-12-31T23:59:59.999Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+    pursuitEmergencyWindow: window,
+    pursuitEmergencyWindowAuthority: { ...window, navigationRevision: 9, groupIds: ['fleet-1'] },
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+}
+
+it.each(['awaiting-gm-decision', 'offered'] as const)(
+  'blocks manual Coordination during the actual %s pursuit emergency and names the next actor',
+  async (status) => {
+    const user = userEvent.setup();
+    prepareManualEmergencyFixture(status);
+    renderConsole();
+    const controls = await screen.findByRole('region', { name: 'Cycle controls' });
+    const open = within(controls).getByRole('button', { name: 'Open Coordination manually' });
+    expect(open).toBeDisabled();
+    expect(open).toHaveAccessibleDescription(/pursuit emergency/i);
+    if (status === 'awaiting-gm-decision') {
+      expect(open).toHaveAccessibleDescription(/GM.*Offer emergency jump.*End pursuit-limit run/i);
+    } else {
+      expect(open).toHaveAccessibleDescription(/entitled ship crews.*offered emergency jump/i);
+    }
+    expect(await screen.findByRole('region', { name: 'Pursuit emergency decision' })).toBeVisible();
+    await user.click(open);
+    expect(advanceFullGameDemoPhase).not.toHaveBeenCalled();
+    expect(advanceTurn).not.toHaveBeenCalled();
+  },
+);
+
+it.each(['public', 'private'] as const)(
+  'keeps manual Coordination blocked while only the %s emergency marker is available',
+  async (marker) => {
+    prepareManualEmergencyFixture('awaiting-gm-decision');
+    const current = { ...useSessionStore.getState().session! };
+    if (marker === 'public') delete current.pursuitEmergencyWindowAuthority;
+    else delete current.pursuitEmergencyWindow;
+    useSessionStore.getState().setSession(current);
+    renderConsole();
+    const controls = await screen.findByRole('region', { name: 'Cycle controls' });
+    const open = within(controls).getByRole('button', { name: 'Open Coordination manually' });
+    expect(open).toBeDisabled();
+    expect(open).toHaveAccessibleDescription(/pursuit emergency.*GM/i);
+    expect(advanceFullGameDemoPhase).not.toHaveBeenCalled();
+  },
+);
+
+it('returns the same live GM manual control only after the authoritative emergency window clears', async () => {
+  const user = userEvent.setup();
+  prepareManualEmergencyFixture('awaiting-gm-decision');
+  renderConsole();
+  const controls = await screen.findByRole('region', { name: 'Cycle controls' });
+  const open = within(controls).getByRole('button', { name: 'Open Coordination manually' });
+  expect(open).toBeDisabled();
+  const current = { ...useSessionStore.getState().session! };
+  delete current.pursuitEmergencyWindow;
+  delete current.pursuitEmergencyWindowAuthority;
+  act(() => useSessionStore.getState().setSession(current));
+  expect(open).toBeEnabled();
+  expect(open).not.toHaveAccessibleDescription(/pursuit emergency/i);
+  await user.click(open);
+  expect(advanceFullGameDemoPhase).toHaveBeenCalledOnce();
+  expect(advanceTurn).not.toHaveBeenCalled();
 });
 
 it('commits ordinary production only on the second click and renders the private receipt', async () => {
@@ -4489,6 +4903,50 @@ it('stages a star chart locally and locks it through explicit setup confirmation
   expect(screen.getByRole('combobox', { name: 'Recommended player count' })).not.toBeDisabled();
 });
 
+it.each([
+  { connection: 'connecting', freshness: 'server' },
+  { connection: 'live', freshness: 'cache' },
+  { connection: 'offline', freshness: 'server' },
+] as const)('withholds setup confirmation and chart locking until current live GM authority returns: %j', async state => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setConnection(state.connection);
+  useSessionStore.getState().setSessionSnapshotFreshness(state.freshness);
+  streamInstances([local]);
+  renderConsole();
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  const confirm = screen.getByRole('button', { name: 'Confirm setup // Confirm roster' });
+  const lock = screen.getByRole('button', { name: 'Lock star chart' });
+  expect(confirm).toBeDisabled();
+  expect(lock).toBeDisabled();
+  expect(confirm).toHaveAccessibleDescription(/Reconnect.*live GM session/i);
+  expect(lock).toHaveAccessibleDescription(/Reconnect.*live GM session/i);
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Recommended player count' }), '20');
+  expect(confirmSetup).not.toHaveBeenCalled();
+  await act(async () => {
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+  expect(confirm).toBeEnabled();
+  expect(lock).toBeEnabled();
+  vi.mocked(confirmSetup).mockResolvedValue('applied');
+  await user.click(confirm);
+  expect(confirmSetup).toHaveBeenCalledWith(expect.objectContaining({ playerCount: 20 }));
+});
+
+it('withholds setup and chart commands when the live GM instance belongs to another UID', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  await act(async () => { useSessionStore.getState().setGmInstance({ ...local, uid: 'foreign-gm' }); });
+  expect(screen.queryByRole('button', { name: 'Confirm setup // Confirm roster' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Lock star chart' })).not.toBeInTheDocument();
+  expect(screen.getByText('Role selection route')).toBeInTheDocument();
+  expect(confirmSetup).not.toHaveBeenCalled();
+});
+
 
 it('labels outbreak fields as public and submits them separately from private notes', async () => {
   const user = userEvent.setup();
@@ -4740,7 +5198,7 @@ it('mounts the genuine private boarding ruling for the current live facilitator'
   });
   vi.mocked(getWolfBoardingSpecialChoice).mockResolvedValue({type: 'wolf-boarding-special-choice-view',
     sessionId: 's1', turn: 4, revision: 9,
-    choice: {kind: 'commander-ruling', targetShipId: 'aegis', condition: 'All Commander-led Wolf Boarding Parties were destroyed.'}});
+    choice: {kind: 'commander-ruling', targetShipId: 'aegis', condition: 'HOUSE RULE: The optional +2 Commander boarding request remains pending until the current live GM records the consequence for what happens if all Commander-led Wolf Boarding Parties are destroyed. No automatic consequence or default outcome is assumed.'}});
   renderConsole();
   expect(await screen.findByRole('textbox', {name: 'Facilitator ruling'})).toBeVisible();
   expect(getWolfBoardingSpecialChoice).toHaveBeenCalled();
@@ -4934,3 +5392,20 @@ it.each(['offline', 'cache'] as const)(
     expect(screen.getByRole('button', { name: /zoom into dradis panel/i })).toHaveFocus();
   },
 );
+
+
+it('shows a private actual removal in the existing GM event log and withdraws it with live authority', async () => {
+  const module = await import('@/lib/firestore');
+  const event = { id: 'player-removal-fixed', type: 'player-removal', sessionId: 's1', sourceId: 'damage-destroyed-icebreaker',
+    playerUid: 'removed-player', playerName: 'A'.repeat(40), roleId: 'icebreaker-miner', roleName: 'Icebreaker Miner',
+    cause: 'ship-destroyed', shipId: 'icebreaker', cycle: 1, createdAt: '2026-10-15T06:53:19.000Z' } as const;
+  vi.mocked(module.subscribeGmPlayerRemovalEvents).mockImplementation((_id, onEvents) => { onEvents([event]); return vi.fn(); });
+  useSessionStore.getState().setGmInstance(local); streamInstances([local]);
+  renderConsole();
+  const log = await screen.findByRole('list', { name: 'GM event log' });
+  await waitFor(() => expect(within(log).getByText(/Awaiting escape/)).toBeVisible());
+  expect(log).toHaveTextContent('A'.repeat(40)); expect(log).toHaveTextContent('Icebreaker Miner');
+  expect(log).not.toHaveTextContent('removed-player');
+  act(() => useSessionStore.getState().setGmInstance(null));
+  await waitFor(() => expect(screen.queryByText(/Awaiting escape/)).not.toBeInTheDocument());
+});

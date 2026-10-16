@@ -91,6 +91,10 @@ function connectionMessage(connection: Connection): string {
   return 'LIVE // server-verified player session.';
 }
 
+function rewardLabel(craftId: CraftId, amount: number | undefined): string {
+  return craftId === 'macaw' ? '1 Scrap to Capybara' : `${amount ?? 3} materials`;
+}
+
 function useDismantlingInbox(
   sessionId: string,
   targetShipId: string | undefined,
@@ -128,6 +132,7 @@ function ProposerPanel(props: ProposerProps) {
   const [busy, setBusy] = useState(false);
   const [applyRequestId, setApplyRequestId] = useState<string | null>(null);
   const targetShipId = command?.targetShipId ?? props.targetShipId;
+  const macawSelfTarget = props.craftId === 'macaw' && targetShipId === 'capybara';
   const subscriptionEnabled = Boolean(command && targetShipId && props.connection === 'live' && props.canAct);
   const { inbox: latestInbox, error: inboxError } = useDismantlingInbox(
     props.sessionId, targetShipId, subscriptionEnabled,
@@ -135,7 +140,8 @@ function ProposerPanel(props: ProposerProps) {
   const inbox = latestInbox?.proposalId === command?.proposalId ? latestInbox : null;
   const damaged = new Set(props.damagedSystemIds);
   const eligibleSystems = props.targetSystems.filter((system) => !damaged.has(system.id));
-  const disabled = !props.canAct || props.connection !== 'live' || !targetShipId || eligibleSystems.length === 0 || busy;
+  const disabled = !props.canAct || props.connection !== 'live' || !targetShipId || eligibleSystems.length === 0 ||
+    macawSelfTarget || busy;
 
   async function submitProposal(): Promise<void> {
     if (disabled) return;
@@ -160,7 +166,7 @@ function ProposerPanel(props: ProposerProps) {
         setFeedback('The current shuttle control changed. Refresh before making a new request.');
       } else {
         setReplyStatus('submitted');
-        setFeedback(`Request sent at target revision ${result.targetRevision}; waiting for the ${selectedCommand.targetShipId} player.`);
+        setFeedback(`Request sent at target revision ${result.targetRevision}; waiting for a current ${selectedCommand.targetShipId} player.`);
       }
     } catch (error) {
       setFeedback(errorMessage(error));
@@ -178,7 +184,9 @@ function ProposerPanel(props: ProposerProps) {
     try {
       const result = await applyPermissionedDismantling({ inbox, requestId });
       setReplyStatus('applied');
-      setFeedback(`Applied // ${result.targetConsoleId} damaged // ${result.materialGain} materials // target now has ${result.materialsAfter}.`);
+      setFeedback(props.craftId === 'macaw'
+        ? `Applied // ${result.targetConsoleId} damaged // +1 Scrap to Capybara // balance ${result.scrapAfter}.`
+        : `Applied // ${result.targetConsoleId} damaged // ${result.materialGain} materials // target now has ${result.materialsAfter}.`);
     } catch (error) {
       setFeedback(errorMessage(error));
     } finally {
@@ -197,12 +205,19 @@ function ProposerPanel(props: ProposerProps) {
 
   return (
     <section className="permissioned-dismantling cic-frame" aria-label="Permissioned dismantling proposal">
-      <p className="permissioned-dismantling__eyebrow">ENGINEERING CRAFT // EXACT TARGET CONSENT</p>
+      <p className="permissioned-dismantling__eyebrow">
+        {props.craftId === 'macaw' ? 'MACAW SALVAGE // EXACT HOST-PLAYER CONSENT' : 'ENGINEERING CRAFT // EXACT TARGET CONSENT'}
+      </p>
       <h3>Permissioned dismantling</h3>
       <p className="permissioned-dismantling__rule">
-        Damage one undamaged console on this docked ship for 3 materials only after its player approves this exact request.
+        {props.craftId === 'macaw'
+          ? 'Damage one undamaged console on the docked host only after one of its current players approves this exact request. Gain 1 Scrap on the Capybara sheet.'
+          : 'Damage one undamaged console on this docked ship for 3 materials only after its player approves this exact request.'}
       </p>
       <p className="permissioned-dismantling__connection" role="status">{connectionMessage(props.connection)}</p>
+      {macawSelfTarget && <p className="permissioned-dismantling__guidance" role="status">
+        Macaw-to-Capybara self-target is blocked pending a facilitator ruling. Ask the facilitator to record the ruling before using that target.
+      </p>}
       {!targetShipId ? <p>No target ship is docked. Dock this craft before requesting permission.</p> : <>
         <label className="permissioned-dismantling__field">
           Undamaged target console
@@ -250,7 +265,8 @@ function ProposerPanel(props: ProposerProps) {
           The target player declined this request. The damage and resource stores are unchanged.
         </p>}
         {inbox?.status === 'applied' && <p className="permissioned-dismantling__status" role="status">
-          Applied // {inbox.targetConsoleId} damaged // {inbox.materialGain} materials // target balance {inbox.materialsAfter}.
+          Applied // {inbox.targetConsoleId} damaged // {rewardLabel(inbox.craftId, inbox.materialGain)}
+          {inbox.craftId === 'macaw' ? ` // Capybara balance ${inbox.scrapAfter}` : ` // target balance ${inbox.materialsAfter}`}.
         </p>}
       </>}
       {feedback && <p className="permissioned-dismantling__feedback" role={replyStatus === 'stale' ? 'alert' : 'status'}>{feedback}</p>}
@@ -329,15 +345,15 @@ function TargetPanel(props: TargetProps) {
   return (
     <section className="permissioned-dismantling permissioned-dismantling--target cic-frame"
       aria-label="Permissioned dismantling request">
-      <p className="permissioned-dismantling__eyebrow">TARGET SHIP // ENGINEERING CONSENT</p>
+      <p className="permissioned-dismantling__eyebrow">TARGET SHIP // PLAYER CONSENT</p>
       <h3>Permissioned dismantling request</h3>
       <p className="permissioned-dismantling__connection" role="status">{connectionMessage(connection)}</p>
       {inbox?.status === 'pending' ? <>
         <p className="permissioned-dismantling__request">
-          {inbox.craftId} // {inbox.targetConsoleId} // +{inbox.materialGain} materials // target revision {inbox.targetRevision}
+          {inbox.craftId} // {inbox.targetConsoleId} // {rewardLabel(inbox.craftId, inbox.materialGain)} // target revision {inbox.targetRevision}
         </p>
-        <p>Only this target-ship player can approve or decline. The proposal applies only to the console and current state shown above.</p>
-        <p className="permissioned-dismantling__guidance" id={`${id}-consent-help`}>Granting permission does not damage the console yet. The craft holder acts next: applying permission damages the selected console and adds 3 materials to this ship.</p>
+        <p>Only a current player assigned to this target ship can approve or decline. The proposal applies only to the console and current state shown above.</p>
+        <p className="permissioned-dismantling__guidance" id={`${id}-consent-help`}>Granting permission does not damage the console yet. The craft holder acts next: applying permission damages the selected console and {inbox.craftId === 'macaw' ? 'adds 1 Scrap to Capybara.' : `adds ${inbox.materialGain ?? 3} materials to this ship.`}</p>
         <p className="permissioned-dismantling__guidance" id={`${id}-decline-help`}>Declining ends this request. The craft holder must send a new proposal to ask again.</p>
         <button className="cic-action-button" type="button" aria-describedby={`${id}-consent-help`} onClick={() => void grantConsent()}
           disabled={!canAct || busy || Boolean(consentId && feedback?.startsWith('Consent recorded'))}>
@@ -361,7 +377,8 @@ function TargetPanel(props: TargetProps) {
         Request declined // the craft holder must submit a new request.
       </p>}
       {inbox?.status === 'applied' && <p className="permissioned-dismantling__status" role="status">
-        Applied // {inbox.targetConsoleId} damaged // {inbox.materialGain} materials added to the ship.
+        Applied // {inbox.targetConsoleId} damaged // {rewardLabel(inbox.craftId, inbox.materialGain)}
+        {inbox.craftId === 'macaw' ? ' added to Capybara.' : ' added to the ship.'}
       </p>}
       {!inbox && !error && canAct && connection === 'live' && (
         <p className="permissioned-dismantling__status" role="status">No permissioned dismantling request is pending for this ship.</p>

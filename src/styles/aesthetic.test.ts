@@ -824,6 +824,29 @@ it('gives CIC actions the same square ruled control treatment as the console', (
   expect(action).toContain('text-transform: uppercase');
 });
 
+it('keeps ordinary and replacement GM casting choices at the shared touch target', () => {
+  const css = readFileSync('src/index.css', 'utf8');
+  const style = document.createElement('style');
+  style.textContent = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter((match) => (match[1] ?? '').split(',').some((selector) => selector.trim() === '.gm-casting-board__assign select'))
+    .map((match) => `${match[1]}{${match[2]}}`).join('\n');
+  const board = document.createElement('section');
+  board.innerHTML = '<div class="gm-casting-board__assign"><select aria-label="Role for demo actor"><option>Admiral</option></select></div>';
+  document.head.append(style);
+  document.body.append(board);
+  try {
+    for (const className of ['gm-casting-board', 'gm-casting-board gm-casting-board--replacement']) {
+      board.className = className;
+      const select = board.querySelector('select')!;
+      expect(getComputedStyle(select).minHeight).toBe('44px');
+      expect(getComputedStyle(select).maxWidth).toBe('100%');
+    }
+  } finally {
+    board.remove();
+    style.remove();
+  }
+});
+
 it('keeps the session waiver as a square, token-based CIC instrument', () => {
   const css = readFileSync('src/index.css', 'utf8');
   const waiverRules = [...css.matchAll(/([^{}]*session-waiver[^{}]*)\{([^{}]*)\}/g)]

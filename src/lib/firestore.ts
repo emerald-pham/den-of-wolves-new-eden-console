@@ -1,4 +1,11 @@
+import { parseUnassignedCraftHostLoss } from '../../functions/src/shipDestruction';
+import { parseLostShuttles } from '../../functions/src/lostShuttles';
+import { parsePlayerRemovalEvent } from '../../functions/src/playerRemovalEvent';
+import type { PlayerRemovalLogEntry } from '@/types/game';
 import { memberPhiliaRepairLedger, memberRedactedCraftUse, memberSessionProjection } from '../../functions/src/memberSession';
+import { projectedAwayMissionSafety, subscribeAwayMissionProjectionAccess, confirmAwayMissionProjectionSession,
+  confirmAwayMissionProjectionPlayer, withdrawAwayMissionProjectionAuthority, hasAwayMissionOwnerAccess,
+  markGmAwayMissionProjectionRead } from './awayMissionProjectionBarrier';
 import { parseAwayMissionLifecyclePublicState } from './awayMissionLifecycleService';
 import {
   collection,
@@ -17,7 +24,9 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { app, functions } from './firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { app, auth, functions } from './firebase';
+import { sessionSubscriptionOwner, type MemberProjectionConfirmation } from './sessionSubscriptionOwner';
 import { emulatorPorts, useEmulators } from './firebaseConfig';
 import { parsePdfEscortWingMemberView } from './pdfEscortWingProjection';
 import { parsePresidentialElectionProjection, parsePresidentialOfficesProjection } from './presidentialElectionProjection';
@@ -26,7 +35,9 @@ import { isWolfAttackMemberView } from '../../functions/src/wolfAttackAudience';
 import type {
   CommissarPurgeAuthority,
   CandidateReveal,
+  CandidateDebriefPathStep,
   CandidatePlanCheckpoint,
+  CurrentActorBerthAuthority,
   DamageDraw,
   FacilitatorRuleCall,
   GameSession,
@@ -312,9 +323,14 @@ function privateLoyalty(value: unknown, ownerUid?: string): PrivateLoyalty | nul
     ? undefined
     : parseEntityId('role', payload.partnerRoleId);
   const proofMarker = payload.proofRevealed;
+  const directives = payload.directives === undefined ? undefined : payload.directives;
+  if (directives !== undefined && (!Array.isArray(directives) || directives.length > 8 ||
+      directives.some((entry) => typeof entry !== 'string' || entry.trim().length === 0 || entry.length > 1_000))) {
+    return null;
+  }
   if (payload.kind === 'android' && (
     payload.type !== 'loyalty' || payload.suspicion !== null ||
-    Object.keys(payload).some((key) => !['type', 'kind', 'suspicion', 'proofRevealed'].includes(key))
+    Object.keys(payload).some((key) => !['type', 'kind', 'suspicion', 'proofRevealed', 'directives'].includes(key))
   )) return null;
   if (payload.type !== 'loyalty' || typeof payload.kind !== 'string' ||
       (typeof payload.suspicion !== 'number' && payload.suspicion !== null) ||
@@ -334,6 +350,7 @@ function privateLoyalty(value: unknown, ownerUid?: string): PrivateLoyalty | nul
   return {
     kind: payload.kind,
     suspicion: payload.suspicion,
+    ...(directives ? { directives: [...directives] } : {}),
     ...(partnerUid ? { partnerUid } : {}),
     ...(payload.kind === 'friend' && partnerRoleId ? { partnerRoleId } : {}),
     ...(payload.kind === 'android' && proofMarker === true ? { proofRevealed: true } : {}),
@@ -952,7 +969,7 @@ export function parseArrestCase(value: unknown, expectedSessionId: string, expec
   const raw = value as Record<string, unknown>;
   const allowed = new Set([
     'type', 'sessionId', 'targetUid', 'status', 'outcome', 'turn', 'revision',
-    'requiredPlayers', 'presentPlayers', 'deadlineCycle', 'createdBy', 'requestId', 'updatedAt', 'ruling',
+    'requiredPlayers', 'presentPlayers', 'deadlineCycle', 'createdBy', 'requestId', 'updatedAt', 'ruling', 'attendanceEvidence',
   ]);
   const sessionId = parseEntityId('session', raw.sessionId);
   const targetUid = parseEntityId('player', raw.targetUid);
@@ -966,6 +983,7 @@ export function parseArrestCase(value: unknown, expectedSessionId: string, expec
       !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
       !Number.isSafeInteger(raw.requiredPlayers) || (raw.requiredPlayers as number) < 0 ||
       !Number.isSafeInteger(raw.presentPlayers) || (raw.presentPlayers as number) < 0 ||
+      (raw.attendanceEvidence !== undefined && raw.attendanceEvidence !== 'simulated-demo') ||
       (raw.outcome === 'arrested'
         ? !Number.isSafeInteger(raw.deadlineCycle) || raw.deadlineCycle !== (raw.turn as number) + 1
         : raw.deadlineCycle !== undefined) ||
@@ -977,6 +995,7 @@ export function parseArrestCase(value: unknown, expectedSessionId: string, expec
     turn: raw.turn as number, revision: raw.revision as number,
     requiredPlayers: raw.requiredPlayers as number, presentPlayers: raw.presentPlayers as number,
     ...(raw.deadlineCycle === undefined ? {} : { deadlineCycle: raw.deadlineCycle as number }),
+    ...(raw.attendanceEvidence === 'simulated-demo' ? { attendanceEvidence: 'simulated-demo' as const } : {}),
     ...(typeof raw.ruling === 'string' ? { ruling: raw.ruling } : {}),
     requestId: raw.requestId,
     ...(raw.updatedAt instanceof FirestoreTimestamp ? { updatedAt: raw.updatedAt.toDate().toISOString() } : {}),
@@ -1518,6 +1537,172 @@ function debriefMode(value: unknown): NonNullable<GameSession['debriefMode']> {
   return { active: state.active, revision: state.revision };
 }
 
+function sessionDebriefOutcome(value: unknown): NonNullable<NonNullable<GameSession['debriefSnapshot']>['outcome']> | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const allowed = ['type', 'result', 'cause', 'candidateCode', 'navigationRevision', 'cycle', 'occurredAt'];
+  if (Object.keys(raw).some(key => !allowed.includes(key)) || raw.type !== 'game-outcome' ||
+      !Number.isSafeInteger(raw.cycle) || Number(raw.cycle) < 0 || typeof raw.occurredAt !== 'string' ||
+      !Number.isFinite(Date.parse(raw.occurredAt))) return undefined;
+  if (raw.result === 'success' && raw.cause === 'candidate-complete' &&
+      ['N', 'O', 'P'].includes(String(raw.candidateCode)) &&
+      Object.keys(raw).length === 6 && raw.navigationRevision === undefined) {
+    return { type: 'game-outcome', result: 'success', cause: 'candidate-complete',
+      candidateCode: raw.candidateCode as 'N' | 'O' | 'P', cycle: Number(raw.cycle), occurredAt: raw.occurredAt };
+  }
+  if (raw.result === 'failure' && raw.cause === 'pursuit-limit' &&
+      Number.isSafeInteger(raw.navigationRevision) && Number(raw.navigationRevision) >= 1 &&
+      Object.keys(raw).length === 6 && raw.candidateCode === undefined) {
+    return { type: 'game-outcome', result: 'failure', cause: 'pursuit-limit', cycle: Number(raw.cycle),
+      navigationRevision: Number(raw.navigationRevision), occurredAt: raw.occurredAt };
+  }
+  if (raw.result === 'failure' && raw.cause === 'total-fleet-loss' &&
+      Object.keys(raw).length === 5 && raw.candidateCode === undefined && raw.navigationRevision === undefined) {
+    return { type: 'game-outcome', result: 'failure', cause: 'total-fleet-loss', cycle: Number(raw.cycle), occurredAt: raw.occurredAt };
+  }
+  return undefined;
+}
+
+function sessionDebriefFrom(
+  value: unknown,
+  currentSurvivorOutcome: GameSession['survivorOutcome'],
+  allowGroupIds = false,
+): GameSession['debriefSnapshot'] {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const allowed = ['type', 'version', 'source', 'result', 'cause', 'cycle', 'occurredAt', 'committedAt',
+    'outcome', 'survivorOutcome', 'candidate'];
+  if (Object.keys(raw).some(key => !allowed.includes(key)) || raw.type !== 'session-debrief' || raw.version !== 1 ||
+      !['candidate', 'final-cycle', 'failure-review'].includes(String(raw.source)) ||
+      !['success', 'failure', 'completed'].includes(String(raw.result)) ||
+      !['candidate-complete', 'pursuit-limit', 'total-fleet-loss', 'final-cycle'].includes(String(raw.cause)) ||
+      !Number.isSafeInteger(raw.cycle) || Number(raw.cycle) < 0 ||
+      typeof raw.occurredAt !== 'string' || !Number.isFinite(Date.parse(raw.occurredAt)) ||
+      typeof raw.committedAt !== 'string' || !Number.isFinite(Date.parse(raw.committedAt))) return undefined;
+  const outcome = raw.outcome === undefined ? undefined : sessionDebriefOutcome(raw.outcome);
+  if (raw.outcome !== undefined && !outcome) return undefined;
+  let candidate: NonNullable<GameSession['debriefSnapshot']>['candidate'];
+  if (raw.candidate !== undefined) {
+    if (typeof raw.candidate !== 'object' || raw.candidate === null || Array.isArray(raw.candidate)) return undefined;
+    const source = raw.candidate as Record<string, unknown>;
+    if (Object.keys(source).length !== 2 || Object.keys(source).some(key => !['code', 'groups'].includes(key)) ||
+        !['N', 'O', 'P'].includes(String(source.code)) || !Array.isArray(source.groups) ||
+        source.groups.length < 1 || source.groups.length > 100) return undefined;
+    const parsedGroups: NonNullable<NonNullable<GameSession['debriefSnapshot']>['candidate']>['groups'][number][] = [];
+    for (const entry of source.groups) {
+      if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return undefined;
+      const group = entry as Record<string, unknown>;
+      const hasGroupId = Object.hasOwn(group, 'groupId');
+      const hasPath = Object.hasOwn(group, 'path');
+      if (Object.keys(group).length !== 4 + Number(hasGroupId) + Number(hasPath) || Object.keys(group).some(key =>
+        !['groupId', 'requirements', 'rolls', 'losses', 'humanCalls', 'path'].includes(key)) ||
+          hasGroupId && (!allowGroupIds || typeof group.groupId !== 'string' || !/^[\w-]{1,80}$/.test(group.groupId)) ||
+          !Array.isArray(group.requirements) || group.requirements.length > 50 ||
+          !Array.isArray(group.rolls) || group.rolls.length > 50 ||
+          !Array.isArray(group.losses) || group.losses.length > 100 ||
+          !Array.isArray(group.humanCalls) || group.humanCalls.length > 50 ||
+          hasPath && (!Array.isArray(group.path) || group.path.length > 200)) return undefined;
+      const requirements = group.requirements.flatMap(item => {
+        if (typeof item !== 'object' || item === null || Array.isArray(item)) return [];
+        const requirement = item as Record<string, unknown>;
+        if (Object.keys(requirement).length !== 2 || Object.keys(requirement).some(key => !['id', 'status'].includes(key)) ||
+            typeof requirement.id !== 'string' || !/^[\w-]{1,80}$/.test(requirement.id) ||
+            requirement.status !== 'met' && requirement.status !== 'unmet') return [];
+        return [{ id: requirement.id, status: requirement.status as 'met' | 'unmet' }];
+      });
+      const rolls = group.rolls.flatMap(item => {
+        if (typeof item !== 'object' || item === null || Array.isArray(item)) return [];
+        const roll = item as Record<string, unknown>;
+        if (Object.keys(roll).some(key => !['id', 'face', 'result'].includes(key)) ||
+            ![2, 3].includes(Object.keys(roll).length) || typeof roll.id !== 'string' ||
+            !/^[\w-]{1,80}$/.test(roll.id) || roll.result !== 'success' && roll.result !== 'failure' ||
+            roll.face !== undefined && (!Number.isSafeInteger(roll.face) || Number(roll.face) < 1 || Number(roll.face) > 12)) return [];
+        return [{ id: roll.id, ...(roll.face === undefined ? {} : { face: Number(roll.face) }), result: roll.result as 'success' | 'failure' }];
+      });
+      const losses = group.losses.flatMap(item => {
+        if (typeof item !== 'object' || item === null || Array.isArray(item)) return [];
+        const loss = item as Record<string, unknown>;
+        const shipId = parseEntityId('vessel', loss.shipId);
+        if (Object.keys(loss).length !== 2 || Object.keys(loss).some(key => !['shipId', 'reason'].includes(key)) ||
+            !shipId || typeof loss.reason !== 'string' || !/^[\w-]{1,64}$/.test(loss.reason)) return [];
+        return [{ shipId, reason: loss.reason }];
+      });
+      const humanCalls = group.humanCalls.flatMap(item => {
+        if (typeof item !== 'object' || item === null || Array.isArray(item)) return [];
+        const call = item as Record<string, unknown>;
+        if (Object.keys(call).length !== 2 || Object.keys(call).some(key => !['id', 'cycle'].includes(key)) ||
+            typeof call.id !== 'string' || !/^[\w-]{1,80}$/.test(call.id) ||
+            !Number.isSafeInteger(call.cycle) || Number(call.cycle) < 0) return [];
+        return [{ id: call.id, cycle: Number(call.cycle) }];
+      });
+      const path = hasPath && Array.isArray(group.path) ? group.path.flatMap(item => {
+        if (typeof item !== 'object' || item === null || Array.isArray(item)) return [];
+        const step = item as Record<string, unknown>;
+        const action = step.action;
+        const validResult = action === 'ring-repair' || action === 'sabotage-ring' ||
+          action === 'station-liberation' || action === 'contribute-reactor'
+          ? step.result === 'completed'
+          : action === 'ring-passage' ? step.result === 'crossed'
+            : action === 'nebula-jump' ? ['reached', 'lost', 'left-behind'].includes(String(step.result))
+              : action === 'station-activation' ? step.result === 'activated' : false;
+        const shipId = step.shipId === undefined ? undefined : parseEntityId('vessel', step.shipId);
+        if (Object.keys(step).some(key => !['action', 'result', 'shipId', 'fuelSpent', 'capacity'].includes(key)) ||
+            Object.keys(step).length < 2 || Object.keys(step).length > 5 || !validResult ||
+            step.shipId !== undefined && !shipId ||
+            step.fuelSpent !== undefined && (!Number.isSafeInteger(step.fuelSpent) || Number(step.fuelSpent) < 0 || Number(step.fuelSpent) > 1_000_000) ||
+            step.capacity !== undefined && (!Number.isSafeInteger(step.capacity) || Number(step.capacity) < 0 || Number(step.capacity) > 1_000_000)) return [];
+        return [{ action: action as CandidateDebriefPathStep['action'],
+          result: step.result as CandidateDebriefPathStep['result'],
+          ...(shipId ? { shipId } : {}),
+          ...(step.fuelSpent === undefined ? {} : { fuelSpent: Number(step.fuelSpent) }),
+          ...(step.capacity === undefined ? {} : { capacity: Number(step.capacity) }),
+        }];
+      }) : undefined;
+      if (requirements.length !== group.requirements.length || rolls.length !== group.rolls.length ||
+          losses.length !== group.losses.length || humanCalls.length !== group.humanCalls.length ||
+          hasPath && (!Array.isArray(group.path) || path?.length !== group.path.length)) return undefined;
+      parsedGroups.push({
+        ...(hasGroupId ? { groupId: group.groupId as string } : {}),
+        requirements, rolls, losses, humanCalls, ...(path ? { path } : {}),
+      });
+    }
+    candidate = { code: source.code as 'N' | 'O' | 'P', groups: parsedGroups };
+  }
+  const survivorOutcome = raw.survivorOutcome === undefined ? undefined :
+    currentSurvivorOutcome && JSON.stringify(raw.survivorOutcome) === JSON.stringify(currentSurvivorOutcome)
+      ? currentSurvivorOutcome : undefined;
+  if (raw.survivorOutcome !== undefined && !survivorOutcome) return undefined;
+  const candidateSuccess = outcome?.result === 'success' && outcome.cause === 'candidate-complete' &&
+    candidate?.code === outcome.candidateCode && raw.result === 'success' && raw.cause === 'candidate-complete';
+  const candidateOFailure = outcome?.result === 'failure' && outcome.cause === 'total-fleet-loss' &&
+    candidate?.code === 'O' && candidate.groups.length > 0 && raw.result === 'failure' && raw.cause === 'total-fleet-loss' &&
+    survivorOutcome?.cycle === outcome.cycle && survivorOutcome.occurredAt === outcome.occurredAt &&
+    survivorOutcome.survivingShipPopulation === 0 && survivorOutcome.survivingShipIds.length === 0 &&
+    survivorOutcome.lostOrDestroyedShipIds.length > 0 &&
+    candidate.groups.flatMap(group => group.losses).length > 0 &&
+    candidate.groups.flatMap(group => group.losses).every(loss => survivorOutcome.lostOrDestroyedShipIds.includes(loss.shipId));
+  if (raw.source === 'candidate' && !candidateSuccess && !candidateOFailure ||
+      raw.source === 'final-cycle' && (outcome || raw.result !== 'completed' || raw.cause !== 'final-cycle') ||
+      raw.source === 'failure-review' && (!outcome || outcome.result !== 'failure' || raw.result !== 'failure' || raw.cause !== outcome.cause)) return undefined;
+  return {
+    type: 'session-debrief', version: 1,
+    source: raw.source as NonNullable<GameSession['debriefSnapshot']>['source'],
+    result: raw.result as NonNullable<GameSession['debriefSnapshot']>['result'],
+    cause: raw.cause as NonNullable<GameSession['debriefSnapshot']>['cause'],
+    cycle: Number(raw.cycle), occurredAt: raw.occurredAt, committedAt: raw.committedAt,
+    ...(outcome ? { outcome } : {}), ...(survivorOutcome ? { survivorOutcome } : {}), ...(candidate ? { candidate } : {}),
+  };
+}
+
+/** Parse a member-safe debrief, optionally accepting group identifiers for the live GM endpoint only. */
+export function parseSessionDebriefProjection(
+  value: unknown,
+  currentSurvivorOutcome: GameSession['survivorOutcome'],
+  options: { readonly allowGroupIds?: boolean } = {},
+): GameSession['debriefSnapshot'] {
+  return sessionDebriefFrom(value, currentSurvivorOutcome, options.allowGroupIds === true);
+}
+
 function wolfAttackWindow(value: unknown): WolfAttackWindow | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const state = value as Readonly<Record<string, unknown>>;
@@ -1528,21 +1713,24 @@ function wolfAttackWindow(value: unknown): WolfAttackWindow | null {
     (state.targetGroupId !== undefined &&
       (typeof state.targetGroupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(state.targetGroupId))) ||
     (state.threatSiteCode !== undefined &&
-      state.threatSiteCode !== 'L' && state.threatSiteCode !== 'M' &&
+      state.threatSiteCode !== 'K' && state.threatSiteCode !== 'L' && state.threatSiteCode !== 'M' &&
       state.threatSiteCode !== 'P' && state.threatSiteCode !== 'commander') ||
     (state.threatSiteCode !== undefined && typeof state.targetGroupId !== 'string') ||
+    (state.threatSiteCode === 'K' && (typeof state.threatSourceId !== 'string' ||
+      !/^mission-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(state.threatSourceId))) ||
     ((state.threatSiteCode === 'L' || state.threatSiteCode === 'M' || state.threatSiteCode === 'P') &&
       (typeof state.threatSourceId !== 'string' ||
         !/^arrival-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(state.threatSourceId))) ||
     (state.threatSourceId !== undefined && (typeof state.threatSourceId !== 'string' ||
-      !/^arrival-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(state.threatSourceId)))
+      !(state.threatSiteCode === 'K' ? /^mission-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
+        : /^arrival-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/).test(state.threatSourceId)))
   ) return null;
   return {
     status: state.status,
     turn: state.turn,
     revision: state.revision,
     ...(typeof state.targetGroupId === 'string' ? { targetGroupId: state.targetGroupId } : {}),
-    ...(state.threatSiteCode === 'L' || state.threatSiteCode === 'M' ||
+    ...(state.threatSiteCode === 'K' || state.threatSiteCode === 'L' || state.threatSiteCode === 'M' ||
       state.threatSiteCode === 'P' || state.threatSiteCode === 'commander'
       ? { threatSiteCode: state.threatSiteCode } : {}),
     ...(typeof state.threatSourceId === 'string' ? { threatSourceId: state.threatSourceId } : {}),
@@ -2466,6 +2654,38 @@ function recordValue(value: unknown): RecordValue | undefined {
     : undefined;
 }
 
+/** Only the existing authenticated transaction envelope can supply this
+ * witness; sessionFrom deliberately never parses it from session documents. */
+function currentActorBerthAuthorityFrom(
+  value: unknown, response: RecordValue, scope: RecordValue, player: Player | undefined,
+): CurrentActorBerthAuthority | null {
+  if (value === null) return null;
+  const raw = recordValue(value);
+  const keys = ['sessionId', 'actorUid', 'groupId', 'role', 'connectionGeneration',
+    'assignedRoleId', 'activeConsoleRoleId', 'replacementRoleId', 'replacementStatus', 'shipId'];
+  const nullableRole = (id: unknown) => id === null || parseEntityId('role', id) !== undefined;
+  if (!raw || Object.keys(raw).length !== keys.length || Object.keys(raw).some(key => !keys.includes(key)) ||
+      !parseEntityId('session', raw.sessionId) || !parseEntityId('player', raw.actorUid) ||
+      typeof raw.groupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(raw.groupId) || raw.role !== 'player' ||
+      !Number.isSafeInteger(raw.connectionGeneration) || (raw.connectionGeneration as number) < 1 ||
+      !nullableRole(raw.assignedRoleId) || !nullableRole(raw.activeConsoleRoleId) || !nullableRole(raw.replacementRoleId) ||
+      raw.replacementStatus !== null || !parseEntityId('vessel', raw.shipId) ||
+      raw.sessionId !== response.sessionId || raw.actorUid !== response.actorUid ||
+      raw.groupId !== response.groupId || raw.groupId !== scope.groupId ||
+      !Array.isArray(scope.vesselIds) || !scope.vesselIds.includes(raw.shipId) ||
+      raw.connectionGeneration !== response.connectionGeneration || raw.assignedRoleId !== response.assignedRoleId ||
+      raw.activeConsoleRoleId !== response.activeConsoleRoleId ||
+      player && (player.sessionId !== raw.sessionId || player.uid !== raw.actorUid || player.role !== 'player' ||
+        player.connected !== true || player.fleetGroupId !== raw.groupId ||
+        (player.connectionGeneration ?? 1) !== raw.connectionGeneration ||
+        (player.assignedRoleId ?? null) !== raw.assignedRoleId ||
+        (player.activeConsoleRoleId ?? null) !== raw.activeConsoleRoleId ||
+        (player.replacementRoleId ?? null) !== raw.replacementRoleId || player.replacementStatus != null)) {
+    throw new Error('The current member berth authority is malformed or no longer current.');
+  }
+  return raw as unknown as CurrentActorBerthAuthority;
+}
+
 function nonNegativeInteger(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 }
@@ -2565,6 +2785,8 @@ function smallShipStates(
       dockingRevision,
       population: parsedPopulation,
       unrest: parsedUnrest,
+      ...(raw.everAssigned === undefined ? {} : { everAssigned: raw.everAssigned as boolean }),
+      ...(raw.loss === undefined ? {} : { loss: parseUnassignedCraftHostLoss(raw.loss)! }),
       ...(mutiny ? { mutiny } : {}),
       cycle: {
         step: parsedStep,
@@ -3324,6 +3546,13 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     (rawDemo.status === 'active' || rawDemo.status === 'complete') && rawDemo.finalCycle === 1
     ? { status: rawDemo.status as 'active' | 'complete', finalCycle: 1 as const }
     : undefined;
+  const rawFullGameDemo = data.fullGameDemo;
+  const fullGameDemo = typeof rawFullGameDemo === 'object' && rawFullGameDemo !== null && !Array.isArray(rawFullGameDemo) &&
+    Object.keys(rawFullGameDemo).length === 2 &&
+    (rawFullGameDemo.status === 'preparing' || rawFullGameDemo.status === 'active' || rawFullGameDemo.status === 'complete') &&
+    rawFullGameDemo.progression === 'manual'
+    ? { status: rawFullGameDemo.status as 'preparing' | 'active' | 'complete', progression: 'manual' as const }
+    : undefined;
   const dradisContactTriggeredAt = data.dradisContactTriggeredAt;
   const announcement = turnStartAnnouncement(data.turnStartAnnouncement);
   const phaseClock = turnPhaseState(data.turnPhase);
@@ -3367,7 +3596,24 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
       occurredAt: rawOutcome.occurredAt,
     }
     : undefined;
-  const gameOutcome = pursuitFailureOutcome ?? totalFleetLossOutcome;
+  const candidateSuccessOutcome = rawOutcome && typeof rawOutcome === 'object' && !Array.isArray(rawOutcome) &&
+    rawOutcome.type === 'game-outcome' && rawOutcome.result === 'success' &&
+    rawOutcome.cause === 'candidate-complete' &&
+    (rawOutcome.candidateCode === 'N' || rawOutcome.candidateCode === 'O' || rawOutcome.candidateCode === 'P') &&
+    Number.isSafeInteger(rawOutcome.cycle) && rawOutcome.cycle >= 0 &&
+    typeof rawOutcome.occurredAt === 'string' && Number.isFinite(Date.parse(rawOutcome.occurredAt)) &&
+    Object.keys(rawOutcome).length === 6 && Object.keys(rawOutcome).every((key) =>
+      ['type', 'result', 'cause', 'candidateCode', 'cycle', 'occurredAt'].includes(key))
+    ? {
+      type: 'game-outcome' as const,
+      result: 'success' as const,
+      cause: 'candidate-complete' as const,
+      candidateCode: rawOutcome.candidateCode as 'N' | 'O' | 'P',
+      cycle: rawOutcome.cycle as number,
+      occurredAt: rawOutcome.occurredAt,
+    }
+    : undefined;
+  const gameOutcome = pursuitFailureOutcome ?? totalFleetLossOutcome ?? candidateSuccessOutcome;
   const rawSurvivors = data.survivorOutcome;
   const survivorKeys = [
     'type', 'cycle', 'occurredAt', 'fleetShipPopulation', 'survivingShipPopulation',
@@ -3419,6 +3665,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
       lostOrDestroyedShipIds,
     }
     : undefined;
+  const debriefSnapshot = sessionDebriefFrom(data.debriefSnapshot, survivorOutcome);
   const storedRoleIds = parseEntityIdArray('role', data.activeRoleIds);
   const storedVesselIds = parseEntityIdArray('vessel', data.activeVesselIds);
   const hasStoredRoleIds = Array.isArray(data.activeRoleIds);
@@ -3447,6 +3694,10 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     }, 'capybara-small')
     ? parseBaseCapybaraCargoState(data.baseCapybaraCargo) ?? undefined
     : undefined;
+  const currentWarriorCargo = isPresentedSmallShipStateMapValid({
+    activeVesselIds: admissionVesselIds, smallShipStates: data.smallShipStates,
+    expansion: data.expansion, capybaraEnabled: data.capybaraEnabled,
+  }, 'warrior') ? parseBaseCapybaraCargoState(data.warriorCargo) ?? undefined : undefined;
   const storedDockings = Array.isArray(data.shuttleDockings)
     ? data.shuttleDockings.map(shuttleDocking).filter((docking): docking is ShuttleDocking => docking !== undefined)
     : undefined;
@@ -3467,6 +3718,8 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ? [...new Set([...admittedVesselIds(data.admittedVesselIds), voyageAdmission.id])]
     : [];
   const retained = retainedShuttles(data.retainedShuttles);
+  const lost = parseLostShuttles(data.lostShuttles);
+  if (!lost) throw new Error('Lost shuttle history is malformed.');
   const quarantine = quarantineDocking(data.quarantineDocking);
   const currentHighwallMining = highwallMining(data.highwallMining);
   const currentBlacksmithRepairs = blacksmithRepairs(data.blacksmithRepairs);
@@ -3482,7 +3735,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     visibleVisits,
     hasActiveRoleIds ? activeRoleIds : undefined,
     playerCount,
-    Object.keys(retained),
+    [...Object.keys(retained), ...Object.keys(lost)],
     data.memberSessionScope !== undefined,
   );
   const emergencyWindow = pursuitEmergencyWindow(data.pursuitEmergencyWindow);
@@ -3521,6 +3774,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ...(emergencyWindow ? { pursuitEmergencyWindow: emergencyWindow } : {}),
     ...(gameOutcome ? { gameOutcome } : {}),
     ...(survivorOutcome ? { survivorOutcome } : {}),
+    ...(debriefSnapshot ? { debriefSnapshot } : {}),
     capybaraEnabled: data.capybaraEnabled !== false,
     dioneEnabled: data.dioneEnabled !== false,
     universalArbourEnabled: data.universalArbourEnabled === true,
@@ -3552,9 +3806,11 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     pressDispatch: normalizePressDispatch(data.pressDispatch),
     fleetTicker: fleetTickerState(data.fleetTicker),
     ...(demo ? { singlePlayerDemo: demo } : {}),
+    ...(fullGameDemo ? { fullGameDemo } : {}),
     maintenanceCycles: maintenanceCycles(data.maintenanceCycles),
     smallShipStates: currentSmallShipStates,
     ...(currentBaseCapybaraCargo ? { baseCapybaraCargo: currentBaseCapybaraCargo } : {}),
+    ...(currentWarriorCargo ? { warriorCargo: currentWarriorCargo } : {}),
     shuttleCargo: shuttleCargo(data.shuttleCargo),
     shuttleFuelled: shuttleFuelled(data.shuttleFuelled),
     shuttleControl: shuttleControl(data.shuttleControl),
@@ -3571,6 +3827,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     warriorRepairDrones: warriorRepairDrones(data.warriorRepairDrones),
     ...(currentHighwallMining ? { highwallMining: currentHighwallMining } : {}),
     retainedShuttles: retained,
+    lostShuttles: lost,
     ...(quarantine ? { quarantineDocking: quarantine } : {}),
     shipUpgrades: shipUpgrades(data.shipUpgrades),
     shipResources: currentShipResources,
@@ -3596,6 +3853,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
       ? { dradisContactTriggeredAt: iso(dradisContactTriggeredAt) }
       : {}),
     ...(ownerUid ? { ownerUid } : {}),
+    awayMissionProjectionSafety: projectedAwayMissionSafety(data.awayMissionProjectionSafety),
     createdAt: iso(data.createdAt),
     updatedAt: iso(data.updatedAt),
   };
@@ -3607,6 +3865,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
       throw new Error('The current member session scope is malformed.');
     }
     const projected = memberSessionProjection(session, { groupId: scope.groupId, vesselIds, craftIds });
+    projected.awayMissionProjectionSafety = session.awayMissionProjectionSafety;
     // The server already bound this independent craft to the current Press
     // actor. Keep its validated docking/history through the second local
     // projection without giving Press any vessel operational maps.
@@ -3745,6 +4004,45 @@ function seatFrom(sessionId: string, id: string, data: DocumentData): Seat {
   };
 }
 
+export type MemberFreshnessReadStage = 'none' | 'request' | 'response-shape-or-scope' | 'session-parse' |
+  'berth-parse' | 'authority-accept' | 'session-delivery' | 'freshness-delivery' | 'remaining-callback';
+/** Fixed call-site identifiers; private reader contents/entitlements are never recorded. */
+export type MemberFreshnessListenerId = 'none' | 'l01' | 'l02' | 'l03' | 'l04' | 'l05' | 'l06' |
+  'l07' | 'l08' | 'l09' | 'l10' | 'l11' | 'l12' | 'l13' | 'l14' | 'l15' | 'l16' | 'l17' | 'l18';
+export type MemberFreshnessErrorCategory = 'absent' | 'other' | 'permission-denied' | 'not-found' |
+  'unauthenticated' | 'unavailable' | 'deadline-exceeded' | 'cancelled' | 'resource-exhausted' |
+  'failed-precondition' | 'aborted' | 'internal';
+export type MemberFreshnessProvenanceEvent = Readonly<{
+  event: 'listener-attached' | 'listener-retired' | 'member-read-start' | 'member-read-accepted' |
+    'member-signature-mismatch' | 'member-read-rejected' | 'actor-signature-change' |
+    'own-player-revoked' | 'listener-error' | 'freshness-false-returned' | 'listener-error-returned';
+  stage: MemberFreshnessReadStage;
+  sequence: number;
+  subscription: number;
+  atMs: number;
+  actorEpoch: number;
+  current: boolean;
+  firstConfirmed: boolean | null;
+  firstAccepted: boolean | null;
+  listenerId: MemberFreshnessListenerId;
+  errorCategory: MemberFreshnessErrorCategory;
+}>;
+let memberFreshnessSequence = 0;
+let memberFreshnessSubscription = 0;
+let memberFreshnessTrace: { readonly sessionId: string; readonly uid: string;
+  readonly events: MemberFreshnessProvenanceEvent[]; dropped: number } | undefined;
+
+/** Explicit local-emulator observation only; this tape never supplies authority. */
+export function startMemberFreshnessTrace(sessionId: string, uid: string) {
+  if (!useEmulators) return undefined;
+  const trace = { sessionId, uid, events: [] as MemberFreshnessProvenanceEvent[], dropped: 0 };
+  memberFreshnessTrace = trace;
+  return {
+    read: () => ({ events: [...trace.events], dropped: trace.dropped }),
+    stop: () => { if (memberFreshnessTrace === trace) memberFreshnessTrace = undefined; },
+  };
+}
+
 export interface SessionStateHandlers {
   /** The app always chooses explicitly from the current authenticated player role. */
   readonly sessionReadAudience?: 'member' | 'gm';
@@ -3755,8 +4053,14 @@ export interface SessionStateHandlers {
   readonly onGmDiscovery?: (projection: GmDiscoveryProjection | null) => void;
   /** Whether the accepted session snapshot is backed by server authority. */
   readonly onSessionFreshness?: (fresh: boolean) => void;
+  /** Optional fixed-fact diagnostic observer; its exceptions never reach game callbacks. */
+  readonly onMemberFreshnessProvenance?: (event: MemberFreshnessProvenanceEvent) => void;
   /** Retain accepted server authority when an equivalent listener is restarted. */
   readonly sessionSnapshotAuthority?: SessionSnapshotAuthority;
+  /** Recheck this document's accepted join/resume identity before FIRST player initialization. */
+  readonly initialMemberActor?: () => Player | undefined;
+  /** Prepare recovery deduplication from accepted App authority before station refresh withdraws freshness. */
+  readonly prepareStationMemberRefresh?: (player: Player) => ((isCurrent: () => boolean) => void) | undefined;
   readonly onPlayer: (player: Player) => void;
   readonly onKicked: () => void;
   readonly onSeats: (seats: readonly Seat[]) => void;
@@ -3777,10 +4081,67 @@ export interface SessionStateHandlers {
   readonly onError: () => void;
 }
 
-// App owns one session identity at a time. Keep a generation so an older
-// listener's cleanup cannot clear private state that a replacement listener
-// has already hydrated.
-let currentSessionSubscriptionToken: symbol | undefined;
+/** Confirm content through the active member feed with a read started after this intent. */
+export async function confirmCurrentMemberSessionProjection(sessionId: string, uid: string): Promise<boolean> {
+  const feed = sessionSubscriptionOwner.memberProjectionConfirmation;
+  const identity = () => {
+    const store = useSessionStore.getState();
+    const me = store.me;
+    if (auth().currentUser?.uid !== uid || store.session?.id !== sessionId ||
+        store.session.phase === 'closed' || store.connection !== 'live' || store.sessionSnapshotFreshness !== 'server' ||
+        me?.uid !== uid || me.sessionId !== sessionId || me.role !== 'player' || me.connected !== true ||
+        me.replacementRoleId != null || me.replacementStatus != null || me.escapeState != null ||
+        !Number.isSafeInteger(me.connectionGeneration) || (me.connectionGeneration ?? 0) < 1 ||
+        !Number.isSafeInteger(store.identityHydrationRevision) || store.identityHydrationRevision < 1) return undefined;
+    return JSON.stringify([me.fleetGroupId, me.connectionGeneration, me.assignedRoleId, me.activeConsoleRoleId,
+      me.seatId, store.identityHydrationRevision, store.gmInstance?.id]);
+  };
+  const originalIdentity = identity();
+  if (!feed || feed.sessionId !== sessionId || feed.uid !== uid || originalIdentity === undefined ||
+      sessionSubscriptionOwner.token !== feed.subscriptionToken) return false;
+  const current = () => sessionSubscriptionOwner.memberProjectionConfirmation === feed &&
+    sessionSubscriptionOwner.token === feed.subscriptionToken && identity() === originalIdentity;
+  return await feed.confirm(current) && current();
+}
+
+/** Closed member reads carry immutable history, with no operational session scope. */
+export function closedMemberSessionFrom(sessionId: string, response: RecordValue, data: RecordValue): GameSession {
+  const allowed = new Set([
+    'id', 'name', 'joinCode', 'phase', 'currentTurn', 'playerCount', 'turnLimit',
+    'createdAt', 'updatedAt', 'gameOutcome', 'survivorOutcome', 'debriefSnapshot', 'fullGameDemo',
+  ]);
+  if (Object.keys(data).some(key => !allowed.has(key)) || data.id !== sessionId ||
+      data.phase !== 'closed' || typeof data.name !== 'string' || data.joinCode !== '' ||
+      !Number.isSafeInteger(data.currentTurn) || Number(data.currentTurn) < 0 ||
+      typeof response.groupId !== 'string' || !/^(fleet-[1-9][0-9]*|gm)$/.test(response.groupId) ||
+      !Number.isSafeInteger(response.connectionGeneration) || Number(response.connectionGeneration) < 1 ||
+      [response.assignedRoleId, response.activeConsoleRoleId].some(role => role !== null && !parseEntityId('role', role)) ||
+      data.playerCount !== undefined && (!Number.isSafeInteger(data.playerCount) || Number(data.playerCount) < 8 || Number(data.playerCount) > 20) ||
+      data.turnLimit !== undefined && (!Number.isSafeInteger(data.turnLimit) || Number(data.turnLimit) < 0) ||
+      [data.createdAt, data.updatedAt].some(value => value !== undefined && optionalIso(value) !== value)) {
+    throw new Error('The closed member history is malformed.');
+  }
+  const session = sessionFrom(sessionId, data);
+  if (data.gameOutcome !== undefined && !session.gameOutcome ||
+      data.survivorOutcome !== undefined && !session.survivorOutcome ||
+      data.debriefSnapshot !== undefined && !session.debriefSnapshot ||
+      data.fullGameDemo !== undefined && session.fullGameDemo?.status !== 'complete') {
+    throw new Error('The closed member history is malformed.');
+  }
+  // The server has already selected this member's immutable history audience.
+  // Keep only history fields; neither legacy defaults nor a second audience
+  // projection may fabricate operations or erase the entitled debrief.
+  return {
+    id: session.id, name: session.name, joinCode: '', phase: 'closed', currentTurn: Number(data.currentTurn),
+    ...(session.playerCount !== undefined ? { playerCount: session.playerCount } : {}),
+    ...(session.turnLimit !== undefined ? { turnLimit: session.turnLimit } : {}),
+    ...(session.gameOutcome ? { gameOutcome: session.gameOutcome } : {}),
+    ...(session.survivorOutcome ? { survivorOutcome: session.survivorOutcome } : {}),
+    ...(session.debriefSnapshot ? { debriefSnapshot: session.debriefSnapshot } : {}),
+    ...(session.fullGameDemo ? { fullGameDemo: session.fullGameDemo } : {}),
+    createdAt: session.createdAt, updatedAt: session.updatedAt,
+  };
+}
 
 /** Keep the local snapshot current while Firestore handles reconnect/cache replay. */
 export function subscribeSessionState(
@@ -3791,8 +4152,17 @@ export function subscribeSessionState(
   const database = db();
   let subscribed = true;
   const subscriptionToken = Symbol('session-subscription');
+  let ownerMissionAccess = false;
+  let gmMissionAccess = false;
+  let ownerMissionStop: Unsubscribe | undefined;
+  let gmMissionStop: Unsubscribe | undefined;
+  let missionAccessStop: Unsubscribe | undefined;
+  let missionPointerGeneration = 0;
+  let gmMissionPointerGeneration = 0;
   let gmDiscoveryTerminated = false;
-  currentSessionSubscriptionToken = subscriptionToken;
+  sessionSubscriptionOwner.memberProjectionConfirmation?.cancel();
+  sessionSubscriptionOwner.memberProjectionConfirmation = undefined;
+  sessionSubscriptionOwner.token = subscriptionToken;
   const sessionDocument = handlers.sessionReadAudience === 'member'
     ? undefined : doc(database, `sessions/${sessionId}`);
   const sessionSnapshotAuthority =
@@ -3812,8 +4182,44 @@ export function subscribeSessionState(
   let startPrivateLoyaltyListener: () => void = () => undefined;
   let unsubscribeAwayMissionHands: Unsubscribe[] = [];
   let awayMissionHandListenerGeneration = 0;
-  const onError = () => {
-    if (subscribed && currentSessionSubscriptionToken === subscriptionToken) handlers.onError();
+  const traceSubscription = ++memberFreshnessSubscription;
+  const noteMemberFreshness = (event: MemberFreshnessProvenanceEvent['event'],
+    stage: MemberFreshnessReadStage = 'none', firstConfirmed: boolean | null = null,
+    firstAccepted: boolean | null = null, current = true, listenerId: MemberFreshnessListenerId = 'none',
+    errorCategory: MemberFreshnessErrorCategory = 'absent') => {
+    if (!useEmulators || handlers.sessionReadAudience !== 'member') return;
+    try {
+      const trace = memberFreshnessTrace;
+      const selected = trace?.sessionId === sessionId && trace.uid === uid;
+      if (!selected && !handlers.onMemberFreshnessProvenance) return;
+      const record: MemberFreshnessProvenanceEvent = Object.freeze({ event, stage,
+        sequence: ++memberFreshnessSequence, subscription: traceSubscription, atMs: performance.now(),
+        actorEpoch: memberActorEpoch, current, firstConfirmed, firstAccepted, listenerId, errorCategory });
+      if (selected && trace) {
+        if (trace.events.length === 64) { trace.events.shift(); trace.dropped += 1; }
+        trace.events.push(record);
+      }
+      handlers.onMemberFreshnessProvenance?.(record);
+    } catch { /* Observation cannot change the existing delivery or error decision. */ }
+  };
+  const onError = (listenerId: MemberFreshnessListenerId, error?: unknown) => {
+    if (subscribed && sessionSubscriptionOwner.token === subscriptionToken) {
+      let errorCategory: MemberFreshnessErrorCategory = 'absent';
+      if (useEmulators && (handlers.onMemberFreshnessProvenance ||
+          memberFreshnessTrace?.sessionId === sessionId && memberFreshnessTrace.uid === uid)) {
+        try {
+          const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
+          const category = typeof code === 'string' ? code.replace(/^(firestore|functions)\//, '') : undefined;
+          errorCategory = code == null ? 'absent' : category && [
+            'permission-denied', 'not-found', 'unauthenticated', 'unavailable', 'deadline-exceeded',
+            'cancelled', 'resource-exhausted', 'failed-precondition', 'aborted', 'internal',
+          ].includes(category) ? category as MemberFreshnessErrorCategory : 'other';
+        } catch { errorCategory = 'other'; }
+      }
+      noteMemberFreshness('listener-error', 'none', null, null, true, listenerId, errorCategory);
+      handlers.onError();
+      noteMemberFreshness('listener-error-returned', 'none', null, null, true, listenerId, errorCategory);
+    }
   };
   let sessionConfirmationInFlight = false;
   let sessionConfirmationWanted = false;
@@ -3830,30 +4236,30 @@ export function subscribeSessionState(
     sessionConfirmationInFlight = true;
     void (async () => {
       while (sessionConfirmationWanted && subscribed &&
-          currentSessionSubscriptionToken === subscriptionToken) {
+          sessionSubscriptionOwner.token === subscriptionToken) {
         sessionConfirmationWanted = false;
         const startingVersion = sessionSnapshotAuthorityVersion(sessionSnapshotAuthority);
         let confirmed;
         try {
           confirmed = await getDocFromServer(sessionDocument);
-        } catch {
-          if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) break;
+        } catch (error) {
+          if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) break;
           if (sessionConfirmationWanted ||
               sessionSnapshotAuthorityVersion(sessionSnapshotAuthority) !== startingVersion) {
             sessionConfirmationWanted = true;
             continue;
           }
-          onError();
+          onError('l01', error);
           break;
         }
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) break;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) break;
         if (sessionConfirmationWanted ||
             sessionSnapshotAuthorityVersion(sessionSnapshotAuthority) !== startingVersion) {
           sessionConfirmationWanted = true;
           continue;
         }
         if (!confirmed?.exists()) {
-          onError();
+          onError('l01');
           break;
         }
         const confirmedData = confirmed.data();
@@ -3870,7 +4276,7 @@ export function subscribeSessionState(
           if (raisedCursor && !acceptServerSessionAuthority(
             sessionSnapshotAuthority, session, raisedCursor,
           )) {
-            onError();
+            onError('l01');
             break;
           }
           handlers.onSessionFreshness?.(true);
@@ -3880,17 +4286,20 @@ export function subscribeSessionState(
           handlers.onSession(session);
           handlers.onSessionFreshness?.(true);
         } else {
-          onError();
+          onError('l01');
         }
+        if (session.phase === 'closed') stopForClosedHistory();
       }
       sessionConfirmationInFlight = false;
     })();
   };
   const startAwayMissionHandListeners = (pointers: readonly AwayMissionHandPointer[]) => {
+    if (closedHistoryTerminated) return;
     unsubscribeAwayMissionHands.forEach((unsubscribe) => unsubscribe());
     unsubscribeAwayMissionHands = [];
     const generation = ++awayMissionHandListenerGeneration;
-    if (pointers.length === 0 || (!handlers.onAwayMissionHand && !handlers.onAwayMissionHands)) {
+    if (pointers.length === 0 || !ownerMissionAccess || !hasAwayMissionOwnerAccess(sessionId, uid) ||
+        (!handlers.onAwayMissionHand && !handlers.onAwayMissionHands)) {
       handlers.onAwayMissionHand?.(null);
       handlers.onAwayMissionHands?.([]);
       return;
@@ -3909,8 +4318,8 @@ export function subscribeSessionState(
         doc(database, `sessions/${sessionId}/awayMissionHands/${pointer.handId}`),
         { includeMetadataChanges: true },
         (snapshot) => {
-          if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
-              generation !== awayMissionHandListenerGeneration) return;
+          if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
+              generation !== awayMissionHandListenerGeneration || !ownerMissionAccess || !hasAwayMissionOwnerAccess(sessionId, uid)) return;
           if (snapshot.metadata?.fromCache === true) return;
           const hand = snapshot.exists() ? awayMissionHand(snapshot.data(), sessionId, uid) : null;
           if (hand) hands.set(pointer.handId, hand);
@@ -3918,60 +4327,136 @@ export function subscribeSessionState(
           publishHands();
         },
         (error: { readonly code?: string }) => {
-          if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
-              generation !== awayMissionHandListenerGeneration) return;
+          if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
+              generation !== awayMissionHandListenerGeneration || !ownerMissionAccess || !hasAwayMissionOwnerAccess(sessionId, uid)) return;
           if (error.code === 'permission-denied' || error.code === 'not-found') {
             hands.delete(pointer.handId);
             publishHands();
             return;
           }
-          onError();
+          onError('l02', error);
         },
       );
       unsubscribeAwayMissionHands.push(unsubscribe);
     });
   };
   let memberFeedRefresh: () => void = () => undefined;
+  let memberRefreshPending: () => boolean = () => false;
+  let unsubscribes: Unsubscribe[] = [];
+  let subscriptionsReady = false;
+  let stopRequestedBeforeReady = false;
+  let listenersStopped = false;
+  let closedHistoryTerminated = false;
+  const unsubscribeSessionListeners = () => {
+    if (!subscriptionsReady) {
+      stopRequestedBeforeReady = true;
+      return;
+    }
+    if (listenersStopped) return;
+    listenersStopped = true;
+    missionAccessStop?.(); missionAccessStop = undefined;
+    ownerMissionStop?.(); ownerMissionStop = undefined;
+    gmMissionStop?.(); gmMissionStop = undefined;
+    ownerMissionAccess = false; gmMissionAccess = false;
+    missionPointerGeneration += 1; gmMissionPointerGeneration += 1;
+    withdrawAwayMissionProjectionAuthority(sessionId, uid);
+    privateLoyaltyListenerGeneration += 1;
+    unsubscribeWolfCult();
+    unsubscribeArbourVision();
+    unsubscribeAwayMissionHands.forEach((unsubscribe) => unsubscribe());
+    unsubscribeAwayMissionHands = [];
+    awayMissionHandListenerGeneration += 1;
+    wolfCultListenerGeneration += 1;
+    arbourVisionListenerGeneration += 1;
+    unsubscribes.forEach((unsubscribe) => unsubscribe());
+  };
+  const stopForClosedHistory = () => {
+    if (closedHistoryTerminated) return;
+    closedHistoryTerminated = true;
+    subscribed = false;
+    memberActorAvailable = false;
+    memberSessionConfirmed = false;
+    pendingMemberDiscovery = undefined;
+    memberFeedRefresh = () => undefined;
+    if (sessionSubscriptionOwner.token === subscriptionToken) sessionSubscriptionOwner.token = undefined;
+    unsubscribeSessionListeners();
+    handlers.onPlayerDiscovery?.(null);
+    handlers.onGmDiscovery?.(null);
+    handlers.onPrivateLoyalty?.(null);
+    handlers.onWolfCultIntelligence?.(null);
+    handlers.onArbourVision?.(null);
+    handlers.onRoleBrief?.(null);
+    handlers.onAwayMissionHandPointer?.(null);
+    handlers.onAwayMissionHand?.(null);
+    handlers.onAwayMissionHandPointers?.([]);
+    handlers.onAwayMissionHands?.([]);
+    handlers.onGmAwayMissionHandPointers?.([]);
+    handlers.onCommissarPurgeAuthority?.(null);
+    handlers.onFacilitatorRuleCall?.(null);
+    handlers.onSetupReceipt?.(null);
+    handlers.onSeats([]);
+    if (memberPlayer) {
+      memberPlayer = { ...memberPlayer, connected: false };
+      handlers.onPlayer(memberPlayer);
+    }
+    handlers.onPlayerFreshness?.(false);
+  };
   let memberActorFingerprint: string | undefined;
   let memberActorEpoch = 0;
   let memberActorAvailable: boolean | undefined;
   let memberPlayer: Player | undefined;
   let memberSessionConfirmed = false;
+  let confirmedMemberActorFingerprint: string | undefined;
   let pendingMemberDiscovery: PlayerDiscoveryProjection | undefined;
   const publishPendingMemberDiscovery = () => {
-    if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+    if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
         !memberSessionConfirmed || memberActorAvailable !== true || !pendingMemberDiscovery) return;
     const projection = pendingMemberDiscovery;
     pendingMemberDiscovery = undefined;
     handlers.onPlayerDiscovery?.(projection.groupId === memberPlayer?.fleetGroupId ? projection : null);
   };
   const revokeMemberActor = () => {
+    confirmAwayMissionProjectionPlayer(sessionId, uid, undefined);
     if (handlers.sessionReadAudience !== 'member') return;
     memberActorAvailable = false;
     memberSessionConfirmed = false;
     pendingMemberDiscovery = undefined;
     memberActorEpoch += 1;
+    noteMemberFreshness('own-player-revoked');
     if (memberPlayer) {
       memberPlayer = { ...memberPlayer, connected: false };
       handlers.onPlayer(memberPlayer);
     }
     handlers.onPlayerFreshness?.(false);
     handlers.onSessionFreshness?.(false);
+    noteMemberFreshness('freshness-false-returned');
   };
   const actorFingerprint = (actor: { readonly fleetGroupId?: string | null; readonly connectionGeneration?: number;
       readonly assignedRoleId?: string | null; readonly activeConsoleRoleId?: string | null }) => JSON.stringify([
     actor.fleetGroupId, actor.connectionGeneration ?? 1, actor.assignedRoleId ?? null, actor.activeConsoleRoleId ?? null,
   ]);
   const startMemberSessionFeed = (): Unsubscribe => {
+    noteMemberFreshness('listener-attached');
     const read = httpsCallable<{ readonly sessionId: string }, unknown>(functions(), 'getCurrentMemberSession');
     let stopped = false;
     let pending = false;
     let wanted = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const current = () => !stopped && subscribed && currentSessionSubscriptionToken === subscriptionToken &&
+    let confirmationRevision = 0;
+    const confirmations = new Map<number, { readonly current: () => boolean; readonly resolve: (accepted: boolean) => void }>();
+    const settleConfirmations = (revision: number, accepted: boolean) => {
+      for (const [intent, confirmation] of confirmations) {
+        if (intent > revision) continue;
+        confirmations.delete(intent);
+        confirmation.resolve(accepted && confirmation.current());
+      }
+    };
+    const cancelConfirmations = () => settleConfirmations(confirmationRevision, false);
+    const current = () => !stopped && subscribed && sessionSubscriptionOwner.token === subscriptionToken &&
       memberActorAvailable !== false;
+    memberRefreshPending = () => pending && current();
     const refresh = () => {
-      if (!current()) return;
+      if (!current()) { cancelConfirmations(); return; }
       wanted = true;
       if (pending) return;
       pending = true;
@@ -3981,17 +4466,32 @@ export function subscribeSessionState(
           wanted = false;
           const actorEpoch = memberActorEpoch;
           const startingVersion = sessionSnapshotAuthorityVersion(sessionSnapshotAuthority);
+          // A read already in flight cannot satisfy a later confirmation.
+          // That intent leaves wanted set for the next existing loop read.
+          const readingConfirmationRevision = confirmationRevision;
+          const readingConfirmations = [...confirmations.entries()]
+            .filter(([intent]) => intent <= readingConfirmationRevision).map(([, confirmation]) => confirmation);
+          let readStage: MemberFreshnessReadStage = 'request';
+          noteMemberFreshness('member-read-start', readStage);
           try {
-            const response = recordValue((await read({ sessionId })).data);
+            const rawResponse = await read({ sessionId });
+            readStage = 'response-shape-or-scope';
+            const response = recordValue(rawResponse.data);
             if (!current()) break;
+            if (readingConfirmations.length && !readingConfirmations.some(confirmation => confirmation.current())) {
+              settleConfirmations(readingConfirmationRevision, false);
+              continue;
+            }
             if (actorEpoch !== memberActorEpoch || startingVersion !== sessionSnapshotAuthorityVersion(sessionSnapshotAuthority)) {
               wanted = true;
               continue;
             }
             const data = recordValue(response?.session);
             const scope = recordValue(data?.memberSessionScope);
+            const closedHistory = data?.phase === 'closed';
             if (response?.type !== 'current-member-session' || response.sessionId !== sessionId ||
-                response.actorUid !== uid || !data || !scope || response.groupId !== scope.groupId) {
+                response.actorUid !== uid || !data ||
+                !closedHistory && (!scope || response.groupId !== scope.groupId)) {
               throw new Error('The current member read is malformed.');
             }
             const fingerprint = actorFingerprint({ fleetGroupId: response.groupId as string,
@@ -3999,38 +4499,162 @@ export function subscribeSessionState(
               assignedRoleId: response.assignedRoleId as string | null,
               activeConsoleRoleId: response.activeConsoleRoleId as string | null });
             if (memberActorFingerprint !== undefined && memberActorFingerprint !== fingerprint) {
+              noteMemberFreshness('member-signature-mismatch', readStage);
               handlers.onSessionFreshness?.(false);
+              noteMemberFreshness('freshness-false-returned', readStage);
+              cancelConfirmations();
               break;
             }
-            const session = sessionFrom(sessionId, data);
+            readStage = 'session-parse';
+            const projectedSession = closedHistory ? closedMemberSessionFrom(sessionId, response, data) : sessionFrom(sessionId, data);
+            readStage = 'berth-parse';
+            const session = !closedHistory && Object.hasOwn(response, 'currentActorBerthAuthority')
+              ? { ...projectedSession, currentActorBerthAuthority:
+                currentActorBerthAuthorityFrom(response.currentActorBerthAuthority, response, scope!, memberPlayer) }
+              : projectedSession;
             // This serialized transaction read confirms current content even if a legacy
             // writer did not advance its timestamp. A changed callable cursor fences it.
+            readStage = 'authority-accept';
             if (acceptServerSessionAuthority(sessionSnapshotAuthority, session, undefined, false, true)) {
+              readStage = 'session-delivery';
               handlers.onSession(session);
               memberSessionConfirmed = true;
+              confirmedMemberActorFingerprint = fingerprint;
+              readStage = 'freshness-delivery';
               handlers.onSessionFreshness?.(true);
-              publishPendingMemberDiscovery();
+              noteMemberFreshness('member-read-accepted', readStage);
+              readStage = 'remaining-callback';
+              confirmAwayMissionProjectionSession(sessionId, uid, session.awayMissionProjectionSafety);
+              if (session.phase === 'closed') stopForClosedHistory();
+              else publishPendingMemberDiscovery();
+              settleConfirmations(readingConfirmationRevision, true);
+            } else {
+              settleConfirmations(readingConfirmationRevision, false);
             }
-          } catch {
+          } catch (error) {
+            settleConfirmations(readingConfirmationRevision, false);
             if (current() && actorEpoch === memberActorEpoch) {
+              noteMemberFreshness('member-read-rejected', readStage);
               memberSessionConfirmed = false;
               pendingMemberDiscovery = undefined;
               handlers.onSessionFreshness?.(false);
-              onError();
+              noteMemberFreshness('freshness-false-returned', readStage);
+              withdrawAwayMissionProjectionAuthority(sessionId, uid);
+              onError('l03', error);
             }
           }
         }
         pending = false;
+        if (!current()) cancelConfirmations();
         if (current()) timer = setTimeout(refresh, 5_000);
       })();
     };
+    const confirmationFeed: MemberProjectionConfirmation = {
+      sessionId, uid, subscriptionToken, cancel: cancelConfirmations,
+      confirm: isCurrent => new Promise<boolean>(resolve => {
+        if (!current() || !isCurrent()) { resolve(false); return; }
+        confirmations.set(++confirmationRevision, { current: isCurrent, resolve });
+        refresh();
+      }),
+    };
+    sessionSubscriptionOwner.memberProjectionConfirmation = confirmationFeed;
     memberFeedRefresh = refresh;
     refresh();
-    return () => { stopped = true; if (timer) clearTimeout(timer); memberFeedRefresh = () => undefined; };
+    return () => {
+      stopped = true;
+      cancelConfirmations();
+      if (timer) clearTimeout(timer);
+      if (sessionSubscriptionOwner.memberProjectionConfirmation === confirmationFeed) sessionSubscriptionOwner.memberProjectionConfirmation = undefined;
+      memberFeedRefresh = () => undefined;
+    };
   };
-  const unsubscribes = [
+  let playerDiscoveryListenerGeneration = 0;
+  let unsubscribePlayerDiscovery: Unsubscribe = () => undefined;
+  const stopPlayerDiscoveryListener = () => {
+    playerDiscoveryListenerGeneration += 1;
+    unsubscribePlayerDiscovery();
+  };
+  const startPlayerDiscoveryListener = (): Unsubscribe => {
+    stopPlayerDiscoveryListener();
+    const generation = playerDiscoveryListenerGeneration;
+    unsubscribePlayerDiscovery = onSnapshot(
+      doc(database, `sessions/${sessionId}/playerDiscoveries/${uid}`),
+      { includeMetadataChanges: true },
+      (snapshot) => {
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
+            generation !== playerDiscoveryListenerGeneration) return;
+        if (handlers.sessionReadAudience === 'member') {
+          // A resumed member's discovery can arrive before the actor/feed that
+          // authorizes it. Hold this reader's fresh event until both confirm.
+          pendingMemberDiscovery = memberActorAvailable === false || snapshot.metadata?.fromCache === true || !snapshot.exists()
+            ? undefined : playerDiscoveryProjection(snapshot.data());
+          if (!pendingMemberDiscovery) handlers.onPlayerDiscovery?.(null);
+          else publishPendingMemberDiscovery();
+          return;
+        }
+        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        const projection = snapshot.exists() ? playerDiscoveryProjection(snapshot.data()) ?? null : null;
+        handlers.onPlayerDiscovery?.(snapshot.metadata?.fromCache === true &&
+          projection?.candidateReveals?.length
+          ? { ...projection, candidateReveals: [] }
+          : projection);
+      },
+      (error: { readonly code?: string }) => {
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
+            generation !== playerDiscoveryListenerGeneration) return;
+        pendingMemberDiscovery = undefined;
+        if (error.code === 'permission-denied' || error.code === 'not-found') {
+          handlers.onPlayerDiscovery?.(null);
+          return;
+        }
+        onError('l04', error);
+      },
+    );
+    return stopPlayerDiscoveryListener;
+  };
+  const startOwnerMissionReader = () => {
+    const generation = ++missionPointerGeneration;
+    ownerMissionStop = onSnapshot(query(
+      collection(database, `sessions/${sessionId}/awayMissionHandPointers`),
+      where('sessionId', '==', sessionId), where('participantUid', '==', uid),
+    ), { includeMetadataChanges: true }, snapshot => {
+      if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
+          generation !== missionPointerGeneration || !ownerMissionAccess || !hasAwayMissionOwnerAccess(sessionId, uid)) return;
+      if (snapshot.metadata?.fromCache === true) return;
+      const pointers = snapshot.docs.map(entry => awayMissionHandPointer(entry.data(), sessionId, uid))
+        .filter((pointer): pointer is AwayMissionHandPointer => pointer !== null);
+      handlers.onAwayMissionHandPointers?.(pointers); handlers.onAwayMissionHandPointer?.(pointers[0] ?? null);
+      startAwayMissionHandListeners(pointers);
+    }, (error: { readonly code?: string }) => {
+      if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
+          generation !== missionPointerGeneration || !ownerMissionAccess) return;
+      if (error.code === 'permission-denied' || error.code === 'not-found') {
+        handlers.onAwayMissionHandPointers?.([]); handlers.onAwayMissionHandPointer?.(null);
+        startAwayMissionHandListeners([]); return;
+      }
+      onError('l05', error);
+    });
+  };
+  const startGmMissionReader = () => {
+    const generation = ++gmMissionPointerGeneration;
+    markGmAwayMissionProjectionRead();
+    gmMissionStop = onSnapshot(query(collection(database, `sessions/${sessionId}/awayMissionHandPointers`),
+      where('sessionId', '==', sessionId)), { includeMetadataChanges: true }, snapshot => {
+      if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
+          generation !== gmMissionPointerGeneration || !gmMissionAccess) return;
+      if (snapshot.metadata?.fromCache === true) return;
+      handlers.onGmAwayMissionHandPointers?.(snapshot.docs.map(entry => awayMissionHandPointer(entry.data(), sessionId))
+        .filter((pointer): pointer is AwayMissionHandPointer => pointer !== null));
+    }, (error: { readonly code?: string }) => {
+      if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
+          generation !== gmMissionPointerGeneration || !gmMissionAccess) return;
+      if (error.code === 'permission-denied' || error.code === 'not-found') { handlers.onGmAwayMissionHandPointers?.([]); return; }
+      onError('l06', error);
+    });
+  };
+  unsubscribes = [
     sessionDocument ? onSnapshot(sessionDocument, { includeMetadataChanges: true }, (snapshot) => {
-      if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+      if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
       if (snapshot.exists()) {
         const fromCache = snapshot.metadata?.fromCache === true;
         // A cache callback can arrive after Firestore has delivered a newer
@@ -4052,6 +4676,7 @@ export function subscribeSessionState(
             // without replaying it. A matching updatedAt alone is insufficient:
             // some session writes do not advance that field.
             if (!sessionConfirmationInFlight) handlers.onSessionFreshness?.(true);
+            if (!sessionConfirmationInFlight) confirmAwayMissionProjectionSession(sessionId, uid, session.awayMissionProjectionSafety);
             return;
           }
           const previousCursor = sessionSnapshotAuthority.latestServerAuthorityCursor;
@@ -4074,12 +4699,14 @@ export function subscribeSessionState(
           handlers.onSessionFreshness?.(false);
         } else {
           handlers.onSessionFreshness?.(true);
+          confirmAwayMissionProjectionSession(sessionId, uid, session.awayMissionProjectionSafety);
         }
+        if (session.phase === 'closed') stopForClosedHistory();
       }
-      else onError();
-    }, onError) : startMemberSessionFeed(),
+      else onError('l07');
+    }, (error) => onError('l07', error)) : startMemberSessionFeed(),
     onSnapshot(doc(database, `sessions/${sessionId}/players/${uid}`), { includeMetadataChanges: true }, (snapshot) => {
-      if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+      if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
       const fromCache = snapshot.metadata?.fromCache === true;
       // Player role/seat projections are part of the same reconnect identity.
       // Once the session cursor is server-authoritative, a delayed cached
@@ -4092,22 +4719,66 @@ export function subscribeSessionState(
         handlers.onKicked();
       } else if (snapshot.exists() && snapshot.get('connected') === true) {
         const player = playerFrom(sessionId, uid, snapshot.data());
+        let rebindDiscovery = false;
+        const stationActivation = !fromCache && handlers.sessionReadAudience === 'member' &&
+          memberActorAvailable === true && memberSessionConfirmed && memberPlayer?.role === 'player' && memberPlayer.connected === true &&
+          player.role === 'player' && memberPlayer.uid === uid && player.uid === uid &&
+          memberPlayer.sessionId === sessionId && player.sessionId === sessionId &&
+          Number.isSafeInteger(player.connectionGeneration) && (player.connectionGeneration ?? 0) > 0 &&
+          player.connectionGeneration === memberPlayer.connectionGeneration && typeof player.fleetGroupId === 'string' &&
+          /^fleet-[1-9][0-9]*$/.test(player.fleetGroupId) && player.fleetGroupId === memberPlayer.fleetGroupId &&
+          isWireSafeEntityId(player.assignedRoleId) && player.assignedRoleId === memberPlayer.assignedRoleId &&
+          player.seatId === player.assignedRoleId && memberPlayer.seatId === player.seatId &&
+          memberPlayer.activeConsoleRoleId === null && player.activeConsoleRoleId === player.assignedRoleId &&
+          memberPlayer.replacementRoleId == null && memberPlayer.replacementStatus == null && memberPlayer.escapeState == null &&
+          player.replacementRoleId == null && player.replacementStatus == null && player.escapeState == null;
+        const retainPendingRefresh = stationActivation ? handlers.prepareStationMemberRefresh?.(player) : undefined;
         if (!fromCache && handlers.sessionReadAudience === 'member') {
           const nextFingerprint = actorFingerprint(player);
           if (memberActorAvailable !== true || nextFingerprint !== memberActorFingerprint) {
-            if (memberActorFingerprint !== undefined && nextFingerprint !== memberActorFingerprint) {
+            // The authenticated transaction can finish before the FIRST own
+            // player listener. Matching that confirmed actor is initialization,
+            // not a lease change that should trigger ordinary resume recovery.
+            const firstConfirmedPlayer = memberActorAvailable === undefined && player.role === 'player' &&
+              memberSessionConfirmed && nextFingerprint === confirmedMemberActorFingerprint;
+            const initialActor = memberActorAvailable === undefined && memberActorEpoch === 0
+              ? handlers.initialMemberActor?.() : undefined;
+            const firstAcceptedPlayer = initialActor?.uid === uid && initialActor.sessionId === sessionId &&
+              initialActor.role === 'player' && player.role === 'player' && player.replacementRoleId == null &&
+              player.replacementStatus == null && player.escapeState == null &&
+              nextFingerprint === actorFingerprint(initialActor);
+            if (memberActorFingerprint !== undefined) {
               pendingMemberDiscovery = undefined;
+              rebindDiscovery = true;
             }
             memberActorAvailable = true;
             memberSessionConfirmed = false;
             memberActorFingerprint = nextFingerprint;
-            memberActorEpoch += 1;
-            handlers.onSessionFreshness?.(false);
+            if (!firstConfirmedPlayer && !firstAcceptedPlayer) {
+              memberActorEpoch += 1;
+              noteMemberFreshness('actor-signature-change', 'none', firstConfirmedPlayer, firstAcceptedPlayer);
+              handlers.onSessionFreshness?.(false);
+              noteMemberFreshness('freshness-false-returned');
+            }
           }
         }
         memberPlayer = player;
         handlers.onPlayer(player);
+        if (!fromCache) confirmAwayMissionProjectionPlayer(sessionId, uid, player);
+        // The actor change withdraws the old projection. Its private document
+        // may be unchanged, so the old listener need not emit again. Rebind the
+        // same UID's reader for a fresh server authorization; retired callbacks
+        // cannot publish into this new actor generation.
+        if (rebindDiscovery && handlers.onPlayerDiscovery) startPlayerDiscoveryListener();
         if (!fromCache) memberFeedRefresh();
+        if (retainPendingRefresh) {
+          const activationEpoch = memberActorEpoch;
+          retainPendingRefresh(() => memberRefreshPending() && memberActorEpoch === activationEpoch &&
+            memberActorAvailable === true && memberPlayer?.connected === true && memberPlayer.role === 'player' &&
+            memberPlayer.uid === uid && memberPlayer.sessionId === sessionId &&
+            actorFingerprint(memberPlayer) === actorFingerprint(player) && memberPlayer.seatId === player.seatId &&
+            memberPlayer.replacementRoleId == null && memberPlayer.replacementStatus == null && memberPlayer.escapeState == null);
+        }
         handlers.onPlayerFreshness?.(!fromCache);
         if (!fromCache) publishPendingMemberDiscovery();
         // A legacy listener can terminate while the document is absent. A
@@ -4116,51 +4787,19 @@ export function subscribeSessionState(
         startPrivateLoyaltyListener();
       } else {
         if (!fromCache) revokeMemberActor();
-        onError();
+        onError('l08');
       }
     }, (error: { readonly code?: string }) => {
-      if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+      if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
       if (error.code === 'permission-denied' || error.code === 'not-found') revokeMemberActor();
-      onError();
+      onError('l08', error);
     }),
-    ...(handlers.onPlayerDiscovery ? [onSnapshot(
-      doc(database, `sessions/${sessionId}/playerDiscoveries/${uid}`),
-      { includeMetadataChanges: true },
-      (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
-        if (handlers.sessionReadAudience === 'member') {
-          // A resumed member's discovery can arrive before the actor/feed that
-          // authorizes it. Publishing it early loses it when App withdraws
-          // unconfirmed state. Hold only this subscription's fresh server
-          // event, then deliver after both independent authorities confirm.
-          pendingMemberDiscovery = memberActorAvailable === false || snapshot.metadata?.fromCache === true || !snapshot.exists()
-            ? undefined : playerDiscoveryProjection(snapshot.data());
-          if (!pendingMemberDiscovery) handlers.onPlayerDiscovery?.(null);
-          else publishPendingMemberDiscovery();
-          return;
-        }
-        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
-        const projection = snapshot.exists() ? playerDiscoveryProjection(snapshot.data()) ?? null : null;
-        handlers.onPlayerDiscovery?.(snapshot.metadata?.fromCache === true &&
-          projection?.candidateReveals?.length
-          ? { ...projection, candidateReveals: [] }
-          : projection);
-      },
-      (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
-        pendingMemberDiscovery = undefined;
-        if (error.code === 'permission-denied' || error.code === 'not-found') {
-          handlers.onPlayerDiscovery?.(null);
-          return;
-        }
-        onError();
-      },
-    )] : []),
+    ...(handlers.onPlayerDiscovery ? [startPlayerDiscoveryListener()] : []),
     ...(handlers.onGmDiscovery ? [onSnapshot(
       doc(database, `sessions/${sessionId}/gmDiscovery/current`),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!subscribed || gmDiscoveryTerminated || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || gmDiscoveryTerminated || sessionSubscriptionOwner.token !== subscriptionToken) return;
         // A cached chart is not a fresh privilege check. Clear it immediately,
         // then wait for the server listener to reauthorize the current GM.
         if (snapshot.metadata?.fromCache === true) {
@@ -4172,27 +4811,28 @@ export function subscribeSessionState(
           : null);
       },
       (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
           gmDiscoveryTerminated = true;
           handlers.onGmDiscovery?.(null);
           return;
         }
-        onError();
+        onError('l09', error);
       },
     )] : []),
     onSnapshot(collection(database, `sessions/${sessionId}/seats`), { includeMetadataChanges: true }, (snapshot) => {
-      if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+      if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
       if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
       handlers.onSeats(snapshot.docs
         .map((seat) => seatFrom(sessionId, seat.id, seat.data()))
         .filter((seat) => seat.roleId !== 'press-officer'));
-    }, onError),
-    ...(handlers.onPrivateLoyalty ? [unsubscribePrivateLoyalty = onSnapshot(
+    }, (error) => onError('l10', error)),
+    ...(handlers.onPrivateLoyalty ? [(() => {
+      unsubscribePrivateLoyalty = onSnapshot(
       doc(database, `sessions/${sessionId}/secrets/loyalty-${uid}`),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (privateLoyaltyListenerGeneration !== 1) return;
         if (snapshot.metadata?.fromCache === true) return;
         privateLoyaltyListenerBroken = false;
@@ -4216,7 +4856,7 @@ export function subscribeSessionState(
         handlers.onPrivateLoyalty?.(next);
       },
       (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
           privateLoyaltyListenerBroken = true;
           unsubscribeWolfCult();
@@ -4229,116 +4869,65 @@ export function subscribeSessionState(
           handlers.onPrivateLoyalty?.(null);
           return;
         }
-        onError();
+        onError('l11', error);
       },
-    )] : []),
+      );
+      return () => unsubscribePrivateLoyalty();
+    })()] : []),
     ...(handlers.onRoleBrief ? [onSnapshot(
       doc(database, `sessions/${sessionId}/roleBriefs/${uid}`),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (snapshot.metadata?.fromCache === true) return;
         handlers.onRoleBrief?.(
           snapshot.exists() ? roleBrief(snapshot.data(), sessionId, uid) : null,
         );
       },
       (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
           handlers.onRoleBrief?.(null);
         }
-        onError();
+        onError('l12', error);
       },
     )] : []),
     ...(handlers.onCommissarPurgeAuthority ? [onSnapshot(
       doc(database, `sessions/${sessionId}/commissarPurgeAuthority/${uid}`),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (snapshot.metadata?.fromCache === true) return;
         handlers.onCommissarPurgeAuthority?.(
           snapshot.exists() ? commissarPurgeAuthority(snapshot.data(), sessionId) : null,
         );
       },
       (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
           handlers.onCommissarPurgeAuthority?.(null);
           return;
         }
-        onError();
+        onError('l13', error);
       },
     )] : []),
     ...(handlers.onFacilitatorRuleCall ? [onSnapshot(
       doc(database, `sessions/${sessionId}/facilitatorRuleCalls/recipient-${uid}`),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (snapshot.metadata?.fromCache === true) return;
         handlers.onFacilitatorRuleCall?.(
           snapshot.exists() ? facilitatorRuleCall(snapshot.data(), sessionId, uid) : null,
         );
       },
       (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
           handlers.onFacilitatorRuleCall?.(null);
           return;
         }
-        onError();
-      },
-    )] : []),
-    ...((handlers.onAwayMissionHandPointer || handlers.onAwayMissionHand ||
-      handlers.onAwayMissionHandPointers || handlers.onAwayMissionHands) ? [onSnapshot(
-      query(
-        collection(database, `sessions/${sessionId}/awayMissionHandPointers`),
-        where('sessionId', '==', sessionId),
-        where('participantUid', '==', uid),
-      ),
-      { includeMetadataChanges: true },
-      (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
-        if (snapshot.metadata?.fromCache === true) return;
-        const pointers = snapshot.docs
-          .map((entry) => awayMissionHandPointer(entry.data(), sessionId, uid))
-          .filter((pointer): pointer is AwayMissionHandPointer => pointer !== null);
-        handlers.onAwayMissionHandPointers?.(pointers);
-        handlers.onAwayMissionHandPointer?.(pointers[0] ?? null);
-        startAwayMissionHandListeners(pointers);
-      },
-      (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
-        if (error.code === 'permission-denied' || error.code === 'not-found') {
-          handlers.onAwayMissionHandPointers?.([]);
-          handlers.onAwayMissionHandPointer?.(null);
-          startAwayMissionHandListeners([]);
-          return;
-        }
-        onError();
-      },
-    )] : []),
-    ...(handlers.onGmAwayMissionHandPointers ? [onSnapshot(
-      query(
-        collection(database, `sessions/${sessionId}/awayMissionHandPointers`),
-        where('sessionId', '==', sessionId),
-      ),
-      { includeMetadataChanges: true },
-      (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
-        if (snapshot.metadata?.fromCache === true) return;
-        handlers.onGmAwayMissionHandPointers?.(
-          snapshot.docs
-            .map((entry) => awayMissionHandPointer(entry.data(), sessionId))
-            .filter((pointer): pointer is AwayMissionHandPointer => pointer !== null),
-        );
-      },
-      (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
-        if (error.code === 'permission-denied' || error.code === 'not-found') {
-          handlers.onGmAwayMissionHandPointers?.([]);
-          return;
-        }
-        onError();
+        onError('l14', error);
       },
     )] : []),
     ...(handlers.onSetupReceipt ? [onSnapshot(
@@ -4348,7 +4937,7 @@ export function subscribeSessionState(
       ),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (snapshot.metadata?.fromCache === true) return;
         const latest = snapshot.docs
           .map((secret) => setupReceipt(secret.get('payload')))
@@ -4357,10 +4946,34 @@ export function subscribeSessionState(
           .at(-1) ?? null;
         handlers.onSetupReceipt?.(latest);
       },
-      onError,
+      (error) => onError('l15', error),
     )] : []),
   ];
+  subscriptionsReady = true;
+  if (subscribed && (handlers.onAwayMissionHandPointer || handlers.onAwayMissionHand ||
+      handlers.onAwayMissionHandPointers || handlers.onAwayMissionHands || handlers.onGmAwayMissionHandPointers)) {
+    missionAccessStop = subscribeAwayMissionProjectionAccess(sessionId, uid, access => {
+      if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
+      ownerMissionAccess = access.owner; gmMissionAccess = access.gm;
+      if (access.owner && (handlers.onAwayMissionHandPointer || handlers.onAwayMissionHand ||
+          handlers.onAwayMissionHandPointers || handlers.onAwayMissionHands)) {
+        if (!ownerMissionStop) startOwnerMissionReader();
+      } else {
+        ownerMissionStop?.(); ownerMissionStop = undefined; missionPointerGeneration += 1;
+        handlers.onAwayMissionHandPointers?.([]); handlers.onAwayMissionHandPointer?.(null);
+        startAwayMissionHandListeners([]);
+      }
+      if (access.gm && handlers.onGmAwayMissionHandPointers) {
+        if (!gmMissionStop) startGmMissionReader();
+      } else {
+        gmMissionStop?.(); gmMissionStop = undefined; gmMissionPointerGeneration += 1;
+        handlers.onGmAwayMissionHandPointers?.([]);
+      }
+    });
+  }
+  if (stopRequestedBeforeReady) unsubscribeSessionListeners();
   startWolfCultListener = (resetRevision: boolean) => {
+    if (closedHistoryTerminated) return;
     unsubscribeWolfCult();
     const generation = ++wolfCultListenerGeneration;
     if (resetRevision) acceptsWolfCultRevision = createMonotonicRevisionGate();
@@ -4369,7 +4982,7 @@ export function subscribeSessionState(
       doc(database, `sessions/${sessionId}/wolfCultIntelligence/${uid}`),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
             generation !== wolfCultListenerGeneration) return;
         if (snapshot.metadata?.fromCache === true) return;
         const intelligence = snapshot.exists()
@@ -4379,17 +4992,18 @@ export function subscribeSessionState(
         handlers.onWolfCultIntelligence?.(intelligence);
       },
       (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
             generation !== wolfCultListenerGeneration) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
           handlers.onWolfCultIntelligence?.(null);
           return;
         }
-        onError();
+        onError('l16', error);
       },
     );
   };
   startArbourVisionListener = (resetRevision: boolean) => {
+    if (closedHistoryTerminated) return;
     unsubscribeArbourVision();
     const generation = ++arbourVisionListenerGeneration;
     if (resetRevision) acceptsArbourVisionRevision = createMonotonicRevisionGate();
@@ -4398,7 +5012,7 @@ export function subscribeSessionState(
       doc(database, `sessions/${sessionId}/arbourVisions/${uid}`),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
             generation !== arbourVisionListenerGeneration) return;
         if (snapshot.metadata?.fromCache === true) return;
         const vision = snapshot.exists() ? arbourVision(snapshot.data(), sessionId, uid) : null;
@@ -4406,18 +5020,18 @@ export function subscribeSessionState(
         handlers.onArbourVision?.(vision);
       },
       (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
             generation !== arbourVisionListenerGeneration) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
           handlers.onArbourVision?.(null);
           return;
         }
-        onError();
+        onError('l17', error);
       },
     );
   };
   startPrivateLoyaltyListener = () => {
-    if (!privateLoyaltyListenerBroken || !handlers.onPrivateLoyalty) return;
+    if (closedHistoryTerminated || !privateLoyaltyListenerBroken || !handlers.onPrivateLoyalty) return;
     unsubscribePrivateLoyalty();
     const generation = ++privateLoyaltyListenerGeneration;
     privateLoyaltyListenerBroken = false;
@@ -4425,7 +5039,7 @@ export function subscribeSessionState(
       doc(database, `sessions/${sessionId}/secrets/loyalty-${uid}`),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
             generation !== privateLoyaltyListenerGeneration) return;
         if (snapshot.metadata?.fromCache === true) return;
         const next = snapshot.exists() ? privateLoyalty(snapshot.get('payload'), uid) : null;
@@ -4448,7 +5062,7 @@ export function subscribeSessionState(
         handlers.onPrivateLoyalty?.(next);
       },
       (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
             generation !== privateLoyaltyListenerGeneration) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
           privateLoyaltyListenerBroken = true;
@@ -4462,7 +5076,7 @@ export function subscribeSessionState(
           handlers.onPrivateLoyalty?.(null);
           return;
         }
-        onError();
+        onError('l18', error);
       },
     );
   };
@@ -4470,18 +5084,11 @@ export function subscribeSessionState(
   startArbourVisionListener(false);
   return () => {
     subscribed = false;
-    unsubscribePrivateLoyalty();
-    privateLoyaltyListenerGeneration += 1;
-    unsubscribeWolfCult();
-    unsubscribeArbourVision();
-    unsubscribeAwayMissionHands.forEach((unsubscribe) => unsubscribe());
-    unsubscribeAwayMissionHands = [];
-    awayMissionHandListenerGeneration += 1;
-    wolfCultListenerGeneration += 1;
-    arbourVisionListenerGeneration += 1;
-    unsubscribes.forEach((unsubscribe) => unsubscribe());
-    if (currentSessionSubscriptionToken === subscriptionToken) {
-      currentSessionSubscriptionToken = undefined;
+    noteMemberFreshness('listener-retired', 'none', null, null, false);
+    memberFeedRefresh = () => undefined;
+    unsubscribeSessionListeners();
+    if (sessionSubscriptionOwner.token === subscriptionToken) {
+      sessionSubscriptionOwner.token = undefined;
       // Private projections belong to this exact session/UID listener. Clear
       // them before a replacement subscription can hydrate a different
       // assignment, so the old player's loyalty or setup receipt cannot remain
@@ -4513,8 +5120,22 @@ export function subscribeVipCards(
 ): Unsubscribe {
   let subscribed = true;
   let hasServerSnapshot = false;
+  const initialSession = useSessionStore.getState().session;
+  if (initialSession?.id === sessionId && initialSession.phase === 'closed') {
+    onCards(null);
+    return () => { subscribed = false; };
+  }
   const authority = suppliedAuthority ?? projectionSessionAuthority(sessionId, undefined);
-  const unsubscribe = onSnapshot(
+  let unsubscribe: Unsubscribe = () => undefined;
+  let stopStoreWatch: Unsubscribe = () => undefined;
+  const stopForClosedHistory = () => {
+    if (!subscribed) return;
+    subscribed = false;
+    unsubscribe();
+    stopStoreWatch();
+    onCards(null);
+  };
+  unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/vipHands/${uid}`),
     { includeMetadataChanges: true },
     (snapshot) => {
@@ -4533,10 +5154,18 @@ export function subscribeVipCards(
       onError();
     },
   );
+  stopStoreWatch = useSessionStore.subscribe((state) => {
+    if (state.session?.id === sessionId && state.session.phase === 'closed') stopForClosedHistory();
+  });
+  if (useSessionStore.getState().session?.id === sessionId &&
+      useSessionStore.getState().session?.phase === 'closed') stopForClosedHistory();
   return () => {
-    subscribed = false;
-    unsubscribe();
-    onCards(null);
+    if (subscribed) {
+      subscribed = false;
+      stopStoreWatch();
+      unsubscribe();
+      onCards(null);
+    }
   };
 }
 
@@ -4583,7 +5212,7 @@ export function subscribeHummingbirdHarvest(
  */
 export function subscribeLoyaltyCensus(
   sessionId: string,
-  onCensus: (census: LoyaltyCensus | null) => void,
+  onCensus: (census: LoyaltyCensus | null, status: 'loading' | 'present' | 'empty' | 'error') => void,
 ): Unsubscribe {
   let subscribed = true;
   const acceptsRevision = createMonotonicRevisionGate();
@@ -4592,19 +5221,27 @@ export function subscribeLoyaltyCensus(
     { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      if (!snapshot.exists()) {
+        onCensus(null, 'empty');
+        return;
+      }
       const census = snapshot.exists() ? loyaltyCensus(snapshot.data()) : null;
-      if (census && !acceptsRevision(census.revision)) return;
-      onCensus(census);
+      if (!census) {
+        onCensus(null, 'error');
+        return;
+      }
+      if (!acceptsRevision(census.revision)) return;
+      onCensus(census, 'present');
     },
     () => {
       if (!subscribed) return;
-      onCensus(null);
+      onCensus(null, 'error');
     },
   );
   return () => {
     subscribed = false;
     unsubscribe();
-    onCensus(null);
+    onCensus(null, 'loading');
   };
 }
 
@@ -5387,6 +6024,9 @@ export function subscribeConnectedPlayers(
     onPlayers([]);
   };
   onPlayers([]);
+  if (viewer.session?.id === sessionId && viewer.session.phase === 'closed') {
+    return () => { subscribed = false; };
+  }
   // A member cannot safely subscribe until the callable projection has
   // supplied its server-owned group pointer. Do not fall back to a fleetwide
   // query while that identity is still loading.
@@ -5394,8 +6034,11 @@ export function subscribeConnectedPlayers(
     return () => { subscribed = false; };
   }
   stopStoreWatch = useSessionStore.subscribe((state) => {
-    if (entitlementKey(state) !== capturedEntitlementKey) stopForEntitlementChange();
+    if (state.session?.id === sessionId && state.session.phase === 'closed' ||
+        entitlementKey(state) !== capturedEntitlementKey) stopForEntitlementChange();
   });
+  if (useSessionStore.getState().session?.id === sessionId &&
+      useSessionStore.getState().session?.phase === 'closed') stopForEntitlementChange();
   const playersQuery = facilitator
     ? query(
       collection(db(), `sessions/${sessionId}/players`),
@@ -5680,6 +6323,66 @@ export function subscribeShipConfetti(
     subscribed = false;
     unsubscribe();
   };
+}
+
+/** GM-private removal incidents reuse procedureAudits, never the member feed. */
+export function subscribeGmPlayerRemovalEvents(
+  sessionId: string,
+  onEvents: (events: readonly PlayerRemovalLogEntry[]) => void,
+  onError: () => void = () => undefined,
+): Unsubscribe {
+  const key = (): string | null => {
+    const state = useSessionStore.getState(), me = state.me, instance = state.gmInstance;
+    if (!auth().currentUser || auth().currentUser?.uid !== me?.uid ||
+        state.session?.id !== sessionId || me?.sessionId !== sessionId || me.role !== 'gm' ||
+        me.connected === false || state.gmRecoveryPending || state.connection !== 'live' ||
+        state.sessionSnapshotFreshness !== 'server' || !instance || instance.uid !== me.uid ||
+        instance.sessionId !== sessionId) return null;
+    return JSON.stringify([sessionId, me.uid, me.connectionGeneration, state.identityHydrationRevision,
+      instance.id, instance.claimedAt]);
+  };
+  let active = true;
+  const originalKey = key();
+  onEvents([]);
+  if (!originalKey) return () => { active = false; onEvents([]); };
+  let stopSnapshot: Unsubscribe = () => undefined;
+  let stopStore: Unsubscribe = () => undefined;
+  let stopAuth: Unsubscribe = () => undefined;
+  const withdraw = () => {
+    if (!active) return;
+    active = false;
+    stopSnapshot();
+    stopStore();
+    stopAuth();
+    onEvents([]);
+  };
+  stopStore = useSessionStore.subscribe(() => {
+    if (key() !== originalKey) withdraw();
+  });
+  stopAuth = onAuthStateChanged(auth(), () => {
+    if (key() !== originalKey) withdraw();
+  }, () => { if (active) { withdraw(); onError(); } });
+  if (!active || key() !== originalKey) {
+    withdraw(); stopStore(); stopAuth(); return () => undefined;
+  }
+  stopSnapshot = onSnapshot(
+    query(collection(db(), `sessions/${sessionId}/procedureAudits`),
+      where('type', '==', 'player-removal'), orderBy('createdAt', 'desc'), limit(30)),
+    { includeMetadataChanges: true },
+    snapshot => {
+      if (!active || key() !== originalKey) { withdraw(); return; }
+      if (snapshot.metadata?.fromCache === true) { onEvents([]); return; }
+      onEvents(snapshot.docs.flatMap(entry => {
+        const value = entry.data();
+        const createdAt = optionalIso(value.createdAt);
+        const parsed = createdAt ? parsePlayerRemovalEvent({ ...value, createdAt }, sessionId) : null;
+        return parsed && /^player-removal-[a-f0-9]{64}$/.test(entry.id) ? [{ ...parsed, id: entry.id }] : [];
+      }));
+    },
+    () => { if (active) { withdraw(); onError(); } },
+  );
+  if (!active) stopSnapshot();
+  return withdraw;
 }
 
 export function subscribeSessionEvents(

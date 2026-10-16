@@ -23,6 +23,12 @@ type ReviewPerspective = 'scientist' | 'gm' | 'second-ship';
 type ScientistArea = 'research' | 'coordination' | 'ecm' | 'scout' | 'map';
 type PurchaseScenario = 'available' | 'unavailable' | 'refreshed';
 
+// These two synthetic tracks mirror the printed prices used by the live writer.
+const SAMPLE_RESEARCH_PRICES: Readonly<Record<string, readonly number[]>> = {
+  reactor: [8, 7, 6, 5, 4],
+  'jump-drive': [14, 10, 6, 4, 3],
+};
+
 const INITIAL_RESEARCH: EndeavourResearchWorkspace = {
   status: 'ready',
   sessionId: 'pc01-sample-session',
@@ -31,8 +37,8 @@ const INITIAL_RESEARCH: EndeavourResearchWorkspace = {
   cadence: { cycle: 3, revision: 2, choices: [] },
   progress: { reactor: 1, 'jump-drive': 0 },
   tracks: [
-    { trackId: 'reactor', name: 'Reactor', crossedBoxes: 1, totalBoxes: 5, currentMaterialCost: 8, complete: false },
-    { trackId: 'jump-drive', name: 'Jump Drive', crossedBoxes: 0, totalBoxes: 5, currentMaterialCost: 14, complete: false },
+    { trackId: 'reactor', name: 'Reactor', crossedBoxes: 2, totalBoxes: 5, currentMaterialCost: 7, complete: false },
+    { trackId: 'jump-drive', name: 'Jump Drive', crossedBoxes: 1, totalBoxes: 5, currentMaterialCost: 14, complete: false },
   ],
   shepherdOre: 10,
   fieldUpgradeState: { upgradeRevision: 2, targetsUsedThisCycle: 0 },
@@ -91,10 +97,12 @@ function nextResearchWorkspace(
   funding: EndeavourResearchFunding,
 ): EndeavourResearchWorkspace {
   const selected = workspace.tracks.find((track) => track.trackId === trackId);
-  if (!selected || selected.complete || workspace.cadence.choices.some((choice) => choice.trackId === trackId)) {
+  const prices = SAMPLE_RESEARCH_PRICES[trackId];
+  if (!selected || !prices || selected.complete || workspace.cadence.choices.some((choice) => choice.trackId === trackId)) {
     return workspace;
   }
-  const crossedBoxes = selected.crossedBoxes + 1;
+  const earnedMarks = Math.min((workspace.progress[trackId] ?? 0) + 1, prices.length - 1);
+  const crossedBoxes = earnedMarks + 1;
   return {
     ...workspace,
     researchRevision: workspace.researchRevision + 1,
@@ -107,13 +115,12 @@ function nextResearchWorkspace(
         oreCost: funding === 'shepherd-ore' ? 5 : 0,
       }],
     },
-    progress: { ...workspace.progress, [trackId]: crossedBoxes },
+    progress: { ...workspace.progress, [trackId]: earnedMarks },
     tracks: workspace.tracks.map((track) => track.trackId === trackId
       ? {
           ...track,
           crossedBoxes,
-          currentMaterialCost: track.currentMaterialCost === null
-            ? null : Math.max(0, track.currentMaterialCost - 1),
+          currentMaterialCost: prices[earnedMarks]!,
           complete: crossedBoxes >= track.totalBoxes,
         }
       : track),

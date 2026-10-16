@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { subscribeConnectedPlayers, subscribeShuttleDeparture } from '@/lib/firestore';
+import { auth } from '@/lib/firebase';
+import { sessionSubscriptionOwner } from '@/lib/sessionSubscriptionOwner';
 import { transferShuttleControl } from '@/lib/shuttleControlService';
 import {
   beginShuttleTransit,
@@ -33,6 +35,7 @@ import {
   validShuttleEvacuationAmounts,
 } from '@/lib/shuttleEvacuationService';
 import { useSessionStore } from '@/store/useSessionStore';
+import { turnPhaseDeadlinePassed } from '@/lib/turnPhase';
 import type { GameSession, Player, ShuttleControlEntry, ShuttleMovementState } from '@/types/game';
 import { findShip } from '@/data/ships';
 import { dockingForShuttle, SHUTTLECRAFT, shuttleDestinationIsAllowed } from '@/data/shuttles';
@@ -64,6 +67,18 @@ interface Props {
 interface ArrivalAttempt {
   readonly key: string;
   readonly checkpoint: SessionAuthorityCheckpoint;
+  readonly shuttleId: string;
+  readonly transitRequestId: string;
+  readonly destinationShipId: string;
+  readonly arrivesAt: string;
+  readonly controlRevision: number;
+  readonly authority: NonNullable<ReturnType<typeof arrivalReceiptAuthority>>;
+}
+
+interface ConfirmedArrivalNotice {
+  readonly attempt: ArrivalAttempt;
+  readonly hostShipId: string;
+  readonly arrivedAt: string;
 }
 
 interface RetargetAttempt {
@@ -119,7 +134,9 @@ type ServiceShuttleRechargeRecovery =
 
 const EMPTY_SYSTEM_IDS: readonly string[] = Object.freeze([]);
 const AMBIGUOUS_RECHARGE_OUTCOME_CODES = new Set([
-  'unavailable', 'deadline-exceeded',
+  // Firebase reports a rejected fetch as internal, including a lost reply
+  // after commit. The caller still excludes classified server responses.
+  'unavailable', 'deadline-exceeded', 'internal',
 ]);
 
 function hasAmbiguousServiceShuttleRechargeOutcome(cause: unknown): boolean {
@@ -248,6 +265,61 @@ function arrivalContextKey(
   ]);
 }
 
+/** A confirmed trip may outlive its public movement, but never its holder audience. */
+function arrivalReceiptAuthority(shuttleId: string, controlRevision: number) {
+  const current = useSessionStore.getState();
+  const session = current.session;
+  const me = current.me;
+  const control = session?.shuttleControl?.[shuttleId];
+  const scope = session?.memberSessionScope;
+  const berth = session?.currentActorBerthAuthority;
+  const feed = sessionSubscriptionOwner.memberProjectionConfirmation;
+  if (!hasFreshSessionAuthority() || !session || session.phase !== 'active' || !me ||
+      auth().currentUser?.uid !== me.uid || me.sessionId !== session.id || me.role !== 'player' ||
+      me.connected !== true || me.replacementRoleId != null || me.replacementStatus != null || me.escapeState != null ||
+      !Number.isSafeInteger(me.connectionGeneration) || (me.connectionGeneration ?? 0) < 1 ||
+      !Number.isSafeInteger(current.identityHydrationRevision) || current.identityHydrationRevision < 1 ||
+      !Number.isFinite(globalThis.performance.timeOrigin) || globalThis.performance.timeOrigin <= 0 ||
+      !feed || feed.sessionId !== session.id || feed.uid !== me.uid ||
+      feed.subscriptionToken !== sessionSubscriptionOwner.token ||
+      !scope || scope.groupId !== me.fleetGroupId || !scope.craftIds.includes(shuttleId) ||
+      !control || control.shuttleId !== shuttleId || control.holderUid !== me.uid || control.revision !== controlRevision ||
+      shuttleId !== 'snn-press-shuttle' && (!berth || berth.sessionId !== session.id || berth.actorUid !== me.uid ||
+        berth.groupId !== me.fleetGroupId || berth.connectionGeneration !== me.connectionGeneration ||
+        berth.assignedRoleId !== me.assignedRoleId || berth.activeConsoleRoleId !== me.activeConsoleRoleId ||
+        !scope.vesselIds.includes(berth.shipId))) return undefined;
+  return { feed, fingerprint: JSON.stringify([
+    session.id, session.phase, session.currentTurn, me.uid, me.role, me.connected, me.connectionGeneration,
+    me.assignedRoleId, me.activeConsoleRoleId, me.seatId, me.fleetGroupId, me.replacementRoleId,
+    me.replacementStatus, current.identityHydrationRevision, globalThis.performance.timeOrigin,
+    { ...scope, vesselIds: [...scope.vesselIds].sort(), craftIds: [...scope.craftIds].sort() }, berth ?? null,
+    control,
+  ]) };
+}
+
+function arrivalReceiptAuthorityMatches(attempt: ArrivalAttempt): boolean {
+  const current = arrivalReceiptAuthority(attempt.shuttleId, attempt.controlRevision);
+  return current?.feed === attempt.authority.feed && current.fingerprint === attempt.authority.fingerprint;
+}
+
+function confirmedArrivalNoticeCurrent(notice: ConfirmedArrivalNotice, movement: ShuttleMovementState | null): boolean {
+  const { attempt } = notice;
+  if (!arrivalReceiptAuthorityMatches(attempt) || movement !== null &&
+      (movement.status !== 'in-transit' || movement.transitRequestId !== attempt.transitRequestId)) return false;
+  if (isCurrentSessionAuthority(attempt.checkpoint)) return true;
+  const checkpoint = captureSessionAuthority(attempt.checkpoint.sessionId, attempt.checkpoint.uid);
+  if (checkpoint?.authority !== attempt.checkpoint.authority || checkpoint.version <= attempt.checkpoint.version) return false;
+  const session = useSessionStore.getState().session!;
+  const dockings = session.shuttleDockings?.filter(row => row.shuttleId === attempt.shuttleId) ?? [];
+  const visits = session.shuttleVisitLog ?? [];
+  return dockings.length === 1 && dockings[0]?.shipId === notice.hostShipId && dockings[0].dockedAt === notice.arrivedAt &&
+    visits.filter(row => row.id === `shuttle-arrival-${attempt.transitRequestId}-docked` &&
+      row.shuttleId === attempt.shuttleId && row.action === 'docked' && row.shipId === notice.hostShipId &&
+      row.occurredAt === notice.arrivedAt).length === 1 &&
+    visits.filter(row => row.id === `shuttle-arrival-${attempt.transitRequestId}-departed` &&
+      row.shuttleId === attempt.shuttleId && row.action === 'departed').length === 1;
+}
+
 export default function ShuttleControl({ control }: Props) {
   const session = useSessionStore((state) => state.session)!;
   const me = useSessionStore((state) => state.me)!;
@@ -264,7 +336,9 @@ export default function ShuttleControl({ control }: Props) {
   const [arrivalReadyKey, setArrivalReadyKey] = useState<string | null>(null);
   const [arrivalCompleteKey, setArrivalCompleteKey] = useState<string | null>(null);
   const [arrivalPendingKey, setArrivalPendingKey] = useState<string | null>(null);
-  const [arrivalStatus, setArrivalStatus] = useState<{ key: string; message: string } | null>(null);
+  const [arrivalStatus, setArrivalStatus] = useState<{
+    key: string; message: string; confirmed?: ConfirmedArrivalNotice;
+  } | null>(null);
   const arrivalAttemptRef = useRef<ArrivalAttempt | null>(null);
   const arrivalPendingKeyRef = useRef<string | null>(null);
   const retargetAttemptRef = useRef<RetargetAttempt | null>(null);
@@ -288,6 +362,8 @@ export default function ShuttleControl({ control }: Props) {
   const canTransfer = me.role === 'gm' || me.uid === control.ownerUid;
   const canRequestDeparture = me.role === 'player' && me.uid === control.holderUid;
   const transit = departure?.status === 'in-transit' ? departure : null;
+  const departureRef = useRef(departure);
+  departureRef.current = departure;
   const renderAuthority = captureSessionAuthority(session.id, me.uid);
   const currentArrivalKey = arrivalContextKey(
     renderAuthority,
@@ -313,8 +389,9 @@ export default function ShuttleControl({ control }: Props) {
   const arrivalAttempt = arrivalAttemptRef.current;
   const arrivalAttempted = arrivalAttempt?.key === currentArrivalKey &&
     isCurrentSessionAuthority(arrivalAttempt.checkpoint);
-  const arrivalStatusMessage = arrivalStatus?.key === currentArrivalKey
-    ? arrivalStatus.message : '';
+  const arrivalStatusMessage = arrivalStatus?.confirmed
+    ? confirmedArrivalNoticeCurrent(arrivalStatus.confirmed, departure) ? arrivalStatus.message : ''
+    : arrivalStatus?.key === currentArrivalKey ? arrivalStatus.message : '';
   const busy = pending || arrivalPending;
   const docking = dockingForShuttle(session, control.shuttleId);
   const currentCargoAuthority = captureCargoAttemptAuthority(control.shuttleId, control.revision);
@@ -416,10 +493,11 @@ export default function ShuttleControl({ control }: Props) {
     session.pressEnabled !== false &&
     session.turnPhase?.airspace.state === 'restricted' &&
     session.turnPhase.airspace.pressAccess;
-  const airspaceDeadline = session.turnPhase?.openAirspaceEndsAt
-    ? Date.parse(session.turnPhase.openAirspaceEndsAt) : Number.NaN;
+  const activePhase = session.turnPhase;
+  const airspaceDeadline = activePhase && activePhase.progression !== 'manual'
+    ? Date.parse(activePhase.openAirspaceEndsAt) : Number.NaN;
   useEffect(() => {
-    if (!Number.isFinite(airspaceDeadline)) return;
+    if (activePhase?.progression === 'manual' || !Number.isFinite(airspaceDeadline)) return;
     let timer: number | undefined;
     const refreshAtDeadline = () => {
       const remaining = airspaceDeadline - Date.now();
@@ -433,15 +511,18 @@ export default function ShuttleControl({ control }: Props) {
     return () => {
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [airspaceDeadline]);
+  }, [activePhase?.progression, airspaceDeadline]);
   const currentClockTime = Math.max(deadlineClock, Date.now());
+  const airspaceWindowExpired = activePhase
+    ? turnPhaseDeadlinePassed(activePhase, 'open', currentClockTime)
+    : true;
   const movementAuthorityCurrent = connection === 'live' && snapshotFreshness === 'server' && hasFreshSessionAuthority();
   const missionCommitted = session.playerDiscovery?.missionCommittedCraftIds?.includes(control.shuttleId) === true;
   const departureWindowOpen = movementAuthorityCurrent && !missionCommitted && session.phase === 'active' &&
     session.turnPhase?.turn === session.currentTurn &&
     (session.turnPhase?.airspace.state === 'lifted' || pressMovementException) &&
     !session.turnPhase?.timerPause &&
-    currentClockTime < airspaceDeadline;
+    !airspaceWindowExpired;
   const evacuationLedger = session.shuttleEvacuations?.[control.shuttleId];
   const evacuatedThisCycle = evacuationLedger && evacuationLedger.cycle === session.currentTurn
     ? evacuationLedger.moved : 0;
@@ -478,11 +559,9 @@ export default function ShuttleControl({ control }: Props) {
     ? (hostDamage?.damagedSystemIds ?? []).filter((id) => !repairedOnHost.includes(id)) : [],
   [control.shuttleId, docking, hostDamage?.damagedSystemIds, repairedOnHost]);
   const repairMaterials = docking ? session.shipResources?.[docking.shipId]?.materials ?? 0 : 0;
-  const repairDeadline = airspaceDeadline;
   const repairWindowOpen = session.phase === 'active' &&
     session.turnPhase?.turn === session.currentTurn && session.turnPhase?.airspace.state === 'lifted' &&
-    session.turnPhase.timerPause === undefined && Number.isFinite(repairDeadline) &&
-    currentClockTime < repairDeadline;
+    session.turnPhase.timerPause === undefined && !airspaceWindowExpired;
   const repairResetKey = JSON.stringify([
     blacksmithRepairRevision, control.revision, control.shuttleId, docking?.shipId, session.currentTurn,
   ]);
@@ -540,6 +619,7 @@ export default function ShuttleControl({ control }: Props) {
   const isCurrentArrivalAttempt = useCallback((attempt: ArrivalAttempt): boolean => {
     return arrivalAttemptRef.current === attempt &&
       currentArrivalKeyRef.current === attempt.key &&
+      arrivalReceiptAuthorityMatches(attempt) &&
       isCurrentSessionAuthority(attempt.checkpoint);
   }, []);
 
@@ -560,7 +640,11 @@ export default function ShuttleControl({ control }: Props) {
     const previousAttempt = arrivalAttemptRef.current;
     if (automatic && previousAttempt?.key === key &&
         isCurrentSessionAuthority(previousAttempt.checkpoint)) return;
-    const attempt: ArrivalAttempt = { key, checkpoint };
+    const authority = arrivalReceiptAuthority(control.shuttleId, control.revision);
+    if (!authority || !transit) return;
+    const attempt: ArrivalAttempt = { key, checkpoint, authority, shuttleId: control.shuttleId,
+      transitRequestId: transit.transitRequestId, destinationShipId: transit.destinationShipId,
+      arrivesAt: transit.arrivesAt, controlRevision: control.revision };
     arrivalAttemptRef.current = attempt;
     arrivalPendingKeyRef.current = key;
     setArrivalPendingKey(key);
@@ -571,12 +655,24 @@ export default function ShuttleControl({ control }: Props) {
       transit?.transitRequestId ?? '',
       control.revision,
     ).then((result) => {
-      if (!isCurrentArrivalAttempt(attempt)) return;
+      const current = useSessionStore.getState();
+      // A successful transaction deletes this public trip before its SDK
+      // reply can arrive. Pending/error callbacks retain the stricter key.
+      const deletedOriginalTrip = arrivalAttemptRef.current === attempt && departureRef.current === null &&
+        currentArrivalKeyRef.current === arrivalContextKey(checkpoint, attempt.shuttleId, undefined,
+          current.connection, current.sessionSnapshotFreshness) &&
+        isCurrentSessionAuthority(checkpoint) && arrivalReceiptAuthorityMatches(attempt);
+      if ((!isCurrentArrivalAttempt(attempt) && !deletedOriginalTrip) ||
+          result.hostShipId !== attempt.destinationShipId || !Number.isFinite(Date.parse(result.arrivedAt)) ||
+          Date.parse(result.arrivedAt) < Date.parse(attempt.arrivesAt)) return;
       setArrivalCompleteKey(key);
       setArrivalStatus({
         key,
         message: `Shuttle arrived at ${findShip(result.hostShipId)?.name ?? result.hostShipId}.`,
+        confirmed: { attempt, hostShipId: result.hostShipId, arrivedAt: result.arrivedAt },
       });
+      if (arrivalPendingKeyRef.current === key) arrivalPendingKeyRef.current = null;
+      setArrivalPendingKey((current) => current === key ? null : current);
     }).catch((cause) => {
       if (!isCurrentArrivalAttempt(attempt)) return;
       setArrivalStatus({
@@ -588,7 +684,7 @@ export default function ShuttleControl({ control }: Props) {
       if (arrivalPendingKeyRef.current === key) arrivalPendingKeyRef.current = null;
       setArrivalPendingKey((current) => current === key ? null : current);
     });
-  }, [control.revision, control.shuttleId, isCurrentArrivalAttempt, transit?.transitRequestId]);
+  }, [control.revision, control.shuttleId, isCurrentArrivalAttempt, transit]);
 
   useEffect(() => {
     if (!transit || !canRequestDeparture || transit.holderUid !== me.uid) {
@@ -1058,6 +1154,7 @@ export default function ShuttleControl({ control }: Props) {
         </p>
         <label htmlFor={`shuttle-retarget-destination-${control.shuttleId}`}>New destination ship</label>
         <select className="shuttle-control__touch-target" id={`shuttle-retarget-destination-${control.shuttleId}`} value={destinationShipId}
+          aria-describedby={`shuttle-retarget-guidance-${control.shuttleId}`}
           disabled={busy || !departureWindowOpen}
           onChange={(event) => setDestinationShipId(event.target.value)}>
           <option value="">Keep current course</option>
@@ -1065,6 +1162,9 @@ export default function ShuttleControl({ control }: Props) {
             {findShip(shipId)?.name ?? shipId}
           </option>)}
         </select>
+        <p id={`shuttle-retarget-guidance-${control.shuttleId}`}>
+          Choose a destination other than the original departure ship or the current destination.
+        </p>
         <div className="console-workspace__actions">
           <button className="cic-action-button shuttle-control__touch-target" type="button"
             disabled={busy || !departureWindowOpen || !destinationShipId}

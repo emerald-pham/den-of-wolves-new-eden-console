@@ -9,7 +9,7 @@ const workspace = {
   sessionId: 's1',
   cycle: 3,
   controlRevision: 4,
-  researchComplete: true,
+  researchComplete: true, built: true,
   device: { status: 'ready', revision: 0 },
   pursuit: { groupId: 'fleet-1', current: 8 },
 };

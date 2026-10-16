@@ -16,6 +16,7 @@ import {
   type MissionOpportunityResolution,
 } from './missionLifecycle';
 import { missionCardForCode } from './missionCards';
+import { applyBoaReclamationDifficulty } from './boaMissionReclamation';
 import { missionBonusSourcesForShuttleParticipants } from './awayMissionBonuses';
 import {
   resolveMissionOpportunityRewards,
@@ -23,6 +24,9 @@ import {
   type MissionOpportunityRewardResult,
 } from './missionRewards';
 import type { MissionCardId, MissionDeckRandomIndex } from './missionDeck';
+import { missionRewardNeedsChoice, validMissionRewardChoice, missionRewardChoiceOptions, validMissionRewardChoiceProjection,
+  type MissionRewardChoice, type MissionRewardSelection, type MissionRewardConsoleTarget,
+  type MissionRewardChoiceOptions } from './missionRewardDelivery';
 
 export interface AwayMissionParticipantCrafts {
   readonly participantUid: string;
@@ -36,6 +40,8 @@ export interface CreateAwayMissionLifecycleRecordInput {
   readonly lifecycle: MissionLifecycleState;
   /** Current server-derived group/craft authority at admission. */
   readonly participantCrafts: readonly AwayMissionParticipantCrafts[];
+  /** The authenticated Boa participant's one pre-deal card-opportunity choice. */
+  readonly boaReclamation?: Readonly<{ actorUid: string; opportunityId: string }>;
 }
 
 export interface AwayMissionCustody {
@@ -64,6 +70,12 @@ export interface AwayMissionLifecycleCommandReceipt {
 }
 
 export interface AwayMissionLifecycleRecord {
+  /** Exact protected command which moved this mission from active to resolved. */
+  readonly resolutionRevision?: number;
+  readonly resolutionRequestId?: string;
+  /** Recipient choices and their live server options remain in protected state. */
+  readonly rewardChoices?: readonly MissionRewardSelection[];
+  readonly rewardOptions?: readonly MissionRewardChoiceOptions[];
   readonly explorationAppliedOpportunityIds?: readonly string[];
   readonly schemaVersion: 1;
   readonly sessionId: string;
@@ -72,6 +84,8 @@ export interface AwayMissionLifecycleRecord {
   readonly revision: number;
   readonly lifecycle: MissionLifecycleState;
   readonly participantCrafts: readonly AwayMissionParticipantCrafts[];
+  /** Server-private pre-deal modifier; never copied to member/public projections. */
+  readonly boaReclamation?: Readonly<{ actorUid: string; opportunityId: string }>;
   readonly status: 'active' | 'resolved' | 'complete';
   readonly overrun: boolean;
   readonly outcomes: readonly MissionOpportunityResolution[] | null;
@@ -94,6 +108,7 @@ export type AwayMissionLifecycleCommand =
   | Readonly<{ type: 'addFacilitatorCards'; requestId: string; expectedRevision: number }>
   | Readonly<{ type: 'resolve'; requestId: string; expectedRevision: number }>
   | Readonly<{ type: 'exploreSystems'; requestId: string; expectedRevision: number; opportunityId: string; targetCoordinates: readonly string[] }>
+  | Readonly<{ type: 'chooseRewardTargets'; requestId: string; expectedRevision: number; opportunityId: string; choice: MissionRewardChoice }>
   | Readonly<{ type: 'dropOff'; requestId: string; expectedRevision: number; shipId: string }>;
 
 export interface AwayMissionLifecycleAuthority {
@@ -110,6 +125,7 @@ export interface AwayMissionLifecycleAuthority {
   readonly secretD6Rolls?: Readonly<Record<string, number>>;
   /** Cryptographically secure draw/shuffle index source, supplied by Functions. */
   readonly randomIndex?: MissionDeckRandomIndex;
+  readonly rewardConsoleTargets?: readonly MissionRewardConsoleTarget[];
 }
 
 export type AwayMissionLifecycleCommandResult = Readonly<{
@@ -146,6 +162,10 @@ export interface AwayMissionPublicState {
 }
 
 export interface AwayMissionPrivateState {
+  readonly rewardChoices?: readonly MissionRewardSelection[];
+  readonly rewardOptions?: readonly MissionRewardChoiceOptions[];
+  /** Present only in the leader's own private hand projection. */
+  readonly extraCardRecipientUids?: readonly string[];
   readonly assignmentCommitted?: boolean;
   readonly canUseReclamator?: boolean;
   readonly missionId: string;
@@ -193,6 +213,16 @@ export function createAwayMissionLifecycleRecord(
   if (participants.some((participant) => privateMissionHandForParticipant(input.lifecycle, participant.uid) === null)) {
     return null;
   }
+  if (input.boaReclamation !== undefined &&
+      (!isRecord(input.boaReclamation) || Object.keys(input.boaReclamation).length !== 2 ||
+        typeof input.boaReclamation.actorUid !== 'string' ||
+        typeof input.boaReclamation.opportunityId !== 'string' ||
+        !missionCardForCode(input.lifecycle.siteCode)?.opportunities.some(({ id }) =>
+          id === input.boaReclamation!.opportunityId) ||
+        input.lifecycle.availableCarrierCraftIds.includes('boa') !== true ||
+        participants.find(({ uid }) => uid === input.boaReclamation!.actorUid)?.roleId !== 'capybara-recycler' ||
+        !participantCrafts.find(({ participantUid }) => participantUid === input.boaReclamation!.actorUid)
+          ?.craftIds.includes('boa'))) return null;
   return {
     schemaVersion: 1,
     sessionId: input.sessionId,
@@ -201,6 +231,7 @@ export function createAwayMissionLifecycleRecord(
     revision: 0,
     lifecycle: input.lifecycle,
     participantCrafts,
+    ...(input.boaReclamation ? { boaReclamation: { ...input.boaReclamation } } : {}),
     status: 'active',
     overrun: false,
     outcomes: null,
@@ -221,6 +252,7 @@ export function createAwayMissionLifecycleBootstrap(input: Readonly<{
   revision?: number;
   lifecycle: MissionLifecycleStateInput;
   participantCrafts: readonly AwayMissionParticipantCrafts[];
+  boaReclamation?: Readonly<{ actorUid: string; opportunityId: string }>;
 }>): Readonly<{
   record: AwayMissionLifecycleRecord;
   participantStates: readonly Readonly<{
@@ -284,6 +316,8 @@ export function applyAwayMissionLifecycleCommand(
   let nextReclamatorSalvages = record.reclamatorSalvages;
   let nextLegalDropOffShipIds = record.legalDropOffShipIds;
   let nextCustody = record.custody;
+  let nextRewardChoices = record.rewardChoices;
+  let nextRewardOptions = record.rewardOptions;
 
   switch (command.type) {
     case 'requestExtraCards': {
@@ -320,7 +354,8 @@ export function applyAwayMissionLifecycleCommand(
       const craftBinding = record.participantCrafts.find(({ participantUid }) => participantUid === authority.actorUid);
       const privateHand = privateMissionHandForParticipant(record.lifecycle, authority.actorUid);
       if (!participant || participant.roleId !== 'warrior-captain' || !craftBinding?.craftIds.includes('warrior') ||
-          !privateHand || record.lifecycle.phase !== 'discarding' || !Array.isArray(command.choices)) {
+          !privateHand || record.lifecycle.phase !== 'discarding' || !Array.isArray(command.choices) ||
+          record.reclamatorSalvages.some(salvage => salvage.opportunityId === command.opportunityId)) {
         return { status: 'denied' };
       }
       const handCardIds = privateHand.cards.filter(({ status }) => status === 'remaining').map(({ id }) => id);
@@ -332,7 +367,7 @@ export function applyAwayMissionLifecycleCommand(
         handCardIds,
         choices: command.choices,
       });
-      const discarded = discardMissionHandForWarriorReclamator(record.lifecycle, authority.actorUid);
+      const discarded = discardMissionHandForWarriorReclamator(record.lifecycle, authority.actorUid, command.opportunityId);
       if (!salvage || !discarded) return { status: 'denied' };
       nextLifecycle = discarded.state;
       nextReclamatorSalvages = [...record.reclamatorSalvages, {
@@ -348,6 +383,8 @@ export function applyAwayMissionLifecycleCommand(
       if (!isParticipant(record.lifecycle, authority.actorUid) || !Array.isArray(command.placements)) {
         return { status: 'denied' };
       }
+      if (command.placements.some(placement => record.reclamatorSalvages.some(salvage =>
+        salvage.opportunityId === placement?.opportunityId))) return { status: 'denied' };
       nextLifecycle = assignRemainingMissionCards(record.lifecycle, authority.actorUid, command.placements)?.state ?? null;
       break;
     case 'addFacilitatorCards': {
@@ -364,15 +401,20 @@ export function applyAwayMissionLifecycleCommand(
       const serverBonusSources = authority.bonusSources ?? [];
       const nonMissionShuttleSources = serverBonusSources.filter((candidate) => !isMissionShuttleSource(candidate));
       const shuttleSources = missionBonusSourcesForShuttleParticipants(record.lifecycle, record.participantCrafts);
-      const outcomes = calculateMissionOpportunityTotals(
+      const calculatedOutcomes = calculateMissionOpportunityTotals(
         record.lifecycle,
         [...nonMissionShuttleSources, ...shuttleSources],
         authority.secretD6Rolls ?? {},
       );
+      const outcomes = calculatedOutcomes && record.boaReclamation
+        ? applyBoaReclamationDifficulty(calculatedOutcomes, record.boaReclamation.opportunityId)
+        : calculatedOutcomes;
       if (!outcomes) return { status: 'denied' };
       const rewards = resolveMissionOpportunityRewards(record.lifecycle.siteCode, outcomes, {
         secretD6Rolls: authority.secretD6Rolls ?? {},
         bulkHaulageContributorUidsByOpportunity: bulkHaulageContributorsByOpportunity(record),
+        ...(record.boaReclamation
+          ? { boaReclamationOpportunityId: record.boaReclamation.opportunityId } : {}),
       });
       if (!rewards) return { status: 'denied' };
       nextLifecycle = record.lifecycle;
@@ -381,6 +423,8 @@ export function applyAwayMissionLifecycleCommand(
       nextRewards = rewards;
       nextSpecialRewards = aggregateSpecialRewards(record.reclamatorSalvages);
       nextLegalDropOffShipIds = [...new Set(authority.legalDropOffShipIds)];
+      nextRewardOptions = missionRewardChoiceOptions(rewards, authority.rewardConsoleTargets ?? []);
+      nextRewardChoices = [];
       break;
     }
     case 'exploreSystems': {
@@ -394,7 +438,20 @@ export function applyAwayMissionLifecycleCommand(
       nextLifecycle = record.lifecycle;
       break;
     }
+    case 'chooseRewardTargets': {
+      const reward = record.rewards?.find(({ opportunityId }) => opportunityId === command.opportunityId);
+      if (record.status !== 'resolved' || authority.actorUid !== record.lifecycle.leaderUid ||
+          !reward || !validMissionRewardChoice(reward, command.choice)) return { status: 'denied' };
+      nextLifecycle = record.lifecycle;
+      nextRewardChoices = [...(record.rewardChoices ?? []).filter(choice => choice.opportunityId !== command.opportunityId),
+        { opportunityId: command.opportunityId, choice: command.choice }];
+      nextRewardOptions = missionRewardChoiceOptions(record.rewards ?? [], authority.rewardConsoleTargets ?? []);
+      nextLegalDropOffShipIds = [...authority.legalDropOffShipIds];
+      break;
+    }
     case 'dropOff':
+      if (record.rewards?.some(reward => missionRewardNeedsChoice(reward) &&
+          !(record.rewardChoices ?? []).some(selection => selection.opportunityId === reward.opportunityId && validMissionRewardChoice(reward, selection.choice)))) return { status: 'denied' };
       if (record.rewards?.some(reward => reward.effects.some(({ kind }) => kind === 'exploreStarSystems') &&
           !record.explorationAppliedOpportunityIds?.includes(reward.opportunityId))) return { status: 'denied' };
       if (record.status !== 'resolved' || authority.actorUid !== record.lifecycle.leaderUid ||
@@ -402,6 +459,7 @@ export function applyAwayMissionLifecycleCommand(
           !authority.legalDropOffShipIds.includes(command.shipId)) return { status: 'denied' };
       nextLifecycle = record.lifecycle;
       nextStatus = 'complete';
+      nextLegalDropOffShipIds = [...authority.legalDropOffShipIds];
       nextCustody = { status: 'dropped-off', holderUid: record.lifecycle.leaderUid, shipId: command.shipId };
       break;
     default:
@@ -411,6 +469,9 @@ export function applyAwayMissionLifecycleCommand(
 
   const nextRecord: AwayMissionLifecycleRecord = {
     ...record,
+    ...(record.status === 'active' && nextStatus === 'resolved' ? {
+      resolutionRevision: record.revision + 1, resolutionRequestId: command.requestId,
+    } : {}),
     ...(command.type === 'exploreSystems' ? { explorationAppliedOpportunityIds: [
       ...(record.explorationAppliedOpportunityIds ?? []), command.opportunityId,
     ] } : {}),
@@ -422,6 +483,8 @@ export function applyAwayMissionLifecycleCommand(
     reclamatorSalvages: nextReclamatorSalvages,
     specialRewards: nextSpecialRewards,
     custody: nextCustody,
+    ...(nextRewardChoices === undefined ? {} : { rewardChoices: nextRewardChoices }),
+    ...(nextRewardOptions === undefined ? {} : { rewardOptions: nextRewardOptions }),
     legalDropOffShipIds: nextLegalDropOffShipIds,
     commandReceipts: [...record.commandReceipts, {
       requestId: command.requestId,
@@ -447,6 +510,8 @@ export function projectAwayMissionPrivateState(
     opportunityId: record.lifecycle.assignments.find((assignment) => assignment.cardId === card.id)?.opportunityId ?? null,
   }));
   return {
+    ...(participantUid === record.lifecycle.leaderUid && record.rewardOptions ? { rewardOptions: record.rewardOptions, rewardChoices: record.rewardChoices ?? [] } : {}),
+    ...(participantUid === record.lifecycle.leaderUid ? { extraCardRecipientUids: record.lifecycle.participants.map(({ uid }) => uid) } : {}),
     assignmentCommitted: record.lifecycle.assignedParticipantUids.includes(participantUid),
     canUseReclamator: record.lifecycle.participants.find(({ uid }) => uid === participantUid)?.roleId === 'warrior-captain' &&
       record.participantCrafts.some((binding) => binding.participantUid === participantUid && binding.craftIds.includes('warrior')),
@@ -473,7 +538,10 @@ export function projectAwayMissionPublicState(
   const outcomes = record.status === 'active' || !record.outcomes
     ? null
     : record.outcomes.map(({ opportunityId, contributorCount, total, bonusTotal, difficulty, criticalThreshold, outcome }) => ({
-      opportunityId, contributorCount, total, bonusTotal, difficulty, criticalThreshold, outcome,
+      opportunityId, contributorCount, total, bonusTotal,
+      difficulty: record.lifecycle.siteCode === 'K' ? null : difficulty,
+      criticalThreshold: record.lifecycle.siteCode === 'K' ? null : criticalThreshold,
+      outcome,
     }));
   const rewards = record.status === 'active' ? null : record.rewards;
   return {
@@ -532,6 +600,7 @@ const COMMAND_KEYS: Readonly<Record<AwayMissionLifecycleCommand['type'], readonl
   addFacilitatorCards: ['type', 'requestId', 'expectedRevision'],
   resolve: ['type', 'requestId', 'expectedRevision'],
   exploreSystems: ['type', 'requestId', 'expectedRevision', 'opportunityId', 'targetCoordinates'],
+  chooseRewardTargets: ['type', 'requestId', 'expectedRevision', 'opportunityId', 'choice'],
   dropOff: ['type', 'requestId', 'expectedRevision', 'shipId'],
 };
 
@@ -546,6 +615,23 @@ function isValidRecord(value: unknown): value is AwayMissionLifecycleRecord {
     return false;
   }
   const lifecycle = value.lifecycle as MissionLifecycleState;
+  if ((value.resolutionRevision !== undefined || value.resolutionRequestId !== undefined) &&
+      (value.status === 'active' || !Number.isSafeInteger(value.resolutionRevision) || (value.resolutionRevision as number) < 1 ||
+        (value.resolutionRevision as number) > value.revision || !isNonEmptyString(value.resolutionRequestId) ||
+        !value.commandReceipts.some(receipt => isRecord(receipt) && receipt.requestId === value.resolutionRequestId))) return false;
+  if ((value.rewardOptions !== undefined || value.rewardChoices !== undefined) &&
+      !validMissionRewardChoiceProjection(value.rewardOptions, value.rewardChoices)) return false;
+  if (value.rewardChoices !== undefined) {
+    if (!Array.isArray(value.rewardChoices)) return false;
+    const choices = new Set<string>();
+    for (const selection of value.rewardChoices) {
+      if (!isRecord(selection) || Object.keys(selection).length !== 2 || !isNonEmptyString(selection.opportunityId) || choices.has(selection.opportunityId) ||
+          !Array.isArray(value.rewards)) return false;
+      const reward = (value.rewards as unknown as MissionOpportunityRewardResult[]).find(reward => reward.opportunityId === selection.opportunityId);
+      if (!reward || !validMissionRewardChoice(reward, selection.choice)) return false;
+      choices.add(selection.opportunityId);
+    }
+  }
   const leaderUid = lifecycle.leaderUid;
   const definition = missionCardForCode(lifecycle.siteCode);
   if (!definition || !isRecord(value.custody) || value.custody.holderUid !== leaderUid ||
@@ -573,6 +659,16 @@ function isValidRecord(value: unknown): value is AwayMissionLifecycleRecord {
     craftBindings.set(binding.participantUid, binding.craftIds as string[]);
   }
 
+  if (value.boaReclamation !== undefined) {
+    const reclamation = value.boaReclamation;
+    if (!isRecord(reclamation) || Object.keys(reclamation).length !== 2 ||
+        !isNonEmptyString(reclamation.actorUid) || !isNonEmptyString(reclamation.opportunityId) ||
+        !definition.opportunities.some(({ id }) => id === reclamation.opportunityId) ||
+        !lifecycle.availableCarrierCraftIds.includes('boa') ||
+        lifecycle.participants.find(({ uid }) => uid === reclamation.actorUid)?.roleId !== 'capybara-recycler' ||
+        !craftBindings.get(reclamation.actorUid)?.includes('boa')) return false;
+  }
+
   const receiptIds = new Set<string>();
   for (const receipt of value.commandReceipts) {
     if (!isRecord(receipt) || !isNonEmptyString(receipt.requestId) || !isNonEmptyString(receipt.actorUid) ||
@@ -583,11 +679,15 @@ function isValidRecord(value: unknown): value is AwayMissionLifecycleRecord {
   }
 
   const salvageByUid = new Map<string, AwayMissionReclamatorSalvage>();
+  const salvagedOpportunities = new Set<string>();
   for (const salvage of value.reclamatorSalvages) {
     if (!isRecord(salvage) || !isNonEmptyString(salvage.participantUid) ||
         salvageByUid.has(salvage.participantUid) || !participantIds.has(salvage.participantUid) ||
         lifecycle.participants.find(({ uid }) => uid === salvage.participantUid)?.roleId !== 'warrior-captain' ||
-        !craftBindings.get(salvage.participantUid)?.includes('warrior')) return false;
+        !craftBindings.get(salvage.participantUid)?.includes('warrior') ||
+        typeof salvage.opportunityId !== 'string' || salvagedOpportunities.has(salvage.opportunityId) ||
+        lifecycle.assignments.some(assignment => assignment.opportunityId === salvage.opportunityId)) return false;
+    salvagedOpportunities.add(salvage.opportunityId);
     const privateHand = privateMissionHandForParticipant(lifecycle, salvage.participantUid);
     if (!privateHand) return false;
     const salvaged = resolveWarriorReclamatorHand({
@@ -605,6 +705,8 @@ function isValidRecord(value: unknown): value is AwayMissionLifecycleRecord {
         stableStringify(salvage.resources) !== stableStringify(salvaged.resources)) return false;
     salvageByUid.set(salvage.participantUid, salvage as unknown as AwayMissionReclamatorSalvage);
   }
+  if (lifecycle.reclamatorOpportunityClaims?.some(claim =>
+      salvageByUid.get(claim.participantUid)?.opportunityId !== claim.opportunityId)) return false;
   if (salvageByUid.size !== lifecycle.reclamatorParticipantUids.length ||
       lifecycle.reclamatorParticipantUids.some((uid) => !salvageByUid.has(uid))) return false;
 

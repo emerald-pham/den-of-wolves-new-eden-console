@@ -39,9 +39,9 @@ function LocationProbe() {
   return <div aria-label="Current route">{useLocation().pathname}</div>;
 }
 
-function renderLanding() {
+function renderLanding(initialEntries: string[] = ['/']) {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={initialEntries}>
       <AppHeader />
       <Landing />
       <LocationProbe />
@@ -202,6 +202,14 @@ describe('Landing', () => {
 
     expect(joinSession).toHaveBeenCalledWith('4821');
     await waitFor(() => expect(screen.getByLabelText('Current route')).toHaveTextContent('/console'));
+  });
+
+  it('prefills the ordinary join form from a shared session URL without joining automatically', () => {
+    renderLanding(['/?joinCode=4821']);
+
+    expect(screen.getByRole('textbox', { name: /session code/i })).toHaveValue('4821');
+    expect(joinSession).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /join a session/i })).toBeEnabled();
   });
 
   it('creates a session when asked', async () => {

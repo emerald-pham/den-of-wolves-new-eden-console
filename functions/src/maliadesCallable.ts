@@ -1,5 +1,6 @@
+import { auditedOnCall } from './securityCallable';
 import { FieldValue, getFirestore, type DocumentSnapshot, type Transaction } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError, } from 'firebase-functions/v2/https';
 import { boundCoreConsoleRole } from './consoleRolePolicy';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
 import { commandError } from './commandErrors';
@@ -10,7 +11,7 @@ import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import { isPresenceStale } from './sessionLifecycle';
 import { parseShuttleControl } from './shuttleControl';
 import { shuttleDockingsAreParked } from './craftOwnership';
-import { turnPhaseState } from './turnZero';
+import { turnPhaseDeadlinePassed, turnPhaseState } from './turnZero';
 import { serviceRechargeDamageState, serviceRechargeResourceState } from './serviceShuttleRecharge';
 import { isResourceShipId } from './resources';
 import { SHIP_DAMAGE_DECKS } from './shipDamage';
@@ -20,6 +21,7 @@ import {
   type MaliadesMediumChoice,
 } from './maliadesState';
 import { requirePursuitEmergencyWindowAbsent } from './pursuitEmergencyWindow';
+import { requireCandidateCraftActionAvailable } from './candidateAvailability';
 
 type RecordValue = Record<string, unknown>;
 
@@ -197,13 +199,13 @@ async function runMaliadesRangeAction(
   );
 }
 
-export const resolveMaliadesMedium = onCall(CALLABLE_RUNTIME_OPTIONS, async request =>
+export const resolveMaliadesMedium = auditedOnCall('resolveMaliadesMedium', CALLABLE_RUNTIME_OPTIONS, async request =>
   runMaliadesRangeAction(request, 'medium'));
 
-export const resolveMaliadesShort = onCall(CALLABLE_RUNTIME_OPTIONS, async request =>
+export const resolveMaliadesShort = auditedOnCall('resolveMaliadesShort', CALLABLE_RUNTIME_OPTIONS, async request =>
   runMaliadesRangeAction(request, 'short'));
 
-export const repairMaliades = onCall(CALLABLE_RUNTIME_OPTIONS, async request => {
+export const repairMaliades = auditedOnCall('repairMaliades', CALLABLE_RUNTIME_OPTIONS, async request => {
   const uid = requireUid(request.auth);
   const command = exactCommandRequest(request.data, 'repair');
   const fingerprint = fingerprintFor('maliades-repair', uid, command);
@@ -220,6 +222,7 @@ export const repairMaliades = onCall(CALLABLE_RUNTIME_OPTIONS, async request => 
     requireDioneEngineer(actor, uid);
     const prior = replay(receipt, fingerprint, 'Maliades repair', (value): value is RecordValue => isActionReply(value, fingerprint));
     if (prior) return resultWithReplay(prior);
+    requireCandidateCraftActionAvailable(session, ['maliades'], ['dione']);
     requirePursuitEmergencyWindowAbsent(session);
     if (event.exists) throw new HttpsError('failed-precondition', 'This Maliades repair request already has an event receipt.');
     const currentCycle = session.get('currentTurn');
@@ -227,9 +230,8 @@ export const repairMaliades = onCall(CALLABLE_RUNTIME_OPTIONS, async request => 
       throw commandError('failed-precondition', 'The authoritative Maliades repair state is unavailable.', 'conflict');
     }
     const phase = turnPhaseState(session.get('turnPhase'));
-    const teamEnds = phase ? Date.parse(phase.teamPhaseEndsAt) : Number.NaN;
     if (!phase || phase.turn !== currentCycle || phase.airspace.state !== 'restricted' ||
-        !Number.isFinite(teamEnds) || Date.now() >= teamEnds) {
+        turnPhaseDeadlinePassed(phase, 'team')) {
       throw commandError('failed-precondition', 'Maliades repair is available only during the live Team Phase.', 'invalid-phase');
     }
     requireMaliadesControl(session, uid);

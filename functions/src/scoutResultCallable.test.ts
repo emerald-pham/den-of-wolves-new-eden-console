@@ -91,6 +91,19 @@ beforeEach(() => {
 });
 
 describe('private scout result callables', () => {
+  it('uses the existing configuration lock for normal GM recovery and exact result replay', async () => {
+    put('sessions/session-1', { ...mock.documents.get('sessions/session-1'),
+      chartSelectionLocked: false, configurationLocked: true });
+    const data = { sessionId: 'session-1', requestId: 'scan-1', instanceId: 'gm-browser' };
+    const first = await resolvePendingScoutRequest.run(callableRequest(data, 'gm-1'));
+    expect(first).toMatchObject({ status: 'resolved', result: { requesterUid: 'scientist-1' } });
+    vi.advanceTimersByTime(10_000);
+    const second = await resolvePendingScoutRequest.run(callableRequest(data, 'gm-1'));
+    expect(second).toMatchObject({ status: 'replayed', result: first.result });
+    expect(commitMapKnowledge).toHaveBeenCalledTimes(1);
+    expect(mock.create).toHaveBeenCalledTimes(4);
+  });
+
   it('commits a single result, note, audit and hidden Nebula marker without editing the pending request', async () => {
     const data = { sessionId: 'session-1', requestId: 'scan-1', instanceId: 'gm-browser' };
     const reply = await resolvePendingScoutRequest.run(callableRequest(data, 'gm-1'));

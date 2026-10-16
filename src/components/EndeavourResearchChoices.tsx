@@ -54,6 +54,9 @@ export default function EndeavourResearchChoices({
       <p>Private Scientist workspace // Endeavour Team research</p>
       <p>Cycle choices: {standardUsed} of 3 standard; {oreUsed} of 2 additional.</p>
       {workspace && <p>Shepherd // {workspace.shepherdOre} ore available</p>}
+      {workspace && <p>Research choice cost // Standard research: 0 Shepherd ore.
+        {' '}Additional research: 5 Shepherd ore. Materials pay for later field upgrades or device purchases,
+        not the research choice.</p>}
       {!liveTeamPhase && workspace && <p>Research choices are available during the live Team Phase.</p>}
       {notice && <p role="status">{notice}</p>}
       {error && <p role="alert">{error}</p>}
@@ -70,7 +73,9 @@ export default function EndeavourResearchChoices({
               : 'Available for a research choice.';
           return <li key={track.trackId}>
             {track.name}: {track.crossedBoxes} of {track.totalBoxes} boxes crossed;{' '}
-            {track.complete ? 'no further field-upgrade cost. ' : `next field-upgrade cost is ${track.currentMaterialCost} materials. `}
+            {track.currentMaterialCost === null ? 'purchase unavailable. '
+              : track.complete ? `current purchase cost is ${track.currentMaterialCost} materials. `
+                : `next field-upgrade cost is ${track.currentMaterialCost} materials. `}
             {status}
           </li>;
         })}
@@ -92,8 +97,9 @@ export default function EndeavourResearchChoices({
         </select>
       </label>
       {selectedTrack && <p>
-        Cross the left-most research box for {selectedTrack.name}. Its next field-upgrade cost is
-        {' '}{selectedTrack.currentMaterialCost} materials.
+        Cross the left-most remaining research box for {selectedTrack.name}.
+        {' '}{selectedTrack.currentMaterialCost === null ? 'Purchase becomes available after more research.'
+          : `Its current purchase cost is ${selectedTrack.currentMaterialCost} materials.`}
       </p>}
       <div className="console-workspace__actions">
         <button type="button" className="cic-action-button" disabled={standardDisabled}

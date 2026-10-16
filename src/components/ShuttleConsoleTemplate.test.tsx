@@ -17,6 +17,7 @@ vi.mock('./PressConfetti', () => ({ default: () => <section aria-label="Newspape
 vi.mock('./PressDispatch', () => ({ default: () => <section aria-label="Press dispatch desk" /> }));
 vi.mock('./MacawRepairPanel', () => ({ default: () => <section aria-label="Macaw repair controls" /> }));
 vi.mock('./BoaRecyclingPanel', () => ({ default: () => <section aria-label="Boa recycling controls" /> }));
+vi.mock('./BoaMissionReclamationPanel', () => ({ default: () => <section aria-label="Boa mission reclamation controls" /> }));
 vi.mock('@/components/WolfAttackAftermathActionPanel', () => ({
   default: ({ operator }: { operator: { shuttleId: string } }) => <section aria-label={`${operator.shuttleId} aftermath controls`} />,
 }));
@@ -94,6 +95,17 @@ it.each(['macaw', 'boa'] as const)('mounts %s aftermath Scrap collection only in
   /></MemoryRouter>);
 
   expect(await screen.findByRole('region', { name: `${id} aftermath controls` })).toBeInTheDocument();
+});
+
+it('mounts Boa’s mission reclamation workspace only for the live current holder', () => {
+  const shuttle = SHUTTLECRAFT.find((craft) => craft.id === 'boa')!;
+  const control = { shuttleId: 'boa', ownerRoleId: 'capybara-recycler', holderUid: 'holder', revision: 1 } as never;
+  const { rerender } = render(<MemoryRouter><ShuttleConsoleTemplate shuttle={shuttle}
+    captainName="Capybara Recycler" canLeave={false} control={control} /></MemoryRouter>);
+  expect(screen.getByRole('region', { name: 'Boa mission reclamation controls' })).toBeInTheDocument();
+  rerender(<MemoryRouter><ShuttleConsoleTemplate shuttle={shuttle}
+    captainName="Capybara Recycler" canLeave={false} /></MemoryRouter>);
+  expect(screen.queryByRole('region', { name: 'Boa mission reclamation controls' })).not.toBeInTheDocument();
 });
 
 it('renders a presentation-only shuttle control snapshot without mounting live controls', () => {

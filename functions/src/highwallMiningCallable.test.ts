@@ -1,8 +1,9 @@
+import type * as NodeCrypto from 'node:crypto';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
 const cryptoMock = vi.hoisted(() => ({ randomInt: vi.fn(), randomUUID: vi.fn() }));
-vi.mock('node:crypto', () => cryptoMock);
+vi.mock('node:crypto', async (importOriginal) => ({ ...await importOriginal<typeof NodeCrypto>(), ...(cryptoMock) }));
 
 type Fields = Record<string, unknown>;
 const mock = vi.hoisted(() => {
@@ -36,7 +37,7 @@ vi.mock('firebase-admin/firestore', () => ({
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
 vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error { constructor(readonly code: string, message: string) { super(message); } },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 vi.mock('firebase-functions/v2/scheduler', () => ({ onSchedule: (_s: string, h: (event: unknown) => unknown) => ({ run: h }) }));
 
@@ -342,6 +343,15 @@ it('allows two standard operations and requires fuel for the third', async () =>
   await expect(runHighwallMining.run(request({
     ...command, requestId: 'mine-3', expectedRevision: 2,
   }))).resolves.toMatchObject({ revision: 3 });
+});
+
+it.each([null, [], 'fuelled', { highwall: 'yes' }])('rejects an explicitly malformed fuel ledger %j before rolling or writing', async fuelled => {
+  mock.documents.get('sessions/s1')!.shuttleFuelled = fuelled;
+  await expect(runHighwallMining.run(request(command))).rejects.toMatchObject({
+    code: 'failed-precondition', message: 'Highwall fuel state is unavailable.',
+  });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
 });
 
 it.each([

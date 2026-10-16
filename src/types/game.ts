@@ -1,3 +1,7 @@
+import type { UnassignedCraftHostLoss } from '../../functions/src/shipDestruction';
+import type { LostShuttleEntry } from '../../functions/src/lostShuttles';
+import type { PlayerRemovalEvent } from '../../functions/src/playerRemovalEvent';
+export type PlayerRemovalLogEntry = PlayerRemovalEvent & { readonly id: string };
 import type { AwayMissionPublicState } from '../lib/awayMissionLifecycleService';
 import type { MaliadesOperationalView } from '../../functions/src/maliadesOperationalView';
 /**
@@ -464,6 +468,8 @@ export interface SmallShipState {
   readonly unrest: number;
   readonly mutiny?: ShipMutinyState;
   readonly cycle: SmallShipMaintenanceCycle;
+  readonly everAssigned?: boolean;
+  readonly loss?: UnassignedCraftHostLoss;
 }
 
 /** Public six-resource cargo ledger for the admitted base small-ship Capybara. */
@@ -538,7 +544,7 @@ export interface FleetTickerState {
 
 /** Facilitator-only marker for the approximate first Wolf-attack window. */
 export type WolfAttackWindowStatus = 'due' | 'resolved' | 'deferred';
-export type WolfAttackThreatSiteCode = 'L' | 'M' | 'P' | 'commander';
+export type WolfAttackThreatSiteCode = 'K' | 'L' | 'M' | 'P' | 'commander';
 
 export interface WolfAttackWindow {
   readonly status: WolfAttackWindowStatus;
@@ -793,7 +799,7 @@ export interface WolfRangeActionChoiceResult {
   readonly hitSlots: readonly Readonly<{ actionId: string; count: number; damagePerHit?: number }>[];
 }
 
-export type WolfRangeSupportSourceId = 'highwall' | 'gorgoneion-missile-array' | 'boa';
+export type WolfRangeSupportSourceId = 'highwall' | 'gorgoneion-missile-array' | 'vulcan-laser-cannon' | 'boa';
 
 export interface WolfRangeSupportActionChoiceView {
   readonly type: 'wolf-range-support-action-choice-view';
@@ -950,7 +956,7 @@ export type WolfBoardingSpecialChoiceView = Readonly<{
         alreadyRerolled: readonly Readonly<{ targetShipId: WolfAttackTargetId; dieIndex: number }>[];
         maxRerolls: 3 }>
     | Readonly<{ kind: 'commander-ruling'; targetShipId: WolfAttackTargetId;
-        condition: 'All Commander-led Wolf Boarding Parties were destroyed.' }>;
+        condition: 'HOUSE RULE: The optional +2 Commander boarding request remains pending until the current live GM records the consequence for what happens if all Commander-led Wolf Boarding Parties are destroyed. No automatic consequence or default outcome is assumed.' }>;
 }>;
 
 export type WolfBoardingSpecialChoiceReadResult = WolfBoardingSpecialChoiceView | Readonly<{
@@ -1188,6 +1194,8 @@ export interface TurnPhase {
   };
   /** Present during a GM emergency hold or an automatic empty-session hold. */
   readonly timerPause?: TurnTimerPause;
+  /** Explicit full-game demo policy; every phase transition is facilitator-driven. */
+  readonly progression?: 'manual';
 }
 
 /** One complete server-owned turn entity, retained beside legacy clock fields. */
@@ -1335,7 +1343,15 @@ export interface TotalFleetLossOutcome {
   readonly occurredAt: Timestamp;
 }
 
-export type GameOutcome = PursuitFailureOutcome | TotalFleetLossOutcome;
+export interface CandidateSuccessOutcome {
+  readonly type: 'game-outcome';
+  readonly result: 'success';
+  readonly cause: 'candidate-complete';
+  readonly candidateCode: NewEdenCandidateCode;
+  readonly cycle: number;
+  readonly occurredAt: Timestamp;
+}
+export type GameOutcome = PursuitFailureOutcome | TotalFleetLossOutcome | CandidateSuccessOutcome;
 
 /** Public server-owned custody of a printed shuttle. */
 export interface ShuttleControlEntry {
@@ -1558,6 +1574,49 @@ export interface SurvivorOutcome {
   readonly lostOrDestroyedShipIds: readonly VesselId[];
 }
 
+export interface CandidateDebriefPathStep {
+  readonly action: 'ring-repair' | 'ring-passage' | 'sabotage-ring' | 'nebula-jump' |
+    'station-liberation' | 'contribute-reactor' | 'station-activation';
+  readonly result: 'completed' | 'crossed' | 'reached' | 'lost' | 'left-behind' | 'activated';
+  readonly shipId?: VesselId;
+  readonly fuelSpent?: number;
+  readonly capacity?: number;
+}
+
+/** Entitled, immutable explanation shown after the shared terminal freeze. */
+export interface SessionDebriefSnapshot {
+  readonly type: 'session-debrief';
+  readonly version: 1;
+  readonly source: 'candidate' | 'final-cycle' | 'failure-review';
+  readonly result: 'success' | 'failure' | 'completed';
+  readonly cause: 'candidate-complete' | 'pursuit-limit' | 'total-fleet-loss' | 'final-cycle';
+  readonly cycle: number;
+  readonly occurredAt: Timestamp;
+  readonly committedAt: Timestamp;
+  readonly outcome?: {
+    readonly type: 'game-outcome';
+    readonly result: 'success' | 'failure';
+    readonly cause: 'candidate-complete' | 'pursuit-limit' | 'total-fleet-loss';
+    readonly candidateCode?: 'N' | 'O' | 'P';
+    readonly navigationRevision?: number;
+    readonly cycle: number;
+    readonly occurredAt: Timestamp;
+  };
+  readonly survivorOutcome?: SurvivorOutcome;
+  readonly candidate?: {
+    readonly code: 'N' | 'O' | 'P';
+    readonly groups: readonly {
+      /** Present only in the private live-GM projection. */
+      readonly groupId?: string;
+      readonly requirements: readonly { readonly id: string; readonly status: 'met' | 'unmet' }[];
+      readonly rolls: readonly { readonly id: string; readonly face?: number; readonly result: 'success' | 'failure' }[];
+      readonly losses: readonly { readonly shipId: VesselId; readonly reason: string }[];
+      readonly humanCalls: readonly { readonly id: string; readonly cycle: number }[];
+      readonly path?: readonly CandidateDebriefPathStep[];
+    }[];
+  };
+}
+
 /** Server-authored member view of the PDF Escort Wing's current state. */
 export interface PdfEscortWingMemberView {
   readonly type: 'pdf-escort-fighter-wing-view';
@@ -1571,9 +1630,34 @@ export interface PdfEscortWingMemberView {
   readonly shortResolved: boolean;
   readonly shortRollCount: number;
   readonly losses: number;
+  readonly hostLoss?: UnassignedCraftHostLoss;
+}
+
+/** Ephemeral own-actor witness from the existing atomic member read only. */
+export interface CurrentActorBerthAuthority {
+  readonly sessionId: SessionId;
+  readonly actorUid: PlayerId;
+  readonly groupId: GroupId;
+  readonly role: 'player';
+  readonly connectionGeneration: number;
+  readonly assignedRoleId: RoleId | null;
+  readonly activeConsoleRoleId: RoleId | null;
+  readonly replacementRoleId: RoleId | null;
+  readonly replacementStatus: null;
+  readonly shipId: VesselId;
+}
+
+export interface AwayMissionProjectionSafetyFacts {
+  readonly policyVersion: 1;
+  readonly epoch: number;
+  readonly state: 'held' | 'ready';
 }
 
 export interface GameSession {
+  readonly awayMissionProjectionSafety?: AwayMissionProjectionSafetyFacts | null;
+  /** Private live-read authority; never sourced from a session document or cache.
+   * Present null withdraws current-berth navigation without legacy fallback. */
+  readonly currentActorBerthAuthority?: CurrentActorBerthAuthority | null;
   /** Server-filtered current read; legacy defaults must not widen this operational subset. */
   readonly memberSessionScope?: { readonly groupId: string; readonly vesselIds: readonly string[]; readonly craftIds: readonly string[] };
   readonly fleetPartitionRevision?: number;
@@ -1581,6 +1665,11 @@ export interface GameSession {
   readonly singlePlayerDemo?: {
     readonly status: 'active' | 'complete';
     readonly finalCycle: 1;
+  };
+  /** Server-controlled preparation/progression marker for the full-game Demo. */
+  readonly fullGameDemo?: {
+    readonly status: 'preparing' | 'active' | 'complete';
+    readonly progression: 'manual';
   };
   /** Shared game turn advanced by an active GM; new sessions begin at Turn 0. */
   readonly currentTurn?: number;
@@ -1620,6 +1709,7 @@ export interface GameSession {
   };
   readonly gameOutcome?: GameOutcome;
   readonly survivorOutcome?: SurvivorOutcome;
+  readonly debriefSnapshot?: SessionDebriefSnapshot;
   readonly pressDispatch?: PressDispatchState;
   readonly fleetTicker?: FleetTickerState;
   readonly maintenanceCycles?: Readonly<Record<string, MaintenanceCycle>>;
@@ -1627,6 +1717,7 @@ export interface GameSession {
   readonly smallShipStates?: Readonly<Partial<Record<SmallShipId, SmallShipState>>>;
   /** Visible only while the canonical base Capybara has valid server admission. */
   readonly baseCapybaraCargo?: BaseCapybaraCargoState;
+  readonly warriorCargo?: BaseCapybaraCargoState;
   readonly shuttleCargo?: Readonly<Record<string, Readonly<Record<string, number>>>>;
   readonly shuttleFuelled?: Readonly<Record<string, boolean>>;
   readonly shuttleControl?: Readonly<Record<string, ShuttleControlEntry>>;
@@ -1645,6 +1736,7 @@ export interface GameSession {
   readonly maliadesState?: MaliadesStateRecord | MaliadesOperationalView;
   readonly highwallMining?: HighwallMiningState;
   readonly retainedShuttles?: Readonly<Record<string, RetainedShuttleEntry>>;
+  readonly lostShuttles?: Readonly<Record<string, LostShuttleEntry>>;
   readonly quarantineDocking?: QuarantineDockingState;
   readonly shipUpgrades?: Readonly<Record<string, readonly string[]>>;
   readonly shipSurvivors?: Readonly<Record<string, number>>;
@@ -1807,6 +1899,8 @@ export interface RoleOwnedCraftRecord {
 export interface PrivateLoyalty {
   readonly kind: string;
   readonly suspicion: number | null;
+  /** Server-authored goals and private overrides from this holder's secret payload. */
+  readonly directives?: readonly string[];
   readonly partnerUid?: PlayerId;
   /** Server-authored role named by a reciprocal Friend card. */
   readonly partnerRoleId?: RoleId;
@@ -1950,6 +2044,7 @@ export interface ArrestPosseOutcome {
   readonly presentPlayers: number;
   readonly outcome: 'arrested' | 'not-arrested';
   readonly deadlineCycle?: number;
+  readonly attendanceEvidence?: 'simulated-demo';
 }
 
 /** Investigator-only detector result; hidden loyalty and accuracy never appear here. */
@@ -1987,6 +2082,7 @@ export interface ArrestCase {
   readonly requiredPlayers: number;
   readonly presentPlayers: number;
   readonly deadlineCycle?: number;
+  readonly attendanceEvidence?: 'simulated-demo';
   readonly ruling?: string;
   readonly requestId?: string;
   readonly updatedAt?: string;
@@ -2349,6 +2445,8 @@ export interface Player {
   readonly activeConsoleRoleId?: RoleId | null;
   /** Server-owned group identity used to scope the current operational roster; group documents remain private. */
   readonly fleetGroupId?: GroupId | null;
+  /** Member-safe physical availability; detailed authority remains server-only. */
+  readonly candidateDisposition?: { readonly code: NewEdenCandidateCode; readonly outcome: string; readonly cycle: number };
   readonly escapeState?: PlayerEscapeState;
   readonly joinedAt: Timestamp;
 }

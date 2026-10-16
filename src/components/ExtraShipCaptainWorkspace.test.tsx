@@ -9,6 +9,13 @@ vi.mock('@/lib/smallShipJumpService', () => ({
   jumpSmallShip: vi.fn(),
   chargeSmallShipJumpDrive: vi.fn(),
 }));
+vi.mock('@/components/BaseCapybaraCargoTransferPanel', () => ({
+  default: () => <section aria-label="Capybara cargo controller" />,
+  SmallShipCargoTransferPanel: ({ smallShipId }: { smallShipId: string }) => <section aria-label={`${smallShipId} cargo controller`} />,
+}));
+vi.mock('@/components/WolfRangeSupportActionPanel', () => ({
+  default: ({ sourceId, range }: { sourceId: string; range: string }) => <section aria-label={`${sourceId} ${range} controller`} />,
+}));
 vi.mock('@/components/WolfAttackAftermathActionPanel', () => ({
   default: ({ operator }: { operator: string }) => <section aria-label={`${operator} aftermath controls`} />,
 }));
@@ -31,7 +38,7 @@ const baseSession = {
   },
 } as GameSession;
 
-function installCaptain(roleId: 'gorgoneion-captain' | 'capybara-small-captain' | 'warrior-captain', session = baseSession) {
+function installCaptain(roleId: 'gorgoneion-captain' | 'capybara-small-captain' | 'warrior-captain' | 'vulcan-captain', session = baseSession) {
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity(session, {
     uid: 'captain-1', sessionId: session.id, displayName: 'Captain', role: 'player', seatId: null,
@@ -53,6 +60,22 @@ beforeEach(() => {
 });
 
 describe('extra-ship Captain Jump Drive integration', () => {
+  it.each([['warrior-captain', 'warrior'], ['vulcan-captain', 'vulcan']] as const)(
+    'mounts the source-supported uncharged Jump Drive for %s', async (roleId, smallShipId) => {
+      installCaptain(roleId, { ...baseSession, smallShipStates: { [smallShipId]: {
+        id: smallShipId, hostShipId: 'aegis', dockingRevision: 1, population: 2000, unrest: 0,
+        cycle: { step: 0, revision: 1, results: {}, charges: [], turn: 4 },
+      } } } as GameSession);
+      vi.mocked(movementService.getSmallShipJumpWorkspace).mockResolvedValue({ viewer: 'captain',
+        sessionId: baseSession.id, smallShipId, hostShipId: 'aegis', currentCoordinate: '0000',
+        movementRevision: 0, dockingRevision: 1, cycleRevision: 1, cycleStep: 0, cycleTurn: 4,
+        currentTurn: 4, phase: 'coordination', charged: false, requiresCharge: false, hostFuel: 5,
+        knownDestinations: [], arrivalCoordinates: [] } as never);
+      render(<ExtraShipCaptainWorkspace roleId={roleId} />);
+      expect(await screen.findByRole('region', { name: 'Small-craft Jump Drive workspace' })).toBeInTheDocument();
+      expect(movementService.getSmallShipJumpWorkspace).toHaveBeenCalledWith(smallShipId);
+      expect(screen.queryByRole('button', { name: 'Charge Jump Drive' })).not.toBeInTheDocument();
+    });
   it('mounts the authenticated Warrior aftermath action beside ordinary repair controls', async () => {
     installCaptain('warrior-captain', {
       ...baseSession,
@@ -88,4 +111,16 @@ describe('extra-ship Captain Jump Drive integration', () => {
     expect(screen.queryByRole('region', { name: 'Small-craft Jump Drive workspace' })).not.toBeInTheDocument();
     expect(movementService.getSmallShipJumpWorkspace).not.toHaveBeenCalled();
   });
+});
+
+it('mounts Warrior cargo and only the two printed Vulcan range choices', () => {
+  installCaptain('warrior-captain');
+  const view = render(<ExtraShipCaptainWorkspace roleId="warrior-captain" />);
+  expect(screen.getByRole('region', { name: 'warrior cargo controller' })).toBeInTheDocument();
+  view.unmount();
+  installCaptain('vulcan-captain');
+  render(<ExtraShipCaptainWorkspace roleId="vulcan-captain" />);
+  expect(screen.getByRole('region', { name: 'vulcan-laser-cannon medium-range controller' })).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'vulcan-laser-cannon short-range controller' })).toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: 'vulcan-laser-cannon long-range controller' })).not.toBeInTheDocument();
 });

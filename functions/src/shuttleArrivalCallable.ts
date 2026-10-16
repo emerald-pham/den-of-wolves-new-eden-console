@@ -1,6 +1,8 @@
+import { requireCandidateCraftActionAvailable } from './candidateAvailability';
 import { randomUUID } from 'node:crypto';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError } from 'firebase-functions/v2/https';
+import { auditedOnCall } from './securityCallable';
 import { commandError } from './commandErrors';
 import {
   shuttleMovementConflictDetails,
@@ -20,8 +22,9 @@ import { ROLE_IDS, recommendedRoleIds } from './roleConfiguration';
 import { isPresenceStale } from './sessionLifecycle';
 import { parseShuttleControl } from './shuttleControl';
 import { parseShuttleArrivalVisitLog, completeShuttleArrival as applyShuttleArrival } from './shuttleArrival';
+import { acceptQuarantineDocking, parseQuarantineDockingState } from './quarantineDocking';
 import { parseShuttleTransitAuthority } from './shuttleTransit';
-import { turnPhaseState } from './turnZero';
+import { turnPhaseDeadlinePassed, turnPhaseState } from './turnZero';
 import { wolfAttackBlocksNormalMovement } from './wolfAttackDeclaration';
 import { ordinaryAirspaceClosureWindow } from './airspaceClosureTasks';
 
@@ -150,12 +153,12 @@ function replayArrival(
 
 /** Complete one reached shuttle trip and publish only its docking/history result. */
 export function createCompleteShuttleArrivalCallable() {
-  return onCall<{
+  return auditedOnCall<{
   sessionId?: unknown;
   shuttleId?: unknown;
   transitRequestId?: unknown;
   expectedControlRevision?: unknown;
-  }>(async request => {
+  }>('completeShuttleArrival', async request => {
   const uid = request.auth?.uid;
   if (!uid) throw commandError('unauthenticated', 'Sign in before completing shuttle arrival.', 'unauthenticated');
   const raw = request.data;
@@ -225,6 +228,7 @@ export function createCompleteShuttleArrivalCallable() {
       }
       return { ...replay, status: 'replayed' as const };
     }
+    requireCandidateCraftActionAvailable(session, [data.shuttleId]);
     if (eventSnapshot.exists) {
       throw commandError('failed-precondition', 'The shuttle arrival event already exists without its receipt.', 'conflict');
     }
@@ -241,6 +245,7 @@ export function createCompleteShuttleArrivalCallable() {
       )
       : null;
     const transit = authority?.transit;
+    if (transit) requireCandidateCraftActionAvailable(session, [data.shuttleId], [transit.originShipId, transit.destinationShipId]);
     const actorGroupId = actor.get('fleetGroupId');
     if (!transit || transit.transitRequestId !== data.transitRequestId) {
       throw shuttleMovementConflictErrorForArrival({
@@ -281,7 +286,7 @@ export function createCompleteShuttleArrivalCallable() {
       throw commandError('failed-precondition', 'The authoritative shuttle arrival state is unavailable.', 'conflict');
     }
     if (ordinaryAirspaceClosureWindow(phase) && phase.timerPause === undefined &&
-        now >= Date.parse(phase.openAirspaceEndsAt)) {
+        turnPhaseDeadlinePassed(phase, 'open', now)) {
       throw commandError(
         'failed-precondition',
         'The ordinary airspace deadline has passed. Wait for the live shuttle parking update.',
@@ -313,6 +318,29 @@ export function createCompleteShuttleArrivalCallable() {
       throw commandError(
         'failed-precondition',
         cause instanceof Error ? cause.message : 'Shuttle arrival was rejected.',
+        'conflict',
+      );
+    }
+    const rawQuarantine = session.get('quarantineDocking');
+    const quarantine = parseQuarantineDockingState(rawQuarantine);
+    if (rawQuarantine !== undefined && !quarantine) {
+      throw commandError('failed-precondition', 'The quarantine docking state is malformed.', 'conflict');
+    }
+    let nextQuarantine = quarantine;
+    try {
+      nextQuarantine = acceptQuarantineDocking({
+        state: quarantine,
+        previousHostShipId: transit.originShipId,
+        hostShipId: arrival.result.hostShipId,
+        shuttleId: data.shuttleId,
+        cycle: currentCycle as number,
+        requestId,
+        acceptedAt: arrival.result.arrivedAt,
+      });
+    } catch (cause) {
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'Quarantine docking was rejected.',
         'conflict',
       );
     }
@@ -351,6 +379,7 @@ export function createCompleteShuttleArrivalCallable() {
     tx.update(sessionRef, {
       shuttleDockings: arrival.dockings,
       shuttleVisitLog: arrival.visitLog,
+      ...(nextQuarantine !== quarantine ? { quarantineDocking: nextQuarantine } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
     tx.delete(transitRef);

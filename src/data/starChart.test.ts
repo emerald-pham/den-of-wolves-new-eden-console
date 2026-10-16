@@ -7,11 +7,16 @@ import {
   siteForCoordinate,
   systemForCoordinate,
 } from './starChart';
+import {
+  STAR_CHART_CONNECTIONS as OPAQUE_STAR_CHART_CONNECTIONS,
+  STAR_CHART_SYSTEMS as OPAQUE_STAR_CHART_SYSTEMS,
+} from './starChartTopology';
 
 describe('the printed star chart', () => {
-  it('keeps the 22 visible systems and their reciprocal 40-link jump network', () => {
+  it('keeps the 22 visible systems and their reciprocal 41-link jump network', () => {
     expect(STAR_CHART_SYSTEMS).toHaveLength(22);
-    expect(STAR_CHART_CONNECTIONS).toHaveLength(40);
+    // The original A4 single-sided chart adds its direct 5143–1413 edge (physical PDF pages 28–30).
+    expect(STAR_CHART_CONNECTIONS).toHaveLength(41);
     expect(new Set(STAR_CHART_SYSTEMS.map((system) => system.coordinate)).size).toBe(22);
 
     for (const [from, to] of STAR_CHART_CONNECTIONS) {
@@ -46,6 +51,16 @@ describe('the printed star chart', () => {
   });
 });
 
+
+it('preserves the printed 5143–1413 edge in the opaque browser topology', () => {
+  const from = OPAQUE_STAR_CHART_SYSTEMS.find((system) => system.id === 'system-02');
+  const to = OPAQUE_STAR_CHART_SYSTEMS.find((system) => system.id === 'system-03');
+
+  expect.soft(OPAQUE_STAR_CHART_CONNECTIONS).toHaveLength(41);
+  expect.soft(OPAQUE_STAR_CHART_CONNECTIONS).toContainEqual(['system-02', 'system-03']);
+  expect.soft(from?.neighbors).toContain('system-03');
+  expect.soft(to?.neighbors).toContain('system-02');
+});
 
 it('resolves every source-listed coordinate and title on all three selected charts', () => {
   const expectedCodes = {

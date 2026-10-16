@@ -80,6 +80,30 @@ describe('useSessionStore', () => {
     expect(saved.state).not.toHaveProperty('persistedSessionSnapshot');
   });
 
+  it('keeps the committed debrief available in memory but out of persisted and legacy session state', async () => {
+    const debriefSnapshot = {
+      type: 'session-debrief', version: 1, source: 'failure-review', result: 'failure',
+      cause: 'total-fleet-loss', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+      committedAt: '2026-10-05T12:01:00.000Z',
+      outcome: { type: 'game-outcome', result: 'failure', cause: 'total-fleet-loss',
+        cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' },
+    };
+    const closed = { ...session, phase: 'closed' as const, debriefSnapshot } as never;
+    useSessionStore.getState().setSession(closed);
+
+    expect(useSessionStore.getState().session?.debriefSnapshot).toEqual(debriefSnapshot);
+    expect(JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY)!).state.session).not.toHaveProperty('debriefSnapshot');
+
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ version: 1, state: {
+      session: closed, me: { ...player, connected: false }, gmInstance: null,
+      mode: 'console', lastRoute: '/console',
+    } }));
+    await useSessionStore.persist.rehydrate();
+
+    expect(useSessionStore.getState().session).toMatchObject({ id: 's1', phase: 'closed' });
+    expect(useSessionStore.getState().session).not.toHaveProperty('debriefSnapshot');
+  });
+
   it.each([false, true])('does not persist private navigation state from a previous UID (own ship: %s)', async (hasOwn) => {
     const own = {
       groupId: 'fleet-1', shipId: 'aegis', currentCoordinate: '0000',
@@ -170,6 +194,35 @@ describe('useSessionStore', () => {
     useSessionStore.getState().setVoyage33MovementProjection(undefined, true);
     expect(useSessionStore.getState().session?.voyage33Movement).toBeUndefined();
     expect(useSessionStore.getState().voyage33MovementProjectionFresh).toBe(true);
+  });
+
+  it('cannot reattach a previously fresh movement during atomic casting privacy withdrawal', () => {
+    const scope = { groupId: 'fleet-1', vesselIds: ['aegis'], craftIds: [] };
+    const casting: GameSession = { ...session, phase: 'casting', currentTurn: 0, setupConfirmed: true,
+      memberSessionScope: scope };
+    const own = { groupId: 'fleet-1', shipId: 'aegis', currentCoordinate: '1413', knownCoordinates: ['1413'],
+      knownSystems: {}, pursuitDistance: 0, navigationLogs: [], revision: 1 };
+    // Retained projections can coexist in the previous state. The withdrawal
+    // must publish only one already stripped state, including the movement.
+    useSessionStore.setState({ session: { ...casting, playerDiscovery: own,
+      shipGalacticCoordinates: { aegis: '1413' }, shipNavigationLogs: { aegis: [] },
+      currentGroupCandidateReveals: { groupId: 'fleet-1', revision: 1, candidateReveals: [] },
+      voyage33Movement: { id: 'voyage-33-0', coordinate: '1413', revision: 1, jumpState: {} } },
+      voyage33MovementProjectionFresh: true });
+    const published: GameSession[] = [];
+    const stop = useSessionStore.subscribe(state => { if (state.session) published.push(state.session); });
+    useSessionStore.getState().setSession({ ...casting, currentActorBerthAuthority: null }, {
+      kind: 'app-casting-berth-withheld', sessionId: 's1', actorUid: 'u1', groupId: 'fleet-1', role: 'player',
+      assignedRoleId: 'wing-commander', activeConsoleRoleId: null, seatId: null, shipId: 'aegis',
+      connectionGeneration: 1, identityHydrationRevision: 1, sourceConnectionGeneration: 1,
+      sourceIdentityHydrationRevision: 1, documentTimeOrigin: performance.timeOrigin, memberSessionScope: scope,
+    });
+    stop();
+    expect(published).toHaveLength(1);
+    for (const field of ['playerDiscovery', 'shipGalacticCoordinates', 'shipNavigationLogs',
+      'currentGroupCandidateReveals', 'voyage33Movement']) expect(published[0]).not.toHaveProperty(field);
+    expect(useSessionStore.getState().voyage33MovementProjectionFresh).toBe(false);
+    expect(useSessionStore.getState().currentActorBerthProjectionPending).not.toBeNull();
   });
 
   it('clears private Voyage movement when the current GM instance loses its claim', () => {

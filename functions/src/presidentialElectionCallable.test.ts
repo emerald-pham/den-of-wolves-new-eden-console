@@ -46,13 +46,14 @@ vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error {
     constructor(readonly code: string, message: string) { super(message); }
   },
-  onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
+  onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
 }));
 
 import { castPresidentialBallot, configurePresidentialElection, resolvePresidentialElection } from './index';
+import { startTurnPhase, turnStateForPhase } from './turnZero';
 
 const policy = {
   eligibleVoterUids: ['u2', 'u3', 'u4'],
@@ -104,6 +105,53 @@ beforeEach(() => {
   mock.update.mockClear();
   provision();
 });
+
+function provisionManualPhase(phase: 'team' | 'coordination', cycle = 2) {
+  provision(cycle, phase);
+  const restricted = startTurnPhase(cycle, Date.now(), { progression: 'manual' });
+  const turnPhase = phase === 'team' ? restricted : {
+    ...restricted, airspace: { state: 'lifted' as const, tickerActive: true, pressAccess: true },
+  };
+  const session = mock.documents.get('sessions/s1')!;
+  session.turnPhase = turnPhase;
+  session.turnState = turnStateForPhase(turnPhase, 6, 1,
+    phase === 'coordination' ? turnPhase.teamPhaseEndsAt : new Date().toISOString());
+}
+
+it('tallies at the configured close cycle after a genuine manual Coordination transition and replays its receipt', async () => {
+  provisionManualPhase('coordination');
+  await configurePresidentialElection.run(request({
+    sessionId: 's1', instanceId: 'gm-instance', requestId: 'manual-election-setup', expectedRevision: 0, policy,
+  }));
+  put('sessions/s1/presidentialElections/current/ballots/u2', {
+    type: 'presidential-election-ballot', sessionId: 's1', voterUid: 'u2',
+    ballot: { presidentUid: 'u3', vicePresidentUid: 'u4' },
+  });
+  const data = { sessionId: 's1', instanceId: 'gm-instance', requestId: 'manual-election-close', expectedRevision: 1 };
+  const result = await resolvePresidentialElection.run(request(data));
+  expect(result).toMatchObject({ status: 'committed', state: 'resolved', presidentUid: 'u3', vicePresidentUid: 'u4' });
+  mock.set.mockClear();
+  mock.update.mockClear();
+  await expect(resolvePresidentialElection.run(request(data))).resolves.toEqual(result);
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it.each([['team', 2], ['coordination', 1]] as const)(
+  'does not tally a manual %s phase in cycle %i before the configured Team window closes', async (phase, cycle) => {
+    provisionManualPhase(phase, cycle);
+    await configurePresidentialElection.run(request({
+      sessionId: 's1', instanceId: 'gm-instance', requestId: 'manual-election-setup', expectedRevision: 0, policy,
+    }));
+    mock.set.mockClear();
+    mock.update.mockClear();
+    await expect(resolvePresidentialElection.run(request({
+      sessionId: 's1', instanceId: 'gm-instance', requestId: 'manual-election-too-early', expectedRevision: 1,
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+  },
+);
 
 it('configures a complete pre-ballot policy from live roster authority and keeps derived ship mapping private', async () => {
   const result = await configurePresidentialElection.run(request({
