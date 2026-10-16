@@ -60,6 +60,9 @@ export async function sourceFixture({ stage = 'research-choice', shipId = 'aegis
     './consoleMetadata': { consoleMetadataFor: noAction },
   }, realm);
   const paths = await sourceModule('functions/src/candidatePaths.ts', { './endeavourResearch': research }, realm);
+  // The domain requires canonical records from its own realm, so build this source fixture there.
+  const researchProgress = new Script(`Object.fromEntries(${JSON.stringify(TRACKS)}.map(id => [id, 4]))`)
+    .runInContext(realm);
   const code = stage === 'paid-loss-choice' ? 'O' : 'N';
   const roleId = stage === 'research-choice' ? 'shepherd-scientist' : shipId === 'aegis' ? 'admiral' : `${shipId}-captain`;
   const authority = { sessionId: 'source-only-candidate-session', cycle: 4, phase: 'active', coordination: true,
@@ -70,7 +73,7 @@ export async function sourceFixture({ stage = 'research-choice', shipId = 'aegis
     ships: { [shipId]: { fuel: 40, materials: 10, reactorCapacity: 5, destroyed: false,
       jumpCharged: true, jumpDamaged: false, longJumpCost: fuelCost, atCandidate: true,
       jumpedThisCycle: false, coordinate: '0123' } },
-    research: Object.fromEntries(TRACKS.map(id => [id, 4])), engineeringShuttles: [], hiddenScoutCount: 0 };
+    research: researchProgress, engineeringShuttles: [], hiddenScoutCount: 0 };
   const state = { revision: 8, sites: stage === 'repaired' ? {
     '0123': { code: 'N', coordinate: '0123', groupId: 'fleet-1', materials: 10, researchIds: TRACKS,
       shuttleId: 'philia', repairedAt: authority.now, ships: {}, reactors: {} },
@@ -91,7 +94,7 @@ export async function sourceFixture({ stage = 'research-choice', shipId = 'aegis
     '@/store/useSessionStore': { useSessionStore: selector => selector(storeState) },
     '@/lib/sessionService': { setGmShipConsoleWriteGrant: noAction },
     '@/lib/candidateService': { createCandidateAttempt: noAction, executeCandidateAttempt: noAction,
-      readCandidateWorkspace: noAction, recoverCandidateAttempt: noAction },
+      readCandidateWorkspace: noAction, recoverCandidateAttempt: noAction, selectCandidateEdition: noAction },
     './CandidatePreparationPanel.css': {},
   });
   const markup = renderToStaticMarkup(React.createElement(panel.namespace.default));

@@ -78,12 +78,15 @@ export async function receptionFixture({ initialNetworkMs = 18, initialComponent
   const research = await sourceModule('functions/src/endeavourResearch.ts', { './consoleMetadata': { consoleMetadataFor: noAction } }, projectionRealm);
   const paths = await sourceModule('functions/src/candidatePaths.ts', { './endeavourResearch': research }, projectionRealm);
   const tracks = ['reactor', 'jump-drive', 'hydroponics', 'water-reclamation', 'advanced-hydroponics'];
+  // The domain requires canonical records from its own realm, so build this source fixture there.
+  const researchProgress = new Script(`Object.fromEntries(${JSON.stringify(tracks)}.map(id => [id, 4]))`)
+    .runInContext(projectionRealm);
   const report = plain(paths.namespace.candidateWorkspace({ sessionId: store.session.id, cycle: 4, phase: 'active',
     coordination: true, now: '2026-10-06T00:00:00.000Z', groupId: 'fleet-1', vesselIds: ['shepherd'],
     actor: { uid: store.me.uid, gm: false, shipIds: [], research: true, shuttleIds: [] },
     discovered: [{ code: 'N', coordinate: '0123' }], ships: { shepherd: { fuel: 40, materials: 10, reactorCapacity: 5,
       destroyed: false, jumpCharged: true, jumpDamaged: false, longJumpCost: 13, atCandidate: true, jumpedThisCycle: false,
-      coordinate: '0123' } }, research: Object.fromEntries(tracks.map(id => [id, 4])), engineeringShuttles: [], hiddenScoutCount: 0,
+      coordinate: '0123' } }, research: researchProgress, engineeringShuttles: [], hiddenScoutCount: 0,
   }, { revision: 6, sites: {} }));
   const events = [], listeners = new Map(), timers = new Set(), reads = [];
   const emit = (event, value) => { for (const listener of listeners.get(event) ?? []) listener(value); };
@@ -109,7 +112,8 @@ export async function receptionFixture({ initialNetworkMs = 18, initialComponent
   const component = await sourceModule('src/components/CandidatePreparationPanel.tsx', {
     react: React, 'react/jsx-runtime': jsxRuntime, '@/store/useSessionStore': { useSessionStore: selector => selector(store) },
     '@/lib/sessionService': { setGmShipConsoleWriteGrant: noAction }, '@/lib/candidateService': {
-      createCandidateAttempt: noAction, executeCandidateAttempt: noAction, readCandidateWorkspace: read, recoverCandidateAttempt: () => pending,
+      createCandidateAttempt: noAction, executeCandidateAttempt: noAction, readCandidateWorkspace: read,
+      recoverCandidateAttempt: () => pending, selectCandidateEdition: noAction,
     }, './CandidatePreparationPanel.css': {},
   });
   const root = createRoot(window.document.querySelector('#source-root'));
