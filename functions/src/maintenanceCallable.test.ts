@@ -1141,7 +1141,7 @@ it('creates the stable pod-capacity catastrophe from a riot destruction', async 
         },
       },
       retainedShuttles: {}, shuttleCargo: { starlight: { food: 2 } }, shuttleFuelled: { starlight: true },
-      smallShipStates: { gorgoneion: { id: 'gorgoneion', hostShipId: 'aegis' } },
+      smallShipStates: { gorgoneion: { ...emptySmallShipState('gorgoneion', 'aegis'), everAssigned: true } },
       unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
     } as Record<string, unknown>,
     receipts: {}, undo: {}, events: {}, damageDraws: {},

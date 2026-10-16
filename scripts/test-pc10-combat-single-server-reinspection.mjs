@@ -18,7 +18,7 @@ const originalActor = { hasAuth: true, sameActor: true, sessionId,
   replacementRoleId: null, replacementStatus: null, seatId: null,
   airspace: 'restricted', turnStatePhase: 'team', phaseProgression: 'manual',
   instanceId: 'private-native-gm-instance', gmInstanceOwned: true, connection: 'live', freshness: 'server' };
-const currentAttack = { sessionId, attackId: 'private-native-attack', turn: 1, revision: 26,
+const currentAttack = { id: 'current', type: 'wolf-attack-state', sessionId, attackId: 'private-native-attack', turn: 1, revision: 26,
   status: 'declared', currentStep: 'boarding', airspaceLocked: true,
   targets: [{ uid: 'private-target-uid', contactId: 'private-contact-id' }] };
 const resolvedAttack = { ...currentAttack, revision: 27, status: 'resolved', currentStep: 'resolved', airspaceLocked: false };
@@ -27,7 +27,7 @@ const deniedReply = { status: 'denied', code: 'functions/failed-precondition',
 const plain = value => JSON.parse(JSON.stringify(value));
 
 function sourceReadFixture({ metadata = { fromCache: false, hasPendingWrites: false },
-  serverValue = resolvedAttack, serverError, afterServer = () => {}, sdkReply = deniedReply } = {}) {
+  attack = currentAttack, serverValue = resolvedAttack, serverError, afterServer = () => {}, sdkReply = deniedReply } = {}) {
   const counts = { getDoc: 0, getDocFromServer: 0, getDocs: 0, sdkChoice: 0, paints: 0 };
   const timeouts = [], records = [], reads = [];
   const fixture = { actor: { ...originalActor }, counts, timeouts, records, reads };
@@ -39,7 +39,7 @@ function sourceReadFixture({ metadata = { fromCache: false, hasPendingWrites: fa
     collection: (db, requestedPath) => ({ db, path: requestedPath }),
     getDoc: async ref => {
       counts.getDoc += 1; reads.push({ method: 'getDoc', path: ref.path });
-      return snapshot(currentAttack, { fromCache: true, hasPendingWrites: false });
+      return snapshot(attack, { fromCache: true, hasPendingWrites: false });
     },
     getDocFromServer: async ref => {
       counts.getDocFromServer += 1; reads.push({ method: 'getDocFromServer', path: ref.path });
@@ -50,7 +50,7 @@ function sourceReadFixture({ metadata = { fromCache: false, hasPendingWrites: fa
     },
     getDocs: async ref => {
       counts.getDocs += 1; reads.push({ method: 'getDocs', path: ref.path });
-      return { docs: [snapshot(currentAttack, { fromCache: true, hasPendingWrites: false })] };
+      return { docs: [snapshot(attack, { fromCache: true, hasPendingWrites: false })] };
     },
   };
   const runBrowserCallback = async (callback, input) => {
@@ -95,7 +95,7 @@ function sourceReadFixture({ metadata = { fromCache: false, hasPendingWrites: fa
   const adapter = createTwoBrowserGameplay(context);
   const tools = { ...adapter, record: async (stage, detail) => { records.push({ stage, ...plain(detail) }); } };
   return { ...fixture, context, adapter, tools,
-    run: () => createWolfChoiceWaiter(context, { tools })(gm, currentAttack, { kind: 'boarding-special' }),
+    run: () => createWolfChoiceWaiter(context, { tools })(gm, attack, { kind: 'boarding-special' }),
   };
 }
 
@@ -187,8 +187,28 @@ test('mounted GM exact SDK denial resolves through one server-only reinspection 
   assert.deepEqual(reinspectionRecord(fixture).metadata, { fromCache: false, hasPendingWrites: false });
 });
 
+test('captured live declared boarding source remains a hard stop with bounded one-read diagnostics', async () => {
+  const captured = { ...currentAttack, attackId: 'private-native-attack', turn: 1, revision: 33,
+    status: 'declared', currentStep: 'boarding', airspaceLocked: true };
+  const fixture = sourceReadFixture({ attack: captured, serverValue: captured });
+  await assert.rejects(fixture.run(), /same newer resolved, unlocked attack/);
+  assert.deepEqual(fixture.counts, { getDoc: 1, getDocFromServer: 1, getDocs: 0, sdkChoice: 1, paints: 0 });
+  const observed = reinspectionRecord(fixture);
+  assert.deepEqual(observed.document, { exists: true, expectedType: true });
+  assert.deepEqual(observed.expectedActorAtRead, {
+    sameAccount: true, sameRole: true, sameSession: true, sameTurn: true, liveServer: true,
+  });
+  assert.deepEqual(observed.expectedGmAtRead, {
+    sameAccount: true, sameInstance: true, sameSession: true, sameTurn: true, liveServer: true,
+  });
+  assert.deepEqual(observed.tuple, { sameSession: true, sameAttack: true,
+    turn: 1, revision: 33, status: 'declared', currentStep: 'boarding', airspaceLocked: true });
+  assert.deepEqual(observed.metadata, { fromCache: false, hasPendingWrites: false });
+});
+
 for (const [label, change] of [
   ['unchanged boarding tuple', { ...currentAttack }],
+  ['wrong source type', { ...currentAttack, type: 'other-document' }],
   ['unchanged revision', { ...resolvedAttack, revision: 26 }],
   ['wrong original attack', { ...resolvedAttack, attackId: 'another-private-attack' }],
   ['wrong session', { ...resolvedAttack, sessionId: 'another-private-session' }],
@@ -202,7 +222,11 @@ for (const [label, change] of [
     await assert.rejects(fixture.run(), /same newer resolved, unlocked attack/);
     assert.equal(fixture.counts.getDoc, 1); assert.equal(fixture.counts.getDocFromServer, 1);
     assert.equal(fixture.counts.sdkChoice, 1); assert.equal(fixture.counts.paints, 0);
-    reinspectionRecord(fixture);
+    const observed = reinspectionRecord(fixture);
+    assert.deepEqual(observed.document, {
+      exists: change !== null,
+      expectedType: change === null ? null : change.type === 'wolf-attack-state',
+    });
   });
 }
 
