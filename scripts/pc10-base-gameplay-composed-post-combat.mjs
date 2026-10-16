@@ -787,6 +787,7 @@ export async function runBaseGameplay(context, integration) {
         const surface = selection.readiness.surface;
         const maintenancePage = surface.page.getByRole('button', { name: 'Maintenance', exact: true });
         let panel = surface.page.getByRole('region', { name: / maintenance cycle$/i }).first();
+        await maintenancePage.or(panel).first().waitFor({ state: 'visible', timeout: 10_000 });
         if (!(await panel.isVisible()) && await maintenancePage.count() === 1 && await maintenancePage.isVisible()) {
           await maintenancePage.click();
           await panel.waitFor({ state: 'visible', timeout: 10_000 });
