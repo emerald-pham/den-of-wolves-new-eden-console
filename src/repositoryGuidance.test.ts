@@ -24,7 +24,10 @@ function readGuidance(surface: string) {
 }
 
 function readSources() {
-  return new Map(guidanceSurfaces.map((surface) => [surface, readGuidance(surface)]));
+  const sources = new Map<string, string>();
+  for (const surface of guidanceSurfaces) sources.set(surface, readGuidance(surface));
+  sources.set('docs/AGENT_EXECUTION_POLICY.md', readGuidance('docs/AGENT_EXECUTION_POLICY.md'));
+  return sources;
 }
 
 describe('repository guidance', () => {
@@ -49,10 +52,6 @@ describe('repository guidance', () => {
       '/Users/emeraldpham/.codex/private-reference/den-of-wolves-new-eden-console/docs/reference/den-of-wolves-new-eden/',
       'These paths are recorded as locators',
       'routed source leaves a gap',
-      'Process-gate changes are frozen through 2026-09-18',
-      'first five prompts',
-      'existing task timestamps',
-      'new telemetry system',
     ]) {
       expect(normalized, `CLAUDE.md must retain ${required}`).toContain(required);
     }
@@ -101,9 +100,14 @@ describe('repository guidance', () => {
     ]));
   });
 
-  it('keeps the process-gate freeze and lightweight first-five monitoring policy', () => {
+  it('accepts current guidance without requiring expired process instructions', () => {
+    const sources = readSources();
+    sources.set('CLAUDE.md', readGuidance('CLAUDE.md').replace(
+      /Process-gate changes are frozen through 2026-09-18\.[\s\S]*?new telemetry system\./,
+      '',
+    ));
     const errors: string[] = [];
-    validateRiskBasedGuidance({ sources: readSources(), errors });
+    validateRiskBasedGuidance({ sources, errors });
     expect(errors, errors.join('\\n')).toEqual([]);
   });
 
@@ -124,9 +128,12 @@ describe('repository guidance', () => {
     ]));
 
     const wrongEffort = new Map(sources);
-    wrongEffort.set('CLAUDE.md', readGuidance('CLAUDE.md')
-      .replace('Luna effort is discretionary; `max` is almost always preferred.', 'Use max for every Luna subagent.')
-      .replace('Sol may use all supported effort levels.', 'Sol may use only medium or high.'));
+    const wrongEffortPolicy = readGuidance('docs/AGENT_EXECUTION_POLICY.md')
+      .replace(/Luna effort is discretionary;\s+`max` is almost always preferred\./, 'Use max for every Luna subagent.')
+      .replace('Sol may use all supported effort levels.', 'Sol may use only medium or high.');
+    expect(wrongEffortPolicy).toContain('Use max for every Luna subagent.');
+    expect(wrongEffortPolicy).toContain('Sol may use only medium or high.');
+    wrongEffort.set('docs/AGENT_EXECUTION_POLICY.md', wrongEffortPolicy);
     const effortErrors: string[] = [];
     validateAgentModelEscalation({ sources: wrongEffort, errors: effortErrors });
     expect(effortErrors).toEqual(expect.arrayContaining([

@@ -221,3 +221,24 @@ Existing imported patches retain honest historical evidence; never rewrite
 history or claim retrospective validation was contemporaneous RED. Flag gaps
 separately from actual behavior acceptance and use the minimum actors per claim.
 No blanket full-suite or account matrix is required by this correction.
+
+
+## Proof tooling and progress reports
+
+Before allocating a gameplay runtime, use the [proof-tooling guide](agents/proof-tooling.md)
+to run the bounded preflight and distinguish authoritative reads from projection
+waits. Consult the same guide when testing a callable's fresh actions and exact
+receipt replay after actor or vessel availability changes. A preflight establishes
+runner readiness; gameplay acceptance still requires the appropriate authenticated
+path.
+
+When reporting checkpoint progress, distinguish catalog completion from scoped
+implementation, accepted gameplay evidence, and remaining release gates. State
+counts with their denominators and evidence class; code written or tests passing
+do not establish acceptance. Keep the catalog as the completion authority rather
+than creating another persisted status tracker.
+
+Base an ETA on the remaining paths and gates and state the assumptions behind the
+range. After a repeated runner failure, give the next measurable milestone and
+revise the estimate after that milestone succeeds. Avoid renewing an unchanged
+time range while its assumptions are failing.

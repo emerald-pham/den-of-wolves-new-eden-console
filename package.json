@@ -19,6 +19,8 @@
     "test": "vitest run --project unit --project functions",
     "test:unit": "vitest run --project unit",
     "test:functions": "vitest run --project functions",
+    "test:proof-preflight": "node --test scripts/qualification/pc11-contract-preflight.test.mjs scripts/proof-tooling-ci.test.mjs scripts/proof-tooling-browser-lifecycle.test.mjs",
+    "test:proof-redalert-browser": "node --test scripts/proof-tooling-redalert.browser.test.mjs",
     "test:font-consistency": "vitest run --project unit src/styles/aesthetic.test.ts",
     "test:typography:browser": "node scripts/test-typography-browser.mjs",
     "test:cycle-briefing:browser": "node scripts/test-cycle-briefing-render.mjs",

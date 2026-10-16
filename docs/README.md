@@ -13,6 +13,7 @@ live counts or requirements into another ledger.
 | Repository workflow, testing, authority and release policy | [CLAUDE.md](../CLAUDE.md) |
 | Agent entry point and required reading | [AGENTS.md](../AGENTS.md) |
 | Delegation, ownership transfer and batched checkpoint releases | [Agent execution policy](AGENT_EXECUTION_POLICY.md) |
+| Proof preflight, runtime ownership, authoritative reads and replay tests | [Proof tooling](agents/proof-tooling.md) |
 | Coordinating several tasks and parent communication | [Campaign playbook](AGENT_CAMPAIGN_PLAYBOOK.md) |
 | Ownership commands and emulator port matrix | [Coordination reference](WORKTREE_COORDINATION.md) |
 | Storage inventory and deliberate cleanup | [Local storage](LOCAL_STORAGE.md) |
