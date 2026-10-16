@@ -373,3 +373,23 @@ publication of bounded briefs, not runtime resumption. The
 [approved execution breakdown](PRODUCT_MILESTONES.md#approved-bounded-execution-tickets--2026-10-15)
 links each brief back to existing prompt IDs, with explicit blockers, exclusions
 and proportionate testing. Existing completion criteria and totals remain intact.
+
+## Approved proof-tooling repairs from the PC10 retrospective — 2026-10-16
+
+The owner requested a retrospective of session
+`01a1446d-0b24-7521-b204-dd366b37ee3b` (Implement PC10 Spec), then requested
+execution tickets and said “Approved.” The approved breakdown contains five
+independent outcomes: retain test exit statuses after log display; run focused
+PC10 consumer regressions before long rehearsals; type-check shared proof
+results; protect emulator allocations during startup; and provide compact
+runtime diagnostics with full detail retained on disk.
+
+The [approved repair breakdown](PRODUCT_MILESTONES.md#approved-proof-tooling-repair-tickets--2026-10-16)
+publishes one bounded brief per outcome under the existing tracker. Every brief
+has no blocker among these five; shared-file coordination is separate from a
+dependency. The briefs link to P641, P642, P649 and P651 proof support, and
+P660's existing allocator lifecycle. Their publication preserves prompt
+definitions, canonical prerequisites, completion states, historical P660
+completion, campaign totals and the fixed PC10 allocation. The independent
+PC10 runtime stopping request remains in force; ticket approval supplies no
+runtime restart or gameplay/release evidence.
