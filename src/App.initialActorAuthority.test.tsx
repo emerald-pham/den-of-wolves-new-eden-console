@@ -5,6 +5,10 @@ import type { GameSession, Player } from '@/types/game';
 import type { useSessionStore as SessionStore } from '@/store/useSessionStore';
 import type * as SessionService from '@/lib/sessionService';
 import { acknowledgeSessionWaiver } from '@/lib/sessionWaiver';
+import { runInNewContext } from 'node:vm';
+import { readFileSync } from 'node:fs';
+import ts from 'typescript';
+import { setTimeout as delay } from 'node:timers/promises';
 
 const sdk = vi.hoisted(() => ({
   auth: { currentUser: null as { uid: string } | null, authStateReady: vi.fn() },
@@ -426,8 +430,70 @@ describe('candidate-loss actor recovery through the current member surface', () 
     const discoveries = screen.getByRole('region', { name: 'Candidate discoveries' });
     expect(within(discoveries).getAllByText('Deep Nebula')).toHaveLength(2);
     expect(within(discoveries).getByText(/the ship was lost within the Deep Nebula/i)).toBeVisible();
-    const begin = screen.getByRole('button', { name: /begin maintenance cycle/i });
+    const begin = screen.getByRole('button', { name: 'Begin Maintenance Cycle: Cycle 6' });
     expect(begin).toBeDisabled();
+    expect(within(discoveries).getByText(/Next actor \/\/ Each ship chooses its long jump/i)).toBeVisible();
+    expect(within(discoveries).queryByRole('button', { name: /^Long jump into Nebula \/\/ aegis \/\// }))
+      .not.toBeInTheDocument();
+  });
+
+  it.each(['server', 'cached', 'pending', 'denied', 'foreign-auth', 'changed-actor', 'revoked'])(
+    'resumes only the original actor server loss after real player projection omits it // %s', async mode => {
+    await mountCandidateLoss('/console');
+    const projected = useSessionStore.getState().me!;
+    expect(projected.uid).toBe('admiral');
+    expect(projected.candidateDisposition).toBeUndefined();
+    const rawPlayer = candidateSource!.documents.get('sessions/s1/players/admiral')!;
+    expect(rawPlayer.candidateDisposition).toEqual({ code: 'O', outcome: 'lost', cycle: 6 });
+    // Evaluate the existing loss-observation consumer without the unrelated CLI
+    // module's top-level source-contract loader (the same inert VM seam used by
+    // the candidate helper composition tests). No producer is replaced.
+    const proofSource = readFileSync(`${process.cwd()}/scripts/pc10-candidate-manual-ui-proof.mjs`, 'utf8');
+    const proofFile = ts.createSourceFile('proof.mjs', proofSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+    const declarations = proofFile.statements.filter(node => ts.isFunctionDeclaration(node) &&
+      ['readActorCandidateDisposition', 'waitForActorCandidateDisposition'].includes(node.name?.text ?? ''));
+    expect(declarations).toHaveLength(2);
+    const waitForActorCandidateDisposition = runInNewContext(
+      `${declarations.map(node => node.getText(proofFile)).join('\n')}; waitForActorCandidateDisposition`,
+      { Date: { now: () => Date.now() }, delay });
+    const paths: string[] = [];
+    const surface = {
+      storeModuleUrl: () => '/src/store/useSessionStore.ts',
+      page: { evaluate: async (callback: (...args: unknown[]) => unknown, input: unknown) =>
+        runInNewContext(`(${String(callback).replace(/\bimport\s*\(/g, '__load(')})(__input)`, {
+          __input: input,
+          fetch: async () => ({ text: async () => "import {} from '/sdk/firebase_firestore.js';" }),
+          __load: async (path: string) => {
+            if (path === '/src/store/useSessionStore.ts') return { useSessionStore };
+            if (path === '/src/lib/firebase.ts') return { auth: () => sdk.auth };
+            if (path === '/src/lib/firestore.ts') return { db: () => ({}) };
+            if (path === '/sdk/firebase_firestore.js') return {
+              doc: (_db: unknown, path: string) => ({ path }),
+              getDocFromServer: async ({ path }: { path: string }) => {
+                paths.push(path);
+                expect(path).toBe('sessions/s1/players/admiral');
+                if (mode === 'denied') throw Object.assign(new Error('permission-denied'), { code: 'permission-denied' });
+                if (mode === 'foreign-auth') sdk.auth.currentUser = { uid: 'foreign-actor' };
+                if (mode === 'changed-actor') act(() => useSessionStore.setState({ me: { ...projected, activeConsoleRoleId: 'executive-officer' } }));
+                return { exists: () => true, data: () => mode === 'revoked' ? { ...rawPlayer, connected: false } : rawPlayer,
+                  metadata: { fromCache: mode === 'cached', hasPendingWrites: mode === 'pending' } };
+              },
+            };
+            throw new Error(`Unexpected browser module ${path}`);
+          },
+        }),
+      },
+    };
+    vi.useRealTimers();
+    const pending = waitForActorCandidateDisposition(surface, { code: 'O', outcome: 'lost', cycle: 6 }, 50);
+    if (mode !== 'server') {
+      await expect(pending).rejects.toThrow(/server|pending|permission-denied|actor|authority|connected/i);
+      return;
+    }
+    const historical = await pending;
+    expect(historical).toMatchObject({ sessionId: 's1', activeConsoleRoleId: 'admiral',
+      candidateDisposition: { code: 'O', outcome: 'lost', cycle: 6 } });
+    expect(paths).toEqual(['sessions/s1/players/admiral']);
   });
 
 });
