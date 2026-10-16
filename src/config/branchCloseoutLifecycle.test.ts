@@ -51,7 +51,8 @@ it('landed coordination finish cleans its branch automatically and preserved fin
         '--outcome', outcome, '--artifact-dir', join(parent, 'recovery')];
       if (outcome === 'preserved') args.push('--preserve-ref', 'origin/task/finished');
       const result = spawnSync(process.execPath, args, {
-        cwd, encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+        cwd, encoding: 'utf8', timeout: 10_000,
+        env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
       });
       expect(result.status, result.stderr || result.stdout).toBe(0);
       const state = JSON.parse(readFileSync(ledger, 'utf8'));
