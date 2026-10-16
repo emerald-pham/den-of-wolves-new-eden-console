@@ -232,7 +232,7 @@ export function macawDismantlingStageOutcome(input) {
 export function assessCapybaraGameplay({ context, stages, coreGameplay, terminal }) {
   assertCapybaraRunContext(context);
   const pendingStages = CAPYBARA_REQUIRED_STAGES.filter(id => stages?.[id]?.status !== 'completed');
-  const ended = terminal?.status === 'debrief' && terminal.immutable === true &&
+  const ended = ['debrief', 'closed'].includes(terminal?.status) && terminal.immutable === true &&
     ['final-cycle', 'failure-review', 'candidate'].includes(terminal.source);
   const corePassed = coreGameplay?.status === 'passed' && coreGameplay.manualProgression === true &&
     coreGameplay.serverActions === true && coreGameplay.missionDelivered === true;
@@ -259,6 +259,108 @@ export function projectCapybaraEvidence(report) {
   return { schemaVersion: 1, status: report?.status === 'passed' ? 'passed' : 'pending', stages,
     terminalObserved: report?.terminalObserved === true, coreGameplayPassed: report?.coreGameplayPassed === true,
     noAdminGameplayWrites: true, noInjectedClock: true, noFabricatedChoices: true };
+}
+
+const CAPYBARA_DEBRIEF_READ_TIMEOUT_MS = 15_000;
+
+// getSessionDebrief runs the canonical full stored-snapshot validator before
+// returning this GM projection. The proof consumes only this terminal summary.
+function assertCapybaraDebriefSummary(snapshot, expectedCycle) {
+  assert.ok(snapshot !== null && typeof snapshot === 'object' && !Array.isArray(snapshot),
+    'The GM session debrief snapshot must be an object.');
+  assert.equal(snapshot.type, 'session-debrief');
+  assert.equal(snapshot.version, 1);
+  assert.ok(['final-cycle', 'failure-review', 'candidate'].includes(snapshot.source));
+  assert.ok(['success', 'failure', 'completed'].includes(snapshot.result));
+  assert.ok(typeof snapshot.cause === 'string' && /^[\w-]{1,64}$/.test(snapshot.cause));
+  assert.ok(Number.isSafeInteger(snapshot.cycle) && snapshot.cycle >= 0);
+  assert.equal(snapshot.cycle, expectedCycle, 'The frozen GM debrief must match the closed public session cycle.');
+  return { source: snapshot.source, result: snapshot.result, cause: snapshot.cause,
+    cycle: snapshot.cycle, version: snapshot.version };
+}
+
+function capybaraReadWithinBudget(timeoutMs) {
+  assert.ok(Number.isFinite(timeoutMs) && timeoutMs > 0, 'A finite GM debrief read deadline is required.');
+  const deadlineAt = Date.now() + timeoutMs;
+  return async read => {
+    const remainingMs = deadlineAt - Date.now();
+    if (remainingMs <= 0) throw new Error(`Capybara GM debrief read timed out after ${timeoutMs} ms.`);
+    let timer;
+    try {
+      return await Promise.race([
+        Promise.resolve().then(read),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`Capybara GM debrief read timed out after ${timeoutMs} ms.`)), remainingMs);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
+
+function assertOriginalCapybaraGm(currentGm, initial, originalGm) {
+  assert.ok(currentGm !== null && typeof currentGm === 'object' && !Array.isArray(currentGm),
+    'The original GM identity must remain observable.');
+  assert.equal(currentGm.sameActor, true, 'The original Auth UID must still own this GM surface.');
+  assert.equal(currentGm.sessionId, initial.sessionId);
+  assert.equal(currentGm.uidHash, originalGm.uidHash);
+  assert.equal(currentGm.playerRole, 'gm');
+  assert.equal(currentGm.gmInstanceOwned, true);
+  assert.equal(currentGm.instanceId, originalGm.instanceId);
+}
+
+function assertCapybaraEndingState(state, initial, expectedCycle) {
+  assert.ok(state !== null && typeof state === 'object' && !Array.isArray(state),
+    'The original GM terminal session state must remain observable.');
+  assert.equal(state.sessionId, initial.sessionId, 'The ending must preserve the original session identity.');
+  assert.ok(['debrief', 'closed'].includes(state.phase), 'A server ending must remain in debrief or closed history.');
+  assert.ok(Number.isSafeInteger(state.cycle) && state.cycle >= 0);
+  if (expectedCycle !== undefined) assert.equal(state.cycle, expectedCycle,
+    'The terminal session cycle must stay fixed during the immutable read.');
+  return { phase: state.phase, cycle: state.cycle };
+}
+
+/** Read the actual original-GM immutable receipt at the real ending consumer boundary. */
+export async function consumeCapybaraEnding({ context, a, gm, finalEnding, originalGm,
+  endingReadTimeoutMs = CAPYBARA_DEBRIEF_READ_TIMEOUT_MS }) {
+  const initial = context?.initial;
+  assert.ok(initial?.sessionId && typeof finalEnding === 'function');
+  assert.equal(originalGm?.sameActor, true, 'Capture the original authenticated GM before full-game progression.');
+  assert.equal(originalGm.sessionId, initial.sessionId);
+  assert.equal(originalGm.playerRole, 'gm');
+  assert.equal(originalGm.gmInstanceOwned, true);
+  assert.ok(originalGm.uidHash && originalGm.instanceId);
+
+  await finalEnding(context);
+  const readWithinBudget = capybaraReadWithinBudget(endingReadTimeoutMs);
+  const afterEnding = await readWithinBudget(() => a.state(gm));
+  const endingState = assertCapybaraEndingState(afterEnding, initial);
+
+  // sameActor is computed in the browser from raw Auth UID equality. Only its
+  // stable digest crosses to Node, and the callable remains on this GM surface.
+  assertOriginalCapybaraGm(await readWithinBudget(() => gm.observe()), initial, originalGm);
+
+  const request = { sessionId: initial.sessionId, instanceId: originalGm.instanceId };
+  const reply = await readWithinBudget(() => gm.callable('getSessionDebrief', request));
+
+  // The authenticated callable validates the full frozen server snapshot. Rebind
+  // the proof to the same live GM lease and terminal session after its reply.
+  const afterRead = await readWithinBudget(() => a.state(gm));
+  assertCapybaraEndingState(afterRead, initial, endingState.cycle);
+  assertOriginalCapybaraGm(await readWithinBudget(() => gm.observe()), initial, originalGm);
+
+  assert.ok(reply !== null && typeof reply === 'object' && !Array.isArray(reply),
+    'GM getSessionDebrief must return a callable envelope.');
+  assert.equal(reply.status, 'committed', 'The original GM must receive an authorized immutable debrief.');
+  assert.ok(reply.result !== null && typeof reply.result === 'object' && !Array.isArray(reply.result),
+    'GM getSessionDebrief must return its authorized result.');
+  assert.equal(reply.result.type, 'session-debrief');
+  assert.equal(reply.result.sessionId, initial.sessionId);
+  const validated = assertCapybaraDebriefSummary(reply.result.snapshot, endingState.cycle);
+  const terminal = { status: afterRead.phase, immutable: true,
+    source: validated.source, result: validated.result, cause: validated.cause };
+  return { terminal, snapshotCycle: validated.cycle, snapshotVersion: validated.version };
 }
 
 /**
@@ -1502,12 +1604,9 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
     await a.save('base-gameplay-actions.json', { status: 'gameplay-committed-ending-pending', stages, checks, costs,
       missionOutcomes: delivered.publicState.outcomes?.map(({ outcome }) => outcome),
       scope: 'Fresh twenty-role Capybara-plus-Press game; seven source-backed host maintenance, actual UI actions, charged jumps, private mission decisions, actual resolved mission and custody delivery. Every disconnected or unobserved requirement remains pending.' });
-    await finalEnding(context);
-    const afterEnding = await a.state(gm), snapshot = afterEnding.debriefSnapshot;
-    const terminal = { status: afterEnding.phase, immutable: snapshot?.type === 'session-debrief' && snapshot.version === 1,
-      source: snapshot?.source, result: snapshot?.result, cause: snapshot?.cause };
+    const { terminal, snapshotCycle, snapshotVersion } = await consumeCapybaraEnding({ context, a, gm, finalEnding, originalGm });
     if (terminal.immutable) await updateCapybaraStage('genuine-ending', { status: 'completed', roleId: 'gm',
-      endpoint: 'immutable session debrief', cycle: snapshot.cycle, sourceRevision: snapshot.version });
+      endpoint: 'immutable session debrief', cycle: snapshotCycle, sourceRevision: snapshotVersion });
     const coreGameplay = { status: checks.serverMissionResolutionAndCustodyDelivery === true &&
       checks.openingCombatAndPublicAftermath === true ? 'passed' : 'pending',
       manualProgression: true, serverActions: true, missionDelivered: checks.serverMissionResolutionAndCustodyDelivery === true };
