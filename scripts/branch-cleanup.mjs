@@ -252,9 +252,8 @@ function githubOriginIdentity(origin) {
   return `github:${parts.map((part) => part.toLowerCase()).join('/')}`;
 }
 
-async function originIdentityAt(path) {
+async function originIdentityFromUrl(path, origin) {
   try {
-    const origin = await run('git', ['config', '--get', 'remote.origin.url'], { cwd: path });
     const githubIdentity = githubOriginIdentity(origin);
     if (githubIdentity) return githubIdentity;
 
@@ -281,6 +280,24 @@ async function originIdentityAt(path) {
     }
     if (!['https:', 'ssh:', 'git:'].includes(url.protocol) || url.search || url.hash) return null;
     return `url:${url.protocol}//${url.host.toLowerCase()}${url.pathname.replace(/\/+$/, '')}`;
+  } catch {
+    return null;
+  }
+}
+
+async function originIdentityAt(path) {
+  try {
+    const fetchUrls = (await run('git', ['remote', 'get-url', '--all', 'origin'], { cwd: path }))
+      .split('\n').filter(Boolean);
+    const pushUrls = (await run('git', ['remote', 'get-url', '--push', '--all', 'origin'], { cwd: path }))
+      .split('\n').filter(Boolean);
+    if (fetchUrls.length !== 1 || pushUrls.length !== 1) return null;
+
+    const [fetchIdentity, pushIdentity] = await Promise.all([
+      originIdentityFromUrl(path, fetchUrls[0]),
+      originIdentityFromUrl(path, pushUrls[0]),
+    ]);
+    return fetchIdentity && fetchIdentity === pushIdentity ? fetchIdentity : null;
   } catch {
     return null;
   }
