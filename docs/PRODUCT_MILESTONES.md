@@ -819,6 +819,13 @@ authenticated two-browser/member-GM proof helpers. Preparation does not establis
 that any gameplay gate passed. The final audit aggregates the original 48 full
 acceptances rather than treating these brief checklists as replacement criteria.
 
+**Owner resumption, October 15:** The latest owner invocation of `implement-spec`
+explicitly resumes the prior runtime pause under the existing fixed 48-ID PC10
+scope. It adds no feature or redesign and grants no prompt-status or completion
+credit. The root remains responsible for native allocations and release; human
+playtesting remains optional. Earlier pause statements are preserved as historical
+context.
+
 ## PC10 owner revision — October 5
 
 The separate PC10 dispatch authorizes the revised shape and execution in
