@@ -1912,3 +1912,124 @@ New mechanics/redesigns, changing the fixed 48-ID target, weakening acceptance,
 replaying settled checks without a material reason, a second tracker, old
 recovery-data deletion, and implementation/runtime in this planning session.
 Post-PC10, PC11 and conditional PC12 retain their existing sequence and scope.
+
+## Implementation continuation — October 16, 2026
+
+The owner invoked `implement-spec` to finish PC10, then requested current task
+updates. Work continues on `integration/pc10-implementation-20261015`; the JSON
+catalog remains the sole completion tracker. The fixed 48-ID scope and target
+751/751 are unchanged. Current accounting remains **703 done, 23 partial and
+25 missing**, with no new whole-prompt closures.
+
+### Candidate and focused checks
+
+Approved planning was preserved at `6c615ef7`. Current main `80ae782b` was merged
+at `3b7dbbd4`; original Red Alert test/repair, candidate-settlement test/repair
+and App Check telemetry test commits were then integrated into `2c2acd10`.
+The already integrated strong boarding transaction reinspection repair remains
+present. The focused settlement tests pass (92); focused security tests pass
+(30, including a separately rerun socket-dependent HTTP transport suite).
+Functions build, seven proof-tool preflight checks, the real inert Red Alert
+smoke and eight actual serialized Red Alert consumer checks pass. No checkpoint
+gameplay credit follows from these counts.
+
+Independent Sol xhigh follow-up closes both prior settlement-authority findings
+on `6bd9d6a5` and rebinds eight unchanged source/test blobs and SHA-256 values to
+`2c2acd10`. The retained receipt is
+`/private/tmp/pc10-completion-20261016/settlement-authority-followup.md`.
+This is scoped source approval; final candidate/release review remains open.
+
+### Native qualification and consumer repair
+
+[F2 and sparse mutiny](PC10_F2_NATIVE_REPORT.md) passed at `2c2acd10`: actual
+survivor transfer, nonterminal destruction, original-account Flee/reload/exact
+replay/replacement and sparse acting-command mutiny continued in the same fresh
+game through Pursuit failure, debrief, Close and entitled closed history.
+Ten Auth accounts, two Chrome processes/contexts and zero humans/devices were
+used. Thirty-three original/replay UI operations settled. This closes the
+bounded F2 acceptance, not all F1/F3/P650.
+
+A separate fresh Base run on unchanged source passed ordinary preparation,
+interrupted first-seat acknowledgement/recovery, casting/manual Cycle 0→1 and
+all eighteen original role surfaces/private briefs. Twenty Auth accounts and
+two Chrome contexts were used. The full run failed at election configuration
+with the GM still on Aegis observer, before maintenance/mission/combat. Its
+failure and screenshots remain under
+`/private/tmp/pc10-completion-20261016/base-proof/`; no whole-game pass is claimed.
+
+The actual rendered-consumer regression exposed ordinary GM return navigation,
+voter display-label selection and implicit select/textarea label assumptions.
+Test commits `06c6f92e`, `6f3334da`, `b1fa580e` and `032dd959` remain separate
+from repairs `caccb1c7` and `836c8f77`. The initial resolution fixture omitted
+active manual-demo state; that setup failure does not establish meaningful
+RED. After correcting the fixture, resolution still reproduced the original
+observer-route failure before the repair. Final focused election/Red Alert/
+politics/arrest consumer and contract checks pass **30/30**. These are inert
+actual-component/consumer checks, not native election or game-rule acceptance.
+The two new browser cases protect configuring and resolving from a real ship
+observer route; no tests were skipped or removed. A fresh continuous Base game
+is the next root-owned qualification.
+
+The root runtime returned before its original deadlines. At
+`2026-10-16T12:01:26.041Z`, all 105 captured root-owned processes and all nine
+checked row-1 listeners were absent, and only its own configuration was
+released. Fresh emulator RAM discard is distinct from per-account deletion.
+The strict receipt is
+`/private/tmp/pc10-completion-20261016/root-runtime/strict-return.json`.
+
+### Current task frontier
+
+- Root owns Base G1→G2, residual F1/F3/privacy/role criteria, catalog integration
+  and the single checkpoint release. Base election consumer checks are green;
+  the failed whole run remains failed.
+- The Capybara worker owns authentic H1→H2/Nebula loss/reload/retry/success and
+  debrief in one session; the Station worker owns P arrival/repeated combat/
+  Reactor interrupted-ack recovery/activation/debrief. Each uses its own
+  worktree, active registry entry, fresh finite plan and isolated runtime.
+- A test-only worker owns the actual SDK/HTTP invalid-App-Check-token telemetry
+  boundary, sequenced after the integrated missing-token test. No production
+  telemetry is inferred.
+- The user interruption exhausted the workers' original startup budgets.
+  Expired environmental attempts remain separate; strict owned-resource return
+  precedes new plans and any new gameplay. The Capybara elevated startup worked,
+  but no gameplay was started under its expired plan.
+
+P651/Z2 remains blocked on the actual remaining acceptance, final independent
+review and emitted-build typography, reconciled version/changelog, candidate
+CI, exact-main deployment/health and truthful closeout. The published 0.5.73
+partial/missing snapshot mismatch remains for final release metadata; it earns
+no status changes. No CI-triggering push, release or deployment has occurred in
+this continuation.
+
+### Subsequent Base ballot consumer and security handback
+
+The next fresh Base run at `91e36884` passed the repaired election policy
+configuration, then stopped at `current-voter-has-no-mounted-secret-ballot`.
+The screenshot shows the original President on the fleet screen with the
+Election header control: the consumer's immediate visibility checks raced the
+mounted header/route. Maintenance, mission and combat were still unreached.
+The failed run remains failed under
+`/private/tmp/pc10-completion-20261016/base-resume/proof/`.
+
+The actual-component regression in test-only `26bdc1a0` reproduces the early
+ballot stop for two original fixture voters using the source header control
+and Election workspace. Repair `273f2aac` waits for that normal route and actual
+form within one original 35-second navigation budget per voter. All three
+rendered election cases and twenty related contracts pass. This repairs only
+the proof consumer. It supplies no native ballot, maintenance or whole-game
+credit. The new regression protects delayed header/workspace mounting; existing
+tests and authority assertions were retained.
+
+Strict return at `2026-10-16T16:48:56.293Z` records all 76 captured owned
+processes absent, nine row-3 listeners absent, root configuration released and
+source/full compiled tree unchanged, before the original proof cutoff. The
+receipt is `base-resume/runtime/returned.json` under the same artifact root.
+The root's row-3 coordination claim was released before Capybara selected it.
+
+Test-only App Check handback `2d68e616` is now integrated. Its actual SDK/HTTP
+invalid-token case passes with the existing four transport tests; the
+[durable report](PC10_APPCHECK_INVALID_TOKEN_REPORT.md) records HTTP 401,
+SDK `app: INVALID`, no application-handler call and absence of supplied
+canaries from captured SDK console output and response. This is local SDK
+middleware evidence, not a production log-sink claim. P634 and final release
+remain pending reconciliation.

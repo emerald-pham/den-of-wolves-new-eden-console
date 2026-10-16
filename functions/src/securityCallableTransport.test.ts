@@ -90,6 +90,62 @@ it('emits private SDK verification metadata for missing App Check without loggin
   }
 });
 
+it('rejects a malformed App Check token with INVALID SDK verification metadata without logging request secrets', async () => {
+  const { getApps, initializeApp, deleteApp } = await import('firebase-admin/app');
+  expect(getApps().some(app => app.name === '[DEFAULT]')).toBe(false);
+  // A local project ID avoids metadata lookup before the Admin SDK rejects this malformed JWT.
+  const adminApp = initializeApp({ projectId: 'demo-p634-invalid-appcheck' });
+
+  type LogLevel = 'debug' | 'info' | 'log' | 'warn' | 'error';
+  const loggerPath = require.resolve('firebase-functions/logger');
+  const loggerCommon = await import(join(dirname(dirname(loggerPath)), 'esm/logger/common.mjs')) as {
+    UNPATCHED_CONSOLE: Record<LogLevel, (...args: unknown[]) => void>;
+  };
+  const levels: LogLevel[] = ['debug', 'info', 'log', 'warn', 'error'];
+  const originalEmitters = Object.fromEntries(levels.map(level => [level, loggerCommon.UNPATCHED_CONSOLE[level]])) as
+    Record<LogLevel, (...args: unknown[]) => void>;
+  const captured: string[] = [];
+  const logSpies = levels.map(level => vi.spyOn(loggerCommon.UNPATCHED_CONSOLE, level).mockImplementation((...args: unknown[]) => {
+    captured.push(args.map(String).join(' '));
+    originalEmitters[level](...args);
+  }));
+
+  try {
+    const handler = vi.fn(() => ({ status: 'accepted' }));
+    const callable = auditedOnCall('standaloneAuthorityProbe', handler);
+    const tokenCanary = 'INVALID_APP_CHECK_TOKEN_CANARY';
+    const response = await serve(callable, {
+      headers: { 'x-firebase-appcheck': tokenCanary, 'x-test-credential-canary': 'TEST_CREDENTIAL_CANARY' },
+      data: { sessionId: 'SESSION_CANARY', requestId: 'REQUEST_CANARY', notes: 'NOTE_BODY_CANARY',
+        cards: ['HAND_CANARY'], loyalty: 'LOYALTY_CANARY' },
+    });
+    const responseBody = await response.text();
+
+    expect(response.status).toBe(401);
+    expect(JSON.parse(responseBody)).toEqual({ error: { message: 'Unauthenticated', status: 'UNAUTHENTICATED' } });
+    expect(handler).not.toHaveBeenCalled();
+
+    const verification = captured.map(line => JSON.parse(line) as Record<string, unknown>).find(entry =>
+      (entry['logging.googleapis.com/labels'] as Record<string, unknown> | undefined)?.['firebase-log-type'] === 'callable-request-verification');
+    expect(captured.some(line => line.includes('Decoding App Check token failed.'))).toBe(true);
+    expect(verification).toMatchObject({
+      severity: 'WARNING',
+      message: 'Callable request verification failed: AppCheck token was rejected.',
+      verifications: { app: 'INVALID', auth: 'MISSING' },
+      'logging.googleapis.com/labels': { 'firebase-log-type': 'callable-request-verification' },
+    });
+    const canaries = [tokenCanary, 'TEST_CREDENTIAL_CANARY', 'SESSION_CANARY', 'REQUEST_CANARY',
+      'NOTE_BODY_CANARY', 'HAND_CANARY', 'LOYALTY_CANARY'];
+    for (const canary of canaries) {
+      expect(JSON.stringify(captured)).not.toContain(canary);
+      expect(responseBody).not.toContain(canary);
+    }
+  } finally {
+    logSpies.forEach(spy => spy.mockRestore());
+    await deleteApp(adminApp);
+  }
+});
+
 it('preserves explicit callable options and the ordinary Firebase callable protocol', async () => {
   const handler = vi.fn(() => ({ status: 'accepted' }));
   const callable = auditedOnCall('emulatorAuthorityProbe', { enforceAppCheck: false, maxInstances: 3 }, handler);
