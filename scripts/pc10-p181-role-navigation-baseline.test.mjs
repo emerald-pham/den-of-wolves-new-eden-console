@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, webcrypto } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import test from 'node:test';
+import typescript from 'typescript';
+import { retainP181MemberAuthority, retainP181CallerRejection, p181PreparationTuple } from './pc10-starlight-movement-scout-ui-proof.mjs';
+import { observeFullGameDemoPresentationMember } from './pc10-full-game-demo-proof-helpers.mjs';
+import { observeLifecycleActor, captureLifecycleUiAction } from './pc10-member-gm-lifecycle-ui-proof.mjs';
 import { createMemberNavigationResumeObserver } from './pc10-member-navigation-resume.mjs';
 import { pc11MemberReadiness } from './qualification/pc11-normal-start-adapter.mjs';
 
@@ -14,85 +18,139 @@ const sourcePath = new URL('./pc10-starlight-movement-scout-ui-proof.mjs', impor
 const source = await readFile(sourcePath, 'utf8');
 const nativeStart = source.indexOf('export async function runP181StarlightMovementScoutNative(');
 assert.ok(nativeStart >= 0, 'Bind the actual native P181 consumer.');
-const waitStart = source.indexOf('  const waitForFullActor = async (surface, description, predicate, deadlineAt) => {', nativeStart);
-const waitEnd = source.indexOf('\n  const readGmRecoveryPending', waitStart);
-assert.ok(waitStart > nativeStart && waitEnd > waitStart, 'Extract the actual finite actor-readiness consumer.');
-const actualWaitForFullActor = source.slice(waitStart, waitEnd);
-const assignmentStart = source.indexOf("        const assignment = await captureAction(gm, 'assignRole'", nativeStart);
+const file = typescript.createSourceFile(sourcePath.pathname, source, typescript.ScriptTarget.Latest, true, typescript.ScriptKind.JS);
+const waitExpressions = [];
+function findWait(node) {
+  if (typescript.isVariableDeclaration(node) && node.name.getText(file) === 'waitForFullActor')
+    waitExpressions.push(node.initializer.getText(file));
+  typescript.forEachChild(node, findWait);
+}
+findWait(file);
+assert.equal(waitExpressions.length, 1, 'Extract the single actual finite actor-readiness consumer.');
+const actualWaitForFullActor = `const waitForFullActor = ${waitExpressions[0]};`;
+const assignmentStart = source.indexOf('          let castingAuthority, assignment, navigationStart, navigation, castingFailure, castingCurrent;', nativeStart);
 const clickEndMarker = "          await bounded('Choose original station berth', () => roleLink.click({ timeout: p181Remaining(navigationUiEnd) }), navigationUiEnd);";
 const clickEnd = source.indexOf(clickEndMarker, assignmentStart) + clickEndMarker.length;
 assert.ok(assignmentStart > nativeStart && clickEnd > assignmentStart,
   'Extract the actual assignment-wait, navigation-baseline, and role-link consumer.');
 const actualAssignmentToClick = source.slice(assignmentStart, clickEnd);
 
-const roleId = 'wing-commander';
-const expected = { sessionId: 'source-only-normal-session', uidHash: '1234567890abcdef', roleId, stage: 'casting' };
-const assignedButResumePending = {
-  hasAuth: true, sameActor: true, uidHash: expected.uidHash, sessionId: expected.sessionId,
-  meSessionId: expected.sessionId, profileRoleId: null, profileSessionId: null,
-  playerRole: 'player', connected: true, currentOwnPlayerConfirmed: true, kicked: false,
-  escapeLocked: false, replacementRoleId: null, replacementStatus: null, fullGameDemo: null,
-  invalidFields: [],
-  connectionGeneration: 1, identityHydrationRevision: 1, connection: 'offline', freshness: 'cache',
-  sdkHasServerAuthority: true, sdkResumePending: true,
-  cycle: 0, phase: 'casting', setupConfirmed: true, assignedRoleId: roleId,
-  activeConsoleRoleId: null, seatId: null, currentCanonicalSeatOwned: false,
-};
-const acceptedNormalResume = { ...assignedButResumePending,
-  connectionGeneration: 2, identityHydrationRevision: 2, connection: 'live', freshness: 'server',
-  sdkResumePending: false,
-};
-const readyButResumePending = { ...acceptedNormalResume, sdkResumePending: true };
-const foreignReadyActor = { ...acceptedNormalResume, uidHash: 'fedcba0987654321',
-  sessionId: 'foreign-source-only-session', meSessionId: 'foreign-source-only-session' };
-const dirtyFreshRead = { ...acceptedNormalResume, connectionGeneration: 3,
-  connection: 'connecting', freshness: 'cache', sdkResumePending: true };
-const expectedCasting = { sessionId: expected.sessionId, uidHash: expected.uidHash, roleId, stage: 'casting' };
+// Inert mounted store/Auth/transport ports, with actual retained-authority,
+// independent member reader, GM receipt and navigation observer consumers.
+// This fixture alignment does not provide browser or native acceptance.
+const runner = await readFile(new URL('./pc10-starlight-movement-scout-ui-proof-runner.test.mjs', import.meta.url), 'utf8');
+const runnerFile = typescript.createSourceFile('actual-runner.mjs', runner, typescript.ScriptTarget.Latest, true, typescript.ScriptKind.JS);
+let surfaceFixture;
+for (const node of runnerFile.statements) if (typescript.isFunctionDeclaration(node) && node.name?.text === 'mountedP181Surface')
+  surfaceFixture = node.getText(runnerFile);
+assert.ok(surfaceFixture, 'Reuse the existing mounted surface ports for the current authority adapters.');
+const mountedP181Surface = runInNewContext(`(${surfaceFixture})`, {
+  originalRoleIds: ['wing-commander'], EventEmitter, runInNewContext, webcrypto, TextEncoder,
+  structuredClone, queueMicrotask, assert, URL, setTimeout, clearTimeout,
+});
+const roleId = 'wing-commander', actorUid = 'private-source-only-actor';
+const hashShort = uid => createHash('sha256').update(uid).digest('hex').slice(0, 16);
+const expected = { sessionId: 'normal-session', uidHash: hashShort(actorUid), roleId, stage: 'casting' };
+const acceptedNormalResume = { connectionGeneration: 2, identityHydrationRevision: 2,
+  connection: 'live', freshness: 'server', sdkHasServerAuthority: true, sdkResumePending: false,
+  uidHash: expected.uidHash, sessionId: expected.sessionId };
+const expectedCasting = { ...expected };
 const publicTuple = value => ({ connectionGeneration: value.connectionGeneration,
   identityHydrationRevision: value.identityHydrationRevision, connection: value.connection,
   freshness: value.freshness, sdkHasServerAuthority: value.sdkHasServerAuthority,
   sdkResumePending: value.sdkResumePending, uidHash: value.uidHash, sessionId: value.sessionId });
 
-async function actualAssignmentCase({ initial = assignedButResumePending, afterDelay = acceptedNormalResume,
-  reads = null } = {}) {
+async function actualAssignmentCase({ initial = 'pending', staleAcceptance = false } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'p181-role-navigation-baseline-'));
-  const events = new EventEmitter();
-  const state = { current: initial, reads: 0, delays: 0, clickStates: [] };
-  const roleLink = { first() { return this; }, waitFor: async () => {},
-    click: async () => { state.clickStates.push(structuredClone(state.current)); } };
-  const page = { on: (...args) => events.on(...args), off: (...args) => events.off(...args),
-    url: () => 'http://127.0.0.1:5178/#/console', locator: () => roleLink };
+  const wing = mountedP181Surface(actorUid, { casting: true });
+  const gm = mountedP181Surface('original-gm', { gm: true, casting: true });
+  for (const surface of [wing, gm]) {
+    surface.state.session.setupConfirmed = true; surface.state.session.setupRevision = 1;
+    surface.state.me.connectionGeneration = 1; surface.state.identityHydrationRevision = 1;
+    surface.state.session.currentActorBerthAuthority.connectionGeneration = 1;
+  }
+  wing.state.seats = [{ id: roleId, roleId, status: 'available', holderUid: null }];
+  const readMember = () => observeFullGameDemoPresentationMember(wing, { knownRoleIds: [roleId] });
+  const admitted = await readMember(), gmBefore = await observeLifecycleActor(gm, expected.sessionId);
+  const state = { current: admitted, reads: 0, delays: 0, clickStates: [], notice: Promise.resolve() };
+  const settled = () => wing.publish(value => {
+    value.me.connectionGeneration = 2; value.identityHydrationRevision = 2;
+    value.session.currentActorBerthAuthority.connectionGeneration = 2;
+    value.connection = 'live'; value.sessionSnapshotFreshness = 'server'; value.sdkResumePending = false;
+  });
+  const resume = async () => {
+    wing.deliver('resumeSession', { sessionId: expected.sessionId }, { session: { id: expected.sessionId },
+      player: { ...wing.state.me, connectionGeneration: 2 } });
+    await state.notice;
+    if (initial === 'ready-pending') {
+      wing.publish(value => { value.me.connectionGeneration = 2; value.identityHydrationRevision = 2;
+        value.session.currentActorBerthAuthority.connectionGeneration = 2; });
+    } else settled();
+  };
+  let resumeDelivered = false;
+  gm.onChoice = async () => {
+    gm.publish(value => { value.session.phase = 'casting'; value.session.setupRevision = 2; });
+    gm.deliver('assignRole', { sessionId: expected.sessionId, instanceId: gm.state.gmInstance.id,
+      requestId: 'original-role-assignment', expectedSetupRevision: 1, targetUid: actorUid, roleId },
+      { status: 'committed', sessionId: expected.sessionId, requestId: 'original-role-assignment', setupRevision: 2 });
+    wing.publish(value => {
+      value.session.phase = 'casting'; value.session.setupRevision = 2; value.me.assignedRoleId = roleId;
+      value.session.currentActorBerthAuthority.assignedRoleId = roleId;
+      value.connection = 'connecting'; value.sessionSnapshotFreshness = 'cache'; value.sdkResumePending = true;
+    });
+    if (initial === 'foreign') wing.publishAuth({ uid: 'foreign-source-only-actor' });
+    else if (initial === 'foreign-session') wing.publish(value => { value.session.id = 'foreign-session'; });
+    else if (initial !== 'pending') { resumeDelivered = true; await resume(); }
+  };
+  wing.onChoice = async () => state.clickStates.push(await readMember());
   const readFullActor = async () => {
-    const value = reads ? reads[Math.min(state.reads, reads.length - 1)] : state.current;
     state.reads++;
-    state.current = value;
-    return structuredClone(value);
+    if (staleAcceptance === 'foreign' && state.reads === 2) wing.publishAuth({ uid: 'foreign-source-only-actor' });
+    else if (staleAcceptance && state.reads === 2) wing.publish(value => {
+      value.connection = 'connecting'; value.sessionSnapshotFreshness = 'cache'; value.sdkResumePending = true;
+    });
+    state.current = await readMember(); return state.current;
   };
   const bounded = async (_label, operation) => operation();
   const delay = async () => {
     state.delays++;
-    state.current = afterDelay;
+    if (!resumeDelivered) { resumeDelivered = true; await resume(); }
+    else settled();
   };
+  const deadlineAt = Date.now() + 5_000;
   const context = { assert, Date, Math, Promise, P181_NATIVE_TIMING: { operationTimeoutMs: 5_000 },
-    P181_NORMAL_SETUP: { wingCommanderRoleId: roleId },
-    deadlineAt: Date.now() + 5_000, directory, trace: [], sessionId: expected.sessionId,
-    admittedAuth: { uidHash: expected.uidHash }, displayName: 'Source-only assigned member',
-    wingCommander: { page }, gm: {}, readFullActor, bounded, delay, pc11MemberReadiness,
-    captureAction: async () => ({ httpStatus: 200 }),
+    deadlineAt, castingDeadlineAt: deadlineAt, cleanupDeadlineAt: deadlineAt + 5000,
+    directory, trace: [], sessionId: expected.sessionId, memberRoleId: roleId, memberName: 'Wing', proofProfile: 'starlight',
+    admitted, admittedAuth: { uid: actorUid, uidHash: expected.uidHash }, displayName: 'Source-only assigned member',
+    memberSurface: wing, gm, gmInstanceId: gm.state.gmInstance.id,
+    ownedAuthUids: new Map([['gm', gm.uid], ['wing-commander', actorUid]]), hashShort,
+    normalPreparationDiagnostic: { active: false }, markPreparationActor: () => {},
+    p181PreparationTuple, retainP181CallerRejection, retainP181MemberAuthority,
+    readFullActor, bounded, delay, pc11MemberReadiness,
+    captureAction: (surface, endpoint, operation, end) => captureLifecycleUiAction(surface, endpoint, operation,
+      { original: gmBefore, gm: true, normalSetup: true, sdkAuthority: true, deadlineAt: end }),
     p181Remaining: end => Math.max(1, end - Date.now()),
-    createMemberNavigationResumeObserver: (targetPage, options) =>
-      createMemberNavigationResumeObserver(targetPage, options) };
-  context.casting = { getByLabel: () => ({ selectOption: async () => {} }) };
-  const execute = runInNewContext(`(async () => {
-    ${actualWaitForFullActor}
-    ${actualAssignmentToClick}
-    } finally { await navigation.finish(new Error('Source-only baseline fixture complete.')); }
-    return { navigationStart, trace };
-  })()`, context);
+    createMemberNavigationResumeObserver: (page, options) => createMemberNavigationResumeObserver(page, {
+      ...options, ...(options.onCastingResumeRequest ? { onCastingResumeRequest: value => {
+        state.notice = options.onCastingResumeRequest(value); return state.notice;
+      } } : {}),
+    }), casting: gm.page,
+  };
   try {
-    const result = await execute;
+    const result = await runInNewContext(`(async () => {
+      ${actualWaitForFullActor}
+      ${actualAssignmentToClick}
+      } finally { await navigation.finish(); }
+      return { navigationStart, trace };
+    })()`, context);
     return { result, state };
-  } finally {
+  } catch (error) { return { error, state }; }
+  finally {
+    assert.equal(wing.observers.stores.size, 0); assert.equal(wing.observers.auth.size, 0);
+    assert.equal(wing.page.eventNames().length, 0, 'Every authority and receipt listener must detach.');
+    const files = await readdir(join(directory, 'member-navigation'));
+    state.transitions = 0;
+    for (const name of files) state.transitions += JSON.parse(await readFile(join(directory, 'member-navigation', name), 'utf8')).transitions.length;
     await rm(directory, { recursive: true, force: true });
   }
 }
@@ -105,6 +163,7 @@ function assertAcceptedCastingBaseline(result, state) {
   assert.equal(result.navigationStart.sdkResumePending, false,
     'Require the mounted SDK resume fence to be complete.');
   assert.equal(state.clickStates.length, 1);
+  assert.equal(state.transitions, 1, 'Only the captured casting resume grants an accepted transition.');
   assert.deepEqual(publicTuple(state.clickStates[0]), publicTuple(acceptedNormalResume),
     'Do not enter the assigned route from a dirty, foreign, or pending-resume tuple.');
 }
@@ -164,25 +223,40 @@ async function navigationAcceptanceCase({ emitRequest = true, requestSession = e
 test('actual native Wing assignment baseline waits for accepted same-actor normal resume before role navigation', async () => {
   const { result, state } = await actualAssignmentCase();
   assertAcceptedCastingBaseline(result, state);
+  assert.ok(state.delays > 0, 'Assigned but pending ordinary resume cannot navigate immediately.');
 });
 
 test('actual assignment readiness waits when otherwise complete casting still has SDK resume pending', async () => {
-  const { result, state } = await actualAssignmentCase({ initial: readyButResumePending });
+  const { result, state } = await actualAssignmentCase({ initial: 'ready-pending' });
   assertAcceptedCastingBaseline(result, state);
+  assert.ok(state.delays > 0, 'An otherwise hydrated tuple still waits for its mounted pending fence.');
 });
 
-test('actual assignment readiness waits for the original admitted actor and session', async () => {
-  const { result, state } = await actualAssignmentCase({ initial: foreignReadyActor });
-  assertAcceptedCastingBaseline(result, state);
+for (const [initial, message] of [
+  ['foreign', /Original P181 Auth authority retired/],
+  ['foreign-session', /Original P181 member identity or authority changed/],
+]) test(`actual assignment immediately rejects ${initial} without role navigation or acceptance`, async () => {
+  const { error, state } = await actualAssignmentCase({ initial });
+  assert.match(error?.message ?? '', message);
+  assert.equal(state.clickStates.length, 0); assert.equal(state.transitions, 0);
 });
 
-test('actual assignment baseline uses the accepted wait tuple without a second fresh read', async () => {
-  const { result, state } = await actualAssignmentCase({
-    initial: acceptedNormalResume, reads: [acceptedNormalResume, dirtyFreshRead],
-  });
+test('actual assignment baseline retains its accepted tuple after the required current SDK recheck', async () => {
+  const { result, state } = await actualAssignmentCase({ initial: 'accepted' });
   assertAcceptedCastingBaseline(result, state);
-  assert.equal(state.reads, 1,
-    'Use the exact tuple accepted by the readiness wait; a later fresh read may already be dirty again.');
+  assert.ok(state.reads >= 2, 'The real observer must revalidate mounted authority after readiness.');
+});
+
+test('actual assignment final SDK recheck rejects a stale second read before role navigation', async () => {
+  const { error, state } = await actualAssignmentCase({ initial: 'accepted', staleAcceptance: true });
+  assert.match(error?.message ?? '', /SDK hydration or own-member readiness changed during acceptance/);
+  assert.equal(state.clickStates.length, 0); assert.equal(state.transitions, 0);
+});
+
+test('actual assignment final authority recheck rejects a foreign second read before role navigation', async () => {
+  const { error, state } = await actualAssignmentCase({ initial: 'accepted', staleAcceptance: 'foreign' });
+  assert.match(error?.message ?? '', /Original casting assignment uidHash changed during client acceptance/);
+  assert.equal(state.clickStates.length, 0); assert.equal(state.transitions, 0);
 });
 
 test('navigation epoch acceptance still requires the captured same-actor receipt and settled resume authority', async () => {
