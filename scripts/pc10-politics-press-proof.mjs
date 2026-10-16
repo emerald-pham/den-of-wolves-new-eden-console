@@ -175,7 +175,7 @@ async function runFleetAlert(context, choice, options) {
   if (choice === 'raise') {
     const message = options.redAlertMessage;
     if (typeof message !== 'string' || !message.trim()) return missingChoice('pending-politics-press', branch, options);
-    await section.getByLabel('ALERT MESSAGE', { exact: true }).fill(message);
+    await section.getByRole('textbox', { name: 'ALERT MESSAGE', exact: true }).fill(message);
   }
   const triggerBlocked = await demandButton(trigger, 'pending-politics-press', branch, options);
   if (triggerBlocked) return triggerBlocked;
