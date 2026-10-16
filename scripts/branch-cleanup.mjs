@@ -856,6 +856,38 @@ async function acquireRegisteredHeadGuards({ root, identity, branch, expectedSha
   }
 }
 
+async function recoverLocalBranchAfterCheckoutChange(report, { root, branch, expectedSha, error }) {
+  let restorationError;
+  try {
+    await run('git', [
+      'update-ref', '--no-deref', `refs/heads/${branch}`,
+      expectedSha, '0'.repeat(expectedSha.length),
+    ], { cwd: root });
+    report.actions.localBranchRestored = true;
+  } catch (caught) {
+    restorationError = caught;
+  }
+
+  let latest;
+  try {
+    latest = await branchSha(root, branch);
+    report.local = { exists: Boolean(latest), sha: latest };
+    report.actions.localBranchRemoved = !latest;
+  } catch (caught) {
+    restorationError ??= caught;
+    report.local = { exists: null, sha: null };
+  }
+  addReason(report, 'worktree-state-changed-after-delete',
+    `Checkout safety changed during local deletion: ${error.message} ` +
+    (report.actions.localBranchRestored
+      ? `The preserved tip ${expectedSha} was restored with an absent-only compare-and-swap.`
+      : latest
+        ? `The current local ref at ${latest} was retained without overwriting it.`
+        : `Local ref recovery could not be confirmed: ${restorationError?.message ?? 'ref still absent'}`));
+  if (!latest) report.decision = 'partial';
+  return report;
+}
+
 function reportFor(branch, apply) {
   return {
     version: 1,
@@ -871,6 +903,8 @@ function reportFor(branch, apply) {
       remoteBranchRemoved: false,
       remoteBranchRemovalUnconfirmed: false,
       localBranchRemoved: false,
+      localBranchDeletionCommitted: false,
+      localBranchRestored: false,
     },
     reasons: [],
     recovery: null,
@@ -1077,6 +1111,7 @@ async function cleanupBranchInternal({
       if (localOriginReason) return addReason(report, localOriginReason.code, localOriginReason.message);
       await localBranchHeadTransaction(root, targetBranch, inspected.local, { remove: true });
       report.actions.localBranchRemoved = true;
+      report.actions.localBranchDeletionCommitted = true;
     } catch (error) {
       const latest = await branchSha(root, targetBranch).catch(() => null);
       const latestHead = await currentBranch(root).catch(() => '');
@@ -1090,6 +1125,16 @@ async function cleanupBranchInternal({
           ? `The local tip of ${targetBranch} changed during compare-and-swap; the new ref was retained.`
           : `Git did not confirm deletion of ${targetBranch}: ${error.message}`,
       );
+    }
+
+    try {
+      await headGuards.verify();
+      const attached = await branchWorktreeReason(root, targetBranch);
+      if (attached) throw new Error(attached.message);
+    } catch (error) {
+      return await recoverLocalBranchAfterCheckoutChange(report, {
+        root, branch: targetBranch, expectedSha: inspected.local, error,
+      });
     }
 
     report.decision = 'removed';
@@ -1140,7 +1185,7 @@ async function main() {
     }
     const report = await cleanupBranch(options);
     console.log(JSON.stringify(report, null, 2));
-    if (report.decision === 'retained') process.exitCode = 2;
+    if (report.decision === 'retained' || report.decision === 'partial') process.exitCode = 2;
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
