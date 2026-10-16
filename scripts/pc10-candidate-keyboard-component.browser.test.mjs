@@ -26,6 +26,54 @@ const GM_CLAIMED_AT = '2026-10-06T00:01:00.000Z';
 const GROUP = 'fleet-1';
 const noMutation = `const noMutation=()=>{throw new Error('Prepared keyboard diagnosis cannot mutate gameplay.');};`;
 
+async function closePreparedFixtureResources({ context, browser, server }) {
+  const ownedProcessIds = { nodeTestRunner: process.pid, chromeBrowser: browser?.process()?.pid ?? null,
+    ephemeralServerOwner: process.pid, ephemeralServerPort: server?.address()?.port ?? null };
+  let contextClosed = !context, browserClosed = !browser, serverClosed = !server?.listening;
+  const bounded = async (operation, milliseconds = 5000) => {
+    let timer;
+    try { return await Promise.race([operation, new Promise(resolveTimeout => {
+      timer = setTimeout(() => resolveTimeout(false), milliseconds);
+    })]); } finally { clearTimeout(timer); }
+  };
+  if (context) contextClosed = await bounded(context.close().then(() => true, () => false));
+  if (browser) {
+    const browserProcess = browser.process();
+    browserClosed = await bounded(browser.close().then(() => true, () => false));
+    if (!browserClosed) {
+      browserProcess?.kill('SIGTERM');
+      browserClosed = await bounded(new Promise(resolveClosed => browserProcess?.once('close', () => resolveClosed(true))), 2000);
+    }
+  }
+  if (server?.listening) {
+    const serverClosedPromise = new Promise((resolveClosed, reject) =>
+      server.close(error => error ? reject(error) : resolveClosed(true)));
+    server.closeAllConnections();
+    serverClosed = await bounded(serverClosedPromise.then(() => true, () => false));
+  }
+  return { contextClosed, browserClosed, serverClosed, ownedProcessIds };
+}
+
+test('prepared fixture cleanup closes resources exposed by the public Playwright Browser API', async () => {
+  const calls = [];
+  const server = {
+    listening: true,
+    address: () => ({ port: 47101 }),
+    close(callback) { calls.push('server.close'); this.listening = false; callback(null); },
+    closeAllConnections() { calls.push('server.closeAllConnections'); },
+  };
+  const context = { close: async () => { calls.push('context.close'); } };
+  const browser = { close: async () => { calls.push('browser.close'); }, isConnected: () => false };
+  let receipt, cleanupError;
+  try { receipt = await closePreparedFixtureResources({ context, browser, server }); }
+  catch (error) { cleanupError = error; }
+  assert.equal(cleanupError, undefined, `cleanup must reach owned resources: ${cleanupError?.message}`);
+  assert.deepEqual(calls, ['context.close', 'browser.close', 'server.close', 'server.closeAllConnections']);
+  assert.equal(receipt.contextClosed, true);
+  assert.equal(receipt.browserClosed, true);
+  assert.equal(receipt.serverClosed, true);
+});
+
 async function bundleSource({ mode = 'research-choice' } = {}) {
   const repairedRing = mode === 'repaired-ring';
   const entry = `
@@ -444,30 +492,7 @@ for (const { surroundingCount, refreshBetweenTabs, mode = 'research-choice' } of
       }, null, 2)}\n`);
       throw error;
     } finally {
-      const ownedProcessIds = { nodeTestRunner: process.pid, chromeBrowser: browser?.process()?.pid ?? null,
-        ephemeralServerOwner: process.pid, ephemeralServerPort: server?.address()?.port ?? null };
-      let contextClosed = !context, browserClosed = !browser, serverClosed = !server?.listening;
-      const bounded = async (operation, milliseconds = 5000) => {
-        let timer;
-        try { return await Promise.race([operation, new Promise(resolveTimeout => {
-          timer = setTimeout(() => resolveTimeout(false), milliseconds);
-        })]); } finally { clearTimeout(timer); }
-      };
-      if (context) contextClosed = await bounded(context.close().then(() => true, () => false));
-      if (browser) {
-        const browserProcess = browser.process();
-        browserClosed = await bounded(browser.close().then(() => true, () => false));
-        if (!browserClosed) {
-          browserProcess?.kill('SIGTERM');
-          browserClosed = await bounded(new Promise(resolveClosed => browserProcess?.once('close', () => resolveClosed(true))), 2000);
-        }
-      }
-      if (server?.listening) {
-        const serverClosedPromise = new Promise((resolveClosed, reject) =>
-          server.close(error => error ? reject(error) : resolveClosed(true)));
-        server.closeAllConnections();
-        serverClosed = await bounded(serverClosedPromise.then(() => true, () => false));
-      }
+      const cleanup = await closePreparedFixtureResources({ context, browser, server });
       const sourceFiles = ['src/components/CandidatePreparationPanel.tsx', 'src/components/CandidatePreparationPanel.css',
         'src/components/RoleConsoleTemplate.tsx', 'src/routes/GmConsole.tsx',
         'src/store/useSessionStore.ts', 'functions/src/candidatePaths.ts', 'functions/src/endeavourResearch.ts',
@@ -475,8 +500,9 @@ for (const { surroundingCount, refreshBetweenTabs, mode = 'research-choice' } of
       const bindings = await Promise.all(sourceFiles.map(async path => ({ path,
         sha256: createHash('sha256').update(await readFile(resolve(ROOT, path))).digest('hex') })));
       await writeFile(resolve(directory, 'owned-resource-close.json'), `${JSON.stringify({
-        contextClosed, browserClosed: browserClosed && !browser?.isConnected(), serverClosed: serverClosed && !server?.listening,
-        ownedProcessIds, sharedFirebaseOrRootRuntimeTouched: false, sourceBindings: bindings,
+        ...cleanup, browserClosed: cleanup.browserClosed && !browser?.isConnected(),
+        serverClosed: cleanup.serverClosed && !server?.listening,
+        sharedFirebaseOrRootRuntimeTouched: false, sourceBindings: bindings,
       }, null, 2)}\n`);
     }
   });
