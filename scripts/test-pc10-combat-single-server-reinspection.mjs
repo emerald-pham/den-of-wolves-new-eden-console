@@ -28,7 +28,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
 
 function sourceReadFixture({ metadata = { fromCache: false, hasPendingWrites: false },
   attack = currentAttack, serverValue = resolvedAttack, transactionValue,
-  serverError, afterServer = () => {}, sdkReply = deniedReply } = {}) {
+  serverError, pendingTransactionRead = false, afterServer = () => {}, sdkReply = deniedReply } = {}) {
   const counts = { getDoc: 0, getDocFromServer: 0, getDocs: 0, sdkChoice: 0, paints: 0 };
   const timeouts = [], records = [], reads = [];
   const fixture = { actor: { ...originalActor }, counts, timeouts, records, reads };
@@ -57,6 +57,7 @@ function sourceReadFixture({ metadata = { fromCache: false, hasPendingWrites: fa
       return callback({ get: async ref => {
         reads.push({ method: 'transaction.get', path: ref.path });
         assert.equal(ref.path, path);
+        if (pendingTransactionRead) return new Promise(() => {});
         if (serverError) throw serverError;
         afterServer(fixture);
         return snapshot(transactionValue === undefined ? serverValue : transactionValue, metadata);
@@ -137,6 +138,21 @@ test('the strong boarding reinspection observes the current document when the se
   assert.equal(value.revision, 26, 'Use the transaction batch read, not a metadata-fresh listener snapshot.');
   assert.deepEqual(fixture.counts, { getDoc: 0, getDocFromServer: 0, getDocs: 0, sdkChoice: 0, paints: 0 });
   assert.deepEqual(fixture.reads.map(({ method }) => method), ['runTransaction', 'transaction.get']);
+});
+
+test('the original deadline bounds a transaction read that never settles and grants no read result', async () => {
+  const fixture = sourceReadFixture({ pendingTransactionRead: true }), observed = [];
+  const deadlineAt = Date.now() + 25;
+  const result = await Promise.race([
+    fixture.adapter.read('gm', 'wolfAttackState/current', {
+      serverOnly: true, deadlineAt, onSnapshot: outcome => { observed.push(plain(outcome)); },
+    }).then(value => ({ kind: 'value', value }), error => ({ kind: 'error', error })),
+    new Promise(resolve => setTimeout(() => resolve({ kind: 'still-pending' }), 100)),
+  ]);
+  assert.equal(result.kind, 'error', 'The page read must finish or reject within its original deadline.');
+  assert.match(result.error.message, /original combat source reinspection deadline expired/i);
+  assert.deepEqual(fixture.reads.map(({ method }) => method), ['runTransaction', 'transaction.get']);
+  assert.deepEqual(observed, [], 'An unfinished read must not invoke the evidence observer.');
 });
 
 test('normal document and collection reads keep their existing cache-permitted path', async () => {
