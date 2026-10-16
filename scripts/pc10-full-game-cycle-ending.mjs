@@ -3,6 +3,92 @@ import { writeFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { completeOfferedTurnAdvance, isObservedGameEnding } from './pc10-full-game-demo-proof-helpers.mjs';
 
+const FULL_GAME_ENDING_READ_TIMEOUT_MS = 60_000;
+
+function createFullGameEndingDeadline(timeoutMs) {
+  assert.ok(Number.isFinite(timeoutMs) && timeoutMs > 0, 'A finite full-game ending deadline is required.');
+  const deadlineAt = Date.now() + timeoutMs;
+  const remainingMs = () => deadlineAt - Date.now();
+  const within = async (label, operation) => {
+    const remaining = remainingMs();
+    if (remaining <= 0) throw new Error(`${label}: original full-game ending deadline expired.`);
+    let timer;
+    try {
+      return await Promise.race([
+        Promise.resolve().then(operation),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`${label}: original full-game ending deadline expired.`)), remaining);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  return { within, remainingMs };
+}
+
+function assertOriginalEndingGm(current, expected) {
+  assert.ok(current && typeof current === 'object', 'The original GM observation must remain available.');
+  assert.equal(current.hasAuth, true, 'The original GM must remain authenticated.');
+  assert.equal(current.sameActor, true, 'The original authenticated UID must still own the GM surface.');
+  assert.equal(current.sessionId, expected.sessionId);
+  assert.equal(current.uidHash, expected.uidHash);
+  assert.equal(current.playerRole, 'gm');
+  assert.equal(current.gmInstanceOwned, true);
+  assert.equal(current.instanceId, expected.instanceId);
+  assert.equal(current.phase, expected.phase);
+  assert.equal(current.cycle, expected.cycle);
+  assert.equal(current.fullGameDemo?.status, 'complete');
+  assert.equal(current.connection, 'live');
+  assert.equal(current.freshness, 'server');
+}
+
+function endingGmAuthority(current) {
+  return Object.fromEntries(['hasAuth', 'sameActor', 'sessionId', 'uidHash', 'playerRole',
+    'gmInstanceOwned', 'instanceId', 'phase', 'cycle', 'connection', 'freshness']
+    .map(key => [key, current[key]]));
+}
+
+/** Consume the generic driver's terminal handoff from the original GM's
+ * authorized private receipt. The public observer stays privacy-safe. */
+export async function consumeFullGameEnding({ gm, originalGm, initial }, { timeoutMs = FULL_GAME_ENDING_READ_TIMEOUT_MS } = {}) {
+  assert.ok(initial?.sessionId && originalGm?.uidHash && originalGm?.instanceId,
+    'The original session, authenticated GM, and owned instance must be captured before progression.');
+  assert.equal(originalGm.sessionId, initial.sessionId);
+  assert.equal(originalGm.playerRole, 'gm');
+  assert.equal(originalGm.gmInstanceOwned, true);
+  const deadline = createFullGameEndingDeadline(timeoutMs);
+  const terminal = await deadline.within('Server-produced immutable debrief ending', () =>
+    gm.until('Server-produced immutable debrief ending', current =>
+      current.sessionId === initial.sessionId && current.fullGameDemo?.status === 'complete' &&
+      ['debrief', 'closed'].includes(current.phase), deadline.remainingMs()));
+  assert.equal(terminal.sessionId, initial.sessionId);
+  assert.equal(terminal.fullGameDemo?.status, 'complete');
+  assert.ok(['debrief', 'closed'].includes(terminal.phase));
+  const expectedGm = { sessionId: initial.sessionId, uidHash: originalGm.uidHash,
+    instanceId: originalGm.instanceId, phase: terminal.phase, cycle: terminal.cycle };
+  const beforeRead = await deadline.within('Original GM authority before terminal debrief receipt', () => gm.observe());
+  assertOriginalEndingGm(beforeRead, expectedGm);
+  const debrief = await deadline.within('Authorized original-GM terminal debrief receipt', () =>
+    gm.callable('getSessionDebrief', { sessionId: initial.sessionId, instanceId: originalGm.instanceId }));
+  assert.equal(debrief.status, 'committed');
+  assert.equal(debrief.result?.type, 'session-debrief');
+  assert.equal(debrief.result?.sessionId, initial.sessionId);
+  assert.equal(debrief.result?.snapshot?.type, 'session-debrief');
+  assert.equal(debrief.result?.snapshot?.version, 1);
+  assert.equal(debrief.result?.snapshot?.cycle, terminal.cycle);
+  const afterRead = await deadline.within('Original GM authority after terminal debrief receipt', () => gm.observe());
+  assertOriginalEndingGm(afterRead, expectedGm);
+  assert.deepEqual(endingGmAuthority(afterRead), endingGmAuthority(beforeRead),
+    'The terminal receipt cannot outlive the original live GM, session, instance, or cycle.');
+  const snapshot = debrief.result.snapshot;
+  const summary = { sessionId: initial.sessionId, phase: terminal.phase, cycle: terminal.cycle,
+    debriefType: snapshot.type, debriefVersion: snapshot.version, debriefSource: snapshot.source,
+    debriefResult: snapshot.result, debriefCause: snapshot.cause, debriefCycle: snapshot.cycle };
+  assert.equal(isObservedGameEnding(summary), true, 'Only an existing recognized ending summary may complete the generic driver.');
+  return summary;
+}
+
 /** Acceptance must match the actual server branch, including early failures. */
 export function assertFreshEndingBranch(snapshot, { branch, cycle, limit }) {
   assert.equal(snapshot.cycle, cycle);
@@ -24,7 +110,8 @@ export function assertFreshEndingBranch(snapshot, { branch, cycle, limit }) {
  * This proves the fresh final-cycle branch; it does not claim all game functions.
  * No gameplay document, clock, store, identity or callable response is injected.
  */
-export async function runEnding({ gm, crew, initial, directory }, { branch = 'final-cycle' } = {}) {
+export async function runEnding({ gm, crew, initial, started, directory },
+  { branch = 'final-cycle', endingTimeoutMs = FULL_GAME_ENDING_READ_TIMEOUT_MS } = {}) {
   assert.ok(['final-cycle', 'pursuit-limit'].includes(branch));
   const advances = [], phases = [];
   let lastAdvance;
@@ -44,7 +131,7 @@ export async function runEnding({ gm, crew, initial, directory }, { branch = 'fi
         instanceId: gmInstance?.id, live: connection === 'live' && sessionSnapshotFreshness === 'server',
         ownsGm: me?.role === 'gm' && gmInstance?.uid === me?.uid,
         pursuitEmergencyStatus: session?.pursuitEmergencyWindowAuthority?.status ?? session?.pursuitEmergencyWindow?.status,
-        debriefSource: session?.debriefSnapshot?.source, debriefResult: session?.debriefSnapshot?.result };
+      };
     }, gm.storeModuleUrl());
   }
   try {
@@ -107,15 +194,35 @@ export async function runEnding({ gm, crew, initial, directory }, { branch = 'fi
     }
     // The action receipt updates phase before the live projection arrives.
     // Accept the complete server-backed debrief, not that optimistic phase.
-    await gm.until('Complete server-produced fresh training debrief', value =>
-      value.fullGameDemo?.status === 'complete' && isObservedGameEnding(value));
-    const terminal = await state();
+    const deadline = createFullGameEndingDeadline(endingTimeoutMs);
+    await deadline.within('Complete server-produced fresh training debrief', () =>
+      gm.until('Complete server-produced fresh training debrief', value =>
+        value.sessionId === initial.sessionId && value.fullGameDemo?.status === 'complete' &&
+        ['debrief', 'closed'].includes(value.phase), deadline.remainingMs()));
+    const terminal = await deadline.within('Terminal full-game debrief state', state);
     assert.equal(terminal.phase, 'debrief');
     assert.equal(terminal.trainingStatus, 'complete');
+    assert.equal(started?.sessionId, initial.sessionId);
+    assert.ok(started?.uidHash && started?.instanceId, 'The original GM identity must be captured before progression.');
+    assert.equal(started.instanceId, terminal.instanceId);
+    const expectedGm = { sessionId: initial.sessionId, uidHash: started.uidHash,
+      instanceId: terminal.instanceId, phase: terminal.phase, cycle: terminal.cycle };
+    const beforeRead = await deadline.within('Original GM authority before private debrief read', () => gm.observe());
+    assertOriginalEndingGm(beforeRead, expectedGm);
     const read = { sessionId: initial.sessionId, instanceId: terminal.instanceId };
-    const debrief = await gm.callable('getSessionDebrief', read);
+    const debrief = await deadline.within('Authorized original-GM private debrief read', () =>
+      gm.callable('getSessionDebrief', read));
     assert.equal(debrief.status, 'committed');
+    assert.equal(debrief.result?.type, 'session-debrief');
+    assert.equal(debrief.result?.sessionId, initial.sessionId);
+    assert.equal(debrief.result?.snapshot?.type, 'session-debrief');
+    assert.equal(debrief.result?.snapshot?.version, 1);
+    assert.equal(debrief.result?.snapshot?.cycle, terminal.cycle);
     assertFreshEndingBranch(debrief.result.snapshot, { branch, cycle: terminal.cycle, limit: terminal.limit });
+    const afterRead = await deadline.within('Original GM authority after private debrief read', () => gm.observe());
+    assertOriginalEndingGm(afterRead, expectedGm);
+    assert.deepEqual(endingGmAuthority(afterRead), endingGmAuthority(beforeRead),
+      'The private read cannot outlive the original live GM, session, instance, or cycle.');
     const ordinary = await crew.callable('getSessionDebrief', read);
     assert.equal(ordinary.status, 'denied');
     assert.match(ordinary.code, /permission-denied$/);

@@ -8,7 +8,8 @@ import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
-import { proofRuntimeFromViteSource, validateProofRuntime, assertSelectedActor, waitForFullGameDemoPresentationActor, completePreparedCrew, confirmPreparedSetup, isObservedGameEnding, assertExactFullGameStartRecovery, waitForFullGamePresentationReady } from './pc10-full-game-demo-proof-helpers.mjs';
+import { proofRuntimeFromViteSource, validateProofRuntime, assertSelectedActor, waitForFullGameDemoPresentationActor, completePreparedCrew, confirmPreparedSetup, assertExactFullGameStartRecovery, waitForFullGamePresentationReady } from './pc10-full-game-demo-proof-helpers.mjs';
+import { consumeFullGameEnding } from './pc10-full-game-cycle-ending.mjs';
 
 const PRESENTATION_READINESS_SOURCE_FILES = Object.freeze([
   'scripts/pc10-full-game-demo-proof-helpers.mjs',
@@ -693,7 +694,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
     if (options.runEnding) {
       await mark('supplied genuine gameplay ending');
       await options.runEnding({ gm, crew, initial, started, roster, directory });
-      const ended = await gm.until('Server-produced immutable debrief ending', isObservedGameEnding);
+      const ended = await consumeFullGameEnding({ gm, originalGm: gmIdentity, initial });
       evidence.ending = ended; evidence.genuineEndingSupplied = true;
     } else evidence.genuineEndingSupplied = false;
     assert.equal((await gm.observe()).uidHash, gmIdentity.uidHash);

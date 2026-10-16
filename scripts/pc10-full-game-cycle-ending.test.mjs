@@ -3,7 +3,7 @@ import test from 'node:test';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { runEnding } from './pc10-full-game-cycle-ending.mjs';
+import { consumeFullGameEnding, runEnding } from './pc10-full-game-cycle-ending.mjs';
 import { isObservedGameEnding } from './pc10-full-game-demo-proof-helpers.mjs';
 
 function endingConsumerFixture() {
@@ -86,6 +86,7 @@ function endingConsumerFixture() {
   return { gm, crew, sessionId, instanceId, uidHash, snapshot, reply, calls,
     initial: { sessionId, joinCode: 'ordinary-code' },
     started: { sessionId, uidHash, instanceId, cycle: 1 },
+    originalGm: { sessionId, uidHash, instanceId, playerRole: 'gm', gmInstanceOwned: true },
   };
 }
 
@@ -132,13 +133,44 @@ test('generic full-game completion cannot finish after the ending callback when 
     started: fixture.started, directory });
   assert.equal(fixture.calls.gmCloseClicks, 1, 'The genuine ending callback has completed its UI close.');
 
-  const ended = await fixture.gm.until('Server-produced immutable debrief ending', isObservedGameEnding);
+  const ended = await consumeFullGameEnding({ gm: fixture.gm, originalGm: fixture.originalGm,
+    initial: fixture.initial });
   assert.equal(ended.phase, 'closed');
   assert.equal(isObservedGameEnding(ended), true);
+  assert.equal(Object.hasOwn(ended, 'snapshot'), false, 'The generic consumer returns only the validated terminal summary.');
   const afterCallback = await fixture.gm.observe();
   assert.equal(afterCallback.phase, 'closed');
   assert.equal(afterCallback.debriefType, null);
   assert.equal(afterCallback.debriefSource, null);
-  assert.equal(fixture.calls.gmReads.length, 2,
-    'The callback consumed and preserved the authorized private response before the generic handoff deadwait.');
+  assert.equal(fixture.calls.gmReads.length, 3,
+    'Both the ending callback and generic completion consume authorized private receipts.');
+});
+
+test('generic completion rejects a denied private receipt', async () => {
+  const fixture = endingConsumerFixture();
+  fixture.gm.callable = async () => ({ status: 'denied', code: 'functions/permission-denied' });
+  await assert.rejects(consumeFullGameEnding({ gm: fixture.gm, originalGm: fixture.originalGm,
+    initial: fixture.initial }), /Expected values to be strictly equal/);
+});
+
+test('generic completion rejects a changed owned GM instance across the private read', async () => {
+  const fixture = endingConsumerFixture();
+  const callable = fixture.gm.callable;
+  fixture.gm.callable = async (...args) => {
+    const response = await callable(...args);
+    fixture.gm.observe = async () => ({ ...fixture.calls.gmObservations.at(-1),
+      instanceId: 'replacement-gm-instance' });
+    return response;
+  };
+  await assert.rejects(consumeFullGameEnding({ gm: fixture.gm, originalGm: fixture.originalGm,
+    initial: fixture.initial }), /Expected values to be strictly equal/);
+});
+
+test('generic completion bounds an unsettled authorized private read by its original shared deadline', async () => {
+  const fixture = endingConsumerFixture();
+  fixture.gm.callable = async () => new Promise(() => {});
+  const startedAt = Date.now();
+  await assert.rejects(consumeFullGameEnding({ gm: fixture.gm, originalGm: fixture.originalGm,
+    initial: fixture.initial }, { timeoutMs: 20 }), /Authorized original-GM terminal debrief receipt: original full-game ending deadline expired/);
+  assert.ok(Date.now() - startedAt < 500, 'The private read cannot extend the original finite caller budget.');
 });
