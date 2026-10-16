@@ -543,7 +543,87 @@ export function capybaraFullGameDemoOptions(options = {}) {
   };
 }
 
-/** Acknowledge blocking unrest dialogs through the original GM's ordinary UI. */
+/** PopulationAlert follows unrest in the application's ordinary modal priority. */
+async function acknowledgeBlockingPopulationAlerts({ gm, originalGm, maxDismissals }) {
+  const page = gm.page;
+  const alert = page.getByRole('alertdialog', { name: 'Survivor population threshold reached', exact: true });
+  if (!(await alert.isVisible())) return [];
+  const before = await gm.observe();
+  const assertIdentity = async () => {
+    const current = await gm.observe();
+    for (const key of ['sessionId', 'uidHash', 'instanceId', 'playerRole', 'gmInstanceOwned']) {
+      assert.equal(current[key], originalGm[key], `The original GM ${key} must remain current while acknowledging population.`);
+    }
+    assert.equal(current.sameActor, true);
+    assert.equal(current.playerRole, 'gm');
+    assert.equal(current.gmInstanceOwned, true);
+    assert.equal(current.connection, 'live');
+    assert.equal(current.freshness, 'server');
+    assert.equal(current.cycle, before.cycle, 'Population acknowledgement cannot cross cycles.');
+    assert.equal(current.phase, 'active');
+  };
+  await assertIdentity();
+  const receipts = [];
+  for (let index = 0; index < maxDismissals; index += 1) {
+    if (!(await alert.isVisible())) return receipts;
+    await assertIdentity();
+    const source = await page.evaluate(async moduleUrl => {
+      const { useSessionStore } = await import(moduleUrl);
+      const state = useSessionStore.getState(), session = state.session;
+      return { sessionId: session?.id, cycle: session?.currentTurn, phase: session?.phase,
+        live: state.connection === 'live' && state.sessionSnapshotFreshness === 'server',
+        populationAlerts: session?.populationAlerts, vesselActionRevisions: session?.vesselActionRevisions };
+    }, gm.storeModuleUrl());
+    assert.equal(source.sessionId, originalGm.sessionId);
+    assert.equal(source.cycle, before.cycle);
+    assert.equal(source.phase, 'active');
+    assert.equal(source.live, true);
+    const text = (await alert.innerText()).replace(/\s+/g, ' ');
+    const matches = Object.entries(source.populationAlerts ?? {}).filter(([, candidate]) =>
+      candidate.targetGmInstanceIds?.includes(originalGm.instanceId) &&
+      typeof candidate.shipName === 'string' && Number.isSafeInteger(candidate.population) &&
+      text.includes(`${candidate.shipName} survivor population has reached ${candidate.population.toLocaleString('en-US')}.`));
+    assert.equal(matches.length, 1, 'The visible population alert must match exactly one current source alert targeted to this GM.');
+    const [shipId, candidate] = matches[0];
+    assert.equal(candidate.shipId, shipId);
+    const currentAlert = alert.filter({ hasText:
+      `${candidate.shipName} survivor population has reached ${candidate.population.toLocaleString('en-US')}.` });
+    const responsePromise = page.waitForResponse(response => response.request().method() === 'POST' &&
+      new URL(response.url()).pathname.endsWith('/us-central1/dismissPopulationAlert'), { timeout: 15_000 });
+    try {
+      await alert.getByRole('button', { name: 'Dismiss population alert', exact: true }).click();
+    } catch (error) {
+      await responsePromise.catch(() => undefined);
+      throw error;
+    }
+    const response = await responsePromise, body = await response.json();
+    assert.equal(response.ok(), true, `dismissPopulationAlert: ${body.error?.message ?? response.status()}`);
+    const payload = response.request().postDataJSON()?.data, result = body.result;
+    assert.equal(payload?.sessionId, originalGm.sessionId);
+    assert.equal(payload?.instanceId, originalGm.instanceId);
+    assert.equal(payload?.shipId, shipId);
+    assert.equal(payload?.expectedRevision, source.vesselActionRevisions?.[shipId] ?? 0);
+    assert.ok(typeof payload?.requestId === 'string' && payload.requestId.length > 0);
+    assert.equal(result?.dismissed, true, 'The server must commit the actual population acknowledgement.');
+    assert.ok(result.status === undefined || result.status === 'committed');
+    assert.equal(result.vesselId, shipId);
+    assert.equal(result.turn, before.cycle);
+    assert.equal(result.phase, 'active');
+    assert.equal(result.revision, payload.expectedRevision + 1);
+    assert.equal(result.idempotencyKey, payload.requestId);
+    assert.equal(result.auditId, `dismiss-population-${payload.requestId}`);
+    assert.equal(typeof result.actorUid, 'string');
+    assert.equal(createHash('sha256').update(result.actorUid).digest('hex').slice(0, 16), originalGm.uidHash);
+    await currentAlert.waitFor({ state: 'hidden', timeout: 15_000 });
+    await assertIdentity();
+    receipts.push({ shipId, shipName: candidate.shipName, population: candidate.population,
+      cycle: before.cycle, revision: result.revision, httpStatus: response.status(), dismissed: true });
+  }
+  assert.equal(await alert.isVisible(), false, `At most ${maxDismissals} blocking population alerts may need acknowledgement.`);
+  return receipts;
+}
+
+/** Acknowledge unrest, then population dialogs through the original GM's ordinary UI. */
 export async function acknowledgeBlockingUnrestAlerts({ gm, originalGm, maxDismissals = 32 } = {}) {
   assert.ok(gm?.page && typeof gm.observe === 'function', 'The original GM page and observer are required.');
   assert.ok(originalGm?.sessionId && originalGm.uidHash && originalGm.instanceId,
@@ -564,7 +644,7 @@ export async function acknowledgeBlockingUnrestAlerts({ gm, originalGm, maxDismi
   const alert = page.getByRole('alertdialog', { name: 'Unrest threshold exceeded', exact: true });
   const receipts = [];
   for (let index = 0; index < maxDismissals; index += 1) {
-    if (!(await alert.isVisible())) return receipts;
+    if (!(await alert.isVisible())) break;
 
     const text = await alert.innerText();
     const match = text.match(/([^\n]+?) has exceeded the maximum unrest dial rating of 7\./i);
@@ -601,6 +681,7 @@ export async function acknowledgeBlockingUnrestAlerts({ gm, originalGm, maxDismi
   }
 
   assert.equal(await alert.isVisible(), false, `At most ${maxDismissals} blocking unrest alerts may need acknowledgement.`);
+  receipts.push(...await acknowledgeBlockingPopulationAlerts({ gm, originalGm, maxDismissals }));
   return receipts;
 }
 
@@ -1166,8 +1247,10 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
   async function advance() {
     const unrestAcknowledgements = await acknowledgeBlockingUnrestAlerts({ gm, originalGm });
     for (const receipt of unrestAcknowledgements) a.actions.push({
-      roleId: 'gm', endpoint: 'dismissUnrestAlert', ...receipt,
-      transport: 'actual original-GM Dismiss unrest alert button', renderedStatus: 'alert-hidden',
+      roleId: 'gm', endpoint: receipt.population === undefined ? 'dismissUnrestAlert' : 'dismissPopulationAlert', ...receipt,
+      transport: receipt.population === undefined
+        ? 'actual original-GM Dismiss unrest alert button' : 'actual original-GM Dismiss population alert button',
+      renderedStatus: 'alert-hidden',
     });
     await coordination();
     const before = await gm.observe();
