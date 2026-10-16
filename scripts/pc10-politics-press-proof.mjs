@@ -144,6 +144,7 @@ async function runAdmiralDirective(context, text, options) {
   if (!text) return missingChoice('pending-politics-press', branch, options);
   assert.equal(typeof text, 'string'); assert.ok(text.trim().length > 0 && text.length <= 500);
   const { actor } = await enterSelectedRole(context, 'admiral');
+  await context.crew.page.getByRole('button', { name: 'Fleet directives', exact: true }).click();
   const section = context.crew.page.getByRole('region', { name: 'Admiral policy and defence coordination', exact: true });
   await section.waitFor();
   const field = section.getByLabel('Fleet policy', { exact: true });
