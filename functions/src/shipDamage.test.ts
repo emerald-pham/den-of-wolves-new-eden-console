@@ -31,6 +31,32 @@ describe('authoritative ship damage deck', () => {
     expect(result.state.damagedSystemIds).not.toContain('armoured-hull-i');
   });
 
+  it('finishes the last two hull cards after every other Aegis system is damaged', () => {
+    const allOtherSystems = AEGIS_DAMAGE_DECK
+      .filter(({ recycleAfterResolution }) => recycleAfterResolution !== true)
+      .map(({ systemId }) => systemId);
+
+    const firstHull = drawShipDamage('aegis', {
+      damagedSystemIds: allOtherSystems, destroyed: false,
+    }, () => 0);
+    if (firstHull.destroyed) throw new Error('Expected the first remaining hull card.');
+
+    expect(firstHull.card.systemId).toBe('armoured-hull-i');
+    expect(firstHull.recycled).toBe(false);
+    expect(firstHull.state.damagedSystemIds).toContain('armoured-hull-i');
+
+    const lastHull = drawShipDamage('aegis', firstHull.state, () => 0);
+    if (lastHull.destroyed) throw new Error('Expected the last remaining hull card.');
+
+    expect(lastHull.card.systemId).toBe('armoured-hull-ii');
+    expect(lastHull.recycled).toBe(false);
+    expect(lastHull.state.damagedSystemIds).toContain('armoured-hull-ii');
+
+    const exhausted = drawShipDamage('aegis', lastHull.state, () => 0);
+    expect(exhausted.destroyed).toBe(true);
+    expect(exhausted.state.destroyed).toBe(true);
+  });
+
   it('keeps the last armoured hull out of the empty deck, then destroys the ship', () => {
     const allButHull = AEGIS_DAMAGE_DECK
       .filter(({ systemId }) => systemId !== 'armoured-hull-ii')
