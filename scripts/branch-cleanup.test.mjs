@@ -447,12 +447,13 @@ test('remote SHA lease rejects a branch that changes during deletion', async () 
   }
 });
 
-test('local tip is rechecked after the leased remote deletion', async () => {
+test('local CAS retains a replacement already merged to default after remote deletion', async () => {
   const fixture = await createBranchCleanupFixture();
   let restoreRace;
   try {
     const originalTip = await fixture.localSha();
-    const raceSha = await createUniqueCommit(fixture);
+    const raceSha = await fixture.runGit(['rev-parse', 'refs/remotes/origin/main']);
+    assert.notEqual(raceSha, originalTip);
     restoreRace = await installPrePushRace(fixture, { kind: 'local', raceSha });
     const report = await fixture.cleanup({ apply: true });
     expectReason(report, 'local-tip-changed');
