@@ -236,6 +236,27 @@ for (const { surroundingCount, refreshBetweenTabs, mode = 'research-choice' } of
         let presentation;
         try { presentation = JSON.parse(await readFile(presentationPath, 'utf8')); }
         catch { assert.fail('The repaired Ring path needs post-Tab path and focused-control screenshots with contemporaneous geometry.'); }
+        const cdp = await context.newCDPSession(page);
+        try {
+          await cdp.send('DOM.enable'); await cdp.send('CSS.enable');
+          const { root: documentNode } = await cdp.send('DOM.getDocument');
+          const paintedFonts = {};
+          for (const [name, selector] of [
+            ['title', '.candidate-preparation__path h3'],
+            ['status', '.candidate-preparation__path p:nth-of-type(2)'],
+            ['action', '.candidate-preparation__path button'],
+          ]) {
+            const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: documentNode.nodeId, selector });
+            assert.ok(nodeId > 0, `The visible prepared ${name} node must be addressable by Chrome DevTools.`);
+            const { fonts } = await cdp.send('CSS.getPlatformFontsForNode', { nodeId });
+            paintedFonts[name] = fonts.map(({ familyName, postScriptName, isCustomFont, glyphCount }) =>
+              ({ familyName, postScriptName, isCustomFont, glyphCount }));
+            assert.ok(paintedFonts[name].some(font => font.glyphCount > 0),
+              `Chrome must report the actual painted font for prepared ${name} text.`);
+          }
+          presentation.environment.paintedFonts = { source: 'CDP CSS.getPlatformFontsForNode', nodes: paintedFonts };
+          await writeFile(presentationPath, `${JSON.stringify(presentation, null, 2)}\n`);
+        } finally { await cdp.detach(); }
         assert.equal(presentation.scope, 'Prepared unchanged component, CSS, store and candidate projector only.');
         assert.equal(presentation.captures.length, 6);
         for (const geometry of presentation.captures) {
