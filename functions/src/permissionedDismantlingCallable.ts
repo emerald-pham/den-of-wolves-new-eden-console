@@ -1535,7 +1535,16 @@ export function createPermissionedDismantlingCallables(
       if (target.revision === Number.MAX_SAFE_INTEGER) {
         precondition('The target ship revision cannot advance safely.');
       }
-      const nextFingerprint = targetFingerprint(result.targetDamage, result.targetResources);
+      const macawHostTarget = isMacawScrapProposal(proposal) && proposal.targetShipId === 'capybara';
+      let nextTargetResources = result.targetResources;
+      if (macawHostTarget) {
+        const scrapAfter = result.macawScrapAfter;
+        if (typeof scrapAfter !== 'number' || !Number.isSafeInteger(scrapAfter) || scrapAfter < 0) {
+          precondition('The Macaw Scrap result is unavailable or invalid.');
+        }
+        nextTargetResources = { ...result.targetResources, scrap: scrapAfter };
+      }
+      const nextFingerprint = targetFingerprint(result.targetDamage, nextTargetResources);
       const appliedAt = serverTimestamp();
       const reply: PermissionedDismantlingApplyReply = {
         status: 'applied',
@@ -1559,10 +1568,10 @@ export function createPermissionedDismantlingCallables(
 
       tx.update(sessionRef, {
         ['shipDamage.' + proposal.targetShipId]: result.targetDamage,
-        ['shipResources.' + proposal.targetShipId]: result.targetResources,
+        ['shipResources.' + proposal.targetShipId]: nextTargetResources,
         ...(isMacawScrapProposal(proposal)
           ? {
-            'shipResources.capybara.scrap': result.macawScrapAfter,
+            ...(macawHostTarget ? {} : { 'shipResources.capybara.scrap': result.macawScrapAfter }),
             macawRepairs: macawRepairLedger,
           }
           : {}),
