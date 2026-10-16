@@ -540,7 +540,10 @@ it('assigns explicit loyalty to the stable claimed Press without counting it as 
     expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u4' }),
     expect.objectContaining({
       visibleToUids: ['u4'],
-      payload: { type: 'loyalty', kind: 'android', suspicion: null },
+      payload: expect.objectContaining({
+        type: 'loyalty', kind: 'android', suspicion: null,
+        directives: expect.arrayContaining([expect.stringMatching(/android identity secret/i)]),
+      }),
     }),
   );
   expect(mock.set).toHaveBeenCalledWith(
@@ -557,7 +560,8 @@ it('assigns explicit loyalty to the stable claimed Press without counting it as 
     }),
   );
   const event = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/events/press-loyalty-target')?.[1];
-  expect(JSON.stringify(event)).not.toMatch(/u4|android|suspicion|partnerUid/);
+  expect(event).not.toHaveProperty('targetUid');
+  expect(JSON.stringify(event)).not.toMatch(/u4|android|suspicion|partnerUid|directives/);
   expect(mock.update).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1' }),
     expect.objectContaining({ setupRevision: 3, phase: 'casting' }),
