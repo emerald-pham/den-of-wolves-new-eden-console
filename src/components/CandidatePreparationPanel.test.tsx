@@ -54,6 +54,21 @@ it('explains the three distinct costs and next actor through connected operation
   expect(screen.getByText(/one d6.*protected scouting.*nine.*earlier losses/i)).toBeInTheDocument();
   expect(screen.queryByText(/scout bonus|hidden modifier|wolf roster/i)).not.toBeInTheDocument();
 });
+it('retains a lost Nebula result while omitting the ship action from the mounted workspace', async () => {
+  const lost = path('O');
+  lost.ships = [{ shipId: 'aegis', result: 'lost', summary: 'Lost within the Deep Nebula.', fuelCost: 12,
+    reactorCapacity: 0, canAct: false, blocker: 'Original result retained.' }];
+  service.read.mockResolvedValueOnce({ type: 'candidate-workspace', sessionId: 's1', groupId: 'fleet-1', cycle: 5,
+    revision: 4, edition: 'home', editionLocked: true, paths: [lost] });
+  useSessionStore.setState({ session: { id: 's1', phase: 'active', currentTurn: 5,
+    shipFleetGroupIds: { aegis: 'fleet-1' } } as never,
+    me: { uid: 'u1', sessionId: 's1', role: 'player', fleetGroupId: 'fleet-1', activeConsoleRoleId: 'executive-officer' } as never });
+  render(<CandidatePreparationPanel />);
+  await screen.findByRole('heading', { name: 'Deep Nebula' });
+  expect(screen.getByText(/Lost within the Deep Nebula.*Original result retained\./i)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /^Long jump into Nebula \/\/ aegis \/\/ \d+ fuel$/ }))
+    .not.toBeInTheDocument();
+});
 it('labels Home as the default and gives the GM a pre-outcome Deluxe alternative selector', async () => {
   useSessionStore.setState({ session: { id: 's1', phase: 'active', currentTurn: 6,
     shipFleetGroupIds: { aegis: 'fleet-1' } } as never,

@@ -14,6 +14,8 @@ import {
   splitPursuitGroup,
   writePlayerDiscoveryProjection,
 } from './navigationProjection';
+import { jumpFuelCost, jumpLengthBetween } from './jumpDrive';
+import { jumpDistanceBetween } from './starChartGraph';
 
 const firestore = getFirestore(initializeApp({ projectId: 'p284-navigation-test' }, 'p284-navigation-path'));
 
@@ -233,6 +235,28 @@ it('advances each fleet group once while suppressing only a group in the Ion Neb
     'fleet-3': 10,
     'fleet-4': 10,
   });
+});
+
+it('reduces the original seven-ship group at Chart A Deep Nebula before ordinary Cycle 5-7 pursuit rises', () => {
+  const vesselIds = ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'];
+  const fleetGroups = [{ id: 'fleet-1', vesselIds }];
+  expect(jumpDistanceBetween('0000', '0408')).toBe(4);
+  expect(jumpLengthBetween('1413', '0408')).toBe('long');
+  expect(Math.max(...vesselIds.map(shipId => jumpFuelCost(shipId, 'long', false)))).toBe(12);
+  const group = navigationState({
+    shipGalacticCoordinates: Object.fromEntries(vesselIds.map(shipId => [shipId, '1413'])),
+    pursuitGroups: { 'fleet-1': 10 },
+  }, vesselIds);
+  let current = group;
+  for (const shipId of vesselIds) current = adjustPursuitForMovement(current, fleetGroups, shipId, '0408', 'A');
+  expect(current.pursuitGroups).toEqual({ 'fleet-1': 0 });
+
+  current = { ...current, shipGalacticCoordinates: Object.fromEntries(vesselIds.map(shipId => [shipId, '0408'])) };
+  for (const cycle of [5, 6, 7]) {
+    current = advancePursuitForCycle(current, fleetGroups, 'A');
+    expect(current.pursuitGroups['fleet-1']).toBe((cycle - 4) * 2);
+    expect(current.pursuitGroups['fleet-1']).toBeLessThan(10);
+  }
 });
 
 it('forks a split fleet score before movement and keeps every group independent', () => {

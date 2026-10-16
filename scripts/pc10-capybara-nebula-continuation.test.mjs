@@ -1,8 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { runNebulaEnding } from './pc10-candidate-manual-ui-proof.mjs';
 
 const sessionId = 'h1-existing-session';
+const continuationSource = await readFile(new URL('./pc10-candidate-manual-ui-proof.mjs', import.meta.url), 'utf8');
+const jumpDriveSource = await readFile(new URL('../functions/src/jumpDrive.ts', import.meta.url), 'utf8');
+const continuationStart = continuationSource.indexOf('async function continueCapybaraNebula');
+const continuationEnd = continuationSource.indexOf('/** One genuine paid loss', continuationStart);
+const continuationActionsSource = continuationSource.slice(continuationStart, continuationEnd);
 
 function currentH1Coordination() {
   return {
@@ -54,4 +60,26 @@ test('Nebula continuation boundary preserves the H1-shaped Cycle 4 Coordination 
     assert.equal(context.roster.length, 21);
     throw observed;
   } }), error => error === observed);
+});
+
+test('same-session continuation budgets both source-priced long jumps and every scanner refuel before spending fuel', () => {
+  const floor = Number(continuationSource.match(/const fuelFloor = (\d+);/)?.[1]);
+  const costsBlock = jumpDriveSource.match(/const JUMP_COSTS:[\s\S]*?= \{([\s\S]*?)\n\};/)?.[1];
+  assert.ok(Number.isSafeInteger(floor), 'The ordinary visible GM continuation fuel minimum must be explicit.');
+  assert.ok(costsBlock, 'Use the source-owned Jump Drive profile table for the upper bound.');
+  const maximumUnupgradedLongJump = Math.max(...[...costsBlock.matchAll(/:\s*\[\d+,\s*\d+,\s*(\d+)\]/g)]
+    .map(match => Number(match[1])));
+  const scannerRefuels = 3; // Endeavour and Hummingbird each consume one host fuel in C5, C6 and C7.
+  const minimumScannerBudget = maximumUnupgradedLongJump * 2 + scannerRefuels;
+  assert.equal(maximumUnupgradedLongJump, 12, 'The printed source profile caps each paid long jump at 12 fuel.');
+  assert.equal(minimumScannerBudget, 27);
+  assert.ok(floor >= minimumScannerBudget,
+    `The continuation gives each ship ${floor} fuel, below the scanner-host route budget ${minimumScannerBudget} ` +
+    `(${maximumUnupgradedLongJump} outbound + ${scannerRefuels} maintenance refuels + ${maximumUnupgradedLongJump} Nebula attempt).`);
+});
+
+test('post-loss continuation follows the mounted workspace rule that removes the lost ship action', () => {
+  assert.ok(/const retainedLossAction = lostCandidate\.getByRole\('button',[\s\S]*?assert\.equal\(await retainedLossAction\.count\(\), 0\)/
+    .test(continuationActionsSource),
+  'Keep the original disposition and maintenance lock checks; the mounted workspace has no action for the lost ship.');
 });
