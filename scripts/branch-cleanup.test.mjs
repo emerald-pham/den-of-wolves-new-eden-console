@@ -827,7 +827,7 @@ async function installPrePushRace(fixture, { kind, raceSha = '' }) {
   };
 }
 
-async function installReferenceTransactionRace(fixture, { kind }) {
+async function installReferenceTransactionRace(fixture, { kind, worktree = fixture.repo }) {
   const hooksPath = join(fixture.root, 'reference-hooks');
   await mkdir(hooksPath);
   const hookPath = join(hooksPath, 'reference-transaction');
@@ -853,7 +853,7 @@ async function installReferenceTransactionRace(fixture, { kind }) {
     result: process.env.BRANCH_CLEANUP_REF_RACE_RESULT,
   };
   process.env.BRANCH_CLEANUP_REF_RACE_KIND = kind;
-  process.env.BRANCH_CLEANUP_REF_RACE_REPO = fixture.repo;
+  process.env.BRANCH_CLEANUP_REF_RACE_REPO = worktree;
   process.env.BRANCH_CLEANUP_REF_RACE_REF = `refs/heads/${fixture.branchName}`;
   process.env.BRANCH_CLEANUP_REF_RACE_RESULT = resultPath;
   return {
@@ -952,6 +952,61 @@ test('local ref deletion cannot leave the initiating HEAD dangling when reattach
     }
   } finally {
     race?.restore();
+    await fixture.dispose();
+  }
+});
+
+for (const state of ['detached linked', 'symbolic linked', 'symbolic primary']) {
+  test(`cleanup protects a registered checkout HEAD (${state}) throughout local deletion`, async () => {
+    const fixture = await createBranchCleanupFixture();
+    let race;
+    try {
+      const linkedCheckout = join(fixture.root, 'linked-checkout');
+      await fixture.runGit(['worktree', 'add', '--detach', linkedCheckout, 'main']);
+      if (state === 'symbolic linked') {
+        await runGit(linkedCheckout, ['switch', '-c', 'sibling/owner']);
+      }
+      const cleanupRoot = state === 'symbolic primary' ? linkedCheckout : fixture.repo;
+      const protectedRoot = state === 'symbolic primary' ? fixture.repo : linkedCheckout;
+      const expectedCommit = await runGit(protectedRoot, ['rev-parse', 'HEAD']);
+      const expectedRef = await runGit(protectedRoot, ['symbolic-ref', '-q', 'HEAD']).catch(() => null);
+      race = await installReferenceTransactionRace(fixture, { kind: 'reattach', worktree: protectedRoot });
+
+      const report = await fixture.cleanup({ cwd: cleanupRoot, apply: true });
+      assert.equal(await runGit(protectedRoot, ['rev-parse', '--verify', 'HEAD^{commit}']), expectedCommit);
+      assert.equal(await runGit(protectedRoot, ['symbolic-ref', '-q', 'HEAD']).catch(() => null), expectedRef);
+      assert.ok(await readFile(race.resultPath, 'utf8'), 'the transaction hook must attempt the competing attachment');
+      assert.equal(report.decision, 'removed', JSON.stringify(report, null, 2));
+      assert.equal(await fixture.localSha().catch(() => null), null);
+      assert.equal(await fixture.remoteSha(), null);
+      const protectedHead = await runGit(protectedRoot, ['rev-parse', '--path-format=absolute', '--git-path', 'HEAD']);
+      await assert.rejects(readFile(`${protectedHead}.lock`), { code: 'ENOENT' });
+    } finally {
+      race?.restore();
+      await fixture.dispose();
+    }
+  });
+}
+
+test('an existing checkout HEAD lock retains both refs and releases only newly acquired guards', async () => {
+  const fixture = await createBranchCleanupFixture();
+  try {
+    const first = join(fixture.root, 'first-checkout');
+    const second = join(fixture.root, 'second-checkout');
+    await fixture.runGit(['worktree', 'add', '--detach', first, 'main']);
+    await fixture.runGit(['worktree', 'add', '--detach', second, 'main']);
+    const firstHead = await runGit(first, ['rev-parse', '--path-format=absolute', '--git-path', 'HEAD']);
+    const secondHead = await runGit(second, ['rev-parse', '--path-format=absolute', '--git-path', 'HEAD']);
+    await writeFile(`${secondHead}.lock`, 'another Git operation owns this lock\n');
+    const targetSha = await fixture.localSha();
+
+    const report = await fixture.cleanup({ apply: true });
+    expectReason(report, 'worktree-head-guard-unavailable');
+    assert.equal(await fixture.localSha(), targetSha);
+    assert.equal(await fixture.remoteSha(), targetSha);
+    assert.equal(await readFile(`${secondHead}.lock`, 'utf8'), 'another Git operation owns this lock\n');
+    await assert.rejects(readFile(`${firstHead}.lock`), { code: 'ENOENT' });
+  } finally {
     await fixture.dispose();
   }
 });
