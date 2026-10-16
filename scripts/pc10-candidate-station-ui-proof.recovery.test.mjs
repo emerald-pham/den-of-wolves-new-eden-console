@@ -6,7 +6,7 @@ import { candidateShipRole, contributeStationReactors, CANDIDATE_PROOF_SHIPS } f
 import { assertWolfChoiceActor, observeWolfChoiceActor } from './pc10-combat-choice-readiness.mjs';
 import * as stationProof from './pc10-candidate-station-ui-proof.mjs';
 
-function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = false } = {}) {
+function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = false, foreignReload = false, staleGeneration = false } = {}) {
   const sessionId = 'station-recovery-session';
   const roleId = 'executive-officer';
   const coordinate = '0408';
@@ -26,8 +26,10 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
     assignedRoleId: roleId, activeConsoleRoleId: roleId, phase: 'active', cycle: 2,
     phaseProgression: 'manual', airspace: 'restricted', turnStatePhase: 'team',
     connection: 'live', freshness: 'server', documentTimeOrigin: 100 };
-  const sourceActor = () => ({ sessionId, fleetGroupId: 'fleet-1', connectionGeneration: 1,
-    identityHydrationRevision: 2, replacementRoleId: null, replacementStatus: null,
+  // resumeSession owns the new generation; hydration restarts in the new document.
+  let connectionGeneration = 1, identityHydrationRevision = 2;
+  const sourceActor = () => ({ sessionId, fleetGroupId: 'fleet-1', connectionGeneration,
+    identityHydrationRevision, replacementRoleId: null, replacementStatus: null,
     seatId: roleId, connected: true, discoveryAuthority: null });
   const page = {
     route: async (pattern, handler) => {
@@ -41,7 +43,10 @@ function recoveryFixture({ chargeCapacity = 2, reactorCapacity = 6, activates = 
     },
     reload: async () => {
       recovery.reloadCount++;
-      actorState = { ...actorState, documentTimeOrigin: actorState.documentTimeOrigin + 1 };
+      actorState = { ...actorState, documentTimeOrigin: actorState.documentTimeOrigin + 1,
+        ...(foreignReload ? { uidHash: 'foreign-crew-uid' } : {}) };
+      connectionGeneration = staleGeneration ? connectionGeneration : connectionGeneration + 1;
+      identityHydrationRevision = staleGeneration ? 2 : 1;
     },
     evaluate: async () => sourceActor(),
   };
@@ -167,8 +172,9 @@ function stationRunnerFixture() {
     const cap = capacities[shipId];
     const recovery = { routeHandler: undefined, request: undefined, result: undefined,
       replayRequest: undefined, pending: false };
-    const sourceActor = () => ({ sessionId, fleetGroupId: 'fleet-1', connectionGeneration: 1,
-      identityHydrationRevision: 2, replacementRoleId: null, replacementStatus: null,
+    let connectionGeneration = 1, identityHydrationRevision = 2;
+    const sourceActor = () => ({ sessionId, fleetGroupId: 'fleet-1', connectionGeneration,
+      identityHydrationRevision, replacementRoleId: null, replacementStatus: null,
       seatId: roleId, connected: true, discoveryAuthority: null });
     async function routeRequest(data) {
       const route = {
@@ -227,7 +233,10 @@ function stationRunnerFixture() {
       getByRole: () => panel,
       route: async (pattern, handler) => { assert.equal(pattern, '**/us-central1/executeCandidateAction'); shared.routeCount++; recovery.routeHandler = handler; },
       unroute: async (_pattern, handler) => { assert.equal(recovery.routeHandler, handler); recovery.routeHandler = undefined; },
-      reload: async () => { shared.reloadCount++; actorState.documentTimeOrigin++; },
+      reload: async () => {
+        shared.reloadCount++; actorState.documentTimeOrigin++;
+        connectionGeneration++; identityHydrationRevision = 1;
+      },
       evaluate: async () => sourceActor(),
     };
     const actor = { label: `crew ${shipId}`, page, storeModuleUrl: () => '/src/store/useSessionStore.ts',
@@ -381,9 +390,9 @@ test('the actual Station ending recovers the first committed contribution and th
     assert.equal(details.actor.phase, 'active');
     assert.equal(details.actor.cycle, 2);
     assert.equal(details.actor.connectionGenerationBefore, 1);
-    assert.equal(details.actor.connectionGenerationAfter, 1);
+    assert.equal(details.actor.connectionGenerationAfter, 2);
     assert.equal(details.actor.identityHydrationRevisionBefore, 2);
-    assert.equal(details.actor.identityHydrationRevisionAfter, 2);
+    assert.equal(details.actor.identityHydrationRevisionAfter, 1);
     assert.notEqual(details.actor.documentTimeOriginAfter, details.actor.documentTimeOriginBefore);
     assert.equal(details.actor.documentTimeOriginChanged, true);
     assert.equal(details.gmLease.uidHash, 'station-gm-uid');
@@ -404,4 +413,21 @@ test('the actual Station ending recovers the first committed contribution and th
   assert.equal(activation.request.expectedRevision, 11);
   assert.equal(activation.committedResult.outcome, 'activated');
   assert.equal(activation.replayedResult.outcome, 'activated');
+});
+
+
+test('Station recovery rejects a different actor after the cold reload', async () => {
+  const fixture = recoveryFixture({ foreignReload: true });
+  await assert.rejects(stationProof.recoverStationReactorContribution({ ...fixture,
+    shipId: 'aegis', roleId: fixture.roleId, deadlineAt: Date.now() + 1_000 }), /false|uid|identity/i);
+  assert.equal(fixture.recovery.unrouteCount, 1);
+  assert.equal(fixture.recovery.fallbackCount, 0);
+});
+
+test('Station recovery requires a newly accepted server resume generation', async () => {
+  const fixture = recoveryFixture({ staleGeneration: true });
+  await assert.rejects(stationProof.recoverStationReactorContribution({ ...fixture,
+    shipId: 'aegis', roleId: fixture.roleId, deadlineAt: Date.now() + 1_000 }), /generation/i);
+  assert.equal(fixture.recovery.unrouteCount, 1);
+  assert.equal(fixture.recovery.fallbackCount, 0);
 });
