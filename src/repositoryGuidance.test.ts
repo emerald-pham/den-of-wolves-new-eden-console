@@ -24,7 +24,10 @@ function readGuidance(surface: string) {
 }
 
 function readSources() {
-  return new Map(guidanceSurfaces.map((surface) => [surface, readGuidance(surface)]));
+  const sources = new Map<string, string>();
+  for (const surface of guidanceSurfaces) sources.set(surface, readGuidance(surface));
+  sources.set('docs/AGENT_EXECUTION_POLICY.md', readGuidance('docs/AGENT_EXECUTION_POLICY.md'));
+  return sources;
 }
 
 describe('repository guidance', () => {
@@ -125,7 +128,7 @@ describe('repository guidance', () => {
     ]));
 
     const wrongEffort = new Map(sources);
-    wrongEffort.set('CLAUDE.md', readGuidance('CLAUDE.md')
+    wrongEffort.set('docs/AGENT_EXECUTION_POLICY.md', readGuidance('docs/AGENT_EXECUTION_POLICY.md')
       .replace('Luna effort is discretionary; `max` is almost always preferred.', 'Use max for every Luna subagent.')
       .replace('Sol may use all supported effort levels.', 'Sol may use only medium or high.'));
     const effortErrors: string[] = [];

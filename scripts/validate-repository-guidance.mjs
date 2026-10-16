@@ -5,6 +5,7 @@ import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const CATALOG_PATH = 'docs/implementation-prompts.json';
+const EXECUTION_POLICY_PATH = 'docs/AGENT_EXECUTION_POLICY.md';
 const CORE_SURFACES = Object.freeze([
   'AGENTS.md',
   'CLAUDE.md',
@@ -65,7 +66,7 @@ const OBSOLETE_UNIVERSAL_GATES = Object.freeze([
 
 /** Validate the compact risk-based model policy on a guidance surface. */
 export function validateAgentModelEscalation({ sources, errors }) {
-  for (const filePath of ['AGENTS.md', 'CLAUDE.md', 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
+  for (const filePath of [EXECUTION_POLICY_PATH, 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
     const source = sourceFor(sources, filePath, errors);
     requireText(filePath, source, /only[\s\S]{0,80}gpt-6-luna[\s\S]{0,80}gpt-6\.1-sol[\s\S]{0,80}(?:subagents|delegated)/i,
       'must allow only GPT-6 Luna and GPT-6.1 Sol subagents', errors);
@@ -81,6 +82,19 @@ export function validateAgentModelEscalation({ sources, errors }) {
     const models = delegatedSource.match(/gpt-\d+(?:\.\d+)?-(?:luna|sol|astra|terra)/g) ?? [];
     if (models.some((model) => !['gpt-6-luna', 'gpt-6.1-sol'].includes(model))) {
       errors.push(`${filePath}: must not authorize models outside GPT-6.1 Sol and GPT-6 Luna`);
+    }
+  }
+  for (const filePath of ['AGENTS.md', 'CLAUDE.md']) {
+    const source = sourceFor(sources, filePath, errors);
+    requireText(filePath, source, /(?:read|follow|use)[\s\S]{0,160}docs\/agent_execution_policy\.md/i,
+      'must point to the execution policy for delegation and ownership rules', errors);
+    const delegatedSource = source.replace(/New top-level coordinators default to `gpt-6-astra` with medium reasoning\./g, '');
+    const models = delegatedSource.match(/gpt-\d+(?:\.\d+)?-(?:luna|sol|astra|terra)/g) ?? [];
+    if (models.some((model) => !['gpt-6-luna', 'gpt-6.1-sol'].includes(model))) {
+      errors.push(`${filePath}: must not authorize models outside GPT-6.1 Sol and GPT-6 Luna`);
+    }
+    if (/use\s+max\s+for\s+every\s+(?:gpt-6-luna|luna)\s+subagent|never use\s+max[^.]{0,60}for sol/i.test(normalizeGuidance(source))) {
+      errors.push(`${filePath}: must not retain a mandatory Luna effort or general Sol effort ceiling`);
     }
   }
   for (const filePath of ['CLAUDE.md', 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
@@ -147,10 +161,19 @@ export function validateSessionGoalGuidance({ sources, errors }) {
 
 /** Validate the one-owner flow and the actual review/validation boundary. */
 export function validateBlockedMergeAgentHandoff({ sources, errors }) {
+  const executionPolicy = sourceFor(sources, EXECUTION_POLICY_PATH, errors);
+  requireText(EXECUTION_POLICY_PATH, executionPolicy,
+    /top-level orchestrator[\s\S]{0,220}task and checkpoint owner[\s\S]{0,500}merge[\s\S]{0,140}deployment verification/i,
+    'must assign one owner through implementation, review, merge, and deployment', errors);
+  const claude = sourceFor(sources, 'CLAUDE.md', errors);
+  requireText('CLAUDE.md', claude, /agent execution policy[\s\S]{0,240}(?:checkpoint ownership|worker groups|handbacks)/i,
+    'must direct delegation and ownership rules to the execution policy', errors);
   for (const filePath of ['CLAUDE.md', 'README.md', 'docs/WORKTREE_COORDINATION.md', 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
     const source = sourceFor(sources, filePath, errors);
-    requireText(filePath, source, /one (?:task )?owner[\s\S]{0,180}(?:implementation|review)[\s\S]{0,180}(?:merge|deployment)/i,
-      'must assign one owner through implementation, review, merge, and deployment', errors);
+    if (filePath !== 'CLAUDE.md') {
+      requireText(filePath, source, /one (?:task )?owner[\s\S]{0,180}(?:implementation|review)[\s\S]{0,180}(?:merge|deployment)/i,
+        'must assign one owner through implementation, review, merge, and deployment', errors);
+    }
     requireText(filePath, source, /(?:focused|meaningful)[\s\S]{0,160}(?:test|check)/i,
       'must require focused meaningful checks', errors);
     requireText(filePath, source, /(?:reconcil\w*[\s\S]{0,220}(?:one|final)[\s\S]{0,120}(?:appropriate|relevant)[\s\S]{0,100}validation|(?:one|final)[\s\S]{0,160}(?:appropriate|relevant)[\s\S]{0,100}validation[\s\S]{0,180}(?:after|following)[\s\S]{0,80}reconcil)/i,
@@ -186,13 +209,6 @@ export function validateRiskBasedGuidance({ sources, errors }) {
       if (pattern.test(source)) errors.push(`${filePath}: ${message}`);
     }
   }
-  const claude = sourceFor(sources, 'CLAUDE.md', errors);
-  requireText('CLAUDE.md', claude,
-    /process-gate[\s\S]{0,100}frozen[\s\S]{0,120}2026-09-18[\s\S]{0,260}two[\s\S]{0,80}production-impacting failures[\s\S]{0,180}broken existing tools/i,
-    'must freeze new process gates through 2026-09-18 with the approved exception', errors);
-  requireText('CLAUDE.md', claude,
-    /first five prompts[\s\S]{0,140}existing task timestamps[\s\S]{0,120}no[\s\S]{0,60}telemetry/i,
-    'must use existing timestamps to monitor the first five prompts without new telemetry', errors);
 }
 
 // Kept as a compatibility export for callers that used the former helper.
@@ -261,6 +277,10 @@ export function validateDocumentation({ cwd = process.cwd(), files } = {}) {
   for (const filePath of CORE_SURFACES) {
     const absolutePath = resolve(cwd, filePath);
     if (existsSync(absolutePath)) sources.set(filePath, readFileSync(absolutePath, 'utf8'));
+  }
+  const executionPolicyPath = resolve(cwd, EXECUTION_POLICY_PATH);
+  if (existsSync(executionPolicyPath)) {
+    sources.set(EXECUTION_POLICY_PATH, readFileSync(executionPolicyPath, 'utf8'));
   }
   validatePromptDependencyGuidance({ sources, errors });
   validateAgentModelEscalation({ sources, errors });
