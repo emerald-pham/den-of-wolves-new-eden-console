@@ -587,6 +587,23 @@ describe('Endeavour Team research writer', () => {
     },
   );
 
+  it('projects a previously used legacy ECM as built when its construction document is absent', async () => {
+    put('sessions/s1/serverState/endeavourResearch', { 'ecm-device': 5 });
+    put('sessions/s1/serverState/endeavourEcmDevice', {
+      status: 'used', revision: 1, ownerGroupId: 'fleet-1', pursuitBefore: 8, pursuitAfter: 5,
+    });
+
+    await expect(readEndeavourResearchWorkspace.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
+      scienceDevices: {
+        revision: 1, ecmBuilt: true, detectorBuilt: false, ecmUsed: true,
+        buildCosts: { 'ecm-device': null },
+      },
+    });
+    expect(mock.documents.has('sessions/s1/serverState/endeavourScienceDevices')).toBe(false);
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+
   it('returns only the opaque field-upgrade revision and current-cycle count with current pricing in one private read', async () => {
     put('sessions/s1/serverState/endeavourResearch', { reactor: 2 });
     put('sessions/s1/serverState/endeavourResearchCadence', {
