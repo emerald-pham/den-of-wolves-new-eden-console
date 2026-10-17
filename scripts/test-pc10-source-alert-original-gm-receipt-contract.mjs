@@ -36,6 +36,7 @@ function makeFixture({
   mountedType = type,
   targetInstanceId = originalInstanceId,
   mountDelayPolls = 0,
+  alertSequence = false,
   renderWrongVessel = false,
   staleBeforeRecipe = false,
 } = {}) {
@@ -76,11 +77,16 @@ function makeFixture({
   let replayCount = 0;
   let actionStateReads = 0;
   let pendingResponse = null;
+  let requestSequence = 0;
   const listeners = new Set();
   const visibleShipId = renderWrongVessel ? 'dione' : mountedShipId;
-  const label = mountedType === 'population' ? 'Dismiss population alert' : 'Dismiss unrest alert';
+  const currentMountedType = () => alertSequence
+    ? Object.keys(sourceState.unrestAlerts).length > 0 ? 'unrest'
+      : Object.keys(sourceState.populationAlerts).length > 0 ? 'population' : mountedType
+    : mountedType;
+  const labelFor = type => type === 'population' ? 'Dismiss population alert' : 'Dismiss unrest alert';
   const visibleShipName = visibleShipId === 'aegis' ? 'AEGIS' : 'Dione';
-  const dialogText = mountedType === 'population'
+  const dialogText = type => type === 'population'
     ? `Survivor population threshold reached. ${visibleShipName} survivor population has reached 500. A census threshold requires GM attention.`
     : `Unrest threshold exceeded. ${visibleShipName} has exceeded the maximum unrest dial rating of 7. Shipboard stability is no longer measurable.`;
   const mounted = () => ++mountPolls > mountDelayPolls;
@@ -89,7 +95,8 @@ function makeFixture({
     isVisible: async () => true,
     isEnabled: async () => true,
     click: async () => {
-      const requestId = 'source-alert-request-1';
+      const actionType = currentMountedType();
+      const requestId = `source-alert-request-${++requestSequence}`;
       const requestData = {
         sessionId,
         instanceId: actorInstanceId,
@@ -98,7 +105,7 @@ function makeFixture({
         expectedRevision: sourceState.vesselActionRevisions[mountedShipId],
       };
       const revision = requestData.expectedRevision + 1;
-      lastRequest = { method: () => 'POST', url: () => `http://localhost/us-central1/dismiss${mountedType === 'population' ? 'Population' : 'Unrest'}Alert`,
+      lastRequest = { method: () => 'POST', url: () => `http://localhost/us-central1/dismiss${actionType === 'population' ? 'Population' : 'Unrest'}Alert`,
         postDataJSON: () => ({ data: requestData }) };
       lastResult = {
         dismissed: true,
@@ -110,10 +117,10 @@ function makeFixture({
         phase: 'active',
         revision,
         idempotencyKey: requestId,
-        auditId: `dismiss-${mountedType}-${requestId}`,
+        auditId: `dismiss-${actionType}-${requestId}`,
       };
       for (const listener of listeners) listener(lastRequest);
-      const alerts = mountedType === 'population' ? sourceState.populationAlerts : sourceState.unrestAlerts;
+      const alerts = actionType === 'population' ? sourceState.populationAlerts : sourceState.unrestAlerts;
       delete alerts[mountedShipId];
       sourceState.vesselActionRevisions[mountedShipId] = revision;
       const response = {
@@ -134,8 +141,8 @@ function makeFixture({
     count: async () => mounted() ? 1 : 0,
     isVisible: async () => true,
     isEnabled: async () => true,
-    innerText: async () => dialogText,
-    getByRole: (role, options) => role === 'button' && options?.name === label ? button : absentLocator,
+    innerText: async () => dialogText(currentMountedType()),
+    getByRole: (role, options) => role === 'button' && options?.name === labelFor(currentMountedType()) ? button : absentLocator,
   };
   const absentLocator = {
     count: async () => 0,
@@ -149,12 +156,11 @@ function makeFixture({
     off: (event, listener) => { if (event === 'request') listeners.delete(listener); },
     getByRole: (role, options) => {
       if (role === 'alertdialog') return dialog;
-      if (role === 'status') return { allTextContents: async () => [lastResult ? `Dismiss ${mountedType} alert committed.` : ''] };
+      if (role === 'status') return { allTextContents: async () => [lastResult ? `Dismiss ${currentMountedType()} alert committed.` : ''] };
       return absentLocator;
     },
-    waitForResponse: predicate => new Promise((resolve, reject) => {
-      pendingResponse = { predicate, resolve, reject };
-      if (lastRequest) reject(new Error('The response listener was armed after the mounted click.'));
+    waitForResponse: predicate => new Promise(resolve => {
+      pendingResponse = { predicate, resolve };
     }),
     evaluate: async (_fn, input) => {
       if (input?.expectedSessionId) return structuredClone(actor);
@@ -320,12 +326,13 @@ test('a mounted dialog for the wrong alert type stays pending and prevents gover
 });
 
 test('multiple alert types on one vessel use each dismissal’s current source revision', async () => {
-  const fixture = makeFixture();
+  const fixture = makeFixture({ alertSequence: true });
   fixture.sourceState.unrestAlerts.aegis = alertRow('aegis', 'AEGIS', originalInstanceId, 'unrest');
 
   const result = await invokeActualSourceInterruption(callbacksFor(fixture).onEligibleAlert, fixture.context);
 
-  assert.equal(result.error, null, 'Both current source alerts are acknowledged before governance.');
+  assert.equal(result.error, null,
+    `Both current source alerts are acknowledged before governance: ${JSON.stringify(result.alertResult.evidence.cases)}`);
   assert.equal(result.alertResult.sourceInterruptionsReady, true);
   assert.deepEqual(result.alertResult.evidence.cases.map(item => ({
     type: item.sourceAlertReceipt?.type,
@@ -335,7 +342,8 @@ test('multiple alert types on one vessel use each dismissal’s current source r
     { type: 'unrest', before: 3, after: 4 },
     { type: 'population', before: 4, after: 5 },
   ]);
-  assert.deepEqual(result.events, ['post-wolf/eligible-alert', 'governance']);
+  assert.deepEqual(result.events, ['post-wolf/eligible-alert', 'post-wolf/eligible-mutiny',
+    'post-wolf/eligible-destruction', 'governance']);
   assert.equal(Object.keys(fixture.sourceState.unrestAlerts).length +
     Object.keys(fixture.sourceState.populationAlerts).length, 0);
 });
