@@ -192,6 +192,41 @@ describe('fleet system reference workspaces', () => {
       .toHaveAttribute('href', '/shuttles/maliades');
   });
 
+  it('lets the Quellon Explorer plan a route using only currently known chart coordinates', async () => {
+    const user = userEvent.setup();
+    const ship = SHIPS.find(candidate => candidate.id === 'quellon')!;
+    const role = ship.roles.find(candidate => candidate.id === 'quellon-explorer')!;
+
+    renderWorkspace(<FleetSystemsWorkspace
+      ship={ship}
+      role={role}
+      fuel={5}
+      galacticCoordinate="0000"
+      knownCoordinates={['0000', '5143', '1413', '9997']}
+      knownSystems={{
+        'system-01': '0000',
+        'system-02': '5143',
+        'system-03': '1413',
+        'system-04': '9997',
+      }}
+    />);
+
+    await user.click(screen.getByRole('button', { name: 'Navigation' }));
+
+    const planner = screen.getByRole('region', { name: 'Explorer route planner' });
+    const destination = within(planner).getByRole('combobox', { name: 'Known route destination' });
+    expect([...destination.querySelectorAll('option')].map(option => option.value)).toEqual([
+      '', '1413', '5143', '9997',
+    ]);
+
+    await user.selectOptions(destination, '9997');
+
+    expect(planner).toHaveTextContent('Planned route // 0000 → 5143 → 9997');
+    expect(planner).toHaveTextContent('2 jumps');
+    expect(planner).not.toHaveTextContent('6837');
+    expect(planner).toHaveTextContent(/planning only.*movement remains with the ship's jump drive/i);
+  });
+
   it('routes the Dione President to the bounded action workspace', () => {
     const ship = SHIPS.find((candidate) => candidate.id === 'dione')!;
     const role = ship.roles.find((candidate) => candidate.id === 'dione-president')!;
