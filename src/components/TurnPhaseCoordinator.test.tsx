@@ -114,6 +114,26 @@ it('retains the five-second rejection retry after a same-phase observation repla
   expect(beginOpenAirspacePhase).toHaveBeenCalledTimes(2);
 });
 
+it('rechecks a current emergency hold when pending work settles before effect cleanup', async () => {
+  let finish!: () => void;
+  vi.mocked(beginOpenAirspacePhase).mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
+  render(<TurnPhaseCoordinator />);
+  await act(async () => { await vi.advanceTimersByTimeAsync(5 * 60_000); });
+  const session = useSessionStore.getState().session;
+  if (!session?.turnPhase) throw new Error('Expected the original phase.');
+  await act(async () => { useSessionStore.getState().setSession({ ...session }); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+  await act(async () => {
+    useSessionStore.getState().setSession({ ...session, turnPhase: {
+      ...session.turnPhase!, timerPause: { window: 'restricted', remainingMs: 1_000, pausedAt: new Date().toISOString() },
+    } });
+    finish();
+  });
+  await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
+  expect(beginOpenAirspacePhase).toHaveBeenCalledTimes(1);
+});
+
 it('does not promote airspace while the emergency timer hold is active', async () => {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Expected the test session.');
