@@ -211,10 +211,14 @@ it('offers the finished detector to the current Scientist and submits a selected
   mocks.read.mockResolvedValue({
     ...workspace,
     tracks: [...workspace.tracks, {
-      trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector', crossedBoxes: 5,
-      totalBoxes: 5, currentMaterialCost: null, complete: true,
+      trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector', crossedBoxes: 4,
+      totalBoxes: 4, currentMaterialCost: null, complete: true,
     }],
-    progress: { ...workspace.progress, 'wolf-agent-detector': 5 },
+    progress: { ...workspace.progress, 'wolf-agent-detector': 4 },
+    scienceDevices: {
+      revision: 1, ecmBuilt: false, detectorBuilt: true, ecmUsed: false, shepherdMaterials: 20,
+      buildCosts: { 'ecm-device': 18, 'wolf-agent-detector': 10 },
+    },
   });
   mocks.detectorState.mockImplementation((_sessionId, _uid, onState) => {
     onState({ cycle: 3, revision: 2, testsUsed: 1 });
@@ -228,6 +232,31 @@ it('offers the finished detector to the current Scientist and submits a selected
   await user.selectOptions(screen.getByLabelText('Player to test'), 'target');
   await user.click(screen.getByRole('button', { name: 'Run detector test' }));
   await waitFor(() => expect(mocks.runDetector).toHaveBeenCalledWith('target', 2));
+});
+
+it('keeps detector testing unavailable until the Scientist has built it', async () => {
+  mocks.read.mockResolvedValue({
+    ...workspace,
+    tracks: [...workspace.tracks, {
+      trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector', crossedBoxes: 4,
+      totalBoxes: 4, currentMaterialCost: null, complete: true,
+    }],
+    progress: { ...workspace.progress, 'wolf-agent-detector': 4 },
+    scienceDevices: {
+      revision: 0, ecmBuilt: false, detectorBuilt: false, ecmUsed: false, shepherdMaterials: 30,
+      buildCosts: { 'ecm-device': 18, 'wolf-agent-detector': 10 },
+    },
+  });
+  mocks.detectorState.mockImplementation((_sessionId, _uid, onState) => {
+    onState({ cycle: 3, revision: 0, testsUsed: 0 });
+    return vi.fn();
+  });
+
+  render(<EndeavourResearchPanel control={control} />);
+
+  expect(await screen.findByRole('region', { name: 'Endeavour research controls' })).toBeVisible();
+  expect(screen.queryByRole('region', { name: 'Wolf Agent Detector' })).not.toBeInTheDocument();
+  expect(mocks.runDetector).not.toHaveBeenCalled();
 });
 
 it('requires the post-rejection parent refresh result before accepting a delayed private projection', async () => {

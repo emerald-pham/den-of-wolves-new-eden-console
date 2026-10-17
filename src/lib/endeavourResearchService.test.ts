@@ -24,6 +24,10 @@ const workspace: EndeavourResearchWorkspace = {
   }],
   shepherdOre: 10,
   fieldUpgradeState: { upgradeRevision: 0, targetsUsedThisCycle: 0 },
+  scienceDevices: {
+    revision: 0, ecmBuilt: false, detectorBuilt: false, ecmUsed: false, shepherdMaterials: 30,
+    buildCosts: { 'ecm-device': 18, 'wolf-agent-detector': null },
+  },
 };
 
 function committedReply(attempt: EndeavourResearchAttempt) {
@@ -260,6 +264,9 @@ it('fails closed on malformed server projections', async () => {
     { ...workspace, tracks: [{ ...workspace.tracks[0]!, privateCost: 99 }] },
     { ...workspace, tracks: [{ ...workspace.tracks[0]!, totalBoxes: '5' }] },
     { ...workspace, fieldUpgradeState: { upgradeRevision: -1, targetsUsedThisCycle: 0 } },
+    { ...workspace, scienceDevices: { ...workspace.scienceDevices!, revision: 1 } },
+    { ...workspace, scienceDevices: { ...workspace.scienceDevices!, ecmUsed: true } },
+    { ...workspace, scienceDevices: { ...workspace.scienceDevices!, buildCosts: { 'ecm-device': 0, 'wolf-agent-detector': null } } },
   ]) {
     mocks.call.mockResolvedValueOnce({ data });
     await expect(readEndeavourResearchWorkspace()).rejects.toThrow(/invalid Endeavour research data/i);
