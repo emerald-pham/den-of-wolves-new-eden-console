@@ -587,6 +587,17 @@ describe('Endeavour Team research writer', () => {
     },
   );
 
+  it('keeps the unbuilt ECM purchase quote at five materials after all five research marks', async () => {
+    put('sessions/s1/serverState/endeavourResearch', { 'ecm-device': 5 });
+
+    await expect(readEndeavourResearchWorkspace.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
+      scienceDevices: {
+        ecmBuilt: false,
+        buildCosts: { 'ecm-device': 5 },
+      },
+    });
+  });
+
   it('projects a previously used legacy ECM as built when its construction document is absent', async () => {
     put('sessions/s1/serverState/endeavourResearch', { 'ecm-device': 5 });
     put('sessions/s1/serverState/endeavourEcmDevice', {

@@ -339,8 +339,11 @@ function readPrivateState(
   const ecmBuilt = construction.ecmBuilt || legacyUsedEcm;
   let buildCosts: Readonly<Record<'ecm-device' | 'wolf-agent-detector', number | null>>;
   try {
+    const ecmTrack = endeavourResearchTrack(progress, 'ecm-device');
     buildCosts = {
-      'ecm-device': endeavourScienceDeviceBuildCost(progress, 'ecm-device'),
+      'ecm-device': ecmBuilt && ecmTrack.complete
+        ? null
+        : endeavourScienceDeviceBuildCost(progress, 'ecm-device'),
       'wolf-agent-detector': endeavourScienceDeviceBuildCost(progress, 'wolf-agent-detector'),
     };
   } catch {
