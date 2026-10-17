@@ -71,6 +71,31 @@ it('keeps one phase-opening request in flight across a same-phase session snapsh
   }
 });
 
+it('reconciles an observed same-phase snapshot after a resolved no-apply result', async () => {
+  let finish!: () => void;
+  vi.mocked(beginOpenAirspacePhase).mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
+  render(<TurnPhaseCoordinator />);
+  await act(async () => { await vi.advanceTimersByTimeAsync(5 * 60_000); });
+  expect(beginOpenAirspacePhase).toHaveBeenCalledTimes(1);
+
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the original session.');
+  await act(async () => { useSessionStore.getState().setSession({ ...session }); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  expect(beginOpenAirspacePhase).toHaveBeenCalledTimes(1);
+
+  await act(async () => { finish(); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  expect(beginOpenAirspacePhase).toHaveBeenCalledTimes(2);
+
+  // A resolved void result is neither completion nor an unconditional cadence.
+  await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
+  expect(beginOpenAirspacePhase).toHaveBeenCalledTimes(2);
+  await act(async () => { useSessionStore.getState().setSession({ ...session }); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  expect(beginOpenAirspacePhase).toHaveBeenCalledTimes(3);
+});
+
 it('does not promote airspace while the emergency timer hold is active', async () => {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Expected the test session.');
