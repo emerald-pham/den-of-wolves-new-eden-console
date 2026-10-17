@@ -44,6 +44,33 @@ it('asks the server to begin coordination exactly when the team window ends', as
   expect(beginOpenAirspacePhase).toHaveBeenCalledWith(2);
 });
 
+it('keeps one phase-opening request in flight across a same-phase session snapshot', async () => {
+  let finish!: () => void;
+  const pending = new Promise<void>((resolve) => { finish = resolve; });
+  vi.mocked(beginOpenAirspacePhase).mockReturnValue(pending);
+  render(<TurnPhaseCoordinator />);
+
+  try {
+    await act(async () => { await vi.advanceTimersByTimeAsync(5 * 60_000); });
+    expect(beginOpenAirspacePhase).toHaveBeenCalledTimes(1);
+
+    // A still-pending transport alone must not schedule another request.
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+    expect(beginOpenAirspacePhase).toHaveBeenCalledTimes(1);
+
+    const session = useSessionStore.getState().session;
+    if (!session) throw new Error('Expected the original session.');
+    await act(async () => {
+      useSessionStore.getState().setSession({ ...session });
+    });
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+    expect(beginOpenAirspacePhase).toHaveBeenCalledTimes(1);
+  } finally {
+    await act(async () => { finish(); });
+  }
+});
+
 it('does not promote airspace while the emergency timer hold is active', async () => {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Expected the test session.');
