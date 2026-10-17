@@ -39493,6 +39493,16 @@ export const requestScout = onCall<{
       }
       return { ...replay, status: 'replayed' as const };
     }
+    // A committed, still-entitled receipt remains replayable after station
+    // authority is lost. New craft requests, however, require the owner to
+    // have the matching station selected in the authoritative player record.
+    if (entitlement.source === 'craft' && actor.get('activeConsoleRoleId') !== entitlement.ownerRoleId) {
+      throw commandError(
+        'permission-denied',
+        'That station is no longer available. Return to station select and reselect your role.',
+        'station-selection-required',
+      );
+    }
     if (priorRequest.exists) {
       throw commandError('failed-precondition', 'The scout request has no matching command receipt.', 'conflict');
     }
