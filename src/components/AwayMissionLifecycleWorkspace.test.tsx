@@ -215,4 +215,21 @@ describe('AwayMissionLifecycleWorkspace', () => {
     await user.click(screen.getByRole('button', { name: 'Submit mission assignments' }));
     expect(mocks.actions.assignCards).not.toHaveBeenCalled();
   });
+
+  it('hides the former participant hand if the current authenticated actor changes', () => {
+    const sessionId = 'assignment-draft-actor-change';
+    setAuthorizedActor(sessionId);
+    publishReadyState();
+    const workspace = <AwayMissionLifecycleWorkspace sessionId={sessionId} actorUid="bob" actorRoleId="shepherd-scientist" />;
+    const view = render(workspace);
+    expect(screen.getByLabelText('Opportunity for A♥')).toBeInTheDocument();
+
+    act(() => useSessionStore.setState(state => ({
+      me: { ...state.me!, uid: 'alice' } as never,
+    })));
+    view.rerender(workspace);
+
+    expect(screen.queryByLabelText('Opportunity for A♥')).not.toBeInTheDocument();
+    expect(screen.queryByText('A♥')).not.toBeInTheDocument();
+  });
 });
