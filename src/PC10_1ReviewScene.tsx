@@ -41,7 +41,7 @@ const INITIAL_RESEARCH: EndeavourResearchWorkspace = {
   cadence: { cycle: 5, revision: 1, choices: [] },
   progress: { reactor: 1, 'jump-drive': 0 },
   tracks: [
-    { trackId: 'reactor', name: 'Reactor', crossedBoxes: 1, totalBoxes: 5, currentMaterialCost: 8, complete: false },
+    { trackId: 'reactor', name: 'Reactor', crossedBoxes: 1, totalBoxes: 5, currentMaterialCost: 7, complete: false },
     { trackId: 'jump-drive', name: 'Jump Drive', crossedBoxes: 0, totalBoxes: 5, currentMaterialCost: 14, complete: false },
   ],
   shepherdOre: 10,
