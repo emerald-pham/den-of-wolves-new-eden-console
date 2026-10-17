@@ -1,14 +1,23 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
 
+const mockedSessionService = vi.hoisted(() => ({
+  requireStationReselectionForCurrentSession: vi.fn(),
+  importGate: null as Promise<void> | null,
+  onImportStarted: null as (() => void) | null,
+}));
+
 vi.mock('firebase/functions', () => ({ httpsCallable: vi.fn() }));
 vi.mock('./firebase', () => ({ functions: vi.fn(() => ({ kind: 'functions' })) }));
-vi.mock('./sessionService', () => ({ requireStationReselectionForCurrentSession: vi.fn() }));
+vi.mock('./sessionService', async () => {
+  mockedSessionService.onImportStarted?.();
+  if (mockedSessionService.importGate) await mockedSessionService.importGate;
+  return { requireStationReselectionForCurrentSession: mockedSessionService.requireStationReselectionForCurrentSession };
+});
 
 const { httpsCallable } = await import('firebase/functions');
 const { requestScout } = await import('./scoutRequestService');
 const { isScoutEntitlementHolder } = await import('./scoutRequestAuthority');
-const { requireStationReselectionForCurrentSession } = await import('./sessionService');
 
 const entitlements = [
   ['starlight', 'wing-commander', 'aegis', 'craft'],
@@ -44,7 +53,9 @@ function setEntitlement(entitlementId: string): void {
 
 beforeEach(() => {
   vi.mocked(httpsCallable).mockReset();
-  vi.mocked(requireStationReselectionForCurrentSession).mockReset();
+  mockedSessionService.requireStationReselectionForCurrentSession.mockReset();
+  mockedSessionService.importGate = null;
+  mockedSessionService.onImportStarted = null;
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity(
     {
@@ -182,6 +193,32 @@ it('rejects replies bound to a different target or session', async () => {
   })).rejects.toThrow(/invalid/i);
 });
 
+it('rechecks the original Scout actor after lazy-loading the station reset helper', async () => {
+  setEntitlement('endeavour');
+  let releaseImport!: () => void;
+  let signalImportStarted!: () => void;
+  const importStarted = new Promise<void>((resolve) => { signalImportStarted = resolve; });
+  mockedSessionService.importGate = new Promise<void>((resolve) => { releaseImport = resolve; });
+  mockedSessionService.onImportStarted = signalImportStarted;
+
+  const stationLoss = Object.assign(new Error('Server station authority is no longer current.'), {
+    code: 'functions/permission-denied',
+    details: { commandError: 'station-selection-required' },
+  });
+  const call = vi.fn().mockRejectedValue(stationLoss);
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+  const pending = requestScout({
+    entitlementId: 'endeavour', targetCoordinate: '5143', requestId: 'station-import-gap-scout',
+  });
+
+  await importStarted;
+  useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, uid: 'another-account' });
+  releaseImport();
+
+  await expect(pending).rejects.toBe(stationLoss);
+  expect(mockedSessionService.requireStationReselectionForCurrentSession).not.toHaveBeenCalled();
+});
+
 it('returns a lost Scientist station to the chooser after the server rejects a new scout request', async () => {
   setEntitlement('endeavour');
   const stationLoss = Object.assign(new Error('Server station authority is no longer current.'), {
@@ -195,7 +232,7 @@ it('returns a lost Scientist station to the chooser after the server rejects a n
     entitlementId: 'endeavour', targetCoordinate: '5143', requestId: 'station-loss-scout',
   })).rejects.toBe(stationLoss);
 
-  expect(requireStationReselectionForCurrentSession).toHaveBeenCalledOnce();
+  expect(mockedSessionService.requireStationReselectionForCurrentSession).toHaveBeenCalledOnce();
 });
 
 it('does not apply a late station-loss response to a different current account', async () => {
@@ -214,5 +251,5 @@ it('does not apply a late station-loss response to a different current account',
   rejectCall(stationLoss);
 
   await expect(pending).rejects.toBe(stationLoss);
-  expect(requireStationReselectionForCurrentSession).not.toHaveBeenCalled();
+  expect(mockedSessionService.requireStationReselectionForCurrentSession).not.toHaveBeenCalled();
 });
