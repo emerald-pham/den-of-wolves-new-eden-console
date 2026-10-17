@@ -332,6 +332,11 @@ function readPrivateState(
   if (!construction || !ecm) {
     throw new HttpsError('failed-precondition', 'The private Endeavour science device state is malformed.');
   }
+  const legacyUsedEcm = !constructionSnapshot.exists && ecm.status === 'used';
+  if (ecm.status === 'used' && !construction.ecmBuilt && !legacyUsedEcm) {
+    throw new HttpsError('failed-precondition', 'The private Endeavour science device state is inconsistent.');
+  }
+  const ecmBuilt = construction.ecmBuilt || legacyUsedEcm;
   let buildCosts: Readonly<Record<'ecm-device' | 'wolf-agent-detector', number | null>>;
   try {
     buildCosts = {
@@ -353,8 +358,8 @@ function readPrivateState(
     tracks: researchTracks(progress),
     shepherdOre,
     scienceDevices: Object.freeze({
-      revision: construction.revision,
-      ecmBuilt: construction.ecmBuilt,
+      revision: Number(ecmBuilt) + Number(construction.detectorBuilt),
+      ecmBuilt,
       detectorBuilt: construction.detectorBuilt,
       ecmUsed: ecm.status === 'used',
       shepherdMaterials,
