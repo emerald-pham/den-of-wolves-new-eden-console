@@ -308,10 +308,11 @@ async function configureElection(context, choice, options) {
   // live lease after other roles have played. Re-enter each chosen voter via
   // ordinary controls before fixing the current eligible electorate.
   for (const roleId of voters) {
-    const { actor } = await enterSelectedRole(context, roleId);
-    assert.equal(actor.sameActor, true);
-    assert.equal(actor.sessionId, context.initial.sessionId);
-    assert.equal(actor.profileRoleId, roleId);
+    const { actor, current } = await enterSelectedRole(context, roleId);
+    assert.equal(current.sameActor, true);
+    assert.equal(current.sessionId, context.initial.sessionId);
+    assert.equal(current.profileRoleId, roleId);
+    assert.equal(current.uidHash, actor.uidHash);
   }
 
   const gmNow = await context.gm.observe();
