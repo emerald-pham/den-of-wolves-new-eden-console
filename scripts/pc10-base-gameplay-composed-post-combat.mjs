@@ -874,9 +874,9 @@ export async function runBaseGameplay(context, integration) {
       commandAndControl: 'redirect', protectedShipPriority: ['shepherd', 'quellon'],
       evidenceName: 'base-opening-combat.json' });
     checks.openingCombatAndPublicAftermath = true;
+    await sourceInterruptions('cycle-1-after-wolf-source-events');
     await compose('cycle-1-coordination-after-opening-wolf', governance.coordination1AfterOpeningWolf);
     await compose('cycle-1-after-opening-wolf', procedures.onCycle1AfterWolf);
-    await sourceInterruptions('cycle-1-after-wolf-source-events');
     await advance();
     await researchCross(2);
     await mark('real Team2 replaces prior five-slot combat allocation with paid Jump Drive and bays');
