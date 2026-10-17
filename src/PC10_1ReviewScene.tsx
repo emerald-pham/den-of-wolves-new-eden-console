@@ -10,6 +10,7 @@ import { ScoutResultPanel, type PrivateScoutResultView, type ScoutDiscoveryNoteV
 import type { EndeavourFieldUpgradeOption } from '@/lib/endeavourFieldUpgradeService';
 import type { EndeavourResearchFunding, EndeavourResearchWorkspace } from '@/lib/endeavourResearchService';
 import type { GameSession, HummingbirdHarvest as HummingbirdHarvestState, Player } from '@/types/game';
+import { advanceEndeavourResearch } from '../functions/src/endeavourResearch';
 import { APP_VERSION } from './version';
 import './PC07ReviewScene.css';
 import './PC10_1ReviewScene.css';
@@ -105,9 +106,11 @@ function advanceResearch(
   if (!selected || selected.complete || workspace.cadence.choices.some((choice) => choice.trackId === trackId)) {
     return workspace;
   }
-  const crossedBoxes = selected.crossedBoxes + 1;
+  if (selected.trackId !== 'reactor' && selected.trackId !== 'jump-drive') return workspace;
+  const researchAdvance = advanceEndeavourResearch(workspace.progress, selected.trackId);
+  const crossedBoxes = researchAdvance.track.crossedBoxes;
   const choices = [...workspace.cadence.choices, {
-    trackId,
+    trackId: selected.trackId,
     funding,
     oreCost: funding === 'shepherd-ore' ? 5 as const : 0 as const,
   }];
@@ -116,14 +119,11 @@ function advanceResearch(
     shepherdOre: funding === 'shepherd-ore' ? workspace.shepherdOre - 5 : workspace.shepherdOre,
     researchRevision: workspace.researchRevision + 1,
     cadence: { cycle: workspace.cycle, revision: workspace.cadence.revision + 1, choices },
-    progress: { ...workspace.progress, [trackId]: crossedBoxes },
+    progress: { ...workspace.progress, [selected.trackId]: crossedBoxes },
     tracks: workspace.tracks.map((track) => track.trackId === trackId
       ? {
           ...track,
-          crossedBoxes,
-          currentMaterialCost: track.currentMaterialCost === null
-            ? null : Math.max(0, track.currentMaterialCost - 1),
-          complete: crossedBoxes >= track.totalBoxes,
+          ...researchAdvance.track,
         }
       : track),
   };
