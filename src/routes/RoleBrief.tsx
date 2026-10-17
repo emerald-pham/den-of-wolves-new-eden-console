@@ -263,7 +263,7 @@ export default function RoleBrief() {
 
         {session.phase === 'active' && me.replacementStatus == null && (
           <Suspense fallback={null}>
-            <AwayMissionLifecycleWorkspace sessionId={session.id} actorUid={me.uid} />
+            <AwayMissionLifecycleWorkspace sessionId={session.id} actorUid={me.uid} actorRoleId={brief.roleId} />
           </Suspense>
         )}
 

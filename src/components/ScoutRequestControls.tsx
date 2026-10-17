@@ -1,5 +1,5 @@
 import './DecisionGuidance.css';
-import { useId, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
+import { useId, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   isScoutEntitlementHolder,
   isScoutingRequestPhaseAvailable,
@@ -151,7 +151,10 @@ export default function ScoutRequestControls({ entitlementId }: Props) {
   const freshness = useSessionStore((state) => state.sessionSnapshotFreshness);
   const authorityKey = scoutAuthorityKey(entitlementId, session, me);
   const draftStorageKey = scoutDraftKey(session?.id, me?.uid, entitlementId);
-  const draftIdentity = { sessionId: session?.id, uid: me?.uid, entitlementId };
+  const draftIdentity = useMemo(
+    () => ({ sessionId: session?.id, uid: me?.uid, entitlementId }),
+    [session?.id, me?.uid, entitlementId],
+  );
   const [initialDraft] = useState(() => restoreScoutDraft(draftStorageKey, draftIdentity));
   const [targetCoordinate, setTargetCoordinate] = useState(initialDraft.targetCoordinate);
   const [retryAttempt, setRetryAttempt] = useState<RetryAttempt | null>(null);
@@ -180,7 +183,7 @@ export default function ScoutRequestControls({ entitlementId }: Props) {
     setBusyAttempt(null);
     setError('');
     setConfirmation('');
-  }, [authorityKey, draftStorageKey, draftIdentity.sessionId, draftIdentity.uid, entitlementId]);
+  }, [authorityKey, draftStorageKey, draftIdentity]);
 
   if (!authorized) return null;
 
