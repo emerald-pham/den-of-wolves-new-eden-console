@@ -1,4 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest';
+import type * as NodeCrypto from 'node:crypto';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
 type Fields = Record<string, unknown>;
@@ -40,7 +41,7 @@ const mock = vi.hoisted(() => {
     db: { doc: ref, collection: (path: string) => ({ path, kind: 'collection' }), runTransaction } };
 });
 const random = vi.hoisted(() => ({ randomInt: vi.fn(() => 4) }));
-vi.mock('node:crypto', async (importOriginal) => ({ ...await importOriginal<typeof import('node:crypto')>(), ...random }));
+vi.mock('node:crypto', async (importOriginal) => ({ ...await importOriginal<typeof NodeCrypto>(), ...random }));
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mock.db,
   FieldValue: { serverTimestamp: () => 'server-time' },
