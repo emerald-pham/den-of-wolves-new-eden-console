@@ -301,8 +301,11 @@ export async function runBaseGameplay(context, integration) {
     return result;
   }
   async function sourceInterruptions(stage) {
+    const alertOutcome = await compose(`${stage}/eligible-alert`, procedures.onEligibleAlert);
+    if (alertOutcome?.sourceInterruptionsReady !== true) {
+      throw new Error('eligible source alert was not acknowledged by the original GM');
+    }
     for (const [name, callback] of [
-      ['eligible-alert', procedures.onEligibleAlert],
       ['eligible-mutiny', procedures.onEligibleMutiny],
       ['eligible-destruction', procedures.onEligibleDestruction],
     ]) await compose(`${stage}/${name}`, callback);

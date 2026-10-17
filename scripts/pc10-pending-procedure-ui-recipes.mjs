@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import { CORE_CRAFT_PROCEDURES, GM_RULING_COUNTER_PROCEDURES,
+  createGmSourceAlertWitness, gmSourceAlertWitnessMatches,
   resolveCurrentPrintedOwnerActor } from './pc10-pending-procedure-ui-proof.mjs';
+import { sameActionReceipt } from './pc10-specialist-gameplay.mjs';
 import { observeLifecycleActor, inspectLifecycleObserverMount, recordLifecycleAffordance } from './pc10-member-gm-lifecycle-ui-proof.mjs';
 import { assertOriginalActor, assertLateReplyAuthority } from './pc10-member-gm-lifecycle-contracts.mjs';
 
@@ -26,6 +28,10 @@ const UNVERIFIABLE_GM_CHOICES = new Set([
 ]);
 const CERTIFIED_GM_RECIPES = new Set(['setGmShipConsoleWriteGrant', 'setShipConsoleLock',
   'setFacilitatorCensusNote', 'authorFacilitatorRuleCall']);
+const SOURCE_ALERT_TYPE_BY_ENDPOINT = Object.freeze({
+  dismissPopulationAlert: 'population',
+  dismissUnrestAlert: 'unrest',
+});
 const COUNTER_SOURCE_WAIT_ENDPOINTS = new Set(['applyShipCounterSteps']);
 const MEMBER_SCOPE_SHUTTLE_COMMAND_ENDPOINTS = new Set(['evacuateShuttleSurvivorsCommand',
   'rechargeHostConsoleFromShuttle', 'transferShuttleCargoCommand']);
@@ -1217,6 +1223,28 @@ async function one(locator) {
   return locator;
 }
 
+async function waitForSourceAlertControl({ page, type, shipName, timeoutMs = 15_000 }) {
+  const name = type === 'population' ? 'Dismiss population alert' : 'Dismiss unrest alert';
+  const title = type === 'population' ? 'Survivor population threshold reached' : 'Unrest threshold exceeded';
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const dialog = page.getByRole('alertdialog');
+    const count = await dialog.count();
+    if (count > 1) return { offered: false, reason: 'multiple source alert dialogs are mounted; the exact row is ambiguous' };
+    if (count === 1 && await dialog.isVisible()) {
+      const text = await dialog.innerText().catch(() => '');
+      if (!text.includes(shipName) || !text.includes(title)) {
+        return { offered: false, reason: 'the mounted alert dialog does not match the exact source vessel and alert type' };
+      }
+      const action = await one(dialog.getByRole('button', { name, exact: true }));
+      return action ? { offered: true, click: () => action.click() }
+        : { offered: false, reason: 'the exact source alert dismissal control is absent, disabled, or ambiguous' };
+    }
+    await new Promise(resolve => setTimeout(resolve, Math.min(100, deadline - Date.now())));
+  }
+  return { offered: false, reason: 'the matching source alert control did not mount within the bounded wait' };
+}
+
 async function readMountedCounterValue(group, resourceLabel) {
   const escapedLabel = resourceLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const row = group.getByRole('listitem', {
@@ -1532,6 +1560,20 @@ async function waitForActionState(surface, predicate, operation, timeoutMs = 15_
     await new Promise(resolve => setTimeout(resolve, Math.min(100, deadline - Date.now())));
   }
   return null;
+}
+
+async function waitForSourceAlertRemoval(surface, witness, timeoutMs = 15_000) {
+  const deadline = Date.now() + timeoutMs;
+  let latest = null;
+  while (Date.now() < deadline) {
+    latest = await readActionState(surface).catch(() => null);
+    const alerts = witness.type === 'population' ? latest?.populationAlerts : latest?.unrestAlerts;
+    if (liveState(latest, witness.sessionId) &&
+        latest.vesselActionRevisions?.[witness.shipId] === witness.sourceRevision + 1 &&
+        alerts && !Object.hasOwn(alerts, witness.shipId)) return latest;
+    await new Promise(resolve => setTimeout(resolve, Math.min(100, deadline - Date.now())));
+  }
+  return latest;
 }
 
 async function bindCounterGmOperation(surface, operation, expected, context, actorBefore) {
@@ -2880,8 +2922,18 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
   }
 
   if (endpoint === 'dismissPopulationAlert' || endpoint === 'dismissUnrestAlert') {
-    const name = endpoint === 'dismissPopulationAlert' ? 'Dismiss population alert' : 'Dismiss unrest alert';
-    return click(page.getByRole('alertdialog').getByRole('button', { name, exact: true }));
+    const type = SOURCE_ALERT_TYPE_BY_ENDPOINT[endpoint];
+    const witness = target.sourceAlertWitness;
+    const started = context.started;
+    if (!witness || witness.type !== type || witness.shipId !== target.shipId ||
+        actor?.uidHash !== started?.uidHash || actor?.instanceId !== started?.instanceId ||
+        actor?.gmInstanceOwned !== true || actor?.playerRole !== 'gm' ||
+        !gmSourceAlertWitnessMatches(state, witness, { sessionId: context.initial.sessionId,
+          gmUidHash: started?.uidHash, gmInstanceId: started?.instanceId })) {
+      return block('the original GM, source alert row, vessel, or action revision is not current');
+    }
+    const row = (type === 'population' ? state.populationAlerts : state.unrestAlerts)?.[witness.shipId];
+    return waitForSourceAlertControl({ page, type, shipName: row.shipName });
   }
 
   if (endpoint === 'resolveShipMutiny') {
@@ -3195,6 +3247,7 @@ async function inspectMountedGmControl({ surface, request, result, spec, expecte
 }
 
 async function recipeFor({ context, game, spec }) {
+  const sourceAlertType = SOURCE_ALERT_TYPE_BY_ENDPOINT[spec.endpoint];
   // The existing sixty-second capture operation includes GM preparation and
   // navigation; every phase consumes this same absolute remaining budget.
   const gmOperation = CERTIFIED_GM_RECIPES.has(spec.endpoint) || COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)
@@ -3357,6 +3410,12 @@ async function recipeFor({ context, game, spec }) {
     const refuse = async () => ({ offered: false, reason: 'the original actor/session is not currently live from a server snapshot' });
     return { expected: {}, prepare: refuse, inspect: async () => ({}) };
   }
+  if (sourceAlertType && (actor.playerRole !== 'gm' || actor.gmInstanceOwned !== true ||
+      actor.uidHash !== context.started?.uidHash || actor.instanceId !== context.started?.instanceId ||
+      context.started.uidHash !== context.initial.uidHash ||
+      context.started.sessionId !== undefined && context.started.sessionId !== context.initial.sessionId)) {
+    return refuse('the source alert must be acknowledged by the original started GM instance');
+  }
   if (pressOrigin && (actor.uidHash !== pressOrigin.uidHash || actor.profileRoleId !== 'press-officer' ||
       actor.activeConsoleRoleId !== 'press-officer' || actor.assignedRoleId !== null)) {
     return refuse('the source-mounted Press route no longer belongs to the original Press holder and role');
@@ -3376,6 +3435,15 @@ async function recipeFor({ context, game, spec }) {
   if (!liveState(state, context.initial.sessionId)) {
     const refuse = async () => ({ offered: false, reason: 'the required current server session projection is unavailable' });
     return { expected: {}, prepare: refuse, inspect: async () => ({}) };
+  }
+  if (sourceAlertType) {
+    const witness = context.sourceAlertWitness;
+    if (!witness || witness.type !== sourceAlertType ||
+        !gmSourceAlertWitnessMatches(state, witness, { sessionId: context.initial.sessionId,
+          gmUidHash: context.started?.uidHash, gmInstanceId: context.started?.instanceId })) {
+      return refuse('the exact source alert row, original GM target, or source revision is stale or unavailable');
+    }
+    holderTarget = { ...holderTarget, shipId: witness.shipId, sourceAlertWitness: witness };
   }
   if (pressOrigin && !pressShuttleOriginAuthorityMatches(pressOrigin, state, {
     sessionId: context.initial.sessionId, uidHash: pressOrigin.uidHash, groupId: pressOrigin.groupId,
@@ -3442,6 +3510,7 @@ async function recipeFor({ context, game, spec }) {
   const expected = { sessionId: context.initial.sessionId, roleId, uidHash, cycle: state.cycle,
     ...(actor.playerRole === 'gm' ? { instanceId: actor.instanceId } : {}),
     ...(resolved.target.shipId ? { shipId: resolved.target.shipId } : {}),
+    ...(sourceAlertType ? { sourceAlertWitness: resolved.target.sourceAlertWitness } : {}),
     ...(resolved.target.shuttleId ? { shuttleId: resolved.target.shuttleId } : {}),
     ...(resolved.target.targetShipName ? { targetShipName: resolved.target.targetShipName } : {}) };
   if (resolved.target.shipId) expected.groupId = state.shipFleetGroupIds?.[resolved.target.shipId];
@@ -3587,6 +3656,11 @@ async function recipeFor({ context, game, spec }) {
     prepare: async ({ surface, actor: currentActor, source }) => {
       if (currentActor.uidHash !== uidHash || currentActor.sessionId !== expected.sessionId || currentActor.profileRoleId !== roleId && currentActor.playerRole !== 'gm')
         return { offered: false, reason: 'the selected original account or current role changed before the mounted action' };
+      if (sourceAlertType && (currentActor.uidHash !== context.started.uidHash ||
+          currentActor.instanceId !== context.started.instanceId || currentActor.gmInstanceOwned !== true ||
+          currentActor.playerRole !== 'gm')) {
+        return { offered: false, reason: 'the original started GM UID or owned instance changed before the alert dismissal' };
+      }
       if (source.cycle !== state.cycle || source.phase !== 'active') return { offered: false, reason: 'the active phase changed before the mounted action' };
       if (expected.shuttleId && currentActor.activeConsoleRoleId !== roleId) return { offered: false, reason: 'the original current shuttle-holder console is no longer active' };
       // A denied census plan has no captured revision. Retain its original
@@ -3611,6 +3685,11 @@ async function recipeFor({ context, game, spec }) {
           ? resolved.target.shuttleId : undefined);
       if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) remainingGmOperation(gmOperation);
       if (!liveState(latest, expected.sessionId)) return { offered: false, reason: 'current server projection became stale before action' };
+      if (sourceAlertType && !gmSourceAlertWitnessMatches(latest, expected.sourceAlertWitness, {
+          sessionId: expected.sessionId, gmUidHash: context.started.uidHash,
+          gmInstanceId: context.started.instanceId })) {
+        return { offered: false, reason: 'the exact source alert identity or its vessel revision changed before the mounted action' };
+      }
       const latestRevision = revisionFor(spec.endpoint, latest, resolved.target, auxiliary);
       if (isRevision(latestRevision) && latestRevision !== expected.sourceRevision) return { offered: false, reason: 'source revision changed before action' };
       if (memberScopedShuttleCommandEndpoint) {
@@ -3772,7 +3851,53 @@ async function recipeFor({ context, game, spec }) {
       if (!preparedPlan.offered) return preparedPlan;
       return preparedPlan;
     },
-    inspect: async ({ surface, result, request, actorAfter }) => {
+    inspect: async ({ surface, result, request, replay, actorAfter }) => {
+      if (sourceAlertType) {
+        const witness = expected.sourceAlertWitness;
+        const latest = await waitForSourceAlertRemoval(surface, witness).catch(() => null);
+        const latestAlerts = sourceAlertType === 'population' ? latest?.populationAlerts : latest?.unrestAlerts;
+        const sourceRevisionAfter = latest?.vesselActionRevisions?.[witness.shipId];
+        const alertIdentityMatched = gmSourceAlertWitnessMatches(state, witness, {
+          sessionId: context.initial.sessionId, gmUidHash: context.started?.uidHash,
+          gmInstanceId: context.started?.instanceId });
+        const alertRemoved = !!latestAlerts && !Object.hasOwn(latestAlerts, witness.shipId);
+        const requestMatches = exactKeys(request, ['sessionId', 'shipId', 'instanceId', 'requestId', 'expectedRevision']) &&
+          request.sessionId === witness.sessionId && request.shipId === witness.shipId &&
+          request.instanceId === context.started?.instanceId && typeof request.requestId === 'string' &&
+          request.requestId.length > 0 && request.expectedRevision === witness.sourceRevision;
+        const resultMatches = result?.dismissed === true && result.shipId === witness.shipId &&
+          hashUid(result.actorUid ?? '') === context.started?.uidHash && result.vesselId === witness.shipId &&
+          result.turn === expected.cycle && result.phase === 'active' &&
+          result.revision === witness.sourceRevision + 1 && result.idempotencyKey === request?.requestId &&
+          result.auditId === `${sourceAlertType === 'population' ? 'dismiss-population' : 'dismiss-unrest'}-${request?.requestId}`;
+        const replayMatches = !!replay && sameActionReceipt(result, replay);
+        const actorOriginal = actorAfter?.sessionId === witness.sessionId &&
+          actorAfter?.uidHash === context.started?.uidHash &&
+          actorAfter?.instanceId === context.started?.instanceId && actorAfter?.gmInstanceOwned === true;
+        const sourceAfterLive = liveState(latest, witness.sessionId) && latest.cycle === expected.cycle &&
+          alertIdentityMatched && alertRemoved && sourceRevisionAfter === witness.sourceRevision + 1 &&
+          requestMatches && resultMatches && replayMatches && actorOriginal;
+        return {
+          sourceAfter: { live: sourceAfterLive, sessionId: latest?.sessionId,
+            cycle: latest?.cycle, revision: sourceRevisionAfter,
+            ...(latest?.shipFleetGroupIds?.[witness.shipId]
+              ? { groupId: latest.shipFleetGroupIds[witness.shipId] } : {}) },
+          sourceAlertTransition: {
+            kind: 'gm-source-alert-receipt-v1',
+            type: sourceAlertType,
+            shipId: witness.shipId,
+            sourceRevisionBefore: witness.sourceRevision,
+            sourceRevisionAfter,
+            alertIdentityHash: witness.alertIdentityHash,
+            alertIdentityMatched,
+            alertRemoved,
+            originalGmUidHash: context.started?.uidHash,
+            originalGmInstanceHash: witness.gmInstanceHash,
+            exactReplay: replayMatches,
+          },
+          rendered: await positiveRenderedStatus(surface, spec.endpoint, result),
+        };
+      }
       if (CERTIFIED_GM_RECIPES.has(spec.endpoint)) {
         return inspectMountedGmControl({ context, surface, request, result, spec, expected, target: resolved.target, gmOperation });
       }

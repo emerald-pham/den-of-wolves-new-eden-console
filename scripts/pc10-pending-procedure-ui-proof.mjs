@@ -16,6 +16,17 @@ const STATUSLESS_VESSEL_RESULTS = Object.freeze({
   dismissUnrestAlert: { valid: result => result?.dismissed === true, action: 'dismiss-unrest' },
   setShipConsoleLock: { valid: result => typeof result?.locked === 'boolean', action: 'console-lock' },
 });
+const SOURCE_ALERT_TYPE_BY_ENDPOINT = Object.freeze({
+  dismissPopulationAlert: 'population',
+  dismissUnrestAlert: 'unrest',
+});
+const SOURCE_ALERT_WITNESS_KEYS = Object.freeze(['kind', 'type', 'sessionId', 'shipId',
+  'sourceRevision', 'alertIdentityHash', 'gmUidHash', 'gmInstanceHash']);
+const SOURCE_ALERT_SOURCE_KEYS = Object.freeze(['kind', 'sessionId', 'cycle', 'shipId',
+  'sourceRevision', 'alertIdentityHash', 'alertIdentityMatched', 'originalGmUidHash', 'originalGmInstanceHash']);
+const SOURCE_ALERT_RECEIPT_KEYS = Object.freeze(['kind', 'type', 'shipId', 'sourceRevisionBefore',
+  'sourceRevisionAfter', 'alertIdentityHash', 'alertIdentityMatched', 'alertRemoved',
+  'originalGmUidHash', 'originalGmInstanceHash', 'exactReplay']);
 const COUNTER_BATCH_REQUEST_KEYS = Object.freeze(['sessionId', 'instanceId', 'shipId', 'counter', 'steps',
   'requestId', 'expectedRevision', 'resourceId']);
 const COUNTER_BATCH_RESULT_KEYS = Object.freeze(['amount', 'appliedSteps', 'alertRaised', 'sessionId', 'instanceId',
@@ -344,6 +355,75 @@ function hash(value) {
 
 function hashUid(uid) {
   return createHash('sha256').update(uid).digest('hex').slice(0, 16);
+}
+
+function canonicalSourceAlertValue(value) {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean' ||
+      typeof value === 'number' && Number.isFinite(value)) return value;
+  if (value instanceof Date && Number.isFinite(value.getTime())) return { date: value.toISOString() };
+  if (Array.isArray(value)) {
+    const items = value.map(canonicalSourceAlertValue);
+    return items.some(item => item === undefined) ? undefined : items;
+  }
+  if (!diagnosticRecord(value)) return undefined;
+  const timestampSeconds = Number.isSafeInteger(value.seconds) ? value.seconds : value._seconds;
+  const timestampNanoseconds = Number.isSafeInteger(value.nanoseconds) ? value.nanoseconds : value._nanoseconds;
+  if (Number.isSafeInteger(timestampSeconds) && Number.isSafeInteger(timestampNanoseconds)) {
+    return { seconds: timestampSeconds, nanoseconds: timestampNanoseconds };
+  }
+  const result = {};
+  for (const key of Object.keys(value).sort()) {
+    const normalized = canonicalSourceAlertValue(value[key]);
+    if (normalized === undefined) return undefined;
+    result[key] = normalized;
+  }
+  return result;
+}
+
+function validSourceAlertTimestamp(value) {
+  if (value instanceof Date) return Number.isFinite(value.getTime());
+  if (typeof value === 'string') return Number.isFinite(Date.parse(value));
+  if (!diagnosticRecord(value)) return false;
+  const seconds = Number.isSafeInteger(value.seconds) ? value.seconds : value._seconds;
+  const nanoseconds = Number.isSafeInteger(value.nanoseconds) ? value.nanoseconds : value._nanoseconds;
+  return Number.isSafeInteger(seconds) && seconds >= 0 &&
+    Number.isSafeInteger(nanoseconds) && nanoseconds >= 0 && nanoseconds < 1_000_000_000;
+}
+
+/** Return a redacted witness for one exact, current server-created GM alert row. */
+export function createGmSourceAlertWitness(state, { type, shipId, sessionId, gmUidHash, gmInstanceId } = {}) {
+  if (!['population', 'unrest'].includes(type) || typeof shipId !== 'string' || !shipId ||
+      typeof sessionId !== 'string' || state?.live !== true || state.sessionId !== sessionId ||
+      state.phase !== 'active' || !Array.isArray(state.activeVesselIds) ||
+      !state.activeVesselIds.includes(shipId) || !/^[0-9a-f]{16}$/.test(gmUidHash ?? '') ||
+      typeof gmInstanceId !== 'string' || !gmInstanceId) return null;
+  const alerts = type === 'population' ? state.populationAlerts : state.unrestAlerts;
+  const row = alerts?.[shipId];
+  const rowKeys = type === 'population'
+    ? ['shipId', 'shipName', 'targetGmInstanceIds', 'createdAt', 'population']
+    : ['shipId', 'shipName', 'targetGmInstanceIds', 'createdAt'];
+  if (!exactKeys(row, rowKeys) || row.shipId !== shipId || typeof row.shipName !== 'string' || !row.shipName.trim() ||
+      !Array.isArray(row.targetGmInstanceIds) || row.targetGmInstanceIds.length === 0 ||
+      row.targetGmInstanceIds.some(value => typeof value !== 'string' || !value) ||
+      new Set(row.targetGmInstanceIds).size !== row.targetGmInstanceIds.length ||
+      !row.targetGmInstanceIds.includes(gmInstanceId) || !validSourceAlertTimestamp(row.createdAt) ||
+      type === 'population' && (!Number.isSafeInteger(row.population) || row.population < 0)) return null;
+  const revision = state.vesselActionRevisions?.[shipId];
+  if (!Number.isSafeInteger(revision) || revision < 0) return null;
+  const canonicalRow = canonicalSourceAlertValue(row);
+  if (!canonicalRow) return null;
+  const alertIdentityHash = createHash('sha256').update(JSON.stringify({ type, shipId, row: canonicalRow })).digest('hex');
+  return { kind: 'gm-source-alert-witness-v1', type, sessionId, shipId, sourceRevision: revision,
+    alertIdentityHash, gmUidHash, gmInstanceHash: hashUid(gmInstanceId) };
+}
+
+export function gmSourceAlertWitnessMatches(state, witness, { sessionId, gmUidHash, gmInstanceId } = {}) {
+  if (!exactKeys(witness, SOURCE_ALERT_WITNESS_KEYS) || witness.kind !== 'gm-source-alert-witness-v1' ||
+      witness.sessionId !== sessionId || witness.gmUidHash !== gmUidHash ||
+      witness.gmInstanceHash !== hashUid(gmInstanceId ?? '')) return false;
+  const current = createGmSourceAlertWitness(state, { type: witness.type, shipId: witness.shipId,
+    sessionId, gmUidHash, gmInstanceId });
+  return !!current && JSON.stringify(current) === JSON.stringify(witness);
 }
 
 /** Map public server custody to one already-admitted profile without returning the raw UID. */
@@ -1470,6 +1550,59 @@ function evaluateMountedGmCapture(spec, input, expected) {
   return pending(spec, 'no-strict-mounted-GM-validator-is-registered');
 }
 
+function sourceAlertReceiptFor(spec, input, expected) {
+  const type = SOURCE_ALERT_TYPE_BY_ENDPOINT[spec.endpoint];
+  if (!type) return null;
+  const witness = input.sourceAlertWitness;
+  const transition = input.sourceAlertTransition;
+  const request = input.request;
+  const result = input.response?.result;
+  const replay = input.replay;
+  const sourceBefore = input.sourceAlertSourceBefore;
+  if (!exactKeys(witness, SOURCE_ALERT_WITNESS_KEYS) || witness.kind !== 'gm-source-alert-witness-v1' ||
+      witness.type !== type || witness.sessionId !== expected.sessionId || witness.shipId !== expected.shipId ||
+      witness.sourceRevision !== expected.sourceRevision || witness.gmUidHash !== expected.uidHash ||
+      witness.gmInstanceHash !== hashUid(expected.instanceId ?? '') ||
+      !exactKeys(sourceBefore, SOURCE_ALERT_SOURCE_KEYS) || sourceBefore.kind !== 'gm-source-alert-source-v1' ||
+      sourceBefore.sessionId !== expected.sessionId || sourceBefore.cycle !== expected.cycle ||
+      sourceBefore.shipId !== witness.shipId || sourceBefore.sourceRevision !== witness.sourceRevision ||
+      sourceBefore.alertIdentityHash !== witness.alertIdentityHash ||
+      sourceBefore.alertIdentityMatched !== true || sourceBefore.originalGmUidHash !== expected.uidHash ||
+      sourceBefore.originalGmInstanceHash !== witness.gmInstanceHash ||
+      input.sourceBefore?.revision !== witness.sourceRevision ||
+      !exactKeys(transition, SOURCE_ALERT_RECEIPT_KEYS) || transition.kind !== 'gm-source-alert-receipt-v1' ||
+      transition.type !== type || transition.shipId !== witness.shipId ||
+      transition.sourceRevisionBefore !== witness.sourceRevision ||
+      transition.sourceRevisionAfter !== witness.sourceRevision + 1 ||
+      transition.alertIdentityHash !== witness.alertIdentityHash || transition.alertIdentityMatched !== true ||
+      transition.alertRemoved !== true || transition.originalGmUidHash !== expected.uidHash ||
+      transition.originalGmInstanceHash !== witness.gmInstanceHash || transition.exactReplay !== true ||
+      !exactKeys(request, ['sessionId', 'shipId', 'instanceId', 'requestId', 'expectedRevision']) ||
+      request.sessionId !== expected.sessionId || request.shipId !== witness.shipId ||
+      request.instanceId !== expected.instanceId || typeof request.requestId !== 'string' || !request.requestId ||
+      request.expectedRevision !== witness.sourceRevision || result?.dismissed !== true ||
+      result.shipId !== witness.shipId || hashUid(result.actorUid ?? '') !== expected.uidHash ||
+      result.vesselId !== witness.shipId || result.turn !== expected.cycle || result.phase !== 'active' ||
+      result.revision !== witness.sourceRevision + 1 || result.idempotencyKey !== request.requestId ||
+      result.auditId !== `${type === 'population' ? 'dismiss-population' : 'dismiss-unrest'}-${request.requestId}` ||
+      input.sourceAfter?.revision !== witness.sourceRevision + 1 || input.response?.httpStatus !== 200 ||
+      input.response?.exactReplay !== true || replay?.status !== 'committed' ||
+      !sameActionReceipt(result, replay.result)) return null;
+  return {
+    kind: 'gm-source-alert-receipt-v1',
+    type,
+    shipId: witness.shipId,
+    sourceRevisionBefore: witness.sourceRevision,
+    sourceRevisionAfter: witness.sourceRevision + 1,
+    alertIdentityHash: witness.alertIdentityHash,
+    alertIdentityMatched: true,
+    alertRemoved: true,
+    originalGmUidHash: expected.uidHash,
+    originalGmInstanceHash: witness.gmInstanceHash,
+    exactReplay: true,
+  };
+}
+
 /** Validate an actual mounted action using source state, the unmodified POST and its receipt-safe retry. */
 export function evaluateProcedureCapture(input) {
   const spec = CASE_BY_ID.get(input?.caseId);
@@ -1605,6 +1738,10 @@ export function evaluateProcedureCapture(input) {
   if (spec.trainingChoice && trainingChoice !== TRAINING_CHOICE_CODE) {
     return pending(spec, 'deliberate-facilitator-choice-safe-code-was-not-disclosed');
   }
+  const sourceAlertReceipt = sourceAlertReceiptFor(spec, input, expected);
+  if (SOURCE_ALERT_TYPE_BY_ENDPOINT[spec.endpoint] && !sourceAlertReceipt) {
+    return pending(spec, 'source-alert-identity-original-GM-request-receipt-and-removal-are-not-bound');
+  }
   return {
     status: 'completed', caseId: spec.id, family: spec.family, endpoint: spec.endpoint,
     actorRoleId: expected.roleId, cycle: expected.cycle, revision: input.sourceAfter.revision,
@@ -1620,6 +1757,7 @@ export function evaluateProcedureCapture(input) {
     exactSdkRetry: spec.replayPolicy === 'exact-request-id' ? 'same-original-request-receipt-confirmed' : 'not-claimed',
     ...(input.cost ? { cost: { resource: input.cost.resource, amount: input.cost.amount, direction: input.cost.direction } } : {}),
     ...(trainingChoice ? { trainingChoice } : {}),
+    ...(sourceAlertReceipt ? { sourceAlertReceipt } : {}),
     randomOutcomeRecorded: false,
     rendered: acceptedStatus,
   };
@@ -1703,6 +1841,13 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   const spec = CASE_BY_ID.get(caseId);
   if (!spec) throw new Error(`Unknown pending procedure case: ${String(caseId)}`);
   if (spec.replayPolicy === 'not-mounted') return pending(spec, spec.unavailableReason);
+  const sourceAlertType = SOURCE_ALERT_TYPE_BY_ENDPOINT[spec.endpoint];
+  if (sourceAlertType && (typeof context?.started?.uidHash !== 'string' ||
+      !/^[0-9a-f]{16}$/.test(context.started.uidHash) || typeof context.started.instanceId !== 'string' ||
+      !context.started.instanceId || context.started.uidHash !== context.initial?.uidHash ||
+      context.started.sessionId !== undefined && context.started.sessionId !== context.initial?.sessionId)) {
+    return pending(spec, 'the original started-GM identity is unavailable for source-alert capture');
+  }
   assert.ok(context?.initial?.sessionId && typeof game?.select === 'function', 'Use the fresh connected two-browser game.');
   assert.equal(typeof prepare, 'function');
   assert.equal(typeof inspect, 'function');
@@ -1797,8 +1942,10 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   const isGm = roleId === 'gm';
   const rosterActor = context.roster?.find(actor => actor.roleId === roleId);
   const normalizedExpected = { ...expected, sessionId: context.initial.sessionId, roleId,
-    uidHash: expected?.uidHash ?? (isGm ? actorBefore.uidHash : rosterActor?.uidHash),
-    ...(isGm ? { instanceId: expected?.instanceId ?? actorBefore.instanceId } : {}) };
+    uidHash: sourceAlertType ? context.started.uidHash
+      : expected?.uidHash ?? (isGm ? actorBefore.uidHash : rosterActor?.uidHash),
+    ...(isGm ? { instanceId: sourceAlertType ? context.started.instanceId
+      : expected?.instanceId ?? actorBefore.instanceId } : {}) };
   if (!normalizedExpected.uidHash || !matchesActor(actorBefore, normalizedExpected, isGm)) {
     return pending(spec, 'original-authenticated-actor-is-not-live-in-the-current-role');
   }
@@ -1809,6 +1956,13 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   if (!sourceBefore?.live || sourceBefore.sessionId !== context.initial.sessionId ||
       sourceBefore.phase !== 'active' || expected?.cycle !== undefined && sourceBefore.cycle !== expected.cycle) {
     return pending(spec, 'current-session-or-source-phase-is-not-ready');
+  }
+  if (sourceAlertType && (!gmSourceAlertWitnessMatches(sourceBefore, expected.sourceAlertWitness, {
+      sessionId: context.initial.sessionId, gmUidHash: context.started.uidHash,
+      gmInstanceId: context.started.instanceId }) || expected.sourceAlertWitness?.type !== sourceAlertType ||
+      expected.sourceAlertWitness?.shipId !== expected.shipId ||
+      expected.sourceAlertWitness?.sourceRevision !== sourceBefore.vesselActionRevisions?.[expected.shipId])) {
+    return pending(spec, 'the exact original-GM source alert or vessel revision changed before the mounted control');
   }
   if (resolvedHolder) {
     const currentHolder = resolveCurrentHolderActor({ shuttleId: resolvedHolder.shuttleId,
@@ -1908,6 +2062,13 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
     groupId, cost: action.expectedCost ?? normalizedExpected.cost,
     distinctConsent: action.distinctConsent ?? normalizedExpected.distinctConsent };
   const proofInput = { caseId, expected: capturedExpected,
+  ...(sourceAlertType ? { sourceAlertWitness: expected.sourceAlertWitness,
+    sourceAlertSourceBefore: { kind: 'gm-source-alert-source-v1', sessionId: context.initial.sessionId,
+      cycle: sourceBefore.cycle, shipId: expected.sourceAlertWitness.shipId,
+      sourceRevision, alertIdentityHash: expected.sourceAlertWitness.alertIdentityHash,
+      alertIdentityMatched: true, originalGmUidHash: context.started.uidHash,
+      originalGmInstanceHash: expected.sourceAlertWitness.gmInstanceHash },
+    sourceAlertTransition: observed?.sourceAlertTransition } : {}),
   offered: true, mountedUi: true, actorBefore, actorAfter,
   sourceBefore: sourceBeforeProof, sourceAfter,
   transitionBefore: action.transitionBefore, transitionAfter: observed?.transitionAfter,
@@ -2104,8 +2265,123 @@ export function createPendingGmRulingsCountersCallbacks({ steps = {}, gameFactor
   const run = checkpoint => context => runCasesAtCheckpoint({ family: G, cases: GM_RULING_COUNTER_PROCEDURES,
     checkpoint, context, steps, gameFactory: checkpoint === 'on-setup' ? setupGameFactory : gameFactory,
     directory: context.directory });
+  const runEligibleAlert = async context => {
+    const alertCaseId = { unrest: 'gm:dismissUnrestAlert', population: 'gm:dismissPopulationAlert' };
+    const makeEvidence = cases => ({ schemaVersion: 1, family: G, checkpoint: 'eligible-alert',
+      sourceCommit: context.sourceCommit ?? null, humanPhysicalProof: false, adminGameplayWrites: false,
+      acceleratedClock: false, privateTextPersisted: false, sourceRandomnessForced: false, cases });
+    const finish = async (cases, sourceInterruptionsReady) => {
+      const evidence = makeEvidence(cases);
+      evidence.sourceInterruptionsReady = sourceInterruptionsReady;
+      const summary = { status: 'pending', family: G, checkpoint: 'eligible-alert',
+        observedProcedureCount: cases.filter(row => row.status === 'completed').length,
+        pendingProcedureCount: cases.filter(row => row.status !== 'completed').length,
+        familyAcceptanceClaimed: false };
+      evidence.summary = summary;
+      if (context.directory) {
+        await mkdir(context.directory, { recursive: true });
+        await writeFile(resolve(context.directory, 'pending-gm-rulings-counters-eligible-alert.json'),
+          `${JSON.stringify(evidence, null, 2)}\n`);
+      }
+      return { ...summary, sourceInterruptionsReady, evidence };
+    };
+    const pendingSourceCases = reason => ['unrest', 'population'].map(type => pending(
+      CASE_BY_ID.get(alertCaseId[type]), reason));
+    const started = context?.started;
+    if (typeof started?.uidHash !== 'string' || !/^[0-9a-f]{16}$/.test(started.uidHash) ||
+        typeof started.instanceId !== 'string' || !started.instanceId ||
+        started.uidHash !== context.initial?.uidHash ||
+        started.sessionId !== undefined && started.sessionId !== context.initial?.sessionId) {
+      return finish(pendingSourceCases('the original started-GM identity is unavailable'), false);
+    }
+    let game, surface, actor, source;
+    try {
+      game = gameFactory(context);
+      surface = await game.select('gm');
+      actor = await surface.observe();
+      source = await game.state(surface);
+    } catch {
+      return finish(pendingSourceCases('the current source alert projection is unavailable under the original GM'), false);
+    }
+    const originalGmCurrent = actor?.sameActor === true && actor.sessionId === context.initial.sessionId &&
+      actor.connection === 'live' && actor.freshness === 'server' && actor.playerRole === 'gm' &&
+      actor.gmInstanceOwned === true && actor.uidHash === started.uidHash && actor.instanceId === started.instanceId;
+    const sourceCurrent = source?.live === true && source.sessionId === context.initial.sessionId &&
+      source.phase === 'active' && Number.isSafeInteger(source.cycle);
+    const alertMapsCurrent = diagnosticRecord(source?.unrestAlerts) && diagnosticRecord(source?.populationAlerts);
+    if (!originalGmCurrent || !sourceCurrent || !alertMapsCurrent) {
+      return finish(pendingSourceCases('the source projection is not current for the original GM'), false);
+    }
+    const sourceAlerts = ['unrest', 'population'].flatMap(type => {
+      const rows = type === 'unrest' ? source.unrestAlerts : source.populationAlerts;
+      return Object.keys(rows).map(shipId => ({ type, shipId }));
+    });
+    const cases = [];
+    let everySourceAlertBound = true;
+    for (const entry of sourceAlerts) {
+      try {
+        actor = await surface.observe();
+        source = await game.state(surface);
+      } catch {
+        everySourceAlertBound = false;
+        cases.push(pending(CASE_BY_ID.get(alertCaseId[entry.type]),
+          'the current source alert projection became unavailable before dismissal'));
+        continue;
+      }
+      const originalGmStillCurrent = actor?.sameActor === true && actor.sessionId === context.initial.sessionId &&
+        actor.connection === 'live' && actor.freshness === 'server' && actor.playerRole === 'gm' &&
+        actor.gmInstanceOwned === true && actor.uidHash === started.uidHash && actor.instanceId === started.instanceId;
+      const sourceStillCurrent = source?.live === true && source.sessionId === context.initial.sessionId &&
+        source.phase === 'active' && Number.isSafeInteger(source.cycle) &&
+        diagnosticRecord(source.unrestAlerts) && diagnosticRecord(source.populationAlerts);
+      if (!originalGmStillCurrent || !sourceStillCurrent) {
+        everySourceAlertBound = false;
+        cases.push(pending(CASE_BY_ID.get(alertCaseId[entry.type]),
+          'the current source alert projection is not active under the original GM'));
+        continue;
+      }
+      const witness = createGmSourceAlertWitness(source, { ...entry, sessionId: context.initial.sessionId,
+        gmUidHash: started.uidHash, gmInstanceId: started.instanceId });
+      if (!witness) {
+        everySourceAlertBound = false;
+        cases.push(pending(CASE_BY_ID.get(alertCaseId[entry.type]),
+          'source alert is malformed, stale, inactive, or targeted to another GM instance'));
+        continue;
+      }
+      const caseContext = { ...context, directory: undefined, sourceAlertWitness: witness };
+      const result = await runCasesAtCheckpoint({ family: G, cases: GM_RULING_COUNTER_PROCEDURES,
+        checkpoint: 'eligible-alert', context: caseContext, steps, gameFactory,
+        onlyCaseIds: [alertCaseId[entry.type]] });
+      const outcome = result.evidence.cases[0];
+      cases.push(outcome ?? pending(CASE_BY_ID.get(alertCaseId[entry.type]),
+        'no source-bound mounted dismissal outcome was returned'));
+      if (outcome?.status !== 'completed' || outcome.sourceAlertReceipt?.type !== witness.type ||
+          outcome.sourceAlertReceipt?.shipId !== witness.shipId ||
+          outcome.sourceAlertReceipt?.sourceRevisionBefore !== witness.sourceRevision ||
+          outcome.sourceAlertReceipt?.alertIdentityHash !== witness.alertIdentityHash ||
+          outcome.sourceAlertReceipt?.originalGmUidHash !== started.uidHash ||
+          outcome.sourceAlertReceipt?.originalGmInstanceHash !== witness.gmInstanceHash ||
+          outcome.sourceAlertReceipt?.exactReplay !== true) everySourceAlertBound = false;
+    }
+    let sourceAfter, actorAfter;
+    try {
+      sourceAfter = await game.state(surface);
+      actorAfter = await surface.observe();
+    } catch { everySourceAlertBound = false; }
+    const remainingAlerts = alertMapsCurrent && diagnosticRecord(sourceAfter?.unrestAlerts) &&
+      diagnosticRecord(sourceAfter?.populationAlerts)
+      ? Object.keys(sourceAfter.unrestAlerts).length + Object.keys(sourceAfter.populationAlerts).length : -1;
+    const finalSourceCurrent = sourceAfter?.live === true && sourceAfter.sessionId === context.initial.sessionId &&
+      sourceAfter.phase === 'active' && Number.isSafeInteger(sourceAfter.cycle);
+    const finalOriginalGmCurrent = actorAfter?.sameActor === true && actorAfter.sessionId === context.initial.sessionId &&
+      actorAfter.connection === 'live' && actorAfter.freshness === 'server' && actorAfter.playerRole === 'gm' &&
+      actorAfter.gmInstanceOwned === true && actorAfter.uidHash === started.uidHash &&
+      actorAfter.instanceId === started.instanceId;
+    const ready = everySourceAlertBound && finalSourceCurrent && finalOriginalGmCurrent && remainingAlerts === 0;
+    return finish(cases, ready);
+  };
   return Object.freeze({ onSetup: run('on-setup'), onStarted: run('on-started'),
-    onMaintenance: run('maintenance'), onEligibleAlert: run('eligible-alert'),
+    onMaintenance: run('maintenance'), onEligibleAlert: runEligibleAlert,
     onEligibleMutiny: run('eligible-mutiny'), onEligibleDestruction: run('eligible-destruction'),
     onCycle6: run('cycle-6') });
 }
