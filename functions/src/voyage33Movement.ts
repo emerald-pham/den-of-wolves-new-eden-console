@@ -11,7 +11,8 @@ import {
   parseVoyage33MaintenanceState,
   type Voyage33MaintenanceState,
 } from './voyage33Maintenance';
-import { SHIP_DAMAGE_DECKS, type ShipDamageState } from './shipDamage';
+import type { ShipDamageState } from './shipDamage';
+import { PUBLIC_SHIP_SYSTEM_IDS } from './publicShipSystems';
 import { isResourceShipId, type ShipResourceInventory } from './resources';
 import { neighborsForCoordinate } from './starChartGraph';
 
@@ -172,12 +173,12 @@ function requireActiveVesselRoster(value: unknown): readonly string[] {
 }
 
 function requireLiveHostDamage(shipId: string, value: unknown): ShipDamageState {
-  const deck = SHIP_DAMAGE_DECKS[shipId];
-  if (!deck || !isRecord(value) || !hasOnlyKeys(value, ['damagedSystemIds', 'destroyed']) ||
+  const systemIds = PUBLIC_SHIP_SYSTEM_IDS[shipId];
+  if (!systemIds || !isRecord(value) || !hasOnlyKeys(value, ['damagedSystemIds', 'destroyed']) ||
       value.destroyed !== false || !Array.isArray(value.damagedSystemIds)) {
     throw new Error('Voyage 33-0 requires a live core-vessel host.');
   }
-  const knownSystemIds = new Set(deck.map(({ systemId }) => systemId));
+  const knownSystemIds = new Set(systemIds);
   if (value.damagedSystemIds.some((systemId) => typeof systemId !== 'string' || !knownSystemIds.has(systemId)) ||
       new Set(value.damagedSystemIds).size !== value.damagedSystemIds.length) {
     throw new Error('The host damage state is malformed.');
