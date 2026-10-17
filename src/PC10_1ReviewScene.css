@@ -54,3 +54,10 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Keep the PC10.1 review footer readable at the narrowest phone width. */
+@media (max-width: 360px) {
+  .pc10-1-review .pc07-review__step-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
