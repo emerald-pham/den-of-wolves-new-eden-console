@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "baseline": "aa2c89f5d369d42b94a91ecadaa4244d0d1c2d08",
+  "candidate": "2e822e31",
+  "auditBoundary": "Exact PC10.1 runtime source transition, named callable exports, transitive shared-helper consumers, member discovery projection writers, and science-device read/build/use/test endpoints. Candidate discovery readback is the existing Firestore playerDiscoveries subscription; no extra callable reader was inferred.",
+  "modules": {
+    "functions/src/candidateAvailability.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "2035ab19771863c817866e2da0d99ec65e31c11228575c8e09391482faa2e177",
+      "consumers": [
+        "allocateHummingbirdHarvest",
+        "rollHummingbirdHarvest"
+      ]
+    },
+    "functions/src/candidateRevealProjection.ts": {
+      "before": "65eb58b65880a37f3ce251bb6bc69ee943e81a04c4d142342f74a279e2b7c625",
+      "after": "d206e236ace82f293767bb49441b84f9ba6bf5fcb85b8cc0b3773cf8ae045e63",
+      "consumers": [
+        "adjudicateFailedJump",
+        "advanceTurn",
+        "assignReplacementRole",
+        "automaticallyResolveScoutRequest",
+        "commitAwayMissionLifecycleCommand",
+        "confirmFleetPartition",
+        "confirmSetup",
+        "joinSession",
+        "jumpShip",
+        "moveShipToLocation",
+        "resumeSession",
+        "resolvePendingScoutRequest",
+        "runMaintenance",
+        "sendScoutTaxiTransfer",
+        "shareKnownSystemDetails",
+        "startGame",
+        "startSinglePlayerDemo"
+      ]
+    },
+    "functions/src/endeavourEcmDeviceWriter.ts": {
+      "before": "21dac933150a6273b78003e0ea1f67c934f339a9d89c1a790d5fa40d482005b9",
+      "after": "5a6490fad2b929b3fc34ff78fac6da60ac2e49771b3a2d5b593555e0a905f5c7",
+      "consumers": [
+        "activateEndeavourEcmDevice",
+        "readEndeavourEcmDeviceWorkspace"
+      ]
+    },
+    "functions/src/endeavourResearchWriter.ts": {
+      "before": "fba45fe5cf58482e273e4d44e24b05fca5fb81696a490b9a1be3712ea71aaa28",
+      "after": "48d3a0eb983fb7a74dfb96e0c28e3c4c16032468b9a0191072bdb99e8dd5156e",
+      "consumers": [
+        "advanceEndeavourResearchTrack",
+        "readEndeavourResearchWorkspace"
+      ]
+    },
+    "functions/src/endeavourScienceDeviceWriter.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "53beb8205417d51f6ca0cc7c08e12cbb262f4096ddd119697c03bf1b0133c06f",
+      "consumers": [
+        "buildEndeavourScienceDevice"
+      ]
+    },
+    "functions/src/endeavourScienceDevices.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "d689d830e1e6bbf64634c48f5ee2f8a7af65d501b2419abfe1a3a710919886db",
+      "consumers": [
+        "activateEndeavourEcmDevice",
+        "advanceEndeavourResearchTrack",
+        "buildEndeavourScienceDevice",
+        "readEndeavourEcmDeviceWorkspace",
+        "readEndeavourResearchWorkspace",
+        "runWolfAgentDetectorTest"
+      ]
+    },
+    "functions/src/wolfAgentDetectorWriter.ts": {
+      "before": "e3027defc34c77e8ef6da2b8d89c1ede3190927f277a35723980f1fd90be66a2",
+      "after": "3204989a2a3d0c5c4a8051ba6929ede56da5db042a88fe49ea311dbdfe62dbe1",
+      "consumers": [
+        "runWolfAgentDetectorTest"
+      ]
+    }
+  },
+  "index": {
+    "before": "20c86c6675df602427c7c0e94efaa23b1a0b278c67f4d59697731ca02da67042",
+    "after": "36090cd19330161cce583f21bb51e8e05fae24dd2fc21d50fdf153ea2eb3cb22",
+    "consumers": [
+      "allocateHummingbirdHarvest",
+      "automaticallyResolveScoutRequest",
+      "buildEndeavourScienceDevice",
+      "requestScout",
+      "resolvePendingScoutRequest",
+      "rollHummingbirdHarvest"
+    ]
+  }
+}
