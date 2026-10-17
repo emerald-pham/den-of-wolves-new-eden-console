@@ -827,10 +827,10 @@ parent acceptance, completion states and canonical prerequisite graph.
 | [PT3](pc10-tickets/57-pt3.md) | 641, 642, 649, 651 | Shared role-entry results and affected consumers receive automatic type checks | None |
 | [PT4](pc10-tickets/58-pt4.md) | 660, 651 | Emulator allocation survives interleaved startup and returns only owned resources | None |
 | [PT5](pc10-tickets/59-pt5.md) | 651, 660 | Scoped runtime summaries retain detailed diagnostics on disk | None |
-| [PT6](pc10-tickets/60-pt6.md) | 651 | Generated roadmap artifacts receive the appropriate CI classification | None |
+| [PT6](pc10-tickets/60-pt6.md) | 651 | Generated roadmap artifacts receive the appropriate CI classification; implemented in PR 25 and retained | Completed carry-forward |
 | [PT7](pc10-tickets/61-pt7.md) | 651 | Work tracking moves to GitHub Issues with verified history and dependency preservation | PT7B; inventory/import split below |
 
-PT1 and PT3–PT6 can start independently. PT2 now consumes the bounded
+PT1, PT3, PT4 and PT5 can start independently; PT6 is implemented upstream. PT2 now consumes the bounded
 PT2A/PT2B/PT2C family results; PT7 follows inventory PT7A and verified import
 PT7B. Shared invocation, registry or CI files require edit coordination rather
 than additional blocking edges. PT5
@@ -881,8 +881,13 @@ fresh context. Split a newly discovered oversized repair before implementation.
 Published main was inspected at `3d2aa541` after merged retro PRs 19, 20 and 23.
 Its proof preflight, real Red Alert selector smoke, bounded browser teardown,
 consolidated guidance and guarded branch closeout already exist. Reuse them.
-PRs 21/22 published PT1–PT7 as **planned repairs**, not implementation or native
-acceptance. This update keeps unfinished follow-ups open.
+PRs 21/22 originally published PT1–PT7 as planned repairs. While this planning
+candidate was in CI, main advanced to `a7895711` (PR 25), implementing PT6 and
+preserving its completed checklist and evidence. PT6 is now carry-forward
+work, not an unfinished ticket. Other queued follow-ups stay open. The same
+upstream decision requires each new test to protect a distinct failure, allows
+evidence-backed consolidation of redundant/internal-only checks, and preserves
+meaningful gameplay/privacy/authority coverage and mandatory rendered typography.
 
 The product handoff is preserved at local Git commit
 `aa9dca780bcc6a4482347143ca855181749c36c4` on
@@ -923,20 +928,25 @@ smaller checkpoint.
 | **PC10.1 — Scientist and Explorer fieldwork** | Research, scout, harvest and use private candidate preparation through ordinary controls. | [S1](pc10-tickets/03-s1.md), [S2](pc10-tickets/04-s2.md), [X1](pc10-tickets/05-x1.md), [X2](pc10-tickets/06-x2.md), [D1](pc10-tickets/14-d1.md), [D2](pc10-tickets/15-d2.md), [PT1](pc10-tickets/55-pt1.md), [PT2A](pc10-tickets/56a-pt2a.md), [PT3](pc10-tickets/57-pt3.md) | 9 | Existing catalog prerequisites; PT2A before the affected Base rehearsal. |
 | **PC10.2 — Wing, PDF and expansion actions** | Operate wings, boarding and missions, then use Macaw/Boa/Scrap with truthful outcomes. | [W1](pc10-tickets/01-w1.md), [W2](pc10-tickets/02-w2.md), [P1](pc10-tickets/07-p1.md), [P2](pc10-tickets/08-p2.md), [C1](pc10-tickets/09-c1.md), [C2](pc10-tickets/10-c2.md), [C3](pc10-tickets/11-c3.md), [PT2B](pc10-tickets/56b-pt2b.md) | 8 | Existing mechanic prerequisites; PT2B preserves the current Sol diagnosis owner. |
 | **PC10.3 — Resilient private sessions** | Recover current seats, drafts, projections and clocks while keeping private audiences separate. | [L1](pc10-tickets/24-l1.md), [L2](pc10-tickets/25-l2.md), [L3](pc10-tickets/26-l3.md), [T1](pc10-tickets/27-t1.md), [T2](pc10-tickets/28-t2.md), [Q1](pc10-tickets/32-q1.md), [Q2](pc10-tickets/33-q2.md), [Q3](pc10-tickets/34-q3.md), [PT4](pc10-tickets/58-pt4.md) | 9 | Each recovery follows its own current source contract; L3 consumes L1/L2 and T2 consumes T1. |
-| **PC10.4 — Fair automatic actions and receipts** | Use server-owned randomness and automatic procedures with private attributable results and fair limits. | [U1](pc10-tickets/35-u1.md), [U2](pc10-tickets/36-u2.md), [B1](pc10-tickets/37-b1.md), [B2](pc10-tickets/38-b2.md), [J1](pc10-tickets/39-j1.md), [J2](pc10-tickets/40-j2.md), [PT5](pc10-tickets/59-pt5.md), [PT6](pc10-tickets/60-pt6.md) | 8 | B2 retains U1/U2 and canonical P630; J2 consumes J1. PT5 does not wait for PT4. |
+| **PC10.4 — Fair automatic actions and receipts** | Use server-owned randomness and automatic procedures with private attributable results and fair limits. | [U1](pc10-tickets/35-u1.md), [U2](pc10-tickets/36-u2.md), [B1](pc10-tickets/37-b1.md), [B2](pc10-tickets/38-b2.md), [J1](pc10-tickets/39-j1.md), [J2](pc10-tickets/40-j2.md), [PT5](pc10-tickets/59-pt5.md) | 7 | B2 retains U1/U2 and canonical P630; J2 consumes J1. PT5 does not wait for PT4. |
 | **PC10.5 — Station liberation and closed history** | Arrive at the Station, resolve repeat attacks, contribute Reactor power, activate and recover debrief/history. | [A1](pc10-tickets/20-a1.md), [A2](pc10-tickets/21-a2.md), [Y3](pc10-tickets/31-y3.md), [V3](pc10-tickets/43-v3.md), [E1](pc10-tickets/22-e1.md), [E2](pc10-tickets/23-e2.md), [PT2C](pc10-tickets/56c-pt2c.md), [PT2](pc10-tickets/56-pt2.md) | 8 | D1 for candidate recovery, A1→A2→Y3/V3, E1→E2. PT2 composes its independent A/B/C consumers. |
 | **PC10.6 — Ring, Nebula and terminal recovery** | Use Ring passage and Nebula mechanics and recover terminal/arrest/ruling branches. | [R1](pc10-tickets/16-r1.md), [R2](pc10-tickets/17-r2.md), [Y1](pc10-tickets/29-y1.md), [V1](pc10-tickets/41-v1.md), [N1](pc10-tickets/18-n1.md), [N2](pc10-tickets/19-n2.md), [Y2](pc10-tickets/30-y2.md), [F1](pc10-tickets/44-f1.md), [F3](pc10-tickets/46-f3.md), [F3A](pc10-tickets/46a-f3a.md) | 10 | D1, Station P559/A2 and E2 remain required where recorded; R1→R2→Y1/V1 and N1→N2→Y2. |
 | **PC10.7 — Complete Base game** | Play one authentic full Base game through debrief, with required sparse-roster recovery and optional GM races. | [G1](pc10-tickets/47-g1.md), [G2](pc10-tickets/48-g2.md), [G3](pc10-tickets/49-g3.md) | 3 | Affected role mechanics, E2, L3/T2 and focused PT2A/PT2 checks must be ready for the corresponding claims. |
 | **PC10.8 — Complete Capybara game and Nebula ending** | Play the full expansion composition and the same-session Nebula loss/recovery/success/debrief. | [C4A](pc10-tickets/12a-c4a.md), [C4B](pc10-tickets/12b-c4b.md), [C4](pc10-tickets/12-c4.md), [C5](pc10-tickets/13-c5.md), [H1](pc10-tickets/50-h1.md), [H2](pc10-tickets/51-h2.md), [H3](pc10-tickets/52-h3.md), [V2](pc10-tickets/42-v2.md) | 8 | C1/C2/C3, N2/Y2, E2, L3/T2 and repaired PT2B/PT2 consumers; keep the internal full-game sequence together. |
 | **PC10.9 — Final game release and tracker handoff** | Release the reconciled complete game and verified evidence; prepare/import/cut over the requested tracker safely. | [Z1A](pc10-tickets/53a-z1a.md), [Z1](pc10-tickets/53-z1.md), [Z2](pc10-tickets/54-z2.md), [PT7A](pc10-tickets/61a-pt7a.md), [PT7B](pc10-tickets/61b-pt7b.md), [PT7](pc10-tickets/61-pt7.md) | 6 | Z1A and PT7A can prepare early. Final Z1/Z2 require all original acceptances; tracker cutover requires PT7B verification and settled writes. |
 
-F2 remains accepted carry-forward work outside these 69 unfinished briefs.
+F2 and implemented PT6 remain carry-forward work outside these 68 unfinished briefs.
 PT2A/B/C, F3A, Z1A and PT7A/B refine existing tickets; they are not new prompts.
 PT7 inventory can proceed early, and cutover waits for a settled verified import.
 Tracker migration does not gate a player action or authorize an extra game run.
 The currently configured catalog remains authoritative until cutover succeeds.
 
 ### Playable release and proof contract
+
+Each added check must protect a distinct failure; extend existing coverage where
+practical. Consolidate or retire redundant/internal-only checks only with
+evidence of the surviving required protection; never delete a failing check
+merely to make the candidate pass. Apply this to every prepared future brief.
 
 Each PC10.x release has one reconciled candidate, appropriate focused checks,
 required independent authority/privacy review, independent actual-build

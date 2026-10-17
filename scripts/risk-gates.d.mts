@@ -1,3 +1,5 @@
+export const GENERATED_ROADMAP_FILES: readonly string[];
+
 export interface RiskGateProfile {
   readonly documentationOnly: boolean;
   readonly roadmapChanged: boolean;

@@ -5,6 +5,11 @@ const DOCUMENTATION_PATTERN = /(?:^|\/)(?:README(?:\..*)?|.*\.md)$/i;
 const STORED_EVIDENCE_IMAGE_PATTERN = /^evidence\/.*\.png$/i;
 const CATALOG_PATTERN = /^docs\/implementation-prompts\.json$/i;
 const ROADMAP_PATTERN = /^(?:docs\/implementation-prompts\.json|docs\/IMPLEMENTATION_[^/]*\.md)$/i;
+export const GENERATED_ROADMAP_FILES = Object.freeze([
+  'docs/PC07_ROADMAP_GANTT.csv',
+  'docs/PC07_ROADMAP_GANTT.html',
+  'docs/PC07_ROADMAP_GANTT.json',
+]);
 const TEST_PATTERN = /(?:^|\/)(?:__tests__|tests)(?:\/|$)|(?:^|\/)[^/]+\.(?:test|spec)\.[^/]+$/i;
 const FIRESTORE_TEST_PATTERN = /^tests\/rules\/.+\.test\.ts$/i;
 const WEB_PATTERN = /^(?:companion\/|casting\/|scripts\/build-casting-companion-core\.mjs$|src\/|public\/|index\.html$|package(?:-lock)?\.json$|tsconfig[^/]*\.json$|vite\.config\.[^/]+$)/i;
@@ -92,7 +97,7 @@ export function classifyRiskGates(files, { manual = false, versionMetadataOnly =
 
   const nonDocumentation = changedFiles.filter((file) =>
     !DOCUMENTATION_PATTERN.test(file) && !CATALOG_PATTERN.test(file) &&
-    !STORED_EVIDENCE_IMAGE_PATTERN.test(file));
+    !GENERATED_ROADMAP_FILES.includes(file) && !STORED_EVIDENCE_IMAGE_PATTERN.test(file));
   const productionFiles = nonDocumentation.filter((file) => !TEST_PATTERN.test(file));
   const riskProductionFiles = versionMetadataOnly
     ? productionFiles.filter((file) =>
@@ -123,7 +128,7 @@ export function classifyRiskGates(files, { manual = false, versionMetadataOnly =
 
   return {
     documentationOnly: nonDocumentation.length === 0,
-    roadmapChanged: changedFiles.some((file) => ROADMAP_PATTERN.test(file)),
+    roadmapChanged: changedFiles.some((file) => ROADMAP_PATTERN.test(file) || GENERATED_ROADMAP_FILES.includes(file)),
     rootInstall: nonDocumentation.length > 0,
     functionsInstall: functionsGate || failClosed,
     lint: nonDocumentation.length > 0,

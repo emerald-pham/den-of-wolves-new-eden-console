@@ -115,6 +115,14 @@ Pure prose/documentation without functional changes needs consistency review.
 Interactive presentation changes require a meaningful failing rendered/consumer
 check first, then the smallest implementation and a passing check.
 Use the smallest cohort per distinct claim; avoid blanket suites/account matrices.
+Evaluate testing improvements by time to a playable build, including execution
+and maintenance. Every new test must protect a distinct failure; extend
+existing coverage where practical. During ordinary self-review, consolidate or
+retire checks that duplicate retained protection or unnecessarily pin internal
+implementation, explaining the surviving coverage for actual requirements.
+Preserve meaningful gameplay, privacy and authorization protection and the
+mandatory rendered typography gate. Deliberate retirement is separate from
+removing an existing test to make a failure pass.
 Future gameplay proof uses normal authenticated local/emulator native, HTTP/UI and rules paths; prepared scenes alone do not establish behavior. Keep local tests, gameplay, rendered QA, CI, production deployment and actual production behavior distinct. Independent risk review, CI and deployment remain required; production-GM gameplay is not a closure prerequisite.
 
 Typical checks are:

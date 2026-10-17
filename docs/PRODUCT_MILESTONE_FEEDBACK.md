@@ -405,6 +405,25 @@ catalog remains authoritative until a verified import and explicit cutover
 preserve the campaign's IDs, statuses, dependencies and evidence. This entry
 records the two additional work items, not their implementation or completion.
 
+## Testing overhead decisions — 2026-10-16
+
+The owner confirmed all four decisions from the test-overhead interview:
+measure time to a playable build, including execution and test maintenance;
+allow evidence-backed consolidation or retirement of redundant and internal-only
+checks; first repair CI over-selection and overlapping branch/PR execution, then
+audit maintenance-heavy tests in bounded batches; and require each new test to
+protect a distinct failure, extending existing coverage when practical. This is
+ordinary engineering guidance without another approval process or a deletion
+quota. The owner explicitly reiterated that typography verification is important:
+its mandatory rendered release gate remains protected alongside meaningful
+gameplay, privacy and authorization checks.
+
+Apply the guidance in `CLAUDE.md` to future checkpoint shaping and repairs.
+This tooling cleanup does not resume the parked PC10 gameplay/runtime work or
+change campaign membership, prompt status, acceptance criteria or totals.
+The bounded first audit and measured CI baseline are recorded in
+[Checkpoint release learnings](CHECKPOINT_RELEASE_LEARNINGS.md#testing-overhead-cleanup--2026-10-16).
+
 ## Small playable checkpoints and retro resumption — 2026-10-16
 
 The owner directly requested updating the unfinished PC10 tickets from the retro
@@ -422,7 +441,8 @@ acceptances, accepted source-bound evidence, optional owner walkthrough and
 restricted version decisions are preserved. One reconciled candidate/release
 applies per PC10.x, superseding only the earlier single-PC10-release packaging.
 
-Verified merged retro groundwork is distinguished from still-planned PT1–PT7.
+Verified merged retro groundwork includes the subsequently landed PT6 repair;
+other unfinished follow-ups remain planned, with completed work preserved.
 The paused product handoff remains at aa9dca780bcc6a4482347143ca855181749c36c4;
 no candidate source, completion status, gameplay runtime or product deployment
 is changed by this planning delivery. Future PC11 extraction acceptance, PC12’s
