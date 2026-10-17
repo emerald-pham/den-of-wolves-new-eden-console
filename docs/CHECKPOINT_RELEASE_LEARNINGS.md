@@ -31,11 +31,17 @@ PT6 now shares one exact three-file roadmap-export allowlist between risk and
 deployment classification. Generated exports retain roadmap consistency checks;
 mixed application changes and neighboring unknown artifacts retain their risk
 gates. Separate test-first commits preserve the observed failing classifier and
-deployment-consumer assertions before the repair. The CI concurrency regression
-likewise observed different push/PR groups before the workflow changed; fork
-branches, distinct branches and the deployment caller stay isolated. This
-cancels overlapping duplicate candidate runs; a later event after completion can
-still require fresh verification, especially when its integration base changes.
+deployment-consumer assertions before the repair. Independent review rejected
+sharing a cancellation group between push and PR events: their verification
+ranges differ, and a later push could cancel the stronger PR merge check.
+A further observed failing regression covers both arrival orders with a narrow
+documentation push and a PR range containing typography risk. PR merge checks
+therefore retain their own concurrency group. A cheap read-only selection job
+skips branch verification only when an open PR covers that exact source
+repository, branch and commit; missing, stale or unavailable lookup results
+retain branch verification. Exact-main verification always runs when selected.
+An initial push before the PR exists may still perform overlapping work; safety
+takes precedence over eliminating every duplicate.
 
 The first read-only maintenance audit covered `riskGates.test.ts`,
 `workRegistration.test.ts`, `repositoryGuidance.test.ts` and
@@ -45,8 +51,16 @@ protects stricter catalog-link/proximity requirements, so it stays. The other
 tests protect different public decisions, workflow wiring or negative controls.
 No existing test was removed, skipped or weakened. Two classifier cases cover
 the known-export defect and mixed application risk; the existing unknown-path
-and deployment-consumer checks were extended. Two concurrency cases cover
-duplicate event groups and isolation. No gameplay or typography test changed.
+and deployment-consumer checks were extended. Three CI event cases execute the
+selection shell and cover event order, integration-range differences, exact PR
+coverage, lookup failure, isolation and the deployment caller. No gameplay or
+typography test changed.
+
+An optional `generate-checkpoint-gantt.mjs --check` also exposed pre-existing
+revision/date metadata drift: stored revision `04077667` predates the latest
+catalog commit `67d0d4eb`, while the recorded source hashes match. The generator
+and generated charts are unchanged by this cleanup. This check was not an
+existing CI gate; its failure remains flagged for the active planning work.
 
 This is tooling-only work with no version bump, player changelog entry, product
 runtime allocation or gameplay/release-readiness credit. Final CI and main
