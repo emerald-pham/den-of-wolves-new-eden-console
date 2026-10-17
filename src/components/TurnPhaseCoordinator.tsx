@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { beginOpenAirspacePhase } from '@/lib/sessionService';
 import { phaseForSession } from '@/lib/turnPhase';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -14,6 +14,7 @@ export default function TurnPhaseCoordinator() {
   const connection = useSessionStore((state) => state.connection);
   const actorUid = useSessionStore((state) => state.me?.uid);
   const [attack, setAttack] = useState<WolfAttackMemberView | null>(null);
+  const pending = useRef(new Set<string>());
   const phase = phaseForSession(session);
   const sessionId = session?.id;
 
@@ -48,10 +49,13 @@ export default function TurnPhaseCoordinator() {
     }
     let cancelled = false;
     let retry: number | undefined;
+    const key = JSON.stringify([sessionId, actorUid, phase.turn, phase.teamPhaseEndsAt]);
     const start = () => {
+      if (pending.current.has(key)) return;
+      pending.current.add(key);
       void beginOpenAirspacePhase(phase.turn).catch(() => {
         if (!cancelled) retry = window.setTimeout(start, 5_000);
-      });
+      }).finally(() => { pending.current.delete(key); });
     };
     const delay = Math.max(0, Date.parse(phase.teamPhaseEndsAt) - Date.now());
     const timer = window.setTimeout(start, delay);
@@ -60,7 +64,7 @@ export default function TurnPhaseCoordinator() {
       window.clearTimeout(timer);
       if (retry !== undefined) window.clearTimeout(retry);
     };
-  }, [connection, phase, session, attackLocked]);
+  }, [connection, phase, session, sessionId, actorUid, attackLocked]);
 
   return null;
 }
