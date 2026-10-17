@@ -822,6 +822,7 @@ export async function runBaseGameplay(context, integration) {
         return false;
       }
       const shuttleLink = readiness.surface.page.getByRole('link', { name: 'Open Endeavour shuttle console', exact: true });
+      await shuttleLink.waitFor({ state: 'visible', timeout: 10_000 });
       const state = await a.state();
       const endeavours = (state.shuttleDockings ?? []).filter(value => value?.shuttleId === 'endeavour');
       const docking = endeavours[0];
