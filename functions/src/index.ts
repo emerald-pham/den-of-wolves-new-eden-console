@@ -470,6 +470,7 @@ export {
   listMyScoutReports, readMyScoutDiscoveryNote,
 } from './scoutResultCallable';
 export { advanceEndeavourResearchTrack, readEndeavourResearchWorkspace } from './endeavourResearchWriter';
+export { buildEndeavourScienceDevice } from './endeavourScienceDeviceWriter';
 export { runWolfAgentDetectorTest } from './wolfAgentDetectorWriter';
 export {
   applyPdfFighterAceResults,

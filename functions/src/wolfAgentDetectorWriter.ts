@@ -3,6 +3,7 @@ import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { commandReceiptDisposition } from './commandIdempotency';
 import { endeavourResearchTrack } from './endeavourResearch';
+import { requireEndeavourScienceDeviceBuilt } from './endeavourScienceDevices';
 import { reserveWolfAgentDetectorTest } from './endeavourWolfAgentDetector';
 import { detectorReportedWolf } from './pc09SpecialistMechanics';
 import { fleetGroupRecord } from './fleetGroups';
@@ -76,6 +77,7 @@ export const runWolfAgentDetectorTest = onCall<{
   const targetRef = db.doc(`sessions/${command.sessionId}/players/${command.targetUid}`);
   const targetSecretRef = db.doc(`sessions/${command.sessionId}/secrets/loyalty-${command.targetUid}`);
   const researchRef = db.doc(`sessions/${command.sessionId}/serverState/endeavourResearch`);
+  const constructionRef = db.doc(`sessions/${command.sessionId}/serverState/endeavourScienceDevices`);
   const stateRef = db.doc(`sessions/${command.sessionId}/wolfAgentDetectorStates/${uid}`);
   const reportRef = db.doc(`sessions/${command.sessionId}/wolfAgentDetectorReports/${uid}`);
   const auditRef = db.doc(`sessions/${command.sessionId}/wolfAgentDetectorAudits/${command.requestId}`);
@@ -88,9 +90,9 @@ export const runWolfAgentDetectorTest = onCall<{
   let accuracyRoll: number | undefined;
 
   return db.runTransaction(async (tx) => {
-    const [session, actor, target, secret, research, state, prior] = await Promise.all([
+    const [session, actor, target, secret, research, construction, state, prior] = await Promise.all([
       tx.get(sessionRef), tx.get(actorRef), tx.get(targetRef), tx.get(targetSecretRef),
-      tx.get(researchRef), tx.get(stateRef), tx.get(receiptRef),
+      tx.get(researchRef), tx.get(constructionRef), tx.get(stateRef), tx.get(receiptRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!activePlayer(actor) || actor.get('role') !== 'player' || actor.get('replacementStatus') != null ||
@@ -130,6 +132,12 @@ export const runWolfAgentDetectorTest = onCall<{
         throw new HttpsError('failed-precondition', 'This detector request has no safe replay result.');
       }
       return result;
+    }
+    try {
+      requireEndeavourScienceDeviceBuilt(construction.exists ? construction.data() : undefined, 'wolf-agent-detector');
+    } catch (cause) {
+      throw new HttpsError('failed-precondition',
+        cause instanceof Error ? cause.message : 'Build the Wolf Agent Detector before testing.');
     }
     const researchProgress = research.exists ? research.data() : {};
     try {
