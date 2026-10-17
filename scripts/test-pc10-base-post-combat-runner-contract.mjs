@@ -314,3 +314,72 @@ test('eligible Base maintenance waits for a late-mounted current panel before cl
   assert.deepEqual(pendingActions, []);
   assert.equal(result.allSixMaintenanceCycle1, true);
 });
+
+test('eligible Base research waits for a late-mounted shuttle link and still rejects wrong current source ownership', async () => {
+  const source = await read();
+  const tree = ts.createSourceFile('base.mjs', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  const callbacks = [];
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(tree) === 'researchCross') {
+      callbacks.push(node.initializer.getText(tree));
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(tree);
+  assert.equal(callbacks.length, 1);
+
+  const run = async ({ delayedMount, wrongHolder }) => {
+    let linkVisible = !delayedMount;
+    let mountWaits = 0;
+    let sourceReads = 0;
+    let researchRuns = 0;
+    const pendingActions = [];
+    const actorUid = 'original-scientist-auth-account';
+    const actorUidHash = createHash('sha256').update(actorUid).digest('hex').slice(0, 16);
+    const shuttleLink = {
+      count: async () => linkVisible ? 1 : 0,
+      isVisible: async () => linkVisible,
+      waitFor: async options => {
+        assert.equal(options.state, 'visible');
+        assert.ok(Number.isFinite(options.timeout) && options.timeout > 0);
+        mountWaits += 1;
+        linkVisible = true;
+      },
+    };
+    const sandbox = {
+      createHash,
+      context: {},
+      checks: {},
+      currentRoleReadiness: async () => ({ status: 'eligible', actorUidHash,
+        surface: { page: { getByRole: () => shuttleLink } } }),
+      a: { state: async () => {
+        sourceReads += 1;
+        return { shuttleDockings: [{ shuttleId: 'endeavour', shipId: 'shepherd' }],
+          shuttleControl: { endeavour: { ownerRoleId: 'shepherd-scientist',
+            holderUid: wrongHolder ? 'different-auth-account' : actorUid } } };
+      } },
+      pending: (...args) => pendingActions.push(args),
+      advanceBaseDetectorResearch: async () => {
+        researchRuns += 1;
+        return { branches: { 'detector-research-cross': { status: 'committed' } } };
+      },
+    };
+    const result = await runInNewContext(`(async()=>{const researchCross=${callbacks[0]};return researchCross(1);})()`, sandbox);
+    return { result, mountWaits, sourceReads, researchRuns, pendingActions, checks: sandbox.checks };
+  };
+
+  const delayed = await run({ delayedMount: true, wrongHolder: false });
+  assert.equal(delayed.mountWaits, 1);
+  assert.equal(delayed.sourceReads, 1);
+  assert.equal(delayed.researchRuns, 1, 'Current source ownership permits research after the actual link mounts.');
+  assert.equal(delayed.result, true);
+  assert.equal(delayed.checks.separateScientistResearchCycle1, true);
+  assert.deepEqual(delayed.pendingActions, []);
+
+  const wrongSource = await run({ delayedMount: false, wrongHolder: true });
+  assert.equal(wrongSource.sourceReads, 1);
+  assert.equal(wrongSource.researchRuns, 0, 'A mounted link cannot override current shuttle-holder source authority.');
+  assert.equal(wrongSource.result, false);
+  assert.equal(wrongSource.checks.separateScientistResearchCycle1, undefined);
+  assert.equal(wrongSource.pendingActions[0][1][0], 'current-endeavour-research-route-unavailable');
+});
