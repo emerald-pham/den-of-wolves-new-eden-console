@@ -67,28 +67,85 @@ the terminal result are readable there; use those for this handback.
 
 ## Preserved implementation boundary
 
-The catalog has not been changed or credited with these implementation results.
-No checkpoint acceptance, native gameplay, rendered release review, CI, push,
-main merge or deployment is claimed.
+All nine implementation groups are integrated. The current source candidate is
+`ce67d87d6e27eeccab211e7428c97328d9c899a4`, tree
+`ac43a2812e7727ea1042eeb7dec179489b83de9f`. It is **not accepted or release-ready**:
+an ECM rule awaits the owner, a newly introduced prepared-scene dependency is
+under bounded repair, and native/rendered acceptance remains open. The catalog
+has not changed or received completion credit. No authenticated gameplay, final
+rendered release review, CI, push, main merge or deployment is claimed.
 
 | Ticket | Preserved source | Evidence and remaining boundary |
 | --- | --- | --- |
 | X1 | `78a15160be49b0792ba6eb2b460ef4069afff90c`, integrated at `f295f404` | 9 observed handler RED failures, then 41/41 callable cases; unchanged 114-case consumer baseline. Native harvesting and rendered acceptance open. `/tmp/dow-pc10-1-20261017/x1-handoff-report.md`. |
 | D1 | `f5ebf9b714fb850b9745a43398830b22dcbc0e04`, integrated at `1e2e355f` | Separate projection and transaction RED/source commits; reconciled D1+X1 91/91 Functions and 6/6 reveal consumer. Native/rendered and outstanding audience evidence open. `/tmp/dow-pc10-1-20261017/d1-handoff-report.md`. |
 | PT1 | `2114f2626d2e0510b268427b0ac1a656296d510e`, integrated at `b73b431c` | 14/14 source-only preflight and disposable process status evidence. Pipeline false-success and package-wiring RED retained; exact earlier existing-invocation behavioral RED not recovered. Acceptance review remains open. `/tmp/dow-pc10-1-20261017/pt1-handoff-report.md`. |
-| PT2A | `659670b4c7533757d60d249bf618c964d4f565cd`, integrated at `9b895e70` | Retained test/source lineage and 7+2+9 code-only consumer checks. Three browser checks pending. A fresh bounded worker owns the outstanding exact source-alert/original-GM receipt criterion; the full Base import closure is not its prerequisite. `/tmp/dow-pc10-1-20261017/pt2a-boundary-diagnosis.md`. |
+| PT2A | Original `659670b4c7533757d60d249bf618c964d4f565cd` at `9b895e70`; receipt repair `8c5673ebcfd4fcee29eb3359732d4a0093266364` at `779d0826` | Retained chronology plus actual source-alert/original-GM callback and receipt/replay negatives. Final source set 15/15; three selected inert browser files passed 6/6. These are consumer fixtures, not native source-alert or full Base gameplay. Original report plus `pt2a-receipt-handoff-report.md` and `pt2a-browser-result.json` under the evidence root. |
 | S1 | `761b9c85ee750e83fb68724c691eda27876ffa77`, integrated at `0e35db76` | Separate observed RED/test commits then source-priced construction, private quotes/receipts and Built gates; existing P213/P214 completed-track use prerequisites retained. After authorized synchronization: 104/104 focused Functions and 40/40 client cases, Functions build and root typecheck passed. Native/rendered acceptance open. `/tmp/s1-handoff-report.md`. |
 | X2 | `d55adf688507fa3bb367f682bbb2bde77a5b1516`, integrated at `69e4b853` | Observed missing-planner RED in test-only `6701e314`, source `3fc0a243`. 83 focused consumer cases and typecheck reported after incorporating `9b895e70`. Planner uses entitled known coordinates; actual movement remains server-owned. Native/rendered/mission proof open. |
 | D2 | `a3db9b32b615f90175c1e4e05ba4acebd7d1d23a`, integrated at `d3b1e099` | Observed member guidance RED `f449b03f`, source `eeb24380`; existing GM plan/outbox implementation compared with accepted evidence. Native/rendered/audience proof open. `/tmp/dow-pc10-1-20261017/d2-handoff-report.md`. |
 | PT3 | `9ff8e5a0eb20ec32cf904c65a1e63c3cdca1fee2`, integrated at `fbfbecd7` | Real compiler TS2339 negative control and valid consumer control, 3/3 type checks, 11/11 role-entry regressions and 17/17 proof preflight. Tooling does not close whole owning prompts. `/tmp/dow-pc10-1-20261017/pt3-handoff-report.md`. |
-| S2 | In progress from integrated S1/PT3 tip `fbfbecd7` | Fresh bounded worker owns only Scientist scouting/ordinary mission/reconnect/station-loss checks against P215b. No shared runtime grant. |
+| S2 | `b95c36188bd16304c016c313de53da1d2a4fa759`, integrated at `eb6615f7` | Separate observed server/client/draft REDs and source commits. Worker reported 91 focused unit and 44 Functions cases; safe coordinate and own mission drafts remain scoped to current authority. Native scouting/mission/recovery remains open. `/tmp/dow-pc10-1-20261017/s2-handoff-report.md`. |
 
 These test counts overlap where stated; they are not summed into checkpoint or
 campaign acceptance. Root's initial merged-foundation preflight passed 10/10
 with tool exit 0, saved in `/tmp/dow-pc10-1-20261017/baseline-proof-preflight.log`.
-The public production manifest currently reports `0.5.73`, saved as
-`/tmp/dow-pc10-1-20261017/previous-released-build-version.json`; that does not
-identify its exact deployment commit or constitute candidate release evidence.
+
+The optional numbered, service-free review scene was integrated at `79b32e2e`.
+It exposes prepared Scientist, Explorer and private-candidate checks, with
+separate observed missing-consumer RED and GREEN. It has not been rendered or
+used as gameplay proof. Its later consistency and dependency reviews are below.
+
+## Reconciled checks and independent review
+
+Evidence root: `/tmp/dow-pc10-1-20261017`.
+
+- At `eb6615f7`, selected application/Functions consumers passed **559 tests in
+  22 files**, saved in `reconciled-fieldwork-tests.log`. The selected proof
+  consumers passed **26/26**, saved in `reconciled-proof-consumers.log`; proof
+  preflight passed **17/17**. Counts overlap earlier worker runs.
+- The three selected PT2A actual-component/extracted-consumer browser files
+  passed **6/6** at `af6352ca`, with blocked external network and no Auth or
+  emulators. The helper closed its contexts/browser/server; a subsequent
+  process inspection found no surviving test command or Playwright Chrome.
+  A complete per-child PID inventory was not captured for this short inert
+  check, so it does not claim strict native return evidence.
+- At `df35ef4e`, **164 Rules tests in four files** passed through the real
+  status-preserving invocation. `rules-reconciled-df35ef4e/` holds its exact
+  launch, live PID/group inventory, complete-row port list, full log and return
+  record. All recorded PIDs/groups and all nine row listeners were absent,
+  process reservations were gone, and only the owned row was released.
+- At `df35ef4e`, the app production build, Functions build, bundle-size check,
+  62 font-contract tests and lint passed (lint: zero errors, 17 warnings).
+  These tool results precede the residual scene import and are not evidence
+  for that changed emitted artifact. No final typography browser gate ran.
+- The first repair candidate passed 132 focused Functions and 38 unit cases,
+  copy checks, three PC10.1 selector tests and 19 historical selector cases.
+  The residual scene/fixture candidate passed 22 unit cases in two files,
+  app type checking and copy checks. Exact commits, REDs and evidence limits
+  are in `review-repairs-handoff-report.md`.
+
+Independent Standards and Spec reviews are recorded separately in
+`code-review.md`; the Spec reviewer withdrew the O-guidance concern after
+rendering the printed sources. The Standards console-vocabulary correction is
+integrated. The duplicated Press validators were retained at their separate
+proof-validation boundaries; no unrelated refactor was added.
+
+Independent Sol review is in `authority-review.md` and its append-only
+`authority-review-followup.md`. Fresh null-station construction now fails after
+exact entitled replay is checked. The Scout delayed-import path rechecks the
+original authority immediately before resetting state. Legacy Used ECM state
+without a construction document normalizes to Built/revision 1; the actual
+server workspace-to-Detector-build fixture and separate mocked client-parser
+fixture support that repair. They are not a connected handler-to-client-to-build
+test. The client Detector fixture now uses its source-defined four boxes.
+
+The exact deployment audit independently traces all eight changed Functions
+modules to **26 named callables**, including transitive candidate publishers,
+the actor-bound Firestore discovery listener, workspace readers and device
+writers. No broad Functions fallback was added. Hosting recognizes the review
+HTML. The audit pins runtime bytes at `2e822e31`; a later ECM source change
+requires refreshed hashes and the exact selector check. No deployment ran.
 
 ## Resolved triage and remaining acceptance
 
@@ -104,10 +161,10 @@ once and succeeded at `761b9c85`; no alternate execution route was used. Focused
 post-merge checks passed and the separate merger integrated the handoff at
 `0e35db76`. The earlier denial remains historical evidence, not an open blocker.
 
-**PT2A Base import closure — diagnosis corrected; existing criterion 3 repair in progress.** The
+**PT2A Base import closure — diagnosis corrected; bounded receipt repair integrated.** The initial
 actual ESM import preflight fails at the absent
 `scripts/pc10-mission-lifecycle-consumer.mjs`. The preserved candidate's runner
-closure contains 39 paths, 22 missing in this checkpoint, including 9 direct
+closure inventory contained 39 paths, initially 22 missing, including 9 direct
 imports. It reaches later mission, candidate, combat/deduction, Wolf/range,
 crisis/arrest, pending-procedure and ending proof consumers. The worker stopped
 before copying those families. Read-only diagnosis established that all missing
@@ -116,19 +173,69 @@ browser checks extract the selected actual consumer functions and do not need
 the full runner import closure or later G1 gameplay. The earlier interpretation
 as a later-product prerequisite was overstated and was corrected to the parent.
 
-The existing source-order fixture proves ordering only: it has no actual source
-alert row, original GM or request/receipt. A fresh worker owns completion of
-56a's existing criterion through the public `onEligibleAlert` callback, matching
-source alert identity and the original `context.started` GM, request and exact
-receipt/replay. It may restore only the four required retained proof helpers;
-no full closure, later checkpoint or new ticket is authorized. Functional
-changes retain new observed semantic RED before source repair. Existing import
-failures and evidence remain preserved.
+The original source-order fixture established ordering only. The integrated
+repair uses the public `onEligibleAlert` callback, current source-alert identity,
+the original `context.started` GM and exact request/receipt/replay; wrong-source,
+foreign-GM, stale-revision and multiple-alert cases have observed RED/GREEN
+history. Only four required retained helpers were restored. This qualifies
+56a's bounded consumer fixture; a later continuous Base run still has to
+qualify its native repaired path. Existing setup failures remain preserved.
 
-At the latest live registry inspection, the saved-view owner had explicitly
-parked with no resources; a separate active decision-sync owner now holds
-`browser-runtime` and port 8821. No PC10.1 browser/emulator resource has been allocated.
-Independent actual-build typography, supported responsive/keyboard inspection,
-authenticated role gameplay, final authority/spec/standards review and all
-release gates remain open. All assigned worktrees and failed evidence are
-retained for the checkpoint owner; none is cleanup-eligible as a landed release.
+**ECM completed-research purchase — pending owner decision.** An unbuilt ECM
+after all five research marks currently has no construction quote. The printed
+Base v1.1 A4 single-sided Science Devices panel (page 2) separates the Built
+marker and prices 18/13/9/7/5 but does not settle purchase after crossing the
+last mark. The choice is to retain the final five-material quote or require
+purchase before the last mark. The parent acknowledged ownership and asked
+Emerald at 04:57 UTC; no answer or approval has arrived. The complete-track-use
+prerequisite remains. Do not invent a mapping or claim acceptance.
+
+**Prepared-scene dependency — Sol repair in progress.** The first consistency
+repair corrected the ECM quote/revision/use gate; the next corrected Reactor 7
+and Jump Drive 14-to-10 with discriminating DOM tests. Independent review then
+found that importing the server research helper also reaches server-only damage
+card metadata. No post-change build, push or deployment is claimed. After two
+substantive scene repair candidates failed review, the next repair transferred
+from Luna to a fresh Sol in `impl/pc10-1-scene-privacy-20261017`. Preserve the
+offending candidates and require a meaningful boundary RED before the fix,
+focused GREEN and independent affected review. This does not authorize a
+Functions refactor or another product rule.
+
+**Native/rendered resource — pending explicit foreign handback.** The earlier
+saved-view owner released its resource. Decision-sync owner
+`1792207318461-42174-da3ac539`, worktree
+`/Users/emeraldpham/.codex/worktrees/decision-sync-integration/funsidething`,
+reclaimed `browser-runtime` at 04:58:41 UTC and also holds port 8821. The parent
+has been notified; do not launch a browser or infer release from age. PC10.1
+currently owns no browser, emulator process reservation or configured row.
+
+Native preparation under `native-recipe/` is source-only. It binds the future
+root-provided source pin and exact Functions origin/project/POST for ordinary
+create/join, with preserved old-predicate failure controls. It does not establish
+Auth, scouting, harvest, mission, payment, reload or station recovery. The draft
+cohort is one GM and two independent members in a legal sparse roster; Shepherd
+starts with zero materials, so a real production/trade funding path must be
+established before claiming a device purchase. No counter grant or fabricated
+funding is authorized by that preparation.
+
+The previous public release's actual bytes were captured at 05:14 UTC under
+`typography-baseline/`: version 0.5.73, HTML hash
+`b97cf7937e99499ee97c89ffab2858d485923f334d2ecf7556ac66fa2fcb194a`,
+129 linked assets with response metadata/checksums. Its exact deployed source
+SHA remains unproven. This is a byte-pinned comparison baseline, not painted
+font or visual acceptance. The CSS-declared system monospace stack does not
+prove the resolved font.
+
+After those blockers, finish the authored normal authenticated fieldwork and
+recovery checks, optional tour access, independent actual-build painted-font
+comparison and representative responsive/keyboard/navigation checks. Then
+reconcile current main, final version/changelog/catalog evidence, exact-candidate
+CI and verified exact-main deployment as one release. Run the actual retro only
+after implementation/review/acceptance; implement only findings already covered
+by these nine tickets. No retro, new tickets or later checkpoint has started.
+
+The catalog remains **703 done / 6 partial / 42 missing**. P541's partial state
+still gates whole P542/P543/P593 closure. PT1/PT2A/PT3 do not close whole
+P641/P642/P649/P651. Version remains 0.5.73 locally; no increment or release is
+claimed. All task branches, worktrees, failure evidence and original candidate
+remain preserved for the checkpoint owner; none is treated as a landed release.
