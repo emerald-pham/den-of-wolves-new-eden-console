@@ -169,7 +169,7 @@ it('keeps the exact command identity and coordinate when the caller retries', as
   expect(await within(controls).findByRole('status')).toHaveTextContent(/request recorded/i);
 });
 
-it('restores the current Scientist scout draft after a station reselect without submitting automatically', async () => {
+it('restores the unsent Scientist scout coordinate after a station reselect without replaying an old request', async () => {
   const user = userEvent.setup();
   setOwner('endeavour');
   request.mockRejectedValueOnce(new Error('The connection closed before confirmation.'));
@@ -190,12 +190,13 @@ it('restores the current Scientist scout draft after a station reselect without 
 
   const restoredControls = screen.getByRole('region', { name: 'Endeavour scouting request' });
   expect(within(restoredControls).getByLabelText('Printed system coordinate')).toHaveValue('5143');
-  expect(within(restoredControls).getByRole('button', { name: 'Retry same request' })).toBeEnabled();
+  expect(within(restoredControls).getByRole('button', { name: 'Record request' })).toBeEnabled();
   expect(request).toHaveBeenCalledTimes(1);
 
-  await user.click(within(restoredControls).getByRole('button', { name: 'Retry same request' }));
+  await user.click(within(restoredControls).getByRole('button', { name: 'Record request' }));
   await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
-  expect(request.mock.calls[1]?.[0]).toEqual(submittedCommand);
+  expect(request.mock.calls[1]?.[0]).toMatchObject({ targetCoordinate: submittedCommand?.targetCoordinate });
+  expect(request.mock.calls[1]?.[0].requestId).not.toBe(submittedCommand?.requestId);
 });
 
 it('allows correction after a definitive server rejection and starts a new request', async () => {
