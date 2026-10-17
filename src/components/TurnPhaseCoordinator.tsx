@@ -16,6 +16,7 @@ export default function TurnPhaseCoordinator() {
   const [attack, setAttack] = useState<WolfAttackMemberView | null>(null);
   const currentAttack = useRef<WolfAttackMemberView | null>(null);
   const pending = useRef(new Map<string, { observed?: () => void; retry: () => void }>());
+  const retryAfter = useRef(new Map<string, number>());
   const phase = phaseForSession(session);
   const sessionId = session?.id;
 
@@ -68,6 +69,9 @@ export default function TurnPhaseCoordinator() {
       const latestAttack = currentAttack.current;
       if (latestAttack && latestAttack.sessionId === sessionId && latestAttack.turn === phase.turn &&
         latestAttack.status === 'declared') return;
+      const remainingRetry = (retryAfter.current.get(key) ?? 0) - Date.now();
+      if (remainingRetry > 0) { retry = window.setTimeout(start, remainingRetry); return; }
+      retryAfter.current.delete(key);
       const current = pending.current.get(key);
       if (current) { current.observed = start; current.retry = scheduleRetry; return; }
       const request: { observed?: () => void; retry: () => void } = { retry: scheduleRetry };
@@ -76,6 +80,7 @@ export default function TurnPhaseCoordinator() {
         pending.current.delete(key);
         request.observed?.();
       }, () => {
+        retryAfter.current.set(key, Date.now() + 5_000);
         pending.current.delete(key);
         request.retry();
       });
