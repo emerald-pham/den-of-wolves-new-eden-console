@@ -304,6 +304,16 @@ async function configureElection(context, choice, options) {
   assert.ok(voters.every(roleId => context.roster.some(actor => actor.roleId === roleId)),
     'Every voter choice must resolve to a role in the current authentic demo roster.');
 
+  // A displayed roster entry does not prove its original actor still has a
+  // live lease after other roles have played. Re-enter each chosen voter via
+  // ordinary controls before fixing the current eligible electorate.
+  for (const roleId of voters) {
+    const { actor } = await enterSelectedRole(context, roleId);
+    assert.equal(actor.sameActor, true);
+    assert.equal(actor.sessionId, context.initial.sessionId);
+    assert.equal(actor.profileRoleId, roleId);
+  }
+
   const gmNow = await context.gm.observe();
   assertGmInstanceFence(gmNow, { actorKind: 'gm', sessionId: context.initial.sessionId,
     uidHash: context.started.uidHash, instanceId: context.started.instanceId,
