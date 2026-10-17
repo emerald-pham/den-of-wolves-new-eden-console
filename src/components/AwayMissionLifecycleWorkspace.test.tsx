@@ -1,6 +1,7 @@
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useSessionStore } from '@/store/useSessionStore';
 import AwayMissionLifecycleWorkspace from './AwayMissionLifecycleWorkspace';
 
 const mocks = vi.hoisted(() => ({
@@ -54,20 +55,38 @@ const ownPrivateState = {
   reclamatorSalvage: null,
 };
 
-function publishReadyState(privateState = ownPrivateState) {
+function publishReadyState(privateState = ownPrivateState, currentPublicState = publicState) {
   mocks.subscribe.mockImplementation((_sessionId, _actorUid, onState) => {
     onState({
       status: 'ready',
-      missions: [{ publicState, privateState }],
+      missions: [{ publicState: currentPublicState, privateState }],
       projectionMissing: false,
     });
     return vi.fn();
   });
 }
 
+function setAuthorizedActor(sessionId: string, uid = 'bob', roleId = 'shepherd-scientist') {
+  useSessionStore.setState({
+    session: { id: sessionId, phase: 'active' } as never,
+    me: {
+      uid,
+      sessionId,
+      role: 'player',
+      assignedRoleId: roleId,
+      activeConsoleRoleId: roleId,
+      replacementRoleId: null,
+      replacementStatus: null,
+    } as never,
+    connection: 'live',
+    sessionSnapshotFreshness: 'server',
+  });
+}
+
 describe('AwayMissionLifecycleWorkspace', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useSessionStore.getState().reset();
     Object.values(mocks.actions).forEach((action) => action.mockResolvedValue(undefined));
     mocks.makeActions.mockReturnValue(mocks.actions);
     mocks.readContext.mockImplementation((mission, sessionId, actorUid) => ({
@@ -128,5 +147,72 @@ describe('AwayMissionLifecycleWorkspace', () => {
     act(() => unmount());
 
     expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it('restores only the current participant’s unsubmitted assignments after leaving and reselecting the role', async () => {
+    const sessionId = 'assignment-draft-reselect';
+    setAuthorizedActor(sessionId);
+    publishReadyState();
+    const user = userEvent.setup();
+    const workspace = <AwayMissionLifecycleWorkspace sessionId={sessionId} actorUid="bob" actorRoleId="shepherd-scientist" />;
+    const first = render(workspace);
+
+    await user.selectOptions(screen.getByLabelText('Opportunity for A♥'), 'D-1');
+    expect(mocks.actions.assignCards).not.toHaveBeenCalled();
+    first.unmount();
+
+    render(workspace);
+
+    expect(screen.getByLabelText('Opportunity for A♥')).toHaveValue('D-1');
+    expect(mocks.actions.assignCards).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Submit mission assignments' }));
+    expect(mocks.actions.assignCards).toHaveBeenCalledWith([
+      { cardId: 'A♥', opportunityId: 'D-1' },
+    ]);
+  });
+
+  it('does not reveal a saved assignment while the station is lost, then restores it only after fresh reselection', async () => {
+    const sessionId = 'assignment-draft-station-loss';
+    setAuthorizedActor(sessionId);
+    publishReadyState();
+    const user = userEvent.setup();
+    const workspace = <AwayMissionLifecycleWorkspace sessionId={sessionId} actorUid="bob" actorRoleId="shepherd-scientist" />;
+    const view = render(workspace);
+
+    await user.selectOptions(screen.getByLabelText('Opportunity for A♥'), 'D-1');
+    act(() => useSessionStore.setState(state => ({
+      me: { ...state.me!, activeConsoleRoleId: null } as never,
+    })));
+
+    expect(screen.getByLabelText('Opportunity for A♥')).toHaveValue('');
+    expect(mocks.actions.assignCards).not.toHaveBeenCalled();
+
+    act(() => useSessionStore.setState(state => ({
+      me: { ...state.me!, activeConsoleRoleId: 'shepherd-scientist' } as never,
+    })));
+
+    expect(screen.getByLabelText('Opportunity for A♥')).toHaveValue('D-1');
+    expect(mocks.actions.assignCards).not.toHaveBeenCalled();
+    view.unmount();
+  });
+
+  it('does not restore assignment choices onto a changed mission revision', async () => {
+    const sessionId = 'assignment-draft-revision';
+    setAuthorizedActor(sessionId);
+    publishReadyState();
+    const user = userEvent.setup();
+    const workspace = <AwayMissionLifecycleWorkspace sessionId={sessionId} actorUid="bob" actorRoleId="shepherd-scientist" />;
+    const first = render(workspace);
+
+    await user.selectOptions(screen.getByLabelText('Opportunity for A♥'), 'D-1');
+    first.unmount();
+
+    const updatedPublicState = { ...publicState, revision: 4 };
+    publishReadyState({ ...ownPrivateState, revision: 4 }, updatedPublicState);
+    render(workspace);
+
+    expect(screen.getByLabelText('Opportunity for A♥')).toHaveValue('');
+    await user.click(screen.getByRole('button', { name: 'Submit mission assignments' }));
+    expect(mocks.actions.assignCards).not.toHaveBeenCalled();
   });
 });
