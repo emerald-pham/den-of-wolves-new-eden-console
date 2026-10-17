@@ -22,7 +22,10 @@ export function endeavourScienceDeviceBuildCost(
   deviceId: EndeavourScienceDeviceId,
 ): number | null {
   const track = endeavourResearchTrack(progress, deviceId);
-  return BUILD_COSTS[deviceId][track.crossedBoxes] ?? null;
+  const quoteIndex = deviceId === 'ecm-device'
+    ? Math.min(track.crossedBoxes, BUILD_COSTS[deviceId].length - 1)
+    : track.crossedBoxes;
+  return BUILD_COSTS[deviceId][quoteIndex] ?? null;
 }
 
 export function parseEndeavourScienceDevicesState(value: unknown): EndeavourScienceDevicesState | null {
