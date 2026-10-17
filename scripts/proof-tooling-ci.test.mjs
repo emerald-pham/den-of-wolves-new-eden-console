@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import test from 'node:test';
+import { load } from 'js-yaml';
 import { classifyRiskGates } from './risk-gates.mjs';
 
 const root = resolve(new URL('..', import.meta.url).pathname);
@@ -33,13 +37,61 @@ function candidateEvent({ pullRequest = false, repository = 'owner/console', bra
   };
 }
 
-test('push and pull-request checks for one candidate share a cancelable concurrency group', () => {
+function verificationRequired(github, { pulls = [], lookupFails = false, exactHead = false } = {}) {
+  const selection = load(ci).jobs['select-candidate']?.steps.find((step) => step.id === 'candidate');
+  if (!selection) return true; // Existing CI verifies every event without a selector.
+  const directory = mkdtempSync(resolve(tmpdir(), 'dow-ci-selection-'));
+  try {
+    const gh = resolve(directory, 'gh');
+    const output = resolve(directory, 'output');
+    writeFileSync(gh, '#!/bin/sh\nif [ "$TEST_GH_FAIL" = "true" ]; then exit 1; fi\nprintf "%s" "$TEST_GH_PULLS"\n');
+    chmodSync(gh, 0o755);
+    execFileSync('bash', ['-e', '-o', 'pipefail', '-c', selection.run], {
+      env: {
+        ...process.env,
+        PATH: `${directory}:${process.env.PATH}`,
+        EVENT_NAME: github.event_name,
+        REPOSITORY: github.repository,
+        SOURCE_OWNER: github.repository.split('/')[0],
+        HEAD_BRANCH: github.head_ref || github.ref_name,
+        HEAD_SHA: 'a'.repeat(40),
+        EXACT_HEAD_COMMIT: String(exactHead),
+        GITHUB_OUTPUT: output,
+        TEST_GH_PULLS: JSON.stringify(pulls),
+        TEST_GH_FAIL: String(lookupFails),
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const selected = /^run_verification=(true|false)$/m.exec(readFileSync(output, 'utf8'));
+    assert.ok(selected, 'candidate selection must emit an explicit verification decision');
+    return selected[1] === 'true';
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+const coveringPr = {
+  state: 'open',
+  head: { repo: { full_name: 'owner/console' }, ref: 'tooling/cleanup', sha: 'a'.repeat(40) },
+};
+
+test('push arrival cannot cancel PR merge verification even when its incremental range is documentation-only', () => {
   const push = concurrencyFor(candidateEvent());
   const pr = concurrencyFor(candidateEvent({ pullRequest: true }));
   assert.ok(push.group);
-  assert.equal(pr.group, push.group, 'opening or updating a PR must supersede duplicate branch CI');
+  assert.notEqual(pr.group, push.group, 'branch and PR integration checks must not cancel one another');
   assert.equal(push.cancel, true);
   assert.equal(pr.cancel, true);
+  const pushRange = classifyRiskGates(['CLAUDE.md']);
+  const prRange = classifyRiskGates(['CLAUDE.md', 'src/styles/cic.css']);
+  assert.equal(pushRange.typography, false);
+  assert.equal(prRange.typography, true);
+  for (const arrivals of [[candidateEvent(), candidateEvent({ pullRequest: true })],
+    [candidateEvent({ pullRequest: true }), candidateEvent()]]) {
+    for (const event of arrivals) {
+      assert.equal(verificationRequired(event, { pulls: [coveringPr] }), event.event_name === 'pull_request');
+    }
+  }
 });
 
 test('candidate cancellation isolates forks and branches and preserves exact-main verification', () => {
@@ -49,6 +101,24 @@ test('candidate cancellation isolates forks and branches and preserves exact-mai
   const main = concurrencyFor(candidateEvent({ workflow: 'Deploy', branch: 'main' }));
   assert.notEqual(main.group, push.group);
   assert.equal(main.cancel, false);
+});
+
+test('branch verification stays enabled without an exact covering PR, on lookup failure and for exact-main calls', () => {
+  const event = candidateEvent();
+  for (const pulls of [[], [{ ...coveringPr, state: 'closed' }],
+    [{ ...coveringPr, head: { ...coveringPr.head, sha: 'b'.repeat(40) } }],
+    [{ ...coveringPr, head: { ...coveringPr.head, ref: 'tooling/other' } }],
+    [{ ...coveringPr, head: { ...coveringPr.head, repo: { full_name: 'contributor/console' } } }]]) {
+    assert.equal(verificationRequired(event, { pulls }), true);
+  }
+  assert.equal(verificationRequired(event, { lookupFails: true }), true);
+  assert.equal(verificationRequired(event, { pulls: [coveringPr], exactHead: true }), true);
+
+  const workflow = load(ci);
+  assert.deepEqual(workflow.jobs.verify.needs, ['select-candidate']);
+  assert.equal(workflow.jobs.verify.if, "needs.select-candidate.outputs.run_verification == 'true'");
+  assert.equal(workflow.jobs['select-candidate'].permissions['pull-requests'], 'read');
+  assert.equal(load(deploy).permissions['pull-requests'], 'read');
 });
 
 test('the named proof preflight runs only its maintained source contracts', () => {
