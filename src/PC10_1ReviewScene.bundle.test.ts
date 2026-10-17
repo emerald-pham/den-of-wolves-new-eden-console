@@ -25,13 +25,18 @@ it('ships the prepared review without server-only damage metadata in browser ass
   const exposures = new Set<string>();
   for (const file of emitted) {
     if (file.type === 'chunk') {
-      for (const moduleId of file.moduleIds) {
-        if (privateModule.test(moduleId)) exposures.add(moduleId.slice(moduleId.indexOf('functions/')));
+      for (const [moduleId, contribution] of Object.entries(file.modules)) {
+        if (privateModule.test(moduleId) && contribution.renderedLength > 0) {
+          exposures.add(moduleId.slice(moduleId.indexOf('functions/')));
+        }
       }
     } else if (file.fileName.endsWith('.map')) {
-      const map: { sources: string[] } = JSON.parse(String(file.source));
-      for (const source of map.sources) {
-        if (privateModule.test(source)) exposures.add(source.slice(source.indexOf('functions/')));
+      const map: { sources: string[]; sourcesContent?: (string | null)[] } = JSON.parse(String(file.source));
+      for (const [index, source] of map.sources.entries()) {
+        const privateContent = /\b(?:SHIP_DAMAGE_DECKS|CONSOLE_METADATA)\b/.test(map.sourcesContent?.[index] ?? '');
+        if (privateModule.test(source) || privateContent) {
+          exposures.add(source.slice(source.indexOf('functions/') >= 0 ? source.indexOf('functions/') : 0));
+        }
       }
     }
   }
