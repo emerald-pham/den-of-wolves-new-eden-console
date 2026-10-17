@@ -6,6 +6,9 @@ for that behavior; its source defines its cohort, deadlines and evidence.
 The [execution policy](../AGENT_EXECUTION_POLICY.md) owns authorization, review,
 test-first work and acceptance. [Worktree coordination](../WORKTREE_COORDINATION.md)
 owns shared resources and emulator rows.
+For browser UI proof, follow the
+[browser tooling policy](../AGENT_EXECUTION_POLICY.md#browser-tooling-for-ui-proof)
+for tool choice, evidence and resource handback.
 
 ## Preflight commands
 

@@ -180,6 +180,32 @@ remaining gaps in the handback. TDD protects the paths its tests actually
 exercise; a final-state fixture or helper assertion cannot prove a consumer
 transition, emitted build or pixel contract.
 
+## Browser tooling for UI proof
+
+For browser UI work, first inspect the built-in browser APIs and documentation
+actually available in the current environment. Prefer ChatGPT/Codex's supported
+built-in browser for localhost interaction and rendered or screenshot review
+where it supports the needed evidence. For ChatGPT browser specifics, consult
+the [official browser guide](https://learn.chatgpt.com/docs/browser). Use
+another browser only for a concrete unmet capability, required engine or
+authentication-context isolation, or verified built-in unavailability, and
+record the specific reason in the handback.
+
+Keep the task's applicable skills, acceptance semantics and authentication
+actors intact, along with final-build evidence for fonts and overflow. Preserve
+exact receipts, original deadlines and strict cleanup. Run existing mandatory
+engine-specific harnesses unchanged; do not add adapters or alter acceptance.
+A separate profile alone proves neither four isolated Firebase Auth contexts
+nor independence from shared browser-runtime claims. Before launch, verify
+current ownership and the exact scope of each shared browser/runtime claim. At
+handback, confirm this task's browser and owned descendants have stopped,
+release only its resources, and record any incomplete cleanup.
+
+Preserve required tool, OS and security confirmations and prior denials.
+Enabling full CDP or changing security-sensitive settings requires the mandated
+authorization. Never use native Codex or another route to bypass a denial. Do
+not add generic confirmation or review machinery.
+
 
 ## Batched PC releases
 
