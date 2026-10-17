@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "baseline": "aa2c89f5d369d42b94a91ecadaa4244d0d1c2d08",
-  "candidate": "2e822e31",
+  "candidate": "2e822e31ef808b6766f3a09285ad17f79c20461a",
   "auditBoundary": "Exact PC10.1 runtime source transition, named callable exports, transitive shared-helper consumers, member discovery projection writers, and science-device read/build/use/test endpoints. Candidate discovery readback is the existing Firestore playerDiscoveries subscription; no extra callable reader was inferred.",
   "modules": {
     "functions/src/candidateAvailability.ts": {
