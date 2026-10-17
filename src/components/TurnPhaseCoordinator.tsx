@@ -55,6 +55,11 @@ export default function TurnPhaseCoordinator() {
     };
     const start = () => {
       if (cancelled) return;
+      const latest = useSessionStore.getState();
+      const latestPhase = phaseForSession(latest.session);
+      if (latest.session?.id !== sessionId || latest.me?.uid !== actorUid || latest.connection !== 'live' ||
+        !latestPhase || latestPhase.turn !== phase.turn || latestPhase.teamPhaseEndsAt !== phase.teamPhaseEndsAt ||
+        latestPhase.airspace.state === 'lifted' || latestPhase.timerPause) return;
       const current = pending.current.get(key);
       if (current) { current.observed = start; current.retry = scheduleRetry; return; }
       const request: { observed?: () => void; retry: () => void } = { retry: scheduleRetry };
