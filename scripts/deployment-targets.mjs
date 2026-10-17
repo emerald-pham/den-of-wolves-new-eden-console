@@ -8,6 +8,7 @@ import mobileGmHotfixDeploymentConsumers from './mobile-gm-hotfix-deployment-con
 import {
   classifyRiskGates,
   formatRiskGateOutputs,
+  GENERATED_ROADMAP_FILES,
   isVersionMetadataOnlyPackageChange,
 } from './risk-gates.mjs';
 
@@ -38,9 +39,7 @@ const FIRESTORE_FILES = new Set([
 
 const TOOLING_ONLY_FILES = new Set([
   'docs/implementation-prompts.json',
-  'docs/PC07_ROADMAP_GANTT.csv',
-  'docs/PC07_ROADMAP_GANTT.html',
-  'docs/PC07_ROADMAP_GANTT.json',
+  ...GENERATED_ROADMAP_FILES,
   'config/render-performance-baseline.json',
 ]);
 
