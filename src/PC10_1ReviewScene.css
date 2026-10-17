@@ -1,0 +1,56 @@
+.pc10-1-review__steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.pc10-1-review__steps button {
+  min-width: 0;
+  min-height: 48px;
+  overflow-wrap: anywhere;
+}
+
+.pc10-1-review__workspace {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.pc10-1-review__columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.pc10-1-review__columns > *,
+.pc10-1-review__columns > * > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.pc10-1-review .console-workspace__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.pc10-1-review .console-workspace__actions button,
+.pc10-1-review__workspace button {
+  min-height: 44px;
+  max-width: 100%;
+  white-space: normal;
+}
+
+@media (max-width: 760px) {
+  .pc10-1-review__columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .pc10-1-review__steps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -9,15 +9,12 @@ import { captureSessionAuthority, isCurrentSessionAuthority, type SessionAuthori
 import { phaseForSession } from '@/lib/turnPhase';
 import { commandErrorCode, normalizeCommandError } from '@/lib/commandErrors';
 import { useSessionStore } from '@/store/useSessionStore';
+import HummingbirdHarvestChoices, { type HummingbirdHarvestAttempt } from './HummingbirdHarvestChoices';
 
 interface Props {
   readonly docking?: ShuttleDocking | undefined;
   readonly fuelled: boolean;
 }
-
-type HarvestAttempt =
-  | Readonly<{ kind: 'roll'; requestId: string; expectedRevision: number }>
-  | Readonly<{ kind: 'allocate'; requestId: string; expectedRevision: number; foodDieIndex: 0 | 1 }>;
 
 interface HarvestAuthority {
   readonly sessionId: string;
@@ -99,8 +96,8 @@ export default function HummingbirdHarvest({ docking, fuelled }: Props) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [selectedFoodDieIndex, setSelectedFoodDieIndex] = useState<0 | 1 | null>(null);
-  const [retryAttempt, setRetryAttempt] = useState<HarvestAttempt | null>(null);
-  const retryAttemptRef = useRef<HarvestAttempt | null>(null);
+  const [retryAttempt, setRetryAttempt] = useState<HummingbirdHarvestAttempt | null>(null);
+  const retryAttemptRef = useRef<HummingbirdHarvestAttempt | null>(null);
   const subscriptionGeneration = useRef(0);
   const sessionId = session?.id;
   const actorUid = me?.uid;
@@ -114,7 +111,7 @@ export default function HummingbirdHarvest({ docking, fuelled }: Props) {
     docking && docking.shuttleId === 'hummingbird' && docking.shipId === sessionHummingbirdHost,
   );
 
-  function setAttempt(attempt: HarvestAttempt | null): void {
+  function setAttempt(attempt: HummingbirdHarvestAttempt | null): void {
     retryAttemptRef.current = attempt;
     setRetryAttempt(attempt);
   }
@@ -186,16 +183,13 @@ export default function HummingbirdHarvest({ docking, fuelled }: Props) {
     session?.phase !== 'active' || session?.shuttleFuelled?.hummingbird !== true ||
     !activeHostAvailable || !window.navigator.onLine || !dockingMatchesSession ||
     pendingReceiptNeedsReconciliation;
-  const pending = visibleHarvest?.status === 'pending';
-  const resolved = visibleHarvest?.status === 'resolved';
-
   useEffect(() => {
     if (!retryAttempt || !visibleHarvest || visibleHarvest.revision <= retryAttempt.expectedRevision) return;
     setAttempt(null);
     if (visibleHarvest.status === 'resolved') setSelectedFoodDieIndex(null);
   }, [retryAttempt, visibleHarvest]);
 
-  async function runAttempt(attempt: HarvestAttempt): Promise<void> {
+  async function runAttempt(attempt: HummingbirdHarvestAttempt): Promise<void> {
     if (busy || unavailable || !docking) return;
     if (attempt.kind === 'allocate' && (!visibleHarvest || visibleHarvest.status !== 'pending')) return;
     const authority = authorityForCurrentStore(docking.shipId);
@@ -280,81 +274,41 @@ export default function HummingbirdHarvest({ docking, fuelled }: Props) {
     return runAttempt(attempt);
   }
 
-  const activeRetry = retryAttempt;
-  return (
-    <section className="console-workspace__section hummingbird-harvest" aria-label="Hummingbird resource harvesting">
-      <h3>Harvest allocation</h3>
-      <p className="hummingbird-harvest__guidance">
-        Coordination Phase // Fuelled Hummingbird rolls 2d6. Choose one die for food; the other becomes water in Hummingbird cargo.
-      </p>
-      {!docking && <p role="status">Unavailable // Hummingbird must be docked with a fleet ship.</p>}
-      {pendingReceiptNeedsReconciliation && explorerEntitled && (
-        <p role="status">Unavailable // This pending Hummingbird harvest no longer matches the current cycle or docking.</p>
-      )}
-      {docking && !fuelled && <p role="status">Unavailable // Hummingbird must be fuelled during the Team Phase.</p>}
-      {docking && fuelled && session?.shuttleFuelled?.hummingbird !== true && (
-        <p role="status">Unavailable // Hummingbird must be fuelled during the Team Phase.</p>
-      )}
-      {docking && fuelled && connection !== 'live' && <p role="status">Unavailable // Waiting for the live session connection.</p>}
-      {docking && fuelled && connection === 'live' && coordinationBlocked && (
-        <p role="status">Unavailable // Hummingbird harvesting requires the Coordination Phase.</p>
-      )}
-      {docking && fuelled && connection === 'live' && sessionHummingbirdHost && !activeHostAvailable && (
-        <p role="status">Unavailable // Hummingbird must be docked with an active fleet ship.</p>
-      )}
-      {docking && fuelled && connection === 'live' && !window.navigator.onLine && (
-        <p role="status">Unavailable // Reconnect to the live session before harvesting.</p>
-      )}
-      {docking && fuelled && connection === 'live' && !dockingMatchesSession && (
-        <p role="status">Unavailable // Waiting for the current Hummingbird docking state.</p>
-      )}
-      {docking && fuelled && connection === 'live' && !explorerEntitled && (
-        <p role="status">Unavailable // The active Quellon Explorer console is required.</p>
-      )}
-      {docking && fuelled && connection === 'live' && session?.phase !== 'active' && (
-        <p role="status">Unavailable // Hummingbird harvesting requires active gameplay.</p>
-      )}
-      {visibleHarvest === null && !unavailable && !activeRetry && (
-        <div className="hummingbird-harvest__actions">
-          <button className="cic-action-button" type="button" disabled={busy} onClick={() => void roll()}>
-            {busy ? 'Rolling…' : 'Roll 2d6 for harvest'}
-          </button>
-        </div>
-      )}
-      {!unavailable && pending && visibleHarvest && (
-        <div className="hummingbird-harvest__allocation">
-          <p role="status">Roll ready // choose which die becomes food.</p>
-          {selectedFoodDieIndex !== null && (
-            <p role="status">Die {selectedFoodDieIndex + 1} remains selected for food.</p>
-          )}
-          <div className="hummingbird-harvest__dice" aria-label="Hummingbird harvest dice">
-            {visibleHarvest.rolls.map((die, index) => (
-              <button key={`${visibleHarvest.requestId}-${index}`} className="cic-action-button" type="button"
-                aria-pressed={selectedFoodDieIndex === index}
-                disabled={busy || unavailable || activeRetry !== null}
-                onClick={() => void allocate(index as 0 | 1)}>
-                Die {index + 1}: {die} food / {visibleHarvest.rolls[index === 0 ? 1 : 0]} water
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      {activeRetry?.kind === 'roll' && !unavailable && visibleHarvest === null && (
-        <button className="cic-action-button" type="button" disabled={busy} onClick={() => void runAttempt(activeRetry)}>
-          {busy ? 'Checking roll…' : 'Retry roll request'}
-        </button>
-      )}
-      {activeRetry?.kind === 'allocate' && !unavailable && pending && visibleHarvest && (
-        <button className="cic-action-button" type="button" disabled={busy}
-          onClick={() => void runAttempt(activeRetry)}>
-          {busy ? 'Checking allocation…' : `Retry Die ${activeRetry.foodDieIndex + 1} allocation`}
-        </button>
-      )}
-      {!unavailable && resolved && visibleHarvest && (
-        <p role="status">Resolved this cycle // {visibleHarvest.food} food and {visibleHarvest.water} water added to Hummingbird cargo.</p>
-      )}
-      {notice && !unavailable && <p role="status">{notice}</p>}
-      {error && !unavailable && <p className="hummingbird-harvest__error" role="alert">{error}</p>}
-    </section>
-  );
+  const unavailableMessages = [
+    !docking ? 'Unavailable // Hummingbird must be docked with a fleet ship.' : '',
+    pendingReceiptNeedsReconciliation && explorerEntitled
+      ? 'Unavailable // This pending Hummingbird harvest no longer matches the current cycle or docking.' : '',
+    docking && !fuelled ? 'Unavailable // Hummingbird must be fuelled during the Team Phase.' : '',
+    docking && fuelled && session?.shuttleFuelled?.hummingbird !== true
+      ? 'Unavailable // Hummingbird must be fuelled during the Team Phase.' : '',
+    docking && fuelled && connection !== 'live' ? 'Unavailable // Waiting for the live session connection.' : '',
+    docking && fuelled && connection === 'live' && coordinationBlocked
+      ? 'Unavailable // Hummingbird harvesting requires the Coordination Phase.' : '',
+    docking && fuelled && connection === 'live' && sessionHummingbirdHost && !activeHostAvailable
+      ? 'Unavailable // Hummingbird must be docked with an active fleet ship.' : '',
+    docking && fuelled && connection === 'live' && !window.navigator.onLine
+      ? 'Unavailable // Reconnect to the live session before harvesting.' : '',
+    docking && fuelled && connection === 'live' && !dockingMatchesSession
+      ? 'Unavailable // Waiting for the current Hummingbird docking state.' : '',
+    docking && fuelled && connection === 'live' && !explorerEntitled
+      ? 'Unavailable // The active Quellon Explorer console is required.' : '',
+    docking && fuelled && connection === 'live' && session?.phase !== 'active'
+      ? 'Unavailable // Hummingbird harvesting requires active gameplay.' : '',
+  ].filter((message) => message.length > 0);
+
+  return <HummingbirdHarvestChoices
+    view={{
+      available: !unavailable,
+      unavailableMessages,
+      harvest: visibleHarvest,
+      retryAttempt,
+      selectedFoodDieIndex,
+      busy,
+      notice,
+      error,
+    }}
+    onRoll={() => void roll()}
+    onAllocate={foodDieIndex => void allocate(foodDieIndex)}
+    onRetry={attempt => void runAttempt(attempt)}
+  />;
 }
