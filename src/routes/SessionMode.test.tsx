@@ -240,6 +240,74 @@ it('shows candidate discoveries to fresh members of the current group on the rol
   expect(screen.queryByRole('region', { name: 'Candidate discoveries' })).not.toBeInTheDocument();
 });
 
+it('shows distinct private-safe candidate guidance and plan encouragement on the member roster', () => {
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    phase: 'active',
+    currentTurn: 6,
+    currentGroupCandidateReveals: {
+      groupId: 'fleet-1', revision: 5,
+      candidateReveals: [
+        { code: 'N', title: 'Ancient Jump Ring' },
+        { code: 'O', title: 'Deep Nebula' },
+        { code: 'P', title: 'Ancient Space Station' },
+      ],
+    },
+  });
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, role: 'player', fleetGroupId: 'fleet-1',
+  });
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const preparation = screen.getByRole('region', { name: 'Candidate preparation requirements' });
+  expect(within(preparation).getByText(/N \/\/ Ancient Jump Ring/)).toBeInTheDocument();
+  expect(within(preparation).getByText(/10 materials.*Engineering Shuttle.*five different.*four crosses.*5 Strytium per ship/i))
+    .toBeInTheDocument();
+  expect(within(preparation).getByText(/O \/\/ Deep Nebula/)).toBeInTheDocument();
+  expect(within(preparation).getByText(/in-range scout missions.*long jump.*exact scouting total.*private/i))
+    .toBeInTheDocument();
+  expect(within(preparation).getByText(/P \/\/ Ancient Space Station/)).toBeInTheDocument();
+  expect(within(preparation).getByText(/combat.*18.*Reactor/i)).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Cycle 6 plan encouragement' }))
+    .toHaveTextContent(/Cycle 6.*agree a New Eden plan.*identify who acts next/i);
+  expect(preparation).not.toHaveTextContent(/6798|0408|4888|scout bonus|Wolf count|Wolf location/i);
+  expect(screen.getByRole('region', { name: 'Cycle 6 plan encouragement' }))
+    .not.toHaveTextContent(/plan exists|no plan recorded|checked at/i);
+});
+
+it('keeps cycle-six encouragement generic when another group owns the revealed candidates', () => {
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    phase: 'active',
+    currentTurn: 6,
+    currentGroupCandidateReveals: {
+      groupId: 'fleet-2', revision: 5,
+      candidateReveals: [{ code: 'N', title: 'Ancient Jump Ring' }],
+    },
+  });
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, role: 'player', fleetGroupId: 'fleet-1',
+  });
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('region', { name: 'Cycle 6 plan encouragement' })).toBeVisible();
+  expect(screen.queryByRole('region', { name: 'Candidate discoveries' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: 'Candidate preparation requirements' })).not.toBeInTheDocument();
+  expect(screen.queryByText('Ancient Jump Ring')).not.toBeInTheDocument();
+});
+
 it('identifies the unaffiliated SNN press shuttle', () => {
   useSessionStore.getState().setMode('press');
   render(
