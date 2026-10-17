@@ -152,6 +152,19 @@ it('replays the exact build after phase/cycle changes without debiting materials
   await expect(buildEndeavourScienceDevice.run(request(command))).resolves.toEqual({ ...first, status: 'replayed' }); noWrites();
 });
 
+it('requires the selected Scientist console for a fresh purchase but preserves exact replay after station loss', async () => {
+  mock.documents.get('sessions/s1/players/scientist')!.activeConsoleRoleId = null;
+  await expect(buildEndeavourScienceDevice.run(request(command))).rejects.toMatchObject({ code: 'permission-denied' });
+  noWrites();
+
+  mock.documents.get('sessions/s1/players/scientist')!.activeConsoleRoleId = 'shepherd-scientist';
+  const first = await buildEndeavourScienceDevice.run(request(command));
+  mock.documents.get('sessions/s1/players/scientist')!.activeConsoleRoleId = null;
+  mock.set.mockClear(); mock.create.mockClear(); mock.update.mockClear();
+  await expect(buildEndeavourScienceDevice.run(request(command))).resolves.toEqual({ ...first, status: 'replayed' });
+  noWrites();
+});
+
 it('serializes competing construction requests so only one debit and Built state commit', async () => {
   const results = await Promise.allSettled([buildEndeavourScienceDevice.run(request(command)),
     buildEndeavourScienceDevice.run(request({ ...command, requestId: 'competing' }))]);
