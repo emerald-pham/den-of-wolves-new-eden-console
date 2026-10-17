@@ -1,7 +1,8 @@
 # PC10.1 execution
 
 The authorized checkpoint is **Scientist and Explorer fieldwork**, consisting
-only of S1, S2, X1, X2, D1, D2, PT1, PT2A and PT3. The catalog remains the
+of S1, S2, X1, X2, D1, D2, PT1, PT2A, PT3 and the explicitly approved BP1
+browser-asset repair. The catalog remains the
 completion authority. This record describes execution and evidence, not a new
 tracker or an expanded specification.
 
@@ -24,6 +25,7 @@ tracker or an expanded specification.
 | Explorer | X1, then X2 | Ordinary member chooser/workspace, Hummingbird scout/harvest, route and mission results/recovery; existing handler transaction seam for settlement and exact replay. | Explorer consumers and named callable handlers; coordinate shared index and session projection hunks. | Same per-ticket integration handoff; no blanket account cohort. |
 | Private candidates | D1, then D2 | Entitled candidate discovery/replay/projection, followed by Cycle 6 plan and distinct N/O/P help; existing domain/callable and mounted consumer seams. | Candidate consumers, named discovery/projection handlers; no Ring/Nebula/Station outcomes. | D2 consumes accepted D1; preserve actual-6 discovery/preparation evidence within its exact source/audience limits. |
 | Proof tooling | PT1; PT2A; then PT3 | Real process invocation/diagnostics; retained mounted Base navigation/readiness/source-order consumers; real compiler contract for role-entry actor versus live state. | PT1 owns invocation helper and its bounded entry points. PT2A owns selected Base consumers. PT3 follows their integration and owns the bounded checked interface/local-CI entry points. | No gameplay runtime for exit-status or type-error proof. Tooling evidence cannot close whole P641/P642/P649/P651. |
+| Approved resumption repairs | S1 completed-research price; BP1 | Final five-material ECM quote and exactly-once purchase; actual multi-entry executable content and Hosting/public-artifact file sets. | Separate ECM and privacy workers; one central owner refreshes exact deployment-consumer hashes after both merge. | Separate observed RED/test and GREEN/source commits, central merger, independent review, then native/rendered/release gates. |
 
 Independent frontier work uses separate Luna workers and checkouts. A merger
 worker reconciles completed ticket commits into the one integration branch.
@@ -52,7 +54,7 @@ Use the smallest cohort per distinct claim. Prepared scenes, mounted fixtures,
 unit results, authenticated gameplay, rendered acceptance, CI and production
 deployment are separate evidence classes.
 
-Each accepted increment requires the authored nine-ticket criteria, optional
+Each accepted increment requires the authored nine-ticket criteria plus BP1, optional
 numbered solo review access, independent actual-build typography and authority
 review where applicable, responsive/keyboard/navigation acceptance, version and
 changelog, one reconciled exact-candidate CI and verified exact-main deployment.
@@ -65,7 +67,7 @@ The initial progress message to source thread
 deliver. The parent subsequently confirmed that ordinary task commentary and
 the terminal result are readable there; use those for this handback.
 
-## Preserved implementation boundary
+## Preserved implementation boundary at the earlier park
 
 All nine implementation groups are integrated. The current source candidate is
 `36ae58f5917bbbcb8b380ae9b2656610e888c59d`, tree
@@ -312,3 +314,44 @@ outside the published file set without changing repository security settings.
 The preserved park capsule remains an unchanged historical snapshot. Current
 main, final source/runtime binding, normal authenticated fieldwork, independent
 rendered review, CI, checkpoint acceptance, retro and release remain pending.
+
+## Approved repairs integrated — 2026-10-17
+
+The separate merger integrated S1 at
+`4125734c7240ce9e283f4a6b62e4c117f96b2b92`, then BP1 at
+`92c8db3ace3a0448dc28bd5292a704f400c06f5d`, tree
+`0c255cb87afb7ee9a5c3595d8b65e4722b2b2617`. Both merges were clean and
+preserve separate test-first commits. No release or acceptance is implied.
+
+- S1: test-only `8c4847b2` observed four intended failures before source
+  `2860e641`. All 104 focused domain/workspace/build/use tests and Functions
+  typing pass. Unbuilt completed-track ECM construction costs five materials;
+  payment/Built/audit commit once, exact replay does not spend again, and four
+  materials deny without mutation.
+- BP1: actual full-production RED `f8fb8fc6` preceded source `90c731fc`;
+  publication-set RED `0c0b41a7` preceded exclusions `6538f40c`. The four
+  parsers use only pre-existing public system identities. Server damage source
+  and the existing scene guard remain unchanged. Reconciled focused checks
+  pass 259 tests; earlier callable/reconnect checks pass 390 and workflow Node
+  checks pass 10. Counts overlap and are not added into a completion total.
+- BP1's actual production output contains 102 JavaScript files and 101 locally
+  retained diagnostic maps: zero matching private deck/card fingerprints and
+  zero private damage/console-metadata map sources. The configured Hosting and
+  public deployment sets each contain 175 files and zero maps. The artifact
+  tree hash is `ffb4be3d3f91c2efbf6b1cac1ded69613b2f335faca9e1bf875ac88c7a67fe3a`.
+  Useful diagnostic maps remain in a private 0700 evidence directory and the
+  ephemeral runner workspace, without a public diagnostic-map artifact.
+
+The full BP1 handoff and private failed output/manifests remain under the
+existing external evidence root. Source differential checks found no parser or
+Voyage docking differences in 2,366 cases. These are compatibility and artifact
+checks, not authenticated gameplay. Public repository history, old uploaded
+artifacts and previously downloaded copies are outside this bounded browser
+repair and are not erased. Post-release checks must inspect the new map URL
+and the exact old URL, distinguishing valid maps from HTTP 200 SPA fallback.
+
+The deployment-audit owner independently traced the new leaf to 11 named
+consumers, yielding 32 named Functions after union with the existing audit.
+The exact audit refresh, independent review, native/rendered acceptance and
+all release gates remain pending. Fresh main verification still matches the
+authored baseline; no other release was active. No CI, push or deployment ran.
