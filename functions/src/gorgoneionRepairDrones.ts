@@ -2,7 +2,8 @@ import { phaseFromTurnPhase, type ActorScope } from './actionMetadata';
 import { INITIAL_SHIP_RESOURCES, isResourceShipId, type ShipResourceInventory } from './resources';
 import { replacementRoleFor } from './replacementRoles';
 import { parseSmallShipState, SMALL_SHIP_RULES } from './smallShip';
-import { SHIP_DAMAGE_DECKS, type ShipDamageState } from './shipDamage';
+import type { ShipDamageState } from './shipDamage';
+import { PUBLIC_SHIP_SYSTEM_IDS } from './publicShipSystems';
 
 // Source: DoWNE Printer - A4 Card Duplex, base v1.1 PDF
 // (downe-home-printing-a4-double-sided-v1.1.pdf, SHA-256
@@ -28,9 +29,8 @@ function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boo
 }
 
 function repairableConsoleIds(hostShipId: string): ReadonlySet<string> {
-  return new Set((SHIP_DAMAGE_DECKS[hostShipId] ?? [])
-    .filter(({ systemId }) => !systemId.startsWith('armoured-hull'))
-    .map(({ systemId }) => systemId));
+  return new Set((PUBLIC_SHIP_SYSTEM_IDS[hostShipId] ?? [])
+    .filter((systemId) => !systemId.startsWith('armoured-hull')));
 }
 
 export function parseGorgoneionRepairDronesState(value: unknown): GorgoneionRepairDronesState | null {
@@ -42,7 +42,7 @@ export function parseGorgoneionRepairDronesState(value: unknown): GorgoneionRepa
       (raw.revision as number) > (raw.cycle as number) ||
       typeof raw.hostShipId !== 'string' || !isResourceShipId(raw.hostShipId) ||
       typeof raw.systemId !== 'string' ||
-      !(SHIP_DAMAGE_DECKS[raw.hostShipId] ?? []).some((card) => card.systemId === raw.systemId)) return null;
+      !(PUBLIC_SHIP_SYSTEM_IDS[raw.hostShipId] ?? []).includes(raw.systemId)) return null;
   return Object.freeze({
     cycle: raw.cycle as number,
     revision: raw.revision as number,
@@ -142,7 +142,7 @@ export function resolveGorgoneionRepairDrones(input: Readonly<{
 
   const damage = input.hostDamage;
   const damageRaw = record(damage);
-  const knownSystems = new Set((SHIP_DAMAGE_DECKS[hostShipId] ?? []).map((card) => card.systemId));
+  const knownSystems = new Set(PUBLIC_SHIP_SYSTEM_IDS[hostShipId] ?? []);
   const eligibleConsoles = repairableConsoleIds(hostShipId);
   if (!damageRaw || !exactKeys(damageRaw, ['damagedSystemIds', 'destroyed']) ||
       typeof damage.destroyed !== 'boolean' || !Array.isArray(damage.damagedSystemIds) ||
