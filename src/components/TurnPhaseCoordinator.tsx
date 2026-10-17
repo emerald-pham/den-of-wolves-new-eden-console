@@ -14,6 +14,7 @@ export default function TurnPhaseCoordinator() {
   const connection = useSessionStore((state) => state.connection);
   const actorUid = useSessionStore((state) => state.me?.uid);
   const [attack, setAttack] = useState<WolfAttackMemberView | null>(null);
+  const currentAttack = useRef<WolfAttackMemberView | null>(null);
   const pending = useRef(new Map<string, { observed?: () => void; retry: () => void }>());
   const phase = phaseForSession(session);
   const sessionId = session?.id;
@@ -21,14 +22,18 @@ export default function TurnPhaseCoordinator() {
   useEffect(() => {
     let active = true;
     let unsubscribe: (() => void) | undefined;
+    currentAttack.current = null;
     setAttack(null);
     if (sessionId && actorUid && connection === 'live') {
       void import('@/lib/firestore').then(({ subscribeWolfAttackMemberView }) => {
         if (active) unsubscribe = subscribeWolfAttackMemberView(sessionId, view => {
-          if (active) setAttack(view?.sessionId === sessionId ? view : null);
+          if (active) {
+            currentAttack.current = view?.sessionId === sessionId ? view : null;
+            setAttack(currentAttack.current);
+          }
         });
       }).catch(() => {
-        if (active) setAttack(null);
+        if (active) { currentAttack.current = null; setAttack(null); }
       });
     }
     return () => {
@@ -60,6 +65,8 @@ export default function TurnPhaseCoordinator() {
       if (latest.session?.id !== sessionId || latest.me?.uid !== actorUid || latest.connection !== 'live' ||
         !latestPhase || latestPhase.turn !== phase.turn || latestPhase.teamPhaseEndsAt !== phase.teamPhaseEndsAt ||
         latestPhase.airspace.state === 'lifted' || latestPhase.timerPause) return;
+      if (currentAttack.current?.sessionId === sessionId && currentAttack.current.turn === phase.turn &&
+        currentAttack.current.status === 'declared') return;
       const current = pending.current.get(key);
       if (current) { current.observed = start; current.retry = scheduleRetry; return; }
       const request: { observed?: () => void; retry: () => void } = { retry: scheduleRetry };
