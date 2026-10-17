@@ -102,6 +102,30 @@ it('reads and validates the private research workspace through the named callabl
   expect(mocks.call).toHaveBeenCalledWith({ sessionId: 's1' });
 });
 
+it('accepts the server-normalized legacy Used ECM projection at revision one', async () => {
+  const legacyWorkspace: EndeavourResearchWorkspace = {
+    ...workspace,
+    researchRevision: 7,
+    cadence: { cycle: 3, revision: 7, choices: [] },
+    progress: { reactor: 1, 'ecm-device': 5, 'wolf-agent-detector': 2 },
+    tracks: [
+      ...workspace.tracks,
+      { trackId: 'ecm-device', name: 'ECM Device', crossedBoxes: 5, totalBoxes: 5,
+        currentMaterialCost: null, complete: true },
+      { trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector', crossedBoxes: 2, totalBoxes: 5,
+        currentMaterialCost: 7, complete: false },
+    ],
+    scienceDevices: {
+      revision: 1, ecmBuilt: true, detectorBuilt: false, ecmUsed: true, shepherdMaterials: 30,
+      buildCosts: { 'ecm-device': null, 'wolf-agent-detector': 18 },
+    },
+  };
+  mocks.call.mockResolvedValueOnce({ data: legacyWorkspace });
+  await expect(readEndeavourResearchWorkspace()).resolves.toEqual(legacyWorkspace);
+  expect(createEndeavourScienceDeviceAttempt({ workspace: legacyWorkspace, deviceId: 'wolf-agent-detector' }))
+    .toMatchObject({ expectedDeviceRevision: 1, deviceId: 'wolf-agent-detector' });
+});
+
 it('binds construction to the private source quote, current material stock, and observed revisions', () => {
   expect(createEndeavourScienceDeviceAttempt({ workspace, deviceId: 'ecm-device' })).toMatchObject({
     sessionId: 's1', expectedControlRevision: 4, expectedResearchRevision: 0,

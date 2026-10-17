@@ -119,6 +119,7 @@ export async function requestScout(command: ScoutRequestCommand): Promise<ScoutR
     if (isCurrentSessionAuthority(checkpoint) &&
         normalizeCommandError(cause).kind === 'station-selection-required') {
       const { requireStationReselectionForCurrentSession } = await import('./sessionService');
+      if (!isCurrentSessionAuthority(checkpoint)) throw cause;
       requireStationReselectionForCurrentSession();
     }
     throw cause;

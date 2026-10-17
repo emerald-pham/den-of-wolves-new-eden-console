@@ -179,6 +179,9 @@ export const buildEndeavourScienceDevice = onCall<Fields>(CALLABLE_RUNTIME_OPTIO
       }
       return { ...result, status: 'replayed' as const };
     }
+    if (actor.get('activeConsoleRoleId') !== 'shepherd-scientist') {
+      throw new HttpsError('permission-denied', 'Select the Shepherd Scientist console before building science devices.');
+    }
     if (audit.exists) throw new HttpsError('failed-precondition', 'This science device request id is already in use.');
     requirePursuitEmergencyWindowAbsent(session);
     if (session.get('phase') !== 'active') {
@@ -203,14 +206,19 @@ export const buildEndeavourScienceDevice = onCall<Fields>(CALLABLE_RUNTIME_OPTIO
     const resources = serviceRechargeResourceState(session.get('shipResources'), 'shepherd');
     const constructionState = parseEndeavourScienceDevicesState(construction.exists ? construction.data() : undefined);
     const ecmState = parseEndeavourEcmDeviceState(ecm.exists ? ecm.data() : undefined);
+    const legacyUsedEcm = !construction.exists && ecmState?.status === 'used';
+    const constructionForBuild = legacyUsedEcm
+      ? { revision: 1, ecmBuilt: true, detectorBuilt: false }
+      : constructionState;
     if (!resources || !constructionState || !ecmState ||
+        (ecmState.status === 'used' && !constructionState.ecmBuilt && !legacyUsedEcm) ||
         (command.deviceId === 'ecm-device' && ecmState.status === 'used')) {
       throw new HttpsError('failed-precondition', 'The current Shepherd device or material state is unavailable.');
     }
     const progress = research.exists ? research.data() : {};
     try {
       const build = resolveEndeavourScienceDeviceBuild({
-        state: construction.exists ? construction.data() : undefined,
+        state: constructionForBuild,
         progress,
         deviceId: command.deviceId,
         expectedRevision: command.expectedDeviceRevision,
@@ -236,7 +244,7 @@ export const buildEndeavourScienceDevice = onCall<Fields>(CALLABLE_RUNTIME_OPTIO
         researchRevision: cadence.revision, deviceRevision: build.state.revision,
         materialCost: build.materialCost, materialsBefore: resources.materials,
         materialsAfter: build.shepherdMaterials,
-        before: construction.exists ? construction.data() : { revision: 0, ecmBuilt: false, detectorBuilt: false },
+        before: construction.exists ? construction.data() : constructionForBuild,
         after: build.state, createdAt: FieldValue.serverTimestamp(),
       });
       tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });

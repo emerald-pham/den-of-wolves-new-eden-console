@@ -114,6 +114,33 @@ it('commits early ECM construction but requires completed research before its on
   expect(mock.documents.get('sessions/s1/endeavourScienceDeviceAudits/build-1')).toMatchObject({ materialCost: 13, materialsBefore: 30, materialsAfter: 17 });
 });
 
+it('continues a legacy used-ECM session at its normalized revision without charging ECM again', async () => {
+  put('sessions/s1/serverState/endeavourResearch', { 'ecm-device': 5, 'wolf-agent-detector': 2 });
+  put('sessions/s1/serverState/endeavourEcmDevice', {
+    status: 'used', revision: 1, ownerGroupId: 'fleet-1', pursuitBefore: 8, pursuitAfter: 5,
+  });
+  const before = await readEndeavourResearchWorkspace.run(request({ sessionId: 's1' }));
+  expect(before.scienceDevices).toMatchObject({ revision: 1, ecmBuilt: true, ecmUsed: true, buildCosts: {
+    'ecm-device': null, 'wolf-agent-detector': 18,
+  } });
+
+  await expect(buildEndeavourScienceDevice.run(request({
+    ...command, requestId: 'legacy-detector-build', expectedDeviceRevision: before.scienceDevices?.revision,
+    deviceId: 'wolf-agent-detector',
+  }))).resolves.toMatchObject({ status: 'committed', built: true, deviceRevision: 2, materialCost: 18,
+    shepherdMaterials: 12 });
+  expect(session()).toMatchObject({ shipResources: { shepherd: { materials: 12 } } });
+  expect(mock.documents.get('sessions/s1/serverState/endeavourScienceDevices')).toEqual({
+    revision: 2, ecmBuilt: true, detectorBuilt: true,
+  });
+  expect(mock.documents.get('sessions/s1/serverState/endeavourEcmDevice')).toEqual({
+    status: 'used', revision: 1, ownerGroupId: 'fleet-1', pursuitBefore: 8, pursuitAfter: 5,
+  });
+  await expect(readEndeavourResearchWorkspace.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
+    scienceDevices: { revision: 2, ecmBuilt: true, detectorBuilt: true, ecmUsed: true, shepherdMaterials: 12 },
+  });
+});
+
 it.each([[2, 18], [3, 12], [4, 10]] as const)('builds Detector at earned mark %s for %s materials and keeps tests private', async (marks, price) => {
   put('sessions/s1/serverState/endeavourResearch', { 'wolf-agent-detector': marks });
   await expect(buildEndeavourScienceDevice.run(request({ ...command, deviceId: 'wolf-agent-detector' })))
@@ -150,6 +177,19 @@ it('replays the exact build after phase/cycle changes without debiting materials
   (session().turnPhase as Fields).airspace = { state: 'lifted', tickerActive: false, pressAccess: false };
   mock.set.mockClear(); mock.create.mockClear(); mock.update.mockClear();
   await expect(buildEndeavourScienceDevice.run(request(command))).resolves.toEqual({ ...first, status: 'replayed' }); noWrites();
+});
+
+it('requires the selected Scientist console for a fresh purchase but preserves exact replay after station loss', async () => {
+  mock.documents.get('sessions/s1/players/scientist')!.activeConsoleRoleId = null;
+  await expect(buildEndeavourScienceDevice.run(request(command))).rejects.toMatchObject({ code: 'permission-denied' });
+  noWrites();
+
+  mock.documents.get('sessions/s1/players/scientist')!.activeConsoleRoleId = 'shepherd-scientist';
+  const first = await buildEndeavourScienceDevice.run(request(command));
+  mock.documents.get('sessions/s1/players/scientist')!.activeConsoleRoleId = null;
+  mock.set.mockClear(); mock.create.mockClear(); mock.update.mockClear();
+  await expect(buildEndeavourScienceDevice.run(request(command))).resolves.toEqual({ ...first, status: 'replayed' });
+  noWrites();
 });
 
 it('serializes competing construction requests so only one debit and Built state commit', async () => {
