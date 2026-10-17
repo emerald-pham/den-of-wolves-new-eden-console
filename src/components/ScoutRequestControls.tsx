@@ -40,6 +40,19 @@ interface RetryAttempt {
   readonly authorityKey: string;
 }
 
+interface StoredScoutDraft {
+  readonly version: 1;
+  readonly sessionId: string;
+  readonly uid: string;
+  readonly entitlementId: ScoutEntitlementId;
+  readonly targetCoordinate: string;
+}
+
+interface RestoredScoutDraft {
+  readonly targetCoordinate: string;
+  readonly found: boolean;
+}
+
 function requestId(): string {
   return window.crypto.randomUUID();
 }
@@ -73,6 +86,58 @@ function currentScoutAuthorityKey(entitlementId: ScoutEntitlementId): string | n
   return scoutAuthorityKey(entitlementId, session, me);
 }
 
+function scoutDraftKey(sessionId: string | undefined, uid: string | undefined, entitlementId: ScoutEntitlementId): string | null {
+  return sessionId && uid
+    ? `pc10:scout-draft:${encodeURIComponent(sessionId)}:${encodeURIComponent(uid)}:${entitlementId}`
+    : null;
+}
+
+function restoreScoutDraft(
+  key: string | null,
+  expected: Readonly<{ sessionId: string | undefined; uid: string | undefined; entitlementId: ScoutEntitlementId }>,
+): RestoredScoutDraft {
+  const empty: RestoredScoutDraft = { targetCoordinate: '', found: false };
+  if (!key || typeof window === 'undefined') return empty;
+  try {
+    const stored = window.sessionStorage.getItem(key);
+    if (!stored) return empty;
+    const parsed: unknown = JSON.parse(stored);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return empty;
+    const value = parsed as Record<string, unknown>;
+    if (value.version !== 1 || value.sessionId !== expected.sessionId || value.uid !== expected.uid ||
+        value.entitlementId !== expected.entitlementId || typeof value.targetCoordinate !== 'string' ||
+        !/^\d{0,4}$/.test(value.targetCoordinate)) return empty;
+
+    return {
+      targetCoordinate: value.targetCoordinate,
+      found: true,
+    };
+  } catch {
+    return empty;
+  }
+}
+
+function saveScoutDraft(
+  key: string | null,
+  identity: Readonly<{ sessionId: string | undefined; uid: string | undefined; entitlementId: ScoutEntitlementId }>,
+  targetCoordinate: string,
+): void {
+  if (!key || typeof window === 'undefined' || !identity.sessionId || !identity.uid ||
+      !/^\d{0,4}$/.test(targetCoordinate)) return;
+  try {
+    const draft: StoredScoutDraft = {
+      version: 1,
+      sessionId: identity.sessionId,
+      uid: identity.uid,
+      entitlementId: identity.entitlementId,
+      targetCoordinate,
+    };
+    window.sessionStorage.setItem(key, JSON.stringify(draft));
+  } catch {
+    // Storage is a convenience only; current form state and server authority remain primary.
+  }
+}
+
 function isDefinitiveInvalidArgument(error: unknown): boolean {
   return typeof error === 'object' && error !== null &&
     'code' in error && error.code === 'functions/invalid-argument';
@@ -84,7 +149,11 @@ export default function ScoutRequestControls({ entitlementId }: Props) {
   const me = useSessionStore((state) => state.me);
   const connection = useSessionStore((state) => state.connection);
   const freshness = useSessionStore((state) => state.sessionSnapshotFreshness);
-  const [targetCoordinate, setTargetCoordinate] = useState('');
+  const authorityKey = scoutAuthorityKey(entitlementId, session, me);
+  const draftStorageKey = scoutDraftKey(session?.id, me?.uid, entitlementId);
+  const draftIdentity = { sessionId: session?.id, uid: me?.uid, entitlementId };
+  const [initialDraft] = useState(() => restoreScoutDraft(draftStorageKey, draftIdentity));
+  const [targetCoordinate, setTargetCoordinate] = useState(initialDraft.targetCoordinate);
   const [retryAttempt, setRetryAttempt] = useState<RetryAttempt | null>(null);
   const [busyAttempt, setBusyAttempt] = useState<RetryAttempt | null>(null);
   const [error, setError] = useState('');
@@ -92,23 +161,26 @@ export default function ScoutRequestControls({ entitlementId }: Props) {
   const authorized = isScoutEntitlementHolder(entitlementId, session, me);
   const phaseAvailable = isScoutingRequestPhaseAvailable(session);
   const hasLiveSnapshot = connection === 'live' && freshness === 'server';
-  const authorityKey = scoutAuthorityKey(entitlementId, session, me);
   const procedureGuidance = PROCEDURE_GUIDANCE[entitlementId];
   const authorityEpoch = useRef(0);
-  const previousAuthorityKey = useRef(authorityKey);
+  const previousAuthority = useRef({ authorityKey, draftStorageKey });
   const retry = retryAttempt?.authorityKey === authorityKey ? retryAttempt : null;
   const busy = busyAttempt?.authorityKey === authorityKey;
   const coordinateIsValid = /^\d{4}$/.test(targetCoordinate);
 
   useLayoutEffect(() => {
-    if (previousAuthorityKey.current === authorityKey) return;
-    previousAuthorityKey.current = authorityKey;
+    if (previousAuthority.current.authorityKey === authorityKey &&
+        previousAuthority.current.draftStorageKey === draftStorageKey) return;
+    const storageKeyChanged = previousAuthority.current.draftStorageKey !== draftStorageKey;
+    previousAuthority.current = { authorityKey, draftStorageKey };
     authorityEpoch.current += 1;
+    const restored = restoreScoutDraft(draftStorageKey, draftIdentity);
+    if (!storageKeyChanged || restored.found) setTargetCoordinate(restored.targetCoordinate);
     setRetryAttempt(null);
     setBusyAttempt(null);
     setError('');
     setConfirmation('');
-  }, [authorityKey]);
+  }, [authorityKey, draftStorageKey, draftIdentity.sessionId, draftIdentity.uid, entitlementId]);
 
   if (!authorized) return null;
 
@@ -159,7 +231,9 @@ export default function ScoutRequestControls({ entitlementId }: Props) {
   }
 
   function updateTarget(value: string): void {
-    setTargetCoordinate(value.slice(0, 4));
+    const nextCoordinate = value.slice(0, 4);
+    setTargetCoordinate(nextCoordinate);
+    saveScoutDraft(draftStorageKey, draftIdentity, nextCoordinate);
     setError('');
     setConfirmation('');
   }
