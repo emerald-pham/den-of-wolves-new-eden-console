@@ -404,3 +404,22 @@ startable. PT7 records the desired future tracking authority; the current
 catalog remains authoritative until a verified import and explicit cutover
 preserve the campaign's IDs, statuses, dependencies and evidence. This entry
 records the two additional work items, not their implementation or completion.
+
+## Testing overhead decisions — 2026-10-16
+
+The owner confirmed all four decisions from the test-overhead interview:
+measure time to a playable build, including execution and test maintenance;
+allow evidence-backed consolidation or retirement of redundant and internal-only
+checks; first repair CI over-selection and overlapping branch/PR execution, then
+audit maintenance-heavy tests in bounded batches; and require each new test to
+protect a distinct failure, extending existing coverage when practical. This is
+ordinary engineering guidance without another approval process or a deletion
+quota. The owner explicitly reiterated that typography verification is important:
+its mandatory rendered release gate remains protected alongside meaningful
+gameplay, privacy and authorization checks.
+
+Apply the guidance in `CLAUDE.md` to future checkpoint shaping and repairs.
+This tooling cleanup does not resume the parked PC10 gameplay/runtime work or
+change campaign membership, prompt status, acceptance criteria or totals.
+The bounded first audit and measured CI baseline are recorded in
+[Checkpoint release learnings](CHECKPOINT_RELEASE_LEARNINGS.md#testing-overhead-cleanup--2026-10-16).

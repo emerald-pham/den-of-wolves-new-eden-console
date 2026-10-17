@@ -6,6 +6,52 @@ turning a dated release report into workflow authority. `CLAUDE.md` remains the
 canonical release policy; the product milestone documents remain the authority
 for checkpoint shape and acceptance.
 
+## Testing overhead cleanup — 2026-10-16
+
+The owner accepted [four testing-overhead decisions](PRODUCT_MILESTONE_FEEDBACK.md#testing-overhead-decisions--2026-10-16).
+Typography remains mandatory. Judge improvements by time to a playable build
+and maintenance work, with each retained or new check protecting a meaningful
+requirement. The first pass fixes the existing PT6 classification mismatch and
+overlapping branch/PR runs; further test audits stay bounded.
+
+At baseline `3d2aa54140ced8b80add86b460516568ed7c58c7`, Vitest discovery
+listed 8,078 cases in the default `npm test`: 3,384 app cases in 325 files and
+4,694 Functions cases in 282 files. Rules and standalone/browser checks are
+additional. Discovery ran no test bodies; this count is not a runtime benchmark.
+
+The [branch-cleanup PR verification](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/38972629492)
+spent 233 seconds on unit tests, 851 on ticker browser checks and 214 on
+typography, in a 1,444-second job. Its push and PR events used different
+concurrency groups. The [roadmap-only publication](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/38958417178)
+spent 1,608 seconds in verification, including application, Functions, rules and
+browser checks despite changing planning files and their generated exports only.
+These are dated observations, not a forecast of every future run.
+
+PT6 now shares one exact three-file roadmap-export allowlist between risk and
+deployment classification. Generated exports retain roadmap consistency checks;
+mixed application changes and neighboring unknown artifacts retain their risk
+gates. Separate test-first commits preserve the observed failing classifier and
+deployment-consumer assertions before the repair. The CI concurrency regression
+likewise observed different push/PR groups before the workflow changed; fork
+branches, distinct branches and the deployment caller stay isolated. This
+cancels overlapping duplicate candidate runs; a later event after completion can
+still require fresh verification, especially when its integration base changes.
+
+The first read-only maintenance audit covered `riskGates.test.ts`,
+`workRegistration.test.ts`, `repositoryGuidance.test.ts` and
+`proof-tooling-ci.test.mjs`. No substantial safe retirement was identified.
+One positive guidance test partly duplicates the public docs validator but also
+protects stricter catalog-link/proximity requirements, so it stays. The other
+tests protect different public decisions, workflow wiring or negative controls.
+No existing test was removed, skipped or weakened. Two classifier cases cover
+the known-export defect and mixed application risk; the existing unknown-path
+and deployment-consumer checks were extended. Two concurrency cases cover
+duplicate event groups and isolation. No gameplay or typography test changed.
+
+This is tooling-only work with no version bump, player changelog entry, product
+runtime allocation or gameplay/release-readiness credit. Final CI and main
+verification are reported in the task closeout, separately from local checks.
+
 ## Design and release principles
 
 1. Automate every deterministic facilitator procedure. The product target is a
