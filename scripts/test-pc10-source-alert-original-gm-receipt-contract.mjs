@@ -33,9 +33,11 @@ function makeFixture({
   sourceShipId = 'aegis',
   mountedShipId = sourceShipId,
   type = 'population',
+  mountedType = type,
   targetInstanceId = originalInstanceId,
   mountDelayPolls = 0,
   renderWrongVessel = false,
+  staleBeforeRecipe = false,
 } = {}) {
   const actorUidHash = hash(actorUid);
   const sourceState = {
@@ -72,14 +74,15 @@ function makeFixture({
   let lastRequest = null;
   let lastResult = null;
   let replayCount = 0;
+  let actionStateReads = 0;
   let pendingResponse = null;
   const listeners = new Set();
   const visibleShipId = renderWrongVessel ? 'dione' : mountedShipId;
-  const label = type === 'population' ? 'Dismiss population alert' : 'Dismiss unrest alert';
+  const label = mountedType === 'population' ? 'Dismiss population alert' : 'Dismiss unrest alert';
   const visibleShipName = visibleShipId === 'aegis' ? 'AEGIS' : 'Dione';
-  const dialogText = type === 'population'
-    ? `${visibleShipName} survivor population has reached 500. A census threshold requires GM attention.`
-    : `${visibleShipName} has exceeded the maximum unrest dial rating of 7. Shipboard stability is no longer measurable.`;
+  const dialogText = mountedType === 'population'
+    ? `Survivor population threshold reached. ${visibleShipName} survivor population has reached 500. A census threshold requires GM attention.`
+    : `Unrest threshold exceeded. ${visibleShipName} has exceeded the maximum unrest dial rating of 7. Shipboard stability is no longer measurable.`;
   const mounted = () => ++mountPolls > mountDelayPolls;
   const button = {
     count: async () => mounted() ? 1 : 0,
@@ -95,7 +98,7 @@ function makeFixture({
         expectedRevision: sourceState.vesselActionRevisions[mountedShipId],
       };
       const revision = requestData.expectedRevision + 1;
-      lastRequest = { method: () => 'POST', url: () => `http://localhost/us-central1/dismiss${type === 'population' ? 'Population' : 'Unrest'}Alert`,
+      lastRequest = { method: () => 'POST', url: () => `http://localhost/us-central1/dismiss${mountedType === 'population' ? 'Population' : 'Unrest'}Alert`,
         postDataJSON: () => ({ data: requestData }) };
       lastResult = {
         dismissed: true,
@@ -107,10 +110,10 @@ function makeFixture({
         phase: 'active',
         revision,
         idempotencyKey: requestId,
-        auditId: `dismiss-${type}-${requestId}`,
+        auditId: `dismiss-${mountedType}-${requestId}`,
       };
       for (const listener of listeners) listener(lastRequest);
-      const alerts = type === 'population' ? sourceState.populationAlerts : sourceState.unrestAlerts;
+      const alerts = mountedType === 'population' ? sourceState.populationAlerts : sourceState.unrestAlerts;
       delete alerts[mountedShipId];
       sourceState.vesselActionRevisions[mountedShipId] = revision;
       const response = {
@@ -146,14 +149,23 @@ function makeFixture({
     off: (event, listener) => { if (event === 'request') listeners.delete(listener); },
     getByRole: (role, options) => {
       if (role === 'alertdialog') return dialog;
-      if (role === 'status') return { allTextContents: async () => [lastResult ? `Dismiss ${type} alert committed.` : ''] };
+      if (role === 'status') return { allTextContents: async () => [lastResult ? `Dismiss ${mountedType} alert committed.` : ''] };
       return absentLocator;
     },
     waitForResponse: predicate => new Promise((resolve, reject) => {
       pendingResponse = { predicate, resolve, reject };
       if (lastRequest) reject(new Error('The response listener was armed after the mounted click.'));
     }),
-    evaluate: async (_fn, input) => input?.expectedSessionId ? structuredClone(actor) : structuredClone(sourceState),
+    evaluate: async (_fn, input) => {
+      if (input?.expectedSessionId) return structuredClone(actor);
+      actionStateReads += 1;
+      if (staleBeforeRecipe && actionStateReads === 1) {
+        const rows = type === 'population' ? sourceState.populationAlerts : sourceState.unrestAlerts;
+        rows[sourceShipId] = { ...rows[sourceShipId], createdAt: '2026-10-17T10:00:01.000Z' };
+        sourceState.vesselActionRevisions[sourceShipId] += 1;
+      }
+      return structuredClone(sourceState);
+    },
   };
   const surface = {
     page,
@@ -227,7 +239,7 @@ test('the real eligible-alert callback binds its mounted dismissal receipt to th
   const result = await invokeActualSourceInterruption(callbacks.onEligibleAlert, fixture.context);
 
   assert.equal(result.alertResult.evidence.cases[0].status, 'completed',
-    'The fixture must observe the real mounted UI request and current source revision.');
+    `The fixture must observe the real mounted UI request and current source revision: ${JSON.stringify(result.alertResult.evidence.cases[0])}`);
   assert.equal(result.alertResult.sourceInterruptionsReady, true,
     'Governance is released only after the original GM source-alert receipt is bound.');
   assert.equal(result.alertResult.evidence.cases[0].status, 'completed');
@@ -237,12 +249,14 @@ test('the real eligible-alert callback binds its mounted dismissal receipt to th
     shipId: 'aegis',
     sourceRevisionBefore: 3,
     sourceRevisionAfter: 4,
+    alertIdentityHash: result.alertResult.evidence.cases[0].sourceAlertReceipt.alertIdentityHash,
     alertIdentityMatched: true,
     alertRemoved: true,
     originalGmUidHash: originalUidHash,
     originalGmInstanceHash: hash(originalInstanceId),
     exactReplay: true,
   });
+  assert.match(result.alertResult.evidence.cases[0].sourceAlertReceipt.alertIdentityHash, /^[0-9a-f]{64}$/);
   assert.equal(fixture.lastRequest.postDataJSON().data.shipId, 'aegis');
   assert.equal(fixture.lastRequest.postDataJSON().data.instanceId, originalInstanceId);
   assert.equal(fixture.lastRequest.postDataJSON().data.expectedRevision, 3);
@@ -258,6 +272,16 @@ test('the exact source alert may mount after a short delay and still complete it
   assert.ok(fixture.mountPolls >= 4, 'The recipe waits for the matching current alert control to mount.');
 });
 
+test('the mounted unrest dialog binds to the exact unrest source row and original GM receipt', async () => {
+  const fixture = makeFixture({ type: 'unrest' });
+  const result = await callbacksFor(fixture).onEligibleAlert(fixture.context);
+  assert.equal(result.sourceInterruptionsReady, true);
+  assert.equal(result.evidence.cases[0].caseId, 'gm:dismissUnrestAlert');
+  assert.equal(result.evidence.cases[0].sourceAlertReceipt.type, 'unrest');
+  assert.equal(result.evidence.cases[0].sourceAlertReceipt.shipId, 'aegis');
+  assert.equal(result.evidence.cases[0].sourceAlertReceipt.exactReplay, true);
+});
+
 test('an alert aimed at another GM cannot use that actor’s mounted control or release governance', async () => {
   const fixture = makeFixture({ actorUid: 'other-facilitator-uid', actorInstanceId: 'gm-instance-other',
     targetInstanceId: originalInstanceId });
@@ -270,6 +294,24 @@ test('an alert aimed at another GM cannot use that actor’s mounted control or 
 
 test('a mounted control for a different vessel cannot consume the source alert or release governance', async () => {
   const fixture = makeFixture({ renderWrongVessel: true });
+  const result = await invokeActualSourceInterruption(callbacksFor(fixture).onEligibleAlert, fixture.context);
+  assert.equal(result.alertResult.sourceInterruptionsReady, false);
+  assert.equal(result.events.includes('governance'), false);
+  assert.equal(result.error?.message, 'eligible source alert was not acknowledged by the original GM');
+  assert.ok(fixture.sourceState.populationAlerts.aegis);
+});
+
+test('a stale source-alert row or revision stays pending and prevents governance', async () => {
+  const fixture = makeFixture({ staleBeforeRecipe: true });
+  const result = await invokeActualSourceInterruption(callbacksFor(fixture).onEligibleAlert, fixture.context);
+  assert.equal(result.alertResult.sourceInterruptionsReady, false);
+  assert.equal(result.events.includes('governance'), false);
+  assert.equal(result.error?.message, 'eligible source alert was not acknowledged by the original GM');
+  assert.equal(fixture.sourceState.populationAlerts.aegis.createdAt, '2026-10-17T10:00:01.000Z');
+});
+
+test('a mounted dialog for the wrong alert type stays pending and prevents governance', async () => {
+  const fixture = makeFixture({ type: 'population', mountedType: 'unrest' });
   const result = await invokeActualSourceInterruption(callbacksFor(fixture).onEligibleAlert, fixture.context);
   assert.equal(result.alertResult.sourceInterruptionsReady, false);
   assert.equal(result.events.includes('governance'), false);

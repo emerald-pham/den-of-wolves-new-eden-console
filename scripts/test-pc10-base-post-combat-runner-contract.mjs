@@ -24,7 +24,7 @@ test('a post-combat population alert is acknowledged before the next ordinary GM
     events.push(name);
   };
   const procedures = {
-    onEligibleAlert: async () => { assert.ok(populationAlertVisible); events.push('normal-alert-acknowledgement'); populationAlertVisible = false; },
+    onEligibleAlert: async () => { assert.ok(populationAlertVisible); events.push('normal-alert-acknowledgement'); populationAlertVisible = false; return { sourceInterruptionsReady: true }; },
     onEligibleMutiny: async () => ordinaryGmAction('source-mutiny-check'),
     onEligibleDestruction: async () => ordinaryGmAction('source-destruction-check'),
     onCycle1AfterWolf: async () => ordinaryGmAction('source-after-combat'),
@@ -229,7 +229,7 @@ test('Cycle 1 carries one current Core retarget witness to the source-timed arri
     procedures: {
       onCycle1Started: async () => null,
       onCycle1Maintenance: async () => null,
-      onEligibleAlert: async () => null,
+      onEligibleAlert: async () => ({ sourceInterruptionsReady: true }),
       onEligibleMutiny: async () => null,
       onEligibleDestruction: async () => null,
       onCycle1Coordination: async context => {
