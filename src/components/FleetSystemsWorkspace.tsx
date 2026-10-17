@@ -4,6 +4,7 @@ import JumpFailureReadout from './JumpFailureReadout';
 import JumpDriveConsole from './JumpDriveConsole';
 import FleetRoleConsoleTemplate from './FleetRoleConsoleTemplate';
 import ShipNavigationWorkspace from './ShipNavigationWorkspace';
+import ExplorerRoutePlanner from './ExplorerRoutePlanner';
 import AssignedShuttlecraft from './AssignedShuttlecraft';
 import PdfEscortWingReference from './PdfEscortWingReference';
 import type { Ship } from '@/data/ships';
@@ -135,15 +136,24 @@ export default function FleetSystemsWorkspace({
       ...(executiveMaintenance ? [{ id: 'maintenance' as const, label: 'Maintenance' }] : []),
       { id: 'navigation', label: 'Navigation' }]}
     activePage={page} onPageChange={setPage}>
-    {page === 'navigation' ? <ShipNavigationWorkspace
-      shipId={ship.id}
-      shipName={ship.name}
-      currentCoordinate={galacticCoordinate}
-      entries={navigationLogs?.[ship.id]}
-      knownCoordinates={knownCoordinates}
-      knownSystems={knownSystems}
-      consoleLocked={consoleLocked}
-    /> : page === 'maintenance' && executiveMaintenance
+    {page === 'navigation' ? <>
+      <ShipNavigationWorkspace
+        shipId={ship.id}
+        shipName={ship.name}
+        currentCoordinate={galacticCoordinate}
+        entries={navigationLogs?.[ship.id]}
+        knownCoordinates={knownCoordinates}
+        knownSystems={knownSystems}
+        consoleLocked={consoleLocked}
+      />
+      {ship.id === 'quellon' && role.id === 'quellon-explorer' && (
+        <ExplorerRoutePlanner
+          currentCoordinate={galacticCoordinate}
+          knownCoordinates={knownCoordinates ?? []}
+          knownSystems={knownSystems ?? {}}
+        />
+      )}
+    </> : page === 'maintenance' && executiveMaintenance
       ?
         <AegisMaintenanceSystems galacticCoordinate={galacticCoordinate} fuel={fuel}
           damage={damage} damageDraws={damageDraws} consoleLocked={consoleLocked} shipState={shipState} />
