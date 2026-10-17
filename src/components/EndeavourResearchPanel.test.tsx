@@ -5,13 +5,16 @@ import { useSessionStore } from '@/store/useSessionStore';
 
 const mocks = vi.hoisted(() => ({
   read: vi.fn(), advance: vi.fn(), retry: vi.fn(), createAttempt: vi.fn(), purchaseUpgrade: vi.fn(), retryUpgrade: vi.fn(),
-  connectedPlayers: vi.fn(), detectorState: vi.fn(), detectorReport: vi.fn(), runDetector: vi.fn(),
+  buildDevice: vi.fn(), createDeviceAttempt: vi.fn(), connectedPlayers: vi.fn(), detectorState: vi.fn(),
+  detectorReport: vi.fn(), runDetector: vi.fn(),
 }));
 vi.mock('@/lib/endeavourResearchService', () => ({
   readEndeavourResearchWorkspace: mocks.read,
   advanceEndeavourResearchTrack: mocks.advance,
   retryEndeavourResearchAttempt: mocks.retry,
   createEndeavourResearchAttempt: mocks.createAttempt,
+  buildEndeavourScienceDevice: mocks.buildDevice,
+  createEndeavourScienceDeviceAttempt: mocks.createDeviceAttempt,
 }));
 vi.mock('@/lib/firestore', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/firestore')>();
@@ -110,6 +113,15 @@ beforeEach(() => {
     trackId,
     funding,
   }));
+  mocks.createDeviceAttempt.mockImplementation(({ workspace: observed, deviceId }) => ({
+    sessionId: observed.sessionId,
+    requestId: 'device-attempt-1',
+    expectedControlRevision: control.revision,
+    expectedResearchRevision: observed.researchRevision,
+    expectedDeviceRevision: observed.scienceDevices.revision,
+    expectedCycle: observed.cycle,
+    deviceId,
+  }));
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
     id: 's1', name: 'Fleet', joinCode: '1234', phase: 'active', ownerUid: 'owner',
@@ -151,6 +163,47 @@ it('shows private left-most progress and field-upgrade cost to the current Scien
   expect(await screen.findByRole('region', { name: 'Endeavour field-upgrade purchase controls' })).toBeVisible();
   expect(screen.getByText('Purchases are available during the live Coordination window.')).toBeVisible();
   expect(screen.getByRole('button', { name: 'Purchase selected upgrades' })).toBeDisabled();
+});
+
+it('quotes source-available device builds and retries an uncertain purchase with the same request', async () => {
+  const user = userEvent.setup();
+  const deviceWorkspace = {
+    ...workspace,
+    tracks: [
+      ...workspace.tracks,
+      { trackId: 'ecm-device', name: 'ECM Device', crossedBoxes: 0, totalBoxes: 5, currentMaterialCost: 18, complete: false },
+      { trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector', crossedBoxes: 0, totalBoxes: 4, currentMaterialCost: 18, complete: false },
+    ],
+    scienceDevices: {
+      revision: 0, ecmBuilt: false, detectorBuilt: false, ecmUsed: false, shepherdMaterials: 30,
+      buildCosts: { 'ecm-device': 18, 'wolf-agent-detector': null },
+    },
+  };
+  mocks.read.mockResolvedValue(deviceWorkspace);
+  mocks.buildDevice.mockRejectedValueOnce(new Error('connection interrupted')).mockResolvedValueOnce({
+    status: 'replayed', sessionId: 's1', requestId: 'device-attempt-1', cycle: 3, deviceId: 'ecm-device',
+    deviceRevision: 1, built: true, materialCost: 18, shepherdMaterials: 12,
+  });
+
+  render(<EndeavourResearchPanel control={control} />);
+
+  const devices = await screen.findByRole('region', { name: 'Science device construction controls' });
+  expect(within(devices).getByText('ECM Device // Unbuilt')).toBeVisible();
+  expect(within(devices).getByRole('button', { name: 'Build ECM Device for 18 materials' })).toBeEnabled();
+  expect(within(devices).getByText('Purchase unavailable until more research is completed.')).toBeVisible();
+  expect(within(devices).getByRole('button', { name: 'Build Wolf Agent Detector' })).toBeDisabled();
+
+  await user.click(within(devices).getByRole('button', { name: 'Build ECM Device for 18 materials' }));
+  expect(await screen.findByRole('button', { name: 'Retry same science device purchase' })).toBeEnabled();
+  await user.click(screen.getByRole('button', { name: 'Retry same science device purchase' }));
+
+  await waitFor(() => expect(mocks.buildDevice).toHaveBeenCalledTimes(2));
+  expect(mocks.buildDevice.mock.calls[0]![0]).toEqual(mocks.buildDevice.mock.calls[1]![0]);
+  expect(mocks.buildDevice.mock.calls[0]![0]).toMatchObject({
+    requestId: 'device-attempt-1', deviceId: 'ecm-device', expectedResearchRevision: 0,
+    expectedDeviceRevision: 0, expectedControlRevision: control.revision, expectedCycle: 3,
+  });
+  expect(await screen.findByRole('status')).toHaveTextContent('ECM Device built for 18 materials.');
 });
 
 it('offers the finished detector to the current Scientist and submits a selected target', async () => {
