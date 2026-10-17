@@ -70,7 +70,7 @@ the terminal result are readable there; use those for this handback.
 All nine implementation groups are integrated. The current source candidate is
 `36ae58f5917bbbcb8b380ae9b2656610e888c59d`, tree
 `0ecc3f7043b05b5cfb7c8dcb86d40588eac050aa`. It is **not accepted or release-ready**:
-an ECM rule awaits the owner, a separate baseline source-map exposure awaits
+an ECM rule awaits the owner, a separate baseline browser-asset exposure awaits
 scope/release triage, and native/rendered acceptance remains open. The catalog
 has not changed or received completion credit. No authenticated gameplay, final
 rendered release review, CI, push, main merge or deployment is claimed.
@@ -128,7 +128,7 @@ Evidence root: `/tmp/dow-pc10-1-20261017`.
   app typecheck/build, focused lint and the bundle budget, at source `6e0f46c9`
   before central merge `36ae58f5`. Its isolated review-entry artifact guard
   passes. A separate scan of the full multi-entry artifact fails on the
-  baseline source-map exposure below; successful build is not privacy approval.
+  baseline browser-asset exposure below; successful build is not privacy approval.
 
 Independent Standards and Spec reviews are recorded separately in
 `code-review.md`; the Spec reviewer withdrew the O-guidance concern after
@@ -215,7 +215,7 @@ P1; it did not approve the whole candidate. See `scene-privacy-handoff-report.md
 and retained private artifacts under `scene-privacy-evidence/`. No Functions,
 Vite/global refactor or product-rule change was made.
 
-**Full-build source-map exposure — pending parent scope/release triage.** The
+**Full-build browser-asset exposure — parent owns pending authorization.** The
 actual final multi-entry build still emits the complete server-only
 `functions/src/shipDamage.ts` source through other runtime modules. The scan's
 failure is preserved, not waived by the passing isolated-scene guard. An exact
@@ -223,13 +223,26 @@ read of the already-released 0.5.73 runtime map returned HTTP 200 JSON, hash
 `3eee4beb7619256772a13824818779eda938f9e31e04d3ba7f3efe9ffad8589f`.
 Its embedded server-source hash
 `fe25ba625b3d8c95b7101a6b13a86098b84dd7666fb76d8f5f8206a171dabb94`
-matches the new full build. This establishes a pre-existing released-byte
-exposure, with no guessed release source SHA. Reports contain hashes and
+matches the new full build. Follow-up TypeScript AST fingerprinting also found
+all seven static deck arrays in the actual released executable JavaScript;
+removing source maps alone is insufficient. This establishes a pre-existing
+released-byte exposure, with no guessed release source SHA. Reports contain hashes and
 presence flags, not deck contents; raw maps and failed artifacts stay private
-outside Git. The parent was notified. Broader repair falls outside the nine
+outside Git. The parent explicitly acknowledged ownership and asked Emerald
+to authorize one narrow ticket plus repair; approval has not arrived. Broader repair falls outside the nine
 bounded tickets and was stopped without authoring a ticket or changing global
 runtime behavior. Root/parent owns the scope and release disposition; it remains
 pending, not an automatic-approval denial or uncertain tool outcome.
+
+The bounded classification establishes hidden static gameplay information, not
+embedded live player/session outcomes. It found no server credential, private
+key, token or personal-data exposure in the inspected module/runtime/map;
+public Firebase client configuration is separate. This is not an exhaustive
+security audit. `scene-privacy-evidence/scope-triage.md` describes the proposed
+boundary only: isolate four browser parser dependencies from private deck
+metadata, exclude diagnostic maps from Hosting while preserving private debug
+artifacts, and test actual full-build JavaScript plus deployed map access.
+No ticket or broader implementation was authored.
 
 **Native/rendered resource — pending explicit foreign handback.** The earlier
 saved-view owner released its resource. Decision-sync owner
