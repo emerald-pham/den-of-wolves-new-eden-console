@@ -73,6 +73,9 @@ function resetFixture(): void {
   mock.update.mockClear();
   mock.set.mockClear();
   mock.runTransaction.mockClear();
+  mock.runTransaction.mockImplementation(async (callback) => callback({
+    get: mock.get, update: mock.update, set: mock.set,
+  }));
   cryptoMock.randomInt.mockReset();
   cryptoMock.randomUUID.mockReset();
   cryptoMock.randomInt.mockReturnValueOnce(2).mockReturnValueOnce(5);
@@ -99,6 +102,27 @@ function resetFixture(): void {
 }
 
 beforeEach(resetFixture);
+
+function dockHummingbirdWithPeer(): void {
+  const session = mock.documents.get('sessions/s1')!;
+  session.activeVesselIds = ['quellon', 'aegis'];
+  session.shuttleDockings = [{ shuttleId: 'hummingbird', shipId: 'aegis', dockedAt: 'SESSION START' }];
+  mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.vesselIds = ['quellon', 'aegis'];
+}
+
+function settleCandidateVessel(shipId: string): void {
+  mock.documents.get('sessions/s1')!.candidateVesselOutcomes = {
+    [shipId]: {
+      code: 'O', groupId: 'fleet-1', shipId, sourceId: 'candidate-o-3131', cycle: 1, outcome: 'crossed',
+    },
+  };
+}
+
+function settleExplorer(): void {
+  mock.documents.get('sessions/s1/players/u1')!.candidateDisposition = {
+    code: 'O', outcome: 'crossed', cycle: 1,
+  };
+}
 
 it('denies a fresh Hummingbird harvest roll before RNG when Quellon is in mutiny', async () => {
   mock.documents.get('sessions/s1')!.shipUnrest = { quellon: 8 };
@@ -129,6 +153,60 @@ it('rolls private server dice once and replays the exact roll without new random
   });
 });
 
+it.each(['explorer', 'quellon', 'aegis'] as const)(
+  'denies a fresh Hummingbird roll when the %s authority has settled', async (scope) => {
+    dockHummingbirdWithPeer();
+    if (scope === 'explorer') settleExplorer();
+    else settleCandidateVessel(scope);
+    cryptoMock.randomInt.mockClear(); mock.set.mockClear(); mock.update.mockClear();
+
+    await expect(rollHummingbirdHarvest.run(request({
+      ...rollRequest, requestId: `settled-${scope}-roll`,
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.documents.has('sessions/s1/hummingbirdHarvests/u1')).toBe(false);
+    expect(mock.documents.has(`sessions/s1/hummingbirdHarvestRequests/settled-${scope}-roll`)).toBe(false);
+  },
+);
+
+it.each(['quellon', 'aegis'] as const)(
+  'rechecks %s settlement in the Hummingbird roll effect transaction', async (settledShipId) => {
+    dockHummingbirdWithPeer();
+    let transactionCount = 0;
+    mock.runTransaction.mockImplementation(async (callback) => {
+      transactionCount += 1;
+      if (transactionCount === 2) settleCandidateVessel(settledShipId);
+      return callback({ get: mock.get, update: mock.update, set: mock.set });
+    });
+    mock.set.mockClear(); mock.update.mockClear();
+
+    await expect(rollHummingbirdHarvest.run(request({
+      ...rollRequest, requestId: `settled-between-tx-${settledShipId}`,
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(transactionCount).toBe(2);
+    expect(mock.documents.has('sessions/s1/hummingbirdHarvests/u1')).toBe(false);
+    expect(mock.documents.has(`sessions/s1/hummingbirdHarvestRequests/settled-between-tx-${settledShipId}`))
+      .toBe(false);
+    expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+  },
+);
+
+it('replays the exact committed Hummingbird roll after Quellon settles', async () => {
+  dockHummingbirdWithPeer();
+  await rollHummingbirdHarvest.run(request(rollRequest));
+  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
+  settleCandidateVessel('quellon');
+  settleExplorer();
+  cryptoMock.randomInt.mockClear();
+
+  await expect(rollHummingbirdHarvest.run(request(rollRequest))).resolves.toMatchObject({
+    status: 'replayed', harvest: { status: 'pending', rolls: [2, 5], revision: 1 },
+  });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+});
+
 it('allocates only Hummingbird cargo, leaves host resources unchanged, and replays once', async () => {
   await rollHummingbirdHarvest.run(request(rollRequest));
   const result = await allocateHummingbirdHarvest.run(request({
@@ -152,6 +230,58 @@ it('allocates only Hummingbird cargo, leaves host resources unchanged, and repla
     .resolves.toMatchObject({ status: 'stale', harvest: { status: 'resolved', revision: 2 } });
   expect(cryptoMock.randomInt).not.toHaveBeenCalled();
   expect(mock.update.mock.calls.length + mock.set.mock.calls.length).toBe(writesAfterCommit);
+});
+
+it.each(['explorer', 'quellon', 'aegis'] as const)(
+  'rejects a fresh Hummingbird allocation when the %s authority has settled', async (scope) => {
+    dockHummingbirdWithPeer();
+    await rollHummingbirdHarvest.run(request(rollRequest));
+    if (scope === 'explorer') settleExplorer();
+    else settleCandidateVessel(scope);
+    const cargoBefore = structuredClone(mock.documents.get('sessions/s1')!.shuttleCargo);
+    const harvestBefore = structuredClone(mock.documents.get('sessions/s1/hummingbirdHarvests/u1'));
+    const writesBefore = mock.update.mock.calls.length + mock.set.mock.calls.length;
+    const requestId = `settled-${scope}-allocation`;
+
+    await expect(allocateHummingbirdHarvest.run(request({
+      sessionId: 's1', requestId, expectedRevision: 1, foodDieIndex: 0,
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.update.mock.calls.length + mock.set.mock.calls.length).toBe(writesBefore);
+    expect(mock.documents.get('sessions/s1')!.shuttleCargo).toEqual(cargoBefore);
+    expect(mock.documents.get('sessions/s1/hummingbirdHarvests/u1')).toEqual(harvestBefore);
+    expect(mock.documents.has(`sessions/s1/hummingbirdHarvestRequests/${requestId}`)).toBe(false);
+  },
+);
+
+it('replays the exact committed Hummingbird allocation after Quellon settles', async () => {
+  dockHummingbirdWithPeer();
+  await rollHummingbirdHarvest.run(request(rollRequest));
+  const allocation = {
+    sessionId: 's1', requestId: 'hummingbird-allocate-1', expectedRevision: 1, foodDieIndex: 0,
+  };
+  await allocateHummingbirdHarvest.run(request(allocation));
+  const writes = mock.update.mock.calls.length + mock.set.mock.calls.length;
+  settleCandidateVessel('quellon');
+  settleExplorer();
+
+  await expect(allocateHummingbirdHarvest.run(request(allocation))).resolves.toMatchObject({
+    status: 'replayed', cargo: { food: 5, water: 9 },
+  });
+  expect(mock.update.mock.calls.length + mock.set.mock.calls.length).toBe(writes);
+});
+
+it('fails closed on malformed candidate vessel availability before rolling', async () => {
+  mock.documents.get('sessions/s1')!.candidateVesselOutcomes = {
+    quellon: { code: 'O', groupId: 'fleet-1', shipId: 'quellon', sourceId: 'candidate-o-3131', cycle: 1 },
+  };
+  cryptoMock.randomInt.mockClear(); mock.set.mockClear(); mock.update.mockClear();
+
+  await expect(rollHummingbirdHarvest.run(request({ ...rollRequest, requestId: 'malformed-settlement' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.documents.has('sessions/s1/hummingbirdHarvests/u1')).toBe(false);
+  expect(mock.documents.has('sessions/s1/hummingbirdHarvestRequests/malformed-settlement')).toBe(false);
 });
 
 it('denies wrong actor, wrong phase, stale docking, and a second same-turn harvest without writes', async () => {

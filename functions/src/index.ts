@@ -20,6 +20,7 @@ import { advanceMaintenance, chargeableConsoleIds, MAINTENANCE_RULES, emptyMaint
 import { environmentalMaintenanceHazard } from './environmentalMaintenanceHazard';
 import { recordSystemHazard } from './systemHistory';
 import { candidateDiscoveryFromArrival } from './candidateDiscovery';
+import { requireCandidateVesselsAvailable } from './candidateAvailability';
 import { recordCandidatePlanCheckpoint } from './candidatePlanCheckpoint';
 import {
   candidateRevealProjectionForCurrentFleetMember,
@@ -39628,6 +39629,22 @@ function storedHummingbirdHarvest(
   return state;
 }
 
+/** Fresh Explorer actions are unavailable after the actor or either required vessel settles. */
+function requireFreshHummingbirdCandidateAuthority(
+  session: DocumentSnapshot,
+  player: DocumentSnapshot,
+  hostShipId: string,
+): void {
+  if (player.get('candidateDisposition') != null) {
+    throw commandError(
+      'failed-precondition',
+      'This vessel has reached its candidate disposition. Original results remain available.',
+      'conflict',
+    );
+  }
+  requireCandidateVesselsAvailable(session, ['quellon', hostShipId]);
+}
+
 async function requireHummingbirdAuthority(
   tx: Transaction,
   sessionId: string,
@@ -39768,6 +39785,7 @@ export const rollHummingbirdHarvest = onCall<{
     };
     const replay = hummingbirdHarvestReceiptReply(prior, fingerprint, uid);
     if (replay) return { replay, authority, fingerprint, reusePending: false };
+    requireFreshHummingbirdCandidateAuthority(authority.session, authority.player, authority.hostShipId);
     requireUsableShip(authority.session, 'quellon');
     if (authority.hostShipId !== 'quellon') requireUsableShip(authority.session, authority.hostShipId);
     requireCurrentHummingbirdGameplayCycle(authority.session);
@@ -39813,6 +39831,7 @@ export const rollHummingbirdHarvest = onCall<{
     };
     const replay = hummingbirdHarvestReceiptReply(prior, fingerprint, uid);
     if (replay) return replay;
+    requireFreshHummingbirdCandidateAuthority(authority.session, authority.player, authority.hostShipId);
     requireUsableShip(authority.session, 'quellon');
     if (authority.hostShipId !== 'quellon') requireUsableShip(authority.session, authority.hostShipId);
     requireCurrentHummingbirdGameplayCycle(authority.session);
@@ -39901,6 +39920,7 @@ export const allocateHummingbirdHarvest = onCall<{
     };
     const replay = hummingbirdHarvestReceiptReply(prior, fingerprint, uid);
     if (replay) return replay;
+    requireFreshHummingbirdCandidateAuthority(authority.session, authority.player, authority.hostShipId);
     requireCurrentHummingbirdGameplayCycle(authority.session);
     requireActionPhase(authority.session, 'scouting', 'player');
     const stored = await tx.get(harvestRef);
