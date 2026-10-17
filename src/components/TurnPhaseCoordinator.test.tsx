@@ -96,6 +96,24 @@ it('reconciles an observed same-phase snapshot after a resolved no-apply result'
   expect(beginOpenAirspacePhase).toHaveBeenCalledTimes(3);
 });
 
+it('retains the five-second rejection retry after a same-phase observation replaced the effect', async () => {
+  let fail!: (error: Error) => void;
+  vi.mocked(beginOpenAirspacePhase).mockImplementationOnce(() => new Promise<void>((_resolve, reject) => { fail = reject; }));
+  render(<TurnPhaseCoordinator />);
+  await act(async () => { await vi.advanceTimersByTimeAsync(5 * 60_000); });
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the original session.');
+  await act(async () => { useSessionStore.getState().setSession({ ...session }); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  expect(beginOpenAirspacePhase).toHaveBeenCalledTimes(1);
+
+  await act(async () => { fail(new Error('Normal phase request rejected.')); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(4_999); });
+  expect(beginOpenAirspacePhase).toHaveBeenCalledTimes(1);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+  expect(beginOpenAirspacePhase).toHaveBeenCalledTimes(2);
+});
+
 it('does not promote airspace while the emergency timer hold is active', async () => {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Expected the test session.');
