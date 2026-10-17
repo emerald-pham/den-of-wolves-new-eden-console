@@ -112,7 +112,7 @@ it('accepts the server-normalized legacy Used ECM projection at revision one', a
       ...workspace.tracks,
       { trackId: 'ecm-device', name: 'ECM Device', crossedBoxes: 5, totalBoxes: 5,
         currentMaterialCost: null, complete: true },
-      { trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector', crossedBoxes: 2, totalBoxes: 5,
+      { trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector', crossedBoxes: 2, totalBoxes: 4,
         currentMaterialCost: 7, complete: false },
     ],
     scienceDevices: {

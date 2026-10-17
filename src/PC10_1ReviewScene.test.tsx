@@ -21,6 +21,31 @@ it('offers three numbered checks and returns to the station chooser when activat
   expect(fireEvent.click(returnLink)).toBe(true);
 });
 
+it('shows the printed one-crossed Reactor price in research and field-upgrade choices', () => {
+  render(<PC10_1ReviewScene />);
+
+  const research = screen.getByRole('region', { name: 'Endeavour research controls' });
+  expect(research).toHaveTextContent('Reactor: 1 of 5 boxes crossed; next field-upgrade cost is 7 materials.');
+
+  const upgrades = screen.getByRole('list', { name: 'Available Endeavour field upgrades' });
+  expect(within(upgrades).getByText('AEGIS // Reactor // 7 materials')).toBeVisible();
+});
+
+it('shows the printed Jump Drive cost after its first prepared research crossing', async () => {
+  const user = userEvent.setup();
+  render(<PC10_1ReviewScene />);
+
+  const research = screen.getByRole('region', { name: 'Endeavour research controls' });
+  const upgrades = screen.getByRole('list', { name: 'Available Endeavour field upgrades' });
+  expect(research).toHaveTextContent('Jump Drive: 0 of 5 boxes crossed; next field-upgrade cost is 14 materials.');
+  expect(within(upgrades).getByText('DIONE // Jump Drive // 14 materials')).toBeVisible();
+
+  await user.click(within(research).getByRole('button', { name: 'Advance standard research' }));
+
+  expect(research).toHaveTextContent('Jump Drive: 1 of 5 boxes crossed; next field-upgrade cost is 10 materials.');
+  expect(within(upgrades).getByText('DIONE // Jump Drive // 10 materials')).toBeVisible();
+});
+
 it('uses the prepared research, device, private scout, route, harvest and Cycle 6 presenters locally', async () => {
   const user = userEvent.setup();
   const original = useSessionStore.getState();
