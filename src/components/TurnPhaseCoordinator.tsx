@@ -14,7 +14,7 @@ export default function TurnPhaseCoordinator() {
   const connection = useSessionStore((state) => state.connection);
   const actorUid = useSessionStore((state) => state.me?.uid);
   const [attack, setAttack] = useState<WolfAttackMemberView | null>(null);
-  const pending = useRef(new Set<string>());
+  const pending = useRef(new Map<string, { observed?: () => void }>());
   const phase = phaseForSession(session);
   const sessionId = session?.id;
 
@@ -51,11 +51,18 @@ export default function TurnPhaseCoordinator() {
     let retry: number | undefined;
     const key = JSON.stringify([sessionId, actorUid, phase.turn, phase.teamPhaseEndsAt]);
     const start = () => {
-      if (pending.current.has(key)) return;
-      pending.current.add(key);
-      void beginOpenAirspacePhase(phase.turn).catch(() => {
+      if (cancelled) return;
+      const current = pending.current.get(key);
+      if (current) { current.observed = start; return; }
+      const request: { observed?: () => void } = {};
+      pending.current.set(key, request);
+      void beginOpenAirspacePhase(phase.turn).then(() => {
+        pending.current.delete(key);
+        request.observed?.();
+      }, () => {
+        pending.current.delete(key);
         if (!cancelled) retry = window.setTimeout(start, 5_000);
-      }).finally(() => { pending.current.delete(key); });
+      });
     };
     const delay = Math.max(0, Date.parse(phase.teamPhaseEndsAt) - Date.now());
     const timer = window.setTimeout(start, delay);
