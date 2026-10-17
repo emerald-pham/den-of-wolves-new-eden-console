@@ -19,7 +19,7 @@ import {
 import { advanceMaintenance, chargeableConsoleIds, MAINTENANCE_RULES, emptyMaintenanceCycle, parseMaintenanceCycle, rerollMaintenanceUnrest, type MaintenanceCycle } from './maintenance';
 import { environmentalMaintenanceHazard } from './environmentalMaintenanceHazard';
 import { recordSystemHazard } from './systemHistory';
-import { candidateDiscoveryFromArrival } from './candidateDiscovery';
+import { candidateDiscoveryFromArrival, candidateDiscoveryFromScout } from './candidateDiscovery';
 import { requireCandidateVesselsAvailable } from './candidateAvailability';
 import { recordCandidatePlanCheckpoint } from './candidatePlanCheckpoint';
 import {
@@ -3098,9 +3098,14 @@ const commitScoutMapKnowledge: ScoutMapCommit = async ({
     throw commandError('failed-precondition', 'Current fleet-group members are mismatched for scouting.', 'malformed-input');
   }
   const navigation = navigationStateForSession(storedNavigation, session, activeVesselIds);
-  const nextNavigation = recordScoutedCoordinateForShip(
+  const scoutedNavigation = recordScoutedCoordinateForShip(
     navigation, plan.receivingShipId, plan.result.targetCoordinate,
   );
+  const systemHistory = candidateDiscoveryFromScout(
+    scoutedNavigation.systemHistory, plan.receivingShipId, plan.result, plan.note.recordedAt,
+  );
+  const nextNavigation = systemHistory === scoutedNavigation.systemHistory
+    ? scoutedNavigation : { ...scoutedNavigation, systemHistory };
   if (nextNavigation === navigation) return;
   const nextRevision = (revision as number) + 1;
   const chartId = session.get('chartId');
@@ -3112,6 +3117,7 @@ const commitScoutMapKnowledge: ScoutMapCommit = async ({
   }
   tx.set(navigationRef, {
     scoutedCoordinatesByShip: nextNavigation.scoutedCoordinatesByShip,
+    ...(nextNavigation.systemHistory ? { systemHistory: nextNavigation.systemHistory } : {}),
     revision: nextRevision,
     updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
