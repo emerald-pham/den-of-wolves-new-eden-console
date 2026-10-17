@@ -1,16 +1,19 @@
 import assert from 'node:assert/strict';
 import { createReadStream } from 'node:fs';
-import { chmod, mkdir, stat, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { access, chmod, mkdir, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { extname, resolve, sep } from 'node:path';
+import { extname, isAbsolute, resolve, sep } from 'node:path';
 import { test } from 'node:test';
 import { chromium } from 'playwright';
 
 const servedRoot = resolve(process.env.PC10_1_REVIEW_ROOT ?? '');
 const evidenceDirectory = resolve(process.env.PC10_1_EVIDENCE_DIR ?? '');
 const label = (process.env.PC10_1_EVIDENCE_LABEL ?? 'run').replace(/[^a-z0-9-]/gi, '-');
-const browserPath = '/Users/emeraldpham/Library/Caches/ms-playwright/chromium-1243/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing';
-const port = 8513;
+const browserOverride = process.env.PC10_1_BROWSER_EXECUTABLE?.trim();
+const browserPath = browserOverride || chromium.executablePath();
+const port = Number(process.env.PC10_1_REVIEW_PORT ?? 8513);
+assert.ok(Number.isInteger(port) && port >= 1024 && port <= 65535, 'PC10_1_REVIEW_PORT must be an integer from 1024 through 65535.');
 const origin = `http://127.0.0.1:${port}`;
 const mimeTypes = new Map([
   ['.css', 'text/css; charset=utf-8'],
@@ -26,6 +29,16 @@ const mimeTypes = new Map([
 
 assert.ok(process.env.PC10_1_REVIEW_ROOT, 'Set PC10_1_REVIEW_ROOT to the immutable baseline artifact or private candidate build.');
 assert.ok(process.env.PC10_1_EVIDENCE_DIR, 'Set PC10_1_EVIDENCE_DIR to the private evidence directory.');
+
+async function resolveBrowserPath() {
+  if (!browserOverride) return browserPath;
+
+  assert.ok(isAbsolute(browserOverride), 'PC10_1_BROWSER_EXECUTABLE must be an absolute path.');
+  const executable = await stat(browserOverride);
+  assert.ok(executable.isFile(), 'PC10_1_BROWSER_EXECUTABLE must point to a file.');
+  await access(browserOverride, constants.X_OK);
+  return browserOverride;
+}
 
 test('PC10.1 step controls keep their summary, labels and enabled navigation inside the viewport', { timeout: 90_000 }, async () => {
   await mkdir(evidenceDirectory, { recursive: true, mode: 0o700 });
@@ -143,12 +156,20 @@ test('PC10.1 step controls keep their summary, labels and enabled navigation ins
     return record;
   }
 
+  async function clickStepAndSnapshot(direction, expectedIndex, name) {
+    await page.getByRole('button', { name: `${direction} review step` }).click();
+    await page.waitForFunction((expected) => document.querySelector('.pc07-review__step-controls p')?.textContent?.startsWith(`${expected} / 3`), expectedIndex + 1);
+    await page.locator('.pc07-review__step-controls').scrollIntoViewIfNeeded();
+    return snapshot(name, expectedIndex);
+  }
+
   try {
     await new Promise((resolveListen, rejectListen) => {
       server.once('error', rejectListen);
       server.listen(port, '127.0.0.1', resolveListen);
     });
-    browser = await chromium.launch({ executablePath: browserPath, headless: true });
+    const executablePath = await resolveBrowserPath();
+    browser = await chromium.launch({ executablePath, headless: true });
     context = await browser.newContext({
       viewport: { width: 320, height: 844 },
       reducedMotion: 'no-preference',
@@ -180,18 +201,9 @@ test('PC10.1 step controls keep their summary, labels and enabled navigation ins
     await screenshot(`${label}-step2-320x844-root32.png`);
     await selectCheck(0);
     await snapshot('320x844-root32-step1', 0);
-    await page.getByRole('button', { name: 'Next review step' }).click();
-    await page.waitForFunction(() => document.querySelector('.pc07-review__step-controls p')?.textContent?.startsWith('2 / 3'));
-    await page.locator('.pc07-review__step-controls').scrollIntoViewIfNeeded();
-    await snapshot('320x844-root32-step2-next', 1);
-    await page.getByRole('button', { name: 'Next review step' }).click();
-    await page.waitForFunction(() => document.querySelector('.pc07-review__step-controls p')?.textContent?.startsWith('3 / 3'));
-    await page.locator('.pc07-review__step-controls').scrollIntoViewIfNeeded();
-    await snapshot('320x844-root32-step3', 2);
-    await page.getByRole('button', { name: 'Previous review step' }).click();
-    await page.waitForFunction(() => document.querySelector('.pc07-review__step-controls p')?.textContent?.startsWith('2 / 3'));
-    await page.locator('.pc07-review__step-controls').scrollIntoViewIfNeeded();
-    await snapshot('320x844-root32-step2-previous', 1);
+    await clickStepAndSnapshot('Next', 1, '320x844-root32-step2-next');
+    await clickStepAndSnapshot('Next', 2, '320x844-root32-step3');
+    await clickStepAndSnapshot('Previous', 1, '320x844-root32-step2-previous');
 
     await page.evaluate(() => { document.documentElement.style.fontSize = '16px'; });
     await page.setViewportSize({ width: 320, height: 844 });
@@ -212,6 +224,7 @@ test('PC10.1 step controls keep their summary, labels and enabled navigation ins
       label,
       servedRoot,
       origin,
+      browserExecutableSource: browserOverride ? 'validated environment override' : 'Playwright chromium.executablePath()',
       runnerPid: process.pid,
       browserVersion: await browser.version(),
       generatedAt: new Date().toISOString(),
