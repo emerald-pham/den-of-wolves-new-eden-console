@@ -6,7 +6,7 @@ import test from 'node:test';
 import { classifyChangedFiles, deploymentSelector } from './deployment-targets.mjs';
 
 const BASELINE = 'aa2c89f5d369d42b94a91ecadaa4244d0d1c2d08';
-const CANDIDATE = '2e822e31ef808b6766f3a09285ad17f79c20461a';
+const CANDIDATE = '92c8db3ace3a0448dc28bd5292a704f400c06f5d';
 const CANDIDATE_ALIAS = 'pc10-1-candidate';
 const EMPTY_SOURCE_HASH = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
@@ -31,9 +31,25 @@ const EXPECTED_CONSUMERS = {
     'activateEndeavourEcmDevice', 'advanceEndeavourResearchTrack', 'buildEndeavourScienceDevice',
     'readEndeavourEcmDeviceWorkspace', 'readEndeavourResearchWorkspace', 'runWolfAgentDetectorTest',
   ],
+  'functions/src/gorgoneionRepairDrones.ts': [
+    'getCurrentMemberSession', 'joinSession', 'repairGorgoneionWithDrones', 'resumeSession',
+  ],
   'functions/src/index.ts': [
     'allocateHummingbirdHarvest', 'automaticallyResolveScoutRequest', 'buildEndeavourScienceDevice',
     'requestScout', 'resolvePendingScoutRequest', 'rollHummingbirdHarvest',
+  ],
+  'functions/src/macawRepair.ts': ['repairConsolesFromMacaw'],
+  'functions/src/publicShipSystems.ts': [
+    'adjudicateFailedJump', 'dockVoyage33', 'getCurrentMemberSession', 'joinSession', 'jumpShip',
+    'jumpVoyage33', 'moveShipToLocation', 'repairConsolesFromMacaw', 'repairGorgoneionWithDrones',
+    'repairWarriorWithDrones', 'resumeSession',
+  ],
+  'functions/src/voyage33Movement.ts': [
+    'adjudicateFailedJump', 'dockVoyage33', 'joinSession', 'jumpShip', 'jumpVoyage33',
+    'moveShipToLocation', 'resumeSession',
+  ],
+  'functions/src/warriorRepairDrones.ts': [
+    'getCurrentMemberSession', 'joinSession', 'repairWarriorWithDrones', 'resumeSession',
   ],
   'functions/src/wolfAgentDetectorWriter.ts': ['runWolfAgentDetectorTest'],
 };

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "baseline": "aa2c89f5d369d42b94a91ecadaa4244d0d1c2d08",
-  "candidate": "2e822e31ef808b6766f3a09285ad17f79c20461a",
-  "auditBoundary": "Exact PC10.1 runtime source transition, named callable exports, transitive shared-helper consumers, member discovery projection writers, and science-device read/build/use/test endpoints. Candidate discovery readback is the existing Firestore playerDiscoveries subscription; no extra callable reader was inferred.",
+  "candidate": "92c8db3ace3a0448dc28bd5292a704f400c06f5d",
+  "auditBoundary": "Exact PC10.1 source transition across all changed Functions runtime modules and index; named callable exports and transitive consumers through candidate discovery/session projection, repair parsers/callables, Voyage 33 parser/storage/host-following, and Endeavour science-device read/build/use/test. Candidate discovery readback remains the existing Firestore playerDiscoveries subscription; no extra callable reader was inferred.",
   "modules": {
     "functions/src/candidateAvailability.ts": {
       "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -45,7 +45,7 @@
     },
     "functions/src/endeavourResearchWriter.ts": {
       "before": "fba45fe5cf58482e273e4d44e24b05fca5fb81696a490b9a1be3712ea71aaa28",
-      "after": "48d3a0eb983fb7a74dfb96e0c28e3c4c16032468b9a0191072bdb99e8dd5156e",
+      "after": "44b402e507e607be2c4d35fe6df14830143dbf8ad6ca2d5512e6f5251de1c5da",
       "consumers": [
         "advanceEndeavourResearchTrack",
         "readEndeavourResearchWorkspace"
@@ -60,7 +60,7 @@
     },
     "functions/src/endeavourScienceDevices.ts": {
       "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "after": "d689d830e1e6bbf64634c48f5ee2f8a7af65d501b2419abfe1a3a710919886db",
+      "after": "f7c1a616cc2d398c82e155f19bd203fd1ecef2d5f252aae041888134fa4bf971",
       "consumers": [
         "activateEndeavourEcmDevice",
         "advanceEndeavourResearchTrack",
@@ -68,6 +68,63 @@
         "readEndeavourEcmDeviceWorkspace",
         "readEndeavourResearchWorkspace",
         "runWolfAgentDetectorTest"
+      ]
+    },
+    "functions/src/gorgoneionRepairDrones.ts": {
+      "before": "a67782284bd3fd63d5de8fa07a718828547177bacb9889de492b298d8256f229",
+      "after": "1780f18417edcdee1c7f0094533d847f4ff7cac6fadec662fdea115acfeaef19",
+      "consumers": [
+        "getCurrentMemberSession",
+        "joinSession",
+        "repairGorgoneionWithDrones",
+        "resumeSession"
+      ]
+    },
+    "functions/src/macawRepair.ts": {
+      "before": "95471a0eafb4da7a6aff80d7e32147fb15de1f14fbedcc47715d108d7f0f1b16",
+      "after": "d954b819362de362ff7246a1ce3e4e8654716319a23b8b365412dee9a4c13589",
+      "consumers": [
+        "repairConsolesFromMacaw"
+      ]
+    },
+    "functions/src/publicShipSystems.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "3a29e719470d7d3b82c27322d623fdffbac0883501bd10eb56824a073e47696b",
+      "consumers": [
+        "adjudicateFailedJump",
+        "dockVoyage33",
+        "getCurrentMemberSession",
+        "joinSession",
+        "jumpShip",
+        "jumpVoyage33",
+        "moveShipToLocation",
+        "repairConsolesFromMacaw",
+        "repairGorgoneionWithDrones",
+        "repairWarriorWithDrones",
+        "resumeSession"
+      ]
+    },
+    "functions/src/voyage33Movement.ts": {
+      "before": "1cd3c9c4f984eaffc149d1c73eb25163438d7028d23675c744fc7122c03db450",
+      "after": "4103dcac693ecb6028897a707fffc1428c026d733e311c9a9927b31be03cbf39",
+      "consumers": [
+        "adjudicateFailedJump",
+        "dockVoyage33",
+        "joinSession",
+        "jumpShip",
+        "jumpVoyage33",
+        "moveShipToLocation",
+        "resumeSession"
+      ]
+    },
+    "functions/src/warriorRepairDrones.ts": {
+      "before": "3875564b30f1a0921b7e041eef76bbe91d9b4f2e56443712c1225c971880fee5",
+      "after": "ec981c2372e931052a5215456ce3ce99dad1fac573568c74c1e128a1aef1eca8",
+      "consumers": [
+        "getCurrentMemberSession",
+        "joinSession",
+        "repairWarriorWithDrones",
+        "resumeSession"
       ]
     },
     "functions/src/wolfAgentDetectorWriter.ts": {
