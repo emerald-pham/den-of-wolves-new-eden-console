@@ -352,6 +352,40 @@ and the exact old URL, distinguishing valid maps from HTTP 200 SPA fallback.
 
 The deployment-audit owner independently traced the new leaf to 11 named
 consumers, yielding 32 named Functions after union with the existing audit.
-The exact audit refresh, independent review, native/rendered acceptance and
-all release gates remain pending. Fresh main verification still matches the
-authored baseline; no other release was active. No CI, push or deployment ran.
+The exact audit refresh and independent risk review are complete. Native/rendered
+acceptance and the remaining release gates are still pending. No CI, push or
+deployment ran.
+
+## Resumed review repairs and current status — 2026-10-17
+
+The central deployment-consumer audit is refreshed at source pin
+`92c8db3ace3a0448dc28bd5292a704f400c06f5d`. At final integration candidate
+`3f136745686efac3c7e798ee32d642e8f7ea89bb`, all 13 release-range runtime files
+match the refreshed SHA-256 inventory with zero source-hash drift; the union
+contains 32 named Functions. The three focused and 143 historical selector
+tests pass. The Functions build and 17-case proof preflight also pass at this
+candidate; logs are retained at
+`/tmp/dow-pc10-1-20261017/functions-build-3f136745.log`,
+`/tmp/dow-pc10-1-20261017/proof-preflight-3f136745.log`, and
+`/tmp/dow-pc10-1-20261017/proof-preflight-3f136745.full.log`. The independent
+Sol risk review reported zero findings. The two existing per-vessel
+repairable-system filters remain at their separately tested validation
+boundaries; no functional refactor or new ticket was added.
+
+Release metadata is prepared as version `0.5.74`, with the previous release
+entry preserved as `0.5.73`. The catalog snapshot remains 703 done, 6 partial
+and 42 missing of 751 total (93.61%); no completion state changed. The owner
+clarified that the restriction prohibits work outside Den of Wolves; this task
+continues PC10.1 only. The earlier stop capsule above remains an unchanged
+historical snapshot.
+
+Native preparation remains source-only and is not gameplay proof. The latest
+registry observation shows saved-view owner `1792204591015-91703-17f7bee9`,
+worktree `/Users/emeraldpham/.codex/worktrees/saved-view-integration/funsidething`,
+holding `browser-runtime` and ports 8790, 8797, 8798 and 8799, plus Firestore
+port 8796. Root reported this state to the parent; explicit foreign handback is
+pending. This worker allocated no browser or emulator resources. Normal
+authenticated gameplay, responsive/keyboard and painted-font review, new and
+old deployed map URL checks, exact-candidate CI, exact-main deployment
+verification and the retrospective remain pending. This record does not claim
+checkpoint acceptance or a released build.
