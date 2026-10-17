@@ -12,6 +12,8 @@ import {
   sha256,
 } from './pc10-political-crisis-arrest-proof-contracts.mjs';
 
+/** @typedef {import('./pc10-role-entry.types.js').PreparedRoleEntry} PreparedRoleEntry */
+
 const ACTION_LABELS = Object.freeze({
   'fleet-policy': 'fleet policy',
   crisis: 'crisis decision',
@@ -126,6 +128,11 @@ async function observedMutation({ family, branch, surface, endpoint, expectedAct
     sourceOutcomeState: allowlistedElectionResultState(result) }) : receipt;
 }
 
+/**
+ * @param {any} context
+ * @param {string} roleId
+ * @returns {Promise<PreparedRoleEntry>}
+ */
 async function enterSelectedRole(context, roleId) {
   return enterPreparedRoleStation({ crew: context.crew, initial: context.initial, roster: context.roster, roleId });
 }
@@ -308,7 +315,9 @@ async function configureElection(context, choice, options) {
   // live lease after other roles have played. Re-enter each chosen voter via
   // ordinary controls before fixing the current eligible electorate.
   for (const roleId of voters) {
-    const { actor, current } = await enterSelectedRole(context, roleId);
+    /** @type {PreparedRoleEntry} */
+    const entered = await enterSelectedRole(context, roleId);
+    const { actor, current } = entered;
     assert.equal(current.sameActor, true);
     assert.equal(current.sessionId, context.initial.sessionId);
     assert.equal(current.profileRoleId, roleId);
