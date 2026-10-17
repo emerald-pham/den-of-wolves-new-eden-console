@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { runInNewContext } from 'node:vm';
 import test from 'node:test';
 import { classifyRiskGates } from './risk-gates.mjs';
 
@@ -8,6 +9,47 @@ const root = resolve(new URL('..', import.meta.url).pathname);
 const packageJson = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
 const ci = await readFile(resolve(root, '.github/workflows/ci.yml'), 'utf8');
 const deploy = await readFile(resolve(root, '.github/workflows/deploy.yml'), 'utf8');
+
+function concurrencyFor(github) {
+  const block = /^concurrency:\n([\s\S]*?)(?=^\S)/m.exec(ci)?.[1];
+  assert.ok(block, 'CI must declare its concurrency policy');
+  const evaluate = (expression) => runInNewContext(expression, { github }, { timeout: 1000 });
+  return {
+    group: /^  group: (.+)$/m.exec(block)?.[1]
+      .replace(/\$\{\{\s*(.*?)\s*\}\}/g, (_, expression) => evaluate(expression)),
+    cancel: evaluate(/^  cancel-in-progress: \$\{\{\s*(.*?)\s*\}\}$/m.exec(block)?.[1]),
+  };
+}
+
+function candidateEvent({ pullRequest = false, repository = 'owner/console', branch = 'tooling/cleanup', workflow = 'CI' } = {}) {
+  return {
+    workflow,
+    repository: 'owner/console',
+    event_name: pullRequest ? 'pull_request' : 'push',
+    event: { pull_request: { number: pullRequest ? 24 : undefined, head: { repo: { full_name: pullRequest ? repository : undefined } } } },
+    ref: pullRequest ? 'refs/pull/24/merge' : `refs/heads/${branch}`,
+    ref_name: pullRequest ? '24/merge' : branch,
+    head_ref: pullRequest ? branch : '',
+  };
+}
+
+test('push and pull-request checks for one candidate share a cancelable concurrency group', () => {
+  const push = concurrencyFor(candidateEvent());
+  const pr = concurrencyFor(candidateEvent({ pullRequest: true }));
+  assert.ok(push.group);
+  assert.equal(pr.group, push.group, 'opening or updating a PR must supersede duplicate branch CI');
+  assert.equal(push.cancel, true);
+  assert.equal(pr.cancel, true);
+});
+
+test('candidate cancellation isolates forks and branches and preserves exact-main verification', () => {
+  const push = concurrencyFor(candidateEvent());
+  assert.notEqual(concurrencyFor(candidateEvent({ pullRequest: true, repository: 'contributor/console' })).group, push.group);
+  assert.notEqual(concurrencyFor(candidateEvent({ branch: 'tooling/other' })).group, push.group);
+  const main = concurrencyFor(candidateEvent({ workflow: 'Deploy', branch: 'main' }));
+  assert.notEqual(main.group, push.group);
+  assert.equal(main.cancel, false);
+});
 
 test('the named proof preflight runs only its maintained source contracts', () => {
   assert.equal(packageJson.scripts['test:proof-preflight'],
