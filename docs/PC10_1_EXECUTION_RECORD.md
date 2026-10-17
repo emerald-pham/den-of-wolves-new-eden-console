@@ -375,15 +375,17 @@ boundaries; no functional refactor or new ticket was added.
 Release metadata is prepared as version `0.5.74`, with the previous release
 entry preserved as `0.5.73`. The catalog snapshot remains 703 done, 6 partial
 and 42 missing of 751 total (93.61%); no completion state changed. The owner
-clarified that the outside-Den-of-Wolves scope restriction applies to this
-PC10.1 checkpoint, not to the project as a whole. The earlier stop capsule
-above remains an unchanged historical snapshot.
+clarified that the restriction prohibits work outside Den of Wolves; this task
+continues PC10.1 only. The earlier stop capsule above remains an unchanged
+historical snapshot.
 
-Native preparation remains source-only and is not gameplay proof. Browser
-runtime is currently blocked by foreign owner
-`1792233122912-51569-e18b3e67`, who holds `browser-runtime` and port 8821; the
-parent has requested an explicit release. This worker allocated no browser or
-emulator resources. Normal authenticated gameplay, responsive/keyboard and
-painted-font review, new and old deployed map URL checks, exact-candidate CI,
-exact-main deployment verification and the retrospective remain pending. This
-record does not claim checkpoint acceptance or a released build.
+Native preparation remains source-only and is not gameplay proof. The latest
+registry observation shows saved-view owner `1792204591015-91703-17f7bee9`,
+worktree `/Users/emeraldpham/.codex/worktrees/saved-view-integration/funsidething`,
+holding `browser-runtime` and ports 8790, 8797, 8798 and 8799, plus Firestore
+port 8796. Root reported this state to the parent; explicit foreign handback is
+pending. This worker allocated no browser or emulator resources. Normal
+authenticated gameplay, responsive/keyboard and painted-font review, new and
+old deployed map URL checks, exact-candidate CI, exact-main deployment
+verification and the retrospective remain pending. This record does not claim
+checkpoint acceptance or a released build.
