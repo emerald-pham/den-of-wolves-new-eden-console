@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
-import { constants as osConstants } from 'node:os';
 import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { constants as osConstants, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { runProofTestCommand } from './proof-test-invocation.mjs';
@@ -15,7 +14,7 @@ async function makeDirectory(t) {
 test('passing proof commands retain zero as their actual process result', async t => {
   const directory = await makeDirectory(t);
   const output = [];
-  const result = await runProofTestCommand(process.execPath, ['-e', 'process.stdout.write("PT1_PASS\n")'], {
+  const result = await runProofTestCommand(process.execPath, ['-e', 'process.stdout.write("PT1_PASS")'], {
     logPath: join(directory, 'pass.log'),
     writeOutput: value => output.push(value),
   });
