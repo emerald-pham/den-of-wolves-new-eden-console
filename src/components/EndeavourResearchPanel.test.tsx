@@ -5,13 +5,17 @@ import { useSessionStore } from '@/store/useSessionStore';
 
 const mocks = vi.hoisted(() => ({
   read: vi.fn(), advance: vi.fn(), retry: vi.fn(), createAttempt: vi.fn(), purchaseUpgrade: vi.fn(), retryUpgrade: vi.fn(),
-  connectedPlayers: vi.fn(), detectorState: vi.fn(), detectorReport: vi.fn(), runDetector: vi.fn(),
+  buildDevice: vi.fn(), createDeviceAttempt: vi.fn(), retryDevice: vi.fn(), connectedPlayers: vi.fn(), detectorState: vi.fn(),
+  detectorReport: vi.fn(), runDetector: vi.fn(),
 }));
 vi.mock('@/lib/endeavourResearchService', () => ({
   readEndeavourResearchWorkspace: mocks.read,
   advanceEndeavourResearchTrack: mocks.advance,
   retryEndeavourResearchAttempt: mocks.retry,
   createEndeavourResearchAttempt: mocks.createAttempt,
+  buildEndeavourScienceDevice: mocks.buildDevice,
+  createEndeavourScienceDeviceAttempt: mocks.createDeviceAttempt,
+  retryUncertainEndeavourScienceDevice: mocks.retryDevice,
 }));
 vi.mock('@/lib/firestore', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/firestore')>();
@@ -79,6 +83,7 @@ beforeEach(() => {
   mocks.retryUpgrade.mockReset();
   mocks.retry.mockReset();
   mocks.createAttempt.mockReset();
+  mocks.retryDevice.mockReset();
   mocks.connectedPlayers.mockReset();
   mocks.detectorState.mockReset();
   mocks.detectorReport.mockReset();
@@ -100,6 +105,7 @@ beforeEach(() => {
     return vi.fn();
   });
   mocks.runDetector.mockResolvedValue({ status: 'committed' });
+  mocks.retryDevice.mockResolvedValue({ status: 'replayed' });
   let requestIndex = 0;
   mocks.createAttempt.mockImplementation(({ workspace: observed, trackId, funding }) => ({
     sessionId: observed.sessionId,
@@ -109,6 +115,15 @@ beforeEach(() => {
     expectedCycle: observed.cycle,
     trackId,
     funding,
+  }));
+  mocks.createDeviceAttempt.mockImplementation(({ workspace: observed, deviceId }) => ({
+    sessionId: observed.sessionId,
+    requestId: 'device-attempt-1',
+    expectedControlRevision: control.revision,
+    expectedResearchRevision: observed.researchRevision,
+    expectedDeviceRevision: observed.scienceDevices.revision,
+    expectedCycle: observed.cycle,
+    deviceId,
   }));
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
@@ -153,15 +168,62 @@ it('shows private left-most progress and field-upgrade cost to the current Scien
   expect(screen.getByRole('button', { name: 'Purchase selected upgrades' })).toBeDisabled();
 });
 
+it('quotes source-available device builds and retries an uncertain purchase with the same request', async () => {
+  const user = userEvent.setup();
+  const deviceWorkspace = {
+    ...workspace,
+    tracks: [
+      ...workspace.tracks,
+      { trackId: 'ecm-device', name: 'ECM Device', crossedBoxes: 0, totalBoxes: 5, currentMaterialCost: 18, complete: false },
+      { trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector', crossedBoxes: 0, totalBoxes: 4, currentMaterialCost: 18, complete: false },
+    ],
+    scienceDevices: {
+      revision: 0, ecmBuilt: false, detectorBuilt: false, ecmUsed: false, shepherdMaterials: 30,
+      buildCosts: { 'ecm-device': 18, 'wolf-agent-detector': null },
+    },
+  };
+  mocks.read.mockResolvedValue(deviceWorkspace);
+  mocks.buildDevice.mockRejectedValueOnce(new Error('connection interrupted'));
+  mocks.retryDevice.mockResolvedValue({
+    status: 'replayed', sessionId: 's1', requestId: 'device-attempt-1', cycle: 3, deviceId: 'ecm-device',
+    deviceRevision: 1, built: true, materialCost: 18, shepherdMaterials: 12,
+  });
+
+  render(<EndeavourResearchPanel control={control} />);
+
+  const devices = await screen.findByRole('region', { name: 'Science device construction controls' });
+  expect(within(devices).getByText('ECM Device // Unbuilt')).toBeVisible();
+  expect(within(devices).getByRole('button', { name: 'Build ECM Device for 18 materials' })).toBeEnabled();
+  expect(within(devices).getByText('Purchase unavailable until more research is completed.')).toBeVisible();
+  expect(within(devices).getByRole('button', { name: 'Build Wolf Agent Detector' })).toBeDisabled();
+
+  await user.click(within(devices).getByRole('button', { name: 'Build ECM Device for 18 materials' }));
+  expect(await screen.findByRole('button', { name: 'Retry same science device purchase' })).toBeEnabled();
+  await user.click(screen.getByRole('button', { name: 'Retry same science device purchase' }));
+
+  await waitFor(() => expect(mocks.retryDevice).toHaveBeenCalledTimes(1));
+  expect(mocks.buildDevice).toHaveBeenCalledTimes(1);
+  expect(mocks.retryDevice.mock.calls[0]![0]).toEqual(mocks.buildDevice.mock.calls[0]![0]);
+  expect(mocks.buildDevice.mock.calls[0]![0]).toMatchObject({
+    requestId: 'device-attempt-1', deviceId: 'ecm-device', expectedResearchRevision: 0,
+    expectedDeviceRevision: 0, expectedControlRevision: control.revision, expectedCycle: 3,
+  });
+  expect(await screen.findByRole('status')).toHaveTextContent('ECM Device built for 18 materials.');
+});
+
 it('offers the finished detector to the current Scientist and submits a selected target', async () => {
   const user = userEvent.setup();
   mocks.read.mockResolvedValue({
     ...workspace,
     tracks: [...workspace.tracks, {
-      trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector', crossedBoxes: 5,
-      totalBoxes: 5, currentMaterialCost: null, complete: true,
+      trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector', crossedBoxes: 4,
+      totalBoxes: 4, currentMaterialCost: null, complete: true,
     }],
-    progress: { ...workspace.progress, 'wolf-agent-detector': 5 },
+    progress: { ...workspace.progress, 'wolf-agent-detector': 4 },
+    scienceDevices: {
+      revision: 1, ecmBuilt: false, detectorBuilt: true, ecmUsed: false, shepherdMaterials: 20,
+      buildCosts: { 'ecm-device': 18, 'wolf-agent-detector': 10 },
+    },
   });
   mocks.detectorState.mockImplementation((_sessionId, _uid, onState) => {
     onState({ cycle: 3, revision: 2, testsUsed: 1 });
@@ -175,6 +237,31 @@ it('offers the finished detector to the current Scientist and submits a selected
   await user.selectOptions(screen.getByLabelText('Player to test'), 'target');
   await user.click(screen.getByRole('button', { name: 'Run detector test' }));
   await waitFor(() => expect(mocks.runDetector).toHaveBeenCalledWith('target', 2));
+});
+
+it('keeps detector testing unavailable until the Scientist has built it', async () => {
+  mocks.read.mockResolvedValue({
+    ...workspace,
+    tracks: [...workspace.tracks, {
+      trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector', crossedBoxes: 4,
+      totalBoxes: 4, currentMaterialCost: null, complete: true,
+    }],
+    progress: { ...workspace.progress, 'wolf-agent-detector': 4 },
+    scienceDevices: {
+      revision: 0, ecmBuilt: false, detectorBuilt: false, ecmUsed: false, shepherdMaterials: 30,
+      buildCosts: { 'ecm-device': 18, 'wolf-agent-detector': 10 },
+    },
+  });
+  mocks.detectorState.mockImplementation((_sessionId, _uid, onState) => {
+    onState({ cycle: 3, revision: 0, testsUsed: 0 });
+    return vi.fn();
+  });
+
+  render(<EndeavourResearchPanel control={control} />);
+
+  expect(await screen.findByRole('region', { name: 'Endeavour research controls' })).toBeVisible();
+  expect(screen.queryByRole('region', { name: 'Wolf Agent Detector' })).not.toBeInTheDocument();
+  expect(mocks.runDetector).not.toHaveBeenCalled();
 });
 
 it('requires the post-rejection parent refresh result before accepting a delayed private projection', async () => {

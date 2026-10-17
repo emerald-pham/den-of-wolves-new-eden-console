@@ -572,6 +572,21 @@ describe('Endeavour Team research writer', () => {
       .rejects.toMatchObject({ code: 'permission-denied' });
   });
 
+  it.each([[0, null], [1, null], [2, 18], [3, 12], [4, 10]] as const)(
+    'projects the printed Wolf Agent Detector build availability at research progress %i',
+    async (marks, materialCost) => {
+      put('sessions/s1/serverState/endeavourResearch', { 'wolf-agent-detector': marks });
+
+      const result = await readEndeavourResearchWorkspace.run(request({ sessionId: 's1' }));
+
+      expect(result).toMatchObject({
+        scienceDevices: {
+          buildCosts: { 'wolf-agent-detector': materialCost },
+        },
+      });
+    },
+  );
+
   it('returns only the opaque field-upgrade revision and current-cycle count with current pricing in one private read', async () => {
     put('sessions/s1/serverState/endeavourResearch', { reactor: 2 });
     put('sessions/s1/serverState/endeavourResearchCadence', {
