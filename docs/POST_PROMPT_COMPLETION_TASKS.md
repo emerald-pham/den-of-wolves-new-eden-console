@@ -33,3 +33,18 @@ When the owner defers another task beyond the full prompt campaign, add its
 source decision, concrete review or change, trigger date or release, owner,
 status, and eventual evidence here. Keep unfinished prompt acceptance in the
 catalog rather than moving it to this list.
+
+## Prepared small follow-up chunks — October 16
+
+The owner requested equally small future work. The [existing milestone
+plan](PRODUCT_MILESTONES.md#future-work-uses-the-same-small-release-shape)
+links POST-ALERT.1’s review/decision briefs without changing its post-1.0
+real-play trigger. A retain decision records the evidence and needs no invented
+product release; a selected behavior change uses focused proof and its own
+verified playable release.
+
+The preserved product candidate’s October 13 owner decision also schedules an
+app-wide color-dependence audit and optional Settings **“Don’t rely on color”**
+mode after verified PC10 and the full app release. ACCESS.1/ACCESS.2 split that
+existing work into shared-state and game-display releases. They do not add a
+PC10 requirement, reopen PC11, delay 0.9 or change existing later-work sequencing.

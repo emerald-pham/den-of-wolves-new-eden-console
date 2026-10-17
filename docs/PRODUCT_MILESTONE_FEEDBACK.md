@@ -404,3 +404,27 @@ startable. PT7 records the desired future tracking authority; the current
 catalog remains authoritative until a verified import and explicit cutover
 preserve the campaign's IDs, statuses, dependencies and evidence. This entry
 records the two additional work items, not their implementation or completion.
+
+## Small playable checkpoints and retro resumption — 2026-10-16
+
+The owner directly requested updating the unfinished PC10 tickets from the retro
+and current handoff, preserving completed work/evidence/scope, revising genuine
+dependencies, splitting oversized work and requiring focused checks before a
+long run. Subsequent messages requested “pc10.1, 10.2” with sensible ticket
+counts, selected **“Playable release at each checkpoint”**, and asked to prepare
+equally small future work and list it. A later hold pending merged retro work
+was lifted by “continue. retro has been committed merged I believe.”
+
+Disposition: the [existing milestone plan](PRODUCT_MILESTONES.md#pc10-smaller-playable-releases--2026-10-16)
+now owns PC10.1–PC10.9 and the later bounded preparations. Existing briefs keep
+their IDs; only unfinished work is subdivided. The 48/751 membership, full
+acceptances, accepted source-bound evidence, optional owner walkthrough and
+restricted version decisions are preserved. One reconciled candidate/release
+applies per PC10.x, superseding only the earlier single-PC10-release packaging.
+
+Verified merged retro groundwork is distinguished from still-planned PT1–PT7.
+The paused product handoff remains at aa9dca780bcc6a4482347143ca855181749c36c4;
+no candidate source, completion status, gameplay runtime or product deployment
+is changed by this planning delivery. Future PC11 extraction acceptance, PC12’s
+conditional status, post-release color accessibility and post-1.0 real-play
+Wolf-alert trigger are carried forward rather than silently reopened or moved.

@@ -6486,371 +6486,371 @@
     {
       "direction": "181 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-181",
-      "language": "Owner-approved October 15 ticket decomposition. W1: Wing Commander air operations; W2: Wing Commander mission and rebuild results. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. W1: Wing Commander air operations; W2: Wing Commander mission and rebuild results. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/01-w1.md; docs/pc10-tickets/02-w2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "215b -> bounded execution briefs",
       "id": "E-PC10-TICKETS-215B",
-      "language": "Owner-approved October 15 ticket decomposition. S1: Scientist research and devices; S2: Scientist scouting and mission participation. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. S1: Scientist research and devices; S2: Scientist scouting and mission participation. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/03-s1.md; docs/pc10-tickets/04-s2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "223b -> bounded execution briefs",
       "id": "E-PC10-TICKETS-223B",
-      "language": "Owner-approved October 15 ticket decomposition. X1: Explorer scouting and harvesting; X2: Explorer route and mission workflow. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. X1: Explorer scouting and harvesting; X2: Explorer route and mission workflow. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/05-x1.md; docs/pc10-tickets/06-x2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "233b -> bounded execution briefs",
       "id": "E-PC10-TICKETS-233B",
-      "language": "Owner-approved October 15 ticket decomposition. P1: PDF Colonel wing and craft workflow; P2: PDF Colonel boarding and mission workflow. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. P1: PDF Colonel wing and craft workflow; P2: PDF Colonel boarding and mission workflow. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/07-p1.md; docs/pc10-tickets/08-p2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "541 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-541",
-      "language": "Owner-approved October 15 ticket decomposition. D1: Private retry-safe candidate discovery. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. D1: Private retry-safe candidate discovery. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/14-d1.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "542 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-542",
-      "language": "Owner-approved October 15 ticket decomposition. D1: Private retry-safe candidate discovery. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. D1: Private retry-safe candidate discovery. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/14-d1.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "543 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-543",
-      "language": "Owner-approved October 15 ticket decomposition. D2: Candidate plans and preparation help. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. D2: Candidate plans and preparation help. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/15-d2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "544 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-544",
-      "language": "Owner-approved October 15 ticket decomposition. R1: Repair and contribute to the Ancient Ring. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. R1: Repair and contribute to the Ancient Ring. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/16-r1.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "545 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-545",
-      "language": "Owner-approved October 15 ticket decomposition. R1: Repair and contribute to the Ancient Ring. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. R1: Repair and contribute to the Ancient Ring. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/16-r1.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "546 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-546",
-      "language": "Owner-approved October 15 ticket decomposition. R1: Repair and contribute to the Ancient Ring. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. R1: Repair and contribute to the Ancient Ring. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/16-r1.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "547 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-547",
-      "language": "Owner-approved October 15 ticket decomposition. R2: Fuel and resolve Ring passage. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. R2: Fuel and resolve Ring passage. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/17-r2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "548 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-548",
-      "language": "Owner-approved October 15 ticket decomposition. R2: Fuel and resolve Ring passage. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. R2: Fuel and resolve Ring passage. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/17-r2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "549 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-549",
-      "language": "Owner-approved October 15 ticket decomposition. R2: Fuel and resolve Ring passage. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. R2: Fuel and resolve Ring passage. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/17-r2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "550 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-550",
-      "language": "Owner-approved October 15 ticket decomposition. N1: Nebula scouting, attempt and loss. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. N1: Nebula scouting, attempt and loss. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/18-n1.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "551 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-551",
-      "language": "Owner-approved October 15 ticket decomposition. N1: Nebula scouting, attempt and loss. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. N1: Nebula scouting, attempt and loss. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/18-n1.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "552 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-552",
-      "language": "Owner-approved October 15 ticket decomposition. N1: Nebula scouting, attempt and loss. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. N1: Nebula scouting, attempt and loss. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/18-n1.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "553 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-553",
-      "language": "Owner-approved October 15 ticket decomposition. N2: Nebula threshold and repeat lock. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. N2: Nebula threshold and repeat lock. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/19-n2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "554 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-554",
-      "language": "Owner-approved October 15 ticket decomposition. N2: Nebula threshold and repeat lock. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. N2: Nebula threshold and repeat lock. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/19-n2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "555 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-555",
-      "language": "Owner-approved October 15 ticket decomposition. A1: Station arrival and repeated combat. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. A1: Station arrival and repeated combat. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/20-a1.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "556 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-556",
-      "language": "Owner-approved October 15 ticket decomposition. A1: Station arrival and repeated combat. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. A1: Station arrival and repeated combat. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/20-a1.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "557 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-557",
-      "language": "Owner-approved October 15 ticket decomposition. A2: Station liberation, Reactor and activation. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. A2: Station liberation, Reactor and activation. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/21-a2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "558 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-558",
-      "language": "Owner-approved October 15 ticket decomposition. A2: Station liberation, Reactor and activation. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. A2: Station liberation, Reactor and activation. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/21-a2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "559 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-559",
-      "language": "Owner-approved October 15 ticket decomposition. A2: Station liberation, Reactor and activation. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. A2: Station liberation, Reactor and activation. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/21-a2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "563 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-563",
-      "language": "Owner-approved October 15 ticket decomposition. E1: Explain results and enter debrief. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. E1: Explain results and enter debrief. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/22-e1.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "564 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-564",
-      "language": "Owner-approved October 15 ticket decomposition. E1: Explain results and enter debrief. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. E1: Explain results and enter debrief. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/22-e1.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "565 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-565",
-      "language": "Owner-approved October 15 ticket decomposition. E2: Authoritative closure and later debrief read. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. E2: Authoritative closure and later debrief read. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/23-e2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "566 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-566",
-      "language": "Owner-approved October 15 ticket decomposition. E2: Authoritative closure and later debrief read. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. E2: Authoritative closure and later debrief read. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/23-e2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "576 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-576",
-      "language": "Owner-approved October 15 ticket decomposition. C1: Macaw deliberate dismantling. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. C1: Macaw deliberate dismantling. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/09-c1.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "579 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-579",
-      "language": "Owner-approved October 15 ticket decomposition. C2: Boa reclamation choice and result. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. C2: Boa reclamation choice and result. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/10-c2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "581 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-581",
-      "language": "Owner-approved October 15 ticket decomposition. C3: Attack Scrap pickup lifecycle. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. C3: Attack Scrap pickup lifecycle. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/11-c3.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "584 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-584",
-      "language": "Owner-approved October 15 ticket decomposition. C4A: Capybara full-table setup and production; C4B: Capybara Macaw, Boa and Scrap mission composition; C4: Capybara combat, jump and reconnect proof. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. C4A: Capybara full-table setup and production; C4B: Capybara Macaw, Boa and Scrap mission composition; C4: Capybara combat, jump and reconnect proof. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/12a-c4a.md; docs/pc10-tickets/12b-c4b.md; docs/pc10-tickets/12-c4.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "585 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-585",
-      "language": "Owner-approved October 15 ticket decomposition. C5: Base and expansion isolation. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. C5: Base and expansion isolation. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/13-c5.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "593 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-593",
-      "language": "Owner-approved October 15 ticket decomposition. D2: Candidate plans and preparation help. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. D2: Candidate plans and preparation help. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/15-d2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "618 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-618",
-      "language": "Owner-approved October 15 ticket decomposition. L1: Session, seat and vessel reconnect; L2: Workflow projection reconnect; L3: Sparse roster and all-player clock recovery. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. L1: Session, seat and vessel reconnect; L2: Workflow projection reconnect; L3: Sparse roster and all-player clock recovery. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/24-l1.md; docs/pc10-tickets/25-l2.md; docs/pc10-tickets/26-l3.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "619 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-619",
-      "language": "Owner-approved October 15 ticket decomposition. Y1: Ring retry after reconnect; Y2: Nebula retry after reconnect; Y3: Station retry after reconnect. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. Y1: Ring retry after reconnect; Y2: Nebula retry after reconnect; Y3: Station retry after reconnect. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/29-y1.md; docs/pc10-tickets/30-y2.md; docs/pc10-tickets/31-y3.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "620 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-620",
-      "language": "Owner-approved October 15 ticket decomposition. T1: Stale action reconciliation; T2: Stale recovery after station or roster change. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. T1: Stale action reconciliation; T2: Stale recovery after station or roster change. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/27-t1.md; docs/pc10-tickets/28-t2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "629 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-629",
-      "language": "Owner-approved October 15 ticket decomposition. Q1: Loyalty, Wolf and private-note audiences; Q2: Organiser chart and navigation audiences; Q3: Mission hands and hidden-outcome audiences. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. Q1: Loyalty, Wolf and private-note audiences; Q2: Organiser chart and navigation audiences; Q3: Mission hands and hidden-outcome audiences. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/32-q1.md; docs/pc10-tickets/33-q2.md; docs/pc10-tickets/34-q3.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "630 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-630",
-      "language": "Owner-approved October 15 ticket decomposition. U1: Server-owned dice and combat uncertainty; U2: Server-owned cards, decks and clues. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. U1: Server-owned dice and combat uncertainty; U2: Server-owned cards, decks and clues. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/35-u1.md; docs/pc10-tickets/36-u2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "631 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-631",
-      "language": "Owner-approved October 15 ticket decomposition. B1: Fair limits for expensive actions. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. B1: Fair limits for expensive actions. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/37-b1.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "634 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-634",
-      "language": "Owner-approved October 15 ticket decomposition. B2: Private security-denial telemetry. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. B2: Private security-denial telemetry. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/38-b2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "635 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-635",
-      "language": "Owner-approved October 15 ticket decomposition. J1: Queryable action receipt metadata; J2: Private automatic-procedure receipts. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. J1: Queryable action receipt metadata; J2: Private automatic-procedure receipts. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/39-j1.md; docs/pc10-tickets/40-j2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "641 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-641",
-      "language": "Owner-approved October 15 ticket decomposition. G1: Base-game authentic setup and early loop; G2: Base-game combat through debrief; G3: Base-game sparse roster and GM concurrency. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. G1: Base-game authentic setup and early loop; G2: Base-game combat through debrief; G3: Base-game sparse roster and GM concurrency. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/47-g1.md; docs/pc10-tickets/48-g2.md; docs/pc10-tickets/49-g3.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "642 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-642",
-      "language": "Owner-approved October 15 ticket decomposition. H1: Expansion full-table setup and Scrap loop; H2: Expansion combat, jump and candidate path; H3: Expansion recovery and GM concurrency. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. H1: Expansion full-table setup and Scrap loop; H2: Expansion combat, jump and candidate path; H3: Expansion recovery and GM concurrency. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/50-h1.md; docs/pc10-tickets/51-h2.md; docs/pc10-tickets/52-h3.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "647 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-647",
-      "language": "Owner-approved October 15 ticket decomposition. V1: Ring end-to-debrief proof. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. V1: Ring end-to-debrief proof. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/41-v1.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "648 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-648",
-      "language": "Owner-approved October 15 ticket decomposition. V2: Nebula loss and success proof. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. V2: Nebula loss and success proof. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/42-v2.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "649 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-649",
-      "language": "Owner-approved October 15 ticket decomposition. V3: Station arrival-to-debrief proof. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
+      "language": "Owner-approved October 15 ticket decomposition. V3: Station arrival-to-debrief proof. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
       "source": "docs/pc10-tickets/43-v3.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "650 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-650",
-      "language": "Owner-approved October 15 ticket decomposition. F1: Terminal pursuit and total-loss authority; F2: Destroyed ship, pods and evacuation recovery; F3: Interrupted control and candidate recovery. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
-      "source": "docs/pc10-tickets/44-f1.md; docs/pc10-tickets/45-f2.md; docs/pc10-tickets/46-f3.md",
+      "language": "Owner-approved October 15 ticket decomposition. F1: Terminal pursuit and total-loss authority; F2: Destroyed ship, pods and evacuation recovery; F3: Interrupted control and candidate recovery. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
+      "source": "docs/pc10-tickets/44-f1.md; docs/pc10-tickets/45-f2.md; docs/pc10-tickets/46-f3.md; docs/pc10-tickets/46a-f3a.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "651 -> bounded execution briefs",
       "id": "E-PC10-TICKETS-651",
-      "language": "Owner-approved October 15 ticket decomposition. Z1: Reconcile campaign acceptance and review evidence; Z2: Final candidate validation and verified release. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved.",
-      "source": "docs/pc10-tickets/53-z1.md; docs/pc10-tickets/54-z2.md",
+      "language": "Owner-approved October 15 ticket decomposition. Z1: Reconcile campaign acceptance and review evidence; Z2: Final candidate validation and verified release. Each brief includes acceptance, blockers, test seam, exclusions and a fresh-context handoff. Preserve current prompt acceptance, prerequisites, fixed allocation and completion status. ready-for-agent describes the approved brief; the separate PC10 runtime pause remains. Split briefs count once only after the whole prompt is proved. October 16 owner correction: execute unfinished briefs through the independently playable PC10.1-PC10.9 releases in docs/PRODUCT_MILESTONES.md; retain accepted source-bound subcriteria, fixed 48-ID scope and full parent acceptance. Planning changes no status or gameplay evidence.",
+      "source": "docs/pc10-tickets/53-z1.md; docs/pc10-tickets/54-z2.md; docs/pc10-tickets/53a-z1a.md",
       "type": "planning / execution subdivision / no closure credit"
     },
     {
       "direction": "641 -> approved proof-tooling repair briefs",
       "id": "E-PC10-RETRO-TICKETS-641",
-      "language": "Owner-approved October 16 retrospective follow-up for session 01a1446d-0b24-7521-b204-dd366b37ee3b. PT2: Run focused PC10 regressions before gameplay rehearsals; PT3: Type-check shared proof results. Each bounded brief has no blocker among PT1-PT5 and supplies tooling preparation within existing prompt support. Preserve prompt acceptance, canonical prerequisites, completion states, fixed checkpoint membership and the 751-prompt endpoint, including P660's historical done status. Publication grants no runtime restart, test/gameplay acceptance or release credit.",
-      "source": "docs/pc10-tickets/56-pt2.md; docs/pc10-tickets/57-pt3.md",
+      "language": "Owner-approved October 16 retrospective follow-up for session 01a1446d-0b24-7521-b204-dd366b37ee3b. PT2: Run focused PC10 regressions before gameplay rehearsals; PT3: Type-check shared proof results. Each bounded brief has no blocker among PT1-PT5 and supplies tooling preparation within existing prompt support. Preserve prompt acceptance, canonical prerequisites, completion states, fixed checkpoint membership and the 751-prompt endpoint, including P660's historical done status. Publication grants no runtime restart, test/gameplay acceptance or release credit. October 16 execution refinement: PT2 consumes independent PT2A Base, PT2B Capybara diagnosis and PT2C Station repair qualification; PT7 follows inventory PT7A and verified import PT7B. Already merged preflight/browser/cleanup groundwork is reused, not mistaken for completion of all queued follow-ups.",
+      "source": "docs/pc10-tickets/56-pt2.md; docs/pc10-tickets/57-pt3.md; docs/pc10-tickets/56a-pt2a.md; docs/pc10-tickets/56b-pt2b.md; docs/pc10-tickets/56c-pt2c.md",
       "type": "planning / approved tooling repair / no closure credit"
     },
     {
       "direction": "642 -> approved proof-tooling repair briefs",
       "id": "E-PC10-RETRO-TICKETS-642",
-      "language": "Owner-approved October 16 retrospective follow-up for session 01a1446d-0b24-7521-b204-dd366b37ee3b. PT2: Run focused PC10 regressions before gameplay rehearsals; PT3: Type-check shared proof results. Each bounded brief has no blocker among PT1-PT5 and supplies tooling preparation within existing prompt support. Preserve prompt acceptance, canonical prerequisites, completion states, fixed checkpoint membership and the 751-prompt endpoint, including P660's historical done status. Publication grants no runtime restart, test/gameplay acceptance or release credit.",
-      "source": "docs/pc10-tickets/56-pt2.md; docs/pc10-tickets/57-pt3.md",
+      "language": "Owner-approved October 16 retrospective follow-up for session 01a1446d-0b24-7521-b204-dd366b37ee3b. PT2: Run focused PC10 regressions before gameplay rehearsals; PT3: Type-check shared proof results. Each bounded brief has no blocker among PT1-PT5 and supplies tooling preparation within existing prompt support. Preserve prompt acceptance, canonical prerequisites, completion states, fixed checkpoint membership and the 751-prompt endpoint, including P660's historical done status. Publication grants no runtime restart, test/gameplay acceptance or release credit. October 16 execution refinement: PT2 consumes independent PT2A Base, PT2B Capybara diagnosis and PT2C Station repair qualification; PT7 follows inventory PT7A and verified import PT7B. Already merged preflight/browser/cleanup groundwork is reused, not mistaken for completion of all queued follow-ups.",
+      "source": "docs/pc10-tickets/56-pt2.md; docs/pc10-tickets/57-pt3.md; docs/pc10-tickets/56a-pt2a.md; docs/pc10-tickets/56b-pt2b.md; docs/pc10-tickets/56c-pt2c.md",
       "type": "planning / approved tooling repair / no closure credit"
     },
     {
       "direction": "649 -> approved proof-tooling repair briefs",
       "id": "E-PC10-RETRO-TICKETS-649",
-      "language": "Owner-approved October 16 retrospective follow-up for session 01a1446d-0b24-7521-b204-dd366b37ee3b. PT2: Run focused PC10 regressions before gameplay rehearsals; PT3: Type-check shared proof results. Each bounded brief has no blocker among PT1-PT5 and supplies tooling preparation within existing prompt support. Preserve prompt acceptance, canonical prerequisites, completion states, fixed checkpoint membership and the 751-prompt endpoint, including P660's historical done status. Publication grants no runtime restart, test/gameplay acceptance or release credit.",
-      "source": "docs/pc10-tickets/56-pt2.md; docs/pc10-tickets/57-pt3.md",
+      "language": "Owner-approved October 16 retrospective follow-up for session 01a1446d-0b24-7521-b204-dd366b37ee3b. PT2: Run focused PC10 regressions before gameplay rehearsals; PT3: Type-check shared proof results. Each bounded brief has no blocker among PT1-PT5 and supplies tooling preparation within existing prompt support. Preserve prompt acceptance, canonical prerequisites, completion states, fixed checkpoint membership and the 751-prompt endpoint, including P660's historical done status. Publication grants no runtime restart, test/gameplay acceptance or release credit. October 16 execution refinement: PT2 consumes independent PT2A Base, PT2B Capybara diagnosis and PT2C Station repair qualification; PT7 follows inventory PT7A and verified import PT7B. Already merged preflight/browser/cleanup groundwork is reused, not mistaken for completion of all queued follow-ups.",
+      "source": "docs/pc10-tickets/56-pt2.md; docs/pc10-tickets/57-pt3.md; docs/pc10-tickets/56a-pt2a.md; docs/pc10-tickets/56b-pt2b.md; docs/pc10-tickets/56c-pt2c.md",
       "type": "planning / approved tooling repair / no closure credit"
     },
     {
       "direction": "651 -> approved proof-tooling repair briefs",
       "id": "E-PC10-RETRO-TICKETS-651",
-      "language": "Owner-approved October 16 retrospective follow-up for session 01a1446d-0b24-7521-b204-dd366b37ee3b. PT1: Preserve test failures when displaying logs; PT2: Run focused PC10 regressions before gameplay rehearsals; PT3: Type-check shared proof results; PT4: Protect emulator allocations throughout startup; PT5: Provide compact runtime diagnostics. PT6: Classify generated roadmap artifacts correctly in CI; PT7: Move work tracking to GitHub Issues. Each bounded brief has no blocker among PT1-PT7 and supplies tooling preparation within existing prompt support. Preserve prompt acceptance, canonical prerequisites, completion states, fixed checkpoint membership and the 751-prompt endpoint, including P660's historical done status. Publication grants no runtime restart, test/gameplay acceptance or release credit. GitHub Issues is the owner-directed future tracking authority; the current catalog remains authoritative until a verified migration cutover.",
-      "source": "docs/pc10-tickets/55-pt1.md; docs/pc10-tickets/56-pt2.md; docs/pc10-tickets/57-pt3.md; docs/pc10-tickets/58-pt4.md; docs/pc10-tickets/59-pt5.md; docs/pc10-tickets/60-pt6.md; docs/pc10-tickets/61-pt7.md",
+      "language": "Owner-approved October 16 retrospective follow-up for session 01a1446d-0b24-7521-b204-dd366b37ee3b. PT1: Preserve test failures when displaying logs; PT2: Run focused PC10 regressions before gameplay rehearsals; PT3: Type-check shared proof results; PT4: Protect emulator allocations throughout startup; PT5: Provide compact runtime diagnostics. PT6: Classify generated roadmap artifacts correctly in CI; PT7: Move work tracking to GitHub Issues. Each bounded brief has no blocker among PT1-PT7 and supplies tooling preparation within existing prompt support. Preserve prompt acceptance, canonical prerequisites, completion states, fixed checkpoint membership and the 751-prompt endpoint, including P660's historical done status. Publication grants no runtime restart, test/gameplay acceptance or release credit. GitHub Issues is the owner-directed future tracking authority; the current catalog remains authoritative until a verified migration cutover. October 16 execution refinement: PT2 consumes independent PT2A Base, PT2B Capybara diagnosis and PT2C Station repair qualification; PT7 follows inventory PT7A and verified import PT7B. Already merged preflight/browser/cleanup groundwork is reused, not mistaken for completion of all queued follow-ups.",
+      "source": "docs/pc10-tickets/55-pt1.md; docs/pc10-tickets/56-pt2.md; docs/pc10-tickets/57-pt3.md; docs/pc10-tickets/58-pt4.md; docs/pc10-tickets/59-pt5.md; docs/pc10-tickets/60-pt6.md; docs/pc10-tickets/61-pt7.md; docs/pc10-tickets/56a-pt2a.md; docs/pc10-tickets/56b-pt2b.md; docs/pc10-tickets/56c-pt2c.md; docs/pc10-tickets/61a-pt7a.md; docs/pc10-tickets/61b-pt7b.md",
       "type": "planning / approved tooling repair / no closure credit"
     },
     {
       "direction": "660 -> approved proof-tooling repair briefs",
       "id": "E-PC10-RETRO-TICKETS-660",
-      "language": "Owner-approved October 16 retrospective follow-up for session 01a1446d-0b24-7521-b204-dd366b37ee3b. PT4: Protect emulator allocations throughout startup; PT5: Provide compact runtime diagnostics. Each bounded brief has no blocker among PT1-PT5 and supplies tooling preparation within existing prompt support. Preserve prompt acceptance, canonical prerequisites, completion states, fixed checkpoint membership and the 751-prompt endpoint, including P660's historical done status. Publication grants no runtime restart, test/gameplay acceptance or release credit.",
+      "language": "Owner-approved October 16 retrospective follow-up for session 01a1446d-0b24-7521-b204-dd366b37ee3b. PT4: Protect emulator allocations throughout startup; PT5: Provide compact runtime diagnostics. Each bounded brief has no blocker among PT1-PT5 and supplies tooling preparation within existing prompt support. Preserve prompt acceptance, canonical prerequisites, completion states, fixed checkpoint membership and the 751-prompt endpoint, including P660's historical done status. Publication grants no runtime restart, test/gameplay acceptance or release credit. October 16 execution refinement: PT2 consumes independent PT2A Base, PT2B Capybara diagnosis and PT2C Station repair qualification; PT7 follows inventory PT7A and verified import PT7B. Already merged preflight/browser/cleanup groundwork is reused, not mistaken for completion of all queued follow-ups.",
       "source": "docs/pc10-tickets/58-pt4.md; docs/pc10-tickets/59-pt5.md",
       "type": "planning / approved tooling repair / no closure credit"
     }
