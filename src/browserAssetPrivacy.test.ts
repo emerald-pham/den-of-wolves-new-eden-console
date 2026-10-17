@@ -58,7 +58,9 @@ function executableExposure(code: string): { decks: number; cards: number } {
 }
 
 it('detects private card content even with anonymous bindings and reordered object properties', () => {
-  const deck = Object.values(SHIP_DAMAGE_DECKS)[0].map((card) =>
+  const firstDeck = Object.values(SHIP_DAMAGE_DECKS)[0];
+  if (!firstDeck) throw Error('The server catalog must provide a negative-control deck.');
+  const deck = firstDeck.map((card) =>
     Object.fromEntries(Object.entries(card).reverse()));
   const detected = executableExposure(`(()=>{const a=${JSON.stringify(deck)};return a})()`);
   expect(detected.decks).toBe(1);
