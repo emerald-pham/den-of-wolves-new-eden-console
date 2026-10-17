@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
+import ts from 'typescript';
 
 const read = () => readFile(new URL('./pc10-base-gameplay-composed-post-combat.mjs', import.meta.url), 'utf8');
 
@@ -251,4 +252,65 @@ test('Cycle 1 carries one current Core retarget witness to the source-timed arri
   assert.equal(Date.parse(invocation.source.arrivesAt) - invocation.at, 35_000,
     'Arm against the actual current source arrivesAt in the existing 1–35 second window.');
   assert.ok(sourceMovementReads.length > 0, 'Read the current server shuttleDepartures source before arming.');
+});
+
+test('eligible Base maintenance waits for a late-mounted current panel before classifying the role unavailable', async () => {
+  const source = await read();
+  const tree = ts.createSourceFile('base.mjs', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  const callbacks = [];
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(tree) === 'paidMaintenance') {
+      callbacks.push(node.initializer.getText(tree));
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(tree);
+  assert.equal(callbacks.length, 1);
+
+  let panelVisible = false;
+  let mountWaits = 0;
+  let maintenanceRuns = 0;
+  const pendingActions = [];
+  const begin = {
+    count: async () => 1,
+    isVisible: async () => true,
+    isEnabled: async () => true,
+  };
+  const panel = {
+    first() { return this; },
+    count: async () => 1,
+    isVisible: async () => panelVisible,
+    waitFor: async () => { panelVisible = true; },
+    getByRole: () => begin,
+  };
+  const maintenancePage = {
+    count: async () => 1,
+    isVisible: async () => false,
+    click: async () => {},
+    or: () => ({
+      first() { return this; },
+      waitFor: async options => {
+        assert.equal(options.state, 'visible');
+        assert.ok(Number.isFinite(options.timeout) && options.timeout > 0);
+        mountWaits += 1;
+        panelVisible = true;
+      },
+    }),
+  };
+  const surface = { page: { getByRole: (role, options) =>
+    role === 'button' && options.name === 'Maintenance' ? maintenancePage : panel } };
+  const sandbox = {
+    ships: [['shepherd', 'shepherd-engineer', 'Shepherd', ['Advanced Hydroponics'], {}]],
+    chooseCurrentShipRole: async () => ({ status: 'eligible', roleId: 'shepherd-engineer', readiness: { surface } }),
+    pending: (...args) => pendingActions.push(args),
+    checks: {},
+    currentRoleReadiness: async () => ({ status: 'eligible' }),
+    sourceTools: { gmRepair: async () => {} },
+    a: { maintenanceUi: async () => { maintenanceRuns += 1; } },
+  };
+  const result = await runInNewContext(`(async()=>{const paidMaintenance=${callbacks[0]};await paidMaintenance(1,false);return checks;})()`, sandbox);
+  assert.equal(mountWaits, 1);
+  assert.equal(maintenanceRuns, 1, 'The current mounted maintenance choice remains eligible after its delayed render.');
+  assert.deepEqual(pendingActions, []);
+  assert.equal(result.allSixMaintenanceCycle1, true);
 });
