@@ -723,6 +723,8 @@ unrun slices retain their original proof limits.
 The owner approved revising and publishing the context-bounded decomposition.
 These briefs subdivide the existing 48 PC10 IDs; they add no prompts, change no
 acceptance or completion status, and introduce no separate ticket-status ledger.
+The October 16 smaller-release plan below supersedes the original single
+PC10 release packaging and updates only the unfinished execution briefs.
 Each catalog row links its own briefs through planning evidence.
 
 Triage is `ready-for-agent` for the approved specification. Dependency readiness
@@ -785,16 +787,16 @@ justified solely by this planning change.
 | [J1](pc10-tickets/39-j1.md) | 635 | Queryable action receipt metadata | None |
 | [J2](pc10-tickets/40-j2.md) | 635 | Private automatic-procedure receipts | J1 |
 | [V1](pc10-tickets/41-v1.md) | 647 | Ring end-to-debrief proof | A2, E2, R2, Y1 |
-| [V2](pc10-tickets/42-v2.md) | 648 | Nebula loss and success proof | E2, N2, Y2 |
+| [V2](pc10-tickets/42-v2.md) | 648 | Nebula loss and success proof | E2, N2, Y2, H2 |
 | [V3](pc10-tickets/43-v3.md) | 649 | Station arrival-to-debrief proof | A2, E2, Y3 |
 | [F1](pc10-tickets/44-f1.md) | 650 | Terminal pursuit and total-loss authority | E2 |
 | [F2](pc10-tickets/45-f2.md) | 650 | Destroyed ship, pods and evacuation recovery | E2 |
-| [F3](pc10-tickets/46-f3.md) | 650 | Interrupted control and candidate recovery | E2 |
-| [G1](pc10-tickets/47-g1.md) | 641 | Base-game authentic setup and early loop | P1, P2, S1, S2, W1, W2, X1, X2 |
+| [F3](pc10-tickets/46-f3.md) | 650 | Interrupted control and candidate recovery | E2; F3A for aggregate P650 accounting |
+| [G1](pc10-tickets/47-g1.md) | 641 | Base-game authentic setup and early loop | PT2A before affected long run; inherited prerequisites |
 | [G2](pc10-tickets/48-g2.md) | 641 | Base-game combat through debrief | E2, G1 |
 | [G3](pc10-tickets/49-g3.md) | 641 | Base-game sparse roster and GM concurrency | G2, L3, T2 |
 | [H1](pc10-tickets/50-h1.md) | 642 | Expansion full-table setup and Scrap loop | C4, C5 |
-| [H2](pc10-tickets/51-h2.md) | 642 | Expansion combat, jump and candidate path | C4, H1, V2 |
+| [H2](pc10-tickets/51-h2.md) | 642 | Expansion combat, jump and candidate path | C4, H1, N2, Y2 (same-session V2 handoff) |
 | [H3](pc10-tickets/52-h3.md) | 642 | Expansion recovery and GM concurrency | C4, H2, L3, T2 |
 | [Z1](pc10-tickets/53-z1.md) | 651 | Reconcile campaign acceptance and review evidence | A1, A2, B1, B2, C1, C2, C3, C4, C5, D1, D2, E1, E2, F1, F2, F3, G1, G2, G3, H1, H2, H3, J1, J2, L1, L2, L3, N1, N2, P1, P2, Q1, Q2, Q3, R1, R2, S1, S2, T1, T2, U1, U2, V1, V2, V3, W1, W2, X1, X2, Y1, Y2, Y3 |
 | [Z2](pc10-tickets/54-z2.md) | 651 | Final candidate validation and verified release | F1, F2, F3, G1, G2, G3, H1, H2, H3, V1, V2, V3, Z1 |
@@ -821,15 +823,17 @@ parent acceptance, completion states and canonical prerequisite graph.
 | Brief | Existing prompt scope | Outcome | Blocked by briefs |
 |---|---|---|---|
 | [PT1](pc10-tickets/55-pt1.md) | 651 | Test failures retain their exit status after diagnostics | None |
-| [PT2](pc10-tickets/56-pt2.md) | 641, 642, 649, 651 | Focused PC10 consumer regressions run locally and in CI before long rehearsals | None |
+| [PT2](pc10-tickets/56-pt2.md) | 641, 642, 649, 651 | Focused PC10 consumer regressions run locally and in CI before long rehearsals | PT2A, PT2B, PT2C for combined check set |
 | [PT3](pc10-tickets/57-pt3.md) | 641, 642, 649, 651 | Shared role-entry results and affected consumers receive automatic type checks | None |
 | [PT4](pc10-tickets/58-pt4.md) | 660, 651 | Emulator allocation survives interleaved startup and returns only owned resources | None |
 | [PT5](pc10-tickets/59-pt5.md) | 651, 660 | Scoped runtime summaries retain detailed diagnostics on disk | None |
-| [PT6](pc10-tickets/60-pt6.md) | 651 | Generated roadmap artifacts receive the appropriate CI classification | None |
-| [PT7](pc10-tickets/61-pt7.md) | 651 | Work tracking moves to GitHub Issues with verified history and dependency preservation | None |
+| [PT6](pc10-tickets/60-pt6.md) | 651 | Generated roadmap artifacts receive the appropriate CI classification; implemented in PR 25 and retained | Completed carry-forward |
+| [PT7](pc10-tickets/61-pt7.md) | 651 | Work tracking moves to GitHub Issues with verified history and dependency preservation | PT7B; inventory/import split below |
 
-All seven briefs can start independently. Shared invocation, registry or CI
-files require edit coordination rather than additional blocking edges. PT5
+PT1, PT3, PT4 and PT5 can start independently; PT6 is implemented upstream. PT2 now consumes the bounded
+PT2A/PT2B/PT2C family results; PT7 follows inventory PT7A and verified import
+PT7B. Shared invocation, registry or CI files require edit coordination rather
+than additional blocking edges. PT5
 can use existing ownership records without waiting for PT4. No separate
 prefactor is required; each owner keeps any necessary preparation within its
 complete behavior and fresh-context boundary.
@@ -849,3 +853,220 @@ tracked through planning and subsequent implementation evidence.
 
 Use the existing validation paths and required risk review for actual changes.
 Publication records approval and earns no test, gameplay or release credit.
+
+
+## PC10 smaller playable releases — 2026-10-16
+
+The owner asked to update the existing unfinished tickets from the implemented
+retro and current handoff, split PC10 into small PC10.x checkpoints, and make
+each checkpoint a **playable release**. The owner also requested equally small
+future work, paused this planning until the retro merged, then explicitly said
+“continue”. This authorizes this backlog update. It does not launch a gameplay
+runtime, resume parked workers or publish the unfinished product branch.
+
+PC10 remains the umbrella for its **same 48 IDs and 751/751 endpoint**. The
+subcheckpoints change delivery size, not acceptance, status or scope. Each
+release completes its bounded ticket criteria with appropriate native proof;
+a shared prompt remains partial until every one of its criteria is met.
+Completed evidence is carried forward after relevant source comparison.
+
+Most releases have 6–10 tickets. PC10.7 has three deliberately substantial
+continuous-game tickets; splitting their runtime between checkpoints would lose
+the required same-game proof. Ticket count is a sizing aid: one ticket owns one
+bounded end-to-end behavior through repair, focused checks and handoff in one
+fresh context. Split a newly discovered oversized repair before implementation.
+
+### Sources and retained evidence
+
+Published main was inspected at `3d2aa541` after merged retro PRs 19, 20 and 23.
+Its proof preflight, real Red Alert selector smoke, bounded browser teardown,
+consolidated guidance and guarded branch closeout already exist. Reuse them.
+PRs 21/22 originally published PT1–PT7 as planned repairs. While this planning
+candidate was in CI, main advanced to `a7895711` (PR 25), implementing PT6 and
+preserving its completed checklist and evidence. PT6 is now carry-forward
+work, not an unfinished ticket. Other queued follow-ups stay open. The same
+upstream decision requires each new test to protect a distinct failure, allows
+evidence-backed consolidation of redundant/internal-only checks, and preserves
+meaningful gameplay/privacy/authority coverage and mandatory rendered typography.
+
+The product handoff is preserved at local Git commit
+`aa9dca780bcc6a4482347143ca855181749c36c4` on
+`integration/pc10-implementation-20261015`, specifically its existing
+`docs/PC10_PC11_HANDOFF.md` October 16 stopping point, execution record and
+acceptance reports. These product-only records are not all published on main;
+read them from that exact commit rather than treating an absent main file as
+lost work. No product source or private reference is copied by this update.
+
+| Retained result | Exact limit and next work |
+|---|---|
+| Candidate discovery/preparation at `84dc3c4e` | Keep original Endeavour discovery/reload/retry and Cycle 6 plan/help. Other producers and foreign audiences remain explicit. |
+| Ring at `1cccdb6c`, passage recovery `522447d4`, negatives `39b5a43d` | Keep actual paid Ring success and displayed ending. The outer private/public observer timeout remains failed; source/fake-transaction negatives are not emulator contention. Preserve P647’s explicit P559 prerequisite. |
+| F2 at `2c2acd10` | Accepted bounded evacuation/destruction/replacement and sparse mutiny through Pursuit close/history. F2 is retained, excluded from the unfinished queue. P650 is still partial. |
+| Natural lease at `040e8ac2` / `b59cd84f` | Keep real elapsed lease/clock pause/resume with eight active SDK players plus GM, zero browsers. Remaining browser/role recovery is separate. |
+| Unfinished candidate `b000cbe3` / root `42910152` | Keep one paid contribution, original reload/exact replay and enabled next-cycle action. No refund/abandon endpoint, ending or all-F3 claim. |
+| Base `aa1ff968` plus ordering repair `c86f9f5b` | Keep research, six paid maintenance sequences and opening combat. Whole run failed at the source population alert; repair is focused-green, not a fresh full-game pass. |
+| Capybara prefixes, latest failed `75ff4b8b` | Keep seven-ship maintenance/production, real role entry and opening combat within their actual sessions. PT2B must diagnose the visible-alert/original-GM source mismatch before a new affected run. No Nebula/ending credit. |
+| Station `0fd09f51` / root `c8591ac7` | Preserve implemented, test-first authenticated-read repair and paid-arrival/declaration prefixes. Attempt 7 was cancelled before launch; liberation, Reactor recovery and ending remain native gaps. |
+
+The published catalog remains 703 done / 6 partial / 42 missing; the preserved
+product candidate records 703 done / 27 partial / 21 missing. These are distinct
+source snapshots. Planning neither resets the candidate nor promotes unmerged
+candidate evidence into new published completions. Z1A reconciles them at each
+actual integration boundary. All 48 PC10 closures remain unfinished here.
+
+### Release grouping
+
+Release numbers describe owner-facing playable increments, not extra campaign
+prompts or an independent completion ledger. Code-only preparation can proceed
+at a genuinely ready frontier; the plan does not impose a serial lock on every
+ticket. Reconcile each product release with its settled predecessor and the
+current main. Do not import unproved later functionality just to publish a
+smaller checkpoint.
+
+| Checkpoint | Playable outcome | Tickets | Count | Genuine dependency boundary |
+|---|---|---|---:|---|
+| **PC10.1 — Scientist and Explorer fieldwork** | Research, scout, harvest and use private candidate preparation through ordinary controls. | [S1](pc10-tickets/03-s1.md), [S2](pc10-tickets/04-s2.md), [X1](pc10-tickets/05-x1.md), [X2](pc10-tickets/06-x2.md), [D1](pc10-tickets/14-d1.md), [D2](pc10-tickets/15-d2.md), [PT1](pc10-tickets/55-pt1.md), [PT2A](pc10-tickets/56a-pt2a.md), [PT3](pc10-tickets/57-pt3.md) | 9 | Existing catalog prerequisites; PT2A before the affected Base rehearsal. |
+| **PC10.2 — Wing, PDF and expansion actions** | Operate wings, boarding and missions, then use Macaw/Boa/Scrap with truthful outcomes. | [W1](pc10-tickets/01-w1.md), [W2](pc10-tickets/02-w2.md), [P1](pc10-tickets/07-p1.md), [P2](pc10-tickets/08-p2.md), [C1](pc10-tickets/09-c1.md), [C2](pc10-tickets/10-c2.md), [C3](pc10-tickets/11-c3.md), [PT2B](pc10-tickets/56b-pt2b.md) | 8 | Existing mechanic prerequisites; PT2B preserves the current Sol diagnosis owner. |
+| **PC10.3 — Resilient private sessions** | Recover current seats, drafts, projections and clocks while keeping private audiences separate. | [L1](pc10-tickets/24-l1.md), [L2](pc10-tickets/25-l2.md), [L3](pc10-tickets/26-l3.md), [T1](pc10-tickets/27-t1.md), [T2](pc10-tickets/28-t2.md), [Q1](pc10-tickets/32-q1.md), [Q2](pc10-tickets/33-q2.md), [Q3](pc10-tickets/34-q3.md), [PT4](pc10-tickets/58-pt4.md) | 9 | Each recovery follows its own current source contract; L3 consumes L1/L2 and T2 consumes T1. |
+| **PC10.4 — Fair automatic actions and receipts** | Use server-owned randomness and automatic procedures with private attributable results and fair limits. | [U1](pc10-tickets/35-u1.md), [U2](pc10-tickets/36-u2.md), [B1](pc10-tickets/37-b1.md), [B2](pc10-tickets/38-b2.md), [J1](pc10-tickets/39-j1.md), [J2](pc10-tickets/40-j2.md), [PT5](pc10-tickets/59-pt5.md) | 7 | B2 retains U1/U2 and canonical P630; J2 consumes J1. PT5 does not wait for PT4. |
+| **PC10.5 — Station liberation and closed history** | Arrive at the Station, resolve repeat attacks, contribute Reactor power, activate and recover debrief/history. | [A1](pc10-tickets/20-a1.md), [A2](pc10-tickets/21-a2.md), [Y3](pc10-tickets/31-y3.md), [V3](pc10-tickets/43-v3.md), [E1](pc10-tickets/22-e1.md), [E2](pc10-tickets/23-e2.md), [PT2C](pc10-tickets/56c-pt2c.md), [PT2](pc10-tickets/56-pt2.md) | 8 | D1 for candidate recovery, A1→A2→Y3/V3, E1→E2. PT2 composes its independent A/B/C consumers. |
+| **PC10.6 — Ring, Nebula and terminal recovery** | Use Ring passage and Nebula mechanics and recover terminal/arrest/ruling branches. | [R1](pc10-tickets/16-r1.md), [R2](pc10-tickets/17-r2.md), [Y1](pc10-tickets/29-y1.md), [V1](pc10-tickets/41-v1.md), [N1](pc10-tickets/18-n1.md), [N2](pc10-tickets/19-n2.md), [Y2](pc10-tickets/30-y2.md), [F1](pc10-tickets/44-f1.md), [F3](pc10-tickets/46-f3.md), [F3A](pc10-tickets/46a-f3a.md) | 10 | D1, Station P559/A2 and E2 remain required where recorded; R1→R2→Y1/V1 and N1→N2→Y2. |
+| **PC10.7 — Complete Base game** | Play one authentic full Base game through debrief, with required sparse-roster recovery and optional GM races. | [G1](pc10-tickets/47-g1.md), [G2](pc10-tickets/48-g2.md), [G3](pc10-tickets/49-g3.md) | 3 | Affected role mechanics, E2, L3/T2 and focused PT2A/PT2 checks must be ready for the corresponding claims. |
+| **PC10.8 — Complete Capybara game and Nebula ending** | Play the full expansion composition and the same-session Nebula loss/recovery/success/debrief. | [C4A](pc10-tickets/12a-c4a.md), [C4B](pc10-tickets/12b-c4b.md), [C4](pc10-tickets/12-c4.md), [C5](pc10-tickets/13-c5.md), [H1](pc10-tickets/50-h1.md), [H2](pc10-tickets/51-h2.md), [H3](pc10-tickets/52-h3.md), [V2](pc10-tickets/42-v2.md) | 8 | C1/C2/C3, N2/Y2, E2, L3/T2 and repaired PT2B/PT2 consumers; keep the internal full-game sequence together. |
+| **PC10.9 — Final game release and tracker handoff** | Release the reconciled complete game and verified evidence; prepare/import/cut over the requested tracker safely. | [Z1A](pc10-tickets/53a-z1a.md), [Z1](pc10-tickets/53-z1.md), [Z2](pc10-tickets/54-z2.md), [PT7A](pc10-tickets/61a-pt7a.md), [PT7B](pc10-tickets/61b-pt7b.md), [PT7](pc10-tickets/61-pt7.md) | 6 | Z1A and PT7A can prepare early. Final Z1/Z2 require all original acceptances; tracker cutover requires PT7B verification and settled writes. |
+
+F2 and implemented PT6 remain carry-forward work outside these 68 unfinished briefs.
+PT2A/B/C, F3A, Z1A and PT7A/B refine existing tickets; they are not new prompts.
+PT7 inventory can proceed early, and cutover waits for a settled verified import.
+Tracker migration does not gate a player action or authorize an extra game run.
+The currently configured catalog remains authoritative until cutover succeeds.
+
+### Playable release and proof contract
+
+Each added check must protect a distinct failure; extend existing coverage where
+practical. Consolidate or retire redundant/internal-only checks only with
+evidence of the surviving required protection; never delete a failing check
+merely to make the candidate pass. Apply this to every prepared future brief.
+
+Each PC10.x release has one reconciled candidate, appropriate focused checks,
+required independent authority/privacy review, independent actual-build
+typography review, supported responsive/keyboard/navigation checks, version and
+concise changelog, exact-candidate CI and verified exact-main deployment. Reuse
+accepted unaffected evidence and existing gates. The one-candidate batching rule
+now applies to **each PC10.x release**, rather than holding every increment for
+one large PC10 release; it still forbids a CI/release cycle per worker or ticket.
+Published releases are independently playable, with a numbered optional solo
+tour and honestly labeled prepared states. Prepared tours do not prove gameplay.
+0.9.x and 1.0.0 keep their separate owner-authorization boundaries.
+
+The owner’s one-sitting checks for each release are:
+
+- **PC10.1:** Can I perform research/scouting/harvesting, see the real cost and private result, return to my chooser and recover the same result after reload?
+- **PC10.2:** Can I follow a wing or boarding action and a legal salvage/reclamation action from available control to paid result, with a clear denied/retry state?
+- **PC10.3:** Can I return after dropout, recover my legal station/draft/result, understand a stale-action retry and keep other roles’ private information hidden?
+- **PC10.4:** Can I make a supported automatic action, see the result/cost/retry or limit, and have an entitled GM recover its original private procedure receipt?
+- **PC10.5:** Can I follow Station attack, liberation and contribution to activation, recover an interrupted payment once, then close and read the entitled debrief?
+- **PC10.6:** Can I understand passage fuel and a committed candidate outcome, recover a loss or interrupted ruling/arrest, and see the legal next action or real ending?
+- **PC10.7:** Can one facilitator run the normal Base setup, maintenance, movement, scout, mission, combat, deduction and crisis through a genuine ending without manual calculation?
+- **PC10.8:** Can the real expansion roster use both roles, Scrap, d8 targeting, mission, combat and jump, then recover the same Nebula game through success and debrief?
+- **PC10.9:** Does the released complete game match the optional numbered solo tour and true catalog totals, with usable guidance, no placeholder control and verified deployment?
+
+Full Base G1→G2 and the C4A→C4B→C4/H1→H2 Capybara composition stay within
+their respective same fresh authenticated sessions and releases. If stopped,
+retain the exact failure and strict owned-resource return; a later allocation
+must recreate a fresh valid sequence or resume an actually retained session.
+Do not stitch unrelated successful prefixes into continuous-game evidence.
+Sparse/recovery and optional-GM claims use the smallest cohort that proves them;
+full-table obligations remain where explicitly required. Report Auth accounts,
+active players, browsers, humans and physical devices separately.
+
+### Focused checks before another long gameplay run
+
+Use the merged `npm run test:proof-preflight` first. For actual Red Alert
+controls/selectors, also use `npm run test:proof-redalert-browser` with the locked
+Playwright Chromium already installed, or install it through the existing
+managed-browser step. Neither command allocates emulators; the browser smoke
+is an inert consumer check, not gameplay or complete rendered acceptance.
+
+The next affected run also requires its bounded **actual consumer** checks:
+
+| Run family | Checks required before allocating its long runtime | Stop condition |
+|---|---|---|
+| Base / PT2A / G1–G2 | Existing election GM return/ballot-delayed-mount checks; actual role-entry actor-versus-live-snapshot contract; maintenance/research readiness; source interruption before governance. | Any relevant navigation/readiness/order check fails, or the original-source next action is not explained. |
+| Capybara / PT2B / C4–H2 | Meaningful RED then repair for attempt-7 alert/GM matching; existing Capybara consumer, actor/cache isolation, current combat choice and same-session Nebula original-actor loss/reload/retry checks. | The visible source alert still has no exact original-GM match; no new long setup for diagnosis. |
+| Station / PT2C / A1–V3 | Retained current-cycle Station attack sequence; single authenticated choice read and closed-boarding preservation; contribution lost-ack/reload/exact replay; entitled private ending and actual dialog Continue. | Any identity/App/Auth/App Check/document/deadline or contribution-result check fails. Cancelled old plan remains unusable. |
+| Changed specialist callable | Existing actual-handler fresh-action denial after applicable actor/home/current-host settlement, transaction-race denial and exact committed replay after settlement, plus foreign/payload/receipt negatives. | Failed authority/replay check; do not substitute a final-state fixture for its real consumer transition. |
+
+At preserved candidate `aa9dca78`, the relevant retained files include
+`pc10-election-gm-navigation.browser.test.mjs`,
+`pc10-base-maintenance-readiness.browser.test.mjs`,
+`pc10-base-research-readiness.browser.test.mjs`,
+`pc10-political-crisis-arrest-proof.test.mjs`,
+`pc10-capybara-full-gameplay.test.mjs`,
+`pc10-capybara-nebula-continuation.test.mjs`,
+`pc10-candidate-station-ui-proof.recovery.test.mjs` and
+`test-pc10-combat-single-server-reinspection.mjs`, all under `scripts/`.
+Reconcile only the selected family into the intended candidate; run its Node
+checks with `node --experimental-vm-modules --test` and the selected real files.
+Some are still candidate-only. A missing module or fixture/setup import is a
+preflight failure, not meaningful gameplay RED. PT2 keeps the selected commands
+maintained in existing local/CI entry points; PT3 supplies its real compiler
+negative control rather than a new imaginary typecheck command.
+
+After those pass, qualify a changed role/action in a small legitimate native
+setup where necessary before the full sequence. New functional repairs retain
+observed meaningful RED in a separate test-only commit, then GREEN. Green tests
+and builds are not native acceptance. Before an authorized allocation, use the
+[existing proof-tooling guide](agents/proof-tooling.md) to bind checkout/commit, complete compiled import
+tree, helpers, served environment, original actors, project/ports, processes and
+original work/return deadlines. Freeze inputs until strict return; keep the
+primary failure, inspect owned descendants/listeners, and release only owned
+resources. No stale plan or deadline is reused.
+
+### Future work uses the same small-release shape
+
+The following briefs prepare existing scope only. They add no campaign prompt,
+mechanic or deadline, start no implementation and do not expand authorization.
+At activation, reconcile the final PC10 handoff, affected source and current
+owner decisions. Every ticket maps a mounted control through authoritative
+request/result/recovery; split any overlarge concrete gap before building.
+Independent preparation is not permission to run later checkpoints concurrently.
+
+PC11’s earlier eleven-component live-base guidance extraction and accepted
+normal-flow/rendered evidence already shipped in 0.5.71 (PR 16). Preserve that
+work and its historical limitations. PC11.x below covers **remaining** cross-game
+guidance against the completed PC10 behavior, not a rebuild of that extraction.
+PC12 remains unstarted and conditional on the owner’s concrete architecture
+assessment/activation decision; its plan is not an emulator-as-product security
+claim. Firebase stays primary, cloud data/deployment intact, no cloud/LAN sync
+is implied, and no Wi-Fi credential is committed or network security changed.
+
+| Prepared checkpoint | Playable/review outcome | Tickets | Count | Original dependency or trigger |
+|---|---|---|---:|---|
+| **PC11.1** | Remaining movement, resources and scouting guidance | [GUI1](future-tickets/gui1-understand-ordinary-movement-and-jump-choices.md), [GUI2](future-tickets/gui2-understand-resource-and-trade-handoffs.md), [GUI3](future-tickets/gui3-understand-scouting-and-discovery-results.md) | 3 | After PC10 and the existing eligible post-PC10 handoff; preserve released 0.5.71 extraction. |
+| **PC11.2** | Remaining specialist, mission and combat guidance | [GUI4](future-tickets/gui4-understand-research-and-specialist-choices.md), [GUI5](future-tickets/gui5-understand-maintenance-and-mission-steps.md), [GUI6](future-tickets/gui6-understand-combat-wings-and-boarding.md) | 3 | At PC11’s sequential turn; reconcile actual mounted action/source availability before copy. |
+| **PC11.3** | Private-action and candidate guidance | [GUI7](future-tickets/gui7-understand-private-political-and-wolf-actions.md), [GUI8](future-tickets/gui8-understand-ring-nebula-and-station-preparation.md), [GUI9](future-tickets/gui9-understand-endings-and-entitled-debrief-history.md) | 3 | Uses the completed PC10 mechanics and private result boundaries, not new mechanics. |
+| **PC11.4** | Recovery guidance and complete cross-game tour | [GUI10](future-tickets/gui10-understand-waiting-stale-and-recovery-states.md), [GUI11](future-tickets/gui11-read-and-navigate-the-complete-guidance.md), [GUI12](future-tickets/gui12-complete-the-remaining-cross-game-guidance-tour.md) | 3 | GUI12 consumes the earlier remaining guidance; preserve current source-bound accepted work. |
+| **PC12.1** | Conditional local playable slice | [OFF1](future-tickets/off1-start-the-local-game-host-without-wan.md), [OFF2](future-tickets/off2-join-locally-with-private-player-and-gm-authority.md), [OFF3](future-tickets/off3-commit-one-authoritative-local-action.md) | 3 | Unstarted; owner architecture/activation decision after the earlier sequence. |
+| **PC12.2** | Conditional durable local recovery | [OFF4](future-tickets/off4-recover-durable-local-play-after-host-restart.md), [OFF5](future-tickets/off5-reconnect-the-original-local-player.md), [OFF6](future-tickets/off6-resolve-concurrent-local-actions-once.md) | 3 | OFF3 authoritative local slice; use its actual store/identity/transport. |
+| **PC12.3** | Conditional remaining local game parity | [OFF7](future-tickets/off7-play-local-movement-and-mission-workflows.md), [OFF8](future-tickets/off8-play-local-combat-and-private-role-workflows.md), [OFF9](future-tickets/off9-finish-local-candidate-and-terminal-paths.md) | 3 | Local durability, reconnect and concurrent mutation contracts are ready. |
+| **PC12.4** | Conditional LAN join and offline complete game | [OFF10](future-tickets/off10-join-the-local-host-from-its-qr.md), [OFF11](future-tickets/off11-complete-a-wan-disconnected-multi-client-game.md), [OFF12](future-tickets/off12-release-the-qualified-local-backup.md) | 3 | Full source parity, local QR and disconnected multi-client proof before backup release. |
+| **ACCESS.1** | Optional non-color shared states | [ACCESS1](future-tickets/access1-audit-color-only-information.md), [ACCESS2](future-tickets/access2-choose-don-t-rely-on-color-in-settings.md), [ACCESS3](future-tickets/access3-read-shared-states-without-color.md) | 3 | Deferred until verified PC10 and full-app release; no 0.9 delay or PC11 reopening. |
+| **ACCESS.2** | Optional non-color game displays | [ACCESS4](future-tickets/access4-read-map-and-dradis-meaning-without-color.md), [ACCESS5](future-tickets/access5-read-remaining-game-outcomes-without-color.md), [ACCESS6](future-tickets/access6-verify-and-release-complete-non-color-coverage.md) | 3 | ACCESS audit and optional mode; finish the existing app-wide coverage. |
+| **POST-ALERT.1** | Real-play Wolf-alert review | [ALERT1](future-tickets/alert1-review-the-wolf-alert-after-real-play.md), [ALERT2](future-tickets/alert2-apply-or-record-the-bounded-alert-decision.md) | 2 | After 1.0 AND actual real play. This review is not moved ahead of its trigger. |
+
+
+Each PC11.x and activated PC12.x increment is a playable release, with the same
+bounded implementation and release contract as PC10.x. Smaller future ticket
+counts reflect their still-unvalidated service/guidance boundaries; they are
+not permission to hide a broad implementation inside a short title. At shaping,
+resolve concrete architecture and split oversized work before committing code.
+
+Preserve the existing order: finish PC10, reconcile existing eligible post-PC10
+work, then the remaining PC11 scope, then conditional PC12. Triggered deferred
+items are not unconditional blockers: the Wolf-alert review still waits for
+both 1.0 and real play; the color work follows verified PC10/full-app release
+without delaying 0.9 or reopening PC11. The earlier October 10 date is historical,
+not a new delivery promise. Retain the limited CC0 rights/provenance exclusions,
+unchanged third-party assets/notices and the separate local-paper owner; this
+planning does not publish source material or broaden a license.

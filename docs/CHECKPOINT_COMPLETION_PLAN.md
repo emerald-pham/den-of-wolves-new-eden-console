@@ -198,6 +198,16 @@ this verified PC09 record.
 
 181, 215b, 223b, 233b, 576, 579, 581, 584, 585, 541, 542, 543, 544, 545, 546, 547, 548, 549, 593, 619, 550, 551, 552, 553, 554, 555, 556, 557, 558, 559, 563, 564, 565, 566, 647, 648, 649, 650, 618, 620, 629, 630, 631, 634, 635, 641, 642, 651.
 
+**October 16 delivery correction:** the owner now requires smaller independently
+playable releases PC10.1–PC10.9, as assigned in the [existing milestone
+plan](PRODUCT_MILESTONES.md#pc10-smaller-playable-releases--2026-10-16).
+The literal 48-ID allocation above, original acceptance and 751/751 endpoint
+remain unchanged. Each subcheckpoint has its own verified playable release;
+only the final complete acceptance closes umbrella PC10. Retain accepted
+subcriteria and leave unfinished proof explicit. Later work is prepared in
+small chunks under the same plan, preserving its original triggers/conditions.
+
+
 ## Current future gameplay evidence standard — October 2
 
 The owner instructed that all future repository work use local/emulator
