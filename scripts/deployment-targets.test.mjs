@@ -41,6 +41,11 @@ test('ignores only the three generated PC07 roadmap data artifacts', () => {
   assert.deepEqual(result.targets, []);
   assert.deepEqual(result.unknownFiles, []);
   assert.deepEqual(result.ignoredFiles, files);
+  assert.equal(result.riskGates.documentationOnly, true);
+  assert.equal(result.riskGates.roadmapChanged, true);
+  for (const gate of ['unit', 'functions', 'firestore', 'webBuild', 'ticker', 'font', 'typography', 'render', 'bundle']) {
+    assert.equal(result.riskGates[gate], false, `${gate} must not be selected for generated planning exports`);
+  }
   const adjacent = classifyChangedFiles(['docs/PC07_ROADMAP_GANTT.js']);
   assert.deepEqual(adjacent.targets, ['hosting', 'firestore', 'functions']);
   assert.deepEqual(adjacent.unknownFiles, ['docs/PC07_ROADMAP_GANTT.js']);
