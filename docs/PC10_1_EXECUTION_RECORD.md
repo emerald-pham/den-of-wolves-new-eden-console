@@ -68,10 +68,10 @@ the terminal result are readable there; use those for this handback.
 ## Preserved implementation boundary
 
 All nine implementation groups are integrated. The current source candidate is
-`ce67d87d6e27eeccab211e7428c97328d9c899a4`, tree
-`ac43a2812e7727ea1042eeb7dec179489b83de9f`. It is **not accepted or release-ready**:
-an ECM rule awaits the owner, a newly introduced prepared-scene dependency is
-under bounded repair, and native/rendered acceptance remains open. The catalog
+`36ae58f5917bbbcb8b380ae9b2656610e888c59d`, tree
+`0ecc3f7043b05b5cfb7c8dcb86d40588eac050aa`. It is **not accepted or release-ready**:
+an ECM rule awaits the owner, a separate baseline source-map exposure awaits
+scope/release triage, and native/rendered acceptance remains open. The catalog
 has not changed or received completion credit. No authenticated gameplay, final
 rendered release review, CI, push, main merge or deployment is claimed.
 
@@ -124,6 +124,11 @@ Evidence root: `/tmp/dow-pc10-1-20261017`.
   The residual scene/fixture candidate passed 22 unit cases in two files,
   app type checking and copy checks. Exact commits, REDs and evidence limits
   are in `review-repairs-handoff-report.md`.
+- The Sol scene-boundary repair passed five focused tests in two files, full
+  app typecheck/build, focused lint and the bundle budget, at source `6e0f46c9`
+  before central merge `36ae58f5`. Its isolated review-entry artifact guard
+  passes. A separate scan of the full multi-entry artifact fails on the
+  baseline source-map exposure below; successful build is not privacy approval.
 
 Independent Standards and Spec reviews are recorded separately in
 `code-review.md`; the Spec reviewer withdrew the O-guidance concern after
@@ -190,16 +195,41 @@ purchase before the last mark. The parent acknowledged ownership and asked
 Emerald at 04:57 UTC; no answer or approval has arrived. The complete-track-use
 prerequisite remains. Do not invent a mapping or claim acceptance.
 
-**Prepared-scene dependency — Sol repair in progress.** The first consistency
-repair corrected the ECM quote/revision/use gate; the next corrected Reactor 7
-and Jump Drive 14-to-10 with discriminating DOM tests. Independent review then
-found that importing the server research helper also reaches server-only damage
-card metadata. No post-change build, push or deployment is claimed. After two
-substantive scene repair candidates failed review, the next repair transferred
-from Luna to a fresh Sol in `impl/pc10-1-scene-privacy-20261017`. Preserve the
-offending candidates and require a meaningful boundary RED before the fix,
-focused GREEN and independent affected review. This does not authorize a
-Functions refactor or another product rule.
+**Prepared-scene dependency — Sol repair integrated and independently reviewed.**
+The first consistency repair corrected the ECM quote/revision/use gate; the
+next corrected Reactor 7 and Jump Drive 14-to-10 with discriminating DOM tests.
+Independent review then found that the server research helper also reaches
+server-only damage card metadata. At discovery, no post-change build, push or
+deployment had run. After two substantive scene repair candidates failed
+review, the next repair transferred from Luna to a fresh Sol.
+
+The meaningful Vite review-entry RED preserved actual private source in emitted
+chunks/maps. A draft fix exposed a false positive in raw Rollup module IDs: a
+fully tree-shaken input was counted despite contributing no code or map source.
+With root disposition, the guard was corrected to actual rendered contribution
+plus source-map content, then observed RED on restored offending source before
+restoring the minimal fix and observing GREEN. The report preserves that
+chronology. The scene now uses bounded public price lanes without importing
+Functions runtime metadata. A separate Sol follow-up resolved this changed-code
+P1; it did not approve the whole candidate. See `scene-privacy-handoff-report.md`
+and retained private artifacts under `scene-privacy-evidence/`. No Functions,
+Vite/global refactor or product-rule change was made.
+
+**Full-build source-map exposure — pending parent scope/release triage.** The
+actual final multi-entry build still emits the complete server-only
+`functions/src/shipDamage.ts` source through other runtime modules. The scan's
+failure is preserved, not waived by the passing isolated-scene guard. An exact
+read of the already-released 0.5.73 runtime map returned HTTP 200 JSON, hash
+`3eee4beb7619256772a13824818779eda938f9e31e04d3ba7f3efe9ffad8589f`.
+Its embedded server-source hash
+`fe25ba625b3d8c95b7101a6b13a86098b84dd7666fb76d8f5f8206a171dabb94`
+matches the new full build. This establishes a pre-existing released-byte
+exposure, with no guessed release source SHA. Reports contain hashes and
+presence flags, not deck contents; raw maps and failed artifacts stay private
+outside Git. The parent was notified. Broader repair falls outside the nine
+bounded tickets and was stopped without authoring a ticket or changing global
+runtime behavior. Root/parent owns the scope and release disposition; it remains
+pending, not an automatic-approval denial or uncertain tool outcome.
 
 **Native/rendered resource — pending explicit foreign handback.** The earlier
 saved-view owner released its resource. Decision-sync owner
@@ -212,11 +242,17 @@ currently owns no browser, emulator process reservation or configured row.
 Native preparation under `native-recipe/` is source-only. It binds the future
 root-provided source pin and exact Functions origin/project/POST for ordinary
 create/join, with preserved old-predicate failure controls. It does not establish
-Auth, scouting, harvest, mission, payment, reload or station recovery. The draft
-cohort is one GM and two independent members in a legal sparse roster; Shepherd
-starts with zero materials, so a real production/trade funding path must be
-established before claiming a device purchase. No counter grant or fabricated
-funding is authorized by that preparation.
+Auth, scouting, harvest, mission, payment, reload or station recovery. The
+prepared cohort has one GM, Scientist, Explorer and one necessary Icebreaker
+Miner, leaving seven of ten player roles open. Shepherd starts with zero
+materials. The source-backed funding path loads Icebreaker's actual three
+materials onto Highwall, mines one or two actual material dice, hands control
+to the Scientist and unloads into Shepherd during Coordination. Insufficient
+random results remain insufficient. The same research track advances once per
+cycle, so a seven-material ECM quote requires one standard choice in each of
+three Team Phases; construction itself is Team-only. These are preparatory
+source facts, not an executed path. No counter grant, forced outcome or
+fabricated funding is authorized by that preparation.
 
 The previous public release's actual bytes were captured at 05:14 UTC under
 `typography-baseline/`: version 0.5.73, HTML hash
