@@ -11,8 +11,8 @@
     "dependencyWaveCount": 21
   },
   "sources": {
-    "revision": "67d0d4eb55aac159d801d7414d55a5e52ae0a793",
-    "revisionDate": "2026-10-16T15:53:04-04:00",
+    "revision": "9e597ac36c2067a8607292adbc829be77ab110ea",
+    "revisionDate": "2026-10-16T22:38:41-04:00",
     "files": [
       {
         "path": "docs/implementation-prompts.json",
