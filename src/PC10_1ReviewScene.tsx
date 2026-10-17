@@ -10,12 +10,16 @@ import { ScoutResultPanel, type PrivateScoutResultView, type ScoutDiscoveryNoteV
 import type { EndeavourFieldUpgradeOption } from '@/lib/endeavourFieldUpgradeService';
 import type { EndeavourResearchFunding, EndeavourResearchWorkspace } from '@/lib/endeavourResearchService';
 import type { GameSession, HummingbirdHarvest as HummingbirdHarvestState, Player } from '@/types/game';
-import { advanceEndeavourResearch } from '../functions/src/endeavourResearch';
 import { APP_VERSION } from './version';
 import './PC07ReviewScene.css';
 import './PC10_1ReviewScene.css';
 
 const STAMP = '2026-10-16T12:00:00.000Z';
+// Price-only prepared lanes; live research and quotes remain server-owned.
+const PREPARED_RESEARCH_COSTS = {
+  reactor: [8, 7, 6, 5, 4],
+  'jump-drive': [14, 10, 6, 4, 3],
+} as const;
 const STEPS = [
   {
     label: '1 Scientist fieldwork',
@@ -107,8 +111,8 @@ function advanceResearch(
     return workspace;
   }
   if (selected.trackId !== 'reactor' && selected.trackId !== 'jump-drive') return workspace;
-  const researchAdvance = advanceEndeavourResearch(workspace.progress, selected.trackId);
-  const crossedBoxes = researchAdvance.track.crossedBoxes;
+  const materialCosts = PREPARED_RESEARCH_COSTS[selected.trackId];
+  const crossedBoxes = selected.crossedBoxes + 1;
   const choices = [...workspace.cadence.choices, {
     trackId: selected.trackId,
     funding,
@@ -123,7 +127,9 @@ function advanceResearch(
     tracks: workspace.tracks.map((track) => track.trackId === trackId
       ? {
           ...track,
-          ...researchAdvance.track,
+          crossedBoxes,
+          currentMaterialCost: materialCosts[crossedBoxes] ?? null,
+          complete: crossedBoxes === track.totalBoxes,
         }
       : track),
   };
