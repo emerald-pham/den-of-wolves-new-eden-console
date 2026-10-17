@@ -8,11 +8,7 @@ import {
   type EndeavourScienceDeviceAttempt,
   type EndeavourScienceDeviceId,
 } from '@/lib/endeavourResearchService';
-
-const DEVICE_NAMES: Readonly<Record<EndeavourScienceDeviceId, string>> = {
-  'ecm-device': 'ECM Device',
-  'wolf-agent-detector': 'Wolf Agent Detector',
-};
+import EndeavourScienceDeviceChoices, { ENDEAVOUR_SCIENCE_DEVICE_NAMES } from './EndeavourScienceDeviceChoices';
 
 function isDefinitiveRejection(cause: unknown): boolean {
   const code = typeof cause === 'object' && cause !== null && 'code' in cause ? cause.code : '';
@@ -72,7 +68,7 @@ export default function EndeavourScienceDevicePanel({ workspace, liveTeamPhase, 
       setPending(null);
       setFeedback({
         identityKey,
-        notice: `${DEVICE_NAMES[result.deviceId]} built for ${result.materialCost} materials.`,
+        notice: `${ENDEAVOUR_SCIENCE_DEVICE_NAMES[result.deviceId]} built for ${result.materialCost} materials.`,
         error: '',
       });
       await onRefresh();
@@ -91,44 +87,15 @@ export default function EndeavourScienceDevicePanel({ workspace, liveTeamPhase, 
   }
 
   if (!devices || session?.id !== workspace.sessionId) return null;
-  return <section className="console-workspace__section cic-frame"
-    aria-label="Science device construction controls" aria-busy={busy}>
-    <h3>Science device construction</h3>
-    <p>Shepherd // {devices.shepherdMaterials} materials available</p>
-    {!liveTeamPhase && <p>Construction is available during the live Team Phase.</p>}
-    {(Object.keys(DEVICE_NAMES) as EndeavourScienceDeviceId[]).map((deviceId) => {
-      const built = deviceId === 'ecm-device' ? devices.ecmBuilt : devices.detectorBuilt;
-      const spent = deviceId === 'ecm-device' && devices.ecmUsed;
-      const price = devices.buildCosts[deviceId];
-      const unavailable = price === null;
-      const enough = price !== null && devices.shepherdMaterials >= price;
-      return <div className="console-workspace__status" key={deviceId}>
-        <p>{DEVICE_NAMES[deviceId]} // {spent ? 'Spent' : built ? 'Built' : 'Unbuilt'}</p>
-        {!built && !spent && <>
-          <p>{unavailable
-            ? 'Purchase unavailable until more research is completed.'
-            : `Unlocked purchase price: ${price} materials from Shepherd.`}</p>
-          {!unavailable && !enough && <p>Shepherd needs more materials before construction.</p>}
-          <div className="console-workspace__actions">
-            <button type="button" className="cic-action-button"
-              disabled={!liveTeamPhase || !online || unavailable || !enough || busy || attempt !== null}
-              onClick={() => void submit(deviceId)}>
-              {price === null ? `Build ${DEVICE_NAMES[deviceId]}` :
-                `Build ${DEVICE_NAMES[deviceId]} for ${price} materials`}
-            </button>
-          </div>
-        </>}
-      </div>;
-    })}
-    {busy && <p role="status">Purchasing science device…</p>}
-    {currentFeedback?.notice && <p role="status">{currentFeedback.notice}</p>}
-    {currentFeedback?.error && <p role="alert">{currentFeedback.error}</p>}
-    {attempt && !busy && <div className="console-workspace__status">
-      <p>The purchase response is uncertain. Retry the same request to confirm its outcome.</p>
-      <button type="button" className="cic-action-button" disabled={!online}
-        onClick={() => void submit()}>
-        Retry same science device purchase
-      </button>
-    </div>}
-  </section>;
+  return <EndeavourScienceDeviceChoices
+    workspace={workspace}
+    liveTeamPhase={liveTeamPhase}
+    actionsEnabled={online}
+    busy={busy}
+    attempt={attempt}
+    notice={currentFeedback?.notice ?? ''}
+    error={currentFeedback?.error ?? ''}
+    onBuild={deviceId => void submit(deviceId)}
+    onRetry={() => void submit()}
+  />;
 }
