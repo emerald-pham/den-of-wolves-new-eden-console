@@ -114,6 +114,34 @@ it('retains the five-second rejection retry after a same-phase observation repla
   expect(beginOpenAirspacePhase).toHaveBeenCalledTimes(2);
 });
 
+it.each(['before cleanup', 'after cleanup before timer'] as const)(
+  'retains the rejection delay when a same-phase snapshot arrives %s', async ordering => {
+    let fail!: (error: Error) => void;
+    vi.mocked(beginOpenAirspacePhase).mockImplementationOnce(() => new Promise<void>((_resolve, reject) => { fail = reject; }));
+    render(<TurnPhaseCoordinator />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(5 * 60_000); });
+    expect(beginOpenAirspacePhase).toHaveBeenCalledTimes(1);
+    const session = useSessionStore.getState().session;
+    if (!session) throw new Error('Expected the original session.');
+
+    if (ordering === 'before cleanup') {
+      await act(async () => {
+        useSessionStore.getState().setSession({ ...session });
+        fail(new Error('Normal phase request rejected.'));
+      });
+    } else {
+      await act(async () => { useSessionStore.getState().setSession({ ...session }); });
+      await act(async () => { fail(new Error('Normal phase request rejected.')); });
+    }
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(beginOpenAirspacePhase).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(4_999); });
+    expect(beginOpenAirspacePhase).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(beginOpenAirspacePhase).toHaveBeenCalledTimes(2);
+  },
+);
+
 it('rechecks a current emergency hold when pending work settles before effect cleanup', async () => {
   let finish!: () => void;
   vi.mocked(beginOpenAirspacePhase).mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
