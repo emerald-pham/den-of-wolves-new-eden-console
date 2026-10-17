@@ -190,7 +190,15 @@ export async function captureMountedUiAction({ surface, endpoint, expectedActor,
   return { request, result, replay: replayAfterReload.result };
 }
 
-/** Select a real prepared actor through the visible demo picker and enter its ordinary mounted station. */
+/**
+ * @typedef {import('./pc10-role-entry.types.js').PreparedRoleEntry} PreparedRoleEntry
+ */
+
+/**
+ * Select a real prepared actor through the visible demo picker and enter its ordinary mounted station.
+ * @param {{ crew: any, initial: { sessionId: string }, roster: Array<{ roleId: string, uidHash: string }>, roleId: string }} input
+ * @returns {Promise<PreparedRoleEntry>}
+ */
 export async function enterPreparedRoleStation({ crew, initial, roster, roleId }) {
   const actor = roster.find(entry => entry.roleId === roleId);
   assert.ok(actor, `The actual prepared roster does not contain ${roleId}.`);

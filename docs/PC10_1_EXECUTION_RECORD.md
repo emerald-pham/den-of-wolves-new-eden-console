@@ -76,12 +76,12 @@ main merge or deployment is claimed.
 | X1 | `78a15160be49b0792ba6eb2b460ef4069afff90c`, integrated at `f295f404` | 9 observed handler RED failures, then 41/41 callable cases; unchanged 114-case consumer baseline. Native harvesting and rendered acceptance open. `/tmp/dow-pc10-1-20261017/x1-handoff-report.md`. |
 | D1 | `f5ebf9b714fb850b9745a43398830b22dcbc0e04`, integrated at `1e2e355f` | Separate projection and transaction RED/source commits; reconciled D1+X1 91/91 Functions and 6/6 reveal consumer. Native/rendered and outstanding audience evidence open. `/tmp/dow-pc10-1-20261017/d1-handoff-report.md`. |
 | PT1 | `2114f2626d2e0510b268427b0ac1a656296d510e`, integrated at `b73b431c` | 14/14 source-only preflight and disposable process status evidence. Pipeline false-success and package-wiring RED retained; exact earlier existing-invocation behavioral RED not recovered. Acceptance review remains open. `/tmp/dow-pc10-1-20261017/pt1-handoff-report.md`. |
-| PT2A | `659670b4c7533757d60d249bf618c964d4f565cd`, integrated at `9b895e70` | Retained test/source lineage and 7+2+9 code-only consumer checks. Three browser checks pending. Actual Base runner import preflight fails; see dependency boundary below. `/tmp/dow-pc10-1-20261017/pt2a-handoff-report.md`. |
-| S1 | `9b6ce5f02b37d32c43892f9abfa0b84ada6c0613`, not integrated | Separate observed RED/test commits then source-priced construction, private quotes/receipts and Built gates; existing P213/P214 completed-track use prerequisites retained. 104/104 focused Functions and 40/40 client cases, builds/typecheck/docs/copy checks passed. Worker integration merge denied before execution. `/tmp/s1-handoff-report.md`. |
-| X2 | `d55adf688507fa3bb367f682bbb2bde77a5b1516`, not integrated | Observed missing-planner RED in test-only `6701e314`, source `3fc0a243`. 83 focused consumer cases and typecheck reported after incorporating `9b895e70`. Planner uses entitled known coordinates; actual movement remains server-owned. Native/rendered/mission proof open. |
-| D2 | `a3db9b32b615f90175c1e4e05ba4acebd7d1d23a`, not integrated | Observed member guidance RED `f449b03f`, source `eeb24380`; existing GM plan/outbox implementation compared with accepted evidence. Native/rendered/audience proof open. `/tmp/dow-pc10-1-20261017/d2-handoff-report.md`. |
-| PT3 | In progress in its assigned isolated branch | Real compiler negative/correct control and preceding wiring-test RED reported; implementation and handoff still pending. |
-| S2 | Not started | Waits for the S1 source handoff/integration boundary. |
+| PT2A | `659670b4c7533757d60d249bf618c964d4f565cd`, integrated at `9b895e70` | Retained test/source lineage and 7+2+9 code-only consumer checks. Three browser checks pending. A fresh bounded worker owns the outstanding exact source-alert/original-GM receipt criterion; the full Base import closure is not its prerequisite. `/tmp/dow-pc10-1-20261017/pt2a-boundary-diagnosis.md`. |
+| S1 | `761b9c85ee750e83fb68724c691eda27876ffa77`, integrated at `0e35db76` | Separate observed RED/test commits then source-priced construction, private quotes/receipts and Built gates; existing P213/P214 completed-track use prerequisites retained. After authorized synchronization: 104/104 focused Functions and 40/40 client cases, Functions build and root typecheck passed. Native/rendered acceptance open. `/tmp/s1-handoff-report.md`. |
+| X2 | `d55adf688507fa3bb367f682bbb2bde77a5b1516`, integrated at `69e4b853` | Observed missing-planner RED in test-only `6701e314`, source `3fc0a243`. 83 focused consumer cases and typecheck reported after incorporating `9b895e70`. Planner uses entitled known coordinates; actual movement remains server-owned. Native/rendered/mission proof open. |
+| D2 | `a3db9b32b615f90175c1e4e05ba4acebd7d1d23a`, integrated at `d3b1e099` | Observed member guidance RED `f449b03f`, source `eeb24380`; existing GM plan/outbox implementation compared with accepted evidence. Native/rendered/audience proof open. `/tmp/dow-pc10-1-20261017/d2-handoff-report.md`. |
+| PT3 | `9ff8e5a0eb20ec32cf904c65a1e63c3cdca1fee2`, integrated at `fbfbecd7` | Real compiler TS2339 negative control and valid consumer control, 3/3 type checks, 11/11 role-entry regressions and 17/17 proof preflight. Tooling does not close whole owning prompts. `/tmp/dow-pc10-1-20261017/pt3-handoff-report.md`. |
+| S2 | In progress from integrated S1/PT3 tip `fbfbecd7` | Fresh bounded worker owns only Scientist scouting/ordinary mission/reconnect/station-loss checks against P215b. No shared runtime grant. |
 
 These test counts overlap where stated; they are not summed into checkpoint or
 campaign acceptance. Root's initial merged-foundation preflight passed 10/10
@@ -90,30 +90,44 @@ The public production manifest currently reports `0.5.73`, saved as
 `/tmp/dow-pc10-1-20261017/previous-released-build-version.json`; that does not
 identify its exact deployment commit or constitute candidate release evidence.
 
-## Dependencies requiring parent triage
+## Resolved triage and remaining acceptance
 
-**S1 integration operation — denied, not executed.** Automatic approval review
+**S1 integration operation — initial denial preserved; resolved by one authorized retry.** Automatic approval review
 rejected `git merge --no-edit 9b895e706c975dc5e596565d449e68ddaaaa9815` in
 `/tmp/dow-pc10-1-20261017/s1` because the broad integration tip includes PC10/PT2A
 work outside the worker's S1-only assignment. The required implement-spec
 worker handback says to merge the integration tip before reporting done; that
-step remains unfulfilled. Source/tests are committed and the checkout is clean.
-No retry, cherry-pick workaround or indirect execution was attempted. Parent
-owns resolution; resume requires materially new relevant authorization or a
-sanctioned integration handback direction.
+step was initially unfulfilled. The parent then supplied materially new trusted
+owner authorization covering all nine tickets and required sibling integration,
+together with the verified 23-path inventory. The same denied merge was retried
+once and succeeded at `761b9c85`; no alternate execution route was used. Focused
+post-merge checks passed and the separate merger integrated the handoff at
+`0e35db76`. The earlier denial remains historical evidence, not an open blocker.
 
-**PT2A Base import closure — held for scope, no extra code imported.** The
+**PT2A Base import closure — diagnosis corrected; existing criterion 3 repair in progress.** The
 actual ESM import preflight fails at the absent
 `scripts/pc10-mission-lifecycle-consumer.mjs`. The preserved candidate's runner
 closure contains 39 paths, 22 missing in this checkpoint, including 9 direct
 imports. It reaches later mission, candidate, combat/deduction, Wolf/range,
 crisis/arrest, pending-procedure and ending proof consumers. The worker stopped
-before copying those families. Extracted source tests and syntax checks do not
-establish runnable import readiness or an actual source-alert/GM receipt.
-Parent owns the scope decision; no new ticket or broader repair is authored.
+before copying those families. Read-only diagnosis established that all missing
+paths are retained proof helpers, not product implementation. The focused
+browser checks extract the selected actual consumer functions and do not need
+the full runner import closure or later G1 gameplay. The earlier interpretation
+as a later-product prerequisite was overstated and was corrected to the parent.
 
-The foreign saved-view owner still held `browser-runtime` at the latest live
-registry inspection. No PC10.1 browser/emulator resource has been allocated.
+The existing source-order fixture proves ordering only: it has no actual source
+alert row, original GM or request/receipt. A fresh worker owns completion of
+56a's existing criterion through the public `onEligibleAlert` callback, matching
+source alert identity and the original `context.started` GM, request and exact
+receipt/replay. It may restore only the four required retained proof helpers;
+no full closure, later checkpoint or new ticket is authorized. Functional
+changes retain new observed semantic RED before source repair. Existing import
+failures and evidence remain preserved.
+
+At the latest live registry inspection, the saved-view owner had explicitly
+parked with no resources; a separate active decision-sync owner now holds
+`browser-runtime` and port 8821. No PC10.1 browser/emulator resource has been allocated.
 Independent actual-build typography, supported responsive/keyboard inspection,
 authenticated role gameplay, final authority/spec/standards review and all
 release gates remain open. All assigned worktrees and failed evidence are

@@ -7,12 +7,24 @@ vi.mock('./firebase', () => ({ functions: () => 'functions' }));
 
 import {
   advanceEndeavourResearchTrack,
+  buildEndeavourScienceDevice,
   createEndeavourResearchAttempt,
+  createEndeavourScienceDeviceAttempt,
   readEndeavourResearchWorkspace,
   retryEndeavourResearchAttempt,
+  retryUncertainEndeavourScienceDevice,
   type EndeavourResearchAttempt,
   type EndeavourResearchWorkspace,
 } from './endeavourResearchService';
+
+const deviceAttempt = {
+  sessionId: 's1', requestId: 'device-1', expectedControlRevision: 4,
+  expectedResearchRevision: 0, expectedDeviceRevision: 0, expectedCycle: 3, deviceId: 'ecm-device',
+} as const;
+const deviceReply = {
+  status: 'committed', sessionId: 's1', requestId: 'device-1', cycle: 3, deviceId: 'ecm-device',
+  deviceRevision: 1, built: true, materialCost: 18, shepherdMaterials: 12,
+} as const;
 
 const workspace: EndeavourResearchWorkspace = {
   status: 'ready', sessionId: 's1', cycle: 3, researchRevision: 0,
@@ -24,6 +36,10 @@ const workspace: EndeavourResearchWorkspace = {
   }],
   shepherdOre: 10,
   fieldUpgradeState: { upgradeRevision: 0, targetsUsedThisCycle: 0 },
+  scienceDevices: {
+    revision: 0, ecmBuilt: false, detectorBuilt: false, ecmUsed: false, shepherdMaterials: 30,
+    buildCosts: { 'ecm-device': 18, 'wolf-agent-detector': null },
+  },
 };
 
 function committedReply(attempt: EndeavourResearchAttempt) {
@@ -84,6 +100,44 @@ it('reads and validates the private research workspace through the named callabl
   await expect(readEndeavourResearchWorkspace()).resolves.toEqual(workspace);
   expect(mocks.callable).toHaveBeenCalledWith('functions', 'readEndeavourResearchWorkspace');
   expect(mocks.call).toHaveBeenCalledWith({ sessionId: 's1' });
+});
+
+it('binds construction to the private source quote, current material stock, and observed revisions', () => {
+  expect(createEndeavourScienceDeviceAttempt({ workspace, deviceId: 'ecm-device' })).toMatchObject({
+    sessionId: 's1', expectedControlRevision: 4, expectedResearchRevision: 0,
+    expectedDeviceRevision: 0, expectedCycle: 3, deviceId: 'ecm-device',
+  });
+  expect(() => createEndeavourScienceDeviceAttempt({
+    workspace: { ...workspace, scienceDevices: { ...workspace.scienceDevices!, shepherdMaterials: 17 } },
+    deviceId: 'ecm-device',
+  })).toThrow(/enough materials/i);
+  expect(() => createEndeavourScienceDeviceAttempt({
+    workspace: { ...workspace, scienceDevices: { ...workspace.scienceDevices!, buildCosts: {
+      'ecm-device': null, 'wolf-agent-detector': null,
+    } } }, deviceId: 'ecm-device',
+  })).toThrow(/unavailable/i);
+});
+
+it('submits the exact Scientist build payload and accepts only its request-bound committed result', async () => {
+  mocks.call.mockResolvedValueOnce({ data: deviceReply });
+  await expect(buildEndeavourScienceDevice(deviceAttempt)).resolves.toMatchObject({ status: 'committed' });
+  expect(mocks.callable).toHaveBeenCalledWith('functions', 'buildEndeavourScienceDevice');
+  expect(mocks.call).toHaveBeenCalledWith(deviceAttempt);
+
+  mocks.call.mockResolvedValueOnce({ data: { ...deviceReply, requestId: 'other-request' } });
+  await expect(buildEndeavourScienceDevice(deviceAttempt)).rejects.toThrow(/invalid Endeavour science device result/i);
+});
+
+it('retries the identical build receipt after a same-Scientist cycle rollover', async () => {
+  const session = useSessionStore.getState().session!;
+  useSessionStore.setState({ session: {
+    ...session,
+    currentTurn: 4,
+    shuttleControl: { endeavour: { ...session.shuttleControl!.endeavour!, revision: 5 } },
+  } });
+  mocks.call.mockResolvedValueOnce({ data: { ...deviceReply, status: 'replayed' } });
+  await expect(retryUncertainEndeavourScienceDevice(deviceAttempt)).resolves.toMatchObject({ status: 'replayed' });
+  expect(mocks.call).toHaveBeenCalledWith(deviceAttempt);
 });
 
 it('sends only the selected track, funding, and observed revision/cycle/control CAS', async () => {
@@ -260,6 +314,9 @@ it('fails closed on malformed server projections', async () => {
     { ...workspace, tracks: [{ ...workspace.tracks[0]!, privateCost: 99 }] },
     { ...workspace, tracks: [{ ...workspace.tracks[0]!, totalBoxes: '5' }] },
     { ...workspace, fieldUpgradeState: { upgradeRevision: -1, targetsUsedThisCycle: 0 } },
+    { ...workspace, scienceDevices: { ...workspace.scienceDevices!, revision: 1 } },
+    { ...workspace, scienceDevices: { ...workspace.scienceDevices!, ecmUsed: true } },
+    { ...workspace, scienceDevices: { ...workspace.scienceDevices!, buildCosts: { 'ecm-device': 0, 'wolf-agent-detector': null } } },
   ]) {
     mocks.call.mockResolvedValueOnce({ data });
     await expect(readEndeavourResearchWorkspace()).rejects.toThrow(/invalid Endeavour research data/i);

@@ -21,6 +21,7 @@ import {
 import EndeavourResearchChoices from './EndeavourResearchChoices';
 import './EndeavourResearchPanel.css';
 import EndeavourEcmDevicePanel from './EndeavourEcmDevicePanel';
+import EndeavourScienceDevicePanel from './EndeavourScienceDevicePanel';
 import { WolfAgentDetectorPanel } from './Pc09SpecialistPresenters';
 
 const EndeavourFieldUpgradePanel = lazy(() => import('./EndeavourFieldUpgradePanel'));
@@ -403,8 +404,14 @@ export default function EndeavourResearchPanel({ control }: { readonly control: 
         </div>}
       </>}
     />
-    {workspace && <EndeavourEcmDevicePanel control={control} />}
-    {workspace?.tracks.some((track) => track.trackId === 'wolf-agent-detector' && track.complete) &&
+    {workspace?.scienceDevices && <EndeavourScienceDevicePanel
+      workspace={workspace}
+      liveTeamPhase={liveTeamPhase}
+      onRefresh={reload}
+    />}
+    {workspace?.scienceDevices?.ecmBuilt && <EndeavourEcmDevicePanel control={control} />}
+    {workspace?.scienceDevices?.detectorBuilt &&
+      workspace.tracks.some((track) => track.trackId === 'wolf-agent-detector' && track.complete) &&
       currentDetectorState && currentCycle !== null && uid && <WolfAgentDetectorPanel
       cycle={currentCycle}
       testsUsed={currentDetectorState.cycle === currentCycle ? currentDetectorState.testsUsed : 0}
