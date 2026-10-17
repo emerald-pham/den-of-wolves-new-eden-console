@@ -288,3 +288,27 @@ still gates whole P542/P543/P593 closure. PT1/PT2A/PT3 do not close whole
 P641/P642/P649/P651. Version remains 0.5.73 locally; no increment or release is
 claimed. All task branches, worktrees, failure evidence and original candidate
 remain preserved for the checkpoint owner; none is treated as a landed release.
+
+## Resumption after explicit owner decisions — 2026-10-17
+
+The parent supplied Emerald's explicit approval to retain the final **5-material
+ECM construction quote after all five research boxes**, and to author and
+implement **one bounded browser-asset privacy repair**. The S1 refinement and
+[BP1](pc10-tickets/62-bp1.md) record the exact scope. These approvals supersede
+the pending-decision statements in the preserved park record above. They do
+not establish implementation, gameplay acceptance or release. Emerald is awake;
+conditional sleeping authorization is inactive and new product/scope decisions
+return to the parent.
+
+The foreign decision-sync owner explicitly completed its resource record and
+released browser-runtime and port 8821 at 08:35:40 UTC. The PC10.1 coordination
+record was resumed with no resources, emulator reservations or configured row.
+Ownership must be checked again before native or rendered execution.
+
+A read-only repository query confirmed the repository is public. BP1 therefore
+also excludes maps from the downloadable deployment artifact; a public Actions
+artifact is not a private diagnostic boundary. Keep useful diagnostic copies
+outside the published file set without changing repository security settings.
+The preserved park capsule remains an unchanged historical snapshot. Current
+main, final source/runtime binding, normal authenticated fieldwork, independent
+rendered review, CI, checkpoint acceptance, retro and release remain pending.

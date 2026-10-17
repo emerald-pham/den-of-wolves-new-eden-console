@@ -571,3 +571,12 @@ broader future diegetic-rules PC11 does not enlarge this repair.
 | Chosen reading | The printed component governs device construction in S1. Quote and atomically debit the left-most available printed construction price; leave existing research-track progression and its separate field-upgrade prices unchanged. |
 | Effect and limits | This affects the private build quote, the enabled/disabled build control, Shepherd material debit, durable Built state, and exact purchase replay. Existing completed-track requirements for ECM activation and Detector tests remain in force. This does not change research progression or general field-upgrade pricing. |
 | Review state | Applied under the settled print-over-derivative source precedence. The parent confirmed this bounded S1 correction; no new product rule was introduced. |
+
+
+### PC10.1-A1 resolution — retain the final ECM purchase quote
+
+The owner expressly resolved the unbuilt/completed-track ambiguity on
+2026-10-17: an unbuilt ECM remains purchasable for **five materials** after
+all five research marks. This supplements, rather than rewrites, PC10.1-A1's
+printed price-lane interpretation. Existing completed-track use requirements,
+authority and receipt replay remain. See [owner feedback](PRODUCT_MILESTONE_FEEDBACK.md#pc101-completed-research-ecm-and-bounded-browser-privacy-repair--2026-10-17).

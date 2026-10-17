@@ -448,3 +448,28 @@ no candidate source, completion status, gameplay runtime or product deployment
 is changed by this planning delivery. Future PC11 extraction acceptance, PC12’s
 conditional status, post-release color accessibility and post-1.0 real-play
 Wolf-alert trigger are carried forward rather than silently reopened or moved.
+
+
+## PC10.1 completed-research ECM and bounded browser privacy repair — 2026-10-17
+
+The owner expressly approved retaining the final **five-material ECM purchase
+quote after completed research**. Append this resolution to PC10.1-A1; keep
+the completed-research use prerequisite, current actor/phase authority, payment
+and exact-receipt replay protections. No further price or research rule changes
+are authorized by this decision.
+
+The owner also approved one narrow browser-privacy repair ticket for the
+pre-existing static damage-deck exposure. [BP1](pc10-tickets/62-bp1.md) covers
+the four browser parser dependencies for Gorgoneion/Warrior repair drones,
+Macaw repairs and Voyage movement; emitted executable bundles/source maps;
+and Hosting/public-artifact map exclusion with private diagnostics retained.
+Preserve server draw rules and current parser, legacy and reconnect behavior.
+This adds one execution brief to PC10.1, not a campaign prompt or closure credit.
+The existing 751-ID endpoint and prompt completion states are unchanged.
+
+The parent supplied the two explicit approvals and then the owner's explicit
+confirmation that she is awake. Conditional permission relating to sleep is
+inactive. New product or scope decisions go to the parent for the owner; no
+additional billing, credentials, security-setting or unrelated work is allowed.
+Continue PC10.1 through its required review/acceptance, retro and authorized
+implementation cycle before advancing PC10.2.
