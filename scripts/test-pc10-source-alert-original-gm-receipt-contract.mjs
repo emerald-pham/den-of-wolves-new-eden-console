@@ -318,3 +318,24 @@ test('a mounted dialog for the wrong alert type stays pending and prevents gover
   assert.equal(result.error?.message, 'eligible source alert was not acknowledged by the original GM');
   assert.ok(fixture.sourceState.populationAlerts.aegis);
 });
+
+test('multiple alert types on one vessel use each dismissal’s current source revision', async () => {
+  const fixture = makeFixture();
+  fixture.sourceState.unrestAlerts.aegis = alertRow('aegis', 'AEGIS', originalInstanceId, 'unrest');
+
+  const result = await invokeActualSourceInterruption(callbacksFor(fixture).onEligibleAlert, fixture.context);
+
+  assert.equal(result.error, null, 'Both current source alerts are acknowledged before governance.');
+  assert.equal(result.alertResult.sourceInterruptionsReady, true);
+  assert.deepEqual(result.alertResult.evidence.cases.map(item => ({
+    type: item.sourceAlertReceipt?.type,
+    before: item.sourceAlertReceipt?.sourceRevisionBefore,
+    after: item.sourceAlertReceipt?.sourceRevisionAfter,
+  })), [
+    { type: 'unrest', before: 3, after: 4 },
+    { type: 'population', before: 4, after: 5 },
+  ]);
+  assert.deepEqual(result.events, ['post-wolf/eligible-alert', 'governance']);
+  assert.equal(Object.keys(fixture.sourceState.unrestAlerts).length +
+    Object.keys(fixture.sourceState.populationAlerts).length, 0);
+});
