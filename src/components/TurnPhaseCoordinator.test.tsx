@@ -134,6 +134,45 @@ it('rechecks a current emergency hold when pending work settles before effect cl
   expect(beginOpenAirspacePhase).toHaveBeenCalledTimes(1);
 });
 
+it.each(['actor', 'session', 'cycle', 'offline', 'lifted'] as const)(
+  'does not replay the withdrawn original transition after %s changes', async change => {
+    let finish!: () => void;
+    const pending = new Promise<void>(resolve => { finish = resolve; });
+    const calls: Array<{ sessionId: string | undefined; uid: string | undefined; cycle: number }> = [];
+    vi.mocked(beginOpenAirspacePhase).mockImplementation(cycle => {
+      const state = useSessionStore.getState();
+      calls.push({ sessionId: state.session?.id, uid: state.me?.uid, cycle });
+      return calls.length === 1 ? pending : Promise.resolve();
+    });
+    render(<TurnPhaseCoordinator />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(5 * 60_000); });
+    const state = useSessionStore.getState();
+    if (!state.session?.turnPhase || !state.me) throw new Error('Expected the original phase and actor.');
+    const session = state.session;
+    await act(async () => { useSessionStore.getState().setSession({ ...session }); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+    await act(async () => {
+      if (change === 'actor') useSessionStore.getState().setMe({ ...state.me!, uid: 'u2' });
+      if (change === 'session') useSessionStore.getState().setIdentity({ ...session, id: 's2' }, { ...state.me!, sessionId: 's2' });
+      if (change === 'cycle') useSessionStore.getState().setSession({ ...session, currentTurn: 3,
+        turnPhase: { ...session.turnPhase!, turn: 3, teamPhaseEndsAt: '2026-09-06T12:10:00.000Z' } });
+      if (change === 'offline') useSessionStore.getState().setConnection('offline');
+      if (change === 'lifted') useSessionStore.getState().setSession({ ...session,
+        turnPhase: { ...session.turnPhase!, airspace: { ...session.turnPhase!.airspace, state: 'lifted' } } });
+      finish();
+    });
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(calls.filter(call => call.sessionId === 's1' && call.uid === 'u1' && call.cycle === 2)).toHaveLength(1);
+    if (change === 'cycle') {
+      expect(calls).toHaveLength(1);
+      await act(async () => { await vi.advanceTimersByTimeAsync(5 * 60_000); });
+      expect(calls.at(-1)?.cycle).toBe(3);
+    }
+    expect(calls).toHaveLength(change === 'offline' || change === 'lifted' ? 1 : 2);
+  },
+);
+
 it('does not promote airspace while the emergency timer hold is active', async () => {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Expected the test session.');
