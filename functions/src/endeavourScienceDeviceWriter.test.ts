@@ -87,7 +87,7 @@ beforeEach(() => {
   for (const uid of ['scientist', 'target']) put(`sessions/s1/playerDiscoveries/${uid}`, { groupId: 'fleet-1', pursuitValue: 8, revision: 1 });
 });
 
-it('commits paid ECM construction, private projection and one-use pursuit reduction without complete research', async () => {
+it('commits early ECM construction but requires completed research before its one-use effect', async () => {
   put('sessions/s1/serverState/endeavourResearch', { 'ecm-device': 1 });
   const before = await readEndeavourResearchWorkspace.run(request({ sessionId: 's1' }));
   expect(before.scienceDevices).toMatchObject({
@@ -102,6 +102,10 @@ it('commits paid ECM construction, private projection and one-use pursuit reduct
   const after = await readEndeavourResearchWorkspace.run(request({ sessionId: 's1' }));
   expect(after.scienceDevices).toMatchObject({ ecmBuilt: true, shepherdMaterials: 17 });
   const use = { sessionId: 's1', requestId: 'use-ecm', expectedControlRevision: 2, expectedDeviceRevision: 0, expectedCycle: 1 };
+  await expect(activateEndeavourEcmDevice.run(request(use))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get('sessions/s1/serverState/navigation')).toMatchObject({ pursuitGroups: { 'fleet-1': 8 } });
+  expect(mock.documents.has('sessions/s1/commandReceipts/use-ecm')).toBe(false);
+  put('sessions/s1/serverState/endeavourResearch', { 'ecm-device': 5 });
   await expect(activateEndeavourEcmDevice.run(request(use))).resolves.toMatchObject({ pursuitBefore: 8, pursuitAfter: 5 });
   await expect(activateEndeavourEcmDevice.run(request(use))).resolves.toMatchObject({ status: 'replayed' });
   expect(session()).toMatchObject({ shipResources: { shepherd: { materials: 17 } } });
@@ -113,6 +117,7 @@ it.each([[2, 18], [3, 12], [4, 10]] as const)('builds Detector at earned mark %s
   put('sessions/s1/serverState/endeavourResearch', { 'wolf-agent-detector': marks });
   await expect(buildEndeavourScienceDevice.run(request({ ...command, deviceId: 'wolf-agent-detector' })))
     .resolves.toMatchObject({ materialCost: price, shepherdMaterials: 30 - price });
+  if (marks < 4) return;
   const test = { sessionId: 's1', requestId: 'test-1', expectedCycle: 1, expectedRevision: 0, targetUid: 'target' };
   await expect(runWolfAgentDetectorTest.run(request(test))).resolves.toMatchObject({ reportedWolf: true });
   await runWolfAgentDetectorTest.run(request(test));
@@ -120,6 +125,16 @@ it.each([[2, 18], [3, 12], [4, 10]] as const)('builds Detector at earned mark %s
   expect(mock.documents.get('sessions/s1/wolfAgentDetectorReports/scientist')).toMatchObject({ visibleToUids: ['scientist'] });
   expect(mock.documents.get('sessions/s1/wolfAgentDetectorReports/scientist')).not.toHaveProperty('actualWolf');
   expect(mock.documents.get('sessions/s1/wolfAgentDetectorAudits/test-1')).toMatchObject({ actualWolf: true, accuracyRoll: 4 });
+});
+
+it('requires completed Detector research before testing an already built device', async () => {
+  put('sessions/s1/serverState/endeavourResearch', { 'wolf-agent-detector': 2 });
+  await buildEndeavourScienceDevice.run(request({ ...command, deviceId: 'wolf-agent-detector' }));
+  mock.set.mockClear(); mock.create.mockClear(); mock.update.mockClear(); random.randomInt.mockClear();
+  await expect(runWolfAgentDetectorTest.run(request({
+    sessionId: 's1', requestId: 'test-before-complete', expectedCycle: 1, expectedRevision: 0, targetUid: 'target',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(random.randomInt).not.toHaveBeenCalled(); noWrites();
 });
 
 it.each([0, 1])('denies unavailable Detector construction at earned mark %s atomically', async (marks) => {

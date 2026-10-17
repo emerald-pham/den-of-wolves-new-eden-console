@@ -5,7 +5,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 
 const mocks = vi.hoisted(() => ({
   read: vi.fn(), advance: vi.fn(), retry: vi.fn(), createAttempt: vi.fn(), purchaseUpgrade: vi.fn(), retryUpgrade: vi.fn(),
-  buildDevice: vi.fn(), createDeviceAttempt: vi.fn(), connectedPlayers: vi.fn(), detectorState: vi.fn(),
+  buildDevice: vi.fn(), createDeviceAttempt: vi.fn(), retryDevice: vi.fn(), connectedPlayers: vi.fn(), detectorState: vi.fn(),
   detectorReport: vi.fn(), runDetector: vi.fn(),
 }));
 vi.mock('@/lib/endeavourResearchService', () => ({
@@ -15,6 +15,7 @@ vi.mock('@/lib/endeavourResearchService', () => ({
   createEndeavourResearchAttempt: mocks.createAttempt,
   buildEndeavourScienceDevice: mocks.buildDevice,
   createEndeavourScienceDeviceAttempt: mocks.createDeviceAttempt,
+  retryUncertainEndeavourScienceDevice: mocks.retryDevice,
 }));
 vi.mock('@/lib/firestore', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/firestore')>();
@@ -82,6 +83,7 @@ beforeEach(() => {
   mocks.retryUpgrade.mockReset();
   mocks.retry.mockReset();
   mocks.createAttempt.mockReset();
+  mocks.retryDevice.mockReset();
   mocks.connectedPlayers.mockReset();
   mocks.detectorState.mockReset();
   mocks.detectorReport.mockReset();
@@ -103,6 +105,7 @@ beforeEach(() => {
     return vi.fn();
   });
   mocks.runDetector.mockResolvedValue({ status: 'committed' });
+  mocks.retryDevice.mockResolvedValue({ status: 'replayed' });
   let requestIndex = 0;
   mocks.createAttempt.mockImplementation(({ workspace: observed, trackId, funding }) => ({
     sessionId: observed.sessionId,
@@ -180,7 +183,8 @@ it('quotes source-available device builds and retries an uncertain purchase with
     },
   };
   mocks.read.mockResolvedValue(deviceWorkspace);
-  mocks.buildDevice.mockRejectedValueOnce(new Error('connection interrupted')).mockResolvedValueOnce({
+  mocks.buildDevice.mockRejectedValueOnce(new Error('connection interrupted'));
+  mocks.retryDevice.mockResolvedValue({
     status: 'replayed', sessionId: 's1', requestId: 'device-attempt-1', cycle: 3, deviceId: 'ecm-device',
     deviceRevision: 1, built: true, materialCost: 18, shepherdMaterials: 12,
   });
@@ -197,8 +201,9 @@ it('quotes source-available device builds and retries an uncertain purchase with
   expect(await screen.findByRole('button', { name: 'Retry same science device purchase' })).toBeEnabled();
   await user.click(screen.getByRole('button', { name: 'Retry same science device purchase' }));
 
-  await waitFor(() => expect(mocks.buildDevice).toHaveBeenCalledTimes(2));
-  expect(mocks.buildDevice.mock.calls[0]![0]).toEqual(mocks.buildDevice.mock.calls[1]![0]);
+  await waitFor(() => expect(mocks.retryDevice).toHaveBeenCalledTimes(1));
+  expect(mocks.buildDevice).toHaveBeenCalledTimes(1);
+  expect(mocks.retryDevice.mock.calls[0]![0]).toEqual(mocks.buildDevice.mock.calls[0]![0]);
   expect(mocks.buildDevice.mock.calls[0]![0]).toMatchObject({
     requestId: 'device-attempt-1', deviceId: 'ecm-device', expectedResearchRevision: 0,
     expectedDeviceRevision: 0, expectedControlRevision: control.revision, expectedCycle: 3,
