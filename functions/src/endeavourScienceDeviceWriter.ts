@@ -179,6 +179,9 @@ export const buildEndeavourScienceDevice = onCall<Fields>(CALLABLE_RUNTIME_OPTIO
       }
       return { ...result, status: 'replayed' as const };
     }
+    if (actor.get('activeConsoleRoleId') !== 'shepherd-scientist') {
+      throw new HttpsError('permission-denied', 'Select the Shepherd Scientist console before building science devices.');
+    }
     if (audit.exists) throw new HttpsError('failed-precondition', 'This science device request id is already in use.');
     requirePursuitEmergencyWindowAbsent(session);
     if (session.get('phase') !== 'active') {
