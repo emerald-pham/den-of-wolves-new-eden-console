@@ -19,6 +19,42 @@ describe('risk-based CI gates', () => {
     expect(profile.typography).toBe(false);
   });
 
+  it('checks established generated roadmap exports without application gates', () => {
+    expect(classifyRiskGates([
+      'docs/implementation-prompts.json',
+      'docs/PRODUCT_MILESTONES.md',
+      'docs/PC07_ROADMAP_GANTT.csv',
+      'docs/PC07_ROADMAP_GANTT.html',
+      'docs/PC07_ROADMAP_GANTT.json',
+    ])).toEqual({
+      documentationOnly: true,
+      roadmapChanged: true,
+      rootInstall: false,
+      functionsInstall: false,
+      lint: false,
+      unit: false,
+      functions: false,
+      firestore: false,
+      webBuild: false,
+      ticker: false,
+      font: false,
+      typography: false,
+      render: false,
+      bundle: false,
+    });
+    expect(classifyRiskGates(['docs/PC07_ROADMAP_GANTT.csv']).roadmapChanged).toBe(true);
+  });
+
+  it('preserves actual UI, callable and rules risks mixed with roadmap exports', () => {
+    const roadmap = ['docs/PC07_ROADMAP_GANTT.json'];
+    expect(classifyRiskGates([...roadmap, 'src/routes/ShipConsole.tsx']))
+      .toMatchObject({ documentationOnly: false, unit: true, ticker: true, typography: true });
+    expect(classifyRiskGates([...roadmap, 'functions/src/index.ts']))
+      .toMatchObject({ documentationOnly: false, functions: true, functionsInstall: true });
+    expect(classifyRiskGates([...roadmap, 'firestore.rules']))
+      .toMatchObject({ documentationOnly: false, firestore: true });
+  });
+
   it('treats stored evidence PNGs as documentation while failing closed on other evidence artifacts', () => {
     expect(classifyRiskGates([
       'evidence/prompt-428-gm-control/phone-320-full.png',
@@ -270,6 +306,8 @@ describe('risk-based CI gates', () => {
       classifyRiskGates(['unknown/tests/authority.ts']),
       classifyRiskGates(['somewhere/tests/deploy.yml']),
       classifyRiskGates(['tests/rules/firestore.rules.spec.ts']),
+      classifyRiskGates(['docs/PC07_ROADMAP_GANTT.js']),
+      classifyRiskGates(['docs/other-roadmap.json']),
       classifyRiskGates([], { manual: true }),
     ]) {
       expect(profile).toMatchObject({

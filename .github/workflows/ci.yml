@@ -81,11 +81,50 @@ permissions:
   contents: read
 
 concurrency:
+  # PR merge verification must survive a later, narrower branch push.
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main') }}
 
 jobs:
+  select-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      pull-requests: read
+    outputs:
+      run_verification: ${{ steps.candidate.outputs.run_verification }}
+    steps:
+      - name: Select candidate verification
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_OWNER: ${{ github.repository_owner }}
+          HEAD_BRANCH: ${{ github.ref_name }}
+          HEAD_SHA: ${{ github.sha }}
+          EXACT_HEAD_COMMIT: ${{ inputs.exact_head_commit || false }}
+        run: |
+          run_verification=true
+          if [[ "$EVENT_NAME" == "push" && "$EXACT_HEAD_COMMIT" != "true" ]]; then
+            if pulls=$(gh api "repos/$REPOSITORY/pulls" --method GET \
+              -f state=open -f "head=$SOURCE_OWNER:$HEAD_BRANCH" -f per_page=100); then
+              covering_prs=$(jq --arg repo "$REPOSITORY" --arg branch "$HEAD_BRANCH" --arg sha "$HEAD_SHA" \
+                '[.[] | select(.state == "open" and .head.repo.full_name == $repo and .head.ref == $branch and .head.sha == $sha)] | length' \
+                <<< "$pulls") || covering_prs=0
+              if [[ "$covering_prs" =~ ^[1-9][0-9]*$ ]]; then
+                run_verification=false
+                echo 'An open PR covers this exact branch commit; its merge verification owns the candidate checks.'
+              fi
+            else
+              echo 'PR lookup unavailable; retaining branch verification.'
+            fi
+          fi
+          echo "run_verification=$run_verification" >> "$GITHUB_OUTPUT"
+
   verify:
+    needs: [select-candidate]
+    if: needs.select-candidate.outputs.run_verification == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
