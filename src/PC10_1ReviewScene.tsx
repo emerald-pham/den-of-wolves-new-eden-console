@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import CandidateRevealPanel from '@/components/CandidateRevealPanel';
-import { EndeavourEcmDeviceView, type EndeavourEcmDevicePresentation } from '@/components/EndeavourEcmDeviceView';
+import { EndeavourEcmDeviceView } from '@/components/EndeavourEcmDeviceView';
 import EndeavourFieldUpgradeChoices from '@/components/EndeavourFieldUpgradeChoices';
 import EndeavourResearchChoices from '@/components/EndeavourResearchChoices';
 import EndeavourScienceDeviceChoices from '@/components/EndeavourScienceDeviceChoices';
@@ -37,8 +37,8 @@ const INITIAL_RESEARCH: EndeavourResearchWorkspace = {
   status: 'ready',
   sessionId: 'prepared-pc10-1',
   cycle: 5,
-  researchRevision: 2,
-  cadence: { cycle: 5, revision: 2, choices: [] },
+  researchRevision: 1,
+  cadence: { cycle: 5, revision: 1, choices: [] },
   progress: { reactor: 1, 'jump-drive': 0 },
   tracks: [
     { trackId: 'reactor', name: 'Reactor', crossedBoxes: 1, totalBoxes: 5, currentMaterialCost: 8, complete: false },
@@ -47,12 +47,12 @@ const INITIAL_RESEARCH: EndeavourResearchWorkspace = {
   shepherdOre: 10,
   fieldUpgradeState: { upgradeRevision: 2, targetsUsedThisCycle: 0 },
   scienceDevices: {
-    revision: 1,
+    revision: 0,
     ecmBuilt: false,
     detectorBuilt: false,
     ecmUsed: false,
-    shepherdMaterials: 10,
-    buildCosts: { 'ecm-device': 10, 'wolf-agent-detector': 18 },
+    shepherdMaterials: 30,
+    buildCosts: { 'ecm-device': 18, 'wolf-agent-detector': null },
   },
 };
 
@@ -153,9 +153,6 @@ function ScientistReview() {
   const [selectedUpgradeKeys, setSelectedUpgradeKeys] = useState<readonly string[]>([]);
   const [targetsUsed, setTargetsUsed] = useState(0);
   const [upgradeNotice, setUpgradeNotice] = useState('');
-  const [ecmState, setEcmState] = useState<EndeavourEcmDevicePresentation>({
-    status: 'ready', groupId: 'prepared-fleet', pursuit: 8,
-  });
   const options = fieldUpgradeOptions(workspace);
   const remaining = Math.max(0, 2 - targetsUsed);
   const purchaseDisabled = selectedUpgradeKeys.length === 0 ||
@@ -205,7 +202,7 @@ function ScientistReview() {
     const count = selectedUpgradeKeys.length;
     setTargetsUsed((current) => current + count);
     setSelectedUpgradeKeys([]);
-    setUpgradeNotice(`LOCAL SIMULATION // ${count} prepared field upgrade${count === 1 ? '' : 's'} installed on this page.`);
+    setUpgradeNotice(`LOCAL SIMULATION // ${count} prepared field upgrade${count === 1 ? '' : 's'} installed in this console.`);
   }
 
   return <section className="pc10-1-review__workspace" aria-label="Prepared Scientist fieldwork">
@@ -223,7 +220,7 @@ function ScientistReview() {
       </div>
       <div>
         <p className="pc07-review__note" role="note" aria-label="Device denial sample">
-          DENIED SAMPLE // Wolf Agent Detector costs 18 materials while this prepared Scientist has 10.
+          DENIED SAMPLE // Wolf Agent Detector purchase remains unavailable until more research is completed.
         </p>
         <EndeavourScienceDeviceChoices
           workspace={workspace}
@@ -233,7 +230,7 @@ function ScientistReview() {
           attempt={null}
           notice={deviceNotice}
           error={deviceError}
-          sampleNote="Local sample controls only; the disabled cost remains visible for comparison."
+          sampleNote="Local sample controls only; this prepared purchase does not change live state."
           onBuild={buildDevice}
           onRetry={() => setDeviceNotice('PENDING SAMPLE // No live purchase request exists to retry.')}
         />
@@ -259,17 +256,12 @@ function ScientistReview() {
       </div>
       <div className="cic-frame pc07-review__panel">
         {workspace.scienceDevices?.ecmBuilt
-          ? <EndeavourEcmDeviceView
-              state={ecmState}
-              onActivate={() => setEcmState({
-                status: 'successful', groupId: 'prepared-fleet', pursuitBefore: 8, pursuitAfter: 5,
-              })}
-            />
-          : <p>Build the prepared ECM Device above to see its service-free use and result controls.</p>}
+          ? <EndeavourEcmDeviceView state={{ status: 'unavailable' }} />
+          : <p>Build the prepared ECM Device above to review its status; use remains unavailable until research is complete.</p>}
       </div>
       <div className="cic-frame pc07-review__panel">
         <p className="pc07-review__note" role="note" aria-label="Recovered scout sample">
-          RECOVERED SAMPLE // The same private report is available after the prepared page reloads.
+          RECOVERED SAMPLE // The same private report is available after the prepared console reloads.
         </p>
         <ScoutResultPanel report={SCOUT_REPORT} result={SCOUT_RESULT} note={SCOUT_NOTE} />
       </div>

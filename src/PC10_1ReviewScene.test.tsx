@@ -32,11 +32,11 @@ it('uses the prepared research, device, private scout, route, harvest and Cycle 
   expect(research).toHaveTextContent('LOCAL SIMULATION // Standard research choice committed.');
 
   const devices = screen.getByRole('region', { name: 'Science device construction controls' });
-  expect(devices).toHaveTextContent('Unlocked purchase price: 5 materials from Shepherd.');
-  expect(within(devices).getByRole('button', { name: 'Build ECM Device for 5 materials' })).toBeEnabled();
-  expect(within(devices).getByRole('button', { name: 'Build Wolf Agent Detector for 18 materials' })).toBeDisabled();
-  await user.click(within(devices).getByRole('button', { name: 'Build ECM Device for 5 materials' }));
-  expect(devices).toHaveTextContent('LOCAL SIMULATION // ECM Device built for 5 materials.');
+  expect(devices).toHaveTextContent('Unlocked purchase price: 18 materials from Shepherd.');
+  expect(within(devices).getByRole('button', { name: 'Build ECM Device for 18 materials' })).toBeEnabled();
+  expect(within(devices).getByRole('button', { name: 'Build Wolf Agent Detector' })).toBeDisabled();
+  await user.click(within(devices).getByRole('button', { name: 'Build ECM Device for 18 materials' }));
+  expect(devices).toHaveTextContent('LOCAL SIMULATION // ECM Device built for 18 materials.');
   const ecm = screen.getByRole('region', { name: 'Endeavour ECM Device controls' });
   expect(ecm).toHaveTextContent('Status: Unavailable');
   expect(within(ecm).getByRole('button', { name: 'Use ECM Device' })).toBeDisabled();
