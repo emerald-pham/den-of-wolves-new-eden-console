@@ -114,6 +114,45 @@ it('commits early ECM construction but requires completed research before its on
   expect(mock.documents.get('sessions/s1/endeavourScienceDeviceAudits/build-1')).toMatchObject({ materialCost: 13, materialsBefore: 30, materialsAfter: 17 });
 });
 
+it('builds an unbuilt ECM for five materials after full research and replays without another debit', async () => {
+  put('sessions/s1/serverState/endeavourResearch', { 'ecm-device': 5 });
+  (session().shipResources as Record<string, Fields>).shepherd.materials = 5;
+
+  const before = await readEndeavourResearchWorkspace.run(request({ sessionId: 's1' }));
+  expect(before.scienceDevices).toMatchObject({ ecmBuilt: false, buildCosts: { 'ecm-device': 5 } });
+
+  const finalPriceCommand = { ...command, requestId: 'final-ecm-build' };
+  const first = await buildEndeavourScienceDevice.run(request(finalPriceCommand));
+  expect(first).toMatchObject({ status: 'committed', built: true, deviceId: 'ecm-device',
+    materialCost: 5, shepherdMaterials: 0, deviceRevision: 1 });
+  expect(session()).toMatchObject({ shipResources: { shepherd: { materials: 0 } } });
+  expect(mock.documents.get('sessions/s1/serverState/endeavourScienceDevices'))
+    .toEqual({ revision: 1, ecmBuilt: true, detectorBuilt: false });
+  expect(mock.documents.get('sessions/s1/endeavourScienceDeviceAudits/final-ecm-build'))
+    .toMatchObject({ materialCost: 5, materialsBefore: 5, materialsAfter: 0, after: { ecmBuilt: true } });
+
+  mock.set.mockClear(); mock.create.mockClear(); mock.update.mockClear();
+  await expect(buildEndeavourScienceDevice.run(request(finalPriceCommand)))
+    .resolves.toEqual({ ...first, status: 'replayed' });
+  noWrites();
+  expect(session()).toMatchObject({ shipResources: { shepherd: { materials: 0 } } });
+  expect(mock.documents.get('sessions/s1/serverState/endeavourScienceDevices'))
+    .toEqual({ revision: 1, ecmBuilt: true, detectorBuilt: false });
+});
+
+it('rejects the completed-track ECM price when only four materials remain without mutation', async () => {
+  put('sessions/s1/serverState/endeavourResearch', { 'ecm-device': 5 });
+  (session().shipResources as Record<string, Fields>).shepherd.materials = 4;
+
+  await expect(buildEndeavourScienceDevice.run(request({ ...command, requestId: 'unaffordable-final-ecm' })))
+    .rejects.toMatchObject({ code: 'failed-precondition', message: 'Shepherd does not have enough materials for this science device.' });
+
+  noWrites();
+  expect(session()).toMatchObject({ shipResources: { shepherd: { materials: 4 } } });
+  expect(mock.documents.has('sessions/s1/serverState/endeavourScienceDevices')).toBe(false);
+  expect(mock.documents.has('sessions/s1/commandReceipts/unaffordable-final-ecm')).toBe(false);
+});
+
 it('continues a legacy used-ECM session at its normalized revision without charging ECM again', async () => {
   put('sessions/s1/serverState/endeavourResearch', { 'ecm-device': 5, 'wolf-agent-detector': 2 });
   put('sessions/s1/serverState/endeavourEcmDevice', {
