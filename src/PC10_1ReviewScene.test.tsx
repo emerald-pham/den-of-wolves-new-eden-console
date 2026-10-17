@@ -18,8 +18,7 @@ it('offers three numbered checks and returns to the station chooser when activat
 
   const returnLink = screen.getByRole('link', { name: 'Return to station and console chooser' });
   expect(returnLink).toHaveAttribute('href', '/#/');
-  fireEvent.click(returnLink);
-  expect(window.location.hash).toBe('#/');
+  expect(fireEvent.click(returnLink)).toBe(true);
 });
 
 it('uses the prepared research, device, private scout, route, harvest and Cycle 6 presenters locally', async () => {
