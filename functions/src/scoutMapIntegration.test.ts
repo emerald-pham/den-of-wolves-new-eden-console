@@ -141,16 +141,28 @@ it('resolves one private fact and publishes its coordinate only to the request-t
   expect(navigation.scoutedCoordinatesByShip).toEqual({ aegis: ['0408'] });
   expect(navigation.revision).toBe(6);
   expect(navigation.createdAt).toBe('original-navigation-creation');
+  expect(navigation.systemHistory?.aegis?.['0408']?.candidateDiscovery).toEqual({
+    id: 'scout-scan-1', occurredAt: '2026-09-27T21:40:00.000Z',
+    code: 'O', title: 'Deep Nebula', source: 'scout',
+  });
   expect(wing.knownCoordinates).toContain('0408');
   expect(scientist.knownCoordinates).not.toContain('0408');
   expect(scientist.shipId).toBe('shepherd');
-  expect(JSON.stringify(wing)).not.toMatch(/Deep Nebula|accruedBonus/);
+  expect(wing.candidateReveals).toEqual([{ code: 'O', title: 'Deep Nebula' }]);
+  expect(scientist.candidateReveals).toEqual([{ code: 'O', title: 'Deep Nebula' }]);
+  expect(JSON.stringify(wing.candidateReveals)).not.toMatch(/0408|coordinate|accruedBonus|organiserSites|chartId/);
+  expect(JSON.stringify(wing)).not.toMatch(/accruedBonus|organiserSites|chartId/);
   const notePath = [...mock.documents.keys()].find((path) => path.includes('/playerDiscoveryNotes/'));
   expect(notePath).toBeDefined();
   expect(mock.documents.get(notePath!)).toMatchObject({ shipId: 'shepherd' });
 
   await expect(resolvePendingScoutRequest.run(gmRequest())).resolves.toMatchObject({ status: 'replayed' });
   expect(mock.documents.get('sessions/s1/serverState/navigation')?.revision).toBe(6);
+  expect(mock.documents.get('sessions/s1/serverState/navigation')?.systemHistory?.aegis?.['0408']?.candidateDiscovery)
+    .toEqual({
+      id: 'scout-scan-1', occurredAt: '2026-09-27T21:40:00.000Z',
+      code: 'O', title: 'Deep Nebula', source: 'scout',
+    });
 });
 
 it('fails without a map or result write when protected navigation is malformed', async () => {
