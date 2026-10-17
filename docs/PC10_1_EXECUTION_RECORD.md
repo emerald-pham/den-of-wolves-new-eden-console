@@ -58,9 +58,12 @@ Each accepted increment requires the authored nine-ticket criteria plus BP1, opt
 numbered solo review access, independent actual-build typography and authority
 review where applicable, responsive/keyboard/navigation acceptance, version and
 changelog, one reconciled exact-candidate CI and verified exact-main deployment.
-After implementation and required acceptance, run the installed retrospective
-skill on this PC10.1 session. Implement findings only when an existing authorized
-PC10.1 ticket already covers them; return new work without authoring tickets.
+Follow the [owner's release pipeline](PRODUCT_MILESTONES.md#playable-release-and-proof-contract):
+complete required acceptance, exact-candidate CI and verified release before
+running the installed `/retro` on this PC10.1 session. Use `/implement-spec`
+through release for findings already covered by existing authorized PC10.1
+tickets; return new scope without authoring tickets. Retrospective work does not
+gate an otherwise qualified release.
 
 The initial progress message to source thread
 `01a113c4-8fd0-7734-8cab-3e39b01220f9` returned `thread not found`; it did not
@@ -281,9 +284,10 @@ After those blockers, finish the authored normal authenticated fieldwork and
 recovery checks, optional tour access, independent actual-build painted-font
 comparison and representative responsive/keyboard/navigation checks. Then
 reconcile current main, final version/changelog/catalog evidence, exact-candidate
-CI and verified exact-main deployment as one release. Run the actual retro only
-after implementation/review/acceptance; implement only findings already covered
-by these nine tickets. No retro, new tickets or later checkpoint has started.
+CI and verified exact-main deployment as one release. Run the actual `/retro`
+after that verified release, then use `/implement-spec` through release for
+findings covered by existing authorized tickets. No retro, new tickets or later
+checkpoint has started.
 
 The catalog remains **703 done / 6 partial / 42 missing**. P541's partial state
 still gates whole P542/P543/P593 closure. PT1/PT2A/PT3 do not close whole
@@ -389,3 +393,15 @@ authenticated gameplay, responsive/keyboard and painted-font review, new and
 old deployed map URL checks, exact-candidate CI, exact-main deployment
 verification and the retrospective remain pending. This record does not claim
 checkpoint acceptance or a released build.
+
+## Owner correction — release before retrospective (2026-10-17)
+
+The owner clarified the current sequence: `/implement-spec` includes required
+review, acceptance, exact CI and verified release; `/retro` follows release.
+Useful authorized retrospective work returns through the agreed ticket and
+`/implement-spec` workflow, with another verified release. The canonical
+pipeline is in the milestone guide linked above. This changes retrospective
+ordering, not gameplay, typography, authority, security or release checks.
+PC10.1 retains its existing scope and the parent sequences the next checkpoint.
+At this correction, native acceptance and CI/release remain open; no
+retrospective has run and no later checkpoint has started.

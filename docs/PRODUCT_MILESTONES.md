@@ -959,6 +959,17 @@ Published releases are independently playable, with a numbered optional solo
 tour and honestly labeled prepared states. Prepared tours do not prove gameplay.
 0.9.x and 1.0.0 keep their separate owner-authorization boundaries.
 
+For the remaining checkpoint sequence, follow the owner's pipeline: a human
+uses `/grill-with-docs`, then the human or an authorized bot uses `/to-spec` and
+`/to-tickets`. The bot runs `/implement-spec` through required review,
+acceptance, exact-candidate CI and verified release, then runs `/retro` on that
+released checkpoint/session. Useful retrospective findings proceed through
+existing authorized tickets, or an authorized `/to-tickets` step when needed,
+then `/implement-spec` through another verified release. Repeat for substantive
+authorized work; surface new product/scope decisions and required security
+approvals to the owner. A retrospective and its follow-up implementation occur
+after release and do not gate an otherwise qualified release.
+
 The owner’s one-sitting checks for each release are:
 
 - **PC10.1:** Can I perform research/scouting/harvesting, see the real cost and private result, return to my chooser and recover the same result after reload?
