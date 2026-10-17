@@ -21,6 +21,16 @@ it('offers three numbered checks and returns to the station chooser when activat
   expect(fireEvent.click(returnLink)).toBe(true);
 });
 
+it('shows the printed one-crossed Reactor price in research and field-upgrade choices', () => {
+  render(<PC10_1ReviewScene />);
+
+  const research = screen.getByRole('region', { name: 'Endeavour research controls' });
+  expect(research).toHaveTextContent('Reactor: 1 of 5 boxes crossed; next field-upgrade cost is 7 materials.');
+
+  const upgrades = screen.getByRole('list', { name: 'Available Endeavour field upgrades' });
+  expect(within(upgrades).getByText('AEGIS // Reactor // 7 materials')).toBeVisible();
+});
+
 it('uses the prepared research, device, private scout, route, harvest and Cycle 6 presenters locally', async () => {
   const user = userEvent.setup();
   const original = useSessionStore.getState();
