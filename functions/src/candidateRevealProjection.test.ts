@@ -260,7 +260,10 @@ describe('current-group candidate reveal projection', () => {
       }),
     });
 
-    expect(projection?.candidateReveals).toEqual([{ code: 'O', title: 'Deep Nebula' }]);
+    expect(projection?.candidateReveals).toEqual([
+      { code: 'O', title: 'Deep Nebula' },
+      { code: 'P', title: 'Ancient Space Station' },
+    ]);
     expect(JSON.stringify(projection)).not.toMatch(/organiserSites|accruedBonus|summary|coordinate|4888/);
   });
 });
