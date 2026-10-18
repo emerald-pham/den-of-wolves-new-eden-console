@@ -105,6 +105,16 @@ test('refresh verifies reconstructed full source SHA after status-only exports',
   }), /Public crosswalk source snapshot hash mismatch/);
 });
 
+test('brief-only source blocker documentation does not reinterpret prompt acceptance prose', async () => {
+  const issue = promptIssue({ body: `${promptIssue().body}Blocked-by brief IDs: 22, 23\n` });
+  const result = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue]),
+    crosswalk: crosswalkFor([promptRecord()]),
+  });
+  assert.equal(result.issueCount, 1);
+});
+
 test('accepted update exports, refreshes, and reopens without losing source fields or hash continuity', async () => {
   const transport = fakeTransport([promptIssue()]);
   const expectedRecord = promptRecord({
