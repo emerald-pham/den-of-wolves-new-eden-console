@@ -8,5 +8,6 @@ test('GitHub tracker files select their focused consumer gate and roadmap view c
   assert.equal(crosswalk.trackerChanged, true);
   assert.equal(crosswalk.roadmapChanged, true);
   assert.equal(adapter.trackerChanged, true);
+  assert.equal(classifyRiskGates(['scripts/generate-prompt-views.mjs']).trackerChanged, true);
   assert.equal(classifyRiskGates(['README.md']).trackerChanged, false);
 });
