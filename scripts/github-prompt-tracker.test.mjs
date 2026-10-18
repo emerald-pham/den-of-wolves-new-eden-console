@@ -60,6 +60,26 @@ const promptIssue = (overrides = {}) => ({
   state_reason: null,
   ...overrides,
 });
+function heldFutureFixture({ body = 'Human note: retain this note.\n\nMigration ID: DOW-BRIEF-FUTURE-01\nSource status: Prepared future scope; preserve trigger.\nHold: inactive; preserve the source trigger and sequence.\nReadiness: held\nExecution: inactive\nSource reference: docs/future-tickets/example.md#future-01\n', issue = {}, record = {} } = {}) {
+  return {
+    issue: { id: 5000, number: 500, title: 'Legacy execution brief', body, state: 'open', state_reason: null, ...issue },
+    record: {
+      legacyId: 'future-01',
+      migrationId: 'DOW-BRIEF-FUTURE-01',
+      recordKind: 'held-future-brief',
+      issueId: 5000,
+      issueNumber: 500,
+      initialReadiness: 'held',
+      initialExecution: 'inactive',
+      holdKind: 'prepared-sequence-trigger',
+      originalHoldStatus: 'Prepared future scope; preserve trigger.',
+      sourceReferences: ['docs/future-tickets/example.md#future-01'],
+      parentMigrationIds: [],
+      blockedByMigrationIds: [],
+      ...record,
+    },
+  };
+}
 
 test('saved tracker snapshot can export its views through the normal offline command', () => {
   const result = spawnSync(process.execPath, ['scripts/github-prompt-tracker.mjs', 'export'], {
@@ -101,12 +121,13 @@ test('offline export recovers generated views after an interrupted refresh', asy
   }
 });
 
-function fakeTransport(initialIssues, initialRelationships = [], { concurrentHumanNote = null } = {}) {
+function fakeTransport(initialIssues, initialRelationships = [], { concurrentHumanNote = null, initialComments = [] } = {}) {
   const issues = new Map(initialIssues.map((issue) => [issue.number, structuredClone(issue)]));
   const relationships = new Map([...issues.values()].map((issue) => [issue.id, { parentIssueIds: [], blockedByIssueIds: [] }]));
   for (const [issueId, value] of initialRelationships) relationships.set(issueId, structuredClone(value));
   const calls = [];
   const comments = new Map([...issues.keys()].map((number) => [number, []]));
+  for (const [issueNumber, rows] of initialComments) comments.set(issueNumber, structuredClone(rows));
   const getCounts = new Map();
   return {
     calls,
@@ -356,9 +377,66 @@ test('uncertain comment creation is recovered by exact readback without duplicat
   assert.equal((await transport.listComments(181)).length, 1);
 });
 
-test('malformed latest tracker state comment fails closed', async () => {
+test('concurrent tracker-state change aborts before appending a competing update', async () => {
   const transport = fakeTransport([promptIssue()]);
-  await transport.createComment({ issueNumber: 181, body: '<!-- DOW-TRACKER-STATE:v1 -->\n{broken' });
+  const getIssue = transport.getIssue.bind(transport);
+  let reads = 0;
+  transport.getIssue = async (number) => {
+    const issue = await getIssue(number);
+    reads += 1;
+    if (reads === 2) await transport.createComment({
+      issueNumber: number,
+      body: '<!-- DOW-TRACKER-STATE:v1 -->\n{"Prompt status":"blocked"}\n<!-- /DOW-TRACKER-STATE -->',
+    });
+    return issue;
+  };
+  await assert.rejects(updateGitHubIssueState({ transport, issueNumber: 181, expectedRecord: promptRecord(), changes: { status: 'partial' } }), /changed during update/);
+  assert.equal((await transport.listComments(181)).length, 1);
+  assert.equal(transport.calls.length, 0);
+});
+
+test('unauthorized public comments cannot impersonate tracker state', async () => {
+  const record = {
+    legacyId: 'brief-61', migrationId: 'DOW-BRIEF-61', recordKind: 'execution-brief',
+    issueId: 6100, issueNumber: 610, sourceReferences: ['docs/pc10-tickets/61-pt7.md#brief'],
+    parentMigrationIds: [], blockedByMigrationIds: [],
+  };
+  const transport = fakeTransport([{
+    id: 6100, number: 610, title: 'Migration brief',
+    body: 'Migration ID: DOW-BRIEF-61\nSource reference: docs/pc10-tickets/61-pt7.md#brief\nReadiness: ready\nExecution: inactive\n',
+    state: 'open', state_reason: null,
+  }], [], { initialComments: [[610, [{
+    id: 1,
+    body: '<!-- DOW-TRACKER-STATE:v1 -->\n{"Readiness":"ready","Execution":"in-progress"}\n<!-- /DOW-TRACKER-STATE -->',
+    authorLogin: 'helpful-contributor',
+  }]]] });
+  const result = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk: crosswalkFor([record]) });
+  assert.equal(result.issueStates[0].execution, 'inactive');
+});
+
+test('malformed tracker marker from an unauthorized commenter is ignored as human prose', async () => {
+  const record = {
+    legacyId: 'brief-61', migrationId: 'DOW-BRIEF-61', recordKind: 'execution-brief',
+    issueId: 6100, issueNumber: 610, sourceReferences: ['docs/pc10-tickets/61-pt7.md#brief'],
+    parentMigrationIds: [], blockedByMigrationIds: [],
+  };
+  const transport = fakeTransport([{
+    id: 6100, number: 610, title: 'Migration brief',
+    body: 'Migration ID: DOW-BRIEF-61\nSource reference: docs/pc10-tickets/61-pt7.md#brief\nReadiness: ready\nExecution: inactive\n',
+    state: 'open', state_reason: null,
+  }], [], { initialComments: [[610, [{
+    id: 1, body: '<!-- DOW-TRACKER-STATE:v1 -->\n{broken', authorLogin: 'helpful-contributor',
+  }]]] });
+  const result = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk: crosswalkFor([record]) });
+  assert.equal(result.issueStates[0].execution, 'inactive');
+});
+
+test('malformed latest tracker state comment from the authorized owner fails closed', async () => {
+  const transport = fakeTransport([promptIssue()], [], { initialComments: [[181, [{
+    id: 1,
+    body: '<!-- DOW-TRACKER-STATE:v1 -->\n{broken',
+    authorLogin: 'emerald-pham',
+  }]]] });
   await assert.rejects(readGitHubPromptCatalog({
     sourceBytes,
     transport,
