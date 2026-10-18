@@ -1,0 +1,4339 @@
+{
+  "schemaVersion": 1,
+  "destination": "emerald-pham/den-of-wolves-new-eden-console",
+  "sourceSha256": "8536b573f44cde0e480b12cf427c3bb5668f33d6564f393572964f1679086f3f",
+  "issuesSha256": "c70782f0de4ca01db561eaa47e617501d4b3110e7df3f4f2feb97a63933807dc",
+  "planSha256": "fcf48b4b68b3960b99aebb9a6d7b220a46ffcc985b691ae77fff4ffca87a68ca",
+  "verifiedAt": "2026-10-18T19:27:43.969Z",
+  "records": [
+    {
+      "legacyId": "181",
+      "migrationId": "DOW-PROMPT-181",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913099055,
+      "issueNumber": 26,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/26",
+      "sourceSha256": "3bfc54b6e3b5befc23fb387f6be4cb5e04404408cb058be4d4994a0b30673e4a",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#181"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#166",
+        "docs/IMPLEMENTATION_PROGRESS.md#166",
+        "docs/implementation-prompts.json#178",
+        "docs/IMPLEMENTATION_PROGRESS.md#178",
+        "docs/implementation-prompts.json#260",
+        "docs/IMPLEMENTATION_PROGRESS.md#260",
+        "docs/implementation-prompts.json#262",
+        "docs/IMPLEMENTATION_PROGRESS.md#262",
+        "docs/implementation-prompts.json#321",
+        "docs/IMPLEMENTATION_PROGRESS.md#321",
+        "docs/implementation-prompts.json#322",
+        "docs/IMPLEMENTATION_PROGRESS.md#322",
+        "docs/implementation-prompts.json#323",
+        "docs/IMPLEMENTATION_PROGRESS.md#323",
+        "docs/implementation-prompts.json#328",
+        "docs/IMPLEMENTATION_PROGRESS.md#328",
+        "docs/implementation-prompts.json#392",
+        "docs/IMPLEMENTATION_PROGRESS.md#392",
+        "docs/implementation-prompts.json#396",
+        "docs/IMPLEMENTATION_PROGRESS.md#396",
+        "docs/implementation-prompts.json#422",
+        "docs/IMPLEMENTATION_PROGRESS.md#422",
+        "docs/implementation-prompts.json#449",
+        "docs/IMPLEMENTATION_PROGRESS.md#449",
+        "docs/implementation-prompts.json#450",
+        "docs/IMPLEMENTATION_PROGRESS.md#450",
+        "docs/implementation-prompts.json#451",
+        "docs/IMPLEMENTATION_PROGRESS.md#451",
+        "docs/implementation-prompts.json#452",
+        "docs/IMPLEMENTATION_PROGRESS.md#452"
+      ]
+    },
+    {
+      "legacyId": "215b",
+      "migrationId": "DOW-PROMPT-215B",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913099267,
+      "issueNumber": 27,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/27",
+      "sourceSha256": "dc3814a9405f5234493036c30c82d4b2a73a052dff725724572d601899a9002e",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#215b"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P215"
+      ],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#215",
+        "docs/IMPLEMENTATION_PROGRESS.md#215",
+        "docs/implementation-prompts.json#166",
+        "docs/IMPLEMENTATION_PROGRESS.md#166",
+        "docs/implementation-prompts.json#204",
+        "docs/IMPLEMENTATION_PROGRESS.md#204",
+        "docs/implementation-prompts.json#211",
+        "docs/IMPLEMENTATION_PROGRESS.md#211",
+        "docs/implementation-prompts.json#212",
+        "docs/IMPLEMENTATION_PROGRESS.md#212",
+        "docs/implementation-prompts.json#213",
+        "docs/IMPLEMENTATION_PROGRESS.md#213",
+        "docs/implementation-prompts.json#214",
+        "docs/IMPLEMENTATION_PROGRESS.md#214",
+        "docs/implementation-prompts.json#267",
+        "docs/IMPLEMENTATION_PROGRESS.md#267",
+        "docs/implementation-prompts.json#321",
+        "docs/IMPLEMENTATION_PROGRESS.md#321",
+        "docs/implementation-prompts.json#325",
+        "docs/IMPLEMENTATION_PROGRESS.md#325",
+        "docs/implementation-prompts.json#328",
+        "docs/IMPLEMENTATION_PROGRESS.md#328",
+        "docs/implementation-prompts.json#391",
+        "docs/IMPLEMENTATION_PROGRESS.md#391",
+        "docs/implementation-prompts.json#401",
+        "docs/IMPLEMENTATION_PROGRESS.md#401",
+        "docs/implementation-prompts.json#410",
+        "docs/IMPLEMENTATION_PROGRESS.md#410",
+        "docs/implementation-prompts.json#422",
+        "docs/IMPLEMENTATION_PROGRESS.md#422",
+        "docs/implementation-prompts.json#508",
+        "docs/IMPLEMENTATION_PROGRESS.md#508"
+      ]
+    },
+    {
+      "legacyId": "223b",
+      "migrationId": "DOW-PROMPT-223B",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913099514,
+      "issueNumber": 28,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/28",
+      "sourceSha256": "c7c4effe37fffd0774d0f291ae1645bac018090b9ac12285bd18ff5001732211",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#223b"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P223"
+      ],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#223",
+        "docs/IMPLEMENTATION_PROGRESS.md#223",
+        "docs/implementation-prompts.json#166",
+        "docs/IMPLEMENTATION_PROGRESS.md#166",
+        "docs/implementation-prompts.json#216",
+        "docs/IMPLEMENTATION_PROGRESS.md#216",
+        "docs/implementation-prompts.json#269",
+        "docs/IMPLEMENTATION_PROGRESS.md#269",
+        "docs/implementation-prompts.json#321",
+        "docs/IMPLEMENTATION_PROGRESS.md#321",
+        "docs/implementation-prompts.json#324",
+        "docs/IMPLEMENTATION_PROGRESS.md#324",
+        "docs/implementation-prompts.json#328",
+        "docs/IMPLEMENTATION_PROGRESS.md#328",
+        "docs/implementation-prompts.json#365",
+        "docs/IMPLEMENTATION_PROGRESS.md#365",
+        "docs/implementation-prompts.json#366",
+        "docs/IMPLEMENTATION_PROGRESS.md#366",
+        "docs/implementation-prompts.json#367",
+        "docs/IMPLEMENTATION_PROGRESS.md#367",
+        "docs/implementation-prompts.json#390",
+        "docs/IMPLEMENTATION_PROGRESS.md#390",
+        "docs/implementation-prompts.json#393",
+        "docs/IMPLEMENTATION_PROGRESS.md#393",
+        "docs/implementation-prompts.json#401",
+        "docs/IMPLEMENTATION_PROGRESS.md#401",
+        "docs/implementation-prompts.json#410",
+        "docs/IMPLEMENTATION_PROGRESS.md#410",
+        "docs/implementation-prompts.json#422",
+        "docs/IMPLEMENTATION_PROGRESS.md#422"
+      ]
+    },
+    {
+      "legacyId": "233b",
+      "migrationId": "DOW-PROMPT-233B",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913099752,
+      "issueNumber": 29,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/29",
+      "sourceSha256": "08f3de521397920b86a4cab45c60812a3c646df36a5c5b768bf09f8fcc50ea09",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#233b"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P233"
+      ],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#233",
+        "docs/IMPLEMENTATION_PROGRESS.md#233",
+        "docs/implementation-prompts.json#166",
+        "docs/IMPLEMENTATION_PROGRESS.md#166",
+        "docs/implementation-prompts.json#224",
+        "docs/IMPLEMENTATION_PROGRESS.md#224",
+        "docs/implementation-prompts.json#231",
+        "docs/IMPLEMENTATION_PROGRESS.md#231",
+        "docs/implementation-prompts.json#272",
+        "docs/IMPLEMENTATION_PROGRESS.md#272",
+        "docs/implementation-prompts.json#273",
+        "docs/IMPLEMENTATION_PROGRESS.md#273",
+        "docs/implementation-prompts.json#340",
+        "docs/IMPLEMENTATION_PROGRESS.md#340",
+        "docs/implementation-prompts.json#395",
+        "docs/IMPLEMENTATION_PROGRESS.md#395",
+        "docs/implementation-prompts.json#398",
+        "docs/IMPLEMENTATION_PROGRESS.md#398",
+        "docs/implementation-prompts.json#401",
+        "docs/IMPLEMENTATION_PROGRESS.md#401",
+        "docs/implementation-prompts.json#410",
+        "docs/IMPLEMENTATION_PROGRESS.md#410",
+        "docs/implementation-prompts.json#422",
+        "docs/IMPLEMENTATION_PROGRESS.md#422"
+      ]
+    },
+    {
+      "legacyId": "541",
+      "migrationId": "DOW-PROMPT-541",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913100002,
+      "issueNumber": 30,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/30",
+      "sourceSha256": "42879cec46f0cf9d1f7f758dfe11c8d7ed03fa6629506ffab8f5ef3cde063efe",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#541"
+      ],
+      "initialStatus": "partial",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#318",
+        "docs/IMPLEMENTATION_PROGRESS.md#318",
+        "docs/implementation-prompts.json#525",
+        "docs/IMPLEMENTATION_PROGRESS.md#525"
+      ]
+    },
+    {
+      "legacyId": "542",
+      "migrationId": "DOW-PROMPT-542",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913100213,
+      "issueNumber": 31,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/31",
+      "sourceSha256": "3fa2892726f79dbb821a4fd3a4b2d016c104cda7c2c7923cf725b9ee00f83f3c",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#542"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-541"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": []
+    },
+    {
+      "legacyId": "543",
+      "migrationId": "DOW-PROMPT-543",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913100457,
+      "issueNumber": 32,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/32",
+      "sourceSha256": "e22b57c3af73e65546990577ada1d8c51315a6eff4a88078de29e8a84b508fad",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#543"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-541"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#319",
+        "docs/IMPLEMENTATION_PROGRESS.md#319"
+      ]
+    },
+    {
+      "legacyId": "544",
+      "migrationId": "DOW-PROMPT-544",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913100677,
+      "issueNumber": 33,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/33",
+      "sourceSha256": "76528e17a1a2e945484251df0d715e28322992a35872c3f412be599dce034181",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#544"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-541"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": []
+    },
+    {
+      "legacyId": "545",
+      "migrationId": "DOW-PROMPT-545",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913100858,
+      "issueNumber": 34,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/34",
+      "sourceSha256": "749eb3179950c91bbc1987b5d82b9ec31b90d36bff51cd0bcc1f1f1932197bbd",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#545"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-544"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#211",
+        "docs/IMPLEMENTATION_PROGRESS.md#211",
+        "docs/implementation-prompts.json#361",
+        "docs/IMPLEMENTATION_PROGRESS.md#361",
+        "docs/implementation-prompts.json#111",
+        "docs/IMPLEMENTATION_PROGRESS.md#111"
+      ]
+    },
+    {
+      "legacyId": "546",
+      "migrationId": "DOW-PROMPT-546",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913101118,
+      "issueNumber": 35,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/35",
+      "sourceSha256": "b20141f3b5f07aa2b919360839f4a910661a7af5363bf3c1b9d269c6ad6bc507",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#546"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-545"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": []
+    },
+    {
+      "legacyId": "547",
+      "migrationId": "DOW-PROMPT-547",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913101340,
+      "issueNumber": 36,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/36",
+      "sourceSha256": "94a04b78ebe27495c4f64ceb6b8fc36358ab80afd0583755b5244b63b553fdbe",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#547"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-545"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#111",
+        "docs/IMPLEMENTATION_PROGRESS.md#111"
+      ]
+    },
+    {
+      "legacyId": "548",
+      "migrationId": "DOW-PROMPT-548",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913101586,
+      "issueNumber": 37,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/37",
+      "sourceSha256": "07a6996a584990e5bda7d30c77aa3fa2719103af835368f481205c532d7469d8",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#548"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-546",
+        "DOW-PROMPT-547"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": []
+    },
+    {
+      "legacyId": "549",
+      "migrationId": "DOW-PROMPT-549",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913101811,
+      "issueNumber": 38,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/38",
+      "sourceSha256": "45ff301ebdeb1561bfa03dc2b75dd9f64ef2dd7b80853b927fda6280b67dad0d",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#549"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-548"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#485",
+        "docs/IMPLEMENTATION_PROGRESS.md#485"
+      ]
+    },
+    {
+      "legacyId": "550",
+      "migrationId": "DOW-PROMPT-550",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913102058,
+      "issueNumber": 39,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/39",
+      "sourceSha256": "5200403d1d5f886b7d07884263fa0c5398349584f5ab74ecddb22b751583df38",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#550"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#328",
+        "docs/IMPLEMENTATION_PROGRESS.md#328",
+        "docs/implementation-prompts.json#332",
+        "docs/IMPLEMENTATION_PROGRESS.md#332"
+      ]
+    },
+    {
+      "legacyId": "551",
+      "migrationId": "DOW-PROMPT-551",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913102288,
+      "issueNumber": 40,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/40",
+      "sourceSha256": "4f9c6aa8b81fc71ff736e218ce9bb2722dce02098a0ffced9f62a23caeca16a1",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#551"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-550"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#287",
+        "docs/IMPLEMENTATION_PROGRESS.md#287",
+        "docs/implementation-prompts.json#288",
+        "docs/IMPLEMENTATION_PROGRESS.md#288",
+        "docs/implementation-prompts.json#289",
+        "docs/IMPLEMENTATION_PROGRESS.md#289",
+        "docs/implementation-prompts.json#290",
+        "docs/IMPLEMENTATION_PROGRESS.md#290",
+        "docs/implementation-prompts.json#291",
+        "docs/IMPLEMENTATION_PROGRESS.md#291",
+        "docs/implementation-prompts.json#292",
+        "docs/IMPLEMENTATION_PROGRESS.md#292",
+        "docs/implementation-prompts.json#293",
+        "docs/IMPLEMENTATION_PROGRESS.md#293",
+        "docs/implementation-prompts.json#294",
+        "docs/IMPLEMENTATION_PROGRESS.md#294",
+        "docs/implementation-prompts.json#295",
+        "docs/IMPLEMENTATION_PROGRESS.md#295",
+        "docs/implementation-prompts.json#296",
+        "docs/IMPLEMENTATION_PROGRESS.md#296",
+        "docs/implementation-prompts.json#297",
+        "docs/IMPLEMENTATION_PROGRESS.md#297",
+        "docs/implementation-prompts.json#298",
+        "docs/IMPLEMENTATION_PROGRESS.md#298",
+        "docs/implementation-prompts.json#299",
+        "docs/IMPLEMENTATION_PROGRESS.md#299",
+        "docs/implementation-prompts.json#300",
+        "docs/IMPLEMENTATION_PROGRESS.md#300",
+        "docs/implementation-prompts.json#301",
+        "docs/IMPLEMENTATION_PROGRESS.md#301",
+        "docs/implementation-prompts.json#302",
+        "docs/IMPLEMENTATION_PROGRESS.md#302",
+        "docs/implementation-prompts.json#303",
+        "docs/IMPLEMENTATION_PROGRESS.md#303",
+        "docs/implementation-prompts.json#304",
+        "docs/IMPLEMENTATION_PROGRESS.md#304"
+      ]
+    },
+    {
+      "legacyId": "552",
+      "migrationId": "DOW-PROMPT-552",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913102540,
+      "issueNumber": 41,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/41",
+      "sourceSha256": "8a1a4f6ddc1c7552d0b9557e69d92f13467eb157c111077b6c16287f7c76735b",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#552"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-551"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#140d",
+        "docs/IMPLEMENTATION_PROGRESS.md#140d"
+      ]
+    },
+    {
+      "legacyId": "553",
+      "migrationId": "DOW-PROMPT-553",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913102828,
+      "issueNumber": 42,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/42",
+      "sourceSha256": "978750d05db93c138a73ce12909f208d8e86ba85b6b21712ec4f33506ff3df17",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#553"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-551",
+        "DOW-PROMPT-552"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": []
+    },
+    {
+      "legacyId": "554",
+      "migrationId": "DOW-PROMPT-554",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913103035,
+      "issueNumber": 43,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/43",
+      "sourceSha256": "baf1be03fd629be8645605d535b7fb67106ce4b51a006dbc2838bbda55d7ee7b",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#554"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-551",
+        "DOW-PROMPT-553"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": []
+    },
+    {
+      "legacyId": "555",
+      "migrationId": "DOW-PROMPT-555",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913103288,
+      "issueNumber": 44,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/44",
+      "sourceSha256": "0c8b424425bfc9e9cc44a45b9053c8f84b9697cf32b7ee8c32318c7655c6ec1b",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#555"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#493",
+        "docs/IMPLEMENTATION_PROGRESS.md#493",
+        "docs/implementation-prompts.json#432",
+        "docs/IMPLEMENTATION_PROGRESS.md#432"
+      ]
+    },
+    {
+      "legacyId": "556",
+      "migrationId": "DOW-PROMPT-556",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913103487,
+      "issueNumber": 45,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/45",
+      "sourceSha256": "d0068b7e52d8e84599fe1a0440beba16dc874891b29d5c751062521571722437",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#556"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-555"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": []
+    },
+    {
+      "legacyId": "557",
+      "migrationId": "DOW-PROMPT-557",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913103743,
+      "issueNumber": 46,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/46",
+      "sourceSha256": "5ec072e4f998dd6f52138401dddb219fd267a9ed272103af4b609a5bace18314",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#557"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-556"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": []
+    },
+    {
+      "legacyId": "558",
+      "migrationId": "DOW-PROMPT-558",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913103988,
+      "issueNumber": 47,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/47",
+      "sourceSha256": "2329e0fdfc83a14f85753ccfd613e0f6cf0740decd5204a731bbca5a6cc5a415",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#558"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-557"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": []
+    },
+    {
+      "legacyId": "559",
+      "migrationId": "DOW-PROMPT-559",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913104208,
+      "issueNumber": 48,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/48",
+      "sourceSha256": "c2a66f560dd725c7b7c56c1340904facb309135693ca10b5f71c7c8b34343300",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#559"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-558"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": []
+    },
+    {
+      "legacyId": "563",
+      "migrationId": "DOW-PROMPT-563",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913104481,
+      "issueNumber": 49,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/49",
+      "sourceSha256": "90db25b14c5380e93563ae06d9a9ec789a975d5bab6b0298e3f9793dfaea9bdf",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#563"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-541"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#562",
+        "docs/IMPLEMENTATION_PROGRESS.md#562"
+      ]
+    },
+    {
+      "legacyId": "564",
+      "migrationId": "DOW-PROMPT-564",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913104738,
+      "issueNumber": 50,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/50",
+      "sourceSha256": "a8be2c00a677ffe58692bd8bd131d55ed015fca318158b4ba3f92e46acd70d85",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#564"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-563"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": []
+    },
+    {
+      "legacyId": "565",
+      "migrationId": "DOW-PROMPT-565",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913104950,
+      "issueNumber": 51,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/51",
+      "sourceSha256": "83ea1ab2cd4944d168ceeaa76fc40cce8f849ee9a0c719c8741a630909d83cfd",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#565"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-564"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#560",
+        "docs/IMPLEMENTATION_PROGRESS.md#560"
+      ]
+    },
+    {
+      "legacyId": "566",
+      "migrationId": "DOW-PROMPT-566",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913105184,
+      "issueNumber": 52,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/52",
+      "sourceSha256": "4909be5a145687a679de41893bce549a47d782f64433cb9e36d0364117659650",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#566"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-565"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": []
+    },
+    {
+      "legacyId": "576",
+      "migrationId": "DOW-PROMPT-576",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913105455,
+      "issueNumber": 53,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/53",
+      "sourceSha256": "3cb2465d0389235146332ae7cc634ed160e3f91c809a68b70872658e3f8a093e",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#576"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#385",
+        "docs/IMPLEMENTATION_PROGRESS.md#385",
+        "docs/implementation-prompts.json#575",
+        "docs/IMPLEMENTATION_PROGRESS.md#575"
+      ]
+    },
+    {
+      "legacyId": "579",
+      "migrationId": "DOW-PROMPT-579",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913105700,
+      "issueNumber": 54,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/54",
+      "sourceSha256": "85e42de9bbfa982a31b9433dcfb3a2f80583a14f7fd03139ed5f37e8528f9f1e",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#579"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#401",
+        "docs/IMPLEMENTATION_PROGRESS.md#401",
+        "docs/implementation-prompts.json#578",
+        "docs/IMPLEMENTATION_PROGRESS.md#578"
+      ]
+    },
+    {
+      "legacyId": "581",
+      "migrationId": "DOW-PROMPT-581",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913105992,
+      "issueNumber": 55,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/55",
+      "sourceSha256": "ef1b92f85e4803334e7f53a6ccba08b40def1a4745a27d1f6aa6f75838d0c72e",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#581"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#573",
+        "docs/IMPLEMENTATION_PROGRESS.md#573",
+        "docs/implementation-prompts.json#577",
+        "docs/IMPLEMENTATION_PROGRESS.md#577",
+        "docs/implementation-prompts.json#480",
+        "docs/IMPLEMENTATION_PROGRESS.md#480"
+      ]
+    },
+    {
+      "legacyId": "584",
+      "migrationId": "DOW-PROMPT-584",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913106201,
+      "issueNumber": 56,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/56",
+      "sourceSha256": "6be8fcda1008a2572aca5a082ddfcac6f838747635dc68968db952da1ecf04d0",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#584"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#567",
+        "docs/IMPLEMENTATION_PROGRESS.md#567",
+        "docs/implementation-prompts.json#571",
+        "docs/IMPLEMENTATION_PROGRESS.md#571",
+        "docs/implementation-prompts.json#577",
+        "docs/IMPLEMENTATION_PROGRESS.md#577",
+        "docs/implementation-prompts.json#580",
+        "docs/IMPLEMENTATION_PROGRESS.md#580"
+      ]
+    },
+    {
+      "legacyId": "585",
+      "migrationId": "DOW-PROMPT-585",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913106476,
+      "issueNumber": 57,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/57",
+      "sourceSha256": "37e42fd9f6b85d9b2b6ed788a3bb79d687c126400009e579c65055960d323c30",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#585"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-584"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#567",
+        "docs/IMPLEMENTATION_PROGRESS.md#567"
+      ]
+    },
+    {
+      "legacyId": "593",
+      "migrationId": "DOW-PROMPT-593",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913106697,
+      "issueNumber": 58,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/58",
+      "sourceSha256": "3156b88657f0c631dcea78f549f70f5f565ba4cdf4614398c27bb37560d283bd",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#593"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-541"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": []
+    },
+    {
+      "legacyId": "618",
+      "migrationId": "DOW-PROMPT-618",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913106915,
+      "issueNumber": 59,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/59",
+      "sourceSha256": "14f2c5d04b7288baec1ec9df1d3bad9095dadeb06bdfb807e734bf966de33dc3",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#618"
+      ],
+      "initialStatus": "partial",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#084",
+        "docs/IMPLEMENTATION_PROGRESS.md#084",
+        "docs/implementation-prompts.json#085",
+        "docs/IMPLEMENTATION_PROGRESS.md#085",
+        "docs/implementation-prompts.json#086",
+        "docs/IMPLEMENTATION_PROGRESS.md#086",
+        "docs/implementation-prompts.json#612",
+        "docs/IMPLEMENTATION_PROGRESS.md#612"
+      ]
+    },
+    {
+      "legacyId": "619",
+      "migrationId": "DOW-PROMPT-619",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913107188,
+      "issueNumber": 60,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/60",
+      "sourceSha256": "90e37165d1fdb4f68ded330039a78f4b3599921d53ea7bda2dc8a2f006515cbc",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#619"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-542"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#612",
+        "docs/IMPLEMENTATION_PROGRESS.md#612"
+      ]
+    },
+    {
+      "legacyId": "620",
+      "migrationId": "DOW-PROMPT-620",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913107416,
+      "issueNumber": 61,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/61",
+      "sourceSha256": "b80e28f840161ebd14a08c63ddc39d6dc41ef76706824b99826c59f9c836d5a2",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#620"
+      ],
+      "initialStatus": "partial",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#014",
+        "docs/IMPLEMENTATION_PROGRESS.md#014",
+        "docs/implementation-prompts.json#088",
+        "docs/IMPLEMENTATION_PROGRESS.md#088"
+      ]
+    },
+    {
+      "legacyId": "629",
+      "migrationId": "DOW-PROMPT-629",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913107688,
+      "issueNumber": 62,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/62",
+      "sourceSha256": "08ffd2f8d69265b49cee4682c5d5a66e4da238680eb54c30641b19d051c29dd8",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#629"
+      ],
+      "initialStatus": "partial",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": []
+    },
+    {
+      "legacyId": "630",
+      "migrationId": "DOW-PROMPT-630",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913107896,
+      "issueNumber": 63,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/63",
+      "sourceSha256": "985eb919ed4c0bbca93eea80361fab8e4274895640e7528a9eaa81a38cf1818c",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#630"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#007",
+        "docs/IMPLEMENTATION_PROGRESS.md#007",
+        "docs/implementation-prompts.json#019",
+        "docs/IMPLEMENTATION_PROGRESS.md#019",
+        "docs/implementation-prompts.json#428",
+        "docs/IMPLEMENTATION_PROGRESS.md#428"
+      ]
+    },
+    {
+      "legacyId": "631",
+      "migrationId": "DOW-PROMPT-631",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913108135,
+      "issueNumber": 64,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/64",
+      "sourceSha256": "b7b5632afc9e1083ffc382207935d54a454d151f2027f6686b5baebc1a2e880c",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#631"
+      ],
+      "initialStatus": "partial",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": []
+    },
+    {
+      "legacyId": "634",
+      "migrationId": "DOW-PROMPT-634",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913108420,
+      "issueNumber": 65,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/65",
+      "sourceSha256": "5d9a952aa1d84b14ba91bce9af691f2416c026a1beb7f98561084e6e1b7aa6e0",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#634"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-630"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#019",
+        "docs/IMPLEMENTATION_PROGRESS.md#019"
+      ]
+    },
+    {
+      "legacyId": "635",
+      "migrationId": "DOW-PROMPT-635",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913108657,
+      "issueNumber": 66,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/66",
+      "sourceSha256": "9c647c8c144ce157cae47ade85651fe955c0730c35c805beaed9249d1ac55df2",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#635"
+      ],
+      "initialStatus": "partial",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#007",
+        "docs/IMPLEMENTATION_PROGRESS.md#007",
+        "docs/implementation-prompts.json#019",
+        "docs/IMPLEMENTATION_PROGRESS.md#019",
+        "docs/implementation-prompts.json#167",
+        "docs/IMPLEMENTATION_PROGRESS.md#167"
+      ]
+    },
+    {
+      "legacyId": "641",
+      "migrationId": "DOW-PROMPT-641",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913108901,
+      "issueNumber": 67,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/67",
+      "sourceSha256": "2ff5d1ad304a0de4635abdeb501fa63883ff20ab6da3f792564a7c3567525089",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#641"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#159",
+        "docs/IMPLEMENTATION_PROGRESS.md#159",
+        "docs/implementation-prompts.json#320",
+        "docs/IMPLEMENTATION_PROGRESS.md#320",
+        "docs/implementation-prompts.json#422",
+        "docs/IMPLEMENTATION_PROGRESS.md#422",
+        "docs/implementation-prompts.json#524",
+        "docs/IMPLEMENTATION_PROGRESS.md#524",
+        "docs/implementation-prompts.json#540",
+        "docs/IMPLEMENTATION_PROGRESS.md#540"
+      ]
+    },
+    {
+      "legacyId": "642",
+      "migrationId": "DOW-PROMPT-642",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913109178,
+      "issueNumber": 68,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/68",
+      "sourceSha256": "4f6653a680adb50e8fe088a0cbf5b84b69e5394a573efd5af5f29c44f43b7c27",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#642"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-584"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": []
+    },
+    {
+      "legacyId": "647",
+      "migrationId": "DOW-PROMPT-647",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913109407,
+      "issueNumber": 69,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/69",
+      "sourceSha256": "07e4eb7646e7f46a2062b8d51e49386236017a5881e7477276441b6a0cf064ef",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#647"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-548",
+        "DOW-PROMPT-559"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": []
+    },
+    {
+      "legacyId": "648",
+      "migrationId": "DOW-PROMPT-648",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913109677,
+      "issueNumber": 70,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/70",
+      "sourceSha256": "fc30e1e97cc3f1c477a663ea0b1d74326b85206c264d42218458c8766cbce7b3",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#648"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-554"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": []
+    },
+    {
+      "legacyId": "649",
+      "migrationId": "DOW-PROMPT-649",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913109912,
+      "issueNumber": 71,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/71",
+      "sourceSha256": "793bfde44ef2064187a229fecdbe6a064c2007afefa237b4dd9b0b4138ae181e",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#649"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-559"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": []
+    },
+    {
+      "legacyId": "650",
+      "migrationId": "DOW-PROMPT-650",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913110173,
+      "issueNumber": 72,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/72",
+      "sourceSha256": "15b40760af249bf392f32a67ed38af3e27310ff278c71ced900eaf1e6ac71ad3",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#650"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-565"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#560",
+        "docs/IMPLEMENTATION_PROGRESS.md#560",
+        "docs/implementation-prompts.json#621",
+        "docs/IMPLEMENTATION_PROGRESS.md#621",
+        "docs/implementation-prompts.json#622",
+        "docs/IMPLEMENTATION_PROGRESS.md#622",
+        "docs/implementation-prompts.json#140c",
+        "docs/IMPLEMENTATION_PROGRESS.md#140c",
+        "docs/implementation-prompts.json#136",
+        "docs/IMPLEMENTATION_PROGRESS.md#136",
+        "docs/implementation-prompts.json#514",
+        "docs/IMPLEMENTATION_PROGRESS.md#514"
+      ]
+    },
+    {
+      "legacyId": "651",
+      "migrationId": "DOW-PROMPT-651",
+      "recordKind": "prompt-acceptance",
+      "issueId": 5913110446,
+      "issueNumber": 73,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/73",
+      "sourceSha256": "f94773e305997641403bb665591787eb82eb024522288c5b1668785ae4847c44",
+      "sourceReferences": [
+        "docs/implementation-prompts.json#651"
+      ],
+      "initialStatus": "missing",
+      "initialReadiness": "unfinished",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-641",
+        "DOW-PROMPT-642",
+        "DOW-PROMPT-647",
+        "DOW-PROMPT-648",
+        "DOW-PROMPT-649",
+        "DOW-PROMPT-650"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [
+        "docs/implementation-prompts.json#643",
+        "docs/IMPLEMENTATION_PROGRESS.md#643",
+        "docs/implementation-prompts.json#644",
+        "docs/IMPLEMENTATION_PROGRESS.md#644",
+        "docs/implementation-prompts.json#645",
+        "docs/IMPLEMENTATION_PROGRESS.md#645",
+        "docs/implementation-prompts.json#646",
+        "docs/IMPLEMENTATION_PROGRESS.md#646"
+      ]
+    },
+    {
+      "legacyId": "01-w1",
+      "migrationId": "DOW-BRIEF-01-W1",
+      "recordKind": "execution-brief",
+      "issueId": 5913110663,
+      "issueNumber": 74,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/74",
+      "sourceSha256": "2207b32f84bdde888efbbe1837dad09645dfbfe3291821bf2639d23b785d97ad",
+      "sourceReferences": [
+        "docs/pc10-tickets/01-w1.md#01-w1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-181"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P181"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-181"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "02-w2",
+      "migrationId": "DOW-BRIEF-02-W2",
+      "recordKind": "execution-brief",
+      "issueId": 5913110911,
+      "issueNumber": 75,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/75",
+      "sourceSha256": "a7a95295fbb3e112e0e30815a1044f185379c90de69d4a961d03160a8d780a06",
+      "sourceReferences": [
+        "docs/pc10-tickets/02-w2.md#02-w2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-181"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P181"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-181"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "03-s1",
+      "migrationId": "DOW-BRIEF-03-S1",
+      "recordKind": "execution-brief",
+      "issueId": 5913111217,
+      "issueNumber": 76,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/76",
+      "sourceSha256": "ecacba0c7e2238bf77e64fa52c4e5cc0fe4148c488eac4d2784b2302b719f36a",
+      "sourceReferences": [
+        "docs/pc10-tickets/03-s1.md#03-s1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-215B"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P215B"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-215B"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "04-s2",
+      "migrationId": "DOW-BRIEF-04-S2",
+      "recordKind": "execution-brief",
+      "issueId": 5913111478,
+      "issueNumber": 77,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/77",
+      "sourceSha256": "16331324715d4331d7b123fee9b7fca7ecc4e65a87982ba3f64cd94befec0ce3",
+      "sourceReferences": [
+        "docs/pc10-tickets/04-s2.md#04-s2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-215B"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P215B"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-215B"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "05-x1",
+      "migrationId": "DOW-BRIEF-05-X1",
+      "recordKind": "execution-brief",
+      "issueId": 5913111776,
+      "issueNumber": 78,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/78",
+      "sourceSha256": "97859a0be3f4dd0a682fd2528cacbe9ac4f7e0fe3b3540db333aaf05258a0e57",
+      "sourceReferences": [
+        "docs/pc10-tickets/05-x1.md#05-x1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-223B"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P223B"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-223B"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "06-x2",
+      "migrationId": "DOW-BRIEF-06-X2",
+      "recordKind": "execution-brief",
+      "issueId": 5913112026,
+      "issueNumber": 79,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/79",
+      "sourceSha256": "d6020e3108b670320476abdd2536c50cddadc67f1dde1ef4fb5fa4915a6be5a7",
+      "sourceReferences": [
+        "docs/pc10-tickets/06-x2.md#06-x2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-223B"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P223B"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-223B"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "07-p1",
+      "migrationId": "DOW-BRIEF-07-P1",
+      "recordKind": "execution-brief",
+      "issueId": 5913112338,
+      "issueNumber": 80,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/80",
+      "sourceSha256": "13838b9becc768e0f0199bec069b84caf251fed4d2ae586e3ad09351d0397871",
+      "sourceReferences": [
+        "docs/pc10-tickets/07-p1.md#07-p1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-233B"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P233B"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-233B"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "08-p2",
+      "migrationId": "DOW-BRIEF-08-P2",
+      "recordKind": "execution-brief",
+      "issueId": 5913112566,
+      "issueNumber": 81,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/81",
+      "sourceSha256": "ea4f024e5a26f9f373bfc085a1c085b241c681e016cdf4d67b4b65ab958b08b4",
+      "sourceReferences": [
+        "docs/pc10-tickets/08-p2.md#08-p2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-233B"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P233B"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-233B"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "09-c1",
+      "migrationId": "DOW-BRIEF-09-C1",
+      "recordKind": "execution-brief",
+      "issueId": 5913112803,
+      "issueNumber": 82,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/82",
+      "sourceSha256": "2e250adfef65ac48e98362832d4c423075b974a89009f12a7bdecd6f5be1e8f2",
+      "sourceReferences": [
+        "docs/pc10-tickets/09-c1.md#09-c1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-576"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P576"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-576"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "10-c2",
+      "migrationId": "DOW-BRIEF-10-C2",
+      "recordKind": "execution-brief",
+      "issueId": 5913113086,
+      "issueNumber": 83,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/83",
+      "sourceSha256": "b62082f642ae6836e5b91d404201fe9a1c2e9697987d42bb26ea8d3354c13ec1",
+      "sourceReferences": [
+        "docs/pc10-tickets/10-c2.md#10-c2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-579"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P579"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-579"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "11-c3",
+      "migrationId": "DOW-BRIEF-11-C3",
+      "recordKind": "execution-brief",
+      "issueId": 5913113346,
+      "issueNumber": 84,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/84",
+      "sourceSha256": "f47796280400dd540d72849ca1b35e1c9630123e852b897fe749b57a4b6bd2af",
+      "sourceReferences": [
+        "docs/pc10-tickets/11-c3.md#11-c3"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-581"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P581"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-581"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "12a-c4a",
+      "migrationId": "DOW-BRIEF-12A-C4A",
+      "recordKind": "execution-brief",
+      "issueId": 5913113953,
+      "issueNumber": 86,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/86",
+      "sourceSha256": "59981609220013257e8f36ba43f0a2975316d6d30ec79825affe7bc267d60de3",
+      "sourceReferences": [
+        "docs/pc10-tickets/12a-c4a.md#12a-c4a"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-584"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P584"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-584"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "12b-c4b",
+      "migrationId": "DOW-BRIEF-12B-C4B",
+      "recordKind": "execution-brief",
+      "issueId": 5913114160,
+      "issueNumber": 87,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/87",
+      "sourceSha256": "609366617d3b542e0bd6811cb2f2b3d6fba4f2e0f941a719000b064f6cc69934",
+      "sourceReferences": [
+        "docs/pc10-tickets/12b-c4b.md#12b-c4b"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-584"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-09-C1",
+        "DOW-BRIEF-10-C2",
+        "DOW-BRIEF-11-C3",
+        "DOW-BRIEF-12A-C4A"
+      ],
+      "sourceOwnerReferences": [
+        "P584"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-584"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "09-c1",
+        "10-c2",
+        "11-c3",
+        "12a-c4a"
+      ]
+    },
+    {
+      "legacyId": "12-c4",
+      "migrationId": "DOW-BRIEF-12-C4",
+      "recordKind": "execution-brief",
+      "issueId": 5913113644,
+      "issueNumber": 85,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/85",
+      "sourceSha256": "5f5fdfb9b12bb4ab328c077675bcb5605e59e56ce1a36310987634f3c7b35000",
+      "sourceReferences": [
+        "docs/pc10-tickets/12-c4.md#12-c4"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-584"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-12B-C4B"
+      ],
+      "sourceOwnerReferences": [
+        "P584"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-584"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "12b-c4b"
+      ]
+    },
+    {
+      "legacyId": "13-c5",
+      "migrationId": "DOW-BRIEF-13-C5",
+      "recordKind": "execution-brief",
+      "issueId": 5913114444,
+      "issueNumber": 88,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/88",
+      "sourceSha256": "7585fe3c5e473b3ac11f552e464afe5dc6535f4e41dbbfedb8869d3e25358ee6",
+      "sourceReferences": [
+        "docs/pc10-tickets/13-c5.md#13-c5"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-585"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-12-C4"
+      ],
+      "sourceOwnerReferences": [
+        "P585"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-585"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "12-c4"
+      ]
+    },
+    {
+      "legacyId": "14-d1",
+      "migrationId": "DOW-BRIEF-14-D1",
+      "recordKind": "execution-brief",
+      "issueId": 5913114703,
+      "issueNumber": 89,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/89",
+      "sourceSha256": "812f64469427f948eb2b242550da97b311c99a6a7cc49fda1b988000fabdd6dd",
+      "sourceReferences": [
+        "docs/pc10-tickets/14-d1.md#14-d1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P541",
+        "P542"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-541",
+        "DOW-PROMPT-542"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "15-d2",
+      "migrationId": "DOW-BRIEF-15-D2",
+      "recordKind": "execution-brief",
+      "issueId": 5913114979,
+      "issueNumber": 90,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/90",
+      "sourceSha256": "32215b980dcf0642489295b1e9e0360a6dd8c0ccaf68fdb97a9a70cc1b214a90",
+      "sourceReferences": [
+        "docs/pc10-tickets/15-d2.md#15-d2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-14-D1"
+      ],
+      "sourceOwnerReferences": [
+        "P543",
+        "P593"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-543",
+        "DOW-PROMPT-593"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "14-d1"
+      ]
+    },
+    {
+      "legacyId": "16-r1",
+      "migrationId": "DOW-BRIEF-16-R1",
+      "recordKind": "execution-brief",
+      "issueId": 5913115214,
+      "issueNumber": 91,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/91",
+      "sourceSha256": "daeacc20174cef0f6fe01c2b032b7eaf90f363593bddc6e924618dec29386675",
+      "sourceReferences": [
+        "docs/pc10-tickets/16-r1.md#16-r1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-14-D1"
+      ],
+      "sourceOwnerReferences": [
+        "P544",
+        "P545",
+        "P546"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-544",
+        "DOW-PROMPT-545",
+        "DOW-PROMPT-546"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "14-d1"
+      ]
+    },
+    {
+      "legacyId": "17-r2",
+      "migrationId": "DOW-BRIEF-17-R2",
+      "recordKind": "execution-brief",
+      "issueId": 5913115458,
+      "issueNumber": 92,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/92",
+      "sourceSha256": "13fe9812fb444dc56d3552a8dd1fb16721fa24a4b15eb12743cbe79f2618ed61",
+      "sourceReferences": [
+        "docs/pc10-tickets/17-r2.md#17-r2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-16-R1"
+      ],
+      "sourceOwnerReferences": [
+        "P547",
+        "P548",
+        "P549"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-547",
+        "DOW-PROMPT-548",
+        "DOW-PROMPT-549"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "16-r1"
+      ]
+    },
+    {
+      "legacyId": "18-n1",
+      "migrationId": "DOW-BRIEF-18-N1",
+      "recordKind": "execution-brief",
+      "issueId": 5913115744,
+      "issueNumber": 93,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/93",
+      "sourceSha256": "2877d8fdf1f3f2c54cd8b7d38cb0aafc902e4c05d3400ad34b04d412e3ae692d",
+      "sourceReferences": [
+        "docs/pc10-tickets/18-n1.md#18-n1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P550",
+        "P551",
+        "P552"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-550",
+        "DOW-PROMPT-551",
+        "DOW-PROMPT-552"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "19-n2",
+      "migrationId": "DOW-BRIEF-19-N2",
+      "recordKind": "execution-brief",
+      "issueId": 5913115966,
+      "issueNumber": 94,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/94",
+      "sourceSha256": "afd08e3c68b926add7117b54703ba0a24b71c62fac52d882678497d3ee0bb892",
+      "sourceReferences": [
+        "docs/pc10-tickets/19-n2.md#19-n2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-18-N1"
+      ],
+      "sourceOwnerReferences": [
+        "P553",
+        "P554"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-553",
+        "DOW-PROMPT-554"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "18-n1"
+      ]
+    },
+    {
+      "legacyId": "20-a1",
+      "migrationId": "DOW-BRIEF-20-A1",
+      "recordKind": "execution-brief",
+      "issueId": 5913116352,
+      "issueNumber": 95,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/95",
+      "sourceSha256": "adf079ec45be6958a03a979612459b9bb358b72cb37555ace268901c00f3a7a6",
+      "sourceReferences": [
+        "docs/pc10-tickets/20-a1.md#20-a1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P555",
+        "P556"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-555",
+        "DOW-PROMPT-556"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "21-a2",
+      "migrationId": "DOW-BRIEF-21-A2",
+      "recordKind": "execution-brief",
+      "issueId": 5913116590,
+      "issueNumber": 96,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/96",
+      "sourceSha256": "c5ff8c490514304c776a232a9fb1226d492b2ef814aa1a94a890292a5fdbbb04",
+      "sourceReferences": [
+        "docs/pc10-tickets/21-a2.md#21-a2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-20-A1"
+      ],
+      "sourceOwnerReferences": [
+        "P557",
+        "P558",
+        "P559"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-557",
+        "DOW-PROMPT-558",
+        "DOW-PROMPT-559"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "20-a1"
+      ]
+    },
+    {
+      "legacyId": "22-e1",
+      "migrationId": "DOW-BRIEF-22-E1",
+      "recordKind": "execution-brief",
+      "issueId": 5913116861,
+      "issueNumber": 97,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/97",
+      "sourceSha256": "d4a65c5d202a6c09a27ab1413014c45425cff8bd9621ac57fa8cd76abd582bfb",
+      "sourceReferences": [
+        "docs/pc10-tickets/22-e1.md#22-e1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-14-D1"
+      ],
+      "sourceOwnerReferences": [
+        "P563",
+        "P564"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-563",
+        "DOW-PROMPT-564"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "14-d1"
+      ]
+    },
+    {
+      "legacyId": "23-e2",
+      "migrationId": "DOW-BRIEF-23-E2",
+      "recordKind": "execution-brief",
+      "issueId": 5913117190,
+      "issueNumber": 98,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/98",
+      "sourceSha256": "19aba0324b993a3eb36729c8f1e18168578445872e97de57005d18d94a778ac9",
+      "sourceReferences": [
+        "docs/pc10-tickets/23-e2.md#23-e2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-22-E1"
+      ],
+      "sourceOwnerReferences": [
+        "P565",
+        "P566"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-565",
+        "DOW-PROMPT-566"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "22-e1"
+      ]
+    },
+    {
+      "legacyId": "24-l1",
+      "migrationId": "DOW-BRIEF-24-L1",
+      "recordKind": "execution-brief",
+      "issueId": 5913117409,
+      "issueNumber": 99,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/99",
+      "sourceSha256": "4b903a19ce1aaef8efccd7d61dc60b0cc4c74cc6245effb7419ddd161f78d660",
+      "sourceReferences": [
+        "docs/pc10-tickets/24-l1.md#24-l1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-618"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P618"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-618"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "25-l2",
+      "migrationId": "DOW-BRIEF-25-L2",
+      "recordKind": "execution-brief",
+      "issueId": 5913117633,
+      "issueNumber": 100,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/100",
+      "sourceSha256": "fccd52945b04e50dec65a8555045212036a067cbf13f39951d81757972665176",
+      "sourceReferences": [
+        "docs/pc10-tickets/25-l2.md#25-l2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-618"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P618"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-618"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "26-l3",
+      "migrationId": "DOW-BRIEF-26-L3",
+      "recordKind": "execution-brief",
+      "issueId": 5913117970,
+      "issueNumber": 101,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/101",
+      "sourceSha256": "0252e0c45650941ff588f54cebee2d005c97e390140b9d391548583cfa220cea",
+      "sourceReferences": [
+        "docs/pc10-tickets/26-l3.md#26-l3"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-618"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-24-L1",
+        "DOW-BRIEF-25-L2"
+      ],
+      "sourceOwnerReferences": [
+        "P618"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-618"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "24-l1",
+        "25-l2"
+      ]
+    },
+    {
+      "legacyId": "27-t1",
+      "migrationId": "DOW-BRIEF-27-T1",
+      "recordKind": "execution-brief",
+      "issueId": 5913118207,
+      "issueNumber": 102,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/102",
+      "sourceSha256": "f09693d66682e539902db90cb6ec305052080c01a8f3c0a349ae77cae7bd9ed6",
+      "sourceReferences": [
+        "docs/pc10-tickets/27-t1.md#27-t1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-620"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P620"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-620"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "28-t2",
+      "migrationId": "DOW-BRIEF-28-T2",
+      "recordKind": "execution-brief",
+      "issueId": 5913118443,
+      "issueNumber": 103,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/103",
+      "sourceSha256": "8496c3ece9b171841d507f25cb5c565afed8a12474feda7bcc2ec48a15166fb7",
+      "sourceReferences": [
+        "docs/pc10-tickets/28-t2.md#28-t2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-620"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-27-T1"
+      ],
+      "sourceOwnerReferences": [
+        "P620"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-620"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "27-t1"
+      ]
+    },
+    {
+      "legacyId": "29-y1",
+      "migrationId": "DOW-BRIEF-29-Y1",
+      "recordKind": "execution-brief",
+      "issueId": 5913118721,
+      "issueNumber": 104,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/104",
+      "sourceSha256": "1b4fbab123d610b8ab0a702e2cb80abe25b9c9280403c8ba1de5b3c8f809b27a",
+      "sourceReferences": [
+        "docs/pc10-tickets/29-y1.md#29-y1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-619"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-14-D1",
+        "DOW-BRIEF-17-R2"
+      ],
+      "sourceOwnerReferences": [
+        "P619"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-619"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "14-d1",
+        "17-r2"
+      ]
+    },
+    {
+      "legacyId": "30-y2",
+      "migrationId": "DOW-BRIEF-30-Y2",
+      "recordKind": "execution-brief",
+      "issueId": 5913118994,
+      "issueNumber": 105,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/105",
+      "sourceSha256": "495008010eac37d31baa56e012bfee91ab562dabe9441a0a11b8ecb9e9a731cd",
+      "sourceReferences": [
+        "docs/pc10-tickets/30-y2.md#30-y2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-619"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-14-D1",
+        "DOW-BRIEF-19-N2"
+      ],
+      "sourceOwnerReferences": [
+        "P619"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-619"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "14-d1",
+        "19-n2"
+      ]
+    },
+    {
+      "legacyId": "31-y3",
+      "migrationId": "DOW-BRIEF-31-Y3",
+      "recordKind": "execution-brief",
+      "issueId": 5913119238,
+      "issueNumber": 106,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/106",
+      "sourceSha256": "7e4a126f86100c3d8fd4e3b51744ec9664a6234fd6cc852dfeead6658040436b",
+      "sourceReferences": [
+        "docs/pc10-tickets/31-y3.md#31-y3"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-619"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-14-D1",
+        "DOW-BRIEF-21-A2"
+      ],
+      "sourceOwnerReferences": [
+        "P619"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-619"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "14-d1",
+        "21-a2"
+      ]
+    },
+    {
+      "legacyId": "32-q1",
+      "migrationId": "DOW-BRIEF-32-Q1",
+      "recordKind": "execution-brief",
+      "issueId": 5913119491,
+      "issueNumber": 107,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/107",
+      "sourceSha256": "687e91c4d7ab0c5e29877bbbba0e97481cc10a4eab0a8351bcbfe0f76f77788d",
+      "sourceReferences": [
+        "docs/pc10-tickets/32-q1.md#32-q1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-629"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P629"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-629"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "33-q2",
+      "migrationId": "DOW-BRIEF-33-Q2",
+      "recordKind": "execution-brief",
+      "issueId": 5913119782,
+      "issueNumber": 108,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/108",
+      "sourceSha256": "dcd4f1b98dc4712888c76ee274a96a7b055a9c66a7fd0e1a9d52ae36ca1c5b57",
+      "sourceReferences": [
+        "docs/pc10-tickets/33-q2.md#33-q2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-629"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P629"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-629"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "34-q3",
+      "migrationId": "DOW-BRIEF-34-Q3",
+      "recordKind": "execution-brief",
+      "issueId": 5913120009,
+      "issueNumber": 109,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/109",
+      "sourceSha256": "69847987695920e98484b3c21dd8fb640998179ccccf61b412cb20c4c5c978f4",
+      "sourceReferences": [
+        "docs/pc10-tickets/34-q3.md#34-q3"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-629"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P629"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-629"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "35-u1",
+      "migrationId": "DOW-BRIEF-35-U1",
+      "recordKind": "execution-brief",
+      "issueId": 5913120266,
+      "issueNumber": 110,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/110",
+      "sourceSha256": "64bff06f43fdf36e69ef9bdb4ac39f15cf9155c48aa1518dd5ce919424d0cbad",
+      "sourceReferences": [
+        "docs/pc10-tickets/35-u1.md#35-u1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-630"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P630"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-630"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "36-u2",
+      "migrationId": "DOW-BRIEF-36-U2",
+      "recordKind": "execution-brief",
+      "issueId": 5913120564,
+      "issueNumber": 111,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/111",
+      "sourceSha256": "45d9a070d56b65463783c23348eecbb107e3a4e745f8ffd88e7e2244e7f9f3fe",
+      "sourceReferences": [
+        "docs/pc10-tickets/36-u2.md#36-u2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-630"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P630"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-630"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "37-b1",
+      "migrationId": "DOW-BRIEF-37-B1",
+      "recordKind": "execution-brief",
+      "issueId": 5913120835,
+      "issueNumber": 112,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/112",
+      "sourceSha256": "e0fe6b6e521be546d1be6080923036d01f4cff9458bab7f857fdd4142cd0b439",
+      "sourceReferences": [
+        "docs/pc10-tickets/37-b1.md#37-b1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-631"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P631"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-631"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "38-b2",
+      "migrationId": "DOW-BRIEF-38-B2",
+      "recordKind": "execution-brief",
+      "issueId": 5913121072,
+      "issueNumber": 113,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/113",
+      "sourceSha256": "01e7b136f83805f31b257e895066fd8535810a38549a42ac1b5f58a7b9ea6f63",
+      "sourceReferences": [
+        "docs/pc10-tickets/38-b2.md#38-b2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-634"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-35-U1",
+        "DOW-BRIEF-36-U2"
+      ],
+      "sourceOwnerReferences": [
+        "P634"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-634"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "35-u1",
+        "36-u2"
+      ]
+    },
+    {
+      "legacyId": "39-j1",
+      "migrationId": "DOW-BRIEF-39-J1",
+      "recordKind": "execution-brief",
+      "issueId": 5913121338,
+      "issueNumber": 114,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/114",
+      "sourceSha256": "a7f9509fa141b8110c63bfac530ce6156f5ee314147bc0c362ece8899cedb1f6",
+      "sourceReferences": [
+        "docs/pc10-tickets/39-j1.md#39-j1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-635"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P635"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-635"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "40-j2",
+      "migrationId": "DOW-BRIEF-40-J2",
+      "recordKind": "execution-brief",
+      "issueId": 5913121613,
+      "issueNumber": 115,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/115",
+      "sourceSha256": "2cf7492e54f8bb388e256e1e675428252a2f19152ff7b2bef885a95115c7c94e",
+      "sourceReferences": [
+        "docs/pc10-tickets/40-j2.md#40-j2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-635"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-39-J1"
+      ],
+      "sourceOwnerReferences": [
+        "P635"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-635"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "39-j1"
+      ]
+    },
+    {
+      "legacyId": "41-v1",
+      "migrationId": "DOW-BRIEF-41-V1",
+      "recordKind": "execution-brief",
+      "issueId": 5913121895,
+      "issueNumber": 116,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/116",
+      "sourceSha256": "06b5b1e67500eeb761dc1a5e86eef9063c2fc4bd6f43ce2b12cc527b7021c342",
+      "sourceReferences": [
+        "docs/pc10-tickets/41-v1.md#41-v1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-647"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-17-R2",
+        "DOW-BRIEF-21-A2",
+        "DOW-BRIEF-23-E2",
+        "DOW-BRIEF-29-Y1"
+      ],
+      "sourceOwnerReferences": [
+        "P647"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-647"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "17-r2",
+        "21-a2",
+        "23-e2",
+        "29-y1"
+      ]
+    },
+    {
+      "legacyId": "50-h1",
+      "migrationId": "DOW-BRIEF-50-H1",
+      "recordKind": "execution-brief",
+      "issueId": 5913124393,
+      "issueNumber": 125,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/125",
+      "sourceSha256": "fe354922b9a0e9aab5866e25cecaac220e37788d6f2e7b7bc13e5f0b1d8f394b",
+      "sourceReferences": [
+        "docs/pc10-tickets/50-h1.md#50-h1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-642"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-12-C4",
+        "DOW-BRIEF-13-C5"
+      ],
+      "sourceOwnerReferences": [
+        "P642"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-642"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "12-c4",
+        "13-c5"
+      ]
+    },
+    {
+      "legacyId": "51-h2",
+      "migrationId": "DOW-BRIEF-51-H2",
+      "recordKind": "execution-brief",
+      "issueId": 5913124603,
+      "issueNumber": 126,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/126",
+      "sourceSha256": "f35a0c4b24508e506dccf94217e18e948dd141fc6c3e7332f5aa91820b63dfd6",
+      "sourceReferences": [
+        "docs/pc10-tickets/51-h2.md#51-h2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-642"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-12-C4",
+        "DOW-BRIEF-19-N2",
+        "DOW-BRIEF-30-Y2",
+        "DOW-BRIEF-50-H1"
+      ],
+      "sourceOwnerReferences": [
+        "P642"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-642"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "12-c4",
+        "19-n2",
+        "30-y2",
+        "50-h1"
+      ]
+    },
+    {
+      "legacyId": "42-v2",
+      "migrationId": "DOW-BRIEF-42-V2",
+      "recordKind": "execution-brief",
+      "issueId": 5913122165,
+      "issueNumber": 117,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/117",
+      "sourceSha256": "be4dffd260cf6ece15e65b382b196bed3a24ebe760c42bce8fa66a94ad52d4b5",
+      "sourceReferences": [
+        "docs/pc10-tickets/42-v2.md#42-v2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-648"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-19-N2",
+        "DOW-BRIEF-23-E2",
+        "DOW-BRIEF-30-Y2",
+        "DOW-BRIEF-51-H2"
+      ],
+      "sourceOwnerReferences": [
+        "P648"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-648"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "19-n2",
+        "23-e2",
+        "30-y2",
+        "51-h2"
+      ]
+    },
+    {
+      "legacyId": "43-v3",
+      "migrationId": "DOW-BRIEF-43-V3",
+      "recordKind": "execution-brief",
+      "issueId": 5913122458,
+      "issueNumber": 118,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/118",
+      "sourceSha256": "1404bdf82f836aba115997dfc49eb7fa7cff411d6157f4bedd8c1e035e3bd7a3",
+      "sourceReferences": [
+        "docs/pc10-tickets/43-v3.md#43-v3"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-649"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-21-A2",
+        "DOW-BRIEF-23-E2",
+        "DOW-BRIEF-31-Y3"
+      ],
+      "sourceOwnerReferences": [
+        "P649"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-649"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "21-a2",
+        "23-e2",
+        "31-y3"
+      ]
+    },
+    {
+      "legacyId": "44-f1",
+      "migrationId": "DOW-BRIEF-44-F1",
+      "recordKind": "execution-brief",
+      "issueId": 5913122687,
+      "issueNumber": 119,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/119",
+      "sourceSha256": "c9b0aef98acaa89f59e3606cbee42d87a9f6d716647178c02ea880f709f32179",
+      "sourceReferences": [
+        "docs/pc10-tickets/44-f1.md#44-f1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-650"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-23-E2"
+      ],
+      "sourceOwnerReferences": [
+        "P650"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-650"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "23-e2"
+      ]
+    },
+    {
+      "legacyId": "46-f3",
+      "migrationId": "DOW-BRIEF-46-F3",
+      "recordKind": "execution-brief",
+      "issueId": 5913122991,
+      "issueNumber": 120,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/120",
+      "sourceSha256": "31a0fa044756c4fe92a42fef495351cdf12e7cd4ccfead15b1a277aa98d89f95",
+      "sourceReferences": [
+        "docs/pc10-tickets/46-f3.md#46-f3"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-650"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-23-E2"
+      ],
+      "sourceOwnerReferences": [
+        "P650"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-650"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "23-e2"
+      ]
+    },
+    {
+      "legacyId": "46a-f3a",
+      "migrationId": "DOW-BRIEF-46A-F3A",
+      "recordKind": "execution-brief",
+      "issueId": 5913123278,
+      "issueNumber": 121,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/121",
+      "sourceSha256": "1979876067c05671ce16facc256a1657b18e8d225d46d586650518c6b9617593",
+      "sourceReferences": [
+        "docs/pc10-tickets/46a-f3a.md#46a-f3a"
+      ],
+      "initialStatus": "planning-only",
+      "initialReadiness": "planning-only",
+      "initialExecution": "checkpoint-gated",
+      "parentMigrationIds": [
+        "DOW-PROMPT-650"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P650"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-650"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "56a-pt2a",
+      "migrationId": "DOW-BRIEF-56A-PT2A",
+      "recordKind": "execution-brief",
+      "issueId": 5913126197,
+      "issueNumber": 132,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/132",
+      "sourceSha256": "97541d01c488b209a23231e0259c91a099f3617d92e859aa2fa84f199faef25d",
+      "sourceReferences": [
+        "docs/pc10-tickets/56a-pt2a.md#56a-pt2a"
+      ],
+      "initialStatus": "planning-only",
+      "initialReadiness": "planning-only",
+      "initialExecution": "checkpoint-gated",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P641",
+        "P651"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-641",
+        "DOW-PROMPT-651"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "47-g1",
+      "migrationId": "DOW-BRIEF-47-G1",
+      "recordKind": "execution-brief",
+      "issueId": 5913123510,
+      "issueNumber": 122,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/122",
+      "sourceSha256": "787b4d6871487d6129b8817e287d6d3b38efd461d9c671606277578f861860b5",
+      "sourceReferences": [
+        "docs/pc10-tickets/47-g1.md#47-g1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-641"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-56A-PT2A"
+      ],
+      "sourceOwnerReferences": [
+        "P641"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-641"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "56a-pt2a"
+      ]
+    },
+    {
+      "legacyId": "48-g2",
+      "migrationId": "DOW-BRIEF-48-G2",
+      "recordKind": "execution-brief",
+      "issueId": 5913123825,
+      "issueNumber": 123,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/123",
+      "sourceSha256": "ad016571461c77c767566048845a2b180a0f231cc5d488785b77796b3306cc8d",
+      "sourceReferences": [
+        "docs/pc10-tickets/48-g2.md#48-g2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-641"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-23-E2",
+        "DOW-BRIEF-47-G1"
+      ],
+      "sourceOwnerReferences": [
+        "P641"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-641"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "23-e2",
+        "47-g1"
+      ]
+    },
+    {
+      "legacyId": "49-g3",
+      "migrationId": "DOW-BRIEF-49-G3",
+      "recordKind": "execution-brief",
+      "issueId": 5913124119,
+      "issueNumber": 124,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/124",
+      "sourceSha256": "c3afadc4d3704a154977273efb4ff76084f520c5ec1ea4f7d414c9c1e3cacdc1",
+      "sourceReferences": [
+        "docs/pc10-tickets/49-g3.md#49-g3"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-641"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-26-L3",
+        "DOW-BRIEF-28-T2",
+        "DOW-BRIEF-48-G2"
+      ],
+      "sourceOwnerReferences": [
+        "P641"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-641"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "26-l3",
+        "28-t2",
+        "48-g2"
+      ]
+    },
+    {
+      "legacyId": "52-h3",
+      "migrationId": "DOW-BRIEF-52-H3",
+      "recordKind": "execution-brief",
+      "issueId": 5913124922,
+      "issueNumber": 127,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/127",
+      "sourceSha256": "5b2854452da747ac254e08512888037428ad0fbf561b9f54d7bc7cede7b1653f",
+      "sourceReferences": [
+        "docs/pc10-tickets/52-h3.md#52-h3"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-642"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-12-C4",
+        "DOW-BRIEF-26-L3",
+        "DOW-BRIEF-28-T2",
+        "DOW-BRIEF-51-H2"
+      ],
+      "sourceOwnerReferences": [
+        "P642"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-642"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "12-c4",
+        "26-l3",
+        "28-t2",
+        "51-h2"
+      ]
+    },
+    {
+      "legacyId": "53a-z1a",
+      "migrationId": "DOW-BRIEF-53A-Z1A",
+      "recordKind": "execution-brief",
+      "issueId": 5913125390,
+      "issueNumber": 129,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/129",
+      "sourceSha256": "265ea95cc086953e882d6c4032359da0ae390d2a3b55bed5b210a66a7e4dba76",
+      "sourceReferences": [
+        "docs/pc10-tickets/53a-z1a.md#53a-z1a"
+      ],
+      "initialStatus": "planning-only",
+      "initialReadiness": "planning-only",
+      "initialExecution": "checkpoint-gated",
+      "parentMigrationIds": [
+        "DOW-PROMPT-651"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P651"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-651"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "53-z1",
+      "migrationId": "DOW-BRIEF-53-Z1",
+      "recordKind": "execution-brief",
+      "issueId": 5913125139,
+      "issueNumber": 128,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/128",
+      "sourceSha256": "9c542dc6b9203ee8d88dcd462b9bb9d79960662b66691060d7052e928c9e610f",
+      "sourceReferences": [
+        "docs/pc10-tickets/53-z1.md#53-z1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-651"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-01-W1",
+        "DOW-BRIEF-02-W2",
+        "DOW-BRIEF-03-S1",
+        "DOW-BRIEF-04-S2",
+        "DOW-BRIEF-05-X1",
+        "DOW-BRIEF-06-X2",
+        "DOW-BRIEF-07-P1",
+        "DOW-BRIEF-08-P2",
+        "DOW-BRIEF-09-C1",
+        "DOW-BRIEF-10-C2",
+        "DOW-BRIEF-11-C3",
+        "DOW-BRIEF-12-C4",
+        "DOW-BRIEF-13-C5",
+        "DOW-BRIEF-14-D1",
+        "DOW-BRIEF-15-D2",
+        "DOW-BRIEF-16-R1",
+        "DOW-BRIEF-17-R2",
+        "DOW-BRIEF-18-N1",
+        "DOW-BRIEF-19-N2",
+        "DOW-BRIEF-20-A1",
+        "DOW-BRIEF-21-A2",
+        "DOW-BRIEF-22-E1",
+        "DOW-BRIEF-23-E2",
+        "DOW-BRIEF-24-L1",
+        "DOW-BRIEF-25-L2",
+        "DOW-BRIEF-26-L3",
+        "DOW-BRIEF-27-T1",
+        "DOW-BRIEF-28-T2",
+        "DOW-BRIEF-29-Y1",
+        "DOW-BRIEF-30-Y2",
+        "DOW-BRIEF-31-Y3",
+        "DOW-BRIEF-32-Q1",
+        "DOW-BRIEF-33-Q2",
+        "DOW-BRIEF-34-Q3",
+        "DOW-BRIEF-35-U1",
+        "DOW-BRIEF-36-U2",
+        "DOW-BRIEF-37-B1",
+        "DOW-BRIEF-38-B2",
+        "DOW-BRIEF-39-J1",
+        "DOW-BRIEF-40-J2",
+        "DOW-BRIEF-41-V1",
+        "DOW-BRIEF-42-V2",
+        "DOW-BRIEF-43-V3",
+        "DOW-BRIEF-44-F1",
+        "DOW-BRIEF-46-F3",
+        "DOW-BRIEF-46A-F3A",
+        "DOW-BRIEF-47-G1",
+        "DOW-BRIEF-48-G2",
+        "DOW-BRIEF-49-G3",
+        "DOW-BRIEF-50-H1"
+      ],
+      "equivalentBlockedByMigrationIds": [
+        "DOW-BRIEF-51-H2",
+        "DOW-BRIEF-52-H3",
+        "DOW-BRIEF-53A-Z1A"
+      ],
+      "sourceOwnerReferences": [
+        "P651"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-651"
+      ],
+      "historyReferences": [
+        "docs/pc10-tickets/45-f2.md#45-f2"
+      ],
+      "sourceBlockedByBriefIds": [
+        "01-w1",
+        "02-w2",
+        "03-s1",
+        "04-s2",
+        "05-x1",
+        "06-x2",
+        "07-p1",
+        "08-p2",
+        "09-c1",
+        "10-c2",
+        "11-c3",
+        "12-c4",
+        "13-c5",
+        "14-d1",
+        "15-d2",
+        "16-r1",
+        "17-r2",
+        "18-n1",
+        "19-n2",
+        "20-a1",
+        "21-a2",
+        "22-e1",
+        "23-e2",
+        "24-l1",
+        "25-l2",
+        "26-l3",
+        "27-t1",
+        "28-t2",
+        "29-y1",
+        "30-y2",
+        "31-y3",
+        "32-q1",
+        "33-q2",
+        "34-q3",
+        "35-u1",
+        "36-u2",
+        "37-b1",
+        "38-b2",
+        "39-j1",
+        "40-j2",
+        "41-v1",
+        "42-v2",
+        "43-v3",
+        "44-f1",
+        "45-f2",
+        "46-f3",
+        "46a-f3a",
+        "47-g1",
+        "48-g2",
+        "49-g3",
+        "50-h1",
+        "51-h2",
+        "52-h3",
+        "53a-z1a"
+      ]
+    },
+    {
+      "legacyId": "54-z2",
+      "migrationId": "DOW-BRIEF-54-Z2",
+      "recordKind": "execution-brief",
+      "issueId": 5913125657,
+      "issueNumber": 130,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/130",
+      "sourceSha256": "8d25ce6863a1b042dcd61d51f9f2e095231b887a446c8c5fbefcd03e5414b4a2",
+      "sourceReferences": [
+        "docs/pc10-tickets/54-z2.md#54-z2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "paused",
+      "parentMigrationIds": [
+        "DOW-PROMPT-651"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-41-V1",
+        "DOW-BRIEF-42-V2",
+        "DOW-BRIEF-43-V3",
+        "DOW-BRIEF-44-F1",
+        "DOW-BRIEF-46-F3",
+        "DOW-BRIEF-47-G1",
+        "DOW-BRIEF-48-G2",
+        "DOW-BRIEF-49-G3",
+        "DOW-BRIEF-50-H1",
+        "DOW-BRIEF-51-H2",
+        "DOW-BRIEF-52-H3",
+        "DOW-BRIEF-53-Z1"
+      ],
+      "sourceOwnerReferences": [
+        "P651"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-651"
+      ],
+      "historyReferences": [
+        "docs/pc10-tickets/45-f2.md#45-f2"
+      ],
+      "sourceBlockedByBriefIds": [
+        "41-v1",
+        "42-v2",
+        "43-v3",
+        "44-f1",
+        "45-f2",
+        "46-f3",
+        "47-g1",
+        "48-g2",
+        "49-g3",
+        "50-h1",
+        "51-h2",
+        "52-h3",
+        "53-z1"
+      ]
+    },
+    {
+      "legacyId": "55-pt1",
+      "migrationId": "DOW-BRIEF-55-PT1",
+      "recordKind": "execution-brief",
+      "issueId": 5913125901,
+      "issueNumber": 131,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/131",
+      "sourceSha256": "68ffd824996c10d71d06b0a20a15ae3d0985929733ebd3bd0bf52167a5f6a759",
+      "sourceReferences": [
+        "docs/pc10-tickets/55-pt1.md#55-pt1"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "approved-repair",
+      "parentMigrationIds": [
+        "DOW-PROMPT-651"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P651"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-651"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "56b-pt2b",
+      "migrationId": "DOW-BRIEF-56B-PT2B",
+      "recordKind": "execution-brief",
+      "issueId": 5913126420,
+      "issueNumber": 133,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/133",
+      "sourceSha256": "708eadb6924dd10fcac305584d2b556dcb8a3d8f39f2c3d8c4dbd6af59b511ec",
+      "sourceReferences": [
+        "docs/pc10-tickets/56b-pt2b.md#56b-pt2b"
+      ],
+      "initialStatus": "planning-only",
+      "initialReadiness": "planning-only",
+      "initialExecution": "checkpoint-gated",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P584",
+        "P642",
+        "P651"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-584",
+        "DOW-PROMPT-642",
+        "DOW-PROMPT-651"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "56c-pt2c",
+      "migrationId": "DOW-BRIEF-56C-PT2C",
+      "recordKind": "execution-brief",
+      "issueId": 5913126645,
+      "issueNumber": 134,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/134",
+      "sourceSha256": "b99f94647a137f70d65687826acb4c68813c1f556c6c79962d453daa9426beee",
+      "sourceReferences": [
+        "docs/pc10-tickets/56c-pt2c.md#56c-pt2c"
+      ],
+      "initialStatus": "planning-only",
+      "initialReadiness": "planning-only",
+      "initialExecution": "checkpoint-gated",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P619",
+        "P649",
+        "P651"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-619",
+        "DOW-PROMPT-649",
+        "DOW-PROMPT-651"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "56-pt2",
+      "migrationId": "DOW-BRIEF-56-PT2",
+      "recordKind": "execution-brief",
+      "issueId": 5913126948,
+      "issueNumber": 135,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/135",
+      "sourceSha256": "3d955856d5bb183cc8662a0d6d42bbb88be9dcaeded89b1a472ed4c4390ca9b5",
+      "sourceReferences": [
+        "docs/pc10-tickets/56-pt2.md#56-pt2"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "approved-repair",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-56A-PT2A",
+        "DOW-BRIEF-56B-PT2B",
+        "DOW-BRIEF-56C-PT2C"
+      ],
+      "sourceOwnerReferences": [
+        "P641",
+        "P642",
+        "P649",
+        "P651"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-641",
+        "DOW-PROMPT-642",
+        "DOW-PROMPT-649",
+        "DOW-PROMPT-651"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "56a-pt2a",
+        "56b-pt2b",
+        "56c-pt2c"
+      ]
+    },
+    {
+      "legacyId": "57-pt3",
+      "migrationId": "DOW-BRIEF-57-PT3",
+      "recordKind": "execution-brief",
+      "issueId": 5913127174,
+      "issueNumber": 136,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/136",
+      "sourceSha256": "d27ac1c1ed362a02891f00e2b1dcf2e0430a26ff17a1bd5861262bdd0685d452",
+      "sourceReferences": [
+        "docs/pc10-tickets/57-pt3.md#57-pt3"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "approved-repair",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P641",
+        "P642",
+        "P649",
+        "P651"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-641",
+        "DOW-PROMPT-642",
+        "DOW-PROMPT-649",
+        "DOW-PROMPT-651"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "58-pt4",
+      "migrationId": "DOW-BRIEF-58-PT4",
+      "recordKind": "execution-brief",
+      "issueId": 5913127449,
+      "issueNumber": 137,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/137",
+      "sourceSha256": "d5211e9b252de5f14d89135383971f29710bd6fbe0f1a263a733df2ce5133291",
+      "sourceReferences": [
+        "docs/pc10-tickets/58-pt4.md#58-pt4"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "approved-repair",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P660",
+        "P651"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-651"
+      ],
+      "historyReferences": [
+        "docs/implementation-prompts.json#660",
+        "docs/IMPLEMENTATION_PROGRESS.md#660"
+      ],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "59-pt5",
+      "migrationId": "DOW-BRIEF-59-PT5",
+      "recordKind": "execution-brief",
+      "issueId": 5913127684,
+      "issueNumber": 138,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/138",
+      "sourceSha256": "bf5db75cbd24e51792ec3f85efb8dca369954f11288cc05b3ca8acfa7b29e913",
+      "sourceReferences": [
+        "docs/pc10-tickets/59-pt5.md#59-pt5"
+      ],
+      "initialStatus": "ready-for-agent",
+      "initialReadiness": "ready-for-agent",
+      "initialExecution": "approved-repair",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P651",
+        "P660"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-651"
+      ],
+      "historyReferences": [
+        "docs/implementation-prompts.json#660",
+        "docs/IMPLEMENTATION_PROGRESS.md#660"
+      ],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "61a-pt7a",
+      "migrationId": "DOW-BRIEF-61A-PT7A",
+      "recordKind": "execution-brief",
+      "issueId": 5913128376,
+      "issueNumber": 141,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/141",
+      "sourceSha256": "f124a311951764f38964264f74d1823ba258851910e4013c8d68b69d313f494e",
+      "sourceReferences": [
+        "docs/pc10-tickets/61a-pt7a.md#61a-pt7a"
+      ],
+      "initialStatus": "planning-only",
+      "initialReadiness": "planning-only",
+      "initialExecution": "checkpoint-gated",
+      "parentMigrationIds": [
+        "DOW-PROMPT-651"
+      ],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [
+        "P651"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-651"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "61b-pt7b",
+      "migrationId": "DOW-BRIEF-61B-PT7B",
+      "recordKind": "execution-brief",
+      "issueId": 5913127899,
+      "issueNumber": 139,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/139",
+      "sourceSha256": "4b614f5eb9846ca3e99fb44c57f33d8775222e7651a1cb66ccca5db3d1d84e8c",
+      "sourceReferences": [
+        "docs/pc10-tickets/61b-pt7b.md#61b-pt7b"
+      ],
+      "initialStatus": "planning-only",
+      "initialReadiness": "planning-only",
+      "initialExecution": "checkpoint-gated",
+      "parentMigrationIds": [
+        "DOW-PROMPT-651"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-61A-PT7A"
+      ],
+      "sourceOwnerReferences": [
+        "P651"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-651"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "61a-pt7a"
+      ]
+    },
+    {
+      "legacyId": "61-pt7",
+      "migrationId": "DOW-BRIEF-61-PT7",
+      "recordKind": "execution-brief",
+      "issueId": 5913128156,
+      "issueNumber": 140,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/140",
+      "sourceSha256": "8117736bd019ce70b8693785a64a885d58c17f5366df386a473da51ebe2f0715",
+      "sourceReferences": [
+        "docs/pc10-tickets/61-pt7.md#61-pt7"
+      ],
+      "initialStatus": "migration-preparation",
+      "initialReadiness": "migration-preparation",
+      "initialExecution": "awaiting-verified-cutover",
+      "parentMigrationIds": [
+        "DOW-PROMPT-651"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-61B-PT7B"
+      ],
+      "sourceOwnerReferences": [
+        "P651"
+      ],
+      "sourceOwnerIssueReferences": [
+        "DOW-PROMPT-651"
+      ],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "61b-pt7b"
+      ]
+    },
+    {
+      "legacyId": "access1-audit-color-only-information",
+      "migrationId": "DOW-BRIEF-ACCESS1-AUDIT-COLOR-ONLY-INFORMATION",
+      "recordKind": "held-future-brief",
+      "issueId": 5913128677,
+      "issueNumber": 142,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/142",
+      "sourceSha256": "dcad45b6c1a31b71359eb43a7bf1a4e0a64ef9b50374c875e71801ce919a54cd",
+      "sourceReferences": [
+        "docs/future-tickets/access1-audit-color-only-information.md#access1-audit-color-only-information"
+      ],
+      "initialStatus": "prepared future scope; original sequence/trigger still applies.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "prepared-sequence-trigger",
+      "originalHoldStatus": "prepared future scope; original sequence/trigger still applies.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "access2-choose-don-t-rely-on-color-in-settings",
+      "migrationId": "DOW-BRIEF-ACCESS2-CHOOSE-DON-T-RELY-ON-COLOR-IN-SETTINGS",
+      "recordKind": "held-future-brief",
+      "issueId": 5913128913,
+      "issueNumber": 143,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/143",
+      "sourceSha256": "5e757b083e162d65a8ece6b25c76b4babc5921ea6f046e89459bc61284f43539",
+      "sourceReferences": [
+        "docs/future-tickets/access2-choose-don-t-rely-on-color-in-settings.md#access2-choose-don-t-rely-on-color-in-settings"
+      ],
+      "initialStatus": "prepared future scope; original sequence/trigger still applies.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "prepared-sequence-trigger",
+      "originalHoldStatus": "prepared future scope; original sequence/trigger still applies.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-ACCESS1-AUDIT-COLOR-ONLY-INFORMATION"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "access1-audit-color-only-information"
+      ]
+    },
+    {
+      "legacyId": "access3-read-shared-states-without-color",
+      "migrationId": "DOW-BRIEF-ACCESS3-READ-SHARED-STATES-WITHOUT-COLOR",
+      "recordKind": "held-future-brief",
+      "issueId": 5913129149,
+      "issueNumber": 144,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/144",
+      "sourceSha256": "58e68e51e21f73c87dfb35d374b46140635bb0c40f66342c559f52dba0cfd86f",
+      "sourceReferences": [
+        "docs/future-tickets/access3-read-shared-states-without-color.md#access3-read-shared-states-without-color"
+      ],
+      "initialStatus": "prepared future scope; original sequence/trigger still applies.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "prepared-sequence-trigger",
+      "originalHoldStatus": "prepared future scope; original sequence/trigger still applies.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-ACCESS2-CHOOSE-DON-T-RELY-ON-COLOR-IN-SETTINGS"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "access2-choose-don-t-rely-on-color-in-settings"
+      ]
+    },
+    {
+      "legacyId": "access4-read-map-and-dradis-meaning-without-color",
+      "migrationId": "DOW-BRIEF-ACCESS4-READ-MAP-AND-DRADIS-MEANING-WITHOUT-COLOR",
+      "recordKind": "held-future-brief",
+      "issueId": 5913129493,
+      "issueNumber": 145,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/145",
+      "sourceSha256": "9bfd237c2e9c85f61dd8b04094eb801bc9e37423414e3f2b604fc9747ea082e4",
+      "sourceReferences": [
+        "docs/future-tickets/access4-read-map-and-dradis-meaning-without-color.md#access4-read-map-and-dradis-meaning-without-color"
+      ],
+      "initialStatus": "prepared future scope; original sequence/trigger still applies.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "prepared-sequence-trigger",
+      "originalHoldStatus": "prepared future scope; original sequence/trigger still applies.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-ACCESS2-CHOOSE-DON-T-RELY-ON-COLOR-IN-SETTINGS"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "access2-choose-don-t-rely-on-color-in-settings"
+      ]
+    },
+    {
+      "legacyId": "access5-read-remaining-game-outcomes-without-color",
+      "migrationId": "DOW-BRIEF-ACCESS5-READ-REMAINING-GAME-OUTCOMES-WITHOUT-COLOR",
+      "recordKind": "held-future-brief",
+      "issueId": 5913129726,
+      "issueNumber": 146,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/146",
+      "sourceSha256": "d9c6eee0bf3830d606aef83c162b719938409abc83c63d212694f7d9b1553562",
+      "sourceReferences": [
+        "docs/future-tickets/access5-read-remaining-game-outcomes-without-color.md#access5-read-remaining-game-outcomes-without-color"
+      ],
+      "initialStatus": "prepared future scope; original sequence/trigger still applies.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "prepared-sequence-trigger",
+      "originalHoldStatus": "prepared future scope; original sequence/trigger still applies.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-ACCESS1-AUDIT-COLOR-ONLY-INFORMATION",
+        "DOW-BRIEF-ACCESS2-CHOOSE-DON-T-RELY-ON-COLOR-IN-SETTINGS"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "access1-audit-color-only-information",
+        "access2-choose-don-t-rely-on-color-in-settings"
+      ]
+    },
+    {
+      "legacyId": "access6-verify-and-release-complete-non-color-coverage",
+      "migrationId": "DOW-BRIEF-ACCESS6-VERIFY-AND-RELEASE-COMPLETE-NON-COLOR-COVERAGE",
+      "recordKind": "held-future-brief",
+      "issueId": 5913130043,
+      "issueNumber": 147,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/147",
+      "sourceSha256": "b8ec8118c008deff170f6838821b2df7235ebdf1379f9360f2510a89ddd6f5d6",
+      "sourceReferences": [
+        "docs/future-tickets/access6-verify-and-release-complete-non-color-coverage.md#access6-verify-and-release-complete-non-color-coverage"
+      ],
+      "initialStatus": "prepared future scope; original sequence/trigger still applies.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "prepared-sequence-trigger",
+      "originalHoldStatus": "prepared future scope; original sequence/trigger still applies.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-ACCESS3-READ-SHARED-STATES-WITHOUT-COLOR",
+        "DOW-BRIEF-ACCESS4-READ-MAP-AND-DRADIS-MEANING-WITHOUT-COLOR",
+        "DOW-BRIEF-ACCESS5-READ-REMAINING-GAME-OUTCOMES-WITHOUT-COLOR"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "access3-read-shared-states-without-color",
+        "access4-read-map-and-dradis-meaning-without-color",
+        "access5-read-remaining-game-outcomes-without-color"
+      ]
+    },
+    {
+      "legacyId": "alert1-review-the-wolf-alert-after-real-play",
+      "migrationId": "DOW-BRIEF-ALERT1-REVIEW-THE-WOLF-ALERT-AFTER-REAL-PLAY",
+      "recordKind": "held-future-brief",
+      "issueId": 5913130327,
+      "issueNumber": 148,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/148",
+      "sourceSha256": "6896aef8575416a1360a96566faf9e6834617781a49f1f95b57d9dda241817bf",
+      "sourceReferences": [
+        "docs/future-tickets/alert1-review-the-wolf-alert-after-real-play.md#alert1-review-the-wolf-alert-after-real-play"
+      ],
+      "initialStatus": "prepared future scope; original sequence/trigger still applies.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "prepared-sequence-trigger",
+      "originalHoldStatus": "prepared future scope; original sequence/trigger still applies.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "alert2-apply-or-record-the-bounded-alert-decision",
+      "migrationId": "DOW-BRIEF-ALERT2-APPLY-OR-RECORD-THE-BOUNDED-ALERT-DECISION",
+      "recordKind": "held-future-brief",
+      "issueId": 5913130617,
+      "issueNumber": 149,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/149",
+      "sourceSha256": "8ca65da0fe87bab10f5397a8d453f17cd8cc66a33d5675fc9997c0ceed2b2ab2",
+      "sourceReferences": [
+        "docs/future-tickets/alert2-apply-or-record-the-bounded-alert-decision.md#alert2-apply-or-record-the-bounded-alert-decision"
+      ],
+      "initialStatus": "prepared future scope; original sequence/trigger still applies.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "prepared-sequence-trigger",
+      "originalHoldStatus": "prepared future scope; original sequence/trigger still applies.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-ALERT1-REVIEW-THE-WOLF-ALERT-AFTER-REAL-PLAY"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "alert1-review-the-wolf-alert-after-real-play"
+      ]
+    },
+    {
+      "legacyId": "gui1-understand-ordinary-movement-and-jump-choices",
+      "migrationId": "DOW-BRIEF-GUI1-UNDERSTAND-ORDINARY-MOVEMENT-AND-JUMP-CHOICES",
+      "recordKind": "held-future-brief",
+      "issueId": 5913130869,
+      "issueNumber": 150,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/150",
+      "sourceSha256": "e5d6c7e8e74a6f2b929d121b78401226a11273c424f7adae0891b97de809a271",
+      "sourceReferences": [
+        "docs/future-tickets/gui1-understand-ordinary-movement-and-jump-choices.md#gui1-understand-ordinary-movement-and-jump-choices"
+      ],
+      "initialStatus": "prepared future scope; original sequence/trigger still applies.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "prepared-sequence-trigger",
+      "originalHoldStatus": "prepared future scope; original sequence/trigger still applies.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "gui10-understand-waiting-stale-and-recovery-states",
+      "migrationId": "DOW-BRIEF-GUI10-UNDERSTAND-WAITING-STALE-AND-RECOVERY-STATES",
+      "recordKind": "held-future-brief",
+      "issueId": 5913131162,
+      "issueNumber": 151,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/151",
+      "sourceSha256": "c775478afbe8ba5b33ab408cb8d77ad1b19a658c197bad6ce567b6f45edee9a0",
+      "sourceReferences": [
+        "docs/future-tickets/gui10-understand-waiting-stale-and-recovery-states.md#gui10-understand-waiting-stale-and-recovery-states"
+      ],
+      "initialStatus": "prepared future scope; original sequence/trigger still applies.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "prepared-sequence-trigger",
+      "originalHoldStatus": "prepared future scope; original sequence/trigger still applies.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "gui11-read-and-navigate-the-complete-guidance",
+      "migrationId": "DOW-BRIEF-GUI11-READ-AND-NAVIGATE-THE-COMPLETE-GUIDANCE",
+      "recordKind": "held-future-brief",
+      "issueId": 5913131424,
+      "issueNumber": 152,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/152",
+      "sourceSha256": "3a8cf76f4560598a3b754936e44d2ba8c90b2b01b692b1a7e6955bd3d0d862ed",
+      "sourceReferences": [
+        "docs/future-tickets/gui11-read-and-navigate-the-complete-guidance.md#gui11-read-and-navigate-the-complete-guidance"
+      ],
+      "initialStatus": "prepared future scope; original sequence/trigger still applies.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "prepared-sequence-trigger",
+      "originalHoldStatus": "prepared future scope; original sequence/trigger still applies.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "gui2-understand-resource-and-trade-handoffs",
+      "migrationId": "DOW-BRIEF-GUI2-UNDERSTAND-RESOURCE-AND-TRADE-HANDOFFS",
+      "recordKind": "held-future-brief",
+      "issueId": 5913131988,
+      "issueNumber": 154,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/154",
+      "sourceSha256": "fb87c81d1b26cddaa89c0f2ad42aaad8a2d8e4ee0923a42abc55e08c47fe7746",
+      "sourceReferences": [
+        "docs/future-tickets/gui2-understand-resource-and-trade-handoffs.md#gui2-understand-resource-and-trade-handoffs"
+      ],
+      "initialStatus": "prepared future scope; original sequence/trigger still applies.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "prepared-sequence-trigger",
+      "originalHoldStatus": "prepared future scope; original sequence/trigger still applies.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "gui3-understand-scouting-and-discovery-results",
+      "migrationId": "DOW-BRIEF-GUI3-UNDERSTAND-SCOUTING-AND-DISCOVERY-RESULTS",
+      "recordKind": "held-future-brief",
+      "issueId": 5913132280,
+      "issueNumber": 155,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/155",
+      "sourceSha256": "43529e9d494ba0f9cce32e83db3b0c4de5a7e01f572ffc636d2f5216fce3b149",
+      "sourceReferences": [
+        "docs/future-tickets/gui3-understand-scouting-and-discovery-results.md#gui3-understand-scouting-and-discovery-results"
+      ],
+      "initialStatus": "prepared future scope; original sequence/trigger still applies.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "prepared-sequence-trigger",
+      "originalHoldStatus": "prepared future scope; original sequence/trigger still applies.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "gui4-understand-research-and-specialist-choices",
+      "migrationId": "DOW-BRIEF-GUI4-UNDERSTAND-RESEARCH-AND-SPECIALIST-CHOICES",
+      "recordKind": "held-future-brief",
+      "issueId": 5913132508,
+      "issueNumber": 156,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/156",
+      "sourceSha256": "42362b3cbf8b822a189d2dd572336664dc3dfeae3ec51177f601cd197ea66dc3",
+      "sourceReferences": [
+        "docs/future-tickets/gui4-understand-research-and-specialist-choices.md#gui4-understand-research-and-specialist-choices"
+      ],
+      "initialStatus": "prepared future scope; original sequence/trigger still applies.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "prepared-sequence-trigger",
+      "originalHoldStatus": "prepared future scope; original sequence/trigger still applies.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "gui5-understand-maintenance-and-mission-steps",
+      "migrationId": "DOW-BRIEF-GUI5-UNDERSTAND-MAINTENANCE-AND-MISSION-STEPS",
+      "recordKind": "held-future-brief",
+      "issueId": 5913132775,
+      "issueNumber": 157,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/157",
+      "sourceSha256": "7ac3af8ad7200750dd6dca4ea1034b648b001f891128b21442d667324d945d1c",
+      "sourceReferences": [
+        "docs/future-tickets/gui5-understand-maintenance-and-mission-steps.md#gui5-understand-maintenance-and-mission-steps"
+      ],
+      "initialStatus": "prepared future scope; original sequence/trigger still applies.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "prepared-sequence-trigger",
+      "originalHoldStatus": "prepared future scope; original sequence/trigger still applies.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "gui6-understand-combat-wings-and-boarding",
+      "migrationId": "DOW-BRIEF-GUI6-UNDERSTAND-COMBAT-WINGS-AND-BOARDING",
+      "recordKind": "held-future-brief",
+      "issueId": 5913133048,
+      "issueNumber": 158,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/158",
+      "sourceSha256": "fac09466db6a4c13728b523113f7f2215c82fd951294dc5ec03ea29aaf3c09c4",
+      "sourceReferences": [
+        "docs/future-tickets/gui6-understand-combat-wings-and-boarding.md#gui6-understand-combat-wings-and-boarding"
+      ],
+      "initialStatus": "prepared future scope; original sequence/trigger still applies.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "prepared-sequence-trigger",
+      "originalHoldStatus": "prepared future scope; original sequence/trigger still applies.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "gui7-understand-private-political-and-wolf-actions",
+      "migrationId": "DOW-BRIEF-GUI7-UNDERSTAND-PRIVATE-POLITICAL-AND-WOLF-ACTIONS",
+      "recordKind": "held-future-brief",
+      "issueId": 5913133418,
+      "issueNumber": 159,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/159",
+      "sourceSha256": "65a6b1fd9c4103286b86bf05b8d89ebbe510a6d4cb0550681444d5a260a4c3f3",
+      "sourceReferences": [
+        "docs/future-tickets/gui7-understand-private-political-and-wolf-actions.md#gui7-understand-private-political-and-wolf-actions"
+      ],
+      "initialStatus": "prepared future scope; original sequence/trigger still applies.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "prepared-sequence-trigger",
+      "originalHoldStatus": "prepared future scope; original sequence/trigger still applies.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "gui8-understand-ring-nebula-and-station-preparation",
+      "migrationId": "DOW-BRIEF-GUI8-UNDERSTAND-RING-NEBULA-AND-STATION-PREPARATION",
+      "recordKind": "held-future-brief",
+      "issueId": 5913133660,
+      "issueNumber": 160,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/160",
+      "sourceSha256": "842207313ae44f917d3d51bbcf87f76fc22d408e0fbc58ba30391f46e0d4fc6c",
+      "sourceReferences": [
+        "docs/future-tickets/gui8-understand-ring-nebula-and-station-preparation.md#gui8-understand-ring-nebula-and-station-preparation"
+      ],
+      "initialStatus": "prepared future scope; original sequence/trigger still applies.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "prepared-sequence-trigger",
+      "originalHoldStatus": "prepared future scope; original sequence/trigger still applies.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "gui9-understand-endings-and-entitled-debrief-history",
+      "migrationId": "DOW-BRIEF-GUI9-UNDERSTAND-ENDINGS-AND-ENTITLED-DEBRIEF-HISTORY",
+      "recordKind": "held-future-brief",
+      "issueId": 5913133955,
+      "issueNumber": 161,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/161",
+      "sourceSha256": "7c0bdfe4b6bd63380fbbe3a10783e856c17f902e1a4a381d1120f4b8367b1194",
+      "sourceReferences": [
+        "docs/future-tickets/gui9-understand-endings-and-entitled-debrief-history.md#gui9-understand-endings-and-entitled-debrief-history"
+      ],
+      "initialStatus": "prepared future scope; original sequence/trigger still applies.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "prepared-sequence-trigger",
+      "originalHoldStatus": "prepared future scope; original sequence/trigger still applies.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "gui12-complete-the-remaining-cross-game-guidance-tour",
+      "migrationId": "DOW-BRIEF-GUI12-COMPLETE-THE-REMAINING-CROSS-GAME-GUIDANCE-TOUR",
+      "recordKind": "held-future-brief",
+      "issueId": 5913131732,
+      "issueNumber": 153,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/153",
+      "sourceSha256": "fade89a37744e56cf548af4833ec1a03eb7105ca6bc30a1b839a9faf732b869d",
+      "sourceReferences": [
+        "docs/future-tickets/gui12-complete-the-remaining-cross-game-guidance-tour.md#gui12-complete-the-remaining-cross-game-guidance-tour"
+      ],
+      "initialStatus": "prepared future scope; original sequence/trigger still applies.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "prepared-sequence-trigger",
+      "originalHoldStatus": "prepared future scope; original sequence/trigger still applies.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-GUI1-UNDERSTAND-ORDINARY-MOVEMENT-AND-JUMP-CHOICES",
+        "DOW-BRIEF-GUI10-UNDERSTAND-WAITING-STALE-AND-RECOVERY-STATES",
+        "DOW-BRIEF-GUI11-READ-AND-NAVIGATE-THE-COMPLETE-GUIDANCE",
+        "DOW-BRIEF-GUI2-UNDERSTAND-RESOURCE-AND-TRADE-HANDOFFS",
+        "DOW-BRIEF-GUI3-UNDERSTAND-SCOUTING-AND-DISCOVERY-RESULTS",
+        "DOW-BRIEF-GUI4-UNDERSTAND-RESEARCH-AND-SPECIALIST-CHOICES",
+        "DOW-BRIEF-GUI5-UNDERSTAND-MAINTENANCE-AND-MISSION-STEPS",
+        "DOW-BRIEF-GUI6-UNDERSTAND-COMBAT-WINGS-AND-BOARDING",
+        "DOW-BRIEF-GUI7-UNDERSTAND-PRIVATE-POLITICAL-AND-WOLF-ACTIONS",
+        "DOW-BRIEF-GUI8-UNDERSTAND-RING-NEBULA-AND-STATION-PREPARATION",
+        "DOW-BRIEF-GUI9-UNDERSTAND-ENDINGS-AND-ENTITLED-DEBRIEF-HISTORY"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "gui1-understand-ordinary-movement-and-jump-choices",
+        "gui10-understand-waiting-stale-and-recovery-states",
+        "gui11-read-and-navigate-the-complete-guidance",
+        "gui2-understand-resource-and-trade-handoffs",
+        "gui3-understand-scouting-and-discovery-results",
+        "gui4-understand-research-and-specialist-choices",
+        "gui5-understand-maintenance-and-mission-steps",
+        "gui6-understand-combat-wings-and-boarding",
+        "gui7-understand-private-political-and-wolf-actions",
+        "gui8-understand-ring-nebula-and-station-preparation",
+        "gui9-understand-endings-and-entitled-debrief-history"
+      ]
+    },
+    {
+      "legacyId": "off1-start-the-local-game-host-without-wan",
+      "migrationId": "DOW-BRIEF-OFF1-START-THE-LOCAL-GAME-HOST-WITHOUT-WAN",
+      "recordKind": "held-future-brief",
+      "issueId": 5913134232,
+      "issueNumber": 162,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/162",
+      "sourceSha256": "6b79031df04a507b2b0c8d3d9828d58ea817c0402326cdfbd90cf8ba43ff4276",
+      "sourceReferences": [
+        "docs/future-tickets/off1-start-the-local-game-host-without-wan.md#off1-start-the-local-game-host-without-wan"
+      ],
+      "initialStatus": "conditional planning only; no implementation activation.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "conditional-no-activation",
+      "originalHoldStatus": "conditional planning only; no implementation activation.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": []
+    },
+    {
+      "legacyId": "off2-join-locally-with-private-player-and-gm-authority",
+      "migrationId": "DOW-BRIEF-OFF2-JOIN-LOCALLY-WITH-PRIVATE-PLAYER-AND-GM-AUTHORITY",
+      "recordKind": "held-future-brief",
+      "issueId": 5913135513,
+      "issueNumber": 166,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/166",
+      "sourceSha256": "6a495804a00d7cdad10396a8333aea93739c57d6f45a2af5cde49c95b3da9e0c",
+      "sourceReferences": [
+        "docs/future-tickets/off2-join-locally-with-private-player-and-gm-authority.md#off2-join-locally-with-private-player-and-gm-authority"
+      ],
+      "initialStatus": "conditional planning only; no implementation activation.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "conditional-no-activation",
+      "originalHoldStatus": "conditional planning only; no implementation activation.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF1-START-THE-LOCAL-GAME-HOST-WITHOUT-WAN"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "off1-start-the-local-game-host-without-wan"
+      ]
+    },
+    {
+      "legacyId": "off10-join-the-local-host-from-its-qr",
+      "migrationId": "DOW-BRIEF-OFF10-JOIN-THE-LOCAL-HOST-FROM-ITS-QR",
+      "recordKind": "held-future-brief",
+      "issueId": 5913134517,
+      "issueNumber": 163,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/163",
+      "sourceSha256": "016564a3ae67e2372154f56db8f3a60f381cfe777ced162c3699c5323a74cf0f",
+      "sourceReferences": [
+        "docs/future-tickets/off10-join-the-local-host-from-its-qr.md#off10-join-the-local-host-from-its-qr"
+      ],
+      "initialStatus": "conditional planning only; no implementation activation.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "conditional-no-activation",
+      "originalHoldStatus": "conditional planning only; no implementation activation.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF2-JOIN-LOCALLY-WITH-PRIVATE-PLAYER-AND-GM-AUTHORITY"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "off2-join-locally-with-private-player-and-gm-authority"
+      ]
+    },
+    {
+      "legacyId": "off3-commit-one-authoritative-local-action",
+      "migrationId": "DOW-BRIEF-OFF3-COMMIT-ONE-AUTHORITATIVE-LOCAL-ACTION",
+      "recordKind": "held-future-brief",
+      "issueId": 5913135790,
+      "issueNumber": 167,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/167",
+      "sourceSha256": "35555fd834a54e5adafe67d27f063426464a58a8ac461299ac0574c676574e21",
+      "sourceReferences": [
+        "docs/future-tickets/off3-commit-one-authoritative-local-action.md#off3-commit-one-authoritative-local-action"
+      ],
+      "initialStatus": "conditional planning only; no implementation activation.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "conditional-no-activation",
+      "originalHoldStatus": "conditional planning only; no implementation activation.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF2-JOIN-LOCALLY-WITH-PRIVATE-PLAYER-AND-GM-AUTHORITY"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "off2-join-locally-with-private-player-and-gm-authority"
+      ]
+    },
+    {
+      "legacyId": "off4-recover-durable-local-play-after-host-restart",
+      "migrationId": "DOW-BRIEF-OFF4-RECOVER-DURABLE-LOCAL-PLAY-AFTER-HOST-RESTART",
+      "recordKind": "held-future-brief",
+      "issueId": 5913136097,
+      "issueNumber": 168,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/168",
+      "sourceSha256": "dc154d2dba8e32ce0949af82f67ffea5db5a16cd962eaeefcdc1d7698f9f97de",
+      "sourceReferences": [
+        "docs/future-tickets/off4-recover-durable-local-play-after-host-restart.md#off4-recover-durable-local-play-after-host-restart"
+      ],
+      "initialStatus": "conditional planning only; no implementation activation.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "conditional-no-activation",
+      "originalHoldStatus": "conditional planning only; no implementation activation.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF3-COMMIT-ONE-AUTHORITATIVE-LOCAL-ACTION"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "off3-commit-one-authoritative-local-action"
+      ]
+    },
+    {
+      "legacyId": "off5-reconnect-the-original-local-player",
+      "migrationId": "DOW-BRIEF-OFF5-RECONNECT-THE-ORIGINAL-LOCAL-PLAYER",
+      "recordKind": "held-future-brief",
+      "issueId": 5913136468,
+      "issueNumber": 169,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/169",
+      "sourceSha256": "c74dcf31907c06e436d17a6fbd47d2489ccf6313a34c623b836b7a38f3deb35e",
+      "sourceReferences": [
+        "docs/future-tickets/off5-reconnect-the-original-local-player.md#off5-reconnect-the-original-local-player"
+      ],
+      "initialStatus": "conditional planning only; no implementation activation.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "conditional-no-activation",
+      "originalHoldStatus": "conditional planning only; no implementation activation.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF3-COMMIT-ONE-AUTHORITATIVE-LOCAL-ACTION"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "off3-commit-one-authoritative-local-action"
+      ]
+    },
+    {
+      "legacyId": "off6-resolve-concurrent-local-actions-once",
+      "migrationId": "DOW-BRIEF-OFF6-RESOLVE-CONCURRENT-LOCAL-ACTIONS-ONCE",
+      "recordKind": "held-future-brief",
+      "issueId": 5913136797,
+      "issueNumber": 170,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/170",
+      "sourceSha256": "a72b01ec2b42199b7ac76734341ab803debe2a0bfcb1ca3f59d5b9dfbf7868a4",
+      "sourceReferences": [
+        "docs/future-tickets/off6-resolve-concurrent-local-actions-once.md#off6-resolve-concurrent-local-actions-once"
+      ],
+      "initialStatus": "conditional planning only; no implementation activation.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "conditional-no-activation",
+      "originalHoldStatus": "conditional planning only; no implementation activation.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF3-COMMIT-ONE-AUTHORITATIVE-LOCAL-ACTION"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "off3-commit-one-authoritative-local-action"
+      ]
+    },
+    {
+      "legacyId": "off7-play-local-movement-and-mission-workflows",
+      "migrationId": "DOW-BRIEF-OFF7-PLAY-LOCAL-MOVEMENT-AND-MISSION-WORKFLOWS",
+      "recordKind": "held-future-brief",
+      "issueId": 5913137028,
+      "issueNumber": 171,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/171",
+      "sourceSha256": "49d587278391e921dff2b0b27b0f4ff97b84e048f7d028d1beb2fa356083b7fd",
+      "sourceReferences": [
+        "docs/future-tickets/off7-play-local-movement-and-mission-workflows.md#off7-play-local-movement-and-mission-workflows"
+      ],
+      "initialStatus": "conditional planning only; no implementation activation.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "conditional-no-activation",
+      "originalHoldStatus": "conditional planning only; no implementation activation.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF4-RECOVER-DURABLE-LOCAL-PLAY-AFTER-HOST-RESTART",
+        "DOW-BRIEF-OFF5-RECONNECT-THE-ORIGINAL-LOCAL-PLAYER",
+        "DOW-BRIEF-OFF6-RESOLVE-CONCURRENT-LOCAL-ACTIONS-ONCE"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "off4-recover-durable-local-play-after-host-restart",
+        "off5-reconnect-the-original-local-player",
+        "off6-resolve-concurrent-local-actions-once"
+      ]
+    },
+    {
+      "legacyId": "off8-play-local-combat-and-private-role-workflows",
+      "migrationId": "DOW-BRIEF-OFF8-PLAY-LOCAL-COMBAT-AND-PRIVATE-ROLE-WORKFLOWS",
+      "recordKind": "held-future-brief",
+      "issueId": 5913137267,
+      "issueNumber": 172,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/172",
+      "sourceSha256": "8d98feebcbc0604510b1145a544b835d5e0a9329064b6e762cded8e0ce612064",
+      "sourceReferences": [
+        "docs/future-tickets/off8-play-local-combat-and-private-role-workflows.md#off8-play-local-combat-and-private-role-workflows"
+      ],
+      "initialStatus": "conditional planning only; no implementation activation.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "conditional-no-activation",
+      "originalHoldStatus": "conditional planning only; no implementation activation.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF4-RECOVER-DURABLE-LOCAL-PLAY-AFTER-HOST-RESTART",
+        "DOW-BRIEF-OFF5-RECONNECT-THE-ORIGINAL-LOCAL-PLAYER",
+        "DOW-BRIEF-OFF6-RESOLVE-CONCURRENT-LOCAL-ACTIONS-ONCE"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "off4-recover-durable-local-play-after-host-restart",
+        "off5-reconnect-the-original-local-player",
+        "off6-resolve-concurrent-local-actions-once"
+      ]
+    },
+    {
+      "legacyId": "off9-finish-local-candidate-and-terminal-paths",
+      "migrationId": "DOW-BRIEF-OFF9-FINISH-LOCAL-CANDIDATE-AND-TERMINAL-PATHS",
+      "recordKind": "held-future-brief",
+      "issueId": 5913137642,
+      "issueNumber": 173,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/173",
+      "sourceSha256": "1fb061d323c57960eea8912b582a05b81de80391fb319f5c48dcac300c8f4f2c",
+      "sourceReferences": [
+        "docs/future-tickets/off9-finish-local-candidate-and-terminal-paths.md#off9-finish-local-candidate-and-terminal-paths"
+      ],
+      "initialStatus": "conditional planning only; no implementation activation.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "conditional-no-activation",
+      "originalHoldStatus": "conditional planning only; no implementation activation.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF4-RECOVER-DURABLE-LOCAL-PLAY-AFTER-HOST-RESTART",
+        "DOW-BRIEF-OFF5-RECONNECT-THE-ORIGINAL-LOCAL-PLAYER",
+        "DOW-BRIEF-OFF6-RESOLVE-CONCURRENT-LOCAL-ACTIONS-ONCE"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "off4-recover-durable-local-play-after-host-restart",
+        "off5-reconnect-the-original-local-player",
+        "off6-resolve-concurrent-local-actions-once"
+      ]
+    },
+    {
+      "legacyId": "off11-complete-a-wan-disconnected-multi-client-game",
+      "migrationId": "DOW-BRIEF-OFF11-COMPLETE-A-WAN-DISCONNECTED-MULTI-CLIENT-GAME",
+      "recordKind": "held-future-brief",
+      "issueId": 5913134849,
+      "issueNumber": 164,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/164",
+      "sourceSha256": "e9eeb8b4bd50ffff9ef2b097755343b95432ab8985b58973acb338f0d4d55910",
+      "sourceReferences": [
+        "docs/future-tickets/off11-complete-a-wan-disconnected-multi-client-game.md#off11-complete-a-wan-disconnected-multi-client-game"
+      ],
+      "initialStatus": "conditional planning only; no implementation activation.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "conditional-no-activation",
+      "originalHoldStatus": "conditional planning only; no implementation activation.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF10-JOIN-THE-LOCAL-HOST-FROM-ITS-QR",
+        "DOW-BRIEF-OFF7-PLAY-LOCAL-MOVEMENT-AND-MISSION-WORKFLOWS",
+        "DOW-BRIEF-OFF8-PLAY-LOCAL-COMBAT-AND-PRIVATE-ROLE-WORKFLOWS",
+        "DOW-BRIEF-OFF9-FINISH-LOCAL-CANDIDATE-AND-TERMINAL-PATHS"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "off10-join-the-local-host-from-its-qr",
+        "off7-play-local-movement-and-mission-workflows",
+        "off8-play-local-combat-and-private-role-workflows",
+        "off9-finish-local-candidate-and-terminal-paths"
+      ]
+    },
+    {
+      "legacyId": "off12-release-the-qualified-local-backup",
+      "migrationId": "DOW-BRIEF-OFF12-RELEASE-THE-QUALIFIED-LOCAL-BACKUP",
+      "recordKind": "held-future-brief",
+      "issueId": 5913135235,
+      "issueNumber": 165,
+      "issueUrl": "https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/165",
+      "sourceSha256": "76366c62e21d2a002a3d7044cfc99e8e42a2a63a365b0735f3869270c9bc88e5",
+      "sourceReferences": [
+        "docs/future-tickets/off12-release-the-qualified-local-backup.md#off12-release-the-qualified-local-backup"
+      ],
+      "initialStatus": "conditional planning only; no implementation activation.",
+      "initialReadiness": "held",
+      "initialExecution": "inactive",
+      "holdKind": "conditional-no-activation",
+      "originalHoldStatus": "conditional planning only; no implementation activation.",
+      "parentMigrationIds": [],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF11-COMPLETE-A-WAN-DISCONNECTED-MULTI-CLIENT-GAME"
+      ],
+      "sourceOwnerReferences": [],
+      "sourceOwnerIssueReferences": [],
+      "historyReferences": [],
+      "sourceBlockedByBriefIds": [
+        "off11-complete-a-wan-disconnected-multi-client-game"
+      ]
+    }
+  ],
+  "retainedBriefReferences": [
+    {
+      "sourceId": "45-f2",
+      "sourceSha256": "fc0a0dc5a4073b3a51e8b7df8cee1782b66e0d1fc5539a81761297a924638fc0",
+      "sourceReference": "docs/pc10-tickets/45-f2.md",
+      "disposition": "retained-acceptance-no-issue"
+    },
+    {
+      "sourceId": "60-pt6",
+      "sourceSha256": "422ba2acd7b157034ed30e85df5930763000a7003768bb31e7b318586962fe95",
+      "sourceReference": "docs/pc10-tickets/60-pt6.md",
+      "disposition": "implemented-history-no-issue"
+    }
+  ],
+  "completedPromptHistoryCount": 703
+}

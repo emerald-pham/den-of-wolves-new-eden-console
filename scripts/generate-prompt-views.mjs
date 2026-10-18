@@ -9,6 +9,7 @@ import {
   readLegacyPromptSources,
   stableCatalogJson,
   updatePromptViews,
+  validatePromptCatalog,
 } from './prompt-catalog.mjs';
 
 function parseOptions(args) {
@@ -54,7 +55,7 @@ async function writeOrCheck(path, expected, check) {
   return true;
 }
 
-export async function generatePromptViews({ cwd = process.cwd(), check = false, extract = false } = {}) {
+export async function generatePromptViews({ cwd = process.cwd(), check = false, extract = false, catalog: suppliedCatalog } = {}) {
   const root = resolve(cwd);
   const catalogPath = resolve(root, CATALOG_PATH);
   const sources = await readSources(root);
@@ -68,9 +69,15 @@ export async function generatePromptViews({ cwd = process.cwd(), check = false, 
     });
     await writeOrCheck(catalogPath, stableCatalogJson(catalog), check);
   } else {
-    catalog = loadPromptCatalog({ cwd: root });
+    if (suppliedCatalog) {
+      const errors = validatePromptCatalog(suppliedCatalog);
+      if (errors.length > 0) throw new Error(`Prompt catalog validation failed:\n- ${errors.join('\n- ')}`);
+      catalog = loadPromptCatalog({ source: stableCatalogJson(suppliedCatalog) });
+    } else {
+      catalog = loadPromptCatalog({ cwd: root });
+    }
     const canonical = stableCatalogJson(catalog);
-    await writeOrCheck(catalogPath, canonical, check);
+    if (!suppliedCatalog) await writeOrCheck(catalogPath, canonical, check);
   }
   const views = updatePromptViews({ sources, catalog });
   const changed = [];

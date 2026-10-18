@@ -56,6 +56,8 @@
     "coordination:dependencies:measure": "node scripts/prompt-dependencies.mjs --measure",
     "roadmap:generate": "node scripts/generate-prompt-views.mjs",
     "roadmap:check": "node scripts/generate-prompt-views.mjs --check",
+    "prompt-tracker": "node scripts/github-prompt-tracker.mjs",
+    "test:prompt-tracker": "node --test scripts/prompt-tracker-consumers.test.mjs scripts/github-prompt-tracker.test.mjs scripts/tracker-risk-gate.test.mjs",
     "coordination:begin": "node scripts/emulator-resource-registry.mjs begin",
     "coordination:park": "node scripts/emulator-resource-registry.mjs park",
     "coordination:resume": "node scripts/emulator-resource-registry.mjs resume",

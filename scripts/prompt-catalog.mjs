@@ -711,7 +711,7 @@ export function selectPrompt(catalog, value) {
 function generatedHeader(kind) {
   return [
     GENERATED_VIEW_MARKERS[kind].begin,
-    `<!-- Generated from ${CATALOG_PATH}; edit the catalog and run the view generator. -->`,
+    `<!-- Generated from the saved ${CATALOG_PATH} snapshot; after tracker state changes, run npm run prompt-tracker -- export. -->`,
   ];
 }
 

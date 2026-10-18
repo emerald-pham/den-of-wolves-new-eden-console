@@ -1,0 +1,616 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, rm, writeFile, mkdir } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
+import test from 'node:test';
+import {
+  createGitHubPromptTrackerTransport,
+  readGitHubPromptCatalog,
+  updateGitHubIssueState,
+} from './github-prompt-tracker.mjs';
+import { loadPromptCatalog, stableCatalogJson } from './prompt-catalog.mjs';
+
+const sourceCatalog = loadPromptCatalog();
+const sourceBytes = Buffer.from(stableCatalogJson(sourceCatalog));
+const evidenceReference = 'docs/README.md#tracker';
+const sourceSha256 = createHash('sha256').update(sourceBytes).digest('hex');
+const crosswalkFor = (records, retainedBriefReferences = []) => ({ schemaVersion: 1, destination: 'emerald-pham/den-of-wolves-new-eden-console', sourceSha256, records, retainedBriefReferences });
+const promptRecord = (overrides = {}) => ({
+  legacyId: '181',
+  migrationId: 'DOW-PROMPT-181',
+  recordKind: 'prompt-acceptance',
+  issueId: 1810,
+  issueNumber: 181,
+  initialStatus: 'missing',
+  parentMigrationIds: [],
+  blockedByMigrationIds: [],
+  sourceReferences: ['docs/implementation-prompts.json#181'],
+  ...overrides,
+});
+const promptIssue = (overrides = {}) => ({
+  id: 1810,
+  number: 181,
+  title: 'Legacy prompt record',
+  body: 'Human note: please keep this prose.\n\nMigration ID: DOW-PROMPT-181\nSource status: missing\nSource reference: docs/implementation-prompts.json#181\n',
+  state: 'open',
+  state_reason: null,
+  ...overrides,
+});
+
+test('saved tracker snapshot can export its views through the normal offline command', () => {
+  const result = spawnSync(process.execPath, ['scripts/github-prompt-tracker.mjs', 'export'], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    env: { ...process.env, GH_TOKEN: '', GITHUB_TOKEN: '' },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Exported the saved GitHub catalog snapshot to generated views \(751 prompts\)/);
+});
+
+test('offline export recovers generated views after an interrupted refresh', async () => {
+  const cwd = await mkdtemp(resolve(tmpdir(), 'prompt-tracker-export-recovery-'));
+  try {
+    await mkdir(resolve(cwd, 'docs'), { recursive: true });
+    for (const path of [
+      'docs/IMPLEMENTATION_PLAN.md',
+      'docs/IMPLEMENTATION_PROGRESS.md',
+      'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
+      'docs/IMPLEMENTATION_MILESTONES.md',
+    ]) await writeFile(resolve(cwd, path), await readFile(resolve(process.cwd(), path), 'utf8'));
+    const savedSnapshot = stableCatalogJson(sourceCatalog);
+    await writeFile(resolve(cwd, 'docs/implementation-prompts.json'), savedSnapshot);
+    const progressPath = resolve(cwd, 'docs/IMPLEMENTATION_PROGRESS.md');
+    const progress = await readFile(progressPath, 'utf8');
+    await writeFile(progressPath, progress.replace('703 done', 'INTERRUPTED EXPORT'));
+
+    const scriptPath = resolve(process.cwd(), 'scripts/github-prompt-tracker.mjs');
+    const result = spawnSync(process.execPath, [scriptPath, 'export'], {
+      cwd,
+      encoding: 'utf8',
+      env: { ...process.env, GH_TOKEN: '', GITHUB_TOKEN: '' },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.doesNotMatch(await readFile(progressPath, 'utf8'), /INTERRUPTED EXPORT/);
+    assert.equal(await readFile(resolve(cwd, 'docs/implementation-prompts.json'), 'utf8'), savedSnapshot);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+function fakeTransport(initialIssues, initialRelationships = []) {
+  const issues = new Map(initialIssues.map((issue) => [issue.number, structuredClone(issue)]));
+  const relationships = new Map([...issues.values()].map((issue) => [issue.id, { parentIssueIds: [], blockedByIssueIds: [] }]));
+  for (const [issueId, value] of initialRelationships) relationships.set(issueId, structuredClone(value));
+  const calls = [];
+  return {
+    calls,
+    async listIssues() { return [...issues.values()].map((issue) => structuredClone(issue)); },
+    async getIssue(number) { return structuredClone(issues.get(number)); },
+    async getRelationships(id) { return structuredClone(relationships.get(id)); },
+    async patchIssue(patch) {
+      calls.push(structuredClone(patch));
+      const issue = issues.get(patch.issueNumber);
+      Object.assign(issue, {
+        body: patch.body,
+        state: patch.state,
+        state_reason: patch.stateReason,
+      });
+      return structuredClone(issue);
+    },
+  };
+}
+
+test('GitHub status refresh projects only mutable prompt status and preserves other catalog fields', async () => {
+  const issue = promptIssue({ body: `${promptIssue().body}\n<!-- DOW-TRACKER-OWNED-START -->\nPrompt status: partial\n<!-- DOW-TRACKER-OWNED-END -->\n` });
+  const result = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue]),
+    crosswalk: crosswalkFor([promptRecord()]),
+  });
+  const source = loadPromptCatalog({ source: sourceBytes });
+  const original = source.prompts.find(({ id }) => id === '181');
+  const projected = result.catalog.prompts.find(({ id }) => id === '181');
+  assert.equal(projected.status, 'partial');
+  assert.equal(result.catalog.prompts.length, source.prompts.length);
+  assert.equal(projected.description, original.description);
+  assert.equal(projected.evidenceIds, original.evidenceIds);
+  assert.equal(result.catalog.prompts.find(({ id }) => id === '610').status, 'done');
+  assert.equal(result.issueCount, 1);
+});
+
+test('refresh can resume from its previous export while verifying imported prompt identity', async () => {
+  const issue = promptIssue({ body: `${promptIssue().body}\n<!-- DOW-TRACKER-OWNED-START -->\nPrompt status: partial\n<!-- DOW-TRACKER-OWNED-END -->\n` });
+  const original = sourceCatalog.prompts.find(({ id }) => id === '181');
+  const rowSourceSha256 = createHash('sha256').update(JSON.stringify(JSON.parse(stableCatalogJson({ ...original, status: 'missing' })))).digest('hex');
+  const crosswalk = crosswalkFor([promptRecord({ sourceSha256: rowSourceSha256 })]);
+  const first = await readGitHubPromptCatalog({ sourceBytes, transport: fakeTransport([issue]), crosswalk });
+  const next = await readGitHubPromptCatalog({
+    sourceBytes: Buffer.from(first.catalogSource),
+    transport: fakeTransport([issue]),
+    crosswalk,
+  });
+  assert.equal(next.catalog.prompts.find(({ id }) => id === '181').status, 'partial');
+});
+
+test('refresh verifies reconstructed full source SHA after status-only exports', async () => {
+  const original = sourceCatalog.prompts.find(({ id }) => id === '181');
+  const rowSourceSha256 = createHash('sha256').update(JSON.stringify(JSON.parse(stableCatalogJson({ ...original, status: 'missing' })))).digest('hex');
+  const crosswalk = crosswalkFor([promptRecord({ sourceSha256: rowSourceSha256 })]);
+  const tamperedSource = Buffer.from(stableCatalogJson({ ...sourceCatalog, untrackedSourceField: 'not in original snapshot' }));
+  await assert.rejects(readGitHubPromptCatalog({
+    sourceBytes: tamperedSource,
+    transport: fakeTransport([promptIssue()]),
+    crosswalk,
+  }), /Public crosswalk source snapshot hash mismatch/);
+});
+
+test('brief-only source blocker documentation does not reinterpret prompt acceptance prose', async () => {
+  const issue = promptIssue({ body: `${promptIssue().body}Blocked-by brief IDs: 22, 23\n` });
+  const result = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue]),
+    crosswalk: crosswalkFor([promptRecord()]),
+  });
+  assert.equal(result.issueCount, 1);
+});
+
+test('accepted update exports, refreshes, and reopens without losing source fields or hash continuity', async () => {
+  const transport = fakeTransport([promptIssue()]);
+  const expectedRecord = promptRecord({
+    sourceSha256: createHash('sha256').update(JSON.stringify(JSON.parse(stableCatalogJson({
+      ...sourceCatalog.prompts.find(({ id }) => id === '181'),
+      status: 'missing',
+    })))).digest('hex'),
+  });
+  await updateGitHubIssueState({
+    transport,
+    issueNumber: 181,
+    expectedRecord,
+    changes: { status: 'done', reviewed: true, accepted: true, evidenceReferences: [evidenceReference] },
+  });
+  const completedExport = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport,
+    crosswalk: crosswalkFor([expectedRecord]),
+  });
+  assert.equal(completedExport.catalog.prompts.find(({ id }) => id === '181').status, 'done');
+
+  await updateGitHubIssueState({ transport, issueNumber: 181, expectedRecord, changes: { status: 'partial' } });
+  const reopenedExport = await readGitHubPromptCatalog({
+    sourceBytes: Buffer.from(completedExport.catalogSource),
+    transport,
+    crosswalk: crosswalkFor([expectedRecord]),
+  });
+  const original = sourceCatalog.prompts.find(({ id }) => id === '181');
+  const reopened = reopenedExport.catalog.prompts.find(({ id }) => id === '181');
+  assert.deepEqual(reopened, { ...original, status: 'partial' });
+  const repeatedRefresh = await readGitHubPromptCatalog({
+    sourceBytes: Buffer.from(reopenedExport.catalogSource),
+    transport,
+    crosswalk: crosswalkFor([expectedRecord]),
+  });
+  assert.deepEqual(repeatedRefresh.catalog.prompts.find(({ id }) => id === '181'), reopened);
+});
+
+test('closure requires accepted local evidence and not-planned remains unresolved', async () => {
+  const source = loadPromptCatalog({ source: sourceBytes });
+  const base = promptIssue({
+    body: `${promptIssue().body}\n<!-- DOW-TRACKER-OWNED-START -->\nPrompt status: partial\nCompletion: reviewed-accepted\nEvidence references: ${evidenceReference}\n<!-- DOW-TRACKER-OWNED-END -->\n`,
+    state: 'closed',
+    state_reason: 'completed',
+  });
+  const args = { sourceBytes, crosswalk: crosswalkFor([promptRecord()]) };
+  const accepted = await readGitHubPromptCatalog({ ...args, transport: fakeTransport([base]), cwd: process.cwd() });
+  assert.equal(accepted.catalog.prompts.find(({ id }) => id === '181').status, 'done');
+
+  const withoutEvidence = structuredClone(base);
+  withoutEvidence.body = withoutEvidence.body.replace(`Evidence references: ${evidenceReference}`, 'Evidence references: docs/missing.md#result');
+  const unresolved = await readGitHubPromptCatalog({ ...args, transport: fakeTransport([withoutEvidence]) });
+  assert.equal(unresolved.catalog.prompts.find(({ id }) => id === '181').status, 'partial');
+
+  const falselyMarkedDone = structuredClone(withoutEvidence);
+  falselyMarkedDone.body = falselyMarkedDone.body
+    .replace('Prompt status: partial', 'Prompt status: done\nPrevious incomplete status: missing');
+  const closureOnly = await readGitHubPromptCatalog({ ...args, transport: fakeTransport([falselyMarkedDone]) });
+  assert.equal(closureOnly.catalog.prompts.find(({ id }) => id === '181').status, 'missing');
+
+  const notPlanned = await readGitHubPromptCatalog({
+    ...args,
+    transport: fakeTransport([{ ...base, state_reason: 'not_planned' }]),
+  });
+  assert.equal(notPlanned.catalog.prompts.find(({ id }) => id === '181').status, 'partial');
+  assert.equal(source.prompts.find(({ id }) => id === '181').status, 'missing');
+});
+
+test('reopening restores the stored incomplete status from the owned fields', async () => {
+  const issue = promptIssue({
+    body: `${promptIssue().body}\n<!-- DOW-TRACKER-OWNED-START -->\nPrompt status: done\nPrevious incomplete status: missing\nCompletion: reviewed-accepted\nEvidence references: ${evidenceReference}\n<!-- DOW-TRACKER-OWNED-END -->\n`,
+  });
+  const result = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue]),
+    crosswalk: crosswalkFor([promptRecord()]),
+  });
+  assert.equal(result.catalog.prompts.find(({ id }) => id === '181').status, 'missing');
+});
+
+test('held future briefs remain held and do not acquire prompt completion state', async () => {
+  const issue = {
+    id: 5000,
+    number: 500,
+    title: 'Legacy execution brief',
+    body: 'Human note: retain this note.\n\nMigration ID: DOW-BRIEF-FUTURE-01\nSource status: Prepared future scope; preserve trigger.\nHold: inactive; preserve the source trigger and sequence.\nReadiness: held\nExecution: inactive\nSource reference: docs/future-tickets/example.md#future-01\n',
+    state: 'open',
+    state_reason: null,
+  };
+  const result = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue]),
+    crosswalk: crosswalkFor([{
+      legacyId: 'future-01',
+      migrationId: 'DOW-BRIEF-FUTURE-01',
+      recordKind: 'held-future-brief',
+      issueId: 5000,
+      issueNumber: 500,
+      initialReadiness: 'held',
+      initialExecution: 'inactive',
+      holdKind: 'prepared-sequence-trigger',
+      originalHoldStatus: 'Prepared future scope; preserve trigger.',
+      sourceReferences: ['docs/future-tickets/example.md#future-01'],
+      parentMigrationIds: [],
+      blockedByMigrationIds: [],
+    }]),
+  });
+  assert.equal(result.catalog.prompts.find(({ id }) => id === '651').status, 'missing');
+  assert.equal(result.catalog.prompts.find(({ id }) => id === '181').status, 'missing');
+});
+
+test('refresh rejects drift in the imported future hold wording', async () => {
+  const issue = {
+    id: 5000,
+    number: 500,
+    title: 'Legacy execution brief',
+    body: 'Migration ID: DOW-BRIEF-FUTURE-01\nSource status: Prepared future scope; preserve trigger.\nReadiness: held\nExecution: inactive\nSource reference: docs/future-tickets/example.md#future-01\n<!-- DOW-TRACKER-OWNED-START -->\nReadiness: held\nExecution: inactive\nHold: inactive; edited hold text.\nOriginal hold status: Prepared future scope; edited trigger.\n<!-- DOW-TRACKER-OWNED-END -->\n',
+    state: 'open',
+    state_reason: null,
+  };
+  await assert.rejects(readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue]),
+    crosswalk: crosswalkFor([{
+      legacyId: 'future-01',
+      migrationId: 'DOW-BRIEF-FUTURE-01',
+      recordKind: 'held-future-brief',
+      issueId: 5000,
+      issueNumber: 500,
+      initialReadiness: 'held',
+      initialExecution: 'inactive',
+      holdKind: 'prepared-sequence-trigger',
+      originalHoldStatus: 'Prepared future scope; preserve trigger.',
+      sourceReferences: ['docs/future-tickets/example.md#future-01'],
+      parentMigrationIds: [],
+      blockedByMigrationIds: [],
+    }]),
+  }), /Future hold provenance mismatch/);
+});
+
+test('field updates cannot rewrite a held future brief source hold', async () => {
+  const issue = {
+    id: 5000,
+    number: 500,
+    title: 'Legacy execution brief',
+    body: 'Migration ID: DOW-BRIEF-FUTURE-01\nSource status: Prepared future scope; preserve trigger.\nHold: inactive; preserve the source trigger and sequence.\nReadiness: held\nExecution: inactive\nSource reference: docs/future-tickets/example.md#future-01\n',
+    state: 'open',
+    state_reason: null,
+  };
+  const transport = fakeTransport([issue]);
+  await assert.rejects(updateGitHubIssueState({
+    transport,
+    issueNumber: 500,
+    expectedRecord: {
+      issueId: 5000,
+      issueNumber: 500,
+      migrationId: 'DOW-BRIEF-FUTURE-01',
+      recordKind: 'held-future-brief',
+      holdKind: 'prepared-sequence-trigger',
+      originalHoldStatus: 'Prepared future scope; preserve trigger.',
+      sourceReferences: ['docs/future-tickets/example.md#future-01'],
+      parentMigrationIds: [],
+      blockedByMigrationIds: [],
+    },
+    changes: { brief: { 'Original hold status': 'Active now.' } },
+  }), /Future brief hold provenance is immutable/);
+  assert.equal(transport.calls.length, 0);
+});
+
+test('held future briefs cannot be completed before their trigger is active', async () => {
+  const issue = {
+    id: 5000,
+    number: 500,
+    title: 'Legacy execution brief',
+    body: 'Migration ID: DOW-BRIEF-FUTURE-01\nSource status: Prepared future scope; preserve trigger.\nHold: inactive; preserve the source trigger and sequence.\nReadiness: held\nExecution: inactive\nSource reference: docs/future-tickets/example.md#future-01\n',
+    state: 'open',
+    state_reason: null,
+  };
+  const transport = fakeTransport([issue]);
+  await assert.rejects(updateGitHubIssueState({
+    transport,
+    issueNumber: 500,
+    expectedRecord: {
+      issueId: 5000,
+      issueNumber: 500,
+      migrationId: 'DOW-BRIEF-FUTURE-01',
+      recordKind: 'held-future-brief',
+      holdKind: 'prepared-sequence-trigger',
+      originalHoldStatus: 'Prepared future scope; preserve trigger.',
+      sourceReferences: ['docs/future-tickets/example.md#future-01'],
+      parentMigrationIds: [],
+      blockedByMigrationIds: [],
+    },
+    changes: { closeAs: 'completed', reviewed: true, accepted: true, evidenceReferences: [evidenceReference] },
+  }), /Held future briefs cannot be completed while held/);
+  assert.equal(transport.calls.length, 0);
+});
+
+test('a future hold can be deliberately released with accepted local trigger evidence and survives refresh', async () => {
+  const issue = {
+    id: 5000,
+    number: 500,
+    title: 'Legacy execution brief',
+    body: 'Human note: retain this note.\n\nMigration ID: DOW-BRIEF-FUTURE-01\nSource status: Prepared future scope; preserve trigger.\nHold: inactive; preserve the source trigger and sequence.\nReadiness: held\nExecution: inactive\nSource reference: docs/future-tickets/example.md#future-01\n',
+    state: 'open',
+    state_reason: null,
+  };
+  const record = {
+    issueId: 5000,
+    issueNumber: 500,
+    migrationId: 'DOW-BRIEF-FUTURE-01',
+    recordKind: 'held-future-brief',
+    holdKind: 'prepared-sequence-trigger',
+    originalHoldStatus: 'Prepared future scope; preserve trigger.',
+    sourceReferences: ['docs/future-tickets/example.md#future-01'],
+    parentMigrationIds: [],
+    blockedByMigrationIds: [],
+  };
+  const transport = fakeTransport([issue]);
+  const released = await updateGitHubIssueState({
+    transport,
+    issueNumber: 500,
+    expectedRecord: record,
+    changes: {
+      releaseHold: true,
+      reviewed: true,
+      accepted: true,
+      evidenceReferences: [evidenceReference],
+    },
+  });
+  assert.match(released.issue.body, /Hold: released/);
+  assert.match(released.issue.body, /Original hold status: Prepared future scope; preserve trigger\./);
+  assert.match(released.issue.body, /Source status: Prepared future scope; preserve trigger\./);
+  assert.match(released.issue.body, /Hold release evidence: docs\/README\.md#tracker/);
+  assert.match(released.issue.body, /Readiness: ready/);
+  assert.match(released.issue.body, /Execution: inactive/);
+
+  await updateGitHubIssueState({ transport, issueNumber: 500, expectedRecord: record, changes: { closeAs: 'not_planned' } });
+  const reopened = await updateGitHubIssueState({ transport, issueNumber: 500, expectedRecord: record, changes: { reopen: true } });
+  assert.equal(reopened.issue.state, 'open');
+  assert.match(reopened.issue.body, /Hold: released/);
+  assert.match(reopened.issue.body, /Hold release evidence: docs\/README\.md#tracker/);
+
+  const crosswalk = crosswalkFor([{ ...record, legacyId: 'future-01', initialReadiness: 'held', initialExecution: 'inactive' }]);
+  const refreshed = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, cwd: process.cwd() });
+  assert.equal(refreshed.issueStates[0].hold, 'released');
+  assert.equal(refreshed.issueStates[0].readiness, 'ready');
+  assert.equal(refreshed.issueStates[0].completion, 'not-closed');
+});
+
+test('future hold release requires reviewed accepted local evidence', async () => {
+  const transport = fakeTransport([{
+    id: 5000,
+    number: 500,
+    title: 'Legacy execution brief',
+    body: 'Migration ID: DOW-BRIEF-FUTURE-01\nSource status: Prepared future scope; preserve trigger.\nHold: inactive; preserve the source trigger and sequence.\nReadiness: held\nExecution: inactive\nSource reference: docs/future-tickets/example.md#future-01\n',
+    state: 'open',
+    state_reason: null,
+  }]);
+  await assert.rejects(updateGitHubIssueState({
+    transport,
+    issueNumber: 500,
+    expectedRecord: {
+      issueId: 5000,
+      issueNumber: 500,
+      migrationId: 'DOW-BRIEF-FUTURE-01',
+      recordKind: 'held-future-brief',
+      holdKind: 'prepared-sequence-trigger',
+      originalHoldStatus: 'Prepared future scope; preserve trigger.',
+      sourceReferences: ['docs/future-tickets/example.md#future-01'],
+      parentMigrationIds: [],
+      blockedByMigrationIds: [],
+    },
+    changes: { releaseHold: true, reviewed: true, accepted: true, evidenceReferences: ['docs/missing.md#trigger'] },
+  }), /Hold release requires reviewed, accepted local trigger\/authorization evidence/);
+  assert.equal(transport.calls.length, 0);
+});
+
+test('field-scoped update preserves human prose and verifies native state and relationships', async () => {
+  const issue = promptIssue();
+  const transport = fakeTransport([issue]);
+  const result = await updateGitHubIssueState({ transport, issueNumber: 181, changes: { status: 'partial' } });
+  assert.equal(result.issue.body.startsWith('Human note: please keep this prose.'), true);
+  assert.match(result.issue.body, /Migration ID: DOW-PROMPT-181/);
+  assert.match(result.issue.body, /Prompt status: partial/);
+  assert.equal(result.issue.state, 'open');
+  assert.equal(result.issue.stateReason, null);
+  assert.equal(transport.calls.length, 1);
+  assert.deepEqual(transport.calls[0], {
+    issueNumber: 181,
+    body: result.issue.body,
+    state: 'open',
+    stateReason: null,
+  });
+});
+
+test('completed issue reopens with its prior incomplete status', async () => {
+  const issue = promptIssue({
+    body: `${promptIssue().body}\n<!-- DOW-TRACKER-OWNED-START -->\nPrompt status: done\nPrevious incomplete status: partial\nCompletion: reviewed-accepted\nEvidence references: ${evidenceReference}\n<!-- DOW-TRACKER-OWNED-END -->\n`,
+    state: 'closed',
+    state_reason: 'completed',
+  });
+  const transport = fakeTransport([issue]);
+  const result = await updateGitHubIssueState({ transport, issueNumber: 181, changes: { reopen: true } });
+  assert.equal(result.fields['Prompt status'], 'partial');
+  assert.equal(result.issue.state, 'open');
+  assert.equal(result.issue.stateReason, null);
+  assert.match(result.issue.body, /Human note: please keep this prose/);
+});
+
+test('manual incomplete status change preserves the prior reopen status', async () => {
+  const issue = promptIssue({
+    body: `${promptIssue().body}\n<!-- DOW-TRACKER-OWNED-START -->\nPrompt status: done\nPrevious incomplete status: partial\nCompletion: reviewed-accepted\nEvidence references: ${evidenceReference}\n<!-- DOW-TRACKER-OWNED-END -->\n`,
+    state: 'closed',
+    state_reason: 'completed',
+  });
+  const result = await updateGitHubIssueState({ transport: fakeTransport([issue]), issueNumber: 181, changes: { status: 'missing' } });
+  assert.equal(result.fields['Prompt status'], 'missing');
+  assert.equal(result.fields['Previous incomplete status'], 'partial');
+});
+
+test('brief closure requires accepted local evidence and refresh reports completion', async () => {
+  const issue = {
+    id: 6000,
+    number: 600,
+    title: 'Legacy execution brief',
+    body: `Human note: preserve this too.\n\nMigration ID: DOW-BRIEF-PC10-TEST\nReadiness: ready-for-agent\nExecution: paused\nSource reference: docs/pc10-tickets/61-pt7.md#pt7\n`,
+    state: 'open',
+    state_reason: null,
+  };
+  const transport = fakeTransport([issue]);
+  await assert.rejects(updateGitHubIssueState({
+    transport,
+    issueNumber: 600,
+    changes: { closeAs: 'completed' },
+  }), /reviewed, accepted local evidence references/);
+  assert.equal(transport.calls.length, 0);
+  const completed = await updateGitHubIssueState({
+    transport,
+    issueNumber: 600,
+    changes: { closeAs: 'completed', reviewed: true, accepted: true, evidenceReferences: [evidenceReference] },
+  });
+  assert.equal(completed.issue.state, 'closed');
+  assert.equal(completed.issue.stateReason, 'completed');
+  assert.match(completed.issue.body, /Human note: preserve this too/);
+
+  const refreshed = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport,
+    crosswalk: crosswalkFor([{
+      legacyId: 'pc10-test',
+      migrationId: 'DOW-BRIEF-PC10-TEST',
+      recordKind: 'execution-brief',
+      issueId: 6000,
+      issueNumber: 600,
+      sourceReferences: ['docs/pc10-tickets/61-pt7.md#pt7'],
+      parentMigrationIds: [],
+      blockedByMigrationIds: [],
+    }]),
+    cwd: process.cwd(),
+  });
+  assert.equal(refreshed.issueStates[0].completion, 'reviewed-complete');
+  assert.equal(refreshed.catalog.prompts.find(({ id }) => id === '651').status, 'missing');
+});
+
+test('invalid completion references fail before any write', async () => {
+  const transport = fakeTransport([promptIssue()]);
+  await assert.rejects(updateGitHubIssueState({
+    transport,
+    issueNumber: 181,
+    changes: { status: 'done', reviewed: true, accepted: true, evidenceReferences: ['https://example.test#proof'] },
+  }), /reviewed, accepted local evidence references/);
+  assert.equal(transport.calls.length, 0);
+});
+
+test('refresh rejects a missing migrated issue rather than using a stale snapshot', async () => {
+  const transport = fakeTransport([]);
+  await assert.rejects(readGitHubPromptCatalog({
+    sourceBytes,
+    transport,
+    crosswalk: crosswalkFor([promptRecord()]),
+  }), /snapshot is incomplete/);
+});
+
+test('logical dependency projection includes explicitly retained equivalent edges without pretending they are native', async () => {
+  const records = [
+    { legacyId: 'brief-1', migrationId: 'DOW-BRIEF-1', recordKind: 'execution-brief', issueId: 6100, issueNumber: 610, sourceReferences: ['docs/pc10-tickets/brief-1.md#one'], parentMigrationIds: [], blockedByMigrationIds: ['DOW-BRIEF-2'], equivalentBlockedByMigrationIds: ['DOW-BRIEF-3'], sourceBlockedByBriefIds: ['brief-2', 'brief-3', 'retained-brief'], historyReferences: ['docs/pc10-tickets/retained.md#retained-brief'] },
+    { legacyId: 'brief-2', migrationId: 'DOW-BRIEF-2', recordKind: 'execution-brief', issueId: 6200, issueNumber: 620, sourceReferences: ['docs/pc10-tickets/brief-2.md#two'], parentMigrationIds: [], blockedByMigrationIds: [] },
+    { legacyId: 'brief-3', migrationId: 'DOW-BRIEF-3', recordKind: 'execution-brief', issueId: 6300, issueNumber: 630, sourceReferences: ['docs/pc10-tickets/brief-3.md#three'], parentMigrationIds: [], blockedByMigrationIds: [] },
+  ];
+  const issue = (id, number, marker, reference, sourceBlockers = '') => ({
+    id,
+    number,
+    title: `Brief ${number}`,
+    body: `Migration ID: ${marker}\nSource reference: ${reference}\n${sourceBlockers}Readiness: ready\nExecution: inactive\n`,
+    state: 'open',
+    state_reason: null,
+  });
+  const transport = fakeTransport([
+    issue(6100, 610, 'DOW-BRIEF-1', 'docs/pc10-tickets/brief-1.md#one', 'Blocked-by brief IDs: brief-2, brief-3, retained-brief\nEquivalent blocked-by issue references: DOW-BRIEF-3\n'),
+    issue(6200, 620, 'DOW-BRIEF-2', 'docs/pc10-tickets/brief-2.md#two'),
+    issue(6300, 630, 'DOW-BRIEF-3', 'docs/pc10-tickets/brief-3.md#three'),
+  ], [[6100, { parentIssueIds: [], blockedByIssueIds: [6200] }]]);
+  const retained = [{ sourceId: 'retained-brief', sourceReference: 'docs/pc10-tickets/retained.md', disposition: 'retained-acceptance-no-issue' }];
+  const result = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk: crosswalkFor(records, retained) });
+  const target = result.issueStates.find(({ migrationId }) => migrationId === 'DOW-BRIEF-1');
+  assert.deepEqual(target.nativeBlockedByMigrationIds, ['DOW-BRIEF-2']);
+  assert.deepEqual(target.blockedByMigrationIds, ['DOW-BRIEF-2', 'DOW-BRIEF-3']);
+
+  const missingEquivalent = fakeTransport([
+    issue(6100, 610, 'DOW-BRIEF-1', 'docs/pc10-tickets/brief-1.md#one', 'Blocked-by brief IDs: brief-2, brief-3, retained-brief\n'),
+    issue(6200, 620, 'DOW-BRIEF-2', 'docs/pc10-tickets/brief-2.md#two'),
+    issue(6300, 630, 'DOW-BRIEF-3', 'docs/pc10-tickets/brief-3.md#three'),
+  ], [[6100, { parentIssueIds: [], blockedByIssueIds: [6200] }]]);
+  await assert.rejects(readGitHubPromptCatalog({ sourceBytes, transport: missingEquivalent, crosswalk: crosswalkFor(records, retained) }), /Equivalent blocker documentation mismatch/);
+});
+
+test('REST adapter sends only the selected issue fields and performs full issue paging', async () => {
+  const requests = [];
+  let current = promptIssue();
+  const fetchImpl = async (url, options) => {
+    requests.push({ url: String(url), options });
+    if (String(url).includes('/issues?')) {
+      return { ok: true, status: 200, async json() { return [current]; } };
+    }
+    if (String(url).endsWith('/issues/181/parent')) {
+      return { ok: false, status: 404, async json() { return {}; } };
+    }
+    if (String(url).includes('/dependencies/blocked_by')) {
+      return { ok: true, status: 200, async json() { return []; } };
+    }
+    if (String(url).endsWith('/issues/181') && options.method === 'PATCH') {
+      const patch = JSON.parse(options.body);
+      current = { ...current, body: patch.body, state: patch.state, state_reason: patch.state_reason };
+      return { ok: true, status: 200, async json() { return current; } };
+    }
+    if (String(url).endsWith('/issues/181')) {
+      return { ok: true, status: 200, async json() { return current; } };
+    }
+    throw new Error(`Unexpected fixture URL ${url}`);
+  };
+  const transport = createGitHubPromptTrackerTransport({
+    owner: 'example',
+    repo: 'tracker',
+    token: 'fixture-token',
+    fetchImpl,
+    apiBase: 'https://api.example.test',
+  });
+  const listed = await transport.listIssues();
+  assert.equal(listed.length, 1);
+  assert.match(requests[0].url, /issues\?state=all&per_page=100&page=1$/);
+  await transport.getRelationships(current.id);
+  const patched = await transport.patchIssue({ issueNumber: 181, body: 'next body', state: 'open', stateReason: null });
+  assert.equal(patched.body, 'next body');
+  const patchRequest = requests.find(({ options }) => options.method === 'PATCH');
+  assert.deepEqual(JSON.parse(patchRequest.options.body), { body: 'next body', state: 'open', state_reason: null });
+  assert.equal(patchRequest.options.headers.Authorization, 'Bearer fixture-token');
+});

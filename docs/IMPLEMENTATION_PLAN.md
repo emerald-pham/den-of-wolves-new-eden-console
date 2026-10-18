@@ -2105,7 +2105,7 @@ The JSON prompt catalog remains the current prompt authority; the optional
 read-only dependency query may inform a numbered task but creates no receipt.
 
 <!-- BEGIN GENERATED PROMPT CATALOG: plan -->
-<!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
+<!-- Generated from the saved docs/implementation-prompts.json snapshot; after tracker state changes, run npm run prompt-tracker -- export. -->
 #### Prompt checklist
 #### Execution checklist — all 751 prompts (catalog view)
 - [x] Prompt 001

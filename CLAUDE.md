@@ -27,10 +27,20 @@ system. Keep the workflow proportionate to the risk of the change.
 2. Run `npm run storage:status` before adding worktrees or dependencies; follow [local storage cleanup](docs/LOCAL_STORAGE.md). Install locked dependencies only when needed (`npm ci`, and
    `npm ci --prefix functions` when Functions checks are needed). Do not commit
    dependency directories or local Firebase configuration.
-3. For prompt-driven work, read the matching record in the JSON catalog at
-   `docs/implementation-prompts.json`. The generated implementation Markdown
-   views are for browsing; update the catalog and regenerate views when a
-   roadmap fact changes. `NEXT` is a useful ready-work hint, not a serial lock.
+3. For prompt-driven work, read the matching record in the saved catalog
+   snapshot at `docs/implementation-prompts.json` and the matching public issue
+   through `docs/tracker/github-crosswalk.json`. GitHub issues are the only
+   mutable authority for imported prompt and brief status/readiness/execution;
+   the JSON catalog and generated Markdown are offline snapshots that preserve
+   definitions and history. Do not edit imported mutable state in the snapshot
+   by hand. Use `npm run prompt-tracker -- refresh` to read all migrated issues
+   and export the snapshot, `npm run prompt-tracker -- update --issue NUMBER ...`
+   for an owned-field change, and `npm run prompt-tracker -- export` to rebuild
+   saved Markdown views offline. `npm run prompt-tracker -- refresh --check`
+   verifies that the snapshot matches live tracker state. Ordinary checks and
+   CI do not access GitHub. See `docs/agents/issue-tracker.md` for completion,
+   hold-release, and recovery details. `NEXT` is a useful ready-work hint, not
+   a serial lock.
    A dependency check such as
    `npm run coordination:dependencies -- --prompt NNN` is read-only: it reports
    the catalog row and hard prerequisites and does not create a nonce, receipt,
@@ -38,9 +48,10 @@ system. Keep the workflow proportionate to the risk of the change.
    deferrals hold that prompt; source-backed rules ambiguity follows
    `docs/PRODUCT_MILESTONES.md`. Continue independent work. Readiness is not a
    commit, merge, push, or deployment gate.
-   When catalog facts change, regenerate the human-readable views with
-   `node scripts/generate-prompt-views.mjs`; use `--check` to verify that views
-   are current.
+   When dependency or acceptance definitions change, update their owning
+   source and regenerate its views; when tracking state changes, use the
+   tracker refresh/export path above. `node scripts/generate-prompt-views.mjs
+   --check` verifies generated views against the saved snapshot.
 
    Include each newly queued item in the generated dependency chart and record
    useful related-work links and explicit hard prerequisites where one item

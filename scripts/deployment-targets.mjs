@@ -39,6 +39,11 @@ const FIRESTORE_FILES = new Set([
 
 const TOOLING_ONLY_FILES = new Set([
   'docs/implementation-prompts.json',
+  'docs/tracker/github-crosswalk.json',
+  'scripts/github-prompt-tracker.mjs',
+  'scripts/github-prompt-tracker.test.mjs',
+  'scripts/prompt-tracker-consumers.test.mjs',
+  'scripts/tracker-risk-gate.test.mjs',
   ...GENERATED_ROADMAP_FILES,
   'config/render-performance-baseline.json',
 ]);

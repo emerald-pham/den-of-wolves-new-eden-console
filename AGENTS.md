@@ -24,15 +24,26 @@ and between checkpoints and update every affected future prompt and checkpoint
 plan. Follow that guide's decision-alignment procedure under standing
 authorization; preserve an in-progress checkpoint's agreed scope.
 
-The roadmap facts live in the JSON catalog at
-[`docs/implementation-prompts.json`](./docs/implementation-prompts.json), with
-generated Markdown views for convenient reading. Update the catalog and
-regenerate its views when a prompt, dependency, or status fact changes. The
-optional dependency check (`npm run coordination:dependencies -- --prompt NNN`)
-reports readiness and hard prerequisites, is read-only, and must not create
-local nonce or goal receipts. `NEXT` is a ready-work hint, not a serial lock.
-Regenerate the Markdown views with `node scripts/generate-prompt-views.mjs` after
-catalog facts change; `--check` verifies generated output without editing.
+GitHub issues are the only mutable authority for migrated prompt and brief
+tracking state. The sanitized, immutable mapping is
+[`docs/tracker/github-crosswalk.json`](./docs/tracker/github-crosswalk.json).
+[`docs/implementation-prompts.json`](./docs/implementation-prompts.json) is a
+generated offline snapshot that preserves the rest of the catalog and history;
+its Markdown views are generated from that snapshot. Refresh state with
+`npm run prompt-tracker -- refresh`, write a field-scoped issue change with
+`npm run prompt-tracker -- update --issue NUMBER ...`, and export saved views
+offline with `npm run prompt-tracker -- export`. `refresh --check` reads GitHub
+and fails when the saved snapshot is stale; ordinary catalog consumers and CI
+remain offline. Do not edit imported status facts in the JSON snapshot by hand.
+See [issue tracker operations](./docs/agents/issue-tracker.md) for the update,
+hold-release, and recovery contract.
+The optional dependency check (`npm run coordination:dependencies -- --prompt
+NNN`) reports readiness and hard prerequisites from the latest saved snapshot,
+is read-only, and must not create local nonce or goal receipts. `NEXT` is a
+ready-work hint, not a serial lock.
+After definition changes, `npm run roadmap:generate` rebuilds catalog views;
+`npm run roadmap:check` verifies them against the saved snapshot.
+The underlying generator is `node scripts/generate-prompt-views.mjs`.
 
 Coordination is optional and does not require universal prompt registration or
 commit trailers. Use the linked execution policy for ownership, waits,
