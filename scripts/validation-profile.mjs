@@ -72,7 +72,8 @@ const UI_PATH_PATTERN = /^(?:src\/(?:components|routes|styles)\/|src\/index\.css
 const UI_RENDER_HARNESS_PATH_PATTERN = /^scripts\/prompt-\d+[a-z]?-(?:render|geometry)(?:-[a-z0-9-]+)?\.mjs$/i;
 const UNRECOGNIZED_RENDER_HARNESS_PATH_PATTERN = /^scripts\/prompt-[^/]+-(?:render|geometry)(?:-[^/]*)?\.mjs$/i;
 const RELEASE_METADATA_PATH_PATTERN = /^(?:package\.json|package-lock\.json|src\/changelog\.ts)$/i;
-const ROADMAP_METADATA_PATH_PATTERN = /^docs\/implementation-prompts\.json$/i;
+const ROADMAP_METADATA_PATH_PATTERN = /^(?:docs\/implementation-prompts\.json|docs\/tracker\/github-crosswalk\.json)$/i;
+const TRACKER_PATH_PATTERN = /^(?:docs\/tracker\/github-crosswalk\.json|scripts\/(?:github-prompt-tracker(?:\.test)?|prompt-tracker-consumers|tracker-risk-gate\.test)\.mjs)$/i;
 const DATA_HELPER_PATH_PATTERN = /^src\/data\//i;
 const TEST_PATH_PATTERN_ANY = /(?:^|\/)(?:__tests__|tests)(?:\/|$)|(?:^|\/)[^/]+\.(?:test|spec)\.[^/]+$/i;
 const FIRESTORE_TEST_PATH_PATTERN = /^tests\/rules\/.+\.test\.ts$/i;
@@ -173,14 +174,17 @@ export function deriveValidationProfile({
     ...(riskGates.bundle ? ['node scripts/check-bundle-size.mjs'] : []),
   ];
   const unitCommands = riskGates.unit ? ['npm run test:unit'] : [];
-  const roadmapCommands = files.includes('docs/implementation-prompts.json')
+  const roadmapCommands = files.some((file) => ROADMAP_METADATA_PATH_PATTERN.test(file))
     ? ['npm run roadmap:check']
+    : [];
+  const trackerCommands = files.some((file) => TRACKER_PATH_PATTERN.test(file))
+    ? ['npm run test:prompt-tracker']
     : [];
   if (files.length === 0) {
     return {
       kind: 'no-changes',
       reason: 'no changed files require only a clean diff check',
-      commands: ['git diff --check'],
+      commands: ['git diff --check', ...trackerCommands],
       requiresReview: false,
     };
   }
@@ -188,7 +192,7 @@ export function deriveValidationProfile({
     return {
       kind: 'docs',
       reason: 'documentation-only changes do not require application validation',
-      commands: ['git diff --check'],
+      commands: ['git diff --check', ...trackerCommands],
       requiresReview: false,
     };
   }
@@ -210,7 +214,7 @@ export function deriveValidationProfile({
       reason: forceFull
         ? 'cross-cutting workflow migration requires the full final gate'
         : 'server, rules, authority, deployment, or authentication paths changed',
-      commands: [...FULL_VALIDATION_COMMANDS, ...roadmapCommands, ...riskCommands],
+      commands: [...FULL_VALIDATION_COMMANDS, ...roadmapCommands, ...trackerCommands, ...riskCommands],
       requiresReview: true,
       reviewReason: 'one independent risk review is required for high-risk changes',
       ...(requiresExactSecurityReview
@@ -223,7 +227,7 @@ export function deriveValidationProfile({
     return {
       kind: 'tooling',
       reason: 'release metadata-only changes use a diff and generated-roadmap check',
-      commands: ['git diff --check', ...roadmapCommands],
+      commands: ['git diff --check', ...roadmapCommands, ...trackerCommands],
       requiresReview: false,
     };
   }
@@ -248,6 +252,7 @@ export function deriveValidationProfile({
         ...(webTests ? ['npm run build'] : []),
         ...(hasFunctionsTests ? ['npm run build --prefix functions'] : []),
         ...roadmapCommands,
+        ...trackerCommands,
         ...riskCommands,
       ],
       requiresReview: false,
@@ -273,6 +278,7 @@ export function deriveValidationProfile({
         'npm run build',
         ...(hasFunctionsTests ? ['npm run build --prefix functions'] : []),
         ...roadmapCommands,
+        ...trackerCommands,
         ...riskCommands,
       ],
       requiresReview: false,
@@ -299,7 +305,7 @@ export function deriveValidationProfile({
   return {
     kind: 'full',
     reason: 'changed paths are not covered by a lower-risk profile',
-    commands: [...FULL_VALIDATION_COMMANDS, ...roadmapCommands, ...riskCommands],
+    commands: [...FULL_VALIDATION_COMMANDS, ...roadmapCommands, ...trackerCommands, ...riskCommands],
     requiresReview: false,
   };
 }

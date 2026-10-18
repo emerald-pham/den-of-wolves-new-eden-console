@@ -90,7 +90,7 @@ second editable authority.
 Numeric ranges are inclusive and fail closed: every expanded member must be canonical or explicitly listed as retired. The current retired set is 071, which has no row and is never a valid hard target. Lettered IDs are always explicit tokens; lettered ranges are not supported. A range never creates an edge to a lettered prompt, and none means that no explicit dependency was found in the current source.
 
 <!-- BEGIN GENERATED PROMPT CATALOG: dependency -->
-<!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
+<!-- Generated from the saved docs/implementation-prompts.json snapshot; after tracker state changes, run npm run prompt-tracker -- export. -->
 ## Prompt rows
 
 | prompt_id | plan_tag | progress | hard_prompt_prerequisites | hard_milestone | hard_contract | decision_owner | closure_evidence_gates | sequence_rules | release_boundaries | related_consumes | evidence_ids | milestone_hints | title |

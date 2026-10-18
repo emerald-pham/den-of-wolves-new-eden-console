@@ -601,7 +601,7 @@ export function readCatalogSnapshot(path, cwd = process.cwd()) {
 
 function parseCommand(args) {
   const [command, ...rest] = args;
-  if (!['refresh', 'update'].includes(command)) throw new Error('Use refresh or update');
+  if (!['export', 'refresh', 'update'].includes(command)) throw new Error('Use export, refresh or update');
   const options = {};
   for (let index = 0; index < rest.length; index += 1) {
     const arg = rest[index];
@@ -643,15 +643,25 @@ function createCommandTransport() {
 async function runCommand({ command, options, cwd = process.cwd() }) {
   const sourcePath = options.source ?? 'docs/implementation-prompts.json';
   const catalogPath = options.catalog ?? sourcePath;
-  const crosswalkPath = options.crosswalk;
-  if (!crosswalkPath) throw new Error('Use --crosswalk to provide the verified public issue crosswalk');
   const sourceBytes = readCatalogSnapshot(sourcePath, cwd);
+  if (command === 'export') {
+    const { generatePromptViews } = await import('./generate-prompt-views.mjs');
+    const catalog = loadPromptCatalog({ source: sourceBytes });
+    const result = await generatePromptViews({ cwd, catalog });
+    return { message: `Exported the saved GitHub catalog snapshot to generated views (${result.promptCount} prompts).`, result };
+  }
+
+  const crosswalkPath = options.crosswalk ?? 'docs/tracker/github-crosswalk.json';
   const crosswalk = JSON.parse(readCatalogSnapshot(crosswalkPath, cwd));
   validateCutoverCrosswalk(crosswalk);
   const transport = createCommandTransport();
   if (command === 'refresh') {
     const result = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, cwd });
-    if (options.check) return { message: `Tracker snapshot is current (${result.issueCount} issues; source ${result.sourceSha256.slice(0, 12)}).`, result };
+    if (options.check) {
+      const currentSource = stableCatalogJson(loadPromptCatalog({ source: sourceBytes }));
+      if (currentSource !== result.catalogSource) throw new Error('Saved GitHub catalog snapshot is stale; run refresh to export current tracker state');
+      return { message: `Tracker snapshot is current (${result.issueCount} issues; source ${result.sourceSha256.slice(0, 12)}).`, result };
+    }
     writeFileSync(resolve(cwd, catalogPath), result.catalogSource, 'utf8');
     const { generatePromptViews } = await import('./generate-prompt-views.mjs');
     await generatePromptViews({ cwd, catalog: result.catalog });
@@ -689,13 +699,14 @@ async function main() {
     if (['--help', '-h'].includes(process.argv[2])) {
       console.log([
         'Prompt tracker commands (GitHub access occurs only when invoked):',
-        '  npm run prompt-tracker -- refresh --crosswalk <verified-crosswalk.json> [--source <catalog.json>] [--check]',
-        '  npm run prompt-tracker -- update --crosswalk <verified-crosswalk.json> --issue <number> --status <missing|partial|blocked|in-progress>',
-        '  npm run prompt-tracker -- update --crosswalk <verified-crosswalk.json> --issue <number> --status done --reviewed --accepted --evidence <path#anchor>',
-        '  npm run prompt-tracker -- update --crosswalk <verified-crosswalk.json> --issue <number> --close-as not_planned',
-        '  npm run prompt-tracker -- update --crosswalk <verified-crosswalk.json> --issue <number> --close-as completed --reviewed --accepted --evidence <path#anchor>',
-        '  npm run prompt-tracker -- update --crosswalk <verified-crosswalk.json> --issue <number> --release-hold --reviewed --accepted --evidence <path#anchor>',
-        '  npm run prompt-tracker -- update --crosswalk <verified-crosswalk.json> --issue <number> --readiness <value> --execution <value>',
+        '  npm run prompt-tracker -- refresh [--check] [--crosswalk <verified-crosswalk.json>] [--source <catalog.json>]',
+        '  npm run prompt-tracker -- update --issue <number> --status <missing|partial|blocked|in-progress>',
+        '  npm run prompt-tracker -- update --issue <number> --status done --reviewed --accepted --evidence <path#anchor>',
+        '  npm run prompt-tracker -- update --issue <number> --close-as not_planned',
+        '  npm run prompt-tracker -- update --issue <number> --close-as completed --reviewed --accepted --evidence <path#anchor>',
+        '  npm run prompt-tracker -- update --issue <number> --release-hold --reviewed --accepted --evidence <path#anchor>',
+        '  npm run prompt-tracker -- update --issue <number> --readiness <value> --execution <value>',
+        '  npm run prompt-tracker -- export [--source <catalog.json>]',
         'Updates preserve issue prose, verify native state and relationships, and require local evidence for completion or future hold release.',
       ].join('\n'));
       return;
