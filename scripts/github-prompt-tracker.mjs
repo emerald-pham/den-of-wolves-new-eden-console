@@ -23,6 +23,13 @@ const OWNED_FIELDS = new Set([
   'Hold release evidence',
 ]);
 
+function incompleteFallback(fields, initialStatus) {
+  const previous = fields['Previous incomplete status'];
+  if (INCOMPLETE_STATUSES.has(previous)) return previous;
+  if (INCOMPLETE_STATUSES.has(initialStatus)) return initialStatus;
+  return 'missing';
+}
+
 function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
 }
@@ -344,12 +351,12 @@ export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswal
         if (INCOMPLETE_STATUSES.has(status)) fields['Previous incomplete status'] = status;
         status = 'done';
       } else if (status === 'done') {
-        status = fields['Previous incomplete status'] ?? planned.initialStatus;
+        status = incompleteFallback(fields, planned.initialStatus);
       }
     } else if (issue.state === 'closed' && issue.stateReason === 'not_planned') {
-      if (status === 'done') status = fields['Previous incomplete status'] ?? planned.initialStatus;
+      if (status === 'done') status = incompleteFallback(fields, planned.initialStatus);
     } else if (issue.state === 'open' && status === 'done') {
-      status = fields['Previous incomplete status'] ?? planned.initialStatus;
+      status = incompleteFallback(fields, planned.initialStatus);
     }
     if (!PROMPT_STATUSES.has(status)) throw new Error(`Cannot restore an incomplete status for ${marker}`);
     prompt.status = status;
@@ -466,17 +473,17 @@ export async function updateGitHubIssueState({ transport, issueNumber, changes, 
   } else if (changes.closeAs === 'not_planned') {
     state = 'closed';
     stateReason = 'not_planned';
-    if (next['Prompt status'] === 'done') next['Prompt status'] = next['Previous incomplete status'];
+    if (next['Prompt status'] === 'done') next['Prompt status'] = incompleteFallback(next, expectedRecord?.initialStatus);
     delete next.Completion;
     delete next['Evidence references'];
   }
   if (changes.reopen === true) {
     state = 'open';
     stateReason = null;
-    if (next['Prompt status'] === 'done') next['Prompt status'] = next['Previous incomplete status'];
+    if (next['Prompt status'] === 'done') next['Prompt status'] = incompleteFallback(next, expectedRecord?.initialStatus);
   }
   if (promptIssue && state === 'open' && next['Prompt status'] === 'done') {
-    next['Prompt status'] = next['Previous incomplete status'];
+    next['Prompt status'] = incompleteFallback(next, expectedRecord?.initialStatus);
   }
   if (promptIssue && !PROMPT_STATUSES.has(next['Prompt status'])) throw new Error(`Cannot restore an incomplete status for ${current.migrationId}`);
   const body = replaceOwnedBlock(current.body, next);
