@@ -185,6 +185,32 @@ test('field updates cannot rewrite a held future brief source hold', async () =>
   assert.equal(transport.calls.length, 0);
 });
 
+test('held future briefs cannot be completed before their trigger is active', async () => {
+  const issue = {
+    id: 5000,
+    number: 500,
+    title: 'Legacy execution brief',
+    body: 'Migration ID: DOW-BRIEF-FUTURE-01\nSource status: Prepared future scope; preserve trigger.\nHold: inactive; preserve the source trigger and sequence.\nReadiness: held\nExecution: inactive\nSource reference: docs/future-tickets/example.md#future-01\n',
+    state: 'open',
+    state_reason: null,
+  };
+  const transport = fakeTransport([issue]);
+  await assert.rejects(updateGitHubIssueState({
+    transport,
+    issueNumber: 500,
+    expectedRecord: {
+      issueId: 5000,
+      issueNumber: 500,
+      migrationId: 'DOW-BRIEF-FUTURE-01',
+      recordKind: 'held-future-brief',
+      parentMigrationIds: [],
+      blockedByMigrationIds: [],
+    },
+    changes: { closeAs: 'completed', reviewed: true, accepted: true, evidenceReferences: [evidenceReference] },
+  }), /Held future briefs cannot be completed while held/);
+  assert.equal(transport.calls.length, 0);
+});
+
 test('field-scoped update preserves human prose and verifies native state and relationships', async () => {
   const issue = promptIssue();
   const transport = fakeTransport([issue]);
