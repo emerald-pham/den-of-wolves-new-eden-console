@@ -1,14 +1,11 @@
 import { httpsCallable } from 'firebase/functions';
-import type { GameSession, HummingbirdHarvest } from '@/types/game';
+import type { HummingbirdHarvest } from '@/types/game';
 import { functions } from './firebase';
 import {
-  captureSessionAuthority,
-  isCurrentSessionAuthority,
-  requireFreshSessionAuthority,
-  type SessionAuthorityCheckpoint,
-} from './sessionMutationAuthority';
-import { phaseForSession } from './turnPhase';
-import { useSessionStore } from '@/store/useSessionStore';
+  captureHummingbirdHarvestAuthority,
+  isCurrentHummingbirdHarvestAuthority,
+  type HummingbirdHarvestAuthority,
+} from './hummingbirdHarvestAuthority';
 
 const QUELLON_EXPLORER = 'quellon-explorer';
 
@@ -30,14 +27,6 @@ export interface HummingbirdHarvestCommandReply {
 
 export type HummingbirdHarvestCommandResult = HummingbirdHarvestCommandReply | undefined;
 
-interface HummingbirdAuthority {
-  readonly sessionId: string;
-  readonly uid: string;
-  readonly turn: number;
-  readonly hostShipId: string;
-  readonly checkpoint: SessionAuthorityCheckpoint;
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -50,54 +39,7 @@ function isIdentifier(value: unknown): value is string {
   return typeof value === 'string' && /^[\w-]{1,128}$/.test(value);
 }
 
-function uniqueHummingbirdHost(session: GameSession): string | undefined {
-  const dockings = Array.isArray(session.shuttleDockings) ? session.shuttleDockings : [];
-  const rows = dockings.filter((row) => row.shuttleId === 'hummingbird');
-  if (rows.length !== 1) return undefined;
-  const hostShipId = rows[0]?.shipId;
-  return typeof hostShipId === 'string' && hostShipId.length > 0 ? hostShipId : undefined;
-}
-
-function activeAuthority(): HummingbirdAuthority {
-  requireFreshSessionAuthority();
-  const state = useSessionStore.getState();
-  const session = state.session;
-  const me = state.me;
-  const hostShipId = session ? uniqueHummingbirdHost(session) : undefined;
-  const turn = session?.currentTurn ?? 1;
-  const phase = session ? phaseForSession(session) : undefined;
-  if (!session || !me || me.sessionId !== session.id || !isIdentifier(me.uid)) {
-    throw new Error('Reconnect before operating Hummingbird harvesting.');
-  }
-  if (me.role !== 'player' || me.activeConsoleRoleId !== QUELLON_EXPLORER ||
-      typeof me.replacementRoleId === 'string' || me.replacementStatus != null ||
-      session.activeRoleIds?.includes(QUELLON_EXPLORER) !== true) {
-    throw new Error('The active Quellon Explorer console is required.');
-  }
-  if (session.phase !== 'active' || !isCounter(turn, 1) ||
-      !hostShipId || session.activeVesselIds?.includes(hostShipId) !== true ||
-      session.activeVesselIds.includes('quellon') !== true ||
-      session.shuttleFuelled?.hummingbird !== true ||
-      phase?.airspace.state !== 'lifted') {
-    throw new Error('Hummingbird harvesting is unavailable in the current live session.');
-  }
-  const checkpoint = captureSessionAuthority(session.id, me.uid);
-  if (!checkpoint) throw new Error('Reconnect before operating Hummingbird harvesting.');
-  return { sessionId: session.id, uid: me.uid, turn, hostShipId, checkpoint };
-}
-
-function authorityIsCurrent(expected: HummingbirdAuthority): boolean {
-  if (!isCurrentSessionAuthority(expected.checkpoint)) return false;
-  try {
-    const current = activeAuthority();
-    return current.sessionId === expected.sessionId && current.uid === expected.uid &&
-      current.turn === expected.turn && current.hostShipId === expected.hostShipId;
-  } catch {
-    return false;
-  }
-}
-
-function parseHarvest(value: unknown, authority: HummingbirdAuthority): HummingbirdHarvest | undefined {
+function parseHarvest(value: unknown, authority: HummingbirdHarvestAuthority): HummingbirdHarvest | undefined {
   if (!isRecord(value) || value.sessionId !== authority.sessionId || value.ownerUid !== authority.uid ||
       value.turn !== authority.turn || value.hostShipId !== authority.hostShipId ||
       !isCounter(value.revision, 1) || !isIdentifier(value.requestId) ||
@@ -144,7 +86,7 @@ function parseHarvest(value: unknown, authority: HummingbirdAuthority): Hummingb
 
 function parseReply(
   value: unknown,
-  authority: HummingbirdAuthority,
+  authority: HummingbirdHarvestAuthority,
   requestId: string,
   expectedRevision: number,
 ): HummingbirdHarvestCommandReply {
@@ -189,7 +131,7 @@ async function invokeHarvestCommand<Payload extends {
   readonly expectedRevision: number;
   readonly requestId: string;
 }>(
-  authority: HummingbirdAuthority,
+  authority: HummingbirdHarvestAuthority,
   name: 'rollHummingbirdHarvest' | 'allocateHummingbirdHarvest',
   payload: Payload,
 ): Promise<HummingbirdHarvestCommandResult> {
@@ -198,9 +140,9 @@ async function invokeHarvestCommand<Payload extends {
     throw new Error('The current Hummingbird harvest request could not be verified.');
   }
   const response = await httpsCallable<Payload, unknown>(functions(), name)(payload);
-  // A listener or identity change may beat the callable reply. Its private
-  // state must not replace a newer snapshot or cross the current actor boundary.
-  if (!authorityIsCurrent(authority)) return undefined;
+  // Public cargo may arrive before this private receipt. Recheck its original
+  // lease and action scope; the consumer keeps private revisions monotonic.
+  if (!isCurrentHummingbirdHarvestAuthority(authority)) return undefined;
   return parseReply(response.data, authority, payload.requestId, payload.expectedRevision);
 }
 
@@ -208,7 +150,7 @@ export function rollHummingbirdHarvest(
   expectedRevision: number,
   requestId = commandId(),
 ): Promise<HummingbirdHarvestCommandResult> {
-  const authority = activeAuthority();
+  const authority = captureHummingbirdHarvestAuthority();
   return invokeHarvestCommand(authority, 'rollHummingbirdHarvest', {
     sessionId: authority.sessionId, expectedRevision, requestId,
   });
@@ -219,7 +161,7 @@ export function allocateHummingbirdHarvest(
   foodDieIndex: 0 | 1,
   requestId = commandId(),
 ): Promise<HummingbirdHarvestCommandResult> {
-  const authority = activeAuthority();
+  const authority = captureHummingbirdHarvestAuthority();
   if (foodDieIndex !== 0 && foodDieIndex !== 1) {
     throw new Error('Choose which Hummingbird die becomes food.');
   }
