@@ -93,6 +93,44 @@ test('refresh can resume from its previous export while verifying imported promp
   assert.equal(next.catalog.prompts.find(({ id }) => id === '181').status, 'partial');
 });
 
+test('accepted update exports, refreshes, and reopens without losing source fields or hash continuity', async () => {
+  const transport = fakeTransport([promptIssue()]);
+  const expectedRecord = promptRecord({
+    sourceSha256: createHash('sha256').update(JSON.stringify(JSON.parse(stableCatalogJson({
+      ...sourceCatalog.prompts.find(({ id }) => id === '181'),
+      status: 'missing',
+    })))).digest('hex'),
+  });
+  await updateGitHubIssueState({
+    transport,
+    issueNumber: 181,
+    expectedRecord,
+    changes: { status: 'done', reviewed: true, accepted: true, evidenceReferences: [evidenceReference] },
+  });
+  const completedExport = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport,
+    crosswalk: crosswalkFor([expectedRecord]),
+  });
+  assert.equal(completedExport.catalog.prompts.find(({ id }) => id === '181').status, 'done');
+
+  await updateGitHubIssueState({ transport, issueNumber: 181, expectedRecord, changes: { status: 'partial' } });
+  const reopenedExport = await readGitHubPromptCatalog({
+    sourceBytes: Buffer.from(completedExport.catalogSource),
+    transport,
+    crosswalk: crosswalkFor([expectedRecord]),
+  });
+  const original = sourceCatalog.prompts.find(({ id }) => id === '181');
+  const reopened = reopenedExport.catalog.prompts.find(({ id }) => id === '181');
+  assert.deepEqual(reopened, { ...original, status: 'partial' });
+  const repeatedRefresh = await readGitHubPromptCatalog({
+    sourceBytes: Buffer.from(reopenedExport.catalogSource),
+    transport,
+    crosswalk: crosswalkFor([expectedRecord]),
+  });
+  assert.deepEqual(repeatedRefresh.catalog.prompts.find(({ id }) => id === '181'), reopened);
+});
+
 test('closure requires accepted local evidence and not-planned remains unresolved', async () => {
   const source = loadPromptCatalog({ source: sourceBytes });
   const base = promptIssue({
