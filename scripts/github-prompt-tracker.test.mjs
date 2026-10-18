@@ -285,11 +285,43 @@ test('a dependency reopen is rejected before the invalid catalog reaches a consu
 
 test('tracker update preserves prose added after its initial issue read', async () => {
   const transport = fakeTransport([promptIssue()], [], { concurrentHumanNote: 'Human note added during update.' });
-  await updateGitHubIssueState({ transport, issueNumber: 181, expectedRecord: promptRecord(), changes: { status: 'partial' } });
+  await updateGitHubIssueState({ transport, issueNumber: 181, expectedRecord: promptRecord(), changes: { status: 'done', reviewed: true, accepted: true, evidenceReferences: [evidenceReference] } });
   const issue = await transport.getIssue(181);
   assert.match(issue.body, /Human note added during update\./);
+  assert.equal(transport.calls.length, 1);
   assert.equal(Object.hasOwn(transport.calls[0], 'body'), false);
   assert.match((await transport.listComments(181)).at(-1).body, /DOW-TRACKER-STATE:v1/);
+});
+
+test('tracker snapshot captures brief execution when the catalog JSON does not change', async () => {
+  const record = {
+    legacyId: '61-pt7',
+    migrationId: 'DOW-BRIEF-PT7',
+    recordKind: 'execution-brief',
+    issueId: 6100,
+    issueNumber: 610,
+    initialReadiness: 'ready-for-agent',
+    initialExecution: 'paused',
+    sourceReferences: ['docs/pc10-tickets/61-pt7.md#pt7'],
+    parentMigrationIds: [],
+    blockedByMigrationIds: [],
+  };
+  const issue = {
+    id: 6100,
+    number: 610,
+    title: 'PT7 execution brief',
+    body: 'Migration ID: DOW-BRIEF-PT7\nReadiness: ready-for-agent\nExecution: paused\nSource reference: docs/pc10-tickets/61-pt7.md#pt7\n',
+    state: 'open',
+    state_reason: null,
+  };
+  const transport = fakeTransport([issue]);
+  const crosswalk = crosswalkFor([record]);
+  const before = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk });
+  await updateGitHubIssueState({ transport, issueNumber: 610, expectedRecord: record, changes: { brief: { Execution: 'in-progress' } } });
+  const after = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk });
+  assert.equal(after.catalogSource, before.catalogSource);
+  assert.notDeepEqual(after.trackerSnapshot.issueStates, before.trackerSnapshot.issueStates);
+  assert.equal(after.trackerSnapshot.issueStates[0].execution, 'in-progress');
 });
 
 test('held future briefs remain held and do not acquire prompt completion state', async () => {
@@ -442,18 +474,19 @@ test('a future hold can be deliberately released with accepted local trigger evi
       evidenceReferences: [evidenceReference],
     },
   });
-  assert.match(released.issue.body, /Hold: released/);
-  assert.match(released.issue.body, /Original hold status: Prepared future scope; preserve trigger\./);
+  assert.match(released.issue.body, /Hold: inactive; preserve the source trigger and sequence\./);
   assert.match(released.issue.body, /Source status: Prepared future scope; preserve trigger\./);
-  assert.match(released.issue.body, /Hold release evidence: docs\/README\.md#tracker/);
-  assert.match(released.issue.body, /Readiness: ready/);
-  assert.match(released.issue.body, /Execution: inactive/);
+  assert.equal(released.fields.Hold, 'released');
+  assert.equal(released.fields['Original hold status'], 'Prepared future scope; preserve trigger.');
+  assert.equal(released.fields['Hold release evidence'], 'docs/README.md#tracker');
+  assert.equal(released.fields.Readiness, 'ready');
+  assert.equal(released.fields.Execution, 'inactive');
 
   await updateGitHubIssueState({ transport, issueNumber: 500, expectedRecord: record, changes: { closeAs: 'not_planned' } });
   const reopened = await updateGitHubIssueState({ transport, issueNumber: 500, expectedRecord: record, changes: { reopen: true } });
   assert.equal(reopened.issue.state, 'open');
-  assert.match(reopened.issue.body, /Hold: released/);
-  assert.match(reopened.issue.body, /Hold release evidence: docs\/README\.md#tracker/);
+  assert.equal(reopened.fields.Hold, 'released');
+  assert.equal(reopened.fields['Hold release evidence'], 'docs/README.md#tracker');
 
   const crosswalk = crosswalkFor([{ ...record, legacyId: 'future-01', initialReadiness: 'held', initialExecution: 'inactive' }]);
   const refreshed = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, cwd: process.cwd() });
@@ -493,18 +526,17 @@ test('future hold release requires reviewed accepted local evidence', async () =
 test('field-scoped update preserves human prose and verifies native state and relationships', async () => {
   const issue = promptIssue();
   const transport = fakeTransport([issue]);
-  const result = await updateGitHubIssueState({ transport, issueNumber: 181, changes: { status: 'partial' } });
+  const result = await updateGitHubIssueState({ transport, issueNumber: 181, expectedRecord: promptRecord(), changes: { status: 'done', reviewed: true, accepted: true, evidenceReferences: [evidenceReference] } });
   assert.equal(result.issue.body.startsWith('Human note: please keep this prose.'), true);
   assert.match(result.issue.body, /Migration ID: DOW-PROMPT-181/);
-  assert.match(result.issue.body, /Prompt status: partial/);
-  assert.equal(result.issue.state, 'open');
-  assert.equal(result.issue.stateReason, null);
+  assert.equal(result.fields['Prompt status'], 'done');
+  assert.equal(result.issue.state, 'closed');
+  assert.equal(result.issue.stateReason, 'completed');
   assert.equal(transport.calls.length, 1);
   assert.deepEqual(transport.calls[0], {
     issueNumber: 181,
-    body: result.issue.body,
-    state: 'open',
-    stateReason: null,
+    state: 'closed',
+    stateReason: 'completed',
   });
 });
 
@@ -629,13 +661,28 @@ test('logical dependency projection includes explicitly retained equivalent edge
   await assert.rejects(readGitHubPromptCatalog({ sourceBytes, transport: missingEquivalent, crosswalk: crosswalkFor(records, retained) }), /Equivalent blocker documentation mismatch/);
 });
 
-test('REST adapter sends only the selected issue fields and performs full issue paging', async () => {
+test('REST adapter uses append-only state comments, body-free state PATCH, and full paging', async () => {
   const requests = [];
   let current = promptIssue();
+  let issueComments = [];
+  const pageOne = [current, ...Array.from({ length: 99 }, (_, index) => ({
+    id: 2000 + index,
+    number: 2000 + index,
+    title: `Page one ${index}`,
+    body: '',
+    state: 'open',
+  }))];
+  const pageTwo = [{ id: 3000, number: 3000, title: 'Page two', body: '', state: 'open' }];
   const fetchImpl = async (url, options) => {
     requests.push({ url: String(url), options });
     if (String(url).includes('/issues?')) {
-      return { ok: true, status: 200, async json() { return [current]; } };
+      return { ok: true, status: 200, async json() { return String(url).includes('page=2') ? pageTwo : pageOne; } };
+    }
+    if (String(url).endsWith('/issues/181/comments?per_page=100&page=1')) return { ok: true, status: 200, async json() { return issueComments; } };
+    if (String(url).endsWith('/issues/181/comments') && options.method === 'POST') {
+      const comment = { id: 1, body: JSON.parse(options.body).body };
+      issueComments = [...issueComments, comment];
+      return { ok: true, status: 201, async json() { return comment; } };
     }
     if (String(url).endsWith('/issues/181/parent')) {
       return { ok: false, status: 404, async json() { return {}; } };
@@ -645,7 +692,7 @@ test('REST adapter sends only the selected issue fields and performs full issue 
     }
     if (String(url).endsWith('/issues/181') && options.method === 'PATCH') {
       const patch = JSON.parse(options.body);
-      current = { ...current, body: patch.body, state: patch.state, state_reason: patch.state_reason };
+      current = { ...current, state: patch.state, state_reason: patch.state_reason };
       return { ok: true, status: 200, async json() { return current; } };
     }
     if (String(url).endsWith('/issues/181')) {
@@ -661,12 +708,15 @@ test('REST adapter sends only the selected issue fields and performs full issue 
     apiBase: 'https://api.example.test',
   });
   const listed = await transport.listIssues();
-  assert.equal(listed.length, 1);
+  assert.equal(listed.length, 101);
   assert.match(requests[0].url, /issues\?state=all&per_page=100&page=1$/);
+  assert.match(requests[1].url, /issues\?state=all&per_page=100&page=2$/);
   await transport.getRelationships(current.id);
-  const patched = await transport.patchIssue({ issueNumber: 181, body: 'next body', state: 'open', stateReason: null });
-  assert.equal(patched.body, 'next body');
+  await transport.createComment({ issueNumber: 181, body: '<!-- DOW-TRACKER-STATE:v1 -->\n{}\n<!-- /DOW-TRACKER-STATE -->' });
+  const patched = await transport.patchIssue({ issueNumber: 181, state: 'closed', stateReason: 'completed' });
+  assert.equal(patched.body, promptIssue().body);
+  assert.match(issueComments[0].body, /DOW-TRACKER-STATE:v1/);
   const patchRequest = requests.find(({ options }) => options.method === 'PATCH');
-  assert.deepEqual(JSON.parse(patchRequest.options.body), { body: 'next body', state: 'open', state_reason: null });
+  assert.deepEqual(JSON.parse(patchRequest.options.body), { state: 'closed', state_reason: 'completed' });
   assert.equal(patchRequest.options.headers.Authorization, 'Bearer fixture-token');
 });
