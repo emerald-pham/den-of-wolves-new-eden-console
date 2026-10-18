@@ -86,8 +86,10 @@ function legacyField(body, name) {
   return body.match(new RegExp(`^${escaped}:\\s*(.+?)\\s*$`, 'm'))?.[1] ?? null;
 }
 
-function latestCommentFields(comments = []) {
-  let latest = null;
+function latestCommentFields(comments = [], initialFields = {}) {
+  let fields = { ...initialFields };
+  let legacyBase = { ...initialFields };
+  let hasTrackerEvent = false;
   const orderedComments = [...comments].sort((left, right) => Number(left?.id ?? 0) - Number(right?.id ?? 0));
   for (const comment of orderedComments) {
     if (typeof comment?.authorLogin !== 'string' || comment.authorLogin.toLowerCase() !== TRACKER_OWNER) continue;
@@ -95,30 +97,89 @@ function latestCommentFields(comments = []) {
         || !comment.body.includes(STATE_COMMENT_START) && !comment.body.includes(STATE_COMMENT_END)) continue;
     const match = comment.body.match(/^<!-- DOW-TRACKER-STATE:v1 -->\s*\n([\s\S]*?)\n<!-- \/DOW-TRACKER-STATE -->\s*$/);
     if (!match) throw new Error('Latest tracker-owned state comment is malformed');
-    let fields;
-    try { fields = JSON.parse(match[1]); } catch { throw new Error('Latest tracker-owned state comment has invalid JSON'); }
-    if (!fields || typeof fields !== 'object' || Array.isArray(fields)
-        || Object.entries(fields).some(([key, value]) => !OWNED_FIELDS.has(key) || typeof value !== 'string')) {
+    let event;
+    try { event = JSON.parse(match[1]); } catch { throw new Error('Latest tracker-owned state comment has invalid JSON'); }
+    if (!event || typeof event !== 'object' || Array.isArray(event)) {
       throw new Error('Latest tracker-owned state comment has unsupported fields');
     }
-    latest = fields;
+    if (Object.hasOwn(event, 'set') || Object.hasOwn(event, 'clear')) {
+      const { set = {}, clear = [] } = event;
+      if (Object.keys(event).some((key) => !['set', 'clear'].includes(key))
+          || !set || typeof set !== 'object' || Array.isArray(set)
+          || !Array.isArray(clear)
+          || Object.entries(set).some(([key, value]) => !OWNED_FIELDS.has(key) || typeof value !== 'string')
+          || clear.some((key) => typeof key !== 'string' || !OWNED_FIELDS.has(key))
+          || new Set(clear).size !== clear.length
+          || clear.some((key) => Object.hasOwn(set, key))) {
+        throw new Error('Latest tracker-owned state comment has unsupported fields');
+      }
+      Object.assign(fields, set);
+      for (const key of clear) delete fields[key];
+    } else {
+      if (Object.entries(event).some(([key, value]) => !OWNED_FIELDS.has(key) || typeof value !== 'string')) {
+        throw new Error('Latest tracker-owned state comment has unsupported fields');
+      }
+      // Older v1 comments carried full snapshots. Infer the fields changed
+      // from their preceding full snapshot so a stale in-flight writer cannot
+      // overwrite newer field deltas with unrelated values from its snapshot.
+      for (const [key, value] of Object.entries(event)) {
+        if (!Object.hasOwn(legacyBase, key) || legacyBase[key] !== value) fields[key] = value;
+      }
+      for (const key of Object.keys(legacyBase)) {
+        if (!Object.hasOwn(event, key)) delete fields[key];
+      }
+      legacyBase = { ...event };
+    }
+    hasTrackerEvent = true;
   }
-  return latest;
+  return hasTrackerEvent ? fields : null;
 }
 
-function stateCommentBody(fields) {
-  const stored = Object.fromEntries(Object.entries(fields).filter(([, value]) => typeof value === 'string'));
-  if (Object.values(stored).some((value) => /@[A-Za-z0-9-]/.test(value) || /[\r\n]/.test(value))) {
+function stateCommentBody(event) {
+  const { set = {}, clear = [] } = event;
+  if (!set || typeof set !== 'object' || Array.isArray(set) || !Array.isArray(clear)
+      || Object.entries(set).some(([key, value]) => !OWNED_FIELDS.has(key) || typeof value !== 'string')
+      || clear.some((key) => typeof key !== 'string' || !OWNED_FIELDS.has(key))
+      || clear.some((key) => Object.hasOwn(set, key))) {
+    throw new Error('Tracker state delta is invalid');
+  }
+  if (Object.values(set).some((value) => /@[A-Za-z0-9-]/.test(value) || /[\r\n]/.test(value))) {
     throw new Error('Tracker state comments cannot contain mentions or multiline field values');
   }
-  return `${STATE_COMMENT_START}\n${JSON.stringify(stored)}\n${STATE_COMMENT_END}`;
+  return `${STATE_COMMENT_START}\n${JSON.stringify({ set, clear })}\n${STATE_COMMENT_END}`;
+}
+
+function stateDelta(before, after) {
+  const set = {};
+  const clear = [];
+  for (const [key, value] of Object.entries(after)) {
+    if (!Object.hasOwn(before, key) || before[key] !== value) set[key] = value;
+  }
+  for (const key of Object.keys(before)) {
+    if (!Object.hasOwn(after, key)) clear.push(key);
+  }
+  return { set, clear };
+}
+
+function deltaMatches(fields, delta) {
+  return Object.entries(delta.set).every(([key, value]) => fields[key] === value)
+    && delta.clear.every((key) => !Object.hasOwn(fields, key));
 }
 
 function ownedFieldsForIssue(issue, comments = []) {
   const { fields } = extractOwnedBlock(issue.body);
-  const current = latestCommentFields(comments) ?? fields;
   const marker = issue.migrationId;
   if (!marker) throw new Error(`Issue #${issue.number} has no stable migration marker`);
+  const baseFields = { ...fields };
+  if (marker.startsWith('DOW-PROMPT-')) {
+    baseFields['Prompt status'] ??= legacyField(issue.body, 'Source status');
+  } else {
+    baseFields.Readiness ??= legacyField(issue.body, 'Readiness');
+    baseFields.Execution ??= legacyField(issue.body, 'Execution');
+    baseFields.Hold ??= legacyField(issue.body, 'Hold');
+    baseFields['Original hold status'] ??= legacyField(issue.body, 'Source status');
+  }
+  const current = latestCommentFields(comments, baseFields) ?? baseFields;
   if (marker.startsWith('DOW-PROMPT-')) {
     const seeded = current['Prompt status'] ?? legacyField(issue.body, 'Source status');
     if (!PROMPT_STATUSES.has(seeded)) throw new Error(`Issue ${marker} has no valid prompt status`);
@@ -539,6 +600,8 @@ export async function updateGitHubIssueState({ transport, issueNumber, changes, 
   if (changes.reopen === true) {
     state = 'open';
     stateReason = null;
+    delete next.Completion;
+    delete next['Evidence references'];
     if (next['Prompt status'] === 'done') next['Prompt status'] = incompleteFallback(next, expectedRecord?.initialStatus);
   }
   if (promptIssue && state === 'open' && next['Prompt status'] === 'done') {
@@ -546,14 +609,15 @@ export async function updateGitHubIssueState({ transport, issueNumber, changes, 
   }
   if (promptIssue && !PROMPT_STATUSES.has(next['Prompt status'])) throw new Error(`Cannot restore an incomplete status for ${current.migrationId}`);
   if (typeof validateProjection === 'function') await validateProjection({ current, fields: next, state, stateReason });
-  const expectedComment = stateCommentBody(next);
+  const delta = stateDelta(fields, next);
+  const expectedComment = stateCommentBody(delta);
   const freshIssue = normalizeIssue(await transport.getIssue(issueNumber));
   const freshComments = await transport.listComments(issueNumber);
   if (freshIssue.state !== current.state || freshIssue.stateReason !== current.stateReason
       || JSON.stringify(latestCommentFields(freshComments)) !== JSON.stringify(latestCommentFields(beforeComments))) {
     throw new Error(`GitHub issue changed during update for ${current.migrationId}; retry after refresh`);
   }
-  if (!sameFields(fields, next)) {
+  if (Object.keys(delta.set).length > 0 || delta.clear.length > 0) {
     try {
       await transport.createComment({ issueNumber, body: expectedComment });
     } catch (error) {
@@ -571,7 +635,7 @@ export async function updateGitHubIssueState({ transport, issueNumber, changes, 
   const afterRelationships = await transport.getRelationships(readback.id);
   const readbackFields = ownedFieldsForIssue(readback, afterComments);
   if (updated.state !== state || updated.stateReason !== stateReason || readback.state !== state || readback.stateReason !== stateReason
-      || !sameFields(readbackFields, next)
+      || !deltaMatches(readbackFields, delta)
       || !sameSet(afterRelationships?.parentIssueIds ?? [], beforeRelationships?.parentIssueIds ?? [])
       || !sameSet(afterRelationships?.blockedByIssueIds ?? [], beforeRelationships?.blockedByIssueIds ?? [])) {
     throw new Error(`GitHub update readback mismatch for ${current.migrationId}`);

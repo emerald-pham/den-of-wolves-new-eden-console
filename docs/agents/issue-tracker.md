@@ -85,12 +85,15 @@ npm run prompt-tracker -- export
 
 `gh auth` supplies the short-lived credential only when refresh or update is
 invoked. The tracker does not store credentials. Field updates append a
-tracker-owned state comment and, when needed, PATCH only native open/closed
-state fields. Imported issue bodies and human comments remain intact. A fresh
-preflight detects concurrent tracker-state or native-state changes; uncertain
-comment creation is accepted only after exact comment readback. The REST writer
-does not depend on conditional `If-Match` support. Verify and inspect the
-returned readback before continuing dependent work.
+tracker-owned field delta and, when needed, PATCH only native open/closed state
+fields. Refresh folds owner-authored set/clear deltas in comment order, so a
+late change to a different field survives an in-flight update. Reopening clears
+derived completion and evidence fields. Imported issue bodies and human
+comments remain intact. A fresh preflight detects concurrent tracker-state or
+native-state changes; uncertain comment creation is accepted only after exact
+comment readback. The REST writer does not depend on conditional `If-Match`
+support. Verify and inspect the returned readback before continuing dependent
+work.
 
 Only comments authored by the configured repository owner account are tracker
 state. Other comments remain human prose even when they contain a copied
