@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import test from 'node:test';
@@ -36,6 +37,16 @@ const promptIssue = (overrides = {}) => ({
   state: 'open',
   state_reason: null,
   ...overrides,
+});
+
+test('saved tracker snapshot can export its views through the normal offline command', () => {
+  const result = spawnSync(process.execPath, ['scripts/github-prompt-tracker.mjs', 'export'], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    env: { ...process.env, GH_TOKEN: '', GITHUB_TOKEN: '' },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Exported the saved GitHub catalog snapshot to generated views \(751 prompts\)/);
 });
 
 function fakeTransport(initialIssues, initialRelationships = []) {
