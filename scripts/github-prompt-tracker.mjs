@@ -88,6 +88,7 @@ function legacyField(body, name) {
 
 function latestCommentFields(comments = [], initialFields = {}) {
   let fields = { ...initialFields };
+  let legacyBase = { ...initialFields };
   let hasTrackerEvent = false;
   const orderedComments = [...comments].sort((left, right) => Number(left?.id ?? 0) - Number(right?.id ?? 0));
   for (const comment of orderedComments) {
@@ -115,12 +116,19 @@ function latestCommentFields(comments = [], initialFields = {}) {
       Object.assign(fields, set);
       for (const key of clear) delete fields[key];
     } else {
-      // Older v1 events were complete snapshots; fold them as a replacement
-      // while accepting new field-scoped set/clear events after them.
       if (Object.entries(event).some(([key, value]) => !OWNED_FIELDS.has(key) || typeof value !== 'string')) {
         throw new Error('Latest tracker-owned state comment has unsupported fields');
       }
-      fields = { ...event };
+      // Older v1 comments carried full snapshots. Infer the fields changed
+      // from their preceding full snapshot so a stale in-flight writer cannot
+      // overwrite newer field deltas with unrelated values from its snapshot.
+      for (const [key, value] of Object.entries(event)) {
+        if (!Object.hasOwn(legacyBase, key) || legacyBase[key] !== value) fields[key] = value;
+      }
+      for (const key of Object.keys(legacyBase)) {
+        if (!Object.hasOwn(event, key)) delete fields[key];
+      }
+      legacyBase = { ...event };
     }
     hasTrackerEvent = true;
   }
@@ -160,9 +168,18 @@ function deltaMatches(fields, delta) {
 
 function ownedFieldsForIssue(issue, comments = []) {
   const { fields } = extractOwnedBlock(issue.body);
-  const current = latestCommentFields(comments, fields) ?? fields;
   const marker = issue.migrationId;
   if (!marker) throw new Error(`Issue #${issue.number} has no stable migration marker`);
+  const baseFields = { ...fields };
+  if (marker.startsWith('DOW-PROMPT-')) {
+    baseFields['Prompt status'] ??= legacyField(issue.body, 'Source status');
+  } else {
+    baseFields.Readiness ??= legacyField(issue.body, 'Readiness');
+    baseFields.Execution ??= legacyField(issue.body, 'Execution');
+    baseFields.Hold ??= legacyField(issue.body, 'Hold');
+    baseFields['Original hold status'] ??= legacyField(issue.body, 'Source status');
+  }
+  const current = latestCommentFields(comments, baseFields) ?? baseFields;
   if (marker.startsWith('DOW-PROMPT-')) {
     const seeded = current['Prompt status'] ?? legacyField(issue.body, 'Source status');
     if (!PROMPT_STATUSES.has(seeded)) throw new Error(`Issue ${marker} has no valid prompt status`);
