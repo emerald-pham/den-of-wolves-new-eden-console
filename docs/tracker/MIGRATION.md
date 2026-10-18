@@ -44,11 +44,36 @@ behavioral repairs and the repository consumer/writer cutover retain their
 separate test-first commits and actual focused evidence.
 
 The normal reader verified all 148 live issues against the saved source
-snapshot before the writer exercise. The migration owner must complete the
-normal field-scoped update, export and repeated refresh, obtain independent
-Standards/Spec and authority review, pass the applicable checks, and verify the
-coordinated merge before accepting PT7. The owning issue records that final
-acceptance and links this evidence boundary.
+snapshot. The normal field-scoped CLI then completed PT7A and PT7B, with
+owner-authored metadata, native state and exact readback. Original issue bodies,
+identities, titles and labels stayed intact. Offline export and the 751-prompt
+view check passed; the catalog stayed byte-identical to the approved source.
+The owning PT7 issue records final acceptance only after repeated live
+freshness verification, independent Standards/Spec and authority review,
+applicable checks and coordinated merge. Saved snapshots record their
+generated time; refresh reconciles later issue changes without editing source
+definitions or granting gameplay credit.
+
+## Why the focused checks changed
+
+The tracker consumer and adapter checks protect the compatible saved catalog,
+brief-state persistence, completion and reopening, source definition edits,
+private-field preservation, owner-authored metadata, concurrent field changes,
+pagination and interrupted refresh/export recovery. Each is a distinct way a
+tracking transition could lose history or claim completion incorrectly. The
+affected-path checks keep the existing CI gates connected to the new tracker
+and its generated views.
+
+The added [deployment selector tests](../../scripts/deployment-targets.test.mjs)
+prevent the generated tracker snapshot and the two exact operator aliases from
+triggering an application deployment. Negative controls retain deployment for
+dependency, build, runtime and other script changes, and fail closed on unknown
+paths or missing comparison data. The real last-deployment range was checked;
+it selects no application targets while retaining the existing CI gates.
+Test-only commit `c61e9591` recorded the behavioral failures before separate
+implementation `4475c57f`; their raw RED/GREEN logs remain in the local migration
+inventory. No existing acceptance assertion was weakened and no test was
+skipped or deleted for this repair.
 
 ## Preserved holds and wider scope
 
