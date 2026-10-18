@@ -34,10 +34,13 @@ system. Keep the workflow proportionate to the risk of the change.
    the JSON catalog and generated Markdown are offline snapshots that preserve
    definitions and history. Do not edit imported mutable state in the snapshot
    by hand. Use `npm run prompt-tracker -- refresh` to read all migrated issues
-   and export the snapshot, `npm run prompt-tracker -- update --issue NUMBER ...`
+   and export the catalog plus brief-state snapshots. The generated
+   `docs/tracker/github-snapshot.json` preserves current prompt and brief
+   tracking fields for offline consumers. Use
+   `npm run prompt-tracker -- update --issue NUMBER ...`
    for an owned-field change, and `npm run prompt-tracker -- export` to rebuild
    saved Markdown views offline. `npm run prompt-tracker -- refresh --check`
-   verifies that the snapshot matches live tracker state. Ordinary checks and
+   verifies that both snapshots match live tracker state. Ordinary checks and
    CI do not access GitHub. See `docs/agents/issue-tracker.md` for completion,
    hold-release, and recovery details. `NEXT` is a useful ready-work hint, not
    a serial lock.

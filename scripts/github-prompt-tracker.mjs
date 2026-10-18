@@ -1,14 +1,17 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { readFileSync, statSync, writeFileSync } from 'node:fs';
+import { readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { loadPromptCatalog, stableCatalogJson } from './prompt-catalog.mjs';
+import { loadPromptCatalog, stableCatalogJson, validatePromptCatalog } from './prompt-catalog.mjs';
 
 const API_ROOT = 'https://api.github.com';
 const API_VERSION = '2026-03-10';
 const TRACKER_REPOSITORY = 'emerald-pham/den-of-wolves-new-eden-console';
+const TRACKER_OWNER = TRACKER_REPOSITORY.split('/')[0].toLowerCase();
 const BLOCK_START = '<!-- DOW-TRACKER-OWNED-START -->';
 const BLOCK_END = '<!-- DOW-TRACKER-OWNED-END -->';
+const STATE_COMMENT_START = '<!-- DOW-TRACKER-STATE:v1 -->';
+const STATE_COMMENT_END = '<!-- /DOW-TRACKER-STATE -->';
 const PROMPT_STATUSES = new Set(['missing', 'partial', 'blocked', 'in-progress', 'done']);
 const INCOMPLETE_STATUSES = new Set(['missing', 'partial', 'blocked', 'in-progress']);
 const OWNED_FIELDS = new Set([
@@ -22,6 +25,13 @@ const OWNED_FIELDS = new Set([
   'Original hold status',
   'Hold release evidence',
 ]);
+
+function incompleteFallback(fields, initialStatus) {
+  const previous = fields['Previous incomplete status'];
+  if (INCOMPLETE_STATUSES.has(previous)) return previous;
+  if (INCOMPLETE_STATUSES.has(initialStatus)) return initialStatus;
+  return 'missing';
+}
 
 function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
@@ -76,24 +86,53 @@ function legacyField(body, name) {
   return body.match(new RegExp(`^${escaped}:\\s*(.+?)\\s*$`, 'm'))?.[1] ?? null;
 }
 
-function ownedFieldsForIssue(issue) {
+function latestCommentFields(comments = []) {
+  let latest = null;
+  const orderedComments = [...comments].sort((left, right) => Number(left?.id ?? 0) - Number(right?.id ?? 0));
+  for (const comment of orderedComments) {
+    if (typeof comment?.authorLogin !== 'string' || comment.authorLogin.toLowerCase() !== TRACKER_OWNER) continue;
+    if (typeof comment?.body !== 'string'
+        || !comment.body.includes(STATE_COMMENT_START) && !comment.body.includes(STATE_COMMENT_END)) continue;
+    const match = comment.body.match(/^<!-- DOW-TRACKER-STATE:v1 -->\s*\n([\s\S]*?)\n<!-- \/DOW-TRACKER-STATE -->\s*$/);
+    if (!match) throw new Error('Latest tracker-owned state comment is malformed');
+    let fields;
+    try { fields = JSON.parse(match[1]); } catch { throw new Error('Latest tracker-owned state comment has invalid JSON'); }
+    if (!fields || typeof fields !== 'object' || Array.isArray(fields)
+        || Object.entries(fields).some(([key, value]) => !OWNED_FIELDS.has(key) || typeof value !== 'string')) {
+      throw new Error('Latest tracker-owned state comment has unsupported fields');
+    }
+    latest = fields;
+  }
+  return latest;
+}
+
+function stateCommentBody(fields) {
+  const stored = Object.fromEntries(Object.entries(fields).filter(([, value]) => typeof value === 'string'));
+  if (Object.values(stored).some((value) => /@[A-Za-z0-9-]/.test(value) || /[\r\n]/.test(value))) {
+    throw new Error('Tracker state comments cannot contain mentions or multiline field values');
+  }
+  return `${STATE_COMMENT_START}\n${JSON.stringify(stored)}\n${STATE_COMMENT_END}`;
+}
+
+function ownedFieldsForIssue(issue, comments = []) {
   const { fields } = extractOwnedBlock(issue.body);
+  const current = latestCommentFields(comments) ?? fields;
   const marker = issue.migrationId;
   if (!marker) throw new Error(`Issue #${issue.number} has no stable migration marker`);
   if (marker.startsWith('DOW-PROMPT-')) {
-    const seeded = fields['Prompt status'] ?? legacyField(issue.body, 'Source status');
+    const seeded = current['Prompt status'] ?? legacyField(issue.body, 'Source status');
     if (!PROMPT_STATUSES.has(seeded)) throw new Error(`Issue ${marker} has no valid prompt status`);
-    return { ...fields, 'Prompt status': seeded };
+    return { ...current, 'Prompt status': seeded };
   }
-  const readiness = fields.Readiness ?? legacyField(issue.body, 'Readiness');
-  const execution = fields.Execution ?? legacyField(issue.body, 'Execution');
+  const readiness = current.Readiness ?? legacyField(issue.body, 'Readiness');
+  const execution = current.Execution ?? legacyField(issue.body, 'Execution');
   if (readiness === null || execution === null) throw new Error(`Issue ${marker} has no valid brief state`);
   return {
-    ...fields,
+    ...current,
     Readiness: readiness,
     Execution: execution,
-    Hold: fields.Hold ?? legacyField(issue.body, 'Hold'),
-    'Original hold status': fields['Original hold status'] ?? legacyField(issue.body, 'Source status'),
+    Hold: current.Hold ?? legacyField(issue.body, 'Hold'),
+    'Original hold status': current['Original hold status'] ?? legacyField(issue.body, 'Source status'),
   };
 }
 
@@ -116,16 +155,19 @@ function parseList(value) {
   return value.split(',').map((item) => item.trim()).filter(Boolean);
 }
 
-function replaceOwnedBlock(body, fields) {
-  const current = extractOwnedBlock(body);
-  const next = Object.fromEntries([...Object.entries(fields)].filter(([key, value]) => OWNED_FIELDS.has(key) && value !== undefined));
-  const block = [
-    BLOCK_START,
-    ...[...OWNED_FIELDS].filter((key) => Object.hasOwn(next, key)).map((key) => `${key}: ${next[key]}`),
-    BLOCK_END,
-  ].join('\n');
-  if (current.start < 0) return `${body}${body && !body.endsWith('\n') ? '\n' : ''}\n${block}\n`;
-  return `${body.slice(0, current.start)}${block}${body.slice(current.end)}`;
+function sourceStructureSha256(catalog, records) {
+  const promptRecords = new Map(records.filter(({ recordKind }) => recordKind === 'prompt-acceptance')
+    .map((record) => [record.legacyId.toUpperCase(), record]));
+  const normalized = {
+    ...catalog,
+    prompts: catalog.prompts.map((prompt) => {
+      const record = promptRecords.get(prompt.id.toUpperCase());
+      const copy = record ? { ...prompt, status: record.initialStatus } : { ...prompt };
+      delete copy.definition;
+      return copy;
+    }),
+  };
+  return sha256(stableCatalogJson(normalized));
 }
 
 function normalizeCrosswalk(crosswalk, sourceText, catalog) {
@@ -141,24 +183,22 @@ function normalizeCrosswalk(crosswalk, sourceText, catalog) {
     equivalentBlockedByMarkers: record.equivalentBlockedByMigrationIds ?? [],
     sourceBlockedByBriefIds: record.sourceBlockedByBriefIds ?? null,
   }));
-  if (crosswalk.sourceSha256 !== sha256(sourceText)) {
+  if (crosswalk.sourceStructureSha256) {
+    if (sourceStructureSha256(catalog, records) !== crosswalk.sourceStructureSha256) {
+      throw new Error('Catalog changes outside source-reviewed definitions; restore the original fields before refresh');
+    }
+  } else if (crosswalk.sourceSha256 !== sha256(sourceText)) {
     const prompts = new Map(records.filter(({ recordKind }) => recordKind === 'prompt-acceptance')
       .map((record) => [record.legacyId.toUpperCase(), record]));
     const restoredPrompts = catalog.prompts.map((prompt) => {
       const record = prompts.get(prompt.id.toUpperCase());
       if (!record) return prompt;
-      if (typeof record.sourceSha256 !== 'string' || !PROMPT_STATUSES.has(record.initialStatus)) {
-        throw new Error('Public crosswalk source snapshot hash mismatch');
-      }
+      if (typeof record.sourceSha256 !== 'string' || !PROMPT_STATUSES.has(record.initialStatus)) throw new Error('Public crosswalk source snapshot hash mismatch');
       const original = { ...prompt, status: record.initialStatus };
-      if (sha256(stableCompactJson(original)) !== record.sourceSha256) {
-        throw new Error('Public crosswalk source snapshot hash mismatch');
-      }
+      if (sha256(stableCompactJson(original)) !== record.sourceSha256) throw new Error('Public crosswalk source snapshot hash mismatch');
       return original;
     });
-    if (sha256(stableCatalogJson({ ...catalog, prompts: restoredPrompts })) !== crosswalk.sourceSha256) {
-      throw new Error('Public crosswalk source snapshot hash mismatch');
-    }
+    if (sha256(stableCatalogJson({ ...catalog, prompts: restoredPrompts })) !== crosswalk.sourceSha256) throw new Error('Public crosswalk source snapshot hash mismatch');
   }
   return records;
 }
@@ -186,8 +226,19 @@ function sameSet(left, right) {
   return JSON.stringify([...left].sort()) === JSON.stringify([...right].sort());
 }
 
+function sameFields(left, right) {
+  const ordered = (value) => JSON.stringify(Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))));
+  return ordered(left) === ordered(right);
+}
+
+function atomicWrite(path, contents) {
+  const temporaryPath = `${path}.tmp-${process.pid}-${Date.now()}`;
+  writeFileSync(temporaryPath, contents, 'utf8');
+  renameSync(temporaryPath, path);
+}
+
 /** Read one complete tracker snapshot and overlay only issue-owned mutable prompt status. */
-export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, completionDecisions = {}, cwd = process.cwd() } = {}) {
+export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, completionDecisions = {}, cwd = process.cwd(), allowInvalidCatalog = false } = {}) {
   if (typeof transport?.listIssues !== 'function' || typeof transport?.getRelationships !== 'function') {
     throw new Error('Tracker transport must provide listIssues and getRelationships');
   }
@@ -287,7 +338,8 @@ export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswal
         throw new Error(`Equivalent blocker documentation mismatch for ${marker}`);
       }
     }
-    const fields = ownedFieldsForIssue(issue);
+    const comments = typeof transport.listComments === 'function' ? await transport.listComments(issue.number) : [];
+    const fields = ownedFieldsForIssue(issue, comments);
     if (planned.recordKind === 'held-future-brief') {
       if (fields['Original hold status'] !== planned.originalHoldStatus) {
         throw new Error(`Future hold provenance mismatch for ${marker}`);
@@ -322,6 +374,7 @@ export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswal
       recordKind: planned.recordKind,
       state: issue.state,
       stateReason: issue.stateReason,
+      promptStatus: planned.recordKind === 'prompt-acceptance' ? fields['Prompt status'] : null,
       readiness: fields.Readiness ?? null,
       execution: fields.Execution ?? null,
       hold: fields.Hold ?? null,
@@ -344,33 +397,46 @@ export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswal
         if (INCOMPLETE_STATUSES.has(status)) fields['Previous incomplete status'] = status;
         status = 'done';
       } else if (status === 'done') {
-        status = fields['Previous incomplete status'] ?? planned.initialStatus;
+        status = incompleteFallback(fields, planned.initialStatus);
       }
     } else if (issue.state === 'closed' && issue.stateReason === 'not_planned') {
-      if (status === 'done') status = fields['Previous incomplete status'] ?? planned.initialStatus;
+      if (status === 'done') status = incompleteFallback(fields, planned.initialStatus);
     } else if (issue.state === 'open' && status === 'done') {
-      status = fields['Previous incomplete status'] ?? planned.initialStatus;
+      status = incompleteFallback(fields, planned.initialStatus);
     }
     if (!PROMPT_STATUSES.has(status)) throw new Error(`Cannot restore an incomplete status for ${marker}`);
     prompt.status = status;
+  }
+  const catalogValidationErrors = validatePromptCatalog(catalog);
+  if (catalogValidationErrors.length && !allowInvalidCatalog) {
+    throw new Error(`GitHub tracker projection is invalid: ${catalogValidationErrors.join('; ')}`);
   }
   return {
     catalog,
     catalogSource: stableCatalogJson(catalog),
     sourceSha256: sha256(sourceText),
     issueStates,
+    catalogValidationErrors,
+    trackerSnapshot: {
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      originSourceSha256: crosswalk.sourceSha256,
+      catalogSha256: sha256(stableCatalogJson(catalog)),
+      issueStates,
+    },
     issueCount: byMarker.size,
     issueSnapshotSha256: sha256(JSON.stringify(issues.map((issue) => ({ id: issue.id, number: issue.number, body: issue.body, state: issue.state, stateReason: issue.stateReason ?? issue.state_reason ?? null })).sort((a, b) => a.number - b.number))),
   };
 }
 
 /** Update only tracker-owned fields, preserving user prose and relationships, then verify readback. */
-export async function updateGitHubIssueState({ transport, issueNumber, changes, expectedRecord, cwd = process.cwd() } = {}) {
+export async function updateGitHubIssueState({ transport, issueNumber, changes, expectedRecord, validateProjection, cwd = process.cwd() } = {}) {
   if (!Number.isInteger(issueNumber) || !changes || typeof changes !== 'object') throw new Error('An issue number and owned-field changes are required');
-  for (const name of ['getIssue', 'getRelationships', 'patchIssue']) {
+  for (const name of ['getIssue', 'getRelationships', 'patchIssue', 'listComments', 'createComment']) {
     if (typeof transport?.[name] !== 'function') throw new Error(`Tracker transport must provide ${name}`);
   }
   const current = normalizeIssue(await transport.getIssue(issueNumber));
+  const beforeComments = await transport.listComments(issueNumber);
   const beforeRelationships = await transport.getRelationships(current.id);
   if (expectedRecord) {
     if (expectedRecord.issueNumber !== issueNumber || expectedRecord.issueId !== current.id
@@ -384,7 +450,7 @@ export async function updateGitHubIssueState({ transport, issueNumber, changes, 
       throw new Error(`GitHub relationship mismatch for ${current.migrationId}`);
     }
   }
-  const fields = ownedFieldsForIssue(current);
+  const fields = ownedFieldsForIssue(current, beforeComments);
   const promptIssue = current.migrationId?.startsWith('DOW-PROMPT-');
   const heldFuture = expectedRecord?.recordKind === 'held-future-brief';
   if (heldFuture) {
@@ -466,34 +532,51 @@ export async function updateGitHubIssueState({ transport, issueNumber, changes, 
   } else if (changes.closeAs === 'not_planned') {
     state = 'closed';
     stateReason = 'not_planned';
-    if (next['Prompt status'] === 'done') next['Prompt status'] = next['Previous incomplete status'];
+    if (next['Prompt status'] === 'done') next['Prompt status'] = incompleteFallback(next, expectedRecord?.initialStatus);
     delete next.Completion;
     delete next['Evidence references'];
   }
   if (changes.reopen === true) {
     state = 'open';
     stateReason = null;
-    if (next['Prompt status'] === 'done') next['Prompt status'] = next['Previous incomplete status'];
+    if (next['Prompt status'] === 'done') next['Prompt status'] = incompleteFallback(next, expectedRecord?.initialStatus);
   }
   if (promptIssue && state === 'open' && next['Prompt status'] === 'done') {
-    next['Prompt status'] = next['Previous incomplete status'];
+    next['Prompt status'] = incompleteFallback(next, expectedRecord?.initialStatus);
   }
   if (promptIssue && !PROMPT_STATUSES.has(next['Prompt status'])) throw new Error(`Cannot restore an incomplete status for ${current.migrationId}`);
-  const body = replaceOwnedBlock(current.body, next);
-  const updated = normalizeIssue(await transport.patchIssue({
-    issueNumber,
-    body,
-    state,
-    stateReason,
-  }));
+  if (typeof validateProjection === 'function') await validateProjection({ current, fields: next, state, stateReason });
+  const expectedComment = stateCommentBody(next);
+  const freshIssue = normalizeIssue(await transport.getIssue(issueNumber));
+  const freshComments = await transport.listComments(issueNumber);
+  if (freshIssue.state !== current.state || freshIssue.stateReason !== current.stateReason
+      || JSON.stringify(latestCommentFields(freshComments)) !== JSON.stringify(latestCommentFields(beforeComments))) {
+    throw new Error(`GitHub issue changed during update for ${current.migrationId}; retry after refresh`);
+  }
+  if (!sameFields(fields, next)) {
+    try {
+      await transport.createComment({ issueNumber, body: expectedComment });
+    } catch (error) {
+      const recovered = await transport.listComments(issueNumber);
+      if (!recovered.some((comment) => comment?.body === expectedComment
+          && typeof comment.authorLogin === 'string' && comment.authorLogin.toLowerCase() === TRACKER_OWNER)) throw error;
+    }
+  }
+  let updated = freshIssue;
+  if (freshIssue.state !== state || freshIssue.stateReason !== stateReason) {
+    updated = normalizeIssue(await transport.patchIssue({ issueNumber, state, stateReason }));
+  }
   const readback = normalizeIssue(await transport.getIssue(issueNumber));
+  const afterComments = await transport.listComments(issueNumber);
   const afterRelationships = await transport.getRelationships(readback.id);
-  if (updated.body !== body || readback.body !== body || readback.state !== state || readback.stateReason !== stateReason
+  const readbackFields = ownedFieldsForIssue(readback, afterComments);
+  if (updated.state !== state || updated.stateReason !== stateReason || readback.state !== state || readback.stateReason !== stateReason
+      || !sameFields(readbackFields, next)
       || !sameSet(afterRelationships?.parentIssueIds ?? [], beforeRelationships?.parentIssueIds ?? [])
       || !sameSet(afterRelationships?.blockedByIssueIds ?? [], beforeRelationships?.blockedByIssueIds ?? [])) {
     throw new Error(`GitHub update readback mismatch for ${current.migrationId}`);
   }
-  return { issue: readback, fields: ownedFieldsForIssue(readback) };
+  return { issue: readback, fields: readbackFields };
 }
 
 /** Explicitly construct a token-injected REST adapter; importing this module performs no network request. */
@@ -570,15 +653,39 @@ export function createGitHubPromptTrackerTransport({ owner, repo, token, fetchIm
     }
     return { parentIssueIds: parent ? [parent.id] : [], blockedByIssueIds: blockedByIssueIds.sort((a, b) => a - b) };
   }
+  async function listComments(issueNumber) {
+    const all = [];
+    for (let page = 1; ; page += 1) {
+      const rows = await request(`/issues/${issueNumber}/comments?per_page=100&page=${page}`);
+      if (!Array.isArray(rows)) throw new Error('GitHub REST comments response was not an array');
+      for (const row of rows) {
+        if (!Number.isInteger(row.id) || typeof row.body !== 'string') throw new Error('GitHub REST returned an invalid issue comment');
+        all.push({ id: row.id, body: row.body, createdAt: row.created_at ?? null, authorLogin: row.user?.login ?? null });
+      }
+      if (rows.length < 100) return all;
+    }
+  }
   return {
     listIssues,
     getRelationships,
     async getIssue(issueNumber) { return getByNumber(issueNumber); },
+    listComments,
+    async createComment({ issueNumber, body }) {
+      if (!Number.isInteger(issueNumber) || typeof body !== 'string' || !body.startsWith(STATE_COMMENT_START)) {
+        throw new Error('Invalid tracker-state issue comment');
+      }
+      const comment = await request(`/issues/${issueNumber}/comments`, { method: 'POST', body: { body } });
+      if (!Number.isInteger(comment?.id) || comment.body !== body
+          || typeof comment.user?.login !== 'string' || comment.user.login.toLowerCase() !== TRACKER_OWNER) {
+        throw new Error('GitHub comment creation readback was invalid or not authored by the tracker owner');
+      }
+      return { id: comment.id, body: comment.body, createdAt: comment.created_at ?? null, authorLogin: comment.user.login };
+    },
     async patchIssue({ issueNumber, body, state, stateReason }) {
-      if (typeof body !== 'string' || !['open', 'closed'].includes(state)
+      if (body !== undefined || !['open', 'closed'].includes(state)
           || state === 'closed' && !['completed', 'not_planned'].includes(stateReason)
           || state === 'open' && stateReason !== null) throw new Error('Invalid field-scoped GitHub issue patch');
-      const payload = { body, state, state_reason: stateReason };
+      const payload = { state, state_reason: stateReason };
       const updated = normalizeIssue(await request(`/issues/${issueNumber}`, { method: 'PATCH', body: payload }));
       issuesById.set(updated.id, updated);
       issuesByNumber.set(updated.number, updated);
@@ -652,6 +759,7 @@ async function runCommand({ command, options, cwd = process.cwd() }) {
   }
 
   const crosswalkPath = options.crosswalk ?? 'docs/tracker/github-crosswalk.json';
+  const trackerSnapshotPath = options.snapshot ?? 'docs/tracker/github-snapshot.json';
   const crosswalk = JSON.parse(readCatalogSnapshot(crosswalkPath, cwd));
   validateCutoverCrosswalk(crosswalk);
   const transport = createCommandTransport();
@@ -660,9 +768,18 @@ async function runCommand({ command, options, cwd = process.cwd() }) {
     if (options.check) {
       const currentSource = stableCatalogJson(loadPromptCatalog({ source: sourceBytes }));
       if (currentSource !== result.catalogSource) throw new Error('Saved GitHub catalog snapshot is stale; run refresh to export current tracker state');
+      let savedTrackerSnapshot;
+      try { savedTrackerSnapshot = JSON.parse(readCatalogSnapshot(trackerSnapshotPath, cwd)); } catch { throw new Error('Saved GitHub tracker-state snapshot is missing or invalid; run refresh to export current tracker state'); }
+      if (savedTrackerSnapshot.schemaVersion !== 1
+          || savedTrackerSnapshot.originSourceSha256 !== result.trackerSnapshot.originSourceSha256
+          || savedTrackerSnapshot.catalogSha256 !== result.trackerSnapshot.catalogSha256
+          || !sameFields({ issueStates: savedTrackerSnapshot.issueStates }, { issueStates: result.trackerSnapshot.issueStates })) {
+        throw new Error('Saved GitHub tracker-state snapshot is stale; run refresh to export current tracker state');
+      }
       return { message: `Tracker snapshot is current (${result.issueCount} issues; source ${result.sourceSha256.slice(0, 12)}).`, result };
     }
-    writeFileSync(resolve(cwd, catalogPath), result.catalogSource, 'utf8');
+    atomicWrite(resolve(cwd, trackerSnapshotPath), `${JSON.stringify(result.trackerSnapshot, null, 2)}\n`);
+    atomicWrite(resolve(cwd, catalogPath), result.catalogSource);
     const { generatePromptViews } = await import('./generate-prompt-views.mjs');
     await generatePromptViews({ cwd, catalog: result.catalog });
     return { message: `Refreshed ${result.issueCount} GitHub issues and generated catalog views.`, result };
@@ -670,7 +787,7 @@ async function runCommand({ command, options, cwd = process.cwd() }) {
 
   const issueNumber = Number(options.issue);
   if (!Number.isSafeInteger(issueNumber) || issueNumber < 1) throw new Error('update requires a valid --issue number');
-  const baseline = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, cwd });
+  const baseline = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, cwd, allowInvalidCatalog: true });
   const record = crosswalk.records.find(({ issueNumber: number }) => number === issueNumber);
   if (!record) throw new Error(`Issue #${issueNumber} is not in the verified public crosswalk`);
   const changes = {};
@@ -686,9 +803,20 @@ async function runCommand({ command, options, cwd = process.cwd() }) {
     if (options[option] !== undefined) brief[field] = options[option];
   }
   if (Object.keys(brief).length) changes.brief = brief;
-  const updated = await updateGitHubIssueState({ transport, issueNumber, changes, expectedRecord: record, cwd });
+  const validateProjection = record.recordKind === 'prompt-acceptance'
+    ? ({ fields }) => {
+      const projected = structuredClone(baseline.catalog);
+      const prompt = projected.prompts.find(({ id }) => id.toUpperCase() === record.legacyId.toUpperCase());
+      if (!prompt) throw new Error(`Prompt ${record.legacyId} is missing from the saved catalog`);
+      prompt.status = fields['Prompt status'];
+      const errors = validatePromptCatalog(projected);
+      if (errors.length) throw new Error(`Prompt update would violate catalog prerequisites: ${errors.join('; ')}`);
+    }
+    : undefined;
+  const updated = await updateGitHubIssueState({ transport, issueNumber, changes, expectedRecord: record, validateProjection, cwd });
   const refreshedIssues = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, cwd });
-  writeFileSync(resolve(cwd, catalogPath), refreshedIssues.catalogSource, 'utf8');
+  atomicWrite(resolve(cwd, trackerSnapshotPath), `${JSON.stringify(refreshedIssues.trackerSnapshot, null, 2)}\n`);
+  atomicWrite(resolve(cwd, catalogPath), refreshedIssues.catalogSource);
   const { generatePromptViews } = await import('./generate-prompt-views.mjs');
   await generatePromptViews({ cwd, catalog: refreshedIssues.catalog });
   return { message: `Updated ${record.migrationId} with verified GitHub readback.`, issue: updated.issue, catalog: baseline.catalog };

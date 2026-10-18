@@ -1,11 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
+import { isTrackerPath } from './tracker-paths.mjs';
 
 const DOCUMENTATION_PATTERN = /(?:^|\/)(?:README(?:\..*)?|.*\.md)$/i;
 const STORED_EVIDENCE_IMAGE_PATTERN = /^evidence\/.*\.png$/i;
 const CATALOG_PATTERN = /^(?:docs\/implementation-prompts\.json|docs\/tracker\/github-crosswalk\.json)$/i;
 const ROADMAP_PATTERN = /^(?:docs\/implementation-prompts\.json|docs\/tracker\/github-crosswalk\.json|docs\/IMPLEMENTATION_[^/]*\.md)$/i;
-const TRACKER_PATTERN = /^(?:docs\/tracker\/github-crosswalk\.json|scripts\/(?:github-prompt-tracker(?:\.test)?|prompt-tracker-consumers|tracker-risk-gate\.test)\.mjs)$/i;
 export const GENERATED_ROADMAP_FILES = Object.freeze([
   'docs/PC07_ROADMAP_GANTT.csv',
   'docs/PC07_ROADMAP_GANTT.html',
@@ -130,7 +130,7 @@ export function classifyRiskGates(files, { manual = false, versionMetadataOnly =
   return {
     documentationOnly: nonDocumentation.length === 0,
     roadmapChanged: changedFiles.some((file) => ROADMAP_PATTERN.test(file) || GENERATED_ROADMAP_FILES.includes(file)),
-    trackerChanged: changedFiles.some((file) => TRACKER_PATTERN.test(file)),
+    trackerChanged: changedFiles.some(isTrackerPath),
     rootInstall: nonDocumentation.length > 0,
     functionsInstall: functionsGate || failClosed,
     lint: nonDocumentation.length > 0,

@@ -2,6 +2,7 @@ import ts from 'typescript';
 import { readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { classifyRiskGates } from './risk-gates.mjs';
+import { trackerValidationCommands } from './tracker-paths.mjs';
 
 // The fast path is intentionally narrower than the set of files that can
 // contain text. It is for colocated player-facing JSX and its focused JSX
@@ -73,7 +74,6 @@ const UI_RENDER_HARNESS_PATH_PATTERN = /^scripts\/prompt-\d+[a-z]?-(?:render|geo
 const UNRECOGNIZED_RENDER_HARNESS_PATH_PATTERN = /^scripts\/prompt-[^/]+-(?:render|geometry)(?:-[^/]*)?\.mjs$/i;
 const RELEASE_METADATA_PATH_PATTERN = /^(?:package\.json|package-lock\.json|src\/changelog\.ts)$/i;
 const ROADMAP_METADATA_PATH_PATTERN = /^(?:docs\/implementation-prompts\.json|docs\/tracker\/github-crosswalk\.json)$/i;
-const TRACKER_PATH_PATTERN = /^(?:docs\/tracker\/github-crosswalk\.json|scripts\/(?:github-prompt-tracker(?:\.test)?|prompt-tracker-consumers|tracker-risk-gate\.test)\.mjs)$/i;
 const DATA_HELPER_PATH_PATTERN = /^src\/data\//i;
 const TEST_PATH_PATTERN_ANY = /(?:^|\/)(?:__tests__|tests)(?:\/|$)|(?:^|\/)[^/]+\.(?:test|spec)\.[^/]+$/i;
 const FIRESTORE_TEST_PATH_PATTERN = /^tests\/rules\/.+\.test\.ts$/i;
@@ -177,9 +177,7 @@ export function deriveValidationProfile({
   const roadmapCommands = files.some((file) => ROADMAP_METADATA_PATH_PATTERN.test(file))
     ? ['npm run roadmap:check']
     : [];
-  const trackerCommands = files.some((file) => TRACKER_PATH_PATTERN.test(file))
-    ? ['npm run test:prompt-tracker']
-    : [];
+  const trackerCommands = trackerValidationCommands(files);
   if (files.length === 0) {
     return {
       kind: 'no-changes',

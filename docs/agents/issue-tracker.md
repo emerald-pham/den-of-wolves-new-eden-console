@@ -11,7 +11,10 @@ updates do not rewrite it or require a new plan hash.
 generated offline snapshot used by existing catalog consumers. It preserves
 definitions, the other prompt fields, and completed prompt history. The
 implementation plan, progress, and dependency Markdown files are generated
-views. Ordinary imports of project modules and CI checks do not contact GitHub.
+views. `docs/tracker/github-snapshot.json` is the generated offline projection
+of all migrated issue states, including brief
+readiness, execution, hold, completion, and dependency fields. Ordinary imports
+of project modules and CI checks do not contact GitHub.
 
 ## Prompt definitions and scope
 
@@ -38,14 +41,14 @@ incomplete until its full final-release/gameplay audit is accepted.
 
 ## Normal commands
 
-Refresh the full migrated issue set, save the catalog snapshot, then regenerate
-the views:
+Refresh the full migrated issue set, save both offline snapshots, then
+regenerate the views:
 
 ```sh
 npm run prompt-tracker -- refresh
 ```
 
-Compare the saved snapshot with current GitHub state without writing files:
+Compare both saved snapshots with current GitHub state without writing files:
 
 ```sh
 npm run prompt-tracker -- refresh --check
@@ -81,10 +84,19 @@ npm run prompt-tracker -- export
 ```
 
 `gh auth` supplies the short-lived credential only when refresh or update is
-invoked. The tracker does not store credentials. Field updates preserve human
-issue prose and patch only the issue body and native open/closed state needed
-for the requested transition. Verify and inspect the returned readback before
-continuing dependent work.
+invoked. The tracker does not store credentials. Field updates append a
+tracker-owned state comment and, when needed, PATCH only native open/closed
+state fields. Imported issue bodies and human comments remain intact. A fresh
+preflight detects concurrent tracker-state or native-state changes; uncertain
+comment creation is accepted only after exact comment readback. The REST writer
+does not depend on conditional `If-Match` support. Verify and inspect the
+returned readback before continuing dependent work.
+
+Only comments authored by the configured repository owner account are tracker
+state. Other comments remain human prose even when they contain a copied
+tracker marker. A malformed owner-authored state comment stops refresh and
+updates until it is repaired; malformed or valid-looking comments by other
+authors do not alter the projection.
 
 ## Held future briefs
 
@@ -104,16 +116,35 @@ scope.
 
 ## Recovery and integrity
 
-The committed crosswalk source hash is `8536b573f44cde0e480b12cf427c3bb5668f33d6564f393572964f1679086f3f`.
+The committed crosswalk retains the original source hash
+`8536b573f44cde0e480b12cf427c3bb5668f33d6564f393572964f1679086f3f` and
+per-row origin hashes. Its sanitized `sourceStructureSha256` fingerprints all
+catalog fields except prompt definitions, after restoring migrated prompt
+statuses to their imported values. This permits source-reviewed definition and
+acceptance edits while detecting changes to IDs, statuses, history, and other
+source fields. Its verified value is
+`2376f987ad78ef8f4a6b521295dd9af6620f07446945989d794fb841136d005e`.
+Definition changes stay in the reviewed local catalog and are never published
+to GitHub.
 The original source bytes are retained with the migration task inventory at
 `inventory/dow-migration/implementation-prompts.source.json`; the original
 repository snapshot is available in Git history at the cutover base commit.
 These task-local files are recovery evidence, not runtime dependencies or
-committed copies. The refresh path reconstructs the original catalog by
-restoring imported prompts to their initial crosswalk statuses, verifies each
-row hash, then verifies the whole-catalog hash. It writes a fresh snapshot
-only after the full issue set, public identities, exact source blocker lists,
-native relationships, and documented equivalent dependency edges reconcile.
+committed copies. The original bytes remain recoverable from the task-local
+inventory and Git history; the crosswalk hashes remain immutable origin
+provenance. Refresh verifies the structure fingerprint after restoring
+imported statuses, then reconciles the full issue set, public identities, exact
+source blocker lists, native relationships, and documented equivalent edges
+before writing snapshots.
 If a refresh is interrupted, rerun `refresh --check` to compare state; rerun
 `refresh` to reconcile the saved snapshot from the current complete GitHub
-readback. Investigate any mismatch before updating an issue.
+readback. A missing or mismatched tracker-state snapshot is stale. Rerun
+`export` to recover generated Markdown views after a snapshot write completes.
+Investigate any mismatch before updating an issue.
+
+The adapter remains one module because its public reader, writer, and REST
+transport share reconciliation rules and a single injected transport seam;
+splitting it during the authority transition would add boundaries without
+reducing the number of concepts a caller must understand. Risk-gate path
+classification now uses one shared helper, and held-brief tests share one
+fixture builder so provenance wording has a single source.
