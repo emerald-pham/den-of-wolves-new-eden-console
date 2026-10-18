@@ -248,6 +248,26 @@ test('an invalid done fallback cannot turn an open prompt into completed work', 
   assert.equal(result.catalog.prompts.find(({ id }) => id === '181').status, 'missing');
 });
 
+test('a dependency reopen is rejected before the invalid catalog reaches a consumer', async () => {
+  const records = [
+    promptRecord({ legacyId: '541', migrationId: 'DOW-PROMPT-541', issueId: 5410, issueNumber: 541, initialStatus: 'partial', sourceReferences: ['docs/implementation-prompts.json#541'] }),
+    promptRecord({ legacyId: '542', migrationId: 'DOW-PROMPT-542', issueId: 5420, issueNumber: 542, initialStatus: 'missing', sourceReferences: ['docs/implementation-prompts.json#542'], blockedByMigrationIds: ['DOW-PROMPT-541'] }),
+  ];
+  const makeIssue = (record, status, extra = '') => promptIssue({
+    id: record.issueId,
+    number: record.issueNumber,
+    body: `Migration ID: ${record.migrationId}\nSource status: ${record.initialStatus}\nSource reference: ${record.sourceReferences[0]}\n<!-- DOW-TRACKER-OWNED-START -->\nPrompt status: ${status}${extra}\n<!-- DOW-TRACKER-OWNED-END -->\n`,
+  });
+  const first = { ...makeIssue(records[0], 'done', `\nPrevious incomplete status: partial\nCompletion: reviewed-accepted\nEvidence references: ${evidenceReference}`), state: 'closed', state_reason: 'completed' };
+  const second = makeIssue(records[1], 'missing');
+  const transport = fakeTransport([first, second], [[5420, { parentIssueIds: [], blockedByIssueIds: [5410] }]]);
+  const crosswalk = crosswalkFor(records);
+  await updateGitHubIssueState({ transport, issueNumber: 542, expectedRecord: records[1], changes: { status: 'done', reviewed: true, accepted: true, evidenceReferences: [evidenceReference] } });
+  await assert.doesNotReject(readGitHubPromptCatalog({ sourceBytes, transport, crosswalk }));
+  await updateGitHubIssueState({ transport, issueNumber: 541, expectedRecord: records[0], changes: { status: 'partial' } });
+  await assert.rejects(readGitHubPromptCatalog({ sourceBytes, transport, crosswalk }), /hard prerequisite|prerequisite/);
+});
+
 test('held future briefs remain held and do not acquire prompt completion state', async () => {
   const issue = {
     id: 5000,
