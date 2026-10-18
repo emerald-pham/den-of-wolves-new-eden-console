@@ -75,6 +75,14 @@ implementation `4475c57f`; their raw RED/GREEN logs remain in the local migratio
 inventory. No existing acceptance assertion was weakened and no test was
 skipped or deleted for this repair.
 
+The existing roadmap-only gate expectation also now explicitly checks the new
+`trackerChanged: false` metadata field. Its complete-object equality and every
+previous application-gate value are retained; this keeps established roadmap
+exports free of application gates while testing the expanded result contract.
+The observed CI failure and narrow classifier RED/GREEN remain in the local
+evidence inventory. The local classifier probe is distinct from the required
+remote Vitest rerun.
+
 ## Preserved holds and wider scope
 
 All 32 future briefs remain held and inactive. Migration grants no trigger
