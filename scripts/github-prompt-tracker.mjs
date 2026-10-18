@@ -241,6 +241,18 @@ export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswal
         || !sameSet(relationMarkers(relations?.blockedByIssueIds, byId, `Dependency relationship for ${marker}`), planned.blockedByMarkers)) {
       throw new Error(`GitHub relationship mismatch for ${marker}`);
     }
+    const logicalBlockers = [...planned.blockedByMarkers, ...planned.equivalentBlockedByMarkers];
+    const sourceBlockIds = legacyField(issue.body, 'Blocked-by brief IDs');
+    const expectedSourceBlockIds = logicalBlockers.map((blocker) => expected.get(blocker).legacyId);
+    if ((sourceBlockIds !== null || logicalBlockers.length > 0)
+        && !sameSet(parseList(sourceBlockIds), expectedSourceBlockIds)) {
+      throw new Error(`Source blocker documentation mismatch for ${marker}`);
+    }
+    const equivalentBody = legacyField(issue.body, 'Equivalent blocked-by issue references');
+    if ((equivalentBody !== null || planned.equivalentBlockedByMarkers.length > 0)
+        && !sameSet(parseList(equivalentBody), planned.equivalentBlockedByMarkers)) {
+      throw new Error(`Equivalent blocker documentation mismatch for ${marker}`);
+    }
     const fields = ownedFieldsForIssue(issue);
     if (planned.recordKind === 'held-future-brief') {
       if (fields['Original hold status'] !== planned.originalHoldStatus) {
