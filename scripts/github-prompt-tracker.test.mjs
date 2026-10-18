@@ -181,7 +181,7 @@ test('field updates cannot rewrite a held future brief source hold', async () =>
       blockedByMigrationIds: [],
     },
     changes: { brief: { 'Original hold status': 'Active now.' } },
-  }), /held future brief source hold is immutable/);
+  }), /Held future brief source hold is immutable/);
   assert.equal(transport.calls.length, 0);
 });
 
