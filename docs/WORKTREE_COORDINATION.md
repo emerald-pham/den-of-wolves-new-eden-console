@@ -28,19 +28,24 @@ npm ci
 npm ci --prefix functions
 ```
 
-For prompt-driven work, read the matching JSON record in
-[`implementation-prompts.json`](implementation-prompts.json). The generated
-implementation Markdown is a view, not a second source of truth. Update the
-catalog and regenerate views when roadmap facts change. The optional dependency
-check is read-only and produces no local nonce or goal receipt:
+For prompt-driven work, read the matching JSON snapshot in
+[`implementation-prompts.json`](implementation-prompts.json) and its mapped
+public issue in [`github-crosswalk.json`](tracker/github-crosswalk.json). GitHub
+issues are the mutable authority for migrated tracking state; the snapshot and
+generated implementation Markdown keep offline consumers useful. Use the
+optional dependency check; it is read-only and produces no local nonce or goal receipt:
 
 ```bash
 npm run coordination:dependencies -- --prompt NNN
 ```
 
-After catalog edits, regenerate its Markdown views with
-`node scripts/generate-prompt-views.mjs`; `--check` verifies them without
-writing.
+Use `npm run prompt-tracker -- refresh` to update the saved snapshot and views
+from GitHub, `npm run prompt-tracker -- update --issue NUMBER ...` for normal
+field-scoped updates, and `npm run prompt-tracker -- export` to rebuild views
+offline. `npm run prompt-tracker -- refresh --check` reports whether the saved
+snapshot is current. For prompt definition changes, use
+`npm run roadmap:generate`; `npm run roadmap:check` verifies generated views.
+The underlying roadmap generator is `node scripts/generate-prompt-views.mjs`.
 
 `NEXT` is a ready-work hint. A hard prerequisite or decision reserved to the
 product owner blocks only the affected work; record the gap and continue
