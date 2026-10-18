@@ -159,6 +159,35 @@ test('held future briefs remain held and do not acquire prompt completion state'
   assert.equal(result.catalog.prompts.find(({ id }) => id === '181').status, 'missing');
 });
 
+test('refresh rejects drift in the imported future hold wording', async () => {
+  const issue = {
+    id: 5000,
+    number: 500,
+    title: 'Legacy execution brief',
+    body: 'Migration ID: DOW-BRIEF-FUTURE-01\nSource status: Prepared future scope; preserve trigger.\nReadiness: held\nExecution: inactive\nSource reference: docs/future-tickets/example.md#future-01\n<!-- DOW-TRACKER-OWNED-START -->\nReadiness: held\nExecution: inactive\nHold: inactive; edited hold text.\nOriginal hold status: Prepared future scope; edited trigger.\n<!-- DOW-TRACKER-OWNED-END -->\n',
+    state: 'open',
+    state_reason: null,
+  };
+  await assert.rejects(readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue]),
+    crosswalk: crosswalkFor([{
+      legacyId: 'future-01',
+      migrationId: 'DOW-BRIEF-FUTURE-01',
+      recordKind: 'held-future-brief',
+      issueId: 5000,
+      issueNumber: 500,
+      initialReadiness: 'held',
+      initialExecution: 'inactive',
+      holdKind: 'prepared-sequence-trigger',
+      originalHoldStatus: 'Prepared future scope; preserve trigger.',
+      sourceReferences: ['docs/future-tickets/example.md#future-01'],
+      parentMigrationIds: [],
+      blockedByMigrationIds: [],
+    }]),
+  }), /future hold provenance mismatch/);
+});
+
 test('field updates cannot rewrite a held future brief source hold', async () => {
   const issue = {
     id: 5000,
