@@ -969,6 +969,10 @@ then `/implement-spec` through another verified release. Repeat for substantive
 authorized work; surface new product/scope decisions and required security
 approvals to the owner. A retrospective and its follow-up implementation occur
 after release and do not gate an otherwise qualified release.
+Repeated acceptance/capture failures without new discriminating evidence follow
+the [acceptance-loop recovery exception](AGENT_EXECUTION_POLICY.md#acceptance-loop-recovery)
+before that affected checkpoint resumes; the post-release pipeline continues
+for other findings.
 
 The owner’s one-sitting checks for each release are:
 

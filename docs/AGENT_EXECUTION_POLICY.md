@@ -285,3 +285,17 @@ Base an ETA on the remaining paths and gates and state the assumptions behind th
 range. After a repeated runner failure, give the next measurable milestone and
 revise the estimate after that milestone succeeds. Avoid renewing an unchanged
 time range while its assumptions are failing.
+
+## Acceptance-loop recovery
+
+When acceptance or capture fails repeatedly without new discriminating evidence,
+break the loop in order: **halt** the affected loop; **preserve** the exact
+candidate/source, failed result and earned evidence; **return** only this task's
+runtime and resources through their safe cleanup path; run an actual
+retrospective in a fresh, focused context when supported; **admit** only the
+smallest substantiated work already authorized or explicitly approved;
+**implement** it with the required skills and complete independent review; then
+**resume** only with explicit focused checks, a concrete next command, a bounded
+plan and legitimate fresh resource ownership. A longer rerun does not replace
+fast discrimination. Carry applicable human exceptions and their evidence into
+the implementer/reviewer brief.

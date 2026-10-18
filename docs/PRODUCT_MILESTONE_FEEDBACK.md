@@ -473,3 +473,23 @@ inactive. New product or scope decisions go to the parent for the owner; no
 additional billing, credentials, security-setting or unrelated work is allowed.
 Continue PC10.1 through its required review/acceptance, retro and authorized
 implementation cycle before advancing PC10.2.
+
+## Halt–retro–implement–resume — 2026-10-18
+
+At 11:04 UTC the owner directed: “if you run into loops like this for pc10.1 or
+future checkpoints, I want a halt, retro, implement, resume”. This applies now
+to the current PC10.1 acceptance/capture loop and to future checkpoint loops
+when repeated failures bring no new discriminating evidence. The canonical
+ordered procedure and resume conditions live in
+[Acceptance-loop recovery](AGENT_EXECUTION_POLICY.md#acceptance-loop-recovery);
+the checkpoint pipeline points to this exception.
+
+Keep the PC10-only RED chronology exception and its original records
+(`pc10-red-exception-authority-20261018.json` and
+`standards-exception-reassessment-8ae4c777.md`) under
+`/tmp/dow-pc10-1-20261017/region-lifecycle-prep/` unchanged. The historical
+post-implementation actor-generation test and deliberate mutant remain
+sensitivity evidence, never contemporaneous RED; the chronology finding is
+nonblocking for PC10, and this exception does not apply to other projects.
+Catalog facts, prompt statuses, acceptance definitions, campaign membership
+and totals remain as recorded.
