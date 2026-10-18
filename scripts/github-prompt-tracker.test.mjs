@@ -395,6 +395,43 @@ test('concurrent tracker-state change aborts before appending a competing update
   assert.equal(transport.calls.length, 0);
 });
 
+test('a disjoint owner update after final preflight survives a readiness update', async () => {
+  const record = {
+    legacyId: 'brief-61', migrationId: 'DOW-BRIEF-61', recordKind: 'execution-brief',
+    issueId: 6100, issueNumber: 610, sourceReferences: ['docs/pc10-tickets/61-pt7.md#pt7'],
+    parentMigrationIds: [], blockedByMigrationIds: [],
+  };
+  const issue = {
+    id: 6100, number: 610, title: 'PT7 execution brief',
+    body: 'Human note: keep this note.\n\nMigration ID: DOW-BRIEF-61\nReadiness: ready\nExecution: awaiting-verified-cutover\nSource reference: docs/pc10-tickets/61-pt7.md#pt7\n',
+    state: 'open', state_reason: null,
+  };
+  const transport = fakeTransport([issue]);
+  const listComments = transport.listComments.bind(transport);
+  let reads = 0;
+  transport.listComments = async (number) => {
+    const snapshot = await listComments(number);
+    if (number === 610 && ++reads === 2) {
+      await transport.createComment({
+        issueNumber: number,
+        body: '<!-- DOW-TRACKER-STATE:v1 -->\n{"Readiness":"ready","Execution":"in-progress"}\n<!-- /DOW-TRACKER-STATE -->',
+      });
+    }
+    return snapshot;
+  };
+
+  const result = await updateGitHubIssueState({
+    transport,
+    issueNumber: 610,
+    expectedRecord: record,
+    changes: { brief: { Readiness: 'blocked' } },
+  });
+  assert.equal(result.fields.Readiness, 'blocked');
+  assert.equal(result.fields.Execution, 'in-progress');
+  assert.equal((await transport.listComments(610)).length, 2);
+  assert.match((await transport.getIssue(610)).body, /Human note: keep this note/);
+});
+
 test('unauthorized public comments cannot impersonate tracker state', async () => {
   const record = {
     legacyId: 'brief-61', migrationId: 'DOW-BRIEF-61', recordKind: 'execution-brief',
@@ -592,9 +629,38 @@ test('completed issue reopens with its prior incomplete status', async () => {
   const transport = fakeTransport([issue]);
   const result = await updateGitHubIssueState({ transport, issueNumber: 181, changes: { reopen: true } });
   assert.equal(result.fields['Prompt status'], 'partial');
+  assert.equal(result.fields.Completion, undefined);
+  assert.equal(result.fields['Evidence references'], undefined);
   assert.equal(result.issue.state, 'open');
   assert.equal(result.issue.stateReason, null);
   assert.match(result.issue.body, /Human note: please keep this prose/);
+});
+
+test('reopening a completed brief clears completion and evidence state', async () => {
+  const issue = {
+    id: 6000, number: 600, title: 'Legacy execution brief',
+    body: `Human note: preserve this too.\n\nMigration ID: DOW-BRIEF-PC10-TEST\nReadiness: ready-for-agent\nExecution: paused\nSource reference: docs/pc10-tickets/61-pt7.md#pt7\n`,
+    state: 'open', state_reason: null,
+  };
+  const record = {
+    legacyId: 'brief-test', migrationId: 'DOW-BRIEF-PC10-TEST', recordKind: 'execution-brief',
+    issueId: 6000, issueNumber: 600, sourceReferences: ['docs/pc10-tickets/61-pt7.md#pt7'],
+    parentMigrationIds: [], blockedByMigrationIds: [],
+  };
+  const transport = fakeTransport([issue]);
+  await updateGitHubIssueState({
+    transport,
+    issueNumber: 600,
+    expectedRecord: record,
+    changes: { closeAs: 'completed', reviewed: true, accepted: true, evidenceReferences: [evidenceReference] },
+  });
+  const reopened = await updateGitHubIssueState({ transport, issueNumber: 600, expectedRecord: record, changes: { reopen: true } });
+  assert.equal(reopened.issue.state, 'open');
+  assert.equal(reopened.fields.Completion, undefined);
+  assert.equal(reopened.fields['Evidence references'], undefined);
+  const refreshed = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk: crosswalkFor([record]) });
+  assert.equal(refreshed.issueStates[0].completion, 'not-closed');
+  assert.deepEqual(refreshed.issueStates[0].evidenceReferences, []);
 });
 
 test('manual incomplete status change preserves the prior reopen status', async () => {
