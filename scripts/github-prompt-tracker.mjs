@@ -138,6 +138,7 @@ function normalizeCrosswalk(crosswalk, sourceText, catalog) {
     marker: record.migrationId,
     parentMarkers: record.parentMigrationIds ?? [],
     blockedByMarkers: record.blockedByMigrationIds ?? [],
+    equivalentBlockedByMarkers: record.equivalentBlockedByMigrationIds ?? [],
   }));
   if (crosswalk.sourceSha256 !== sha256(sourceText)) {
     const prompts = new Map(catalog.prompts.map((prompt) => [prompt.id.toUpperCase(), prompt]));
@@ -183,6 +184,23 @@ export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswal
   if (!sourceText) throw new Error('A source catalog snapshot is required');
   const catalog = loadPromptCatalog({ source: sourceText });
   const expected = markerIndex(normalizeCrosswalk(crosswalk, sourceText, catalog), 'Public crosswalk');
+  for (const [marker, record] of expected) {
+    for (const [label, references] of [
+      ['parent', record.parentMarkers],
+      ['native blocker', record.blockedByMarkers],
+      ['equivalent blocker', record.equivalentBlockedByMarkers],
+    ]) {
+      if (!Array.isArray(references) || references.some((reference) => typeof reference !== 'string' || !expected.has(reference))) {
+        throw new Error(`Public crosswalk has an invalid ${label} reference for ${marker}`);
+      }
+      if (new Set(references).size !== references.length || references.includes(marker)) {
+        throw new Error(`Public crosswalk has duplicate or self-referential ${label} for ${marker}`);
+      }
+    }
+    if (record.blockedByMarkers.some((reference) => record.equivalentBlockedByMarkers.includes(reference))) {
+      throw new Error(`Public crosswalk duplicates a native and equivalent blocker for ${marker}`);
+    }
+  }
   const issues = await transport.listIssues();
   if (!Array.isArray(issues)) throw new Error('GitHub issue snapshot is incomplete');
   const byMarker = new Map();
@@ -261,6 +279,9 @@ export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswal
       readiness: fields.Readiness ?? null,
       execution: fields.Execution ?? null,
       hold: fields.Hold ?? null,
+      nativeParentMigrationIds: planned.parentMarkers,
+      nativeBlockedByMigrationIds: planned.blockedByMarkers,
+      blockedByMigrationIds: [...new Set([...planned.blockedByMarkers, ...planned.equivalentBlockedByMarkers])].sort(),
       completion,
       evidenceReferences: hasAcceptedEvidence ? evidence : [],
     });
