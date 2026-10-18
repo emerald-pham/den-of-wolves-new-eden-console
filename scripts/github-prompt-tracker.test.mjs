@@ -185,7 +185,7 @@ test('refresh rejects drift in the imported future hold wording', async () => {
       parentMigrationIds: [],
       blockedByMigrationIds: [],
     }]),
-  }), /future hold provenance mismatch/);
+  }), /Future hold provenance mismatch/);
 });
 
 test('field updates cannot rewrite a held future brief source hold', async () => {
