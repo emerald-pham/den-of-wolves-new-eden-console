@@ -141,13 +141,23 @@ function normalizeCrosswalk(crosswalk, sourceText, catalog) {
     equivalentBlockedByMarkers: record.equivalentBlockedByMigrationIds ?? [],
   }));
   if (crosswalk.sourceSha256 !== sha256(sourceText)) {
-    const prompts = new Map(catalog.prompts.map((prompt) => [prompt.id.toUpperCase(), prompt]));
-    const immutableRowsMatch = records.filter((record) => record.recordKind === 'prompt-acceptance').every((record) => {
-      const prompt = prompts.get(record.legacyId.toUpperCase());
-      if (!prompt || typeof record.sourceSha256 !== 'string' || !record.initialStatus) return false;
-      return sha256(stableCompactJson({ ...prompt, status: record.initialStatus })) === record.sourceSha256;
+    const prompts = new Map(records.filter(({ recordKind }) => recordKind === 'prompt-acceptance')
+      .map((record) => [record.legacyId.toUpperCase(), record]));
+    const restoredPrompts = catalog.prompts.map((prompt) => {
+      const record = prompts.get(prompt.id.toUpperCase());
+      if (!record) return prompt;
+      if (typeof record.sourceSha256 !== 'string' || !PROMPT_STATUSES.has(record.initialStatus)) {
+        throw new Error('Public crosswalk source snapshot hash mismatch');
+      }
+      const original = { ...prompt, status: record.initialStatus };
+      if (sha256(stableCompactJson(original)) !== record.sourceSha256) {
+        throw new Error('Public crosswalk source snapshot hash mismatch');
+      }
+      return original;
     });
-    if (!immutableRowsMatch) throw new Error('Public crosswalk source snapshot hash mismatch');
+    if (sha256(stableCatalogJson({ ...catalog, prompts: restoredPrompts })) !== crosswalk.sourceSha256) {
+      throw new Error('Public crosswalk source snapshot hash mismatch');
+    }
   }
   return records;
 }
