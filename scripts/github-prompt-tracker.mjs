@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { loadPromptCatalog, stableCatalogJson } from './prompt-catalog.mjs';
+import { loadPromptCatalog, stableCatalogJson, validatePromptCatalog } from './prompt-catalog.mjs';
 
 const API_ROOT = 'https://api.github.com';
 const API_VERSION = '2026-03-10';
@@ -194,7 +194,7 @@ function sameSet(left, right) {
 }
 
 /** Read one complete tracker snapshot and overlay only issue-owned mutable prompt status. */
-export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, completionDecisions = {}, cwd = process.cwd() } = {}) {
+export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, completionDecisions = {}, cwd = process.cwd(), allowInvalidCatalog = false } = {}) {
   if (typeof transport?.listIssues !== 'function' || typeof transport?.getRelationships !== 'function') {
     throw new Error('Tracker transport must provide listIssues and getRelationships');
   }
@@ -361,11 +361,16 @@ export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswal
     if (!PROMPT_STATUSES.has(status)) throw new Error(`Cannot restore an incomplete status for ${marker}`);
     prompt.status = status;
   }
+  const catalogValidationErrors = validatePromptCatalog(catalog);
+  if (catalogValidationErrors.length && !allowInvalidCatalog) {
+    throw new Error(`GitHub tracker projection is invalid: ${catalogValidationErrors.join('; ')}`);
+  }
   return {
     catalog,
     catalogSource: stableCatalogJson(catalog),
     sourceSha256: sha256(sourceText),
     issueStates,
+    catalogValidationErrors,
     issueCount: byMarker.size,
     issueSnapshotSha256: sha256(JSON.stringify(issues.map((issue) => ({ id: issue.id, number: issue.number, body: issue.body, state: issue.state, stateReason: issue.stateReason ?? issue.state_reason ?? null })).sort((a, b) => a.number - b.number))),
   };
@@ -677,7 +682,7 @@ async function runCommand({ command, options, cwd = process.cwd() }) {
 
   const issueNumber = Number(options.issue);
   if (!Number.isSafeInteger(issueNumber) || issueNumber < 1) throw new Error('update requires a valid --issue number');
-  const baseline = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, cwd });
+  const baseline = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, cwd, allowInvalidCatalog: true });
   const record = crosswalk.records.find(({ issueNumber: number }) => number === issueNumber);
   if (!record) throw new Error(`Issue #${issueNumber} is not in the verified public crosswalk`);
   const changes = {};
