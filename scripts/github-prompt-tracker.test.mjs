@@ -278,6 +278,17 @@ test('completed issue reopens with its prior incomplete status', async () => {
   assert.match(result.issue.body, /Human note: please keep this prose/);
 });
 
+test('manual incomplete status change preserves the prior reopen status', async () => {
+  const issue = promptIssue({
+    body: `${promptIssue().body}\n<!-- DOW-TRACKER-OWNED-START -->\nPrompt status: done\nPrevious incomplete status: partial\nCompletion: reviewed-accepted\nEvidence references: ${evidenceReference}\n<!-- DOW-TRACKER-OWNED-END -->\n`,
+    state: 'closed',
+    state_reason: 'completed',
+  });
+  const result = await updateGitHubIssueState({ transport: fakeTransport([issue]), issueNumber: 181, changes: { status: 'missing' } });
+  assert.equal(result.fields['Prompt status'], 'missing');
+  assert.equal(result.fields['Previous incomplete status'], 'partial');
+});
+
 test('brief closure requires accepted local evidence and refresh reports completion', async () => {
   const issue = {
     id: 6000,
