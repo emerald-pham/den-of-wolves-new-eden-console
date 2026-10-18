@@ -5,7 +5,11 @@ import {
   allocateHummingbirdHarvest,
   rollHummingbirdHarvest,
 } from '@/lib/hummingbirdHarvestService';
-import { captureSessionAuthority, isCurrentSessionAuthority, type SessionAuthorityCheckpoint } from '@/lib/sessionMutationAuthority';
+import {
+  captureHummingbirdHarvestAuthority,
+  isCurrentHummingbirdHarvestAuthority,
+  type HummingbirdHarvestAuthority,
+} from '@/lib/hummingbirdHarvestAuthority';
 import { phaseForSession } from '@/lib/turnPhase';
 import { commandErrorCode, normalizeCommandError } from '@/lib/commandErrors';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -14,14 +18,6 @@ import HummingbirdHarvestChoices, { type HummingbirdHarvestAttempt } from './Hum
 interface Props {
   readonly docking?: ShuttleDocking | undefined;
   readonly fuelled: boolean;
-}
-
-interface HarvestAuthority {
-  readonly sessionId: string;
-  readonly uid: string;
-  readonly turn: number;
-  readonly hostShipId: string;
-  readonly checkpoint: SessionAuthorityCheckpoint;
 }
 
 function errorMessage(error: unknown): string {
@@ -40,35 +36,13 @@ function explorerIsEntitled(me: Player | null): boolean {
     typeof me.replacementRoleId !== 'string' && me.replacementStatus == null;
 }
 
-function authorityForCurrentStore(expectedHostShipId?: string): HarvestAuthority | undefined {
-  const state = useSessionStore.getState();
-  const session = state.session;
-  const me = state.me;
-  const hostShipId = uniqueHummingbirdHost(session);
-  const turn = session?.currentTurn ?? 1;
-  const phase = session ? phaseForSession(session) : undefined;
-  if (!session || !me || me.sessionId !== session.id || !explorerIsEntitled(me) ||
-      !session.activeRoleIds?.includes('quellon-explorer') ||
-      session.phase !== 'active' || !Number.isSafeInteger(turn) || turn < 1 ||
-      !hostShipId || (expectedHostShipId !== undefined && hostShipId !== expectedHostShipId) ||
-      !session.activeVesselIds?.includes(hostShipId) || !session.activeVesselIds.includes('quellon') ||
-      session.shuttleFuelled?.hummingbird !== true ||
-      phase?.airspace.state !== 'lifted' ||
-      state.connection !== 'live' || state.sessionSnapshotFreshness !== 'server' ||
-      !window.navigator.onLine) {
+function authorityForCurrentStore(expectedHostShipId: string): HummingbirdHarvestAuthority | undefined {
+  try {
+    const authority = captureHummingbirdHarvestAuthority();
+    return authority.hostShipId === expectedHostShipId ? authority : undefined;
+  } catch {
     return undefined;
   }
-  const checkpoint = captureSessionAuthority(session.id, me.uid);
-  return checkpoint
-    ? { sessionId: session.id, uid: me.uid, turn, hostShipId, checkpoint }
-    : undefined;
-}
-
-function authorityIsCurrent(expected: HarvestAuthority): boolean {
-  if (!isCurrentSessionAuthority(expected.checkpoint)) return false;
-  const current = authorityForCurrentStore(expected.hostShipId);
-  return current?.sessionId === expected.sessionId && current.uid === expected.uid &&
-    current.turn === expected.turn && current.hostShipId === expected.hostShipId;
 }
 
 function isUncertainTransportFailure(error: unknown): boolean {
@@ -206,7 +180,7 @@ export default function HummingbirdHarvest({ docking, fuelled }: Props) {
           attempt.foodDieIndex,
           attempt.requestId,
         );
-      if (!authorityIsCurrent(authority)) {
+      if (!isCurrentHummingbirdHarvestAuthority(authority)) {
         setAttempt(null);
         return;
       }
@@ -227,7 +201,7 @@ export default function HummingbirdHarvest({ docking, fuelled }: Props) {
           : 'Harvest changed // review the current private roll before choosing again.');
       }
     } catch (cause) {
-      if (!authorityIsCurrent(authority)) {
+      if (!isCurrentHummingbirdHarvestAuthority(authority)) {
         setAttempt(null);
         return;
       }
