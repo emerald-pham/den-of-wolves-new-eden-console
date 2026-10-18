@@ -139,6 +139,7 @@ function normalizeCrosswalk(crosswalk, sourceText, catalog) {
     parentMarkers: record.parentMigrationIds ?? [],
     blockedByMarkers: record.blockedByMigrationIds ?? [],
     equivalentBlockedByMarkers: record.equivalentBlockedByMigrationIds ?? [],
+    sourceBlockedByBriefIds: record.sourceBlockedByBriefIds ?? null,
   }));
   if (crosswalk.sourceSha256 !== sha256(sourceText)) {
     const prompts = new Map(records.filter(({ recordKind }) => recordKind === 'prompt-acceptance')
@@ -254,14 +255,37 @@ export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswal
     const logicalBlockers = [...planned.blockedByMarkers, ...planned.equivalentBlockedByMarkers];
     const sourceBlockIds = legacyField(issue.body, 'Blocked-by brief IDs');
     const expectedSourceBlockIds = logicalBlockers.map((blocker) => expected.get(blocker).legacyId);
-    if ((sourceBlockIds !== null || logicalBlockers.length > 0)
-        && !sameSet(parseList(sourceBlockIds), expectedSourceBlockIds)) {
-      throw new Error(`Source blocker documentation mismatch for ${marker}`);
-    }
-    const equivalentBody = legacyField(issue.body, 'Equivalent blocked-by issue references');
-    if ((equivalentBody !== null || planned.equivalentBlockedByMarkers.length > 0)
-        && !sameSet(parseList(equivalentBody), planned.equivalentBlockedByMarkers)) {
-      throw new Error(`Equivalent blocker documentation mismatch for ${marker}`);
+    if (planned.recordKind !== 'prompt-acceptance') {
+      if (planned.sourceBlockedByBriefIds !== null) {
+        if (!Array.isArray(planned.sourceBlockedByBriefIds)
+            || planned.sourceBlockedByBriefIds.some((id) => typeof id !== 'string')
+            || new Set(planned.sourceBlockedByBriefIds).size !== planned.sourceBlockedByBriefIds.length) {
+          throw new Error(`Source blocker crosswalk is invalid for ${marker}`);
+        }
+        const sourceIds = planned.sourceBlockedByBriefIds;
+        const mapped = new Set(expectedSourceBlockIds);
+        const declared = new Set(sourceIds);
+        if (expectedSourceBlockIds.some((id) => !declared.has(id))
+            || sourceBlockIds === null || !sameSet(parseList(sourceBlockIds), sourceIds)) {
+          throw new Error(`Source blocker documentation mismatch for ${marker}`);
+        }
+        const retained = new Map((crosswalk.retainedBriefReferences ?? []).map((item) => [item.sourceId, item]));
+        for (const id of sourceIds.filter((sourceId) => !mapped.has(sourceId))) {
+          const retainedReference = retained.get(id);
+          const historyReference = retainedReference && `${retainedReference.sourceReference}#${id}`;
+          if (!retainedReference || !(planned.historyReferences ?? []).includes(historyReference)) {
+            throw new Error(`Retained source blocker history mismatch for ${marker}`);
+          }
+        }
+      } else if ((sourceBlockIds !== null || logicalBlockers.length > 0)
+          && !sameSet(parseList(sourceBlockIds), expectedSourceBlockIds)) {
+        throw new Error(`Source blocker documentation mismatch for ${marker}`);
+      }
+      const equivalentBody = legacyField(issue.body, 'Equivalent blocked-by issue references');
+      if ((equivalentBody !== null || planned.equivalentBlockedByMarkers.length > 0)
+          && !sameSet(parseList(equivalentBody), planned.equivalentBlockedByMarkers)) {
+        throw new Error(`Equivalent blocker documentation mismatch for ${marker}`);
+      }
     }
     const fields = ownedFieldsForIssue(issue);
     if (planned.recordKind === 'held-future-brief') {
