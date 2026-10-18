@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import pc06DeploymentConsumers from './pc06-deployment-consumers.json' with { type: 'json' };
 import pc07DeploymentConsumers from './pc07-deployment-consumers.json' with { type: 'json' };
 import pc08DeploymentConsumers from './pc08-deployment-consumers.json' with { type: 'json' };
@@ -39,9 +40,20 @@ const FIRESTORE_FILES = new Set([
 
 const TOOLING_ONLY_FILES = new Set([
   'docs/implementation-prompts.json',
+  'docs/tracker/github-crosswalk.json',
+  'docs/tracker/github-snapshot.json',
+  'scripts/github-prompt-tracker.mjs',
+  'scripts/github-prompt-tracker.test.mjs',
+  'scripts/prompt-tracker-consumers.test.mjs',
+  'scripts/tracker-risk-gate.test.mjs',
   ...GENERATED_ROADMAP_FILES,
   'config/render-performance-baseline.json',
 ]);
+
+const TRACKER_PACKAGE_SCRIPT_ADDITIONS = Object.freeze({
+  'prompt-tracker': 'node scripts/github-prompt-tracker.mjs',
+  'test:prompt-tracker': 'node --test scripts/prompt-tracker-consumers.test.mjs scripts/github-prompt-tracker.test.mjs scripts/tracker-risk-gate.test.mjs',
+});
 
 const CANDIDATE_REVEAL_CALLABLES = Object.freeze([
   'advanceTurn', 'assignReplacementRole', 'confirmSetup', 'joinSession', 'jumpShip',
@@ -424,6 +436,7 @@ function addAllTargets(targets) {
 export function classifyChangedFiles(files, {
   manual = false,
   versionMetadataOnly = false,
+  packageJsonChange,
 } = {}) {
   if (manual) {
     return {
@@ -440,6 +453,10 @@ export function classifyChangedFiles(files, {
   const normalizedFiles = [...new Set(files.map(normalizeFile).filter(Boolean))].sort();
 
   for (const file of normalizedFiles) {
+    if (file === 'package.json' && isTrackerPackageScriptAddition(packageJsonChange)) {
+      ignoredFiles.push(file);
+      continue;
+    }
     if (isDocumentation(file) || isTestFile(file) || isToolingOnly(file) ||
         (file.startsWith('evidence/') && file.toLowerCase().endsWith('.png'))) {
       ignoredFiles.push(file);
@@ -476,6 +493,29 @@ export function classifyChangedFiles(files, {
     ignoredFiles,
     riskGates: classifyRiskGates(normalizedFiles, { manual, versionMetadataOnly }),
   };
+}
+
+function isTrackerPackageScriptAddition(change) {
+  const beforePackage = change?.beforePackage;
+  const afterPackage = change?.afterPackage;
+  const beforeScripts = beforePackage?.scripts;
+  const afterScripts = afterPackage?.scripts;
+  if (!beforeScripts || !afterScripts || typeof beforeScripts !== 'object' ||
+      typeof afterScripts !== 'object' || Array.isArray(beforeScripts) || Array.isArray(afterScripts)) {
+    return false;
+  }
+  for (const [name, command] of Object.entries(TRACKER_PACKAGE_SCRIPT_ADDITIONS)) {
+    if (Object.hasOwn(beforeScripts, name) || afterScripts[name] !== command) return false;
+  }
+  const scriptsWithoutTrackerCommands = structuredClone(afterScripts);
+  for (const name of Object.keys(TRACKER_PACKAGE_SCRIPT_ADDITIONS)) {
+    delete scriptsWithoutTrackerCommands[name];
+  }
+  return isDeepStrictEqual(beforeScripts, scriptsWithoutTrackerCommands) &&
+    isDeepStrictEqual(
+      Object.fromEntries(Object.entries(beforePackage).filter(([key]) => key !== 'scripts')),
+      Object.fromEntries(Object.entries(afterPackage).filter(([key]) => key !== 'scripts')),
+    );
 }
 
 function jsonAtRevision(revision, file, cwd = process.cwd()) {
@@ -570,7 +610,13 @@ export function classifyDeploymentRange({
   }
   const files = changedFiles ?? filesFromGit(before, after, cwd);
   const metadataOnly = versionMetadataOnly ?? versionMetadataOnlyForRange(before, after, files, cwd);
-  const classification = classifyChangedFiles(files, { versionMetadataOnly: metadataOnly });
+  const classification = classifyChangedFiles(files, {
+    versionMetadataOnly: metadataOnly,
+    packageJsonChange: files.includes('package.json') ? {
+      beforePackage: jsonAtRevision(before, 'package.json', cwd),
+      afterPackage: jsonAtRevision(after, 'package.json', cwd),
+    } : undefined,
+  });
   const verificationBaselineAncestry = Boolean(
     verificationBefore && isAncestor(verificationBefore, after),
   );

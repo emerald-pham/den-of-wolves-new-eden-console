@@ -10,10 +10,13 @@ Live deployment: [dow-new-eden-console.web.app](https://dow-new-eden-console.web
 
 ## Status and documentation
 
-The game is under staged development. The [JSON catalog](docs/implementation-prompts.json)
-owns prompt definitions, completion, dependencies and release evidence. Its
-generated Markdown views are convenient reading copies. Local green checks and
-a deployed build do not establish that the entire game is complete.
+The game is under staged development. GitHub issues are the mutable authority
+for migrated prompt and brief tracking state, using the sanitized
+[crosswalk](docs/tracker/github-crosswalk.json). The [JSON catalog](docs/implementation-prompts.json)
+is an offline snapshot that retains definitions, completion history,
+dependencies and release evidence. Its generated Markdown views are convenient
+reading copies. Local green checks and a deployed build do not establish that
+the entire game is complete.
 
 Start with [CLAUDE.md](CLAUDE.md) for repository policy and the
 [documentation map](docs/README.md) for the right contract, checkpoint or report.
@@ -23,9 +26,15 @@ and targets. The [implementation plan](docs/IMPLEMENTATION_PLAN.md) is generated
 from the catalog's objectives and acceptance criteria.
 
 For prompt readiness, `npm run coordination:dependencies -- --prompt NNN` is
-read-only and creates no nonce or receipt. `NEXT` is a ready-work hint. After
-catalog edits, run `node scripts/generate-prompt-views.mjs`; `--check` verifies
-the generated views. Freeze accepted scope and queue unrelated additions.
+read-only and creates no nonce or receipt. `NEXT` is a ready-work hint. Refresh
+or update migrated issue state with `npm run prompt-tracker -- refresh` or
+`npm run prompt-tracker -- update --issue NUMBER ...`; use
+`npm run prompt-tracker -- export` to regenerate saved Markdown views offline.
+`npm run prompt-tracker -- refresh --check` checks for stale snapshots. Ordinary
+catalog consumers and CI remain offline. For definition changes, run
+`npm run roadmap:generate`; `npm run roadmap:check` verifies the views. Freeze
+accepted scope and queue unrelated additions.
+The roadmap generator underneath is `node scripts/generate-prompt-views.mjs`.
 
 The target is one 20-player game with up to 60 concurrent browser clients. The
 normal core roster is 8–20; optional Press and GM holders do not count toward

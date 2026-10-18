@@ -14,7 +14,7 @@ the source plan. Open or blocked prompts remain unchecked there so a later
 session can resume at the first unresolved acceptance.
 
 <!-- BEGIN GENERATED PROMPT CATALOG: progress -->
-<!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
+<!-- Generated from the saved docs/implementation-prompts.json snapshot; after tracker state changes, run npm run prompt-tracker -- export. -->
 ## Progress
 
 **703 / 751 prompts complete (93.61%)**

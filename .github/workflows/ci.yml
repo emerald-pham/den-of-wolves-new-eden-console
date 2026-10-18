@@ -11,8 +11,12 @@ on:
       - 'docs/IMPLEMENTATION_PROGRESS.md'
       - 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md'
       - 'CLAUDE.md'
+      - 'AGENTS.md'
+      - 'README.md'
+      - 'docs/README.md'
       - 'docs/WORKTREE_COORDINATION.md'
       - 'docs/AGENT_CAMPAIGN_PLAYBOOK.md'
+      - 'docs/agents/issue-tracker.md'
   push:
     branches-ignore: [main]
     paths:
@@ -24,8 +28,12 @@ on:
       - 'docs/IMPLEMENTATION_PROGRESS.md'
       - 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md'
       - 'CLAUDE.md'
+      - 'AGENTS.md'
+      - 'README.md'
+      - 'docs/README.md'
       - 'docs/WORKTREE_COORDINATION.md'
       - 'docs/AGENT_CAMPAIGN_PLAYBOOK.md'
+      - 'docs/agents/issue-tracker.md'
   workflow_call:
     inputs:
       ref:
@@ -183,6 +191,7 @@ jobs:
             [[ "$WEB_BUILD_REQUIRED" == "true" ]] && run_web_build=true
             echo "documentation_only=false" >> "$GITHUB_OUTPUT"
             echo "roadmap_changed=true" >> "$GITHUB_OUTPUT"
+            echo "tracker_changed=false" >> "$GITHUB_OUTPUT"
             echo "root_install=true" >> "$GITHUB_OUTPUT"
             echo "functions_install=$has_functions" >> "$GITHUB_OUTPUT"
             echo "lint=true" >> "$GITHUB_OUTPUT"
@@ -224,6 +233,10 @@ jobs:
       - name: Check prompt catalog and generated views
         if: steps.change_scope.outputs.roadmap_changed == 'true'
         run: npm run roadmap:check
+
+      - name: Check GitHub tracker consumers
+        if: steps.change_scope.outputs.tracker_changed == 'true'
+        run: npm run test:prompt-tracker
 
       - name: Validate documentation
         if: steps.change_scope.outputs.documentation_only == 'true' || steps.change_scope.outputs.exact_head_commit == 'true'

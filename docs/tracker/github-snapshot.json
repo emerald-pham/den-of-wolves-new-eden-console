@@ -1,0 +1,2899 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-18T20:22:22.600Z",
+  "originSourceSha256": "8536b573f44cde0e480b12cf427c3bb5668f33d6564f393572964f1679086f3f",
+  "catalogSha256": "8536b573f44cde0e480b12cf427c3bb5668f33d6564f393572964f1679086f3f",
+  "issueStates": [
+    {
+      "migrationId": "DOW-PROMPT-181",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-215B",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-223B",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-233B",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-541",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "partial",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-542",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-541"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-541"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-543",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-541"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-541"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-544",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-541"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-541"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-545",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-544"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-544"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-546",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-545"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-545"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-547",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-545"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-545"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-548",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-546",
+        "DOW-PROMPT-547"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-546",
+        "DOW-PROMPT-547"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-549",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-548"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-548"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-550",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-551",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-550"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-550"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-552",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-551"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-551"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-553",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-551",
+        "DOW-PROMPT-552"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-551",
+        "DOW-PROMPT-552"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-554",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-551",
+        "DOW-PROMPT-553"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-551",
+        "DOW-PROMPT-553"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-555",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-556",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-555"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-555"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-557",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-556"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-556"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-558",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-557"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-557"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-559",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-558"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-558"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-563",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-541"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-541"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-564",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-563"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-563"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-565",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-564"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-564"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-566",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-565"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-565"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-576",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-579",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-581",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-584",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-585",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-584"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-584"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-593",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-541"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-541"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-618",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "partial",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-619",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-542"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-542"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-620",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "partial",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-629",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "partial",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-630",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-631",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "partial",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-634",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-630"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-630"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-635",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "partial",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-641",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-642",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-584"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-584"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-647",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-548",
+        "DOW-PROMPT-559"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-548",
+        "DOW-PROMPT-559"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-648",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-554"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-554"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-649",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-559"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-559"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-650",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-565"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-565"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-PROMPT-651",
+      "recordKind": "prompt-acceptance",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": "missing",
+      "readiness": null,
+      "execution": null,
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-PROMPT-641",
+        "DOW-PROMPT-642",
+        "DOW-PROMPT-647",
+        "DOW-PROMPT-648",
+        "DOW-PROMPT-649",
+        "DOW-PROMPT-650"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-PROMPT-641",
+        "DOW-PROMPT-642",
+        "DOW-PROMPT-647",
+        "DOW-PROMPT-648",
+        "DOW-PROMPT-649",
+        "DOW-PROMPT-650"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-01-W1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-181"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-02-W2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-181"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-03-S1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-215B"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-04-S2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-215B"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-05-X1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-223B"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-06-X2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-223B"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-07-P1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-233B"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-08-P2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-233B"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-09-C1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-576"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-10-C2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-579"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-11-C3",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-581"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-12A-C4A",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-584"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-12B-C4B",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-584"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-09-C1",
+        "DOW-BRIEF-10-C2",
+        "DOW-BRIEF-11-C3",
+        "DOW-BRIEF-12A-C4A"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-09-C1",
+        "DOW-BRIEF-10-C2",
+        "DOW-BRIEF-11-C3",
+        "DOW-BRIEF-12A-C4A"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-12-C4",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-584"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-12B-C4B"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-12B-C4B"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-13-C5",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-585"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-12-C4"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-12-C4"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-14-D1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-15-D2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-14-D1"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-14-D1"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-16-R1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-14-D1"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-14-D1"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-17-R2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-16-R1"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-16-R1"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-18-N1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-19-N2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-18-N1"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-18-N1"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-20-A1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-21-A2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-20-A1"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-20-A1"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-22-E1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-14-D1"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-14-D1"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-23-E2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-22-E1"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-22-E1"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-24-L1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-618"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-25-L2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-618"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-26-L3",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-618"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-24-L1",
+        "DOW-BRIEF-25-L2"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-24-L1",
+        "DOW-BRIEF-25-L2"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-27-T1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-620"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-28-T2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-620"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-27-T1"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-27-T1"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-29-Y1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-619"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-14-D1",
+        "DOW-BRIEF-17-R2"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-14-D1",
+        "DOW-BRIEF-17-R2"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-30-Y2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-619"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-14-D1",
+        "DOW-BRIEF-19-N2"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-14-D1",
+        "DOW-BRIEF-19-N2"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-31-Y3",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-619"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-14-D1",
+        "DOW-BRIEF-21-A2"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-14-D1",
+        "DOW-BRIEF-21-A2"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-32-Q1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-629"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-33-Q2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-629"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-34-Q3",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-629"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-35-U1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-630"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-36-U2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-630"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-37-B1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-631"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-38-B2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-634"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-35-U1",
+        "DOW-BRIEF-36-U2"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-35-U1",
+        "DOW-BRIEF-36-U2"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-39-J1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-635"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-40-J2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-635"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-39-J1"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-39-J1"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-41-V1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-647"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-17-R2",
+        "DOW-BRIEF-21-A2",
+        "DOW-BRIEF-23-E2",
+        "DOW-BRIEF-29-Y1"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-17-R2",
+        "DOW-BRIEF-21-A2",
+        "DOW-BRIEF-23-E2",
+        "DOW-BRIEF-29-Y1"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-50-H1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-642"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-12-C4",
+        "DOW-BRIEF-13-C5"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-12-C4",
+        "DOW-BRIEF-13-C5"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-51-H2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-642"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-12-C4",
+        "DOW-BRIEF-19-N2",
+        "DOW-BRIEF-30-Y2",
+        "DOW-BRIEF-50-H1"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-12-C4",
+        "DOW-BRIEF-19-N2",
+        "DOW-BRIEF-30-Y2",
+        "DOW-BRIEF-50-H1"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-42-V2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-648"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-19-N2",
+        "DOW-BRIEF-23-E2",
+        "DOW-BRIEF-30-Y2",
+        "DOW-BRIEF-51-H2"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-19-N2",
+        "DOW-BRIEF-23-E2",
+        "DOW-BRIEF-30-Y2",
+        "DOW-BRIEF-51-H2"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-43-V3",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-649"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-21-A2",
+        "DOW-BRIEF-23-E2",
+        "DOW-BRIEF-31-Y3"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-21-A2",
+        "DOW-BRIEF-23-E2",
+        "DOW-BRIEF-31-Y3"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-44-F1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-650"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-23-E2"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-23-E2"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-46-F3",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-650"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-23-E2"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-23-E2"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-46A-F3A",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "planning-only",
+      "execution": "checkpoint-gated",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-650"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-56A-PT2A",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "planning-only",
+      "execution": "checkpoint-gated",
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-47-G1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-641"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-56A-PT2A"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-56A-PT2A"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-48-G2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-641"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-23-E2",
+        "DOW-BRIEF-47-G1"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-23-E2",
+        "DOW-BRIEF-47-G1"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-49-G3",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-641"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-26-L3",
+        "DOW-BRIEF-28-T2",
+        "DOW-BRIEF-48-G2"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-26-L3",
+        "DOW-BRIEF-28-T2",
+        "DOW-BRIEF-48-G2"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-52-H3",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-642"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-12-C4",
+        "DOW-BRIEF-26-L3",
+        "DOW-BRIEF-28-T2",
+        "DOW-BRIEF-51-H2"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-12-C4",
+        "DOW-BRIEF-26-L3",
+        "DOW-BRIEF-28-T2",
+        "DOW-BRIEF-51-H2"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-53A-Z1A",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "planning-only",
+      "execution": "checkpoint-gated",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-651"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-53-Z1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-651"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-01-W1",
+        "DOW-BRIEF-02-W2",
+        "DOW-BRIEF-03-S1",
+        "DOW-BRIEF-04-S2",
+        "DOW-BRIEF-05-X1",
+        "DOW-BRIEF-06-X2",
+        "DOW-BRIEF-07-P1",
+        "DOW-BRIEF-08-P2",
+        "DOW-BRIEF-09-C1",
+        "DOW-BRIEF-10-C2",
+        "DOW-BRIEF-11-C3",
+        "DOW-BRIEF-12-C4",
+        "DOW-BRIEF-13-C5",
+        "DOW-BRIEF-14-D1",
+        "DOW-BRIEF-15-D2",
+        "DOW-BRIEF-16-R1",
+        "DOW-BRIEF-17-R2",
+        "DOW-BRIEF-18-N1",
+        "DOW-BRIEF-19-N2",
+        "DOW-BRIEF-20-A1",
+        "DOW-BRIEF-21-A2",
+        "DOW-BRIEF-22-E1",
+        "DOW-BRIEF-23-E2",
+        "DOW-BRIEF-24-L1",
+        "DOW-BRIEF-25-L2",
+        "DOW-BRIEF-26-L3",
+        "DOW-BRIEF-27-T1",
+        "DOW-BRIEF-28-T2",
+        "DOW-BRIEF-29-Y1",
+        "DOW-BRIEF-30-Y2",
+        "DOW-BRIEF-31-Y3",
+        "DOW-BRIEF-32-Q1",
+        "DOW-BRIEF-33-Q2",
+        "DOW-BRIEF-34-Q3",
+        "DOW-BRIEF-35-U1",
+        "DOW-BRIEF-36-U2",
+        "DOW-BRIEF-37-B1",
+        "DOW-BRIEF-38-B2",
+        "DOW-BRIEF-39-J1",
+        "DOW-BRIEF-40-J2",
+        "DOW-BRIEF-41-V1",
+        "DOW-BRIEF-42-V2",
+        "DOW-BRIEF-43-V3",
+        "DOW-BRIEF-44-F1",
+        "DOW-BRIEF-46-F3",
+        "DOW-BRIEF-46A-F3A",
+        "DOW-BRIEF-47-G1",
+        "DOW-BRIEF-48-G2",
+        "DOW-BRIEF-49-G3",
+        "DOW-BRIEF-50-H1"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-01-W1",
+        "DOW-BRIEF-02-W2",
+        "DOW-BRIEF-03-S1",
+        "DOW-BRIEF-04-S2",
+        "DOW-BRIEF-05-X1",
+        "DOW-BRIEF-06-X2",
+        "DOW-BRIEF-07-P1",
+        "DOW-BRIEF-08-P2",
+        "DOW-BRIEF-09-C1",
+        "DOW-BRIEF-10-C2",
+        "DOW-BRIEF-11-C3",
+        "DOW-BRIEF-12-C4",
+        "DOW-BRIEF-13-C5",
+        "DOW-BRIEF-14-D1",
+        "DOW-BRIEF-15-D2",
+        "DOW-BRIEF-16-R1",
+        "DOW-BRIEF-17-R2",
+        "DOW-BRIEF-18-N1",
+        "DOW-BRIEF-19-N2",
+        "DOW-BRIEF-20-A1",
+        "DOW-BRIEF-21-A2",
+        "DOW-BRIEF-22-E1",
+        "DOW-BRIEF-23-E2",
+        "DOW-BRIEF-24-L1",
+        "DOW-BRIEF-25-L2",
+        "DOW-BRIEF-26-L3",
+        "DOW-BRIEF-27-T1",
+        "DOW-BRIEF-28-T2",
+        "DOW-BRIEF-29-Y1",
+        "DOW-BRIEF-30-Y2",
+        "DOW-BRIEF-31-Y3",
+        "DOW-BRIEF-32-Q1",
+        "DOW-BRIEF-33-Q2",
+        "DOW-BRIEF-34-Q3",
+        "DOW-BRIEF-35-U1",
+        "DOW-BRIEF-36-U2",
+        "DOW-BRIEF-37-B1",
+        "DOW-BRIEF-38-B2",
+        "DOW-BRIEF-39-J1",
+        "DOW-BRIEF-40-J2",
+        "DOW-BRIEF-41-V1",
+        "DOW-BRIEF-42-V2",
+        "DOW-BRIEF-43-V3",
+        "DOW-BRIEF-44-F1",
+        "DOW-BRIEF-46-F3",
+        "DOW-BRIEF-46A-F3A",
+        "DOW-BRIEF-47-G1",
+        "DOW-BRIEF-48-G2",
+        "DOW-BRIEF-49-G3",
+        "DOW-BRIEF-50-H1",
+        "DOW-BRIEF-51-H2",
+        "DOW-BRIEF-52-H3",
+        "DOW-BRIEF-53A-Z1A"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-54-Z2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "paused",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-651"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-41-V1",
+        "DOW-BRIEF-42-V2",
+        "DOW-BRIEF-43-V3",
+        "DOW-BRIEF-44-F1",
+        "DOW-BRIEF-46-F3",
+        "DOW-BRIEF-47-G1",
+        "DOW-BRIEF-48-G2",
+        "DOW-BRIEF-49-G3",
+        "DOW-BRIEF-50-H1",
+        "DOW-BRIEF-51-H2",
+        "DOW-BRIEF-52-H3",
+        "DOW-BRIEF-53-Z1"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-41-V1",
+        "DOW-BRIEF-42-V2",
+        "DOW-BRIEF-43-V3",
+        "DOW-BRIEF-44-F1",
+        "DOW-BRIEF-46-F3",
+        "DOW-BRIEF-47-G1",
+        "DOW-BRIEF-48-G2",
+        "DOW-BRIEF-49-G3",
+        "DOW-BRIEF-50-H1",
+        "DOW-BRIEF-51-H2",
+        "DOW-BRIEF-52-H3",
+        "DOW-BRIEF-53-Z1"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-55-PT1",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "approved-repair",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-651"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-56B-PT2B",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "planning-only",
+      "execution": "checkpoint-gated",
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-56C-PT2C",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "planning-only",
+      "execution": "checkpoint-gated",
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-56-PT2",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "approved-repair",
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-56A-PT2A",
+        "DOW-BRIEF-56B-PT2B",
+        "DOW-BRIEF-56C-PT2C"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-56A-PT2A",
+        "DOW-BRIEF-56B-PT2B",
+        "DOW-BRIEF-56C-PT2C"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-57-PT3",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "approved-repair",
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-58-PT4",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "approved-repair",
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-59-PT5",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "ready-for-agent",
+      "execution": "approved-repair",
+      "hold": null,
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-61A-PT7A",
+      "recordKind": "execution-brief",
+      "state": "closed",
+      "stateReason": "completed",
+      "promptStatus": null,
+      "readiness": "planning-only",
+      "execution": "completed",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-651"
+      ],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "reviewed-complete",
+      "evidenceReferences": [
+        "docs/tracker/MIGRATION.md#inventory-and-recovery"
+      ]
+    },
+    {
+      "migrationId": "DOW-BRIEF-61B-PT7B",
+      "recordKind": "execution-brief",
+      "state": "closed",
+      "stateReason": "completed",
+      "promptStatus": null,
+      "readiness": "planning-only",
+      "execution": "completed",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-651"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-61A-PT7A"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-61A-PT7A"
+      ],
+      "completion": "reviewed-complete",
+      "evidenceReferences": [
+        "docs/tracker/MIGRATION.md#verified-import"
+      ]
+    },
+    {
+      "migrationId": "DOW-BRIEF-61-PT7",
+      "recordKind": "execution-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "migration-preparation",
+      "execution": "awaiting-verified-cutover",
+      "hold": null,
+      "nativeParentMigrationIds": [
+        "DOW-PROMPT-651"
+      ],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-61B-PT7B"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-61B-PT7B"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-ACCESS1-AUDIT-COLOR-ONLY-INFORMATION",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-ACCESS2-CHOOSE-DON-T-RELY-ON-COLOR-IN-SETTINGS",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-ACCESS1-AUDIT-COLOR-ONLY-INFORMATION"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-ACCESS1-AUDIT-COLOR-ONLY-INFORMATION"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-ACCESS3-READ-SHARED-STATES-WITHOUT-COLOR",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-ACCESS2-CHOOSE-DON-T-RELY-ON-COLOR-IN-SETTINGS"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-ACCESS2-CHOOSE-DON-T-RELY-ON-COLOR-IN-SETTINGS"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-ACCESS4-READ-MAP-AND-DRADIS-MEANING-WITHOUT-COLOR",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-ACCESS2-CHOOSE-DON-T-RELY-ON-COLOR-IN-SETTINGS"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-ACCESS2-CHOOSE-DON-T-RELY-ON-COLOR-IN-SETTINGS"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-ACCESS5-READ-REMAINING-GAME-OUTCOMES-WITHOUT-COLOR",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-ACCESS1-AUDIT-COLOR-ONLY-INFORMATION",
+        "DOW-BRIEF-ACCESS2-CHOOSE-DON-T-RELY-ON-COLOR-IN-SETTINGS"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-ACCESS1-AUDIT-COLOR-ONLY-INFORMATION",
+        "DOW-BRIEF-ACCESS2-CHOOSE-DON-T-RELY-ON-COLOR-IN-SETTINGS"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-ACCESS6-VERIFY-AND-RELEASE-COMPLETE-NON-COLOR-COVERAGE",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-ACCESS3-READ-SHARED-STATES-WITHOUT-COLOR",
+        "DOW-BRIEF-ACCESS4-READ-MAP-AND-DRADIS-MEANING-WITHOUT-COLOR",
+        "DOW-BRIEF-ACCESS5-READ-REMAINING-GAME-OUTCOMES-WITHOUT-COLOR"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-ACCESS3-READ-SHARED-STATES-WITHOUT-COLOR",
+        "DOW-BRIEF-ACCESS4-READ-MAP-AND-DRADIS-MEANING-WITHOUT-COLOR",
+        "DOW-BRIEF-ACCESS5-READ-REMAINING-GAME-OUTCOMES-WITHOUT-COLOR"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-ALERT1-REVIEW-THE-WOLF-ALERT-AFTER-REAL-PLAY",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-ALERT2-APPLY-OR-RECORD-THE-BOUNDED-ALERT-DECISION",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-ALERT1-REVIEW-THE-WOLF-ALERT-AFTER-REAL-PLAY"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-ALERT1-REVIEW-THE-WOLF-ALERT-AFTER-REAL-PLAY"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-GUI1-UNDERSTAND-ORDINARY-MOVEMENT-AND-JUMP-CHOICES",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-GUI10-UNDERSTAND-WAITING-STALE-AND-RECOVERY-STATES",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-GUI11-READ-AND-NAVIGATE-THE-COMPLETE-GUIDANCE",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-GUI2-UNDERSTAND-RESOURCE-AND-TRADE-HANDOFFS",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-GUI3-UNDERSTAND-SCOUTING-AND-DISCOVERY-RESULTS",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-GUI4-UNDERSTAND-RESEARCH-AND-SPECIALIST-CHOICES",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-GUI5-UNDERSTAND-MAINTENANCE-AND-MISSION-STEPS",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-GUI6-UNDERSTAND-COMBAT-WINGS-AND-BOARDING",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-GUI7-UNDERSTAND-PRIVATE-POLITICAL-AND-WOLF-ACTIONS",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-GUI8-UNDERSTAND-RING-NEBULA-AND-STATION-PREPARATION",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-GUI9-UNDERSTAND-ENDINGS-AND-ENTITLED-DEBRIEF-HISTORY",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-GUI12-COMPLETE-THE-REMAINING-CROSS-GAME-GUIDANCE-TOUR",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-GUI1-UNDERSTAND-ORDINARY-MOVEMENT-AND-JUMP-CHOICES",
+        "DOW-BRIEF-GUI10-UNDERSTAND-WAITING-STALE-AND-RECOVERY-STATES",
+        "DOW-BRIEF-GUI11-READ-AND-NAVIGATE-THE-COMPLETE-GUIDANCE",
+        "DOW-BRIEF-GUI2-UNDERSTAND-RESOURCE-AND-TRADE-HANDOFFS",
+        "DOW-BRIEF-GUI3-UNDERSTAND-SCOUTING-AND-DISCOVERY-RESULTS",
+        "DOW-BRIEF-GUI4-UNDERSTAND-RESEARCH-AND-SPECIALIST-CHOICES",
+        "DOW-BRIEF-GUI5-UNDERSTAND-MAINTENANCE-AND-MISSION-STEPS",
+        "DOW-BRIEF-GUI6-UNDERSTAND-COMBAT-WINGS-AND-BOARDING",
+        "DOW-BRIEF-GUI7-UNDERSTAND-PRIVATE-POLITICAL-AND-WOLF-ACTIONS",
+        "DOW-BRIEF-GUI8-UNDERSTAND-RING-NEBULA-AND-STATION-PREPARATION",
+        "DOW-BRIEF-GUI9-UNDERSTAND-ENDINGS-AND-ENTITLED-DEBRIEF-HISTORY"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-GUI1-UNDERSTAND-ORDINARY-MOVEMENT-AND-JUMP-CHOICES",
+        "DOW-BRIEF-GUI10-UNDERSTAND-WAITING-STALE-AND-RECOVERY-STATES",
+        "DOW-BRIEF-GUI11-READ-AND-NAVIGATE-THE-COMPLETE-GUIDANCE",
+        "DOW-BRIEF-GUI2-UNDERSTAND-RESOURCE-AND-TRADE-HANDOFFS",
+        "DOW-BRIEF-GUI3-UNDERSTAND-SCOUTING-AND-DISCOVERY-RESULTS",
+        "DOW-BRIEF-GUI4-UNDERSTAND-RESEARCH-AND-SPECIALIST-CHOICES",
+        "DOW-BRIEF-GUI5-UNDERSTAND-MAINTENANCE-AND-MISSION-STEPS",
+        "DOW-BRIEF-GUI6-UNDERSTAND-COMBAT-WINGS-AND-BOARDING",
+        "DOW-BRIEF-GUI7-UNDERSTAND-PRIVATE-POLITICAL-AND-WOLF-ACTIONS",
+        "DOW-BRIEF-GUI8-UNDERSTAND-RING-NEBULA-AND-STATION-PREPARATION",
+        "DOW-BRIEF-GUI9-UNDERSTAND-ENDINGS-AND-ENTITLED-DEBRIEF-HISTORY"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-OFF1-START-THE-LOCAL-GAME-HOST-WITHOUT-WAN",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [],
+      "blockedByMigrationIds": [],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-OFF2-JOIN-LOCALLY-WITH-PRIVATE-PLAYER-AND-GM-AUTHORITY",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-OFF1-START-THE-LOCAL-GAME-HOST-WITHOUT-WAN"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF1-START-THE-LOCAL-GAME-HOST-WITHOUT-WAN"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-OFF10-JOIN-THE-LOCAL-HOST-FROM-ITS-QR",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-OFF2-JOIN-LOCALLY-WITH-PRIVATE-PLAYER-AND-GM-AUTHORITY"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF2-JOIN-LOCALLY-WITH-PRIVATE-PLAYER-AND-GM-AUTHORITY"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-OFF3-COMMIT-ONE-AUTHORITATIVE-LOCAL-ACTION",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-OFF2-JOIN-LOCALLY-WITH-PRIVATE-PLAYER-AND-GM-AUTHORITY"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF2-JOIN-LOCALLY-WITH-PRIVATE-PLAYER-AND-GM-AUTHORITY"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-OFF4-RECOVER-DURABLE-LOCAL-PLAY-AFTER-HOST-RESTART",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-OFF3-COMMIT-ONE-AUTHORITATIVE-LOCAL-ACTION"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF3-COMMIT-ONE-AUTHORITATIVE-LOCAL-ACTION"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-OFF5-RECONNECT-THE-ORIGINAL-LOCAL-PLAYER",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-OFF3-COMMIT-ONE-AUTHORITATIVE-LOCAL-ACTION"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF3-COMMIT-ONE-AUTHORITATIVE-LOCAL-ACTION"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-OFF6-RESOLVE-CONCURRENT-LOCAL-ACTIONS-ONCE",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-OFF3-COMMIT-ONE-AUTHORITATIVE-LOCAL-ACTION"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF3-COMMIT-ONE-AUTHORITATIVE-LOCAL-ACTION"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-OFF7-PLAY-LOCAL-MOVEMENT-AND-MISSION-WORKFLOWS",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-OFF4-RECOVER-DURABLE-LOCAL-PLAY-AFTER-HOST-RESTART",
+        "DOW-BRIEF-OFF5-RECONNECT-THE-ORIGINAL-LOCAL-PLAYER",
+        "DOW-BRIEF-OFF6-RESOLVE-CONCURRENT-LOCAL-ACTIONS-ONCE"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF4-RECOVER-DURABLE-LOCAL-PLAY-AFTER-HOST-RESTART",
+        "DOW-BRIEF-OFF5-RECONNECT-THE-ORIGINAL-LOCAL-PLAYER",
+        "DOW-BRIEF-OFF6-RESOLVE-CONCURRENT-LOCAL-ACTIONS-ONCE"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-OFF8-PLAY-LOCAL-COMBAT-AND-PRIVATE-ROLE-WORKFLOWS",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-OFF4-RECOVER-DURABLE-LOCAL-PLAY-AFTER-HOST-RESTART",
+        "DOW-BRIEF-OFF5-RECONNECT-THE-ORIGINAL-LOCAL-PLAYER",
+        "DOW-BRIEF-OFF6-RESOLVE-CONCURRENT-LOCAL-ACTIONS-ONCE"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF4-RECOVER-DURABLE-LOCAL-PLAY-AFTER-HOST-RESTART",
+        "DOW-BRIEF-OFF5-RECONNECT-THE-ORIGINAL-LOCAL-PLAYER",
+        "DOW-BRIEF-OFF6-RESOLVE-CONCURRENT-LOCAL-ACTIONS-ONCE"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-OFF9-FINISH-LOCAL-CANDIDATE-AND-TERMINAL-PATHS",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-OFF4-RECOVER-DURABLE-LOCAL-PLAY-AFTER-HOST-RESTART",
+        "DOW-BRIEF-OFF5-RECONNECT-THE-ORIGINAL-LOCAL-PLAYER",
+        "DOW-BRIEF-OFF6-RESOLVE-CONCURRENT-LOCAL-ACTIONS-ONCE"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF4-RECOVER-DURABLE-LOCAL-PLAY-AFTER-HOST-RESTART",
+        "DOW-BRIEF-OFF5-RECONNECT-THE-ORIGINAL-LOCAL-PLAYER",
+        "DOW-BRIEF-OFF6-RESOLVE-CONCURRENT-LOCAL-ACTIONS-ONCE"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-OFF11-COMPLETE-A-WAN-DISCONNECTED-MULTI-CLIENT-GAME",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-OFF10-JOIN-THE-LOCAL-HOST-FROM-ITS-QR",
+        "DOW-BRIEF-OFF7-PLAY-LOCAL-MOVEMENT-AND-MISSION-WORKFLOWS",
+        "DOW-BRIEF-OFF8-PLAY-LOCAL-COMBAT-AND-PRIVATE-ROLE-WORKFLOWS",
+        "DOW-BRIEF-OFF9-FINISH-LOCAL-CANDIDATE-AND-TERMINAL-PATHS"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF10-JOIN-THE-LOCAL-HOST-FROM-ITS-QR",
+        "DOW-BRIEF-OFF7-PLAY-LOCAL-MOVEMENT-AND-MISSION-WORKFLOWS",
+        "DOW-BRIEF-OFF8-PLAY-LOCAL-COMBAT-AND-PRIVATE-ROLE-WORKFLOWS",
+        "DOW-BRIEF-OFF9-FINISH-LOCAL-CANDIDATE-AND-TERMINAL-PATHS"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    },
+    {
+      "migrationId": "DOW-BRIEF-OFF12-RELEASE-THE-QUALIFIED-LOCAL-BACKUP",
+      "recordKind": "held-future-brief",
+      "state": "open",
+      "stateReason": null,
+      "promptStatus": null,
+      "readiness": "held",
+      "execution": "inactive",
+      "hold": "inactive; preserve the source trigger and sequence.",
+      "nativeParentMigrationIds": [],
+      "nativeBlockedByMigrationIds": [
+        "DOW-BRIEF-OFF11-COMPLETE-A-WAN-DISCONNECTED-MULTI-CLIENT-GAME"
+      ],
+      "blockedByMigrationIds": [
+        "DOW-BRIEF-OFF11-COMPLETE-A-WAN-DISCONNECTED-MULTI-CLIENT-GAME"
+      ],
+      "completion": "not-closed",
+      "evidenceReferences": []
+    }
+  ]
+}
