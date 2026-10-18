@@ -32,9 +32,11 @@ generated offline snapshot that preserves the rest of the catalog and history;
 its Markdown views are generated from that snapshot. Refresh state with
 `npm run prompt-tracker -- refresh`, write a field-scoped issue change with
 `npm run prompt-tracker -- update --issue NUMBER ...`, and export saved views
-offline with `npm run prompt-tracker -- export`. `refresh --check` reads GitHub
-and fails when the saved snapshot is stale; ordinary catalog consumers and CI
-remain offline. Do not edit imported status facts in the JSON snapshot by hand.
+offline with `npm run prompt-tracker -- export`. Refresh also writes
+`docs/tracker/github-snapshot.json`, the offline projection of prompt and brief
+tracking fields. `refresh --check` reads GitHub and fails when either snapshot
+is stale; ordinary catalog consumers and CI remain offline. Do not edit
+imported tracking facts in either snapshot by hand.
 See [issue tracker operations](./docs/agents/issue-tracker.md) for the update,
 hold-release, and recovery contract.
 The optional dependency check (`npm run coordination:dependencies -- --prompt
