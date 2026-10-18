@@ -15,7 +15,7 @@ const sourceCatalog = loadPromptCatalog();
 const sourceBytes = Buffer.from(stableCatalogJson(sourceCatalog));
 const evidenceReference = 'docs/README.md#tracker';
 const sourceSha256 = createHash('sha256').update(sourceBytes).digest('hex');
-const crosswalkFor = (records) => ({ schemaVersion: 1, destination: 'emerald-pham/den-of-wolves-new-eden-console', sourceSha256, records });
+const crosswalkFor = (records, retainedBriefReferences = []) => ({ schemaVersion: 1, destination: 'emerald-pham/den-of-wolves-new-eden-console', sourceSha256, records, retainedBriefReferences });
 const promptRecord = (overrides = {}) => ({
   legacyId: '181',
   migrationId: 'DOW-PROMPT-181',
@@ -501,7 +501,7 @@ test('refresh rejects a missing migrated issue rather than using a stale snapsho
 
 test('logical dependency projection includes explicitly retained equivalent edges without pretending they are native', async () => {
   const records = [
-    { legacyId: 'brief-1', migrationId: 'DOW-BRIEF-1', recordKind: 'execution-brief', issueId: 6100, issueNumber: 610, sourceReferences: ['docs/pc10-tickets/brief-1.md#one'], parentMigrationIds: [], blockedByMigrationIds: ['DOW-BRIEF-2'], equivalentBlockedByMigrationIds: ['DOW-BRIEF-3'] },
+    { legacyId: 'brief-1', migrationId: 'DOW-BRIEF-1', recordKind: 'execution-brief', issueId: 6100, issueNumber: 610, sourceReferences: ['docs/pc10-tickets/brief-1.md#one'], parentMigrationIds: [], blockedByMigrationIds: ['DOW-BRIEF-2'], equivalentBlockedByMigrationIds: ['DOW-BRIEF-3'], sourceBlockedByBriefIds: ['brief-2', 'brief-3', 'retained-brief'], historyReferences: ['docs/pc10-tickets/retained.md#retained-brief'] },
     { legacyId: 'brief-2', migrationId: 'DOW-BRIEF-2', recordKind: 'execution-brief', issueId: 6200, issueNumber: 620, sourceReferences: ['docs/pc10-tickets/brief-2.md#two'], parentMigrationIds: [], blockedByMigrationIds: [] },
     { legacyId: 'brief-3', migrationId: 'DOW-BRIEF-3', recordKind: 'execution-brief', issueId: 6300, issueNumber: 630, sourceReferences: ['docs/pc10-tickets/brief-3.md#three'], parentMigrationIds: [], blockedByMigrationIds: [] },
   ];
@@ -514,21 +514,22 @@ test('logical dependency projection includes explicitly retained equivalent edge
     state_reason: null,
   });
   const transport = fakeTransport([
-    issue(6100, 610, 'DOW-BRIEF-1', 'docs/pc10-tickets/brief-1.md#one', 'Blocked-by brief IDs: brief-2, brief-3\nEquivalent blocked-by issue references: DOW-BRIEF-3\n'),
+    issue(6100, 610, 'DOW-BRIEF-1', 'docs/pc10-tickets/brief-1.md#one', 'Blocked-by brief IDs: brief-2, brief-3, retained-brief\nEquivalent blocked-by issue references: DOW-BRIEF-3\n'),
     issue(6200, 620, 'DOW-BRIEF-2', 'docs/pc10-tickets/brief-2.md#two'),
     issue(6300, 630, 'DOW-BRIEF-3', 'docs/pc10-tickets/brief-3.md#three'),
   ], [[6100, { parentIssueIds: [], blockedByIssueIds: [6200] }]]);
-  const result = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk: crosswalkFor(records) });
+  const retained = [{ sourceId: 'retained-brief', sourceReference: 'docs/pc10-tickets/retained.md', disposition: 'retained-acceptance-no-issue' }];
+  const result = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk: crosswalkFor(records, retained) });
   const target = result.issueStates.find(({ migrationId }) => migrationId === 'DOW-BRIEF-1');
   assert.deepEqual(target.nativeBlockedByMigrationIds, ['DOW-BRIEF-2']);
   assert.deepEqual(target.blockedByMigrationIds, ['DOW-BRIEF-2', 'DOW-BRIEF-3']);
 
   const missingEquivalent = fakeTransport([
-    issue(6100, 610, 'DOW-BRIEF-1', 'docs/pc10-tickets/brief-1.md#one', 'Blocked-by brief IDs: brief-2, brief-3\n'),
+    issue(6100, 610, 'DOW-BRIEF-1', 'docs/pc10-tickets/brief-1.md#one', 'Blocked-by brief IDs: brief-2, brief-3, retained-brief\n'),
     issue(6200, 620, 'DOW-BRIEF-2', 'docs/pc10-tickets/brief-2.md#two'),
     issue(6300, 630, 'DOW-BRIEF-3', 'docs/pc10-tickets/brief-3.md#three'),
   ], [[6100, { parentIssueIds: [], blockedByIssueIds: [6200] }]]);
-  await assert.rejects(readGitHubPromptCatalog({ sourceBytes, transport: missingEquivalent, crosswalk: crosswalkFor(records) }), /Equivalent blocker documentation mismatch/);
+  await assert.rejects(readGitHubPromptCatalog({ sourceBytes, transport: missingEquivalent, crosswalk: crosswalkFor(records, retained) }), /Equivalent blocker documentation mismatch/);
 });
 
 test('REST adapter sends only the selected issue fields and performs full issue paging', async () => {
