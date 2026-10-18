@@ -445,16 +445,16 @@ test('logical dependency projection includes explicitly retained equivalent edge
     { legacyId: 'brief-2', migrationId: 'DOW-BRIEF-2', recordKind: 'execution-brief', issueId: 6200, issueNumber: 620, sourceReferences: ['docs/pc10-tickets/brief-2.md#two'], parentMigrationIds: [], blockedByMigrationIds: [] },
     { legacyId: 'brief-3', migrationId: 'DOW-BRIEF-3', recordKind: 'execution-brief', issueId: 6300, issueNumber: 630, sourceReferences: ['docs/pc10-tickets/brief-3.md#three'], parentMigrationIds: [], blockedByMigrationIds: [] },
   ];
-  const issue = (id, number, marker, reference) => ({
+  const issue = (id, number, marker, reference, sourceBlockers = '') => ({
     id,
     number,
     title: `Brief ${number}`,
-    body: `Migration ID: ${marker}\nSource reference: ${reference}\nReadiness: ready\nExecution: inactive\n`,
+    body: `Migration ID: ${marker}\nSource reference: ${reference}\n${sourceBlockers}Readiness: ready\nExecution: inactive\n`,
     state: 'open',
     state_reason: null,
   });
   const transport = fakeTransport([
-    issue(6100, 610, 'DOW-BRIEF-1', 'docs/pc10-tickets/brief-1.md#one'),
+    issue(6100, 610, 'DOW-BRIEF-1', 'docs/pc10-tickets/brief-1.md#one', 'Blocked-by brief IDs: brief-2, brief-3\nEquivalent blocked-by issue references: DOW-BRIEF-3\n'),
     issue(6200, 620, 'DOW-BRIEF-2', 'docs/pc10-tickets/brief-2.md#two'),
     issue(6300, 630, 'DOW-BRIEF-3', 'docs/pc10-tickets/brief-3.md#three'),
   ], [[6100, { parentIssueIds: [], blockedByIssueIds: [6200] }]]);
@@ -462,6 +462,13 @@ test('logical dependency projection includes explicitly retained equivalent edge
   const target = result.issueStates.find(({ migrationId }) => migrationId === 'DOW-BRIEF-1');
   assert.deepEqual(target.nativeBlockedByMigrationIds, ['DOW-BRIEF-2']);
   assert.deepEqual(target.blockedByMigrationIds, ['DOW-BRIEF-2', 'DOW-BRIEF-3']);
+
+  const missingEquivalent = fakeTransport([
+    issue(6100, 610, 'DOW-BRIEF-1', 'docs/pc10-tickets/brief-1.md#one', 'Blocked-by brief IDs: brief-2, brief-3\n'),
+    issue(6200, 620, 'DOW-BRIEF-2', 'docs/pc10-tickets/brief-2.md#two'),
+    issue(6300, 630, 'DOW-BRIEF-3', 'docs/pc10-tickets/brief-3.md#three'),
+  ], [[6100, { parentIssueIds: [], blockedByIssueIds: [6200] }]]);
+  await assert.rejects(readGitHubPromptCatalog({ sourceBytes, transport: missingEquivalent, crosswalk: crosswalkFor(records) }), /Equivalent blocker documentation mismatch/);
 });
 
 test('REST adapter sends only the selected issue fields and performs full issue paging', async () => {
