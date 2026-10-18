@@ -432,6 +432,32 @@ test('a disjoint owner update after final preflight survives a readiness update'
   assert.match((await transport.getIssue(610)).body, /Human note: keep this note/);
 });
 
+test('a late legacy snapshot contributes only fields changed from its base snapshot', async () => {
+  const record = {
+    legacyId: 'brief-61', migrationId: 'DOW-BRIEF-61', recordKind: 'execution-brief',
+    issueId: 6100, issueNumber: 610, sourceReferences: ['docs/pc10-tickets/61-pt7.md#pt7'],
+    parentMigrationIds: [], blockedByMigrationIds: [],
+  };
+  const issue = {
+    id: 6100, number: 610, title: 'PT7 execution brief',
+    body: 'Migration ID: DOW-BRIEF-61\nReadiness: ready\nExecution: awaiting-verified-cutover\nSource reference: docs/pc10-tickets/61-pt7.md#pt7\n',
+    state: 'open', state_reason: null,
+  };
+  const transport = fakeTransport([issue]);
+  await updateGitHubIssueState({
+    transport, issueNumber: 610, expectedRecord: record,
+    changes: { brief: { Readiness: 'blocked' } },
+  });
+  await transport.createComment({
+    issueNumber: 610,
+    body: '<!-- DOW-TRACKER-STATE:v1 -->\n{"Readiness":"ready","Execution":"in-progress"}\n<!-- /DOW-TRACKER-STATE -->',
+  });
+
+  const refreshed = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk: crosswalkFor([record]) });
+  assert.equal(refreshed.issueStates[0].readiness, 'blocked');
+  assert.equal(refreshed.issueStates[0].execution, 'in-progress');
+});
+
 test('unauthorized public comments cannot impersonate tracker state', async () => {
   const record = {
     legacyId: 'brief-61', migrationId: 'DOW-BRIEF-61', recordKind: 'execution-brief',
