@@ -38,9 +38,10 @@ const promptIssue = (overrides = {}) => ({
   ...overrides,
 });
 
-function fakeTransport(initialIssues) {
+function fakeTransport(initialIssues, initialRelationships = []) {
   const issues = new Map(initialIssues.map((issue) => [issue.number, structuredClone(issue)]));
   const relationships = new Map([...issues.values()].map((issue) => [issue.id, { parentIssueIds: [], blockedByIssueIds: [] }]));
+  for (const [issueId, value] of initialRelationships) relationships.set(issueId, structuredClone(value));
   const calls = [];
   return {
     calls,
@@ -436,6 +437,31 @@ test('refresh rejects a missing migrated issue rather than using a stale snapsho
     transport,
     crosswalk: crosswalkFor([promptRecord()]),
   }), /snapshot is incomplete/);
+});
+
+test('logical dependency projection includes explicitly retained equivalent edges without pretending they are native', async () => {
+  const records = [
+    { legacyId: 'brief-1', migrationId: 'DOW-BRIEF-1', recordKind: 'execution-brief', issueId: 6100, issueNumber: 610, sourceReferences: ['docs/pc10-tickets/brief-1.md#one'], parentMigrationIds: [], blockedByMigrationIds: ['DOW-BRIEF-2'], equivalentBlockedByMigrationIds: ['DOW-BRIEF-3'] },
+    { legacyId: 'brief-2', migrationId: 'DOW-BRIEF-2', recordKind: 'execution-brief', issueId: 6200, issueNumber: 620, sourceReferences: ['docs/pc10-tickets/brief-2.md#two'], parentMigrationIds: [], blockedByMigrationIds: [] },
+    { legacyId: 'brief-3', migrationId: 'DOW-BRIEF-3', recordKind: 'execution-brief', issueId: 6300, issueNumber: 630, sourceReferences: ['docs/pc10-tickets/brief-3.md#three'], parentMigrationIds: [], blockedByMigrationIds: [] },
+  ];
+  const issue = (id, number, marker, reference) => ({
+    id,
+    number,
+    title: `Brief ${number}`,
+    body: `Migration ID: ${marker}\nSource reference: ${reference}\nReadiness: ready\nExecution: inactive\n`,
+    state: 'open',
+    state_reason: null,
+  });
+  const transport = fakeTransport([
+    issue(6100, 610, 'DOW-BRIEF-1', 'docs/pc10-tickets/brief-1.md#one'),
+    issue(6200, 620, 'DOW-BRIEF-2', 'docs/pc10-tickets/brief-2.md#two'),
+    issue(6300, 630, 'DOW-BRIEF-3', 'docs/pc10-tickets/brief-3.md#three'),
+  ], [[6100, { parentIssueIds: [], blockedByIssueIds: [6200] }]]);
+  const result = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk: crosswalkFor(records) });
+  const target = result.issueStates.find(({ migrationId }) => migrationId === 'DOW-BRIEF-1');
+  assert.deepEqual(target.nativeBlockedByMigrationIds, ['DOW-BRIEF-2']);
+  assert.deepEqual(target.blockedByMigrationIds, ['DOW-BRIEF-2', 'DOW-BRIEF-3']);
 });
 
 test('REST adapter sends only the selected issue fields and performs full issue paging', async () => {
