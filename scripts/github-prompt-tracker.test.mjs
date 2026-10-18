@@ -212,11 +212,14 @@ test('field updates cannot rewrite a held future brief source hold', async () =>
       issueNumber: 500,
       migrationId: 'DOW-BRIEF-FUTURE-01',
       recordKind: 'held-future-brief',
+      holdKind: 'prepared-sequence-trigger',
+      originalHoldStatus: 'Prepared future scope; preserve trigger.',
+      sourceReferences: ['docs/future-tickets/example.md#future-01'],
       parentMigrationIds: [],
       blockedByMigrationIds: [],
     },
     changes: { brief: { 'Original hold status': 'Active now.' } },
-  }), /Held future brief source hold is immutable/);
+  }), /Future brief hold provenance is immutable/);
   assert.equal(transport.calls.length, 0);
 });
 
@@ -238,6 +241,9 @@ test('held future briefs cannot be completed before their trigger is active', as
       issueNumber: 500,
       migrationId: 'DOW-BRIEF-FUTURE-01',
       recordKind: 'held-future-brief',
+      holdKind: 'prepared-sequence-trigger',
+      originalHoldStatus: 'Prepared future scope; preserve trigger.',
+      sourceReferences: ['docs/future-tickets/example.md#future-01'],
       parentMigrationIds: [],
       blockedByMigrationIds: [],
     },
@@ -311,6 +317,7 @@ test('future hold release requires reviewed accepted local evidence', async () =
       recordKind: 'held-future-brief',
       holdKind: 'prepared-sequence-trigger',
       originalHoldStatus: 'Prepared future scope; preserve trigger.',
+      sourceReferences: ['docs/future-tickets/example.md#future-01'],
       parentMigrationIds: [],
       blockedByMigrationIds: [],
     },
