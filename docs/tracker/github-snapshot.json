@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-18T20:02:30.178Z",
+  "generatedAt": "2026-10-18T20:22:22.600Z",
   "originSourceSha256": "8536b573f44cde0e480b12cf427c3bb5668f33d6564f393572964f1679086f3f",
   "catalogSha256": "8536b573f44cde0e480b12cf427c3bb5668f33d6564f393572964f1679086f3f",
   "issueStates": [
@@ -2239,28 +2239,30 @@
     {
       "migrationId": "DOW-BRIEF-61A-PT7A",
       "recordKind": "execution-brief",
-      "state": "open",
-      "stateReason": null,
+      "state": "closed",
+      "stateReason": "completed",
       "promptStatus": null,
       "readiness": "planning-only",
-      "execution": "checkpoint-gated",
+      "execution": "completed",
       "hold": null,
       "nativeParentMigrationIds": [
         "DOW-PROMPT-651"
       ],
       "nativeBlockedByMigrationIds": [],
       "blockedByMigrationIds": [],
-      "completion": "not-closed",
-      "evidenceReferences": []
+      "completion": "reviewed-complete",
+      "evidenceReferences": [
+        "docs/tracker/MIGRATION.md#inventory-and-recovery"
+      ]
     },
     {
       "migrationId": "DOW-BRIEF-61B-PT7B",
       "recordKind": "execution-brief",
-      "state": "open",
-      "stateReason": null,
+      "state": "closed",
+      "stateReason": "completed",
       "promptStatus": null,
       "readiness": "planning-only",
-      "execution": "checkpoint-gated",
+      "execution": "completed",
       "hold": null,
       "nativeParentMigrationIds": [
         "DOW-PROMPT-651"
@@ -2271,8 +2273,10 @@
       "blockedByMigrationIds": [
         "DOW-BRIEF-61A-PT7A"
       ],
-      "completion": "not-closed",
-      "evidenceReferences": []
+      "completion": "reviewed-complete",
+      "evidenceReferences": [
+        "docs/tracker/MIGRATION.md#verified-import"
+      ]
     },
     {
       "migrationId": "DOW-BRIEF-61-PT7",
