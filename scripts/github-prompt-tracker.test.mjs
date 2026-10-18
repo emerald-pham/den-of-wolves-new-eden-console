@@ -108,6 +108,12 @@ test('closure requires accepted local evidence and not-planned remains unresolve
   const unresolved = await readGitHubPromptCatalog({ ...args, transport: fakeTransport([withoutEvidence]) });
   assert.equal(unresolved.catalog.prompts.find(({ id }) => id === '181').status, 'partial');
 
+  const falselyMarkedDone = structuredClone(withoutEvidence);
+  falselyMarkedDone.body = falselyMarkedDone.body
+    .replace('Prompt status: partial', 'Prompt status: done\nPrevious incomplete status: missing');
+  const closureOnly = await readGitHubPromptCatalog({ ...args, transport: fakeTransport([falselyMarkedDone]) });
+  assert.equal(closureOnly.catalog.prompts.find(({ id }) => id === '181').status, 'missing');
+
   const notPlanned = await readGitHubPromptCatalog({
     ...args,
     transport: fakeTransport([{ ...base, state_reason: 'not_planned' }]),
