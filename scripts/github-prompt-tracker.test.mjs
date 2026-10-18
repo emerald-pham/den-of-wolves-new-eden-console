@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile, mkdir } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -47,6 +47,36 @@ test('saved tracker snapshot can export its views through the normal offline com
   });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /Exported the saved GitHub catalog snapshot to generated views \(751 prompts\)/);
+});
+
+test('offline export recovers generated views after an interrupted refresh', async () => {
+  const cwd = await mkdtemp(resolve(tmpdir(), 'prompt-tracker-export-recovery-'));
+  try {
+    await mkdir(resolve(cwd, 'docs'), { recursive: true });
+    for (const path of [
+      'docs/IMPLEMENTATION_PLAN.md',
+      'docs/IMPLEMENTATION_PROGRESS.md',
+      'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
+      'docs/IMPLEMENTATION_MILESTONES.md',
+    ]) await writeFile(resolve(cwd, path), await readFile(resolve(process.cwd(), path), 'utf8'));
+    const savedSnapshot = stableCatalogJson(sourceCatalog);
+    await writeFile(resolve(cwd, 'docs/implementation-prompts.json'), savedSnapshot);
+    const progressPath = resolve(cwd, 'docs/IMPLEMENTATION_PROGRESS.md');
+    const progress = await readFile(progressPath, 'utf8');
+    await writeFile(progressPath, progress.replace('703 done', 'INTERRUPTED EXPORT'));
+
+    const scriptPath = resolve(process.cwd(), 'scripts/github-prompt-tracker.mjs');
+    const result = spawnSync(process.execPath, [scriptPath, 'export'], {
+      cwd,
+      encoding: 'utf8',
+      env: { ...process.env, GH_TOKEN: '', GITHUB_TOKEN: '' },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.doesNotMatch(await readFile(progressPath, 'utf8'), /INTERRUPTED EXPORT/);
+    assert.equal(await readFile(resolve(cwd, 'docs/implementation-prompts.json'), 'utf8'), savedSnapshot);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });
 
 function fakeTransport(initialIssues, initialRelationships = []) {
