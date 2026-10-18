@@ -246,6 +246,79 @@ test('held future briefs cannot be completed before their trigger is active', as
   assert.equal(transport.calls.length, 0);
 });
 
+test('a future hold can be deliberately released with accepted local trigger evidence and survives refresh', async () => {
+  const issue = {
+    id: 5000,
+    number: 500,
+    title: 'Legacy execution brief',
+    body: 'Human note: retain this note.\n\nMigration ID: DOW-BRIEF-FUTURE-01\nSource status: Prepared future scope; preserve trigger.\nHold: inactive; preserve the source trigger and sequence.\nReadiness: held\nExecution: inactive\nSource reference: docs/future-tickets/example.md#future-01\n',
+    state: 'open',
+    state_reason: null,
+  };
+  const record = {
+    issueId: 5000,
+    issueNumber: 500,
+    migrationId: 'DOW-BRIEF-FUTURE-01',
+    recordKind: 'held-future-brief',
+    holdKind: 'prepared-sequence-trigger',
+    originalHoldStatus: 'Prepared future scope; preserve trigger.',
+    sourceReferences: ['docs/future-tickets/example.md#future-01'],
+    parentMigrationIds: [],
+    blockedByMigrationIds: [],
+  };
+  const transport = fakeTransport([issue]);
+  const released = await updateGitHubIssueState({
+    transport,
+    issueNumber: 500,
+    expectedRecord: record,
+    changes: {
+      releaseHold: true,
+      reviewed: true,
+      accepted: true,
+      evidenceReferences: [evidenceReference],
+    },
+  });
+  assert.match(released.issue.body, /Hold: released/);
+  assert.match(released.issue.body, /Original hold status: Prepared future scope; preserve trigger\./);
+  assert.match(released.issue.body, /Source status: Prepared future scope; preserve trigger\./);
+  assert.match(released.issue.body, /Hold release evidence: docs\/README\.md#tracker/);
+  assert.match(released.issue.body, /Readiness: ready/);
+  assert.match(released.issue.body, /Execution: inactive/);
+
+  const crosswalk = crosswalkFor([{ ...record, legacyId: 'future-01', initialReadiness: 'held', initialExecution: 'inactive' }]);
+  const refreshed = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, cwd: process.cwd() });
+  assert.equal(refreshed.issueStates[0].hold, 'released');
+  assert.equal(refreshed.issueStates[0].readiness, 'ready');
+  assert.equal(refreshed.issueStates[0].completion, 'not-closed');
+});
+
+test('future hold release requires reviewed accepted local evidence', async () => {
+  const transport = fakeTransport([{
+    id: 5000,
+    number: 500,
+    title: 'Legacy execution brief',
+    body: 'Migration ID: DOW-BRIEF-FUTURE-01\nSource status: Prepared future scope; preserve trigger.\nHold: inactive; preserve the source trigger and sequence.\nReadiness: held\nExecution: inactive\nSource reference: docs/future-tickets/example.md#future-01\n',
+    state: 'open',
+    state_reason: null,
+  }]);
+  await assert.rejects(updateGitHubIssueState({
+    transport,
+    issueNumber: 500,
+    expectedRecord: {
+      issueId: 5000,
+      issueNumber: 500,
+      migrationId: 'DOW-BRIEF-FUTURE-01',
+      recordKind: 'held-future-brief',
+      holdKind: 'prepared-sequence-trigger',
+      originalHoldStatus: 'Prepared future scope; preserve trigger.',
+      parentMigrationIds: [],
+      blockedByMigrationIds: [],
+    },
+    changes: { releaseHold: true, reviewed: true, accepted: true, evidenceReferences: ['docs/missing.md#trigger'] },
+  }), /Hold release requires reviewed, accepted local trigger\/authorization evidence/);
+  assert.equal(transport.calls.length, 0);
+});
+
 test('field-scoped update preserves human prose and verifies native state and relationships', async () => {
   const issue = promptIssue();
   const transport = fakeTransport([issue]);
