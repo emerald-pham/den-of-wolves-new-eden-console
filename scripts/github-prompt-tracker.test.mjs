@@ -161,6 +161,23 @@ test('refresh verifies reconstructed full source SHA after status-only exports',
   }), /Public crosswalk source snapshot hash mismatch/);
 });
 
+test('source-reviewed prompt definition edits preserve immutable origin provenance', async () => {
+  const prompts = sourceCatalog.prompts.map((prompt) => prompt.id === '181'
+    ? { ...prompt, definition: { ...prompt.definition, title: 'Source-reviewed title update.' } }
+    : prompt);
+  const editedSource = Buffer.from(stableCatalogJson({ ...sourceCatalog, prompts }));
+  const original = sourceCatalog.prompts.find(({ id }) => id === '181');
+  const rowSourceSha256 = createHash('sha256').update(JSON.stringify(JSON.parse(stableCatalogJson({ ...original, status: 'missing' })))).digest('hex');
+  const crosswalk = crosswalkFor([promptRecord({ sourceSha256: rowSourceSha256 })]);
+  const result = await readGitHubPromptCatalog({
+    sourceBytes: editedSource,
+    transport: fakeTransport([promptIssue()]),
+    crosswalk,
+  });
+  assert.equal(result.catalog.prompts.find(({ id }) => id === '181').definition.title, 'Source-reviewed title update.');
+  assert.equal(result.trackerSnapshot.originSourceSha256, sourceSha256);
+});
+
 test('brief-only source blocker documentation does not reinterpret prompt acceptance prose', async () => {
   const issue = promptIssue({ body: `${promptIssue().body}Blocked-by brief IDs: 22, 23\n` });
   const result = await readGitHubPromptCatalog({
