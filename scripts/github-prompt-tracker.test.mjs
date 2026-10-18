@@ -236,6 +236,18 @@ test('reopening restores the stored incomplete status from the owned fields', as
   assert.equal(result.catalog.prompts.find(({ id }) => id === '181').status, 'missing');
 });
 
+test('an invalid done fallback cannot turn an open prompt into completed work', async () => {
+  const issue = promptIssue({
+    body: `${promptIssue().body}\n<!-- DOW-TRACKER-OWNED-START -->\nPrompt status: done\nPrevious incomplete status: done\n<!-- DOW-TRACKER-OWNED-END -->\n`,
+  });
+  const result = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue]),
+    crosswalk: crosswalkFor([promptRecord({ initialStatus: 'missing' })]),
+  });
+  assert.equal(result.catalog.prompts.find(({ id }) => id === '181').status, 'missing');
+});
+
 test('held future briefs remain held and do not acquire prompt completion state', async () => {
   const issue = {
     id: 5000,
