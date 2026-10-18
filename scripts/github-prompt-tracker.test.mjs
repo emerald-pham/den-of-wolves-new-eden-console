@@ -291,6 +291,12 @@ test('a future hold can be deliberately released with accepted local trigger evi
   assert.match(released.issue.body, /Readiness: ready/);
   assert.match(released.issue.body, /Execution: inactive/);
 
+  await updateGitHubIssueState({ transport, issueNumber: 500, expectedRecord: record, changes: { closeAs: 'not_planned' } });
+  const reopened = await updateGitHubIssueState({ transport, issueNumber: 500, expectedRecord: record, changes: { reopen: true } });
+  assert.equal(reopened.issue.state, 'open');
+  assert.match(reopened.issue.body, /Hold: released/);
+  assert.match(reopened.issue.body, /Hold release evidence: docs\/README\.md#tracker/);
+
   const crosswalk = crosswalkFor([{ ...record, legacyId: 'future-01', initialReadiness: 'held', initialExecution: 'inactive' }]);
   const refreshed = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, cwd: process.cwd() });
   assert.equal(refreshed.issueStates[0].hold, 'released');
