@@ -79,24 +79,39 @@ test('offline export recovers generated views after an interrupted refresh', asy
   }
 });
 
-function fakeTransport(initialIssues, initialRelationships = []) {
+function fakeTransport(initialIssues, initialRelationships = [], { concurrentHumanNote = null } = {}) {
   const issues = new Map(initialIssues.map((issue) => [issue.number, structuredClone(issue)]));
   const relationships = new Map([...issues.values()].map((issue) => [issue.id, { parentIssueIds: [], blockedByIssueIds: [] }]));
   for (const [issueId, value] of initialRelationships) relationships.set(issueId, structuredClone(value));
   const calls = [];
+  const comments = new Map([...issues.keys()].map((number) => [number, []]));
+  const getCounts = new Map();
   return {
     calls,
     async listIssues() { return [...issues.values()].map((issue) => structuredClone(issue)); },
-    async getIssue(number) { return structuredClone(issues.get(number)); },
+    async getIssue(number) {
+      const issue = issues.get(number);
+      const count = getCounts.get(number) ?? 0;
+      getCounts.set(number, count + 1);
+      const result = structuredClone(issue);
+      if (count === 0 && concurrentHumanNote) issue.body += `\n${concurrentHumanNote}\n`;
+      return result;
+    },
+    async listComments(number) { return structuredClone(comments.get(number) ?? []); },
+    async createComment({ issueNumber, body }) {
+      const rows = comments.get(issueNumber) ?? [];
+      const comment = { id: rows.length + 1, body };
+      rows.push(comment);
+      comments.set(issueNumber, rows);
+      return structuredClone(comment);
+    },
     async getRelationships(id) { return structuredClone(relationships.get(id)); },
     async patchIssue(patch) {
       calls.push(structuredClone(patch));
       const issue = issues.get(patch.issueNumber);
-      Object.assign(issue, {
-        body: patch.body,
-        state: patch.state,
-        state_reason: patch.stateReason,
-      });
+      if (Object.hasOwn(patch, 'body')) issue.body = patch.body;
+      if (Object.hasOwn(patch, 'state')) issue.state = patch.state;
+      if (Object.hasOwn(patch, 'stateReason')) issue.state_reason = patch.stateReason;
       return structuredClone(issue);
     },
   };
@@ -266,6 +281,15 @@ test('a dependency reopen is rejected before the invalid catalog reaches a consu
   await assert.doesNotReject(readGitHubPromptCatalog({ sourceBytes, transport, crosswalk }));
   await updateGitHubIssueState({ transport, issueNumber: 541, expectedRecord: records[0], changes: { status: 'partial' } });
   await assert.rejects(readGitHubPromptCatalog({ sourceBytes, transport, crosswalk }), /hard prerequisite|prerequisite/);
+});
+
+test('tracker update preserves prose added after its initial issue read', async () => {
+  const transport = fakeTransport([promptIssue()], [], { concurrentHumanNote: 'Human note added during update.' });
+  await updateGitHubIssueState({ transport, issueNumber: 181, expectedRecord: promptRecord(), changes: { status: 'partial' } });
+  const issue = await transport.getIssue(181);
+  assert.match(issue.body, /Human note added during update\./);
+  assert.equal(Object.hasOwn(transport.calls[0], 'body'), false);
+  assert.match((await transport.listComments(181)).at(-1).body, /DOW-TRACKER-STATE:v1/);
 });
 
 test('held future briefs remain held and do not acquire prompt completion state', async () => {
