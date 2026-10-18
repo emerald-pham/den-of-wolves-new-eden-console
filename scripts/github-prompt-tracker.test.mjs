@@ -93,6 +93,18 @@ test('refresh can resume from its previous export while verifying imported promp
   assert.equal(next.catalog.prompts.find(({ id }) => id === '181').status, 'partial');
 });
 
+test('refresh verifies reconstructed full source SHA after status-only exports', async () => {
+  const original = sourceCatalog.prompts.find(({ id }) => id === '181');
+  const rowSourceSha256 = createHash('sha256').update(JSON.stringify(JSON.parse(stableCatalogJson({ ...original, status: 'missing' })))).digest('hex');
+  const crosswalk = crosswalkFor([promptRecord({ sourceSha256: rowSourceSha256 })]);
+  const tamperedSource = Buffer.from(stableCatalogJson({ ...sourceCatalog, untrackedSourceField: 'not in original snapshot' }));
+  await assert.rejects(readGitHubPromptCatalog({
+    sourceBytes: tamperedSource,
+    transport: fakeTransport([promptIssue()]),
+    crosswalk,
+  }), /Public crosswalk source snapshot hash mismatch/);
+});
+
 test('accepted update exports, refreshes, and reopens without losing source fields or hash continuity', async () => {
   const transport = fakeTransport([promptIssue()]);
   const expectedRecord = promptRecord({
