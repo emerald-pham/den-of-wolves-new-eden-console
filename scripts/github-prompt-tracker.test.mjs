@@ -143,7 +143,7 @@ function fakeTransport(initialIssues, initialRelationships = [], { concurrentHum
     async listComments(number) { return structuredClone(comments.get(number) ?? []); },
     async createComment({ issueNumber, body }) {
       const rows = comments.get(issueNumber) ?? [];
-      const comment = { id: rows.length + 1, body };
+      const comment = { id: rows.length + 1, body, authorLogin: 'emerald-pham' };
       rows.push(comment);
       comments.set(issueNumber, rows);
       return structuredClone(comment);
@@ -476,143 +476,51 @@ test('tracker snapshot captures brief execution when the catalog JSON does not c
 });
 
 test('held future briefs remain held and do not acquire prompt completion state', async () => {
-  const issue = {
-    id: 5000,
-    number: 500,
-    title: 'Legacy execution brief',
-    body: 'Human note: retain this note.\n\nMigration ID: DOW-BRIEF-FUTURE-01\nSource status: Prepared future scope; preserve trigger.\nHold: inactive; preserve the source trigger and sequence.\nReadiness: held\nExecution: inactive\nSource reference: docs/future-tickets/example.md#future-01\n',
-    state: 'open',
-    state_reason: null,
-  };
+  const { issue, record } = heldFutureFixture();
   const result = await readGitHubPromptCatalog({
     sourceBytes,
     transport: fakeTransport([issue]),
-    crosswalk: crosswalkFor([{
-      legacyId: 'future-01',
-      migrationId: 'DOW-BRIEF-FUTURE-01',
-      recordKind: 'held-future-brief',
-      issueId: 5000,
-      issueNumber: 500,
-      initialReadiness: 'held',
-      initialExecution: 'inactive',
-      holdKind: 'prepared-sequence-trigger',
-      originalHoldStatus: 'Prepared future scope; preserve trigger.',
-      sourceReferences: ['docs/future-tickets/example.md#future-01'],
-      parentMigrationIds: [],
-      blockedByMigrationIds: [],
-    }]),
+    crosswalk: crosswalkFor([record]),
   });
   assert.equal(result.catalog.prompts.find(({ id }) => id === '651').status, 'missing');
   assert.equal(result.catalog.prompts.find(({ id }) => id === '181').status, 'missing');
 });
 
 test('refresh rejects drift in the imported future hold wording', async () => {
-  const issue = {
-    id: 5000,
-    number: 500,
-    title: 'Legacy execution brief',
-    body: 'Migration ID: DOW-BRIEF-FUTURE-01\nSource status: Prepared future scope; preserve trigger.\nReadiness: held\nExecution: inactive\nSource reference: docs/future-tickets/example.md#future-01\n<!-- DOW-TRACKER-OWNED-START -->\nReadiness: held\nExecution: inactive\nHold: inactive; edited hold text.\nOriginal hold status: Prepared future scope; edited trigger.\n<!-- DOW-TRACKER-OWNED-END -->\n',
-    state: 'open',
-    state_reason: null,
-  };
+  const { issue, record } = heldFutureFixture({ body: 'Migration ID: DOW-BRIEF-FUTURE-01\nSource status: Prepared future scope; preserve trigger.\nReadiness: held\nExecution: inactive\nSource reference: docs/future-tickets/example.md#future-01\n<!-- DOW-TRACKER-OWNED-START -->\nReadiness: held\nExecution: inactive\nHold: inactive; edited hold text.\nOriginal hold status: Prepared future scope; edited trigger.\n<!-- DOW-TRACKER-OWNED-END -->\n' });
   await assert.rejects(readGitHubPromptCatalog({
     sourceBytes,
     transport: fakeTransport([issue]),
-    crosswalk: crosswalkFor([{
-      legacyId: 'future-01',
-      migrationId: 'DOW-BRIEF-FUTURE-01',
-      recordKind: 'held-future-brief',
-      issueId: 5000,
-      issueNumber: 500,
-      initialReadiness: 'held',
-      initialExecution: 'inactive',
-      holdKind: 'prepared-sequence-trigger',
-      originalHoldStatus: 'Prepared future scope; preserve trigger.',
-      sourceReferences: ['docs/future-tickets/example.md#future-01'],
-      parentMigrationIds: [],
-      blockedByMigrationIds: [],
-    }]),
+    crosswalk: crosswalkFor([record]),
   }), /Future hold provenance mismatch/);
 });
 
 test('field updates cannot rewrite a held future brief source hold', async () => {
-  const issue = {
-    id: 5000,
-    number: 500,
-    title: 'Legacy execution brief',
-    body: 'Migration ID: DOW-BRIEF-FUTURE-01\nSource status: Prepared future scope; preserve trigger.\nHold: inactive; preserve the source trigger and sequence.\nReadiness: held\nExecution: inactive\nSource reference: docs/future-tickets/example.md#future-01\n',
-    state: 'open',
-    state_reason: null,
-  };
+  const { issue, record } = heldFutureFixture();
   const transport = fakeTransport([issue]);
   await assert.rejects(updateGitHubIssueState({
     transport,
     issueNumber: 500,
-    expectedRecord: {
-      issueId: 5000,
-      issueNumber: 500,
-      migrationId: 'DOW-BRIEF-FUTURE-01',
-      recordKind: 'held-future-brief',
-      holdKind: 'prepared-sequence-trigger',
-      originalHoldStatus: 'Prepared future scope; preserve trigger.',
-      sourceReferences: ['docs/future-tickets/example.md#future-01'],
-      parentMigrationIds: [],
-      blockedByMigrationIds: [],
-    },
+    expectedRecord: record,
     changes: { brief: { 'Original hold status': 'Active now.' } },
   }), /Future brief hold provenance is immutable/);
   assert.equal(transport.calls.length, 0);
 });
 
 test('held future briefs cannot be completed before their trigger is active', async () => {
-  const issue = {
-    id: 5000,
-    number: 500,
-    title: 'Legacy execution brief',
-    body: 'Migration ID: DOW-BRIEF-FUTURE-01\nSource status: Prepared future scope; preserve trigger.\nHold: inactive; preserve the source trigger and sequence.\nReadiness: held\nExecution: inactive\nSource reference: docs/future-tickets/example.md#future-01\n',
-    state: 'open',
-    state_reason: null,
-  };
+  const { issue, record } = heldFutureFixture();
   const transport = fakeTransport([issue]);
   await assert.rejects(updateGitHubIssueState({
     transport,
     issueNumber: 500,
-    expectedRecord: {
-      issueId: 5000,
-      issueNumber: 500,
-      migrationId: 'DOW-BRIEF-FUTURE-01',
-      recordKind: 'held-future-brief',
-      holdKind: 'prepared-sequence-trigger',
-      originalHoldStatus: 'Prepared future scope; preserve trigger.',
-      sourceReferences: ['docs/future-tickets/example.md#future-01'],
-      parentMigrationIds: [],
-      blockedByMigrationIds: [],
-    },
+    expectedRecord: record,
     changes: { closeAs: 'completed', reviewed: true, accepted: true, evidenceReferences: [evidenceReference] },
   }), /Held future briefs cannot be completed while held/);
   assert.equal(transport.calls.length, 0);
 });
 
 test('a future hold can be deliberately released with accepted local trigger evidence and survives refresh', async () => {
-  const issue = {
-    id: 5000,
-    number: 500,
-    title: 'Legacy execution brief',
-    body: 'Human note: retain this note.\n\nMigration ID: DOW-BRIEF-FUTURE-01\nSource status: Prepared future scope; preserve trigger.\nHold: inactive; preserve the source trigger and sequence.\nReadiness: held\nExecution: inactive\nSource reference: docs/future-tickets/example.md#future-01\n',
-    state: 'open',
-    state_reason: null,
-  };
-  const record = {
-    issueId: 5000,
-    issueNumber: 500,
-    migrationId: 'DOW-BRIEF-FUTURE-01',
-    recordKind: 'held-future-brief',
-    holdKind: 'prepared-sequence-trigger',
-    originalHoldStatus: 'Prepared future scope; preserve trigger.',
-    sourceReferences: ['docs/future-tickets/example.md#future-01'],
-    parentMigrationIds: [],
-    blockedByMigrationIds: [],
-  };
+  const { issue, record } = heldFutureFixture();
   const transport = fakeTransport([issue]);
   const released = await updateGitHubIssueState({
     transport,
@@ -647,28 +555,12 @@ test('a future hold can be deliberately released with accepted local trigger evi
 });
 
 test('future hold release requires reviewed accepted local evidence', async () => {
-  const transport = fakeTransport([{
-    id: 5000,
-    number: 500,
-    title: 'Legacy execution brief',
-    body: 'Migration ID: DOW-BRIEF-FUTURE-01\nSource status: Prepared future scope; preserve trigger.\nHold: inactive; preserve the source trigger and sequence.\nReadiness: held\nExecution: inactive\nSource reference: docs/future-tickets/example.md#future-01\n',
-    state: 'open',
-    state_reason: null,
-  }]);
+  const { issue, record } = heldFutureFixture();
+  const transport = fakeTransport([issue]);
   await assert.rejects(updateGitHubIssueState({
     transport,
     issueNumber: 500,
-    expectedRecord: {
-      issueId: 5000,
-      issueNumber: 500,
-      migrationId: 'DOW-BRIEF-FUTURE-01',
-      recordKind: 'held-future-brief',
-      holdKind: 'prepared-sequence-trigger',
-      originalHoldStatus: 'Prepared future scope; preserve trigger.',
-      sourceReferences: ['docs/future-tickets/example.md#future-01'],
-      parentMigrationIds: [],
-      blockedByMigrationIds: [],
-    },
+    expectedRecord: record,
     changes: { releaseHold: true, reviewed: true, accepted: true, evidenceReferences: ['docs/missing.md#trigger'] },
   }), /Hold release requires reviewed, accepted local trigger\/authorization evidence/);
   assert.equal(transport.calls.length, 0);
@@ -815,7 +707,11 @@ test('logical dependency projection includes explicitly retained equivalent edge
 test('REST adapter uses append-only state comments, body-free state PATCH, and full paging', async () => {
   const requests = [];
   let current = promptIssue();
-  let issueComments = [];
+  let issueComments = Array.from({ length: 101 }, (_, index) => ({
+    id: 1000 + index,
+    body: `Human comment ${index}`,
+    user: { login: 'helpful-contributor' },
+  }));
   const pageOne = [current, ...Array.from({ length: 99 }, (_, index) => ({
     id: 2000 + index,
     number: 2000 + index,
@@ -829,9 +725,13 @@ test('REST adapter uses append-only state comments, body-free state PATCH, and f
     if (String(url).includes('/issues?')) {
       return { ok: true, status: 200, async json() { return String(url).includes('page=2') ? pageTwo : pageOne; } };
     }
-    if (String(url).endsWith('/issues/181/comments?per_page=100&page=1')) return { ok: true, status: 200, async json() { return issueComments; } };
+    if (String(url).includes('/issues/181/comments?per_page=100&page=')) {
+      const page = Number(new URL(String(url)).searchParams.get('page'));
+      const rows = issueComments.slice((page - 1) * 100, page * 100);
+      return { ok: true, status: 200, async json() { return rows; } };
+    }
     if (String(url).endsWith('/issues/181/comments') && options.method === 'POST') {
-      const comment = { id: 1, body: JSON.parse(options.body).body };
+      const comment = { id: 1101, body: JSON.parse(options.body).body, user: { login: 'emerald-pham' } };
       issueComments = [...issueComments, comment];
       return { ok: true, status: 201, async json() { return comment; } };
     }
@@ -852,7 +752,7 @@ test('REST adapter uses append-only state comments, body-free state PATCH, and f
     throw new Error(`Unexpected fixture URL ${url}`);
   };
   const transport = createGitHubPromptTrackerTransport({
-    owner: 'example',
+    owner: 'emerald-pham',
     repo: 'tracker',
     token: 'fixture-token',
     fetchImpl,
@@ -865,8 +765,12 @@ test('REST adapter uses append-only state comments, body-free state PATCH, and f
   await transport.getRelationships(current.id);
   await transport.createComment({ issueNumber: 181, body: '<!-- DOW-TRACKER-STATE:v1 -->\n{}\n<!-- /DOW-TRACKER-STATE -->' });
   const patched = await transport.patchIssue({ issueNumber: 181, state: 'closed', stateReason: 'completed' });
+  const comments = await transport.listComments(181);
+  assert.equal(comments.length, 102);
+  assert.equal(comments.at(-1).authorLogin, 'emerald-pham');
+  assert.ok(requests.some(({ url }) => url.endsWith('/issues/181/comments?per_page=100&page=2')));
   assert.equal(patched.body, promptIssue().body);
-  assert.match(issueComments[0].body, /DOW-TRACKER-STATE:v1/);
+  assert.match(issueComments.at(-1).body, /DOW-TRACKER-STATE:v1/);
   const patchRequest = requests.find(({ options }) => options.method === 'PATCH');
   assert.deepEqual(JSON.parse(patchRequest.options.body), { state: 'closed', state_reason: 'completed' });
   assert.equal(patchRequest.options.headers.Authorization, 'Bearer fixture-token');
