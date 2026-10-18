@@ -10,13 +10,35 @@ import {
   readGitHubPromptCatalog,
   updateGitHubIssueState,
 } from './github-prompt-tracker.mjs';
-import { loadPromptCatalog, stableCatalogJson } from './prompt-catalog.mjs';
+import { loadPromptCatalog, stableCatalogJson, validatePromptCatalog } from './prompt-catalog.mjs';
 
 const sourceCatalog = loadPromptCatalog();
 const sourceBytes = Buffer.from(stableCatalogJson(sourceCatalog));
 const evidenceReference = 'docs/README.md#tracker';
 const sourceSha256 = createHash('sha256').update(sourceBytes).digest('hex');
-const crosswalkFor = (records, retainedBriefReferences = []) => ({ schemaVersion: 1, destination: 'emerald-pham/den-of-wolves-new-eden-console', sourceSha256, records, retainedBriefReferences });
+const sourceStructureFor = (catalog, records) => {
+  const initialStatuses = new Map(records.filter(({ recordKind }) => recordKind === 'prompt-acceptance')
+    .map((record) => [record.legacyId.toUpperCase(), record.initialStatus]));
+  const value = {
+    ...catalog,
+    prompts: catalog.prompts.map((prompt) => {
+      const copy = initialStatuses.has(prompt.id.toUpperCase())
+        ? { ...prompt, status: initialStatuses.get(prompt.id.toUpperCase()) }
+        : { ...prompt };
+      delete copy.definition;
+      return copy;
+    }),
+  };
+  return createHash('sha256').update(stableCatalogJson(value)).digest('hex');
+};
+const crosswalkFor = (records, retainedBriefReferences = []) => ({
+  schemaVersion: 1,
+  destination: 'emerald-pham/den-of-wolves-new-eden-console',
+  sourceSha256,
+  sourceStructureSha256: sourceStructureFor(sourceCatalog, records),
+  records,
+  retainedBriefReferences,
+});
 const promptRecord = (overrides = {}) => ({
   legacyId: '181',
   migrationId: 'DOW-PROMPT-181',
@@ -158,12 +180,12 @@ test('refresh verifies reconstructed full source SHA after status-only exports',
     sourceBytes: tamperedSource,
     transport: fakeTransport([promptIssue()]),
     crosswalk,
-  }), /Public crosswalk source snapshot hash mismatch/);
+  }), /outside source-reviewed definitions/);
 });
 
 test('source-reviewed prompt definition edits preserve immutable origin provenance', async () => {
-  const prompts = sourceCatalog.prompts.map((prompt) => prompt.id === '181'
-    ? { ...prompt, definition: { ...prompt.definition, title: 'Source-reviewed title update.' } }
+  const prompts = sourceCatalog.prompts.map((prompt) => ['181', '610'].includes(prompt.id)
+    ? { ...prompt, definition: { ...prompt.definition, title: `${prompt.id} source-reviewed title update.` } }
     : prompt);
   const editedSource = Buffer.from(stableCatalogJson({ ...sourceCatalog, prompts }));
   const original = sourceCatalog.prompts.find(({ id }) => id === '181');
@@ -174,7 +196,8 @@ test('source-reviewed prompt definition edits preserve immutable origin provenan
     transport: fakeTransport([promptIssue()]),
     crosswalk,
   });
-  assert.equal(result.catalog.prompts.find(({ id }) => id === '181').definition.title, 'Source-reviewed title update.');
+  assert.equal(result.catalog.prompts.find(({ id }) => id === '181').definition.title, '181 source-reviewed title update.');
+  assert.equal(result.catalog.prompts.find(({ id }) => id === '610').definition.title, '610 source-reviewed title update.');
   assert.equal(result.trackerSnapshot.originSourceSha256, sourceSha256);
 });
 
@@ -295,9 +318,21 @@ test('a dependency reopen is rejected before the invalid catalog reaches a consu
   const transport = fakeTransport([first, second], [[5420, { parentIssueIds: [], blockedByIssueIds: [5410] }]]);
   const crosswalk = crosswalkFor(records);
   await updateGitHubIssueState({ transport, issueNumber: 542, expectedRecord: records[1], changes: { status: 'done', reviewed: true, accepted: true, evidenceReferences: [evidenceReference] } });
-  await assert.doesNotReject(readGitHubPromptCatalog({ sourceBytes, transport, crosswalk }));
-  await updateGitHubIssueState({ transport, issueNumber: 541, expectedRecord: records[0], changes: { status: 'partial' } });
-  await assert.rejects(readGitHubPromptCatalog({ sourceBytes, transport, crosswalk }), /hard prerequisite|prerequisite/);
+  const validBaseline = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk });
+  await assert.rejects(updateGitHubIssueState({
+    transport,
+    issueNumber: 541,
+    expectedRecord: records[0],
+    changes: { status: 'partial' },
+    validateProjection: ({ fields }) => {
+      const projected = structuredClone(validBaseline.catalog);
+      projected.prompts.find(({ id }) => id === '541').status = fields['Prompt status'];
+      const errors = validatePromptCatalog(projected);
+      if (errors.length) throw new Error(errors.join('; '));
+    },
+  }), /hard prerequisite|prerequisite/);
+  assert.equal((await transport.getIssue(541)).state, 'closed');
+  assert.doesNotReject(readGitHubPromptCatalog({ sourceBytes, transport, crosswalk }));
 });
 
 test('tracker update preserves prose added after its initial issue read', async () => {
@@ -308,6 +343,27 @@ test('tracker update preserves prose added after its initial issue read', async 
   assert.equal(transport.calls.length, 1);
   assert.equal(Object.hasOwn(transport.calls[0], 'body'), false);
   assert.match((await transport.listComments(181)).at(-1).body, /DOW-TRACKER-STATE:v1/);
+});
+
+test('uncertain comment creation is recovered by exact readback without duplicating state', async () => {
+  const transport = fakeTransport([promptIssue()]);
+  const createComment = transport.createComment.bind(transport);
+  transport.createComment = async (args) => {
+    await createComment(args);
+    throw new Error('simulated response loss after comment creation');
+  };
+  await updateGitHubIssueState({ transport, issueNumber: 181, expectedRecord: promptRecord(), changes: { status: 'partial' } });
+  assert.equal((await transport.listComments(181)).length, 1);
+});
+
+test('malformed latest tracker state comment fails closed', async () => {
+  const transport = fakeTransport([promptIssue()]);
+  await transport.createComment({ issueNumber: 181, body: '<!-- DOW-TRACKER-STATE:v1 -->\n{broken' });
+  await assert.rejects(readGitHubPromptCatalog({
+    sourceBytes,
+    transport,
+    crosswalk: crosswalkFor([promptRecord()]),
+  }), /tracker-owned state comment is malformed/);
 });
 
 test('tracker snapshot captures brief execution when the catalog JSON does not change', async () => {
