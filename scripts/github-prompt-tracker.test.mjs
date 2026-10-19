@@ -1051,7 +1051,7 @@ test('normal refresh check accepts BP1 history with complete read-only GitHub tr
     assert.match(result.stdout, /Tracker snapshot is current \(148 issues; source ac941864eaea\)/);
     assert.ok(calls.some((call) => call.includes('/issues?state=all&per_page=100&page=1')));
     assert.ok(calls.some((call) => call.includes('/issues/26/comments?per_page=100&page=1')));
-    assert.ok(calls.every((call) => call.startsWith('GET https://api.github.com/')));
+    assert.ok(calls.every((call) => call.startsWith('GET /')));
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
