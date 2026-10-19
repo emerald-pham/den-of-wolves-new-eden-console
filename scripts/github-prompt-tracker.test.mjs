@@ -1052,6 +1052,10 @@ test('normal refresh check accepts BP1 history with complete read-only GitHub tr
     assert.ok(calls.some((call) => call.includes('/issues?state=all&per_page=100&page=1')));
     assert.ok(calls.some((call) => call.includes('/issues/26/comments?per_page=100&page=1')));
     assert.ok(calls.every((call) => call.startsWith('GET /')));
+    assert.equal(calls.length, 446);
+    assert.equal(calls.filter((call) => /\/issues\/\d+\/parent$/.test(call)).length, 148);
+    assert.equal(calls.filter((call) => /\/issues\/\d+\/dependencies\/blocked_by(?:\?|$)/.test(call)).length, 148);
+    assert.equal(calls.filter((call) => /\/issues\/\d+\/comments\?/.test(call)).length, 148);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
