@@ -1056,3 +1056,52 @@ test('normal refresh check accepts BP1 history with complete read-only GitHub tr
     await rm(cwd, { recursive: true, force: true });
   }
 });
+
+async function readBeforeTrackerTransport(source, crosswalk) {
+  return readGitHubPromptCatalog({
+    sourceBytes: Buffer.from(stableCatalogJson(source)),
+    transport: {
+      async listIssues() { throw new Error('Unexpected tracker transport read'); },
+      async getRelationships() { throw new Error('Unexpected tracker relationship read'); },
+    },
+    crosswalk,
+    cwd: process.cwd(),
+  });
+}
+
+test('BP1 compatibility does not admit changed or unapproved evidence wording', async () => {
+  const crosswalk = JSON.parse(await readFile(resolve(process.cwd(), 'docs/tracker/github-crosswalk.json'), 'utf8'));
+  const altered = structuredClone(sourceCatalog);
+  const bp1 = altered.evidence.find(({ id }) => id === approvedBp1Evidence.id);
+  bp1.language += ' An extra unreviewed promise.';
+
+  await assert.rejects(readBeforeTrackerTransport(altered, crosswalk),
+    /Catalog changes outside source-reviewed definitions/);
+});
+
+test('BP1 compatibility does not admit evidence under another source identity', async () => {
+  const crosswalk = JSON.parse(await readFile(resolve(process.cwd(), 'docs/tracker/github-crosswalk.json'), 'utf8'));
+  crosswalk.sourceStructureSha256 = '0'.repeat(64);
+
+  await assert.rejects(readBeforeTrackerTransport(sourceCatalog, crosswalk),
+    /Catalog changes outside source-reviewed definitions/);
+});
+
+test('BP1 compatibility rejects a missing evidence row or either required history link', async () => {
+  const crosswalk = JSON.parse(await readFile(resolve(process.cwd(), 'docs/tracker/github-crosswalk.json'), 'utf8'));
+  const withoutRow = structuredClone(sourceCatalog);
+  withoutRow.evidence = withoutRow.evidence.filter(({ id }) => id !== approvedBp1Evidence.id);
+  await assert.rejects(readBeforeTrackerTransport(withoutRow, crosswalk),
+    /references unknown dependency evidence E-PC10-1-BP1-20261017/);
+
+  for (const promptId of ['629', '651']) {
+    const withoutLink = structuredClone(sourceCatalog);
+    const prompt = withoutLink.prompts.find(({ id }) => id === promptId);
+    prompt.evidenceIds = prompt.evidenceIds
+      .split(';')
+      .filter((id) => id !== approvedBp1Evidence.id)
+      .join(';');
+    await assert.rejects(readBeforeTrackerTransport(withoutLink, crosswalk),
+      /Catalog changes outside source-reviewed definitions/);
+  }
+});
