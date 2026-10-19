@@ -1,9 +1,11 @@
 # Documentation map
 
-Start from the authority for the question below. The catalog owns live roadmap
-facts; canonical guides own current contracts; dated reports and archives keep
-bounded evidence and decision history. Update the source rather than copying
-live counts or requirements into another ledger.
+Start from the authority for the question below. GitHub is the mutable
+authority for the imported prompt/brief set; the saved catalog supplies its offline view and
+retains definitions and history. Canonical guides own current contracts; dated
+reports and archives keep bounded evidence and decision history. Update the
+owning source rather than copying live counts or requirements into another
+ledger. The crosswalk maps public issue state to the offline catalog snapshot.
 
 ## Start here
 
@@ -23,7 +25,9 @@ live counts or requirements into another ledger.
 
 | Document | Owns |
 |---|---|
-| [implementation-prompts.json](implementation-prompts.json) | Canonical definitions, statuses, prerequisites and release evidence |
+| [implementation-prompts.json](implementation-prompts.json) | Offline snapshot of prompt definitions, imported tracker state, prerequisites and release evidence |
+| [GitHub issue tracker](agents/issue-tracker.md) | Mutable tracking authority, safe refresh/update/export commands and recovery provenance |
+| [github-crosswalk.json](tracker/github-crosswalk.json) | Sanitized immutable identity and source-to-issue mapping |
 | [Product checkpoints](PRODUCT_MILESTONES.md) | Current preparation, authorization, UI review and cooldown workflow |
 | [Alignment before the next checkpoint](PRODUCT_MILESTONES.md#owner-decisions-before-the-next-checkpoint) | Review owner conversations and update all affected future criteria before the next shape/build |
 | [Completion plan](CHECKPOINT_COMPLETION_PLAN.md#complete-baseline-allocation) | Fixed PC05–PC10 IDs and cumulative targets; current PC06 scope is its 49-ID row |
@@ -37,9 +41,10 @@ live counts or requirements into another ledger.
 The generated Markdown views are [objectives and acceptance](IMPLEMENTATION_PLAN.md),
 [progress and release evidence](IMPLEMENTATION_PROGRESS.md), and
 [dependencies/readiness](IMPLEMENTATION_PROMPT_DEPENDENCIES.md). Update the
-catalog, then run `node scripts/generate-prompt-views.mjs`; `--check` verifies
-the views. `coordination:dependencies` is read-only and creates no nonce or
-receipt. `NEXT` is an advisory ready-work hint.
+catalog snapshot, then run `npm run prompt-tracker -- export` to rebuild the
+views offline. Use `npm run prompt-tracker -- refresh --check` to compare the
+saved snapshot with GitHub. `coordination:dependencies` is read-only and
+creates no nonce or receipt. `NEXT` is an advisory ready-work hint.
 
 The [Gantt HTML](PC07_ROADMAP_GANTT.html), [JSON](PC07_ROADMAP_GANTT.json) and
 [CSV](PC07_ROADMAP_GANTT.csv) project the same fixed 195 PC07–PC10 IDs. They

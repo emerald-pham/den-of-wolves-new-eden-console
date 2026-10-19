@@ -119,6 +119,12 @@ export function validatePromptDependencyGuidance({ sources, errors }) {
     if (filePath !== 'docs/README.md' && !normalized.includes('implementation-prompts.json')) {
       errors.push(`${filePath}: must link the JSON prompt catalog`);
     }
+    if (!normalized.includes('github-crosswalk.json') || !normalized.includes('mutable authority')) {
+      errors.push(`${filePath}: must identify the GitHub tracker authority and sanitized crosswalk`);
+    }
+    if (!normalized.includes('prompt-tracker -- export')) {
+      errors.push(`${filePath}: must document offline export from the saved tracker snapshot`);
+    }
     if (!/generated[\s\S]{0,180}(?:markdown|view|implementation)/i.test(normalized) &&
       !/catalog[\s\S]{0,180}(?:generate|view)/i.test(normalized)) {
       errors.push(`${filePath}: must identify generated implementation views`);

@@ -14,15 +14,23 @@ The [execution policy](AGENT_EXECUTION_POLICY.md) owns batched release and owner
 
 ## Start with current facts
 
-Read the current JSON prompt catalog at
-[`implementation-prompts.json`](implementation-prompts.json) and its generated
-Markdown views, then the active shaped checkpoint and prior feedback. Use the
+Read the saved JSON prompt snapshot at
+[`implementation-prompts.json`](implementation-prompts.json), the matching
+public issue through [`github-crosswalk.json`](tracker/github-crosswalk.json),
+and its generated Markdown views, then the active shaped checkpoint and prior
+feedback. GitHub is the mutable authority for migrated prompt and brief
+tracking state; the saved catalog remains the offline consumer view. Use the
 catalog's readiness/dependency check for selected prompts;
 `npm run coordination:dependencies -- --prompt NNN` is a read-only
 report and creates no nonce or local receipt. `NEXT` is an advisory ready-work
 hint. Do not copy old counts, SHAs, versions, or statuses into a new task.
-When catalog facts change, run `node scripts/generate-prompt-views.mjs` and use
-`--check` to verify the generated Markdown views.
+Use `npm run prompt-tracker -- refresh` to update saved tracking state from
+GitHub, `npm run prompt-tracker -- update --issue NUMBER ...` for field-scoped
+changes, and `npm run prompt-tracker -- export` to regenerate views offline.
+`npm run prompt-tracker -- refresh --check` checks snapshot freshness. For
+prompt definition changes, run `npm run roadmap:generate` and
+`npm run roadmap:check` to verify the generated Markdown views.
+The underlying roadmap generator is `node scripts/generate-prompt-views.mjs`.
 
 Use one owner per task: the top-level orchestrator thread receiving the user's
 request. It owns implementation, required independent risk review, repairs,

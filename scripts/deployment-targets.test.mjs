@@ -3,7 +3,86 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { classifyChangedFiles, deploymentSelector } from './deployment-targets.mjs';
+import { classifyChangedFiles, classifyDeploymentRange, deploymentSelector } from './deployment-targets.mjs';
+
+const DEPLOYMENT_BASELINE = '3d2aa54140ced8b80add86b460516568ed7c58c7';
+const TRACKER_CANDIDATE = '3e8709755e9d03680c8823b0e273f71ec85462ab';
+const PUBLISHED_MAIN = 'aa2c89f5d369d42b94a91ecadaa4244d0d1c2d08';
+const TRACKER_SNAPSHOT = 'docs/tracker/github-snapshot.json';
+
+function packageAt(revision) {
+  return JSON.parse(execFileSync('git', ['show', `${revision}:package.json`], { encoding: 'utf8' }));
+}
+
+test('tracker snapshot and reviewed command aliases do not select application deployment', () => {
+  const snapshot = classifyChangedFiles([TRACKER_SNAPSHOT]);
+  assert.deepEqual(snapshot.targets, []);
+  assert.deepEqual(snapshot.unknownFiles, []);
+  assert.deepEqual(snapshot.ignoredFiles, [TRACKER_SNAPSHOT]);
+
+  const packageResult = classifyChangedFiles(['package.json'], {
+    packageJsonChange: {
+      beforePackage: packageAt(DEPLOYMENT_BASELINE),
+      afterPackage: packageAt(TRACKER_CANDIDATE),
+    },
+  });
+  assert.deepEqual(packageResult.targets, []);
+  assert.deepEqual(packageResult.unknownFiles, []);
+  assert.deepEqual(packageResult.ignoredFiles, ['package.json']);
+  assert.equal(packageResult.riskGates.lint, true);
+  assert.equal(packageResult.riskGates.unit, true);
+  assert.equal(packageResult.riskGates.webBuild, true);
+});
+
+test('the real deployment range keeps tracker tooling out of app targets and retains its gates', () => {
+  const result = classifyDeploymentRange({
+    before: DEPLOYMENT_BASELINE,
+    verificationBefore: PUBLISHED_MAIN,
+    after: TRACKER_CANDIDATE,
+    currentMainTip: TRACKER_CANDIDATE,
+  });
+  assert.deepEqual(result.targets, []);
+  assert.deepEqual(result.unknownFiles, []);
+  assert.ok(result.ignoredFiles.includes(TRACKER_SNAPSHOT));
+  assert.ok(result.ignoredFiles.includes('package.json'));
+  assert.equal(result.riskGates.lint, true);
+  assert.equal(result.riskGates.unit, true);
+});
+
+test('package deploy suppression requires the exact aliases and fails closed for other changes', () => {
+  const beforePackage = packageAt(DEPLOYMENT_BASELINE);
+  const afterPackage = packageAt(TRACKER_CANDIDATE);
+
+  const exactAliasResult = classifyChangedFiles(['package.json'], {
+    packageJsonChange: { beforePackage, afterPackage },
+  });
+  assert.deepEqual(exactAliasResult.targets, []);
+  assert.deepEqual(exactAliasResult.ignoredFiles, ['package.json']);
+
+  const changedDependency = structuredClone(afterPackage);
+  changedDependency.dependencies.firebase = '^12.99.0';
+  const dependencyResult = classifyChangedFiles(['package.json'], {
+    packageJsonChange: { beforePackage, afterPackage: changedDependency },
+  });
+  assert.deepEqual(dependencyResult.targets, ['hosting']);
+  assert.deepEqual(dependencyResult.ignoredFiles, []);
+
+  const changedCommand = structuredClone(afterPackage);
+  changedCommand.scripts['prompt-tracker'] = 'node scripts/other.mjs';
+  const commandResult = classifyChangedFiles(['package.json'], {
+    packageJsonChange: { beforePackage, afterPackage: changedCommand },
+  });
+  assert.deepEqual(commandResult.targets, ['hosting']);
+
+  const missingComparison = classifyChangedFiles(['package.json']);
+  assert.deepEqual(missingComparison.targets, ['hosting']);
+});
+
+test('tracker snapshot exception is exact and unknown paths remain fail closed', () => {
+  const adjacent = classifyChangedFiles(['docs/tracker/another-export.json']);
+  assert.deepEqual(adjacent.targets, ['hosting', 'firestore', 'functions']);
+  assert.deepEqual(adjacent.unknownFiles, ['docs/tracker/another-export.json']);
+});
 
 test('classifies the isolated PC01 review entry as Hosting', () => {
   const result = classifyChangedFiles(['pc01-review.html']);

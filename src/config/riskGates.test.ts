@@ -37,6 +37,7 @@ describe('risk-based CI gates', () => {
       firestore: false,
       webBuild: false,
       ticker: false,
+      trackerChanged: false,
       font: false,
       typography: false,
       render: false,
