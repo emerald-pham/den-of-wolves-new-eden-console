@@ -139,6 +139,17 @@ provenance. Refresh verifies the structure fingerprint after restoring
 imported statuses, then reconciles the full issue set, public identities, exact
 source blocker lists, native relationships, and documented equivalent edges
 before writing snapshots.
+
+The reader has one narrowly versioned v1 exception for BP1's historical planning
+addition: the exact `E-PC10-1-BP1-20261017` row and its exact P629/P651 evidence
+links are removed from a cloned catalog only for the original structure-hash
+comparison. The source catalog, crosswalk and origin hashes remain unchanged.
+The row remains planning evidence with no closure credit; this contract does
+not renew that dated owner-approved record or grant completion or
+gameplay-acceptance status. It is bound to the original source and structure
+hashes and exact wording, not a general mechanism for adding evidence. The
+historical row has no expiry field or expiry rule.
+
 If a refresh is interrupted, rerun `refresh --check` to compare state; rerun
 `refresh` to reconcile the saved snapshot from the current complete GitHub
 readback. A missing or mismatched tracker-state snapshot is stale. Rerun
