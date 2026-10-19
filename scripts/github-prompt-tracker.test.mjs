@@ -1079,6 +1079,15 @@ test('BP1 compatibility does not admit changed or unapproved evidence wording', 
     /Catalog changes outside source-reviewed definitions/);
 });
 
+test('catalog validation still rejects malformed BP1 evidence before tracker access', async () => {
+  const crosswalk = JSON.parse(await readFile(resolve(process.cwd(), 'docs/tracker/github-crosswalk.json'), 'utf8'));
+  const malformed = structuredClone(sourceCatalog);
+  delete malformed.evidence.find(({ id }) => id === approvedBp1Evidence.id).language;
+
+  await assert.rejects(readBeforeTrackerTransport(malformed, crosswalk),
+    /dependency evidence E-PC10-1-BP1-20261017 has empty language/);
+});
+
 test('BP1 compatibility does not admit evidence under another source identity', async () => {
   const crosswalk = JSON.parse(await readFile(resolve(process.cwd(), 'docs/tracker/github-crosswalk.json'), 'utf8'));
   crosswalk.sourceStructureSha256 = '0'.repeat(64);
