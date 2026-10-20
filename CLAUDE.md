@@ -109,6 +109,11 @@ Do not run a compulsory Luna → Sol → Luna ownership cycle.
 Escalate only after actual lack of progress or a material failure, following
 [delegation and repair handoff](docs/AGENT_EXECUTION_POLICY.md#delegation).
 
+## Error recovery
+
+For error handling, retries, reconnects or stale reads, follow
+[Safe automatic recovery](docs/agents/error-recovery.md).
+
 ## Testing and review
 
 Use focused, meaningful tests that prove the behavior. Security and authority changes
