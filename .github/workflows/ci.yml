@@ -230,6 +230,9 @@ jobs:
       - name: Firebase deployment batching contract
         run: node --test scripts/deploy-firebase-surfaces.test.mjs
 
+      - name: Local CI handoff contract
+        run: node --test scripts/local-ci-handoff.test.mjs
+
       - name: Check prompt catalog and generated views
         if: steps.change_scope.outputs.roadmap_changed == 'true'
         run: npm run roadmap:check
