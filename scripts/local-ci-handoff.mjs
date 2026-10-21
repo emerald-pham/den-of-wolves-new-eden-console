@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto';
 import {
+  accessSync,
   appendFileSync,
   chmodSync,
   mkdirSync,
@@ -8,7 +9,9 @@ import {
   readFileSync,
   realpathSync,
   renameSync,
+  statSync,
   writeFileSync,
+  constants as fsConstants,
 } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -51,6 +54,26 @@ const TICKER_SMOKE_OVERRIDE_KEYS = Object.freeze([
   'TICKER_SMOKE_SHARD',
   'TICKER_SMOKE_ONLY_LIFECYCLE',
   'TICKER_SMOKE_ONLY_REDUCED_LIFECYCLE',
+]);
+
+const NPM_HANDOFF_CONFIG_KEYS = Object.freeze([
+  'dry-run',
+  'omit',
+  'include',
+  'only',
+  'production',
+  'optional',
+  'ignore-scripts',
+  'install-strategy',
+  'legacy-peer-deps',
+  'force',
+  'install-links',
+  'package-lock',
+  'script-shell',
+  'workspace',
+  'workspaces',
+  'include-workspace-root',
+  'node-options',
 ]);
 
 const CHROMIUM_INSTALL_ARGS = Object.freeze({
@@ -111,30 +134,111 @@ function effectiveTickerSmokeConfig() {
   return config;
 }
 
+function readPrePushHookState(cwd) {
+  const localHooksPath = git(cwd, ['config', '--local', '--get', 'core.hooksPath'], { allowFailure: true });
+  const effectiveHooksPath = git(cwd, ['config', '--get', 'core.hooksPath'], { allowFailure: true });
+  if (localHooksPath.status !== 0 || effectiveHooksPath.status !== 0 ||
+      localHooksPath.stdout.trim() !== '.githooks' || effectiveHooksPath.stdout.trim() !== '.githooks') {
+    fail('The repository push hook is not installed at .githooks; the candidate was not published.');
+  }
+
+  const hookPath = gitText(cwd, ['rev-parse', '--path-format=absolute', '--git-path', 'hooks/pre-push']);
+  let state;
+  try {
+    const hookInfo = statSync(hookPath);
+    if (!hookInfo.isFile() || (hookInfo.mode & 0o111) === 0) {
+      fail('The effective pre-push hook is missing or not executable; the candidate was not published.');
+    }
+    accessSync(hookPath, fsConstants.X_OK);
+    state = {
+      hooksPath: '.githooks',
+      path: hookPath,
+      resolvedPath: realpathSync(hookPath),
+      exists: true,
+      mode: hookInfo.mode & 0o777,
+      sha256: fileDigest(hookPath),
+    };
+  } catch (error) {
+    if (error instanceof Error && /effective pre-push hook/.test(error.message)) throw error;
+    fail('The effective pre-push hook is missing or cannot be inspected; the candidate was not published.');
+  }
+  return state;
+}
+
+function assertSamePrePushHook(cwd, initial) {
+  const current = readPrePushHookState(cwd);
+  if (JSON.stringify(current) !== JSON.stringify(initial)) {
+    fail('The effective pre-push hook path, content, or executable mode changed during local CI.');
+  }
+}
+
 function effectiveNodeConfig(cwd) {
   const nodeOptions = process.env.NODE_OPTIONS?.trim() || null;
   if (nodeOptions) {
     fail('The effective NODE_OPTIONS runtime override is unsupported for CI handoff.');
   }
-  const result = spawnSync('npm', ['config', 'get', 'node-options'], {
+  const result = spawnSync('npm', ['config', 'get', '--json', ...NPM_HANDOFF_CONFIG_KEYS], {
     cwd,
     env: withNode22Path(process.env),
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   if (result.error || result.status !== 0) {
-    fail('Could not inspect the effective npm node-options lifecycle setting.');
+    fail('Could not inspect effective npm lifecycle and dependency settings.');
   }
-  const effectiveValue = (result.stdout ?? '').trim();
-  if (effectiveValue && effectiveValue !== 'null') {
-    fail('The effective npm node-options lifecycle override is unsupported for CI handoff.');
+  const effective = {};
+  for (const line of (result.stdout ?? '').split(/\r?\n/).filter(Boolean)) {
+    const separator = line.indexOf('=');
+    const key = line.slice(0, separator);
+    if (separator < 1 || !NPM_HANDOFF_CONFIG_KEYS.includes(key) || Object.hasOwn(effective, key)) {
+      fail('Could not parse effective npm lifecycle and dependency settings.');
+    }
+    effective[key] = line.slice(separator + 1).trim();
   }
+  if (NPM_HANDOFF_CONFIG_KEYS.some((key) => !Object.hasOwn(effective, key))) {
+    fail('Could not parse effective npm lifecycle and dependency settings.');
+  }
+
+  const rejectedOverrides = [
+    ['dry-run', (value) => value === 'true'],
+    ['omit', (value) => Boolean(value)],
+    ['include', (value) => Boolean(value)],
+    ['only', (value) => Boolean(value && value !== 'null')],
+    ['production', (value) => value === 'true'],
+    ['optional', (value) => value === 'false'],
+    ['ignore-scripts', (value) => value === 'true'],
+    ['install-strategy', (value) => value !== 'hoisted'],
+    ['legacy-peer-deps', (value) => value === 'true'],
+    ['force', (value) => value === 'true'],
+    ['install-links', (value) => value === 'true'],
+    ['package-lock', (value) => value === 'false'],
+    ['script-shell', (value) => Boolean(value && value !== 'null')],
+    ['workspace', (value) => Boolean(value && value !== 'null')],
+    ['workspaces', (value) => Boolean(value && value !== 'null')],
+    ['include-workspace-root', (value) => value === 'true'],
+    ['node-options', (value) => Boolean(value && value !== 'null')],
+  ];
+  for (const [key, isRejected] of rejectedOverrides) {
+    if (isRejected(effective[key])) {
+      fail(`The effective npm ${key} override is unsupported for CI handoff.`);
+    }
+  }
+
+  const npmConfig = Object.fromEntries(NPM_HANDOFF_CONFIG_KEYS.map((key) => {
+    const value = effective[key];
+    if (key === 'script-shell' || key === 'node-options') {
+      return [key, value && value !== 'null'
+        ? { configured: true, sha256: createHash('sha256').update(value).digest('hex') }
+        : null];
+    }
+    return [key, value];
+  }));
   return {
     nodeVersion: process.version,
     nodeExecutable: process.execPath,
     platform: process.platform,
-    nodeOptions,
-    npmNodeOptions: effectiveValue && effectiveValue !== 'null' ? effectiveValue : null,
+    nodeOptions: nodeOptions ? createHash('sha256').update(nodeOptions).digest('hex') : null,
+    npmConfig,
   };
 }
 
@@ -176,6 +280,7 @@ function fetchCommit(cwd, remote, sha) {
 
 function readSnapshot(cwd) {
   assertNoConcealedIndexState(cwd);
+  const prePushHook = readPrePushHookState(cwd);
   const nodeConfig = effectiveNodeConfig(cwd);
   const tickerSmoke = effectiveTickerSmokeConfig();
   const branch = gitText(cwd, ['branch', '--show-current']);
@@ -187,7 +292,7 @@ function readSnapshot(cwd) {
   const status = gitText(cwd, ['status', '--porcelain=v1', '--untracked-files=all']);
   if (status) fail('The candidate worktree must be clean, including staged and untracked files.');
   const liveDigests = Object.fromEntries(LIVE_FILES.map((path) => [path, fileDigest(resolve(cwd, path))]));
-  return { branch, headSha, treeSha, indexTreeSha, liveDigests, nodeConfig, tickerSmoke };
+  return { branch, headSha, treeSha, indexTreeSha, liveDigests, nodeConfig, tickerSmoke, prePushHook };
 }
 
 function assertSameSnapshot(cwd, initial) {
@@ -198,6 +303,9 @@ function assertSameSnapshot(cwd, initial) {
   if (JSON.stringify(current.nodeConfig) !== JSON.stringify(initial.nodeConfig) ||
       JSON.stringify(current.tickerSmoke) !== JSON.stringify(initial.tickerSmoke)) {
     fail('The effective runtime or ticker smoke configuration changed while local CI was running.');
+  }
+  if (JSON.stringify(current.prePushHook) !== JSON.stringify(initial.prePushHook)) {
+    fail('The effective pre-push hook path, content, or executable mode changed during local CI.');
   }
   for (const path of LIVE_FILES) {
     if (current.liveDigests[path] !== initial.liveDigests[path]) {
@@ -491,6 +599,7 @@ function createAttempt({ cwd, attemptRoot, initial, baseSha, refs, fingerprint, 
     config: {
       ...initial.nodeConfig,
       tickerSmoke: initial.tickerSmoke,
+      prePushHook: initial.prePushHook,
       pushUrlCount: remoteConfig.pushUrls.length,
       pushUrlMatchesFetch: remoteConfig.pushUrls.length === 1 && remoteConfig.pushUrls[0] === remoteConfig.fetchUrls[0],
       fetchUrlFingerprint: digest(remoteConfig.fetchUrls[0]),
@@ -692,10 +801,7 @@ async function runLocalCiHandoff({
     if (currentRefs.mainSha !== refs.mainSha || currentRefs.branchSha !== refs.branchSha) {
       fail('The remote base or topic branch changed while local CI was running; rerun against the new base.');
     }
-    if (gitText(cwd, ['config', '--local', '--get', 'core.hooksPath']) !== '.githooks' ||
-        gitText(cwd, ['config', '--get', 'core.hooksPath']) !== '.githooks') {
-      fail('The repository push hook is not installed at .githooks; the candidate was not published.');
-    }
+    assertSamePrePushHook(cwd, initial.prePushHook);
 
     const destinationRef = `refs/heads/${initial.branch}`;
     const refspec = `${initial.headSha}:${destinationRef}`;
@@ -707,6 +813,15 @@ async function runLocalCiHandoff({
     attempt.manifest.push.status = 'pending';
     attempt.manifest.push.startedAt = new Date().toISOString();
     persistAttempt(attempt);
+
+    try {
+      assertSamePrePushHook(cwd, initial.prePushHook);
+    } catch (error) {
+      attempt.manifest.push.status = 'not-attempted';
+      attempt.manifest.push.startedAt = null;
+      persistAttempt(attempt);
+      throw error;
+    }
 
     let push;
     try {
