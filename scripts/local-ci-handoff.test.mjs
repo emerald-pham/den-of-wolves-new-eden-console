@@ -124,11 +124,23 @@ function successfulCommand(command) {
     };
   }
   if (npmScript === 'test:ticker:browser') {
-    const cases = Array.from({ length: 24 }, (_, index) => `Ticker browser smoke passed: controlled/${index}\n`).join('');
+    const cases = [];
+    for (const [scenario, viewports] of [
+      ['press', ['390x844', '844x390', '1440x900']],
+      ['turn-zero', ['320x844', '390x844', '1440x900']],
+    ]) {
+      for (const font of ['pending', 'ready']) {
+        for (const motion of ['normal', 'reduced']) {
+          for (const viewport of viewports) {
+            cases.push(`Ticker browser smoke passed: ${scenario}/${font}/${motion}/${viewport}\n`);
+          }
+        }
+      }
+    }
     return {
       exitCode: 0,
       signal: null,
-      stdout: `${cases}Ticker lifecycle browser proof passed: controlled-normal.json\nTicker reduced lifecycle browser proof passed: controlled-reduced.json\n`,
+      stdout: `${cases.join('')}Ticker lifecycle browser proof passed: controlled-normal.json\nTicker reduced lifecycle browser proof passed: controlled-reduced.json\n`,
       stderr: '',
     };
   }
@@ -136,7 +148,7 @@ function successfulCommand(command) {
     return {
       exitCode: 0,
       signal: null,
-      stdout: 'Rendered typography gate passed: 1 PC01 cases, 1 surfaces, 1 Voyage metadata renders, 1 viewports, normal/reduced motion.\nExact PC01 comparison evidence: controlled/results.json\n',
+      stdout: 'Rendered typography gate passed: 1 PC01 cases, 1 surfaces, 1 Voyage metadata renders, 1 viewports, normal/reduced motion. Evidence: controlled/typography\nExact PC01 abc123 comparison evidence: controlled/results.json\n',
       stderr: '',
     };
   }
