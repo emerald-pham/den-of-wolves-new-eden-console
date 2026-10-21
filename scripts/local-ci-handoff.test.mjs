@@ -412,10 +412,7 @@ test('the local cohort uses the complete platform-specific Chromium install comm
   const profiles = [
     ['scripts/local-ci-handoff.mjs', ['Install Playwright Chromium for proof-tool browser smoke']],
     ['src/index.css', ['Install rendered typography browser']],
-    ['src/styles/starmap.css', [
-      'Install Playwright Chromium for proof-tool browser smoke',
-      'Install ticker smoke browser',
-    ]],
+    ['src/styles/starmap.css', ['Install rendered typography browser']],
   ];
   for (const platform of ['linux', 'darwin']) {
     const expectedArgs = platform === 'linux'
