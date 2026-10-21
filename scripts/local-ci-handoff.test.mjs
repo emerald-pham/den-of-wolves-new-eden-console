@@ -25,7 +25,7 @@ function copyPolicyFile(root, relativePath) {
   copyFileSync(join(sourceRoot, relativePath), destination);
 }
 
-function createFixture({ commitMessage = 'test: handoff candidate', alteredWorkflow = false, changePath = 'scripts/fixture-change.mjs', withSubmodule = false } = {}) {
+function createFixture({ commitMessage = 'test: handoff candidate', alteredWorkflow = false, changePath = 'scripts/fixture-change.mjs', withSubmodule = false, projectNpmrc } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'dow-local-ci-handoff-'));
   const bare = join(root, 'remote.git');
   const repo = join(root, 'repo');
@@ -53,6 +53,7 @@ function createFixture({ commitMessage = 'test: handoff candidate', alteredWorkf
   ]) copyPolicyFile(repo, path);
   chmodSync(join(repo, '.githooks/pre-push'), 0o755);
   git(repo, 'config', 'core.hooksPath', '.githooks');
+  if (projectNpmrc !== undefined) writeFileSync(join(repo, '.npmrc'), projectNpmrc);
   let submodule;
   if (withSubmodule) {
     const bare = join(root, 'submodule.git');
@@ -171,6 +172,30 @@ function runFixtureHandoff(fixture, options = {}) {
     attemptRoot: join(fixture.root, 'attempts'),
     ...options,
   });
+}
+
+function withEnvironment(overrides, callback) {
+  const previous = Object.fromEntries(Object.keys(overrides).map((key) => [key, process.env[key]]));
+  for (const [key, value] of Object.entries(overrides)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  return Promise.resolve().then(callback).finally(() => {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+}
+
+function readAttemptArtifacts(fixture) {
+  const attempts = readdirSync(join(fixture.root, 'attempts'));
+  assert.equal(attempts.length, 1);
+  const attemptDir = join(fixture.root, 'attempts', attempts[0]);
+  const manifest = JSON.parse(readFileSync(join(attemptDir, 'attempt.json'), 'utf8'));
+  const records = readFileSync(join(attemptDir, 'results.ndjson'), 'utf8')
+    .trim().split('\n').map((line) => JSON.parse(line));
+  return { attemptDir, manifest, records };
 }
 
 test('a complete local cohort hands off the exact tested SHA through the ordinary push hook', async () => {
@@ -383,6 +408,74 @@ test('an inherited npm node-options override cannot narrow the required cohort',
   assert.equal(git(fixture.repo, 'ls-remote', 'origin', 'refs/heads/topic/ci-handoff'), '');
 });
 
+test('effective npm install and lifecycle overrides are rejected before CI stages', async (t) => {
+  const cases = [
+    {
+      name: 'environment dry-run',
+      fixtureOptions: {},
+      env: { npm_config_dry_run: 'true' },
+    },
+    {
+      name: 'project dependency omission',
+      fixtureOptions: { projectNpmrc: 'omit=dev\n' },
+      env: {},
+    },
+    {
+      name: 'user lifecycle shell override',
+      fixtureOptions: {},
+      env: { npm_config_userconfig: 'user-npmrc' },
+      userNpmrc: 'script-shell=/bin/true\n',
+    },
+  ];
+
+  for (const { name, fixtureOptions, env, userNpmrc } of cases) {
+    await t.test(name, async () => {
+      const fixture = createFixture(fixtureOptions);
+      const calls = [];
+      if (userNpmrc) {
+        const userConfig = join(fixture.root, 'user.npmrc');
+        writeFileSync(userConfig, userNpmrc);
+        env.npm_config_userconfig = userConfig;
+      }
+      let error;
+      await withEnvironment(env, async () => {
+        try {
+          await runFixtureHandoff(fixture, { runCommand: successfulAdapter(calls) });
+        } catch (caught) {
+          error = caught;
+        }
+      });
+
+      assert.equal(calls.length, 0, 'effective npm settings must be checked before running the cohort');
+      assert.equal(git(fixture.repo, 'ls-remote', 'origin', 'refs/heads/topic/ci-handoff'), '');
+      assert.match(error?.message ?? '', /npm|install|lifecycle|override|dry-run/i);
+      assert.doesNotMatch(error?.message ?? '', /_auth|password|token|https?:\/\//i);
+    });
+  }
+});
+
+test('an effective npm dependency override changed during a stage invalidates the run', async () => {
+  const fixture = createFixture();
+  const calls = [];
+  let error;
+  await withEnvironment({ npm_config_omit: undefined }, async () => {
+    try {
+      await runFixtureHandoff(fixture, {
+        runCommand: successfulAdapter(calls, (command) => {
+          if (calls.length === 1) process.env.npm_config_omit = 'dev';
+          return successfulCommand(command);
+        }),
+      });
+    } catch (caught) {
+      error = caught;
+    }
+  });
+
+  assert.equal(calls.length, 1, 'configuration drift must stop the next cohort stage');
+  assert.equal(git(fixture.repo, 'ls-remote', 'origin', 'refs/heads/topic/ci-handoff'), '');
+  assert.match(error?.message ?? '', /npm|configuration|changed|override/i);
+});
+
 test('ticker smoke narrowing environment overrides are rejected before cohort execution', async (t) => {
   for (const [key, value] of [
     ['TICKER_SMOKE_SHARD', 'press'],
@@ -557,12 +650,7 @@ test('failed stages leave their raw result and failure state in the private atte
       : successfulCommand(command)),
   }), /failed/i);
 
-  const attempts = readdirSync(join(fixture.root, 'attempts'));
-  assert.equal(attempts.length, 1);
-  const attemptDir = join(fixture.root, 'attempts', attempts[0]);
-  const manifest = JSON.parse(readFileSync(join(attemptDir, 'attempt.json'), 'utf8'));
-  const records = readFileSync(join(attemptDir, 'results.ndjson'), 'utf8')
-    .trim().split('\n').map((line) => JSON.parse(line));
+  const { manifest, records } = readAttemptArtifacts(fixture);
   const failedStage = records.find((record) => record.command.label === 'Firebase deployment batching contract');
   assert.equal(manifest.status, 'failed');
   assert.equal(manifest.currentStage.label, 'Firebase deployment batching contract');
@@ -581,12 +669,7 @@ test('incomplete stage results are persisted with an incomplete attempt state', 
       : successfulCommand(command)),
   }), /incomplete/i);
 
-  const attempts = readdirSync(join(fixture.root, 'attempts'));
-  assert.equal(attempts.length, 1);
-  const attemptDir = join(fixture.root, 'attempts', attempts[0]);
-  const manifest = JSON.parse(readFileSync(join(attemptDir, 'attempt.json'), 'utf8'));
-  const records = readFileSync(join(attemptDir, 'results.ndjson'), 'utf8')
-    .trim().split('\n').map((line) => JSON.parse(line));
+  const { manifest, records } = readAttemptArtifacts(fixture);
   const incompleteStage = records.find((record) => record.command.label === 'Firebase deployment batching contract');
   assert.equal(manifest.status, 'failed');
   assert.equal(manifest.currentStage.label, 'Firebase deployment batching contract');
@@ -614,12 +697,8 @@ test('an unconfirmed push with the exact candidate at origin is retained as unce
     else process.env.PATH = previousPath;
   }
 
-  const attempts = readdirSync(join(fixture.root, 'attempts'));
-  assert.equal(attempts.length, 1);
-  const attemptDir = join(fixture.root, 'attempts', attempts[0]);
-  const manifest = JSON.parse(readFileSync(join(attemptDir, 'attempt.json'), 'utf8'));
-  const pushRecord = readFileSync(join(attemptDir, 'results.ndjson'), 'utf8')
-    .trim().split('\n').map((line) => JSON.parse(line)).find((record) => record.kind === 'push');
+  const { manifest, records } = readAttemptArtifacts(fixture);
+  const pushRecord = records.find((record) => record.kind === 'push');
   assert.equal(manifest.push.status, 'uncertain');
   assert.equal(manifest.push.candidateSha, fixture.headSha);
   assert.equal(manifest.push.observedRemoteSha, fixture.headSha);
@@ -769,6 +848,53 @@ test('the ordinary repository pre-push hook can block publication', async () => 
   }), /Blocked push.*docs\/reference/i);
   assert.ok(calls.length > 0);
   assert.equal(git(fixture.repo, 'ls-remote', 'origin', 'refs/heads/topic/ci-handoff'), '');
+});
+
+test('a missing executable pre-push hook is rejected before CI stages', async () => {
+  const fixture = createFixture();
+  const hookPath = join(fixture.repo, '.githooks/pre-push');
+  chmodSync(hookPath, 0o644);
+  git(fixture.repo, 'config', 'core.filemode', 'false');
+  const calls = [];
+  let error;
+  try {
+    await runFixtureHandoff(fixture, { runCommand: successfulAdapter(calls) });
+  } catch (caught) {
+    error = caught;
+  }
+
+  assert.equal(calls.length, 0, 'the required executable hook must be validated before stages start');
+  assert.equal(git(fixture.repo, 'ls-remote', 'origin', 'refs/heads/topic/ci-handoff'), '');
+  assert.equal(statSync(hookPath).mode & 0o111, 0, 'handoff validation must not repair permissions');
+  assert.match(error?.message ?? '', /hook|executable|permission/i);
+});
+
+test('a final-stage hook mode change hidden by core.filemode cannot bypass publication checks', async () => {
+  const fixture = createFixture();
+  const hookPath = join(fixture.repo, '.githooks/pre-push');
+  const calls = [];
+  let error;
+  try {
+    await runFixtureHandoff(fixture, {
+      runCommand: successfulAdapter(calls, (command) => {
+        const result = successfulCommand(command);
+        if (command.label === 'Fleetwide Red Alert selector browser smoke') {
+          chmodSync(hookPath, 0o644);
+          git(fixture.repo, 'config', 'core.filemode', 'false');
+        }
+        return result;
+      }),
+    });
+  } catch (caught) {
+    error = caught;
+  }
+
+  assert.equal(calls.at(-1)?.label, 'Fleetwide Red Alert selector browser smoke');
+  assert.equal(git(fixture.repo, 'ls-remote', 'origin', 'refs/heads/topic/ci-handoff'), '', 'the candidate must not publish after the hook becomes non-executable');
+  assert.equal(statSync(hookPath).mode & 0o111, 0, 'handoff validation must not repair permissions');
+  assert.equal(git(fixture.repo, 'config', '--get', 'core.hooksPath'), '.githooks');
+  assert.equal(git(fixture.repo, 'config', '--get', 'core.filemode'), 'false');
+  assert.match(error?.message ?? '', /hook|executable|permission|changed/i);
 });
 
 test('a rejected remote push does not report success or retry', async () => {
