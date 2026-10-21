@@ -540,8 +540,11 @@ test('a completed handoff records private exact-input metadata and each raw runn
     TICKER_SMOKE_ONLY_REDUCED_LIFECYCLE: null,
   });
   assert.deepEqual(manifest.plan, calls);
-  assert.equal(records.length, calls.length);
-  assert.ok(records.some((record) => record.result.stdout.includes('TAP version 13')));
+  const commandRecords = records.filter((record) => record.kind === 'command');
+  const pushRecords = records.filter((record) => record.kind === 'push');
+  assert.equal(commandRecords.length, calls.length);
+  assert.equal(pushRecords.length, 1);
+  assert.ok(commandRecords.some((record) => record.result.stdout.includes('TAP version 13')));
   assert.equal(manifest.push.status, 'confirmed');
 });
 
