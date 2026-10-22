@@ -11,6 +11,13 @@ agents may finish current bounded assignments. Luna effort is discretionary;
 `max` is almost always preferred. Sol may use all supported effort levels.
 Select effort for the bounded task and keep explicit security-review floors.
 
+Use a fresh subagent for each distinct task unless the previous worker's context
+is genuinely required. Before spawning, preserve any needed findings, decisions,
+remaining work, and evidence, then close finished or unused subagents owned by
+this task through supported close operations. Keep active or user-owned workers
+and transcripts intact. If the available tools cannot close a subagent, report
+that limitation rather than claiming it was closed.
+
 Workers own their task-specific documentation reading and code investigation.
 The orchestrator uses their findings and evidence, inspecting source only for
 a concrete decision or blocker. Let active workers encounter routine guidance
