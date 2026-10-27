@@ -6,17 +6,16 @@ checkpoint, or preparing a release.
 
 ## Delegation
 
-Permitted subagents include 6.1 Luna, 6.1 Terra (`gpt-6.1-terra`),
-6.1 Sol (`gpt-6.1-sol`), and the existing GPT-6 Luna (`gpt-6-luna`).
-Use only identifiers exposed by the current runtime. Resolve 6.1 Luna's actual
-identifier before dispatch; if unavailable, retain its permission and report
-the availability gap. GPT-6 Luna is a distinct model, not a substitute for
-6.1 Luna. This allowance preserves existing model defaults, effort and speed
-choices, security-review floors, required reviews, active assignments and holds.
-Existing agents may finish current bounded assignments.
-Luna effort is discretionary;
-`max` is almost always preferred. Sol may use all supported effort levels.
-Select effort for the bounded task and keep explicit security-review floors.
+Permitted subagents are GPT-6 Luna (`gpt-6-luna`), GPT-6.1 Terra
+(`gpt-6.1-terra`) and GPT-6.1 Sol (`gpt-6.1-sol`).
+Use only identifiers and effort levels exposed by the current runtime.
+GPT-6 Luna may use only `max` effort. GPT-6.1 Terra may use all
+runtime-supported effort levels. GPT-6.1 Sol may use all runtime-supported
+effort levels. Existing security-review floors and normal/fast restrictions
+still apply; effort permission never waives required independent review.
+Keep existing model defaults and active assignments unchanged. Existing agents
+may finish current bounded assignments; apply these rules to new work and
+subsequent assignments at their normal boundary.
 
 Use a fresh subagent for each distinct task unless the previous worker's context
 is genuinely required. Before spawning, preserve any needed findings, decisions,
@@ -31,19 +30,29 @@ a concrete decision or blocker. Let active workers encounter routine guidance
 updates at their next normal boundary; interrupt only for a material effect on
 their current work.
 
-Escalate only after actual lack of progress or a material failure: substantive
-diagnosis and an attempted repair must fail and the owner cannot identify a
-credible next step. A failed test with an obvious fix is progress. Sol may
-diagnose or take over a justified blocker when the reason and ownership
-transfer are explicit; the task coordinator handles difficult decisions
-without a mandatory extra stage.
+After a task fails, increase effort when a higher runtime-supported level is
+available for that permitted model. Deliberate test-first RED is expected
+evidence, not a failed implementation attempt.
+
+After repeated or looping failures, halt identical blind reruns and perform
+bounded diagnosis, then select a task-appropriate stronger permitted model
+route. Record the actual runtime-supported model and effort, failure evidence,
+reason and ownership transfer. Do not impose a blanket capability ranking
+between Terra and Sol or a compulsory Luna → Sol → Luna cycle.
+Determine the selected model's effort ceiling from its runtime-supported and
+permitted levels. GPT-6 Luna's permitted ceiling is `max`. Terra and Sol use
+their highest runtime-supported effort, including `ultra` when exposed.
+Being at `max` must not block Terra or Sol from increasing to supported `ultra`.
+If neither a higher permitted effort nor a task-appropriate stronger approved
+available model route remains, halt the loop, preserve evidence and report the
+blocker instead of claiming escalation.
 
 Use Sol for the independent risk reviews required by `CLAUDE.md`. If a
 Luna-owned implementation fails the same acceptance gate after two distinct,
-substantive repair attempts on separate candidate commits, transfer ownership
-to Sol before another repair. Preserve the failed evidence, exact commits,
-checkout and coordination state, then park Luna's edit scope. Deliberate red
-tests written for test-first work do not count as failed attempts.
+substantive repair attempts on separate candidate commits, apply the
+escalation or halt rules above before another repair. Preserve the failed
+evidence, exact commits, checkout and coordination state, and park the previous
+worker's edit scope before any documented ownership transfer.
 
 ### Checkpoint ownership and implementation groups
 
@@ -58,7 +67,7 @@ groups; a worker's implementation ownership does not transfer checkpoint
 accountability or release ownership.
 
 Owner instruction, 2026-09-30: use one checkpoint owner accountable for every
-assigned prompt's acceptance, integration, and release; separate Luna workers (Max almost always preferred)
+assigned prompt's acceptance, integration, and release; separate Luna workers at max
 for independent implementation groups; and independent Sol review for
 shared-state and authority changes. Accountability does not mean the checkpoint
 owner implements the whole checkpoint serially.
@@ -66,7 +75,7 @@ owner implements the whole checkpoint serially.
 Before implementation, record a concrete grouping of the assigned prompts by
 shared behavior and dependencies, with bounded worker briefs, acceptance
 criteria, separate checkouts, shared-file boundaries, and integration handoffs.
-Dispatch the independent groups to separate Luna workers (Max almost always preferred) as capacity permits.
+Dispatch the independent groups to separate Luna workers at max as capacity permits.
 Do not default to one worker per prompt: catalog boundaries can divide one
 transaction, lifecycle, or authorization contract. Keep tightly coupled work
 together and explain dependencies that require sequential work. Workers carry
@@ -137,7 +146,7 @@ The [PC06 owner audit](PC06_OWNER_AUDIT.md) informs complete behavior briefs,
 integration boundaries, acceptance accounting and risk review. Its historical
 recommendation to delegate broad ownership to Sol 6.1 is superseded by the
 2026-10-03 orchestrator-ownership correction. Luna remains useful for bounded
-coding groups, normally at Max; Sol 6.1 may handle a bounded complex implementation
+coding groups at max; Sol 6.1 may handle a bounded complex implementation
 or justified diagnosis. Neither is an extra checkpoint owner. The implementation
 owner cannot provide their own independent risk review.
 

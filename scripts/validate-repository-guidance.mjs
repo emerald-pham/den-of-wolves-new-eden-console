@@ -66,28 +66,48 @@ const OBSOLETE_UNIVERSAL_GATES = Object.freeze([
 
 /** Validate the compact risk-based model policy on a guidance surface. */
 export function validateAgentModelEscalation({ sources, errors }) {
-  for (const filePath of [EXECUTION_POLICY_PATH, 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
+  const policy = sourceFor(sources, EXECUTION_POLICY_PATH, errors);
+  requireText(EXECUTION_POLICY_PATH, policy,
+    /permitted subagents are gpt-6 luna\s*\(gpt-6-luna\), gpt-6\.1 terra\s*\(gpt-6\.1-terra\) and gpt-6\.1 sol\s*\(gpt-6\.1-sol\)/i,
+    'must permit GPT-6 Luna, GPT-6.1 Terra and GPT-6.1 Sol subagents', errors);
+  requireText(EXECUTION_POLICY_PATH, policy, /use only identifiers and effort levels exposed by the current runtime/i,
+    'must require identifiers and effort levels exposed by the current runtime', errors);
+  requireText(EXECUTION_POLICY_PATH, policy, /gpt-6 luna may use only max effort/i,
+    'must require GPT-6 Luna at max only', errors);
+  for (const model of ['Terra', 'Sol']) {
+    requireText(EXECUTION_POLICY_PATH, policy,
+      new RegExp(`gpt-6\\.1 ${model} may use all runtime-supported effort levels`, 'i'),
+      `must allow all runtime-supported ${model} effort levels`, errors);
+  }
+  requireText(EXECUTION_POLICY_PATH, policy,
+    /after a task fails, increase effort when a higher runtime-supported level is available for that permitted model/i,
+    'must increase effort after failure when a higher supported level is available', errors);
+  requireText(EXECUTION_POLICY_PATH, policy,
+    /after repeated or looping failures, halt identical blind reruns and perform bounded diagnosis, then select a task-appropriate stronger permitted model route/i,
+    'must require bounded diagnosis and a stronger permitted model route after looping failures', errors);
+  requireText(EXECUTION_POLICY_PATH, policy,
+    /record the actual runtime-supported model and effort, failure evidence, reason and ownership transfer/i,
+    'must record the actual supported selection, evidence, reason and ownership transfer', errors);
+  requireText(EXECUTION_POLICY_PATH, policy,
+    /do not impose a blanket capability ranking between terra and sol/i,
+    'must reject a blanket Terra/Sol capability ranking', errors);
+  requireText(EXECUTION_POLICY_PATH, policy,
+    /determine the selected model's effort ceiling from its runtime-supported and permitted levels\. gpt-6 luna's permitted ceiling is max\. terra and sol use their highest runtime-supported effort/i,
+    'must use actual supported/permitted effort ceilings with Luna limited to max', errors);
+  requireText(EXECUTION_POLICY_PATH, policy,
+    /if neither a higher permitted effort nor a task-appropriate stronger approved available model route remains, halt the loop, preserve evidence and report the blocker instead of claiming escalation/i,
+    'must halt without a higher permitted effort or stronger approved route and preserve/report the blocker', errors);
+  const playbookPath = 'docs/AGENT_CAMPAIGN_PLAYBOOK.md';
+  requireText(playbookPath, sourceFor(sources, playbookPath, errors),
+    /canonical model allowance[\s\S]{0,80}agent_execution_policy\.md#delegation/i,
+    'must point to the canonical subagent model allowance', errors);
+
+  for (const filePath of [EXECUTION_POLICY_PATH, playbookPath, 'AGENTS.md', 'CLAUDE.md']) {
     const source = sourceFor(sources, filePath, errors);
-    if (filePath === EXECUTION_POLICY_PATH) {
-      requireText(filePath, source,
-        /permitted subagents[\s\S]{0,80}6\.1 luna[\s\S]{0,80}6\.1 terra\s*\(gpt-6\.1-terra\)[\s\S]{0,80}6\.1 sol\s*\(gpt-6\.1-sol\)[\s\S]{0,80}gpt-6-luna/i,
-        'must permit 6.1 Luna, 6.1 Terra, 6.1 Sol and existing GPT-6 Luna subagents', errors);
-      requireText(filePath, source, /use only identifiers exposed by the current runtime/i,
-        'must require identifiers exposed by the current runtime', errors);
-      requireText(filePath, source, /resolve 6\.1 luna's actual identifier before dispatch; if unavailable,[\s\S]{0,100}retain its permission and report[\s\S]{0,30}availability gap/i,
-        'must gate 6.1 Luna dispatch on an available runtime identifier', errors);
-      requireText(filePath, source, /gpt-6 luna is a distinct model, not a substitute for 6\.1 luna/i,
-        'must keep GPT-6 Luna distinct from 6.1 Luna', errors);
-    } else {
-      requireText(filePath, source, /canonical model allowance[\s\S]{0,80}agent_execution_policy\.md#delegation/i,
-        'must point to the canonical subagent model allowance', errors);
-    }
-    requireText(filePath, source, /luna effort is discretionary;\s+max is almost always preferred/i,
-      'must make Luna effort discretionary with max almost always preferred', errors);
-    requireText(filePath, source, /sol may use all supported effort levels/i,
-      'must allow all supported Sol effort levels', errors);
-    if (/use\s+max\s+for\s+every\s+(?:gpt-6-luna|luna)\s+subagent|never use\s+max[^.]{0,60}for sol/i.test(normalizeGuidance(source))) {
-      errors.push(`${filePath}: must not retain a mandatory Luna effort or general Sol effort ceiling`);
+    const normalized = normalizeGuidance(source);
+    if (filePath === 'AGENTS.md' || filePath === 'CLAUDE.md') {
+      requireText(filePath, source, /(?:read|follow|use)[\s\S]{0,160}docs\/agent_execution_policy\.md/i,
+        'must point to the execution policy for delegation and ownership rules', errors);
     }
     // The top-level coordinator is distinct from the delegated-model allowlist.
     const delegatedSource = source.replace(/New top-level coordinators default to `gpt-6-astra` with medium reasoning\./g, '');
@@ -95,21 +115,26 @@ export function validateAgentModelEscalation({ sources, errors }) {
     if (models.some((model) => !['gpt-6-luna', 'gpt-6.1-sol', 'gpt-6.1-terra'].includes(model))) {
       errors.push(`${filePath}: must not authorize unapproved subagent models`);
     }
-  }
-  for (const filePath of ['AGENTS.md', 'CLAUDE.md']) {
-    const source = sourceFor(sources, filePath, errors);
-    requireText(filePath, source, /(?:read|follow|use)[\s\S]{0,160}docs\/agent_execution_policy\.md/i,
-      'must point to the execution policy for delegation and ownership rules', errors);
-    const delegatedSource = source.replace(/New top-level coordinators default to `gpt-6-astra` with medium reasoning\./g, '');
-    const models = delegatedSource.match(/gpt-\d+(?:\.\d+)?-[a-z][a-z0-9-]*/g) ?? [];
-    if (models.some((model) => !['gpt-6-luna', 'gpt-6.1-sol', 'gpt-6.1-terra'].includes(model))) {
-      errors.push(`${filePath}: must not authorize unapproved subagent models`);
+    if (/luna effort is discretionary|(?:gpt-6-luna|gpt-6 luna|\bluna)\s+(?:(?:may|can|should|must) use (?:only )?|at )(?:low|medium|high|xhigh|ultra)(?: or max)? effort/i.test(normalized)) {
+      errors.push(`${filePath}: must not allow non-max Luna effort`);
     }
-    if (/use\s+max\s+for\s+every\s+(?:gpt-6-luna|luna)\s+subagent|never use\s+max[^.]{0,60}for sol/i.test(normalizeGuidance(source))) {
-      errors.push(`${filePath}: must not retain a mandatory Luna effort or general Sol effort ceiling`);
+    if (/(?:^|[.!?]\s+)(?:(?:terra|sol|luna) (?:may|can|should|must) use|use|allow|permit) unsupported effort levels\b/i.test(normalized)) {
+      errors.push(`${filePath}: must not authorize unsupported effort levels`);
+    }
+    if (/(?:^|[.!?]\s+)(?:never use (?:max|ultra) for (?:terra|sol)(?:\.|$)|(?:terra|sol) may use only (?:low|medium|high|max) effort(?:\.|$))/i.test(normalized)) {
+      errors.push(`${filePath}: must not impose a general Terra or Sol effort ceiling`);
+    }
+    if (/(?:^|[.!?]\s+)(?:terra is always stronger than sol|sol is always stronger than terra)\b/i.test(normalized)) {
+      errors.push(`${filePath}: must not impose a blanket Terra/Sol capability ranking`);
+    }
+    if (/(?:^|[.!?]\s+)(?:repeat|continue) identical blind reruns after (?:repeated|looping) failures\b/i.test(normalized)) {
+      errors.push(`${filePath}: must not authorize identical blind failure reruns`);
+    }
+    if (/(?:^|[.!?]\s+)halt (?:terra or sol|terra|sol) at max even when ultra is supported\b/i.test(normalized)) {
+      errors.push(`${filePath}: must not cap Terra or Sol at max when higher supported effort is permitted`);
     }
   }
-  for (const filePath of ['CLAUDE.md', 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
+  for (const filePath of ['CLAUDE.md', playbookPath]) {
     const source = sourceFor(sources, filePath, errors);
     requireText(filePath, source, /(?:default[\s\S]{0,60}gpt-6-luna|gpt-6-luna[\s\S]{0,160}economical)/i,
       'must name GPT-6 Luna as the default delegated worker', errors);

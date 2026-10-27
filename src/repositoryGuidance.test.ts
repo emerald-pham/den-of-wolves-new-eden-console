@@ -126,28 +126,34 @@ describe('repository guidance', () => {
     expect(weakErrors).toEqual(expect.arrayContaining([
       expect.stringContaining('must not authorize unapproved subagent models'),
     ]));
+  });
 
-    const wrongEffort = new Map(sources);
-    const wrongEffortPolicy = readGuidance('docs/AGENT_EXECUTION_POLICY.md')
-      .replace(/Luna effort is discretionary;\s+`max` is almost always preferred\./, 'Use max for every Luna subagent.')
-      .replace('Sol may use all supported effort levels.', 'Sol may use only medium or high.');
-    expect(wrongEffortPolicy).toContain('Use max for every Luna subagent.');
-    expect(wrongEffortPolicy).toContain('Sol may use only medium or high.');
-    wrongEffort.set('docs/AGENT_EXECUTION_POLICY.md', wrongEffortPolicy);
-    const effortErrors: string[] = [];
-    validateAgentModelEscalation({ sources: wrongEffort, errors: effortErrors });
-    expect(effortErrors).toEqual(expect.arrayContaining([
-      expect.stringContaining('must make Luna effort discretionary with max almost always preferred'),
-      expect.stringContaining('must allow all supported Sol effort levels'),
-    ]));
+  it.each([
+    ['GPT-6 Luna may use only `max` effort.', 'GPT-6 Luna may use high or max effort.', 'must require GPT-6 Luna at max only'],
+    ['GPT-6.1 Terra may use all\nruntime-supported effort levels.', 'GPT-6.1 Terra may use only high effort.', 'must allow all runtime-supported Terra effort levels'],
+    ['GPT-6.1 Sol may use all runtime-supported\neffort levels.', 'GPT-6.1 Sol may use only medium or high effort.', 'must allow all runtime-supported Sol effort levels'],
+  ])('rejects a weaker or capped effort policy: %s', (from, to, message) => {
+    const sources = readSources();
+    const policy = readGuidance('docs/AGENT_EXECUTION_POLICY.md');
+    expect(policy).toContain(from);
+    sources.set('docs/AGENT_EXECUTION_POLICY.md', policy.replace(from, to));
+    const errors: string[] = [];
+    validateAgentModelEscalation({ sources, errors });
+    expect(errors).toContain(`docs/AGENT_EXECUTION_POLICY.md: ${message}`);
+  });
 
-    const stale = new Map(sources);
-    stale.set('CLAUDE.md', readGuidance('CLAUDE.md') + '\nUse max for every gpt-6-luna subagent. Never use max for Sol.');
-    const staleErrors: string[] = [];
-    validateAgentModelEscalation({ sources: stale, errors: staleErrors });
-    expect(staleErrors).toEqual(expect.arrayContaining([
-      expect.stringContaining('must not retain a mandatory Luna effort or general Sol effort ceiling'),
-    ]));
+  it.each([
+    ['docs/AGENT_EXECUTION_POLICY.md', 'Delegate to gpt-6-luna at high effort.', 'must not allow non-max Luna effort'],
+    ['CLAUDE.md', 'Luna effort is discretionary; max is almost always preferred.', 'must not allow non-max Luna effort'],
+    ['docs/AGENT_CAMPAIGN_PLAYBOOK.md', 'Terra may use unsupported effort levels.', 'must not authorize unsupported effort levels'],
+    ['AGENTS.md', 'Never use max for Sol.', 'must not impose a general Terra or Sol effort ceiling'],
+    ['AGENTS.md', 'Never use ultra for Terra.', 'must not impose a general Terra or Sol effort ceiling'],
+  ])('rejects contradictory effort guidance in %s', (surface, addition, message) => {
+    const sources = readSources();
+    sources.set(surface, `${readGuidance(surface)}\n${addition}`);
+    const errors: string[] = [];
+    validateAgentModelEscalation({ sources, errors });
+    expect(errors).toContain(`${surface}: ${message}`);
   });
 
   it.each([
@@ -163,34 +169,77 @@ describe('repository guidance', () => {
     expect(errors).toContain(`${surface}: must not authorize unapproved subagent models`);
   });
 
-  it.each([
-    {
-      name: 'runtime identifier lookup',
-      pattern: /Use only identifiers exposed by the current runtime\./,
-      replacement: 'Use any requested identifier.',
-      message: 'must require identifiers exposed by the current runtime',
-    },
-    {
-      name: 'unavailable 6.1 Luna gating',
-      pattern: /Resolve 6\.1 Luna's actual[\s\S]*?the availability gap\./,
-      replacement: 'Dispatch 6.1 Luna without checking availability.',
-      message: 'must gate 6.1 Luna dispatch on an available runtime identifier',
-    },
-    {
-      name: 'distinct GPT-6 Luna identity',
-      pattern: /GPT-6 Luna is a distinct model,[\s\S]*?6\.1 Luna\./,
-      replacement: 'GPT-6 Luna may stand in for 6.1 Luna.',
-      message: 'must keep GPT-6 Luna distinct from 6.1 Luna',
-    },
-  ])('rejects policy missing $name', ({ pattern, replacement, message }) => {
+  it('rejects policy without runtime-supported identifier and effort lookup', () => {
     const sources = readSources();
     const policy = readGuidance('docs/AGENT_EXECUTION_POLICY.md');
-    const mutated = policy.replace(pattern, replacement);
+    const mutated = policy.replace('Use only identifiers and effort levels exposed by the current runtime.', 'Use any requested identifier and effort.');
     expect(mutated).not.toBe(policy);
     sources.set('docs/AGENT_EXECUTION_POLICY.md', mutated);
     const errors: string[] = [];
     validateAgentModelEscalation({ sources, errors });
+    expect(errors).toContain('docs/AGENT_EXECUTION_POLICY.md: must require identifiers and effort levels exposed by the current runtime');
+  });
+
+  it.each([
+    [
+      'After a task fails, increase effort when a higher runtime-supported level is\navailable for that permitted model.',
+      'After a task fails, keep effort unchanged.',
+      'must increase effort after failure when a higher supported level is available',
+    ],
+    [
+      'After repeated or looping failures, halt identical blind reruns and perform\nbounded diagnosis, then select a task-appropriate stronger permitted model\nroute.',
+      'After repeated or looping failures, keep retrying the current route.',
+      'must require bounded diagnosis and a stronger permitted model route after looping failures',
+    ],
+    [
+      'Record the actual runtime-supported model and effort, failure evidence,\nreason and ownership transfer.',
+      'Record a claimed escalation without the actual selection or evidence.',
+      'must record the actual supported selection, evidence, reason and ownership transfer',
+    ],
+    [
+      'Do not impose a blanket capability ranking\nbetween Terra and Sol',
+      'Impose a blanket capability ranking between Terra and Sol',
+      'must reject a blanket Terra/Sol capability ranking',
+    ],
+    [
+      "Determine the selected model's effort ceiling from its runtime-supported and\npermitted levels. GPT-6 Luna's permitted ceiling is `max`. Terra and Sol use\ntheir highest runtime-supported effort, including `ultra` when exposed.",
+      'Every model has max as its effort ceiling regardless of runtime support.',
+      'must use actual supported/permitted effort ceilings with Luna limited to max',
+    ],
+    [
+      'If neither a higher permitted effort nor a task-appropriate stronger approved\navailable model route remains, halt the loop, preserve evidence and report the\nblocker instead of claiming escalation.',
+      'When no stronger permitted route remains, claim escalation and continue.',
+      'must halt without a higher permitted effort or stronger approved route and preserve/report the blocker',
+    ],
+  ])('rejects missing failure-escalation safeguard: %s', (from, to, message) => {
+    const sources = readSources();
+    const policy = readGuidance('docs/AGENT_EXECUTION_POLICY.md');
+    expect(policy).toContain(from);
+    sources.set('docs/AGENT_EXECUTION_POLICY.md', policy.replace(from, to));
+    const errors: string[] = [];
+    validateAgentModelEscalation({ sources, errors });
     expect(errors).toContain(`docs/AGENT_EXECUTION_POLICY.md: ${message}`);
+  });
+
+  it.each([
+    ['CLAUDE.md', 'Terra is always stronger than Sol.', 'must not impose a blanket Terra/Sol capability ranking'],
+    ['docs/AGENT_CAMPAIGN_PLAYBOOK.md', 'Sol is always stronger than Terra.', 'must not impose a blanket Terra/Sol capability ranking'],
+    ['AGENTS.md', 'Repeat identical blind reruns after looping failures.', 'must not authorize identical blind failure reruns'],
+    ['CLAUDE.md', 'Halt Terra or Sol at max even when ultra is supported.', 'must not cap Terra or Sol at max when higher supported effort is permitted'],
+  ])('rejects contradictory escalation guidance in %s', (surface, addition, message) => {
+    const sources = readSources();
+    sources.set(surface, `${readGuidance(surface)}\n${addition}`);
+    const errors: string[] = [];
+    validateAgentModelEscalation({ sources, errors });
+    expect(errors).toContain(`${surface}: ${message}`);
+  });
+
+  it('accepts explicit prohibitions and required security-review effort floors', () => {
+    const sources = readSources();
+    sources.set('AGENTS.md', `${readGuidance('AGENTS.md')}\nGPT-6 Luna may not use high effort. Terra must not use unsupported effort levels. Do not assume Terra is always stronger than Sol. Do not repeat identical blind reruns after looping failures. Independent Sol security review requires xhigh effort. Never use max for Sol in an exact security review requiring xhigh.`);
+    const errors: string[] = [];
+    validateAgentModelEscalation({ sources, errors });
+    expect(errors, errors.join('\n')).toEqual([]);
   });
 
   it('requires lightweight ownership, parking, optional goals, and no polling loop', () => {
