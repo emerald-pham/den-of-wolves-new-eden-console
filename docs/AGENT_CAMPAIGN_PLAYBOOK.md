@@ -49,20 +49,16 @@ and integration handoff; one owner reconciles the release.
 ## Model and review choices
 
 Use the [canonical model allowance](AGENT_EXECUTION_POLICY.md#delegation)
-for permitted subagents and runtime availability checks. Existing agents may
-finish their current assignments without interruption; apply the allowance
-to new agents and subsequent assignments. The default delegated worker model is
-`gpt-6-luna`. Luna effort is discretionary; `max` is almost always preferred.
-Sol may use all supported effort levels. Use `gpt-6.1-sol` for independent
-review of risky changes
-touching shared session state, callable authorization, Firestore rules,
+for permitted subagents, supported model/effort checks and failure escalation.
+Existing agents may finish current assignments without interruption; apply
+current policy to new agents and subsequent assignments. The default delegated
+worker model is `gpt-6-luna`. Use `gpt-6.1-sol` for independent review of risky
+changes touching shared session state, callable authorization, Firestore rules,
 deployment, or authentication infrastructure. An exact security review receipt
 still requires `xhigh` when the validator says so.
-Ask the reviewer for all findings in one pass. Escalate only after actual lack
-of progress or a material failed attempt; a typo, copy change, or test-count
-correction does not require a handoff. Do not force a Luna → Sol → Luna loop.
-Use Sol 6.1 for justified blocker diagnosis or transfer of a bounded implementation
-only after the failed attempt and reason are recorded in the task discussion.
+Ask the reviewer for all findings in one pass. Escalate after actual task
+failure under the canonical policy, including bounded diagnosis and honest
+halt/report boundaries. Do not force a Luna → Sol → Luna loop.
 Checkpoint and release ownership remain with the orchestrator.
 
 ## Scope and concurrency
