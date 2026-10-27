@@ -6,8 +6,15 @@ checkpoint, or preparing a release.
 
 ## Delegation
 
-Only `gpt-6-luna` and `gpt-6.1-sol` may be delegated as subagents. Existing
-agents may finish current bounded assignments. Luna effort is discretionary;
+Permitted subagents include 6.1 Luna, 6.1 Terra (`gpt-6.1-terra`),
+6.1 Sol (`gpt-6.1-sol`), and the existing GPT-6 Luna (`gpt-6-luna`).
+Use only identifiers exposed by the current runtime. Resolve 6.1 Luna's actual
+identifier before dispatch; if unavailable, retain its permission and report
+the availability gap. GPT-6 Luna is a distinct model, not a substitute for
+6.1 Luna. This allowance preserves existing model defaults, effort and speed
+choices, security-review floors, required reviews, active assignments and holds.
+Existing agents may finish current bounded assignments.
+Luna effort is discretionary;
 `max` is almost always preferred. Sol may use all supported effort levels.
 Select effort for the bounded task and keep explicit security-review floors.
 

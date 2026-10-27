@@ -124,7 +124,7 @@ describe('repository guidance', () => {
     const weakErrors: string[] = [];
     validateAgentModelEscalation({ sources: weak, errors: weakErrors });
     expect(weakErrors).toEqual(expect.arrayContaining([
-      expect.stringContaining('must not authorize models outside GPT-6.1 Sol and GPT-6 Luna'),
+      expect.stringContaining('must not authorize unapproved subagent models'),
     ]));
 
     const wrongEffort = new Map(sources);
