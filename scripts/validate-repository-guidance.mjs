@@ -92,8 +92,11 @@ export function validateAgentModelEscalation({ sources, errors }) {
     /do not impose a blanket capability ranking between terra and sol/i,
     'must reject a blanket Terra/Sol capability ranking', errors);
   requireText(EXECUTION_POLICY_PATH, policy,
-    /if already at max or no stronger approved available route exists, halt the loop, preserve evidence and report the blocker instead of claiming escalation/i,
-    'must halt at max or without a stronger approved route and preserve/report the blocker', errors);
+    /determine the selected model's effort ceiling from its runtime-supported and permitted levels\. gpt-6 luna's permitted ceiling is max\. terra and sol use their highest runtime-supported effort/i,
+    'must use actual supported/permitted effort ceilings with Luna limited to max', errors);
+  requireText(EXECUTION_POLICY_PATH, policy,
+    /if neither a higher permitted effort nor a task-appropriate stronger approved available model route remains, halt the loop, preserve evidence and report the blocker instead of claiming escalation/i,
+    'must halt without a higher permitted effort or stronger approved route and preserve/report the blocker', errors);
   const playbookPath = 'docs/AGENT_CAMPAIGN_PLAYBOOK.md';
   requireText(playbookPath, sourceFor(sources, playbookPath, errors),
     /canonical model allowance[\s\S]{0,80}agent_execution_policy\.md#delegation/i,
@@ -118,7 +121,7 @@ export function validateAgentModelEscalation({ sources, errors }) {
     if (/(?:^|[.!?]\s+)(?:(?:terra|sol|luna) (?:may|can|should|must) use|use|allow|permit) unsupported effort levels\b/i.test(normalized)) {
       errors.push(`${filePath}: must not authorize unsupported effort levels`);
     }
-    if (/never use\s+max[^.]{0,60}for (?:terra|sol)|(?:terra|sol) may use only (?:low|medium|high|max)/i.test(normalized)) {
+    if (/(?:^|[.!?]\s+)(?:never use (?:max|ultra) for (?:terra|sol)(?:\.|$)|(?:terra|sol) may use only (?:low|medium|high|max) effort(?:\.|$))/i.test(normalized)) {
       errors.push(`${filePath}: must not impose a general Terra or Sol effort ceiling`);
     }
     if (/(?:^|[.!?]\s+)(?:terra is always stronger than sol|sol is always stronger than terra)\b/i.test(normalized)) {
@@ -126,6 +129,9 @@ export function validateAgentModelEscalation({ sources, errors }) {
     }
     if (/(?:^|[.!?]\s+)(?:repeat|continue) identical blind reruns after (?:repeated|looping) failures\b/i.test(normalized)) {
       errors.push(`${filePath}: must not authorize identical blind failure reruns`);
+    }
+    if (/(?:^|[.!?]\s+)halt (?:terra or sol|terra|sol) at max even when ultra is supported\b/i.test(normalized)) {
+      errors.push(`${filePath}: must not cap Terra or Sol at max when higher supported effort is permitted`);
     }
   }
   for (const filePath of ['CLAUDE.md', playbookPath]) {
