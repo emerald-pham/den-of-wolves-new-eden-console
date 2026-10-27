@@ -39,8 +39,13 @@ bounded diagnosis, then select a task-appropriate stronger permitted model
 route. Record the actual runtime-supported model and effort, failure evidence,
 reason and ownership transfer. Do not impose a blanket capability ranking
 between Terra and Sol or a compulsory Luna → Sol → Luna cycle.
-If already at max or no stronger approved available route exists, halt the
-loop, preserve evidence and report the blocker instead of claiming escalation.
+Determine the selected model's effort ceiling from its runtime-supported and
+permitted levels. GPT-6 Luna's permitted ceiling is `max`. Terra and Sol use
+their highest runtime-supported effort, including `ultra` when exposed.
+Being at `max` must not block Terra or Sol from increasing to supported `ultra`.
+If neither a higher permitted effort nor a task-appropriate stronger approved
+available model route remains, halt the loop, preserve evidence and report the
+blocker instead of claiming escalation.
 
 Use Sol for the independent risk reviews required by `CLAUDE.md`. If a
 Luna-owned implementation fails the same acceptance gate after two distinct,

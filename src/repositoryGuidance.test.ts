@@ -201,9 +201,14 @@ describe('repository guidance', () => {
       'must reject a blanket Terra/Sol capability ranking',
     ],
     [
-      'If already at max or no stronger approved available route exists, halt the\nloop, preserve evidence and report the blocker instead of claiming escalation.',
-      'If already at max or no stronger approved available route exists, claim escalation and continue.',
-      'must halt at max or without a stronger approved route and preserve/report the blocker',
+      "Determine the selected model's effort ceiling from its runtime-supported and\npermitted levels. GPT-6 Luna's permitted ceiling is `max`. Terra and Sol use\ntheir highest runtime-supported effort, including `ultra` when exposed.",
+      'Every model has max as its effort ceiling regardless of runtime support.',
+      'must use actual supported/permitted effort ceilings with Luna limited to max',
+    ],
+    [
+      'If neither a higher permitted effort nor a task-appropriate stronger approved\navailable model route remains, halt the loop, preserve evidence and report the\nblocker instead of claiming escalation.',
+      'When no stronger permitted route remains, claim escalation and continue.',
+      'must halt without a higher permitted effort or stronger approved route and preserve/report the blocker',
     ],
   ])('rejects missing failure-escalation safeguard: %s', (from, to, message) => {
     const sources = readSources();
@@ -219,6 +224,7 @@ describe('repository guidance', () => {
     ['CLAUDE.md', 'Terra is always stronger than Sol.', 'must not impose a blanket Terra/Sol capability ranking'],
     ['docs/AGENT_CAMPAIGN_PLAYBOOK.md', 'Sol is always stronger than Terra.', 'must not impose a blanket Terra/Sol capability ranking'],
     ['AGENTS.md', 'Repeat identical blind reruns after looping failures.', 'must not authorize identical blind failure reruns'],
+    ['CLAUDE.md', 'Halt Terra or Sol at max even when ultra is supported.', 'must not cap Terra or Sol at max when higher supported effort is permitted'],
   ])('rejects contradictory escalation guidance in %s', (surface, addition, message) => {
     const sources = readSources();
     sources.set(surface, `${readGuidance(surface)}\n${addition}`);
