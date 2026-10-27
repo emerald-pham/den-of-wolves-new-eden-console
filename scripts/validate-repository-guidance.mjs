@@ -68,8 +68,20 @@ const OBSOLETE_UNIVERSAL_GATES = Object.freeze([
 export function validateAgentModelEscalation({ sources, errors }) {
   for (const filePath of [EXECUTION_POLICY_PATH, 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
     const source = sourceFor(sources, filePath, errors);
-    requireText(filePath, source, /only[\s\S]{0,80}gpt-6-luna[\s\S]{0,80}gpt-6\.1-sol[\s\S]{0,80}(?:subagents|delegated)/i,
-      'must allow only GPT-6 Luna and GPT-6.1 Sol subagents', errors);
+    if (filePath === EXECUTION_POLICY_PATH) {
+      requireText(filePath, source,
+        /permitted subagents[\s\S]{0,80}6\.1 luna[\s\S]{0,80}6\.1 terra\s*\(gpt-6\.1-terra\)[\s\S]{0,80}6\.1 sol\s*\(gpt-6\.1-sol\)[\s\S]{0,80}gpt-6-luna/i,
+        'must permit 6.1 Luna, 6.1 Terra, 6.1 Sol and existing GPT-6 Luna subagents', errors);
+      requireText(filePath, source, /use only identifiers exposed by the current runtime/i,
+        'must require identifiers exposed by the current runtime', errors);
+      requireText(filePath, source, /resolve 6\.1 luna's actual identifier before dispatch; if unavailable,[\s\S]{0,100}retain its permission and report[\s\S]{0,30}availability gap/i,
+        'must gate 6.1 Luna dispatch on an available runtime identifier', errors);
+      requireText(filePath, source, /gpt-6 luna is a distinct model, not a substitute for 6\.1 luna/i,
+        'must keep GPT-6 Luna distinct from 6.1 Luna', errors);
+    } else {
+      requireText(filePath, source, /canonical model allowance[\s\S]{0,80}agent_execution_policy\.md#delegation/i,
+        'must point to the canonical subagent model allowance', errors);
+    }
     requireText(filePath, source, /luna effort is discretionary;\s+max is almost always preferred/i,
       'must make Luna effort discretionary with max almost always preferred', errors);
     requireText(filePath, source, /sol may use all supported effort levels/i,
@@ -79,9 +91,9 @@ export function validateAgentModelEscalation({ sources, errors }) {
     }
     // The top-level coordinator is distinct from the delegated-model allowlist.
     const delegatedSource = source.replace(/New top-level coordinators default to `gpt-6-astra` with medium reasoning\./g, '');
-    const models = delegatedSource.match(/gpt-\d+(?:\.\d+)?-(?:luna|sol|astra|terra)/g) ?? [];
-    if (models.some((model) => !['gpt-6-luna', 'gpt-6.1-sol'].includes(model))) {
-      errors.push(`${filePath}: must not authorize models outside GPT-6.1 Sol and GPT-6 Luna`);
+    const models = delegatedSource.match(/gpt-\d+(?:\.\d+)?-[a-z][a-z0-9-]*/g) ?? [];
+    if (models.some((model) => !['gpt-6-luna', 'gpt-6.1-sol', 'gpt-6.1-terra'].includes(model))) {
+      errors.push(`${filePath}: must not authorize unapproved subagent models`);
     }
   }
   for (const filePath of ['AGENTS.md', 'CLAUDE.md']) {
@@ -89,9 +101,9 @@ export function validateAgentModelEscalation({ sources, errors }) {
     requireText(filePath, source, /(?:read|follow|use)[\s\S]{0,160}docs\/agent_execution_policy\.md/i,
       'must point to the execution policy for delegation and ownership rules', errors);
     const delegatedSource = source.replace(/New top-level coordinators default to `gpt-6-astra` with medium reasoning\./g, '');
-    const models = delegatedSource.match(/gpt-\d+(?:\.\d+)?-(?:luna|sol|astra|terra)/g) ?? [];
-    if (models.some((model) => !['gpt-6-luna', 'gpt-6.1-sol'].includes(model))) {
-      errors.push(`${filePath}: must not authorize models outside GPT-6.1 Sol and GPT-6 Luna`);
+    const models = delegatedSource.match(/gpt-\d+(?:\.\d+)?-[a-z][a-z0-9-]*/g) ?? [];
+    if (models.some((model) => !['gpt-6-luna', 'gpt-6.1-sol', 'gpt-6.1-terra'].includes(model))) {
+      errors.push(`${filePath}: must not authorize unapproved subagent models`);
     }
     if (/use\s+max\s+for\s+every\s+(?:gpt-6-luna|luna)\s+subagent|never use\s+max[^.]{0,60}for sol/i.test(normalizeGuidance(source))) {
       errors.push(`${filePath}: must not retain a mandatory Luna effort or general Sol effort ceiling`);

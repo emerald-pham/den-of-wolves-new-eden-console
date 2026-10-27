@@ -48,7 +48,10 @@ and integration handoff; one owner reconciles the release.
 
 ## Model and review choices
 
-Only `gpt-6-luna` and `gpt-6.1-sol` may be delegated as subagents. Existing agents may finish their current assignments without interruption; apply this model policy to new agents and subsequent assignments. The default delegated worker model is
+Use the [canonical model allowance](AGENT_EXECUTION_POLICY.md#delegation)
+for permitted subagents and runtime availability checks. Existing agents may
+finish their current assignments without interruption; apply the allowance
+to new agents and subsequent assignments. The default delegated worker model is
 `gpt-6-luna`. Luna effort is discretionary; `max` is almost always preferred.
 Sol may use all supported effort levels. Use `gpt-6.1-sol` for independent
 review of risky changes
