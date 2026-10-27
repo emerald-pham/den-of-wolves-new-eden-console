@@ -147,6 +147,7 @@ describe('repository guidance', () => {
     ['CLAUDE.md', 'Luna effort is discretionary; max is almost always preferred.', 'must not allow non-max Luna effort'],
     ['docs/AGENT_CAMPAIGN_PLAYBOOK.md', 'Terra may use unsupported effort levels.', 'must not authorize unsupported effort levels'],
     ['AGENTS.md', 'Never use max for Sol.', 'must not impose a general Terra or Sol effort ceiling'],
+    ['AGENTS.md', 'Never use ultra for Terra.', 'must not impose a general Terra or Sol effort ceiling'],
   ])('rejects contradictory effort guidance in %s', (surface, addition, message) => {
     const sources = readSources();
     sources.set(surface, `${readGuidance(surface)}\n${addition}`);
@@ -235,7 +236,7 @@ describe('repository guidance', () => {
 
   it('accepts explicit prohibitions and required security-review effort floors', () => {
     const sources = readSources();
-    sources.set('AGENTS.md', `${readGuidance('AGENTS.md')}\nGPT-6 Luna may not use high effort. Terra must not use unsupported effort levels. Do not assume Terra is always stronger than Sol. Do not repeat identical blind reruns after looping failures. Independent Sol security review requires xhigh effort.`);
+    sources.set('AGENTS.md', `${readGuidance('AGENTS.md')}\nGPT-6 Luna may not use high effort. Terra must not use unsupported effort levels. Do not assume Terra is always stronger than Sol. Do not repeat identical blind reruns after looping failures. Independent Sol security review requires xhigh effort. Never use max for Sol in an exact security review requiring xhigh.`);
     const errors: string[] = [];
     validateAgentModelEscalation({ sources, errors });
     expect(errors, errors.join('\n')).toEqual([]);
