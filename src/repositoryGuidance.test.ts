@@ -150,6 +150,49 @@ describe('repository guidance', () => {
     ]));
   });
 
+  it.each([
+    ['CLAUDE.md', 'gpt-7-other'],
+    ['AGENTS.md', 'gpt-6.1-luna'],
+    ['docs/AGENT_EXECUTION_POLICY.md', 'gpt-5.6-terra'],
+    ['docs/AGENT_CAMPAIGN_PLAYBOOK.md', 'gpt-6-astra'],
+  ])('rejects unapproved model %s %s', (surface, model) => {
+    const sources = readSources();
+    sources.set(surface, `${readGuidance(surface)}\nDelegate to ${model}.`);
+    const errors: string[] = [];
+    validateAgentModelEscalation({ sources, errors });
+    expect(errors).toContain(`${surface}: must not authorize unapproved subagent models`);
+  });
+
+  it.each([
+    {
+      name: 'runtime identifier lookup',
+      pattern: /Use only identifiers exposed by the current runtime\./,
+      replacement: 'Use any requested identifier.',
+      message: 'must require identifiers exposed by the current runtime',
+    },
+    {
+      name: 'unavailable 6.1 Luna gating',
+      pattern: /Resolve 6\.1 Luna's actual[\s\S]*?the availability gap\./,
+      replacement: 'Dispatch 6.1 Luna without checking availability.',
+      message: 'must gate 6.1 Luna dispatch on an available runtime identifier',
+    },
+    {
+      name: 'distinct GPT-6 Luna identity',
+      pattern: /GPT-6 Luna is a distinct model,[\s\S]*?6\.1 Luna\./,
+      replacement: 'GPT-6 Luna may stand in for 6.1 Luna.',
+      message: 'must keep GPT-6 Luna distinct from 6.1 Luna',
+    },
+  ])('rejects policy missing $name', ({ pattern, replacement, message }) => {
+    const sources = readSources();
+    const policy = readGuidance('docs/AGENT_EXECUTION_POLICY.md');
+    const mutated = policy.replace(pattern, replacement);
+    expect(mutated).not.toBe(policy);
+    sources.set('docs/AGENT_EXECUTION_POLICY.md', mutated);
+    const errors: string[] = [];
+    validateAgentModelEscalation({ sources, errors });
+    expect(errors).toContain(`docs/AGENT_EXECUTION_POLICY.md: ${message}`);
+  });
+
   it('requires lightweight ownership, parking, optional goals, and no polling loop', () => {
     const errors: string[] = [];
     validateSessionGoalGuidance({ sources: readSources(), errors });
