@@ -66,28 +66,30 @@ const OBSOLETE_UNIVERSAL_GATES = Object.freeze([
 
 /** Validate the compact risk-based model policy on a guidance surface. */
 export function validateAgentModelEscalation({ sources, errors }) {
-  for (const filePath of [EXECUTION_POLICY_PATH, 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
+  const policy = sourceFor(sources, EXECUTION_POLICY_PATH, errors);
+  requireText(EXECUTION_POLICY_PATH, policy,
+    /permitted subagents are gpt-6 luna\s*\(gpt-6-luna\), gpt-6\.1 terra\s*\(gpt-6\.1-terra\) and gpt-6\.1 sol\s*\(gpt-6\.1-sol\)/i,
+    'must permit GPT-6 Luna, GPT-6.1 Terra and GPT-6.1 Sol subagents', errors);
+  requireText(EXECUTION_POLICY_PATH, policy, /use only identifiers and effort levels exposed by the current runtime/i,
+    'must require identifiers and effort levels exposed by the current runtime', errors);
+  requireText(EXECUTION_POLICY_PATH, policy, /gpt-6 luna may use only max effort/i,
+    'must require GPT-6 Luna at max only', errors);
+  for (const model of ['Terra', 'Sol']) {
+    requireText(EXECUTION_POLICY_PATH, policy,
+      new RegExp(`gpt-6\\.1 ${model} may use all runtime-supported effort levels`, 'i'),
+      `must allow all runtime-supported ${model} effort levels`, errors);
+  }
+  const playbookPath = 'docs/AGENT_CAMPAIGN_PLAYBOOK.md';
+  requireText(playbookPath, sourceFor(sources, playbookPath, errors),
+    /canonical model allowance[\s\S]{0,80}agent_execution_policy\.md#delegation/i,
+    'must point to the canonical subagent model allowance', errors);
+
+  for (const filePath of [EXECUTION_POLICY_PATH, playbookPath, 'AGENTS.md', 'CLAUDE.md']) {
     const source = sourceFor(sources, filePath, errors);
-    if (filePath === EXECUTION_POLICY_PATH) {
-      requireText(filePath, source,
-        /permitted subagents[\s\S]{0,80}6\.1 luna[\s\S]{0,80}6\.1 terra\s*\(gpt-6\.1-terra\)[\s\S]{0,80}6\.1 sol\s*\(gpt-6\.1-sol\)[\s\S]{0,80}gpt-6-luna/i,
-        'must permit 6.1 Luna, 6.1 Terra, 6.1 Sol and existing GPT-6 Luna subagents', errors);
-      requireText(filePath, source, /use only identifiers exposed by the current runtime/i,
-        'must require identifiers exposed by the current runtime', errors);
-      requireText(filePath, source, /resolve 6\.1 luna's actual identifier before dispatch; if unavailable,[\s\S]{0,100}retain its permission and report[\s\S]{0,30}availability gap/i,
-        'must gate 6.1 Luna dispatch on an available runtime identifier', errors);
-      requireText(filePath, source, /gpt-6 luna is a distinct model, not a substitute for 6\.1 luna/i,
-        'must keep GPT-6 Luna distinct from 6.1 Luna', errors);
-    } else {
-      requireText(filePath, source, /canonical model allowance[\s\S]{0,80}agent_execution_policy\.md#delegation/i,
-        'must point to the canonical subagent model allowance', errors);
-    }
-    requireText(filePath, source, /luna effort is discretionary;\s+max is almost always preferred/i,
-      'must make Luna effort discretionary with max almost always preferred', errors);
-    requireText(filePath, source, /sol may use all supported effort levels/i,
-      'must allow all supported Sol effort levels', errors);
-    if (/use\s+max\s+for\s+every\s+(?:gpt-6-luna|luna)\s+subagent|never use\s+max[^.]{0,60}for sol/i.test(normalizeGuidance(source))) {
-      errors.push(`${filePath}: must not retain a mandatory Luna effort or general Sol effort ceiling`);
+    const normalized = normalizeGuidance(source);
+    if (filePath === 'AGENTS.md' || filePath === 'CLAUDE.md') {
+      requireText(filePath, source, /(?:read|follow|use)[\s\S]{0,160}docs\/agent_execution_policy\.md/i,
+        'must point to the execution policy for delegation and ownership rules', errors);
     }
     // The top-level coordinator is distinct from the delegated-model allowlist.
     const delegatedSource = source.replace(/New top-level coordinators default to `gpt-6-astra` with medium reasoning\./g, '');
@@ -95,21 +97,17 @@ export function validateAgentModelEscalation({ sources, errors }) {
     if (models.some((model) => !['gpt-6-luna', 'gpt-6.1-sol', 'gpt-6.1-terra'].includes(model))) {
       errors.push(`${filePath}: must not authorize unapproved subagent models`);
     }
-  }
-  for (const filePath of ['AGENTS.md', 'CLAUDE.md']) {
-    const source = sourceFor(sources, filePath, errors);
-    requireText(filePath, source, /(?:read|follow|use)[\s\S]{0,160}docs\/agent_execution_policy\.md/i,
-      'must point to the execution policy for delegation and ownership rules', errors);
-    const delegatedSource = source.replace(/New top-level coordinators default to `gpt-6-astra` with medium reasoning\./g, '');
-    const models = delegatedSource.match(/gpt-\d+(?:\.\d+)?-[a-z][a-z0-9-]*/g) ?? [];
-    if (models.some((model) => !['gpt-6-luna', 'gpt-6.1-sol', 'gpt-6.1-terra'].includes(model))) {
-      errors.push(`${filePath}: must not authorize unapproved subagent models`);
+    if (/luna effort is discretionary|(?:gpt-6-luna|gpt-6 luna|\bluna)\b[^.]{0,60}\b(?:low|medium|high|xhigh|ultra)\s+effort/i.test(normalized)) {
+      errors.push(`${filePath}: must not allow non-max Luna effort`);
     }
-    if (/use\s+max\s+for\s+every\s+(?:gpt-6-luna|luna)\s+subagent|never use\s+max[^.]{0,60}for sol/i.test(normalizeGuidance(source))) {
-      errors.push(`${filePath}: must not retain a mandatory Luna effort or general Sol effort ceiling`);
+    if (/\b(?:use|allow|permit)[^.]{0,40}\bunsupported effort levels\b/i.test(normalized)) {
+      errors.push(`${filePath}: must not authorize unsupported effort levels`);
+    }
+    if (/never use\s+max[^.]{0,60}for (?:terra|sol)|(?:terra|sol) may use only (?:low|medium|high|max)/i.test(normalized)) {
+      errors.push(`${filePath}: must not impose a general Terra or Sol effort ceiling`);
     }
   }
-  for (const filePath of ['CLAUDE.md', 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
+  for (const filePath of ['CLAUDE.md', playbookPath]) {
     const source = sourceFor(sources, filePath, errors);
     requireText(filePath, source, /(?:default[\s\S]{0,60}gpt-6-luna|gpt-6-luna[\s\S]{0,160}economical)/i,
       'must name GPT-6 Luna as the default delegated worker', errors);
