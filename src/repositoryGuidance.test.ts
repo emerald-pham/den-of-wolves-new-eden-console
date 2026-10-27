@@ -126,7 +126,6 @@ describe('repository guidance', () => {
     expect(weakErrors).toEqual(expect.arrayContaining([
       expect.stringContaining('must not authorize unapproved subagent models'),
     ]));
-
   });
 
   it.each([
@@ -178,6 +177,62 @@ describe('repository guidance', () => {
     const errors: string[] = [];
     validateAgentModelEscalation({ sources, errors });
     expect(errors).toContain('docs/AGENT_EXECUTION_POLICY.md: must require identifiers and effort levels exposed by the current runtime');
+  });
+
+  it.each([
+    [
+      'After a task fails, increase effort when a higher runtime-supported level is\navailable for that permitted model.',
+      'After a task fails, keep effort unchanged.',
+      'must increase effort after failure when a higher supported level is available',
+    ],
+    [
+      'After repeated or looping failures, halt identical blind reruns and perform\nbounded diagnosis, then select a task-appropriate stronger permitted model\nroute.',
+      'After repeated or looping failures, keep retrying the current route.',
+      'must require bounded diagnosis and a stronger permitted model route after looping failures',
+    ],
+    [
+      'Record the actual runtime-supported model and effort, failure evidence,\nreason and ownership transfer.',
+      'Record a claimed escalation without the actual selection or evidence.',
+      'must record the actual supported selection, evidence, reason and ownership transfer',
+    ],
+    [
+      'Do not impose a blanket capability ranking\nbetween Terra and Sol',
+      'Impose a blanket capability ranking between Terra and Sol',
+      'must reject a blanket Terra/Sol capability ranking',
+    ],
+    [
+      'If already at max or no stronger approved available route exists, halt the\nloop, preserve evidence and report the blocker instead of claiming escalation.',
+      'If already at max or no stronger approved available route exists, claim escalation and continue.',
+      'must halt at max or without a stronger approved route and preserve/report the blocker',
+    ],
+  ])('rejects missing failure-escalation safeguard: %s', (from, to, message) => {
+    const sources = readSources();
+    const policy = readGuidance('docs/AGENT_EXECUTION_POLICY.md');
+    expect(policy).toContain(from);
+    sources.set('docs/AGENT_EXECUTION_POLICY.md', policy.replace(from, to));
+    const errors: string[] = [];
+    validateAgentModelEscalation({ sources, errors });
+    expect(errors).toContain(`docs/AGENT_EXECUTION_POLICY.md: ${message}`);
+  });
+
+  it.each([
+    ['CLAUDE.md', 'Terra is always stronger than Sol.', 'must not impose a blanket Terra/Sol capability ranking'],
+    ['docs/AGENT_CAMPAIGN_PLAYBOOK.md', 'Sol is always stronger than Terra.', 'must not impose a blanket Terra/Sol capability ranking'],
+    ['AGENTS.md', 'Repeat identical blind reruns after looping failures.', 'must not authorize identical blind failure reruns'],
+  ])('rejects contradictory escalation guidance in %s', (surface, addition, message) => {
+    const sources = readSources();
+    sources.set(surface, `${readGuidance(surface)}\n${addition}`);
+    const errors: string[] = [];
+    validateAgentModelEscalation({ sources, errors });
+    expect(errors).toContain(`${surface}: ${message}`);
+  });
+
+  it('accepts explicit prohibitions and required security-review effort floors', () => {
+    const sources = readSources();
+    sources.set('AGENTS.md', `${readGuidance('AGENTS.md')}\nGPT-6 Luna may not use high effort. Terra must not use unsupported effort levels. Do not assume Terra is always stronger than Sol. Do not repeat identical blind reruns after looping failures. Independent Sol security review requires xhigh effort.`);
+    const errors: string[] = [];
+    validateAgentModelEscalation({ sources, errors });
+    expect(errors, errors.join('\n')).toEqual([]);
   });
 
   it('requires lightweight ownership, parking, optional goals, and no polling loop', () => {
