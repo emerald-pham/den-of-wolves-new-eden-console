@@ -79,6 +79,21 @@ export function validateAgentModelEscalation({ sources, errors }) {
       new RegExp(`gpt-6\\.1 ${model} may use all runtime-supported effort levels`, 'i'),
       `must allow all runtime-supported ${model} effort levels`, errors);
   }
+  requireText(EXECUTION_POLICY_PATH, policy,
+    /after a task fails, increase effort when a higher runtime-supported level is available for that permitted model/i,
+    'must increase effort after failure when a higher supported level is available', errors);
+  requireText(EXECUTION_POLICY_PATH, policy,
+    /after repeated or looping failures, halt identical blind reruns and perform bounded diagnosis, then select a task-appropriate stronger permitted model route/i,
+    'must require bounded diagnosis and a stronger permitted model route after looping failures', errors);
+  requireText(EXECUTION_POLICY_PATH, policy,
+    /record the actual runtime-supported model and effort, failure evidence, reason and ownership transfer/i,
+    'must record the actual supported selection, evidence, reason and ownership transfer', errors);
+  requireText(EXECUTION_POLICY_PATH, policy,
+    /do not impose a blanket capability ranking between terra and sol/i,
+    'must reject a blanket Terra/Sol capability ranking', errors);
+  requireText(EXECUTION_POLICY_PATH, policy,
+    /if already at max or no stronger approved available route exists, halt the loop, preserve evidence and report the blocker instead of claiming escalation/i,
+    'must halt at max or without a stronger approved route and preserve/report the blocker', errors);
   const playbookPath = 'docs/AGENT_CAMPAIGN_PLAYBOOK.md';
   requireText(playbookPath, sourceFor(sources, playbookPath, errors),
     /canonical model allowance[\s\S]{0,80}agent_execution_policy\.md#delegation/i,
@@ -97,14 +112,20 @@ export function validateAgentModelEscalation({ sources, errors }) {
     if (models.some((model) => !['gpt-6-luna', 'gpt-6.1-sol', 'gpt-6.1-terra'].includes(model))) {
       errors.push(`${filePath}: must not authorize unapproved subagent models`);
     }
-    if (/luna effort is discretionary|(?:gpt-6-luna|gpt-6 luna|\bluna)\b[^.]{0,60}\b(?:low|medium|high|xhigh|ultra)\s+effort/i.test(normalized)) {
+    if (/luna effort is discretionary|(?:gpt-6-luna|gpt-6 luna|\bluna)\s+(?:(?:may|can|should|must) use (?:only )?|at )(?:low|medium|high|xhigh|ultra)(?: or max)? effort/i.test(normalized)) {
       errors.push(`${filePath}: must not allow non-max Luna effort`);
     }
-    if (/\b(?:use|allow|permit)[^.]{0,40}\bunsupported effort levels\b/i.test(normalized)) {
+    if (/(?:^|[.!?]\s+)(?:(?:terra|sol|luna) (?:may|can|should|must) use|use|allow|permit) unsupported effort levels\b/i.test(normalized)) {
       errors.push(`${filePath}: must not authorize unsupported effort levels`);
     }
     if (/never use\s+max[^.]{0,60}for (?:terra|sol)|(?:terra|sol) may use only (?:low|medium|high|max)/i.test(normalized)) {
       errors.push(`${filePath}: must not impose a general Terra or Sol effort ceiling`);
+    }
+    if (/(?:^|[.!?]\s+)(?:terra is always stronger than sol|sol is always stronger than terra)\b/i.test(normalized)) {
+      errors.push(`${filePath}: must not impose a blanket Terra/Sol capability ranking`);
+    }
+    if (/(?:^|[.!?]\s+)(?:repeat|continue) identical blind reruns after (?:repeated|looping) failures\b/i.test(normalized)) {
+      errors.push(`${filePath}: must not authorize identical blind failure reruns`);
     }
   }
   for (const filePath of ['CLAUDE.md', playbookPath]) {
