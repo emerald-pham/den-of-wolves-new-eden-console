@@ -22,6 +22,7 @@ import {
   validationPlanForFiles,
   validationCommandArguments,
   validationCommandSpec,
+  runValidationCommand,
   validateCoordinationEntry,
   validateReleaseCompletion,
 } from '../../scripts/emulator-resource-registry.mjs';
@@ -508,6 +509,25 @@ describe('simplified coordination registry', () => {
     expect(plan.commands).toContain('node scripts/check-bundle-size.mjs');
     expect(plan.commands).not.toContain('npm run test:all');
     expect(plan.commands).not.toContain('npm run build --prefix functions');
+  });
+
+  it('executes the tracker check selected for saved tracker-state changes', async () => {
+    const { directory } = await fixture();
+    try {
+      const command = 'npm run test:prompt-tracker';
+      expect(validationPlanForFiles(['docs/tracker/github-snapshot.json']).commands).toContain(command);
+      await writeFile(resolve(directory, 'package.json'), JSON.stringify({
+        scripts: { 'test:prompt-tracker': 'node tracker-consumer.mjs' },
+      }));
+      await writeFile(resolve(directory, 'tracker-consumer.mjs'),
+        "import { writeFileSync } from 'node:fs'; writeFileSync('tracker-ran.txt', 'tracker checks ran');\n");
+
+      await runValidationCommand(command, directory);
+
+      expect(await readFile(resolve(directory, 'tracker-ran.txt'), 'utf8')).toBe('tracker checks ran');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it('maps generated-roadmap validation to the executable npm script', () => {
