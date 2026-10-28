@@ -1894,3 +1894,7 @@ consumes the same semantic record.
 - This dependency view does not authorize implementation, change player-facing
   behavior, replace source-of-truth acceptance, or bypass repository test,
   security, accessibility, release, merge, or coordination gates.
+
+## Approved execution leaf dependency view
+
+The [generated execution refinement chart](EXECUTION_REFINEMENT_DEPENDENCIES.md) includes every October 28 bounded child and retained atomic brief. It supplements the unchanged prompt graph with real execution handoffs; no parent prerequisite, completion state, release gate or original source relationship is removed.

@@ -28,3 +28,18 @@ Reuse the existing Station recovery, combat-read and mounted endgame tests. A te
 One fresh implementation context owns this bounded behavior through repair, focused verification and handoff. Broader defects return as bounded findings. Preserve meaningful observed RED, separate test-first commits, original evidence and required review.
 
 This is an execution subdivision of existing scope. Only the prompt catalog records completion; all owning-prompt acceptance still applies.
+
+<!-- BEGIN APPROVED EXECUTION REFINEMENTS 2026-10-28 -->
+
+## Approved finer execution slices
+
+Owner approval, October 28: proceed hands off with the smallest independently verifiable subdivisions. These children refine this existing brief; all original acceptance, retained evidence, checkpoint membership and execution/hold boundaries remain in force.
+
+| Slice | Single result | Tracking |
+| --- | --- | --- |
+| [PT2C.1](refinements/pt2c-01.md) | Qualify the authenticated Station attack read | [#229](https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/229) |
+| [PT2C.2](refinements/pt2c-02.md) | Qualify contribution acknowledgement recovery | [#261](https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/261) |
+| [PT2C.3](refinements/pt2c-03.md) | Qualify the private ending consumer | [#299](https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/299) |
+| [PT2C.4](refinements/pt2c-04.md) | Qualify the endgame Continue route | [#300](https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/300) |
+
+<!-- END APPROVED EXECUTION REFINEMENTS 2026-10-28 -->

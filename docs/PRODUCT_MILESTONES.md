@@ -1070,3 +1070,7 @@ without delaying 0.9 or reopening PC11. The earlier October 10 date is historica
 not a new delivery promise. Retain the limited CC0 rights/provenance exclusions,
 unchanged third-party assets/notices and the separate local-paper owner; this
 planning does not publish source material or broaden a license.
+
+## Approved smallest execution refinements on October 28
+
+The owner requested the smallest independently verifiable units and explicitly approved hands-off publication. [The complete numbered refinement](EXECUTION_REFINEMENTS.md) and [its generated dependency chart](EXECUTION_REFINEMENT_DEPENDENCIES.md) subdivide the existing open PC10 and held-future briefs. They preserve the fixed 48-ID PC10 scope, 751-prompt endpoint, accepted source-bound evidence, existing release sequence, gameplay pause and every future hold. The children do not activate future mechanics or grant a restricted version.
