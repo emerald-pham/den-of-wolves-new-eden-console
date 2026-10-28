@@ -269,6 +269,6 @@ This is the immutable October 28 publication mapping. Mutable readiness, executi
 
 Fresh GitHub readback verified 237 unique new child issues (#184–#420), all 237 native parent links and all 274 new native blocker links. The combined existing-source and child graph is acyclic. The 23 existing atomic issues were retained rather than recreated.
 
-All 152 pre-existing issue titles, bodies, open/closed states and their own parent relationships remained unchanged. The fixed prompt catalog, original migration crosswalk and saved tracker snapshot stayed byte-identical. The 32 held future source briefs and 77 new held descendants retain their original trigger and inactive execution; the gameplay pause remains in force.
+All 152 pre-existing issue titles, bodies, open/closed states and their own parent relationships remained unchanged. The fixed prompt catalog and original migration crosswalk stayed byte-identical. A normal tracker refresh also caught up the pre-existing accepted PT7 closure in the saved brief projection; it changed no GitHub issue and earned no new completion credit. The 32 held future source briefs and 77 new held descendants retain their original trigger and inactive execution; the gameplay pause remains in force.
 
 This publication is planning and tracker refinement. It earns no gameplay, release-readiness or prompt-completion credit.
