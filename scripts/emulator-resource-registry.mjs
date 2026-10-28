@@ -972,6 +972,7 @@ const VALIDATION_COMMANDS = new Map([
   ['npm run lint', { executable: 'npm', args: ['run', 'lint'] }],
   ['npm run test:all', { executable: 'npm', args: ['run', 'test:all'] }],
   ['npm run test:unit', { executable: 'npm', args: ['run', 'test:unit'] }],
+  ['npm run test:prompt-tracker', { executable: 'npm', args: ['run', 'test:prompt-tracker'] }],
   ['npm run test:font-consistency', { executable: 'npm', args: ['run', 'test:font-consistency'] }],
   ['npm run test:typography:browser', { executable: 'npm', args: ['run', 'test:typography:browser'] }],
   ['npm run test:ticker:browser', { executable: 'npm', args: ['run', 'test:ticker:browser'] }],

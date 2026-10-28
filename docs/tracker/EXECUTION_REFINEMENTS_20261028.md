@@ -272,3 +272,9 @@ Fresh GitHub readback verified 237 unique new child issues (#184–#420), all 23
 All 152 pre-existing issue titles, bodies, open/closed states and their own parent relationships remained unchanged. The fixed prompt catalog and original migration crosswalk stayed byte-identical. A normal tracker refresh also caught up the pre-existing accepted PT7 closure in the saved brief projection; it changed no GitHub issue and earned no new completion credit. The 32 held future source briefs and 77 new held descendants retain their original trigger and inactive execution; the gameplay pause remains in force.
 
 This publication is planning and tracker refinement. It earns no gameplay, release-readiness or prompt-completion credit.
+
+## Validation command repair
+
+The refreshed saved tracker state selected the existing tracker-consumer check, but the validation runner had no executable mapping for that command. One explicit command entry now connects the selected check to its existing npm script. Unknown command strings still fail closed.
+
+The added regression executes the selected command through the real runner in a disposable package and verifies that its tracker script ran. It first failed with the observed missing-mapping error in test-only commit a957aa76. After the separate implementation, all 20 registry tests and all 38 tracker checks passed. Existing acceptance assertions were retained; no test was skipped or deleted to obtain a pass. This tooling repair adds no game behavior or prompt-completion credit.
