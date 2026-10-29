@@ -8,6 +8,13 @@ system. Keep the workflow proportionate to the risk of the change.
 
 ### Before editing
 
+Create or select an atomic GitHub ticket before starting the work it describes.
+Use the smallest possible scope: one independently verifiable outcome with clear
+acceptance criteria. Refine broad tickets into linked atomic subtickets and work
+from those subtickets. Create missing tickets before proceeding with their work.
+This is workflow guidance, not an approval, commit, merge, push, CI, or deployment
+gate; it adds no enforcement machinery.
+
 1. Work in the assigned checkout on a short-lived branch. Confirm the identity
    before setup or edits:
 
