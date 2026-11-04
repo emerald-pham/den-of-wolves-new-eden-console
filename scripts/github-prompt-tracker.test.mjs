@@ -10,6 +10,7 @@ import {
   readGitHubPromptCatalog,
   updateGitHubIssueState,
 } from './github-prompt-tracker.mjs';
+import * as tracker from './github-prompt-tracker.mjs';
 import { loadPromptCatalog, stableCatalogJson, validatePromptCatalog } from './prompt-catalog.mjs';
 
 const sourceCatalog = loadPromptCatalog();
@@ -866,4 +867,165 @@ test('REST adapter uses append-only state comments, body-free state PATCH, and f
   const patchRequest = requests.find(({ options }) => options.method === 'PATCH');
   assert.deepEqual(JSON.parse(patchRequest.options.body), { state: 'closed', state_reason: 'completed' });
   assert.equal(patchRequest.options.headers.Authorization, 'Bearer fixture-token');
+});
+
+// Issue-owned definitions (#427): GitHub issue bodies carry the authoritative
+// open-work definition; refresh projects them into the saved local snapshots.
+const definitionBlock = (contents) => `<!-- DOW-DEFINITION-START -->\n${contents}\n<!-- DOW-DEFINITION-END -->`;
+const promptDefinitionBlock = (title, acceptance) => definitionBlock(`### Title\n\n${title}\n\n### Acceptance\n\n${acceptance}`);
+const snapshotHeader = (issueNumber) => `<!-- Generated from GitHub issue #${issueNumber}. Edit the issue, then run the prompt-tracker refresh command. -->\n`;
+
+test('refresh projects an issue-owned prompt definition and keeps other catalog fields locked', async () => {
+  const issue = promptIssue({ body: `Campaign acceptance record.\n\n${promptDefinitionBlock('Issue-owned Wing title.', 'Issue-owned Wing acceptance.')}\n\n${promptIssue().body}` });
+  const result = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue]),
+    crosswalk: crosswalkFor([promptRecord()]),
+  });
+  const original = sourceCatalog.prompts.find(({ id }) => id === '181');
+  const projected = result.catalog.prompts.find(({ id }) => id === '181');
+  assert.deepEqual(projected.definition, { title: 'Issue-owned Wing title.', acceptance: 'Issue-owned Wing acceptance.' });
+  assert.equal(projected.description, original.description);
+  assert.equal(projected.hardPromptPrerequisites, original.hardPromptPrerequisites);
+  assert.equal(projected.status, 'missing');
+});
+
+test('a prompt issue without a definition block keeps the saved local definition', async () => {
+  const result = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([promptIssue()]),
+    crosswalk: crosswalkFor([promptRecord()]),
+  });
+  assert.deepEqual(result.catalog.prompts.find(({ id }) => id === '181').definition,
+    sourceCatalog.prompts.find(({ id }) => id === '181').definition);
+  assert.deepEqual(result.definitionSnapshots, []);
+});
+
+test('a malformed prompt definition block fails closed', async () => {
+  const issue = promptIssue({ body: `${definitionBlock('### Title\n\nOnly a title.')}\n\n${promptIssue().body}` });
+  await assert.rejects(readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue]),
+    crosswalk: crosswalkFor([promptRecord()]),
+  }), /definition block/);
+});
+
+test('definition text cannot override tracker metadata outside the block', async () => {
+  const spoof = '# Brief\n\nReadiness: ready\nExecution: active\nSource status: done\nMigration ID: DOW-BRIEF-OTHER';
+  const base = heldFutureFixture();
+  const { issue, record } = heldFutureFixture({ body: `${definitionBlock(spoof)}\n\n${base.issue.body}` });
+  const result = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue]),
+    crosswalk: crosswalkFor([record]),
+  });
+  const state = result.issueStates.find(({ migrationId }) => migrationId === 'DOW-BRIEF-FUTURE-01');
+  assert.equal(state.readiness, 'held');
+  assert.equal(state.execution, 'inactive');
+});
+
+test('refresh returns a brief Markdown snapshot generated from the issue definition', async () => {
+  const base = heldFutureFixture();
+  const { issue, record } = heldFutureFixture({ body: `${definitionBlock('# FUTURE1: Example brief\r\n\r\nBody text.\r\n')}\n\n${base.issue.body}` });
+  const result = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue]),
+    crosswalk: crosswalkFor([record]),
+  });
+  assert.deepEqual(result.definitionSnapshots, [{
+    path: 'docs/future-tickets/example.md',
+    issueNumber: 500,
+    contents: `${snapshotHeader(500)}# FUTURE1: Example brief\n\nBody text.\n`,
+  }]);
+});
+
+test('brief definitions cannot write outside the ticket directories', async () => {
+  const base = heldFutureFixture();
+  const { issue, record } = heldFutureFixture({
+    body: `${definitionBlock('# Escape')}\n\n${base.issue.body.replace('docs/future-tickets/example.md', 'docs/README.md')}`,
+    record: { sourceReferences: ['docs/README.md#future-01'] },
+  });
+  await assert.rejects(readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue]),
+    crosswalk: crosswalkFor([record]),
+  }), /definition path/);
+});
+
+const refinementIssue = (overrides = {}) => ({
+  id: 9000,
+  number: 900,
+  title: 'W1.1: Example refinement',
+  body: `${definitionBlock('# W1.1: Example refinement')}\n\nReadiness: ready\nExecution: inactive\n\nSource reference: docs/pc10-tickets/refinements/w1-01.md#w1-01\nRefinement ID: DOW-REF-20261028-W1-01\nPublication: DOW-REF-20261028\n`,
+  state: 'open',
+  state_reason: null,
+  user: { login: 'emerald-pham' },
+  ...overrides,
+});
+
+test('published refinement issues project their definitions to the mapped snapshot path', async () => {
+  const { issue, record } = heldFutureFixture();
+  const result = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue, refinementIssue()]),
+    crosswalk: crosswalkFor([record]),
+    refinementPublication: [{ issueNumber: 900, sourcePath: 'docs/pc10-tickets/refinements/w1-01.md' }],
+  });
+  assert.deepEqual(result.definitionSnapshots, [{
+    path: 'docs/pc10-tickets/refinements/w1-01.md',
+    issueNumber: 900,
+    contents: `${snapshotHeader(900)}# W1.1: Example refinement\n`,
+  }]);
+});
+
+test('refinement definitions require the owner author and the published path', async () => {
+  const { issue, record } = heldFutureFixture();
+  const publication = [{ issueNumber: 900, sourcePath: 'docs/pc10-tickets/refinements/w1-01.md' }];
+  const stranger = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue, refinementIssue({ user: { login: 'someone-else' } })]),
+    crosswalk: crosswalkFor([record]),
+    refinementPublication: publication,
+  });
+  assert.deepEqual(stranger.definitionSnapshots, []);
+  const unpublished = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue, refinementIssue({ number: 901, id: 9010 })]),
+    crosswalk: crosswalkFor([record]),
+    refinementPublication: publication,
+  });
+  assert.deepEqual(unpublished.definitionSnapshots, []);
+  await assert.rejects(readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue, refinementIssue({ body: refinementIssue().body.replace('w1-01.md#', 'w1-02.md#') })]),
+    crosswalk: crosswalkFor([record]),
+    refinementPublication: publication,
+  }), /source reference mismatch/);
+});
+
+test('the immutable refinement publication table yields new-child issue paths only', () => {
+  const table = [
+    '| W1.1 | [#184](https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/184) | #74 | [W1.1](../pc10-tickets/refinements/w1-01.md) | New child | None |',
+    '| C1.1 | [#82](https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/82) | #82 | [C1.1](../pc10-tickets/09-c1.md) | Retained atomic issue | None |',
+  ].join('\n');
+  assert.deepEqual(tracker.parseRefinementPublication(table), [{ issueNumber: 184, sourcePath: 'docs/pc10-tickets/refinements/w1-01.md' }]);
+});
+
+test('definition snapshot check reports stale and missing local files', async () => {
+  const cwd = await mkdtemp(resolve(tmpdir(), 'prompt-tracker-definitions-'));
+  try {
+    await mkdir(resolve(cwd, 'docs/pc10-tickets'), { recursive: true });
+    await writeFile(resolve(cwd, 'docs/pc10-tickets/current.md'), 'same\n');
+    await writeFile(resolve(cwd, 'docs/pc10-tickets/stale.md'), 'old\n');
+    const snapshots = [
+      { path: 'docs/pc10-tickets/current.md', issueNumber: 1, contents: 'same\n' },
+      { path: 'docs/pc10-tickets/stale.md', issueNumber: 2, contents: 'new\n' },
+      { path: 'docs/pc10-tickets/missing.md', issueNumber: 3, contents: 'new\n' },
+    ];
+    assert.deepEqual(tracker.staleDefinitionSnapshots({ cwd, snapshots }), ['docs/pc10-tickets/stale.md', 'docs/pc10-tickets/missing.md']);
+    tracker.writeDefinitionSnapshots({ cwd, snapshots });
+    assert.deepEqual(tracker.staleDefinitionSnapshots({ cwd, snapshots }), []);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });
