@@ -24,11 +24,13 @@ and between checkpoints and update every affected future prompt and checkpoint
 plan. Follow that guide's decision-alignment procedure under standing
 authorization; preserve an in-progress checkpoint's agreed scope.
 
-GitHub issues are the only mutable authority for migrated prompt and brief
-tracking state. The sanitized, immutable mapping is
+GitHub issues are the mutable authority for every open prompt, brief and refinement:
+its definition and its tracking state. The sanitized, immutable mapping is
 [`docs/tracker/github-crosswalk.json`](./docs/tracker/github-crosswalk.json).
-[`docs/implementation-prompts.json`](./docs/implementation-prompts.json) is a
-generated offline snapshot that preserves the rest of the catalog and history;
+[`docs/implementation-prompts.json`](./docs/implementation-prompts.json) and the
+brief Markdown under `docs/pc10-tickets/` and `docs/future-tickets/` are
+generated offline snapshots of those issues; the catalog also preserves
+completed-prompt history;
 its Markdown views are generated from that snapshot. Refresh state with
 `npm run prompt-tracker -- refresh`, write a field-scoped issue change with
 `npm run prompt-tracker -- update --issue NUMBER ...`, and export saved views

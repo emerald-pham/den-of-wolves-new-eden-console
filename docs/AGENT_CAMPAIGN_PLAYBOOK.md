@@ -18,8 +18,9 @@ Read the saved JSON prompt snapshot at
 [`implementation-prompts.json`](implementation-prompts.json), the matching
 public issue through [`github-crosswalk.json`](tracker/github-crosswalk.json),
 and its generated Markdown views, then the active shaped checkpoint and prior
-feedback. GitHub is the mutable authority for migrated prompt and brief
-tracking state; the saved catalog remains the offline consumer view. Use the
+feedback. GitHub issues are the mutable authority for open prompt, brief and
+refinement definitions and tracking state; the saved catalog and brief Markdown
+remain generated offline consumer views. Use the
 catalog's readiness/dependency check for selected prompts;
 `npm run coordination:dependencies -- --prompt NNN` is a read-only
 report and creates no nonce or local receipt. `NEXT` is an advisory ready-work

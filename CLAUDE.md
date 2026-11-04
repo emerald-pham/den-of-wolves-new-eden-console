@@ -34,20 +34,23 @@ gate; it adds no enforcement machinery.
 2. Run `npm run storage:status` before adding worktrees or dependencies; follow [local storage cleanup](docs/LOCAL_STORAGE.md). Install locked dependencies only when needed (`npm ci`, and
    `npm ci --prefix functions` when Functions checks are needed). Do not commit
    dependency directories or local Firebase configuration.
-3. For prompt-driven work, read the matching record in the saved catalog
-   snapshot at `docs/implementation-prompts.json` and the matching public issue
-   through `docs/tracker/github-crosswalk.json`. GitHub issues are the only
-   mutable authority for imported prompt and brief status/readiness/execution;
-   the JSON catalog and generated Markdown are offline snapshots that preserve
-   definitions and history. Do not edit imported mutable state in the snapshot
-   by hand. Use `npm run prompt-tracker -- refresh` to read all migrated issues
-   and export the catalog plus brief-state snapshots. The generated
+3. For prompt-driven work, start from the matching GitHub issue (found
+   through `docs/tracker/github-crosswalk.json` or the refinement publication
+   table). GitHub issues are the mutable authority for every open prompt, brief and
+   refinement: the issue's Definition block owns its title, acceptance and
+   brief text, and the issue owns status/readiness/execution. The saved catalog
+   snapshot at `docs/implementation-prompts.json`, the brief Markdown under
+   `docs/pc10-tickets/` and `docs/future-tickets/`, and the generated Markdown
+   are offline snapshots regenerated from those issues; completed-prompt
+   history stays in the catalog. Edit open definitions on GitHub, never in a
+   snapshot file. Use `npm run prompt-tracker -- refresh` to read all tracked
+   issues and export the catalog, brief and brief-state snapshots. The generated
    `docs/tracker/github-snapshot.json` preserves current prompt and brief
    tracking fields for offline consumers. Use
    `npm run prompt-tracker -- update --issue NUMBER ...`
    for an owned-field change, and `npm run prompt-tracker -- export` to rebuild
    saved Markdown views offline. `npm run prompt-tracker -- refresh --check`
-   verifies that both snapshots match live tracker state. Ordinary checks and
+   verifies that every snapshot matches live tracker state. Ordinary checks and
    CI do not access GitHub. See `docs/agents/issue-tracker.md` for completion,
    hold-release, and recovery details. `NEXT` is a useful ready-work hint, not
    a serial lock.
@@ -58,9 +61,10 @@ gate; it adds no enforcement machinery.
    deferrals hold that prompt; source-backed rules ambiguity follows
    `docs/PRODUCT_MILESTONES.md`. Continue independent work. Readiness is not a
    commit, merge, push, or deployment gate.
-   When dependency or acceptance definitions change, update their owning
-   source and regenerate its views; when tracking state changes, use the
-   tracker refresh/export path above. `node scripts/generate-prompt-views.mjs
+   When an open title, acceptance or brief text changes, edit its issue
+   Definition and refresh; dependency and other catalog-structure changes
+   remain reviewed catalog edits with regenerated views; when tracking state
+   changes, use the tracker refresh/export path above. `node scripts/generate-prompt-views.mjs
    --check` verifies generated views against the saved snapshot.
 
    Include each newly queued item in the generated dependency chart and record
@@ -72,7 +76,8 @@ gate; it adds no enforcement machinery.
    If a queue update would disrupt an in-flight final release,
    prepare it separately and land it after that release settles.
 4. Freeze accepted scope. Repair defects in its checks; route additional
-   behavior to `docs/PRODUCT_MILESTONE_CANDIDATES.md` rather than enlarging it.
+   behavior to a new GitHub issue as described in
+   `docs/PRODUCT_MILESTONE_CANDIDATES.md` rather than enlarging it.
 
 For numbered-prompt work, follow the one-sitting playtest checkpoints and
 shaping, assumptions, test-first commits, feedback, and cooldown process in
