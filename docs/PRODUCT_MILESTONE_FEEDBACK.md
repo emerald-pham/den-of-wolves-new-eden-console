@@ -461,5 +461,8 @@ Disposition: the [milestone plan](PRODUCT_MILESTONES.md#pc101-execution-activate
 records PC10.1-only activation and the selective-import rule. The nine PC10.1
 briefs record active execution; other PC10.x briefs stay paused and held future
 briefs stay held. Tracker-owned fields change only through the existing writer
-under issue #424. An earlier whole-candidate merge attempt was aborted before
-any commit, because it would have imported later checkpoints.
+on those existing brief issues. The owner approved this work on the condition
+that it stays within existing tickets, so no new ticket owns it; the selective
+import boundary belongs to Z1A.1 (#129). An earlier whole-candidate merge
+attempt was aborted before any commit, because it would have imported later
+checkpoints.

@@ -1084,9 +1084,11 @@ only be working on the next checkpoint which should be 10.1 … using github
 issues as the tracker.” This activates execution for **PC10.1 — Scientist and
 Explorer fieldwork** only: briefs S1, S2, X1, X2, D1, D2, PT1, PT2A and PT3 and
 their refinement children. PC10.2–PC10.9 keep their paused execution, and every
-held future brief stays held. Tracking follows
-[atomic issue #424](https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/424)
-through the existing tracker writer; GitHub Issues remain the mutable authority.
+held future brief stays held. No new ticket is created: activation is a change
+to the existing brief issues' own execution fields (#76, #77, #78, #79, #89,
+#90 and #132; #131 and #136 are already approved repairs) through the existing
+tracker writer, plus their refinement children. GitHub Issues remain the
+mutable authority.
 
 The preserved candidate refs are now published on origin, so they can be read
 directly. PC10.1 starts from current main and imports **only the PC10.1 family**
