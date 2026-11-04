@@ -4,7 +4,7 @@
 
 **Playable release:** [PC10.1 — Scientist and Explorer fieldwork](../PRODUCT_MILESTONES.md#pc10-smaller-playable-releases--2026-10-16).
 
-**Status:** ready-for-agent for planning; execution follows the owning checkpoint and current authorization.
+**Status:** ready-for-agent; execution active for PC10.1 since the [2026-11-04 owner activation](../PRODUCT_MILESTONES.md#pc101-execution-activated--2026-11-04).
 
 ## What to build
 

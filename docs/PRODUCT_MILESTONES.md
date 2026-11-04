@@ -889,9 +889,11 @@ upstream decision requires each new test to protect a distinct failure, allows
 evidence-backed consolidation of redundant/internal-only checks, and preserves
 meaningful gameplay/privacy/authority coverage and mandatory rendered typography.
 
-The product handoff is preserved at local Git commit
+The product handoff is preserved at Git commit
 `aa9dca780bcc6a4482347143ca855181749c36c4` on
-`integration/pc10-implementation-20261015`, specifically its existing
+`integration/pc10-implementation-20261015` (published to origin on
+2026-11-04, with Ring passage recovery `522447d4` on
+`preserved/pc10-success-20261008` at `71af47d4`), specifically its existing
 `docs/PC10_PC11_HANDOFF.md` October 16 stopping point, execution record and
 acceptance reports. These product-only records are not all published on main;
 read them from that exact commit rather than treating an absent main file as
@@ -1074,3 +1076,23 @@ planning does not publish source material or broaden a license.
 ## Approved smallest execution refinements on October 28
 
 The owner requested the smallest independently verifiable units and explicitly approved hands-off publication. [The complete numbered refinement](EXECUTION_REFINEMENTS.md) and [its generated dependency chart](EXECUTION_REFINEMENT_DEPENDENCIES.md) subdivide the existing open PC10 and held-future briefs. They preserve the fixed 48-ID PC10 scope, 751-prompt endpoint, accepted source-bound evidence, existing release sequence, gameplay pause and every future hold. The children do not activate future mechanics or grant a restricted version.
+
+## PC10.1 execution activated — 2026-11-04
+
+The owner asked to implement the next checkpoint, then directed: “We should
+only be working on the next checkpoint which should be 10.1 … using github
+issues as the tracker.” This activates execution for **PC10.1 — Scientist and
+Explorer fieldwork** only: briefs S1, S2, X1, X2, D1, D2, PT1, PT2A and PT3 and
+their refinement children. PC10.2–PC10.9 keep their paused execution, and every
+held future brief stays held. Tracking follows
+[atomic issue #424](https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/424)
+through the existing tracker writer; GitHub Issues remain the mutable authority.
+
+The preserved candidate refs are now published on origin, so they can be read
+directly. PC10.1 starts from current main and imports **only the PC10.1 family**
+from the candidate, with its own helpers and fixtures. Whole-candidate merging
+is excluded because it would import unproved later-checkpoint behavior into
+this release. Z1A still reconciles the remaining candidate evidence at later
+integration boundaries. This activation changes no completion status,
+acceptance, checkpoint membership or the 751-prompt endpoint, and grants no
+0.9.x/1.0.0 version authorization. PC10.1 release gates are unchanged.
