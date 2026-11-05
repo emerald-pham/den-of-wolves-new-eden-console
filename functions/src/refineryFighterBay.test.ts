@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { authorizeRefineryFighterBayLaunch } from './refineryFighterBay';
+import { parseMaintenanceCycle } from './maintenance';
+import { projectMaintenanceEvent } from './maintenanceEvent';
 
 const base = {
   actorRoleId: 'refinery-124-pdf-colonel',
@@ -23,6 +25,22 @@ const base = {
 };
 
 describe('Refinery 124 Fighter Bay launch gate', () => {
+  it('accepts the private FTL result retained by an ordinary paid jump without exposing it publicly', () => {
+    const maintenanceCycle = { ...base.maintenanceCycle, results: { ...base.maintenanceCycle.results,
+      ftl: 'FTL jump complete // 0000 → 1964 // LONG // 8 fuel.',
+    } };
+    expect(authorizeRefineryFighterBayLaunch({ ...base, maintenanceCycle })).toMatchObject({ cycle: 4 });
+    expect(parseMaintenanceCycle(maintenanceCycle)?.results).toEqual(base.maintenanceCycle.results);
+    expect(projectMaintenanceEvent({ shipId: 'refinery-124', shipName: 'Refinery 124', action: 'end',
+      results: maintenanceCycle.results }).results).toEqual(base.maintenanceCycle.results);
+  });
+
+  it.each([null, 8, true, [], {}, undefined])('rejects a nonstring private FTL result: %j', ftl => {
+    expect(() => authorizeRefineryFighterBayLaunch({ ...base, maintenanceCycle: { ...base.maintenanceCycle,
+      results: { ...base.maintenanceCycle.results, ftl },
+    } })).toThrow(/maintenance authority is malformed/i);
+  });
+
   it('accepts the unrest metadata retained by ordinary completed maintenance', () => {
     const maintenanceCycle = {
       ...base.maintenanceCycle, unrestRolls: [2, 5], unrestBeforeCheck: 3,
