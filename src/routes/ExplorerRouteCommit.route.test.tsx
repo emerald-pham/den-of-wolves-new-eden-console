@@ -89,8 +89,8 @@ function seedExplorerSession(): void {
     id: 's1', name: 'Table one', joinCode: '4821', phase: 'active', ownerUid: 'gm1',
     currentTurn: 2, activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
     shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'SESSION START' }],
-    shipResources: { quellon: { food: 10, water: 10, ore: 0, fuel: 6, materials: 0 } },
-    maintenanceCycles: { quellon: { turn: 2, charges: ['jump-drive'], results: {} } },
+    shipResources: { quellon: { food: 10, water: 10, ore: 0, fuel: 6, materials: 0, securityTeams: 0 } },
+    maintenanceCycles: { quellon: { step: 3, revision: 3, turn: 2, charges: ['jump-drive'], refuelled: [], results: {} } },
     vesselActionRevisions: { quellon: 4 },
     turnPhase: {
       turn: 2, teamPhaseEndsAt: '2099-01-01T00:00:00.000Z',
@@ -171,8 +171,8 @@ describe('Explorer route commit and arrival', () => {
     vi.mocked(jumpShip).mockImplementation(async (attempt) => {
       expect(attempt).toMatchObject({ sessionId: 's1', shipId: 'quellon', destination: '9997', expectedRevision: 4 });
       act(() => deliverProjection(discovery('9997', [committedJump]), {
-        shipResources: { quellon: { food: 10, water: 10, ore: 0, fuel: 2, materials: 0 } },
-        maintenanceCycles: { quellon: { turn: 2, charges: [], results: {} } },
+        shipResources: { quellon: { food: 10, water: 10, ore: 0, fuel: 2, materials: 0, securityTeams: 0 } },
+        maintenanceCycles: { quellon: { step: 3, revision: 4, turn: 2, charges: [], refuelled: [], results: {} } },
         shipJumpStates: { quellon: { lastJumpTurn: 2 } },
         vesselActionRevisions: { quellon: 5 },
       } as Partial<GameSession>));
@@ -193,8 +193,10 @@ describe('Explorer route commit and arrival', () => {
     expect(route).toBe('/ships/quellon/roles/quellon-explorer');
     render(<ExplorerRoutes initial={route} />);
     await user.click(await screen.findByRole('button', { name: 'Navigation' }));
-    // A cached snapshot never presents fuel or charge as current.
-    expect(within(planner()).getByLabelText('Jump readiness')).toHaveTextContent(/live ship state unavailable/i);
+    // The cached snapshot carries no chart projection, so it never claims an empty or stale record.
+    expect(within(planner()).getByLabelText('Committed movement'))
+      .toHaveTextContent(/committed movement unavailable until the live chart projection arrives/i);
+    expect(within(planner()).queryByLabelText('Jump estimate')).not.toBeInTheDocument();
 
     act(() => {
       useSessionStore.getState().setConnection('live');
@@ -208,6 +210,8 @@ describe('Explorer route commit and arrival', () => {
       .toHaveTextContent(/quellon already jumped this cycle/i);
     expect(jumpShip).toHaveBeenCalledTimes(1);
 
+    await user.click(screen.getByRole('link', { name: 'View ship consoles' }));
+    expect(await screen.findByRole('heading', { name: /quellon \/\/ station overview/i })).toBeInTheDocument();
     await user.click(screen.getByRole('link', { name: 'Back to fleet' }));
     expect(await screen.findByRole('heading', { name: /stations and consoles/i })).toBeInTheDocument();
   });

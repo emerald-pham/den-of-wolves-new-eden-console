@@ -138,6 +138,14 @@ describe('Explorer route planner // committed movement', () => {
       .toHaveTextContent(/no jump committed yet \/\/ position 0000/i);
   });
 
+  it('does not claim an empty record before the entitled chart projection arrives', () => {
+    render(<ExplorerRoutePlanner currentCoordinate="0000" knownCoordinates={undefined} knownSystems={undefined} />);
+
+    expect(screen.getByLabelText('Committed movement'))
+      .toHaveTextContent(/committed movement unavailable until the live chart projection arrives/i);
+    expect(screen.getByLabelText('Committed movement')).not.toHaveTextContent(/no jump committed/i);
+  });
+
   it('reports arrival when the committed position reaches the planned destination', async () => {
     const user = userEvent.setup();
     const { rerender } = render(<ExplorerRoutePlanner
