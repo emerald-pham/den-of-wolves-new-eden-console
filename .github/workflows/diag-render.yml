@@ -39,13 +39,38 @@ jobs:
       - run: npm run build
       - name: Measure
         run: |
-          echo "HOST label=${{ matrix.label }} rep=${{ matrix.rep }} cpu=$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | xargs) cores=$(nproc)"
-          for i in 1 2 3 4 5; do
-            rm -rf /tmp/p637-render-performance
-            node scripts/prompt-637-render-performance.mjs >/dev/null 2>&1 || true
-            if [ -f /tmp/p637-render-performance/results.json ]; then
-              node -e "const r=require('/tmp/p637-render-performance/results.json');console.log('RESULT label=${{ matrix.label }} rep=${{ matrix.rep }} run=$i longFrames='+r.mobileFrame.longFrames+' mobileP95='+r.mobileFrame.p95Ms+' dradisP95='+r.dradisUpdate.p95Ms)"
-            else
-              echo "RESULT label=${{ matrix.label }} rep=${{ matrix.rep }} run=$i NORESULT"
-            fi
-          done
+          {
+            echo "HOST label=${{ matrix.label }} rep=${{ matrix.rep }} cpu=$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | xargs) cores=$(nproc)"
+            for i in 1 2 3 4 5; do
+              rm -rf /tmp/p637-render-performance
+              node scripts/prompt-637-render-performance.mjs >/dev/null 2>&1 || true
+              if [ -f /tmp/p637-render-performance/results.json ]; then
+                node -e "const r=require('/tmp/p637-render-performance/results.json');console.log('RESULT label=${{ matrix.label }} rep=${{ matrix.rep }} run=$i longFrames='+r.mobileFrame.longFrames+' mobileP95='+r.mobileFrame.p95Ms+' dradisP95='+r.dradisUpdate.p95Ms)"
+              else
+                echo "RESULT label=${{ matrix.label }} rep=${{ matrix.rep }} run=$i NORESULT"
+              fi
+            done
+          } | tee "$RUNNER_TEMP/result.txt"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: diag-${{ matrix.label }}-${{ matrix.rep }}
+          path: ${{ runner.temp }}/result.txt
+  summary:
+    needs: render
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: diag-*
+          merge-multiple: false
+          path: diag
+      - name: Summarise by CPU model and revision
+        run: |
+          for f in diag/*/result.txt; do
+            cpu=$(grep -m1 '^HOST' "$f" | sed -E 's/.*cpu=(.*) cores=.*/\1/')
+            label=$(grep -m1 '^HOST' "$f" | sed -E 's/.*label=([^ ]+) .*/\1/')
+            grep '^RESULT' "$f" | grep -v NORESULT | sed -E 's/.*longFrames=([0-9]+).*/\1/' | while read -r n; do echo "$cpu|$label|$n"; done
+          done | awk -F'|' '
+            { k=$1" | "$2; c[k]++; s[k]+=$3; if(!(k in mn)||$3+0<mn[k]+0)mn[k]=$3; if($3+0>mx[k]+0)mx[k]=$3; if($3+0>70)o[k]++ }
+            END { for (k in c) printf "SUMMARY %-52s n=%2d mean=%5.1f min=%3d max=%3d over70=%d\n", k, c[k], s[k]/c[k], mn[k], mx[k], o[k]+0 }' | sort
