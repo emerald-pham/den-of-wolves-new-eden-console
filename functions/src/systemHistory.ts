@@ -202,13 +202,14 @@ export function recordCandidateDiscovery(
   }
   const currentShip = history?.[shipId] ?? {};
   const currentEntry = currentShip[coordinate] ?? emptyEntry(coordinate);
+  // The first reveal is stable: return the stored history itself so callers
+  // can tell a repeat from a change and skip a second write.
+  if (history && currentEntry.candidateDiscovery) return history;
   return {
     ...(history ?? {}),
     [shipId]: {
       ...currentShip,
-      [coordinate]: currentEntry.candidateDiscovery
-        ? currentEntry
-        : { ...currentEntry, candidateDiscovery: discovery },
+      [coordinate]: { ...currentEntry, candidateDiscovery: discovery },
     },
   };
 }

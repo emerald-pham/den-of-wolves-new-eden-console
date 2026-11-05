@@ -183,3 +183,25 @@ it('rejects a stale fleet-group pointer before publishing a scout map', async ()
   expect(mock.documents.has('sessions/s1/playerDiscoveries/wing-1')).toBe(false);
   expect(mock.documents.get('sessions/s1/serverState/navigation')?.revision).toBe(5);
 });
+
+it('does not rewrite navigation when a later scout request reveals the same candidate again', async () => {
+  await expect(resolvePendingScoutRequest.run(gmRequest())).resolves.toMatchObject({ status: 'resolved' });
+  const before = structuredClone(mock.documents.get('sessions/s1/serverState/navigation')!);
+  put('sessions/s1/scoutRequests/scan-2', {
+    ...mock.documents.get('sessions/s1/scoutRequests/scan-1')!,
+    requestId: 'scan-2', cycle: 5,
+  });
+  put('sessions/s1/scoutCadence/5-endeavour', {
+    sessionId: 's1', entitlementId: 'endeavour', cycle: 5,
+    scans: [{ requestId: 'scan-2', actorUid: 'scientist-1', scan }],
+  });
+  mock.documents.get('sessions/s1')!.currentTurn = 5;
+  mock.set.mockClear();
+
+  await expect(resolvePendingScoutRequest.run({
+    data: { ...command, requestId: 'scan-2' }, auth: { uid: 'gm-1' },
+  } as CallableRequest<typeof command>)).resolves.toMatchObject({ status: 'resolved' });
+
+  expect(mock.documents.get('sessions/s1/serverState/navigation')).toEqual(before);
+  expect(mock.set.mock.calls.some(([target]) => target.path === 'sessions/s1/serverState/navigation')).toBe(false);
+});
