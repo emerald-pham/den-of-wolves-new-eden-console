@@ -1253,6 +1253,20 @@ it('opens Endeavour for the Shepherd Scientist with every printed registration f
   state.setMe({ ...state.me!, assignedRoleId: 'shepherd-scientist',
     activeConsoleRoleId: 'shepherd-scientist', fleetGroupId: 'fleet-1' });
 
+  // The ECM use panel is mounted only once the server reports the ECM Device
+  // as built (S1, commit 9b6ce5f0); construction is a separate panel.
+  endeavourResearchMocks.read.mockResolvedValue({
+    status: 'ready', sessionId: 's1', cycle: 3, researchRevision: 0,
+    cadence: { cycle: 3, revision: 0, choices: [] }, progress: {},
+    tracks: [{ trackId: 'reactor', name: 'Reactor', crossedBoxes: 0, totalBoxes: 5, currentMaterialCost: 8, complete: false }],
+    shepherdOre: 10,
+    fieldUpgradeState: { upgradeRevision: 0, targetsUsedThisCycle: 0 },
+    scienceDevices: {
+      revision: 1, ecmBuilt: true, detectorBuilt: false, ecmUsed: false,
+      shepherdMaterials: 10, buildCosts: { 'ecm-device': null, 'wolf-agent-detector': 9 },
+    },
+  });
+
   render(
     <MemoryRouter initialEntries={['/shuttles/endeavour']}>
       <Routes>
@@ -1278,6 +1292,9 @@ it('opens Endeavour for the Shepherd Scientist with every printed registration f
   expect(screen.getByRole('button', { name: 'Advance standard research' })).toBeEnabled();
   expect(screen.getByRole('list', { name: 'Research progress' })).toHaveTextContent(
     'Reactor: 0 of 5 boxes crossed; next field-upgrade cost is 8 materials.',
+  );
+  expect(await screen.findByRole('region', { name: 'Science device construction controls' })).toHaveTextContent(
+    /ECM Device \/\/ Built.*Wolf Agent Detector \/\/ Unbuilt.*9 materials from Shepherd/s,
   );
   expect(endeavourResearchMocks.read).toHaveBeenCalledTimes(1);
 
