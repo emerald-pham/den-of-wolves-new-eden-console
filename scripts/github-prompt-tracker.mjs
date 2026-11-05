@@ -69,17 +69,26 @@ function stableCompactJson(value) {
   return JSON.stringify(JSON.parse(stableCatalogJson(value)));
 }
 
-/** Separate the issue-owned definition block from the tracker metadata around it. */
+/**
+ * Separate the issue-owned definition block from the tracker metadata around it.
+ * A malformed block is recorded, not thrown, so an unrelated issue that merely quotes a marker
+ * cannot stop the listing; `requireDefinitionBlock` fails closed when the issue is one the tracker uses.
+ */
 function splitDefinition(body) {
   const starts = body.split(DEFINITION_START).length - 1;
   const ends = body.split(DEFINITION_END).length - 1;
-  if (starts !== ends || starts > 1) throw new Error('Issue has a malformed definition block');
-  if (!starts) return { definition: null, metadata: body };
+  if (!starts && !ends) return { definition: null, metadata: body, malformedDefinition: false };
   const start = body.indexOf(DEFINITION_START);
   const end = body.indexOf(DEFINITION_END);
-  if (end < start) throw new Error('Issue has a malformed definition block');
+  if (starts !== 1 || ends !== 1 || end < start) return { definition: null, metadata: body, malformedDefinition: true };
   const definition = body.slice(start + DEFINITION_START.length, end).replace(/\r\n?/g, '\n').replace(/^\n+|\s+$/g, '');
-  return { definition, metadata: `${body.slice(0, start)}${body.slice(end + DEFINITION_END.length)}` };
+  return { definition, metadata: `${body.slice(0, start)}${body.slice(end + DEFINITION_END.length)}`, malformedDefinition: false };
+}
+
+/** Refuse a normalized issue the tracker reads or writes when its definition block is malformed. */
+function requireDefinitionBlock(issue) {
+  if (issue.malformedDefinition) throw new Error(`Issue #${issue.number} has a malformed definition block`);
+  return issue;
 }
 
 function parsePromptDefinition(definition, label) {
@@ -131,7 +140,7 @@ function normalizeIssue(issue) {
     throw new Error('GitHub returned an invalid issue payload');
   }
   const body = issue.body ?? '';
-  const { definition, metadata } = splitDefinition(body);
+  const { definition, metadata, malformedDefinition } = splitDefinition(body);
   const markers = [...metadata.matchAll(/^Migration ID: ([A-Z0-9-]+)$/gm)].map((match) => match[1]);
   if (markers.length > 1) throw new Error(`Issue #${issue.number} has duplicate migration markers`);
   return {
@@ -145,6 +154,7 @@ function normalizeIssue(issue) {
     authorLogin: issue.user?.login ?? issue.authorLogin ?? null,
     definition,
     metadata,
+    malformedDefinition,
   };
 }
 
@@ -254,6 +264,7 @@ function deltaMatches(fields, delta) {
 }
 
 function ownedFieldsForIssue(issue, comments = []) {
+  requireDefinitionBlock(issue);
   const { fields } = extractOwnedBlock(issue.metadata);
   const marker = issue.migrationId;
   if (!marker) throw new Error(`Issue #${issue.number} has no stable migration marker`);
@@ -449,6 +460,7 @@ export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswal
     if (!/^Migration ID: /m.test(raw?.body ?? '')) continue;
     const issue = normalizeIssue(raw);
     if (!issue.migrationId) continue;
+    requireDefinitionBlock(issue);
     if (byMarker.has(issue.migrationId)) throw new Error(`Duplicate GitHub migration marker ${issue.migrationId}`);
     if (!expected.has(issue.migrationId)) throw new Error(`Unknown GitHub migration marker ${issue.migrationId}`);
     byMarker.set(issue.migrationId, issue);
@@ -601,8 +613,10 @@ export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswal
   const rawByNumber = new Map(issues.map((raw) => [raw?.number, raw]));
   for (const { issueNumber, sourcePath } of refinementPublication) {
     const raw = rawByNumber.get(issueNumber);
-    const issue = raw ? normalizeIssue(raw) : null;
-    if (!issue || issue.definition === null || issue.authorLogin?.toLowerCase() !== TRACKER_OWNER) continue;
+    if (!raw) throw new Error(`Refinement #${issueNumber} is missing from the GitHub issue snapshot`);
+    const issue = requireDefinitionBlock(normalizeIssue(raw));
+    if (issue.authorLogin?.toLowerCase() !== TRACKER_OWNER) throw new Error(`Refinement #${issueNumber} is not an owner-authored issue`);
+    if (issue.definition === null) throw new Error(`Refinement #${issueNumber} has no definition block`);
     const reference = legacyField(issue.metadata, 'Source reference');
     if (definitionPath(reference, `Refinement #${issueNumber}`) !== sourcePath) {
       throw new Error(`Refinement #${issueNumber} source reference mismatch`);
