@@ -162,8 +162,11 @@ function pc09TransitionConsumers(file, previous, current) {
 // wiring. Historical audits remain unchanged; any edit beyond this exact
 // candidate needs a fresh callable-consumer review.
 function pc10_1TransitionConsumers(file, previous, current) {
+  // `repairs` holds exact post-candidate edits, each with its own source-traced
+  // consumer review; they never widen the closed `modules` inventory.
   const audit = file === 'functions/src/index.ts'
-    ? pc10_1DeploymentConsumers.index : pc10_1DeploymentConsumers.modules[file];
+    ? pc10_1DeploymentConsumers.index
+    : pc10_1DeploymentConsumers.modules[file] ?? pc10_1DeploymentConsumers.repairs?.[file];
   if (!audit) return null;
   const digest = source => createHash('sha256').update(source).digest('hex');
   if (digest(previous) !== audit.before) return null;
@@ -1500,7 +1503,8 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
       selected.add('castingCompanionCommand');
       continue;
     }
-    if (file !== 'functions/src/index.ts' && pc10_1DeploymentConsumers.modules[file]) {
+    if (file !== 'functions/src/index.ts' &&
+        (pc10_1DeploymentConsumers.modules[file] || pc10_1DeploymentConsumers.repairs?.[file])) {
       const readAt = revision => {
         if (sourceAtRevision) return sourceAtRevision(revision, file);
         try {

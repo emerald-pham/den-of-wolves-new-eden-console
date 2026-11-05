@@ -146,5 +146,19 @@
       "resolvePendingScoutRequest",
       "rollHummingbirdHarvest"
     ]
+  },
+  "repairs": {
+    "functions/src/systemHistory.ts": {
+      "reason": "Post-candidate repair (#436): recordCandidateDiscovery returns the stored history unchanged when a coordinate already has its first reveal, so a repeated reveal no longer bumps the navigation revision or rewrites the map. Its only importer is candidateDiscovery.ts, whose candidateDiscoveryFromArrival and candidateDiscoveryFromScout are used only in functions/src/index.ts by withCandidateArrival and commitScoutMapKnowledge. The consumers are the exported callables that reach either helper.",
+      "before": "ca53c66ca192c11907fe6481e67d2e631291c8be596439c9ff3b03387d09c87f",
+      "after": "5d7d7ade3a7702d180fb1de74ac2cc1c687d3dda9d7fda8cf855340c7f135293",
+      "consumers": [
+        "adjudicateFailedJump",
+        "automaticallyResolveScoutRequest",
+        "jumpShip",
+        "moveShipToLocation",
+        "resolvePendingScoutRequest"
+      ]
+    }
   }
 }
