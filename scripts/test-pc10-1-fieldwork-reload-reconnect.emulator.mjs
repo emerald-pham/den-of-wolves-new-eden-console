@@ -33,6 +33,7 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
   const {
     rollHummingbirdHarvest, allocateHummingbirdHarvest, readEndeavourResearchWorkspace, advanceEndeavourResearchTrack,
     buildEndeavourScienceDevice, upgradeEndeavourFieldTargets, requestScout,
+    resolvePendingScoutRequest, readPrivateScoutResult, listMyScoutReports, readMyScoutDiscoveryNote, resumeSession,
   } = require('../functions/lib/index.js');
   const db = getFirestore();
   const call = (uid, data) => ({ auth: { uid, token: { sub: uid, firebase: { sign_in_provider: 'custom' } } }, data });
@@ -224,6 +225,78 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       assert.equal((await db.collection(`sessions/${id}/scoutRequests`).get()).size, 1);
       assert.equal((await db.collection(`sessions/${id}/endeavourScienceDeviceAudits`).get()).size, 1);
       assert.equal((await doc('serverState/endeavourResearchCadence').get()).get('choices').length, 1);
+    } finally { await db.recursiveDelete(session); }
+  });
+
+  test('A scout result and its candidate reveal read the same after a replay and after every member reconnects', async () => {
+    const id = `pc10-1-reveal-${process.pid}`;
+    const gm = `${id}-gm`, scientist = `${id}-scientist`, wing = `${id}-wing`, explorer = `${id}-explorer`;
+    const session = db.doc(`sessions/${id}`);
+    const navigation = db.doc(`sessions/${id}/serverState/navigation`);
+    const now = Date.now();
+    const resolveRequest = (uid, requestId) => resolvePendingScoutRequest.run(
+      call(uid, { sessionId: id, requestId, instanceId: 'gm-browser' }));
+    const scan = { sourceId: 'endeavour', attempt: 1, range: 'unlimited', targetCoordinate: '0408' };
+    const member = (uid, role, group, roleId) => ({ uid, sessionId: id, role, connected: true, lastSeenAt: now,
+      fleetGroupId: group, assignedRoleId: roleId, seatId: roleId, activeConsoleRoleId: roleId });
+    const discovery = async (uid) => (await db.doc(`sessions/${id}/playerDiscoveries/${uid}`).get()).data();
+    // Everything a reloading requester or fleet-mate reads: the private fact, the reconnect index and the durable note.
+    const reads = async () => {
+      const reports = await listMyScoutReports.run(call(scientist, { sessionId: id }));
+      assert.equal(reports.length, 1);
+      assert.equal(reports[0].status, 'resolved');
+      return {
+        result: await readPrivateScoutResult.run(call(scientist, { sessionId: id, requestId: 'scan-1' })),
+        reports,
+        note: await readMyScoutDiscoveryNote.run(call(scientist, { sessionId: id, noteId: reports[0].noteId })),
+        scientist: (await discovery(scientist)).candidateReveals,
+        wing: (await discovery(wing)).candidateReveals,
+        explorer: (await discovery(explorer)).candidateReveals ?? [],
+        candidate: (await navigation.get()).get('systemHistory.aegis.0408.candidateDiscovery'),
+      };
+    };
+    try {
+      const seed = db.batch();
+      // fleetPartitionRevision marks a partitioned fleet, as the production session carries once groups are confirmed.
+      seed.set(session, { phase: 'active', currentTurn: 4, chartId: 'A', chartSelectionLocked: true, fleetPartitionRevision: 1,
+        activeRoleIds: ['wing-commander', 'shepherd-scientist', 'quellon-explorer'],
+        activeVesselIds: ['aegis', 'shepherd', 'quellon'] });
+      seed.set(db.doc(`sessions/${id}/players/${gm}`), member(gm, 'gm', 'fleet-1', 'admiral'));
+      seed.set(db.doc(`sessions/${id}/gmInstances/gm-browser`), { uid: gm, connected: true, lastSeenAt: now });
+      seed.set(db.doc(`sessions/${id}/players/${scientist}`), member(scientist, 'player', 'fleet-1', 'shepherd-scientist'));
+      seed.set(db.doc(`sessions/${id}/players/${wing}`), member(wing, 'player', 'fleet-1', 'wing-commander'));
+      seed.set(db.doc(`sessions/${id}/players/${explorer}`), member(explorer, 'player', 'fleet-2', 'quellon-explorer'));
+      seed.set(db.doc(`sessions/${id}/fleetGroups/fleet-1`), { id: 'fleet-1', vesselIds: ['aegis', 'shepherd'], memberUids: [gm, scientist, wing] });
+      seed.set(db.doc(`sessions/${id}/fleetGroups/fleet-2`), { id: 'fleet-2', vesselIds: ['quellon'], memberUids: [explorer] });
+      seed.set(navigation, { revision: 5, shipGalacticCoordinates: { aegis: '0000', shepherd: '0000', quellon: '1413' },
+        shipNavigationLogs: { aegis: [], shepherd: [], quellon: [] }, pursuitGroups: { 'fleet-1': 2, 'fleet-2': 4 } });
+      seed.set(db.doc(`sessions/${id}/scoutRequests/scan-1`), {
+        type: 'scout-request', status: 'requested', resolution: 'pending', sessionId: id, requestId: 'scan-1',
+        actorUid: scientist, entitlementId: 'endeavour', source: 'craft', ownerRoleId: 'shepherd-scientist',
+        anchorShipId: 'shepherd', receivingShipId: 'aegis', cycle: 4, targetCoordinate: '0408', scan,
+        createdAt: new Date(now).toISOString() });
+      seed.set(db.doc(`sessions/${id}/scoutCadence/4-endeavour`), { sessionId: id, entitlementId: 'endeavour', cycle: 4,
+        scans: [{ requestId: 'scan-1', actorUid: scientist, scan }] });
+      await seed.commit();
+
+      assert.equal((await resolveRequest(gm, 'scan-1')).status, 'resolved');
+      const first = await reads();
+      assert.deepEqual(first.wing, [{ code: 'O', title: 'Deep Nebula' }]);
+      assert.deepEqual(first.scientist, first.wing);
+      assert.deepEqual(first.explorer, []);
+      const revision = (await navigation.get()).get('revision');
+
+      // The facilitator's resolve is delivered again after a reconnect: nothing changes for any reader.
+      assert.equal((await resolveRequest(gm, 'scan-1')).status, 'replayed');
+      assert.deepEqual(await reads(), first);
+      assert.equal((await navigation.get()).get('revision'), revision);
+
+      // Every member reloads and resumes: the stored reveal is projected again unchanged and no member gains a foreign one.
+      for (const uid of [scientist, wing, explorer]) {
+        await resumeSession.run(call(uid, { sessionId: id }));
+        assert.deepEqual(await reads(), first, `after ${uid} resumed`);
+      }
+      assert.equal((await navigation.get()).get('revision'), revision);
     } finally { await db.recursiveDelete(session); }
   });
 }
