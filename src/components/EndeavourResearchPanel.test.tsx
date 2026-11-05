@@ -84,6 +84,7 @@ beforeEach(() => {
   mocks.retry.mockReset();
   mocks.createAttempt.mockReset();
   mocks.retryDevice.mockReset();
+  mocks.buildDevice.mockReset();
   mocks.connectedPlayers.mockReset();
   mocks.detectorState.mockReset();
   mocks.detectorReport.mockReset();
@@ -211,6 +212,47 @@ it('quotes source-available device builds and retries an uncertain purchase with
   expect(await screen.findByRole('status')).toHaveTextContent('ECM Device built for 18 materials.');
 });
 
+it('builds a device once for its quoted cost when tapped twice and shows the committed Built result', async () => {
+  const user = userEvent.setup();
+  const unbuilt = {
+    ...workspace,
+    scienceDevices: {
+      revision: 0, ecmBuilt: false, detectorBuilt: false, ecmUsed: false, shepherdMaterials: 30,
+      buildCosts: { 'ecm-device': null, 'wolf-agent-detector': 12 },
+    },
+  };
+  const built = {
+    ...unbuilt,
+    scienceDevices: {
+      revision: 1, ecmBuilt: false, detectorBuilt: true, ecmUsed: false, shepherdMaterials: 18,
+      buildCosts: { 'ecm-device': null, 'wolf-agent-detector': 12 },
+    },
+  };
+  let settle!: (value: unknown) => void;
+  mocks.read.mockResolvedValueOnce(unbuilt).mockResolvedValue(built);
+  mocks.buildDevice.mockReturnValueOnce(new Promise((resolve) => { settle = resolve; }));
+
+  render(<EndeavourResearchPanel control={control} />);
+  const devices = await screen.findByRole('region', { name: 'Science device construction controls' });
+  const build = within(devices).getByRole('button', { name: 'Build Wolf Agent Detector for 12 materials' });
+  await user.click(build);
+  await user.click(build);
+  expect(mocks.buildDevice).toHaveBeenCalledTimes(1);
+  expect(mocks.retryDevice).not.toHaveBeenCalled();
+
+  await act(async () => {
+    settle({
+      status: 'committed', sessionId: 's1', requestId: 'device-attempt-1', cycle: 3,
+      deviceId: 'wolf-agent-detector', deviceRevision: 1, built: true, materialCost: 12, shepherdMaterials: 18,
+    });
+  });
+  expect(await screen.findByRole('status')).toHaveTextContent('Wolf Agent Detector built for 12 materials.');
+  await waitFor(() => expect(within(devices).getByText('Wolf Agent Detector // Built')).toBeVisible());
+  expect(within(devices).getByText('Shepherd // 18 materials available')).toBeVisible();
+  expect(within(devices).queryByRole('button', { name: /Build Wolf Agent Detector/ })).not.toBeInTheDocument();
+  expect(mocks.buildDevice).toHaveBeenCalledTimes(1);
+});
+
 it('offers the finished detector to the current Scientist and submits a selected target', async () => {
   const user = userEvent.setup();
   mocks.read.mockResolvedValue({
@@ -323,6 +365,21 @@ it('submits the selected standard choice and refreshes from the server without a
     'Reactor: 2 of 5 boxes crossed; next field-upgrade cost is 6 materials. Chosen this cycle.',
   );
   expect(mocks.read).toHaveBeenCalledTimes(2);
+});
+
+it('sends one research request when the choice is tapped twice before the server answers', async () => {
+  const user = userEvent.setup();
+  let settle!: (value: unknown) => void;
+  mocks.advance.mockReturnValueOnce(new Promise((resolve) => { settle = resolve; }));
+  render(<EndeavourResearchPanel control={control} />);
+  const standard = await screen.findByRole('button', { name: 'Advance standard research' });
+  await user.click(standard);
+  await user.click(standard);
+  expect(mocks.advance).toHaveBeenCalledTimes(1);
+  expect(mocks.retry).not.toHaveBeenCalled();
+  await act(async () => { settle({ status: 'committed' }); });
+  expect(await screen.findByText(/reactor advanced one research box/i)).toBeVisible();
+  expect(mocks.advance).toHaveBeenCalledTimes(1);
 });
 
 it('offers additional choices as explicit five-Shepherd-ore requests', async () => {

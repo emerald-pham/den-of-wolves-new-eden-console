@@ -169,6 +169,24 @@ it('keeps the exact command identity and coordinate when the caller retries', as
   expect(await within(controls).findByRole('status')).toHaveTextContent(/request recorded/i);
 });
 
+it('records one Scientist scout request when Record request is tapped twice before the server answers', async () => {
+  const user = userEvent.setup();
+  const pending = deferredRequest();
+  request.mockImplementationOnce(() => pending.promise);
+  setOwner('endeavour');
+  render(<ScoutRequestControls entitlementId="endeavour" />);
+
+  const controls = screen.getByRole('region', { name: 'Endeavour scouting request' });
+  await user.type(within(controls).getByLabelText('Printed system coordinate'), '5143');
+  await user.click(within(controls).getByRole('button', { name: 'Record request' }));
+  await user.click(within(controls).getByRole('button', { name: /Record(ing)? request/ }));
+  expect(request).toHaveBeenCalledTimes(1);
+
+  await act(async () => { pending.resolve(); await Promise.resolve(); });
+  expect(await within(controls).findByRole('status')).toHaveTextContent(/request recorded/i);
+  expect(request).toHaveBeenCalledTimes(1);
+});
+
 it('restores the unsent Scientist scout coordinate after a station reselect without replaying an old request', async () => {
   const user = userEvent.setup();
   setOwner('endeavour');
