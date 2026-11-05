@@ -103,6 +103,8 @@ no immutable goal file, digest comparison, one-shot provenance or repair chain, 
 
 New top-level coordinators default to `gpt-6-astra` with medium reasoning.
 Delegated workers default to `gpt-6-luna`.
+Claude Code sessions use the [Claude Code runtime models](docs/AGENT_EXECUTION_POLICY.md#claude-code-runtime-models)
+table instead; Fable is never authorized.
 Before delegating, shaping a checkpoint or preparing a release, follow the
 [Agent execution policy](docs/AGENT_EXECUTION_POLICY.md) for allowed models,
 checkpoint ownership, worker groups and handbacks, parent-only dependencies,

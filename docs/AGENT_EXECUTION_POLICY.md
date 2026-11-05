@@ -54,6 +54,86 @@ escalation or halt rules above before another repair. Preserve the failed
 evidence, exact commits, checkout and coordination state, and park the previous
 worker's edit scope before any documented ownership transfer.
 
+### Claude Code runtime models
+
+Claude Code does not expose the subagent identifiers above, so under the
+runtime-identifier rule a Claude Code session uses this subsection instead.
+Other runtimes keep the rules above unchanged. Ownership, review, escalation
+and halt rules in this file still apply; only the model and effort choices
+differ.
+
+Set `model` and `effort` explicitly on every Agent call; this subsection is
+the explicit instruction to do so. Fable is never authorized, in any version,
+in any role, even for escalation. Every effort level is authorized.
+
+Always use the newest available model in each allowed family (Opus, Sonnet,
+Haiku). Today they mean Opus 5.5, Sonnet 5.5 and Haiku 5.5. When a newer
+version of a family becomes available, switch to it right away, in the same
+role and at the same effort, without waiting for this file or a benchmark.
+Never pin an older model ID when a newer one in the same family exists; prefer
+the Agent tool's `opus`, `sonnet` and `haiku` aliases, which resolve to the
+newest version.
+
+| Work | Model | Effort |
+|---|---|---|
+| Orchestrator (top-level session that owns the checkpoint) | Opus | medium |
+| Bounded implementation groups, repairs, tests, reconciliation | Opus | high |
+| Hard bounded work (state the reason in the brief) | Opus | max |
+| Independent risk review required by `CLAUDE.md` | Opus | max |
+| Routine self-review or second opinion on ordinary changes | Opus | xhigh |
+| Toughest problems, replacing Fable (see below) | Opus | max, fresh agents |
+| Read-only search, file location, doc lookup (Explore) | Haiku | high |
+| Mechanical, low-stakes, read-only lookups | Haiku or Opus | low |
+
+Rules:
+
+- Default delegated work to `model: "opus"`, `effort: "high"`. On arena.ai
+  Agent Arena, Opus 5.5 (High) outscored Sonnet 5.5 at lower median cost per
+  task (September 2026 snapshot).
+- Opus 5.5 (Max) ranks #1 on Agent Arena at about four times the cost of High;
+  use it deliberately. The independent reviewer is never the implementer.
+- After a failed attempt, raise effort one level (high → xhigh → max) as the
+  rule above requires. A failed test with an obvious fix is progress, not a
+  failure to escalate on.
+- Haiku never writes code, reviews changes or makes decisions; its Agent Arena
+  score is not distinguishable from zero.
+- Sonnet is not a default. Use it only if the user sets a cost cap that Opus
+  at high cannot meet.
+- Never use `model: "fable"` or any Fable version. Do not use
+  `subagent_type: "fork"` as a route to Fable: forks inherit the parent model,
+  so never fork from a Fable session.
+- When a newer model ships, adopt it immediately, then check
+  <https://arena.ai/leaderboard/agent>. If its ranking or cost changes which
+  family or effort wins a role, update this table with the snapshot date.
+
+**Opus max escalation (the Fable replacement).** Opus 5.5 (Max) ranks above
+Fable 5.1 (Max) on Agent Arena for about the same cost per task, so the top
+tier restructures the work instead of changing model. It is the stronger
+permitted route when an Opus max attempt made a substantive diagnosis and
+repair, both failed, and no credible next step remains, or when the user asks
+for it.
+
+1. Start a fresh agent (not a fork) with `model: "opus"`, `effort: "max"`. Its
+   brief gives the goal, what was tried, what failed, the observed evidence
+   and file and log pointers: facts, not the failed hypothesis as a
+   conclusion.
+2. Only if that fails, run two fresh Opus max agents in parallel from
+   different angles, such as one reasoning from the spec and first principles
+   and one building a minimal reproduction and bisecting. The orchestrator, or
+   a third Opus max agent, reconciles them and picks one path.
+3. Before step 2, tell the user in one line why it is needed and the rough
+   cost, about 9 to 13 times a single Opus high task. This is a heads-up, not
+   an approval request.
+4. If step 2 fails, halt, preserve the evidence and report the blocker. Do not
+   loop and do not substitute Fable.
+
+Record the model, effort, failure evidence, reason and any ownership transfer
+for each escalation, as required above.
+
+Benchmark snapshot: arena.ai Agent Arena, 2026-11-04. Opus 5.5 (Max) #1,
+20.14%, $6.79 per task; Sonnet 5.5 (Max) #3, 15.42%, $3.86; Fable 5.1 (Max)
+#5, 13.86%, $6.39; Haiku 5.5 (High) #28, 0.62%, $0.08.
+
 ### Checkpoint ownership and implementation groups
 
 **Latest owner correction, 2026-10-03:** the top-level orchestrator thread
