@@ -1,5 +1,5 @@
 {
-  "version": 22,
+  "version": 23,
   "prompt": "637",
   "budgets": {
     "landingBundleRawBytes": 1850458,
@@ -11,8 +11,7 @@
     "dradisLabelLayoutReadsPerContactUpdate": 20,
     "attackUpdateP95Ms": 120,
     "missionHandUpdateP95Ms": 100,
-    "mobileFrameP95Ms": 120,
-    "mobileLongFrames": 120
+    "mobileFrameP95Ms": 120
   },
   "measurement": {
     "browser": "Playwright Chromium",

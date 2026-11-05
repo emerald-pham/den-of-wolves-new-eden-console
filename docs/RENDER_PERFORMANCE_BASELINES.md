@@ -20,7 +20,6 @@ The versioned budgets live in
 | Hostile attack update, p95 of 30 renders | 120 ms |
 | Eight simultaneous private mission hands, p95 of 30 updates | 100 ms |
 | Mobile frame interval at 390×844, p95 of 120 update frames | 120 ms |
-| Mobile update frames over 50 ms | at most 120 (all sampled frames; recorded, no longer a pass/fail limit) |
 
 The route probe deliberately presents the real application with an offline
 cached session. This keeps the measurement local and deterministic while still
@@ -363,12 +362,13 @@ per-row forced layout fails even on a faster local machine. This counter
 records browser layout reads, not live production telemetry; the 150 ms
 CI-host timing ceiling remains the release gate.
 
-Baseline version 22 stops gating the count of mobile update frames over 50 ms.
-The owner authorized loosening or removing this limit on 2026-11-05. The count
-is still measured and written to the evidence artifact, but the ceiling is now
-120, the number of sampled frames, so it cannot fail. Every other budget is
-unchanged, including the 120 ms mobile frame p95, which still catches a
-sustained slowdown.
+Baseline version 23 removes the limit on the count of mobile update frames
+over 50 ms. The owner authorized loosening or removing it on 2026-11-05.
+Version 22 had first raised the ceiling to 120, the number of sampled frames, so
+it could not fail; version 23 deletes the ceiling and its assertion. The count
+is still measured and written to the evidence artifact as
+`mobileFrame.longFrames`. Every other budget is unchanged, including the 120 ms
+mobile frame p95, which still catches a sustained slowdown.
 
 The reason is that this count tracks the GitHub-hosted runner's CPU model, not
 the code. In a controlled run on `ubuntu-latest`, the same PC10.1 release
