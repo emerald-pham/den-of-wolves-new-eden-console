@@ -308,6 +308,36 @@ it('keeps cycle-six encouragement generic when another group owns the revealed c
   expect(screen.queryByText('Ancient Jump Ring')).not.toBeInTheDocument();
 });
 
+it.each([
+  ['facilitator', 'gm', 'server'],
+  ['member on a cached snapshot', 'player', 'cache'],
+] as const)('shows no Cycle 6 plan or preparation help to a %s on the roster', (_label, role, freshness) => {
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    phase: 'active',
+    currentTurn: 6,
+    currentGroupCandidateReveals: {
+      groupId: 'fleet-1', revision: 5,
+      candidateReveals: [{ code: 'O', title: 'Deep Nebula' }],
+    },
+  });
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, role, fleetGroupId: 'fleet-1',
+  });
+  useSessionStore.getState().setSessionSnapshotFreshness(freshness);
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.queryByRole('region', { name: 'Cycle 6 plan encouragement' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: 'Candidate discoveries' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: 'Candidate preparation requirements' })).not.toBeInTheDocument();
+  expect(screen.queryByText(/agree a New Eden plan/i)).not.toBeInTheDocument();
+});
+
 it('identifies the unaffiliated SNN press shuttle', () => {
   useSessionStore.getState().setMode('press');
   render(
