@@ -41,7 +41,7 @@ export default function ExplorerRoutePlanner({
       </label>
       {route ? (
         <p className="explorer-route-planner__result" role="status" aria-live="polite">
-          Planned route // {route.join(' → ')} // {route.length - 1} jumps
+          Planned route // {route.join(' → ')} // {route.length - 1} {route.length === 2 ? 'jump' : 'jumps'}
         </p>
       ) : destination ? (
         <p className="explorer-route-planner__result" role="status" aria-live="polite">
