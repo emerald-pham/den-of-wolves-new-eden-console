@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #133. Edit the issue, then run the prompt-tracker refresh command. -->
 # PT2B: Resolve the Capybara population-alert binding
 
 **Existing prompt scope:** P584; P642; P651.

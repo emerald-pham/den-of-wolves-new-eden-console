@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #146. Edit the issue, then run the prompt-tracker refresh command. -->
 # ACCESS5: Read remaining game outcomes without color
 
 **Existing future scope:** Existing October 13 post-release non-color accessibility work.

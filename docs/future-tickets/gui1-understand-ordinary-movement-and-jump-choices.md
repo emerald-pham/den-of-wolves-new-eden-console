@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #150. Edit the issue, then run the prompt-tracker refresh command. -->
 # GUI1: Understand ordinary movement and jump choices
 
 **Existing future scope:** Remaining PC11 cross-game guidance.

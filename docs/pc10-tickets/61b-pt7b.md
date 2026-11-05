@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #139. Edit the issue, then run the prompt-tracker refresh command. -->
 # PT7B: Import and verify the existing tracker records
 
 **Existing prompt scope:** P651.

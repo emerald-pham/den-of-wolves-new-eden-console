@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #145. Edit the issue, then run the prompt-tracker refresh command. -->
 # ACCESS4: Read map and DRADIS meaning without color
 
 **Existing future scope:** Existing October 13 post-release non-color accessibility work.

@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #142. Edit the issue, then run the prompt-tracker refresh command. -->
 # ACCESS1: Audit color-only information
 
 **Existing future scope:** Existing October 13 post-release non-color accessibility work.

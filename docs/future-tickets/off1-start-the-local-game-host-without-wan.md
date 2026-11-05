@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #162. Edit the issue, then run the prompt-tracker refresh command. -->
 # OFF1: Start the local game host without WAN
 
 **Existing future scope:** Conditional same-repository Mac offline LAN backup.

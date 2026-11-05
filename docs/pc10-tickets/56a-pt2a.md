@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #132. Edit the issue, then run the prompt-tracker refresh command. -->
 # PT2A: Qualify Base navigation and source interruptions
 
 **Existing prompt scope:** P641; P651.

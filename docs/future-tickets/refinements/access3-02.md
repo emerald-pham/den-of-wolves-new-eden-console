@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #345. Edit the issue, then run the prompt-tracker refresh command. -->
 <a id="access3-02"></a>
 # ACCESS3.2: Read error status without color
 

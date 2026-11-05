@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #351. Edit the issue, then run the prompt-tracker refresh command. -->
 <a id="access5-01"></a>
 # ACCESS5.1: Read combat outcomes without color
 

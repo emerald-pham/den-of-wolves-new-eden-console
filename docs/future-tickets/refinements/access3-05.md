@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #348. Edit the issue, then run the prompt-tracker refresh command. -->
 <a id="access3-05"></a>
 # ACCESS3.5: Read recovered status without color
 

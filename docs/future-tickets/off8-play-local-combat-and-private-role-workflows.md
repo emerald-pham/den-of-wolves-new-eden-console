@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #172. Edit the issue, then run the prompt-tracker refresh command. -->
 # OFF8: Play local combat and private role workflows
 
 **Existing future scope:** Conditional same-repository Mac offline LAN backup.

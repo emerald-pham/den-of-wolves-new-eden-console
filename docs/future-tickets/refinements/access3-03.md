@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #346. Edit the issue, then run the prompt-tracker refresh command. -->
 <a id="access3-03"></a>
 # ACCESS3.3: Read empty status without color
 

@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #354. Edit the issue, then run the prompt-tracker refresh command. -->
 <a id="access5-04"></a>
 # ACCESS5.4: Read candidate outcomes without color
 

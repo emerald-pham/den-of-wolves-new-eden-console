@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #160. Edit the issue, then run the prompt-tracker refresh command. -->
 # GUI8: Understand Ring, Nebula and Station preparation
 
 **Existing future scope:** Remaining PC11 cross-game guidance.

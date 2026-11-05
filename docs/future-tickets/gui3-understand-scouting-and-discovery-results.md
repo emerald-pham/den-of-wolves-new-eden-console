@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #155. Edit the issue, then run the prompt-tracker refresh command. -->
 # GUI3: Understand scouting and discovery results
 
 **Existing future scope:** Remaining PC11 cross-game guidance.

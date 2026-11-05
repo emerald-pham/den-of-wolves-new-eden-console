@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #148. Edit the issue, then run the prompt-tracker refresh command. -->
 # ALERT1: Review the Wolf alert after real play
 
 **Existing future scope:** Existing post-1.0 P503a real-play presentation review.

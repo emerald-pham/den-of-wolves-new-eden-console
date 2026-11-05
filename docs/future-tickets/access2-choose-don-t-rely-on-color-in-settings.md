@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #143. Edit the issue, then run the prompt-tracker refresh command. -->
 # ACCESS2: Choose Don’t rely on color in Settings
 
 **Existing future scope:** Existing October 13 post-release non-color accessibility work.

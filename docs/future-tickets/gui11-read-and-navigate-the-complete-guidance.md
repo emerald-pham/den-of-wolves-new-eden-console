@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #152. Edit the issue, then run the prompt-tracker refresh command. -->
 # GUI11: Read and navigate the complete guidance
 
 **Existing future scope:** Remaining PC11 cross-game guidance.

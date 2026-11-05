@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #344. Edit the issue, then run the prompt-tracker refresh command. -->
 <a id="access3-01"></a>
 # ACCESS3.1: Read loading status without color
 

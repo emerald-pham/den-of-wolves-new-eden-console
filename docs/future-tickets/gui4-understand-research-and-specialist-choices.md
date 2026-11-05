@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #156. Edit the issue, then run the prompt-tracker refresh command. -->
 # GUI4: Understand research and specialist choices
 
 **Existing future scope:** Remaining PC11 cross-game guidance.

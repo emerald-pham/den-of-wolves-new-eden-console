@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #134. Edit the issue, then run the prompt-tracker refresh command. -->
 # PT2C: Qualify the repaired Station read and recovery consumers
 
 **Existing prompt scope:** P619; P649; P651.

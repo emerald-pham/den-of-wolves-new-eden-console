@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #158. Edit the issue, then run the prompt-tracker refresh command. -->
 # GUI6: Understand combat, wings and boarding
 
 **Existing future scope:** Remaining PC11 cross-game guidance.

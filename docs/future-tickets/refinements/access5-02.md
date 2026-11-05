@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #352. Edit the issue, then run the prompt-tracker refresh command. -->
 <a id="access5-02"></a>
 # ACCESS5.2: Read mission outcomes without color
 
