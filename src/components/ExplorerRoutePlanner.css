@@ -20,3 +20,28 @@
   color: var(--cic-cyan-hot);
   overflow-wrap: anywhere;
 }
+
+.explorer-route-planner__estimate {
+  color: var(--cic-cyan);
+  font-family: var(--cic-mono);
+  overflow-wrap: anywhere;
+}
+
+.explorer-route-planner__readiness {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0 0 0 0.75rem;
+  border-left: 2px solid var(--cic-amber-dim);
+  list-style: none;
+  color: var(--cic-ink);
+  overflow-wrap: anywhere;
+}
+
+.explorer-route-planner__committed {
+  border-top: 1px solid var(--cic-rule);
+  padding-top: 0.5rem;
+  color: var(--cic-cyan-hot);
+  font-family: var(--cic-mono);
+  overflow-wrap: anywhere;
+}
