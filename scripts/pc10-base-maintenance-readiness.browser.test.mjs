@@ -41,7 +41,7 @@ test('eligible Base maintenance waits for the actual workspace before deciding i
         `export const assignShipDamage=async()=>{},repairAllShipDamage=async()=>{};`}));
   }}]});
   await withProofBrowserCleanup(async resources=>{
-    resources.browserServer=await chromium.launchServer({channel:'chrome',headless:true});
+    resources.browserServer=await chromium.launchServer({headless:true});
     resources.browser=await chromium.connect(resources.browserServer.wsEndpoint());
     resources.context=await resources.browser.newContext();
     await resources.context.route('**/*',route=>route.request().isNavigationRequest()&&

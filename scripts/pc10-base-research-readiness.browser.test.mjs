@@ -33,7 +33,7 @@ test('eligible Base research waits for the actual assigned shuttle link before c
       `export const useSessionStore=selector=>selector({session:{id:'fixture-session',shuttleControl:{}},me:{uid:'original-scientist'}});`}));
   }}]});
   await withProofBrowserCleanup(async resources=>{
-    resources.browserServer=await chromium.launchServer({channel:'chrome',headless:true});
+    resources.browserServer=await chromium.launchServer({headless:true});
     resources.browser=await chromium.connect(resources.browserServer.wsEndpoint());
     resources.context=await resources.browser.newContext();
     await resources.context.route('**/*',route=>route.request().isNavigationRequest()&&
