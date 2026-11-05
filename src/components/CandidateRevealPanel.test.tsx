@@ -44,7 +44,8 @@ it.each([
   expect(container).toBeEmptyDOMElement();
 });
 
-const cycleSix = { ...session, currentTurn: 6, currentGroupCandidateReveals: undefined };
+// A session with no current-group reveals: the key is absent, as the server omits it.
+const cycleSix = { id: session.id, phase: session.phase, currentTurn: 6 };
 
 it.each([5, 7])('keeps the Cycle 6 plan prompt out of cycle %i while discoveries keep their help', (currentTurn) => {
   render(<CandidateRevealPanel session={{ ...session, currentTurn }} player={player} sessionSnapshotFreshness="server" />);
@@ -57,7 +58,7 @@ it.each([
   ['cached session', cycleSix, player, 'cache', false],
   ['lobby phase', { ...cycleSix, phase: 'lobby' as const }, player, 'server', false],
   ['facilitator', cycleSix, { ...player, role: 'gm' as const }, 'server', false],
-  ['player without a fleet group', cycleSix, { ...player, fleetGroupId: undefined }, 'server', false],
+  ['player without a fleet group', cycleSix, { ...player, fleetGroupId: null }, 'server', false],
   ['GM observer', cycleSix, player, 'server', true],
 ] as const)('hides the Cycle 6 plan prompt for %s', (_label, nextSession, nextPlayer, freshness, observer) => {
   const { container } = render(<CandidateRevealPanel
