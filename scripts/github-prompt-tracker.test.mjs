@@ -910,6 +910,44 @@ test('a malformed prompt definition block fails closed', async () => {
   }), /definition block/);
 });
 
+test('a tracked issue with a duplicate, reversed or unmatched definition marker fails closed by issue number', async () => {
+  const start = '<!-- DOW-DEFINITION-START -->';
+  const end = '<!-- DOW-DEFINITION-END -->';
+  const valid = definitionBlock('### Title\n\nOne.\n\n### Acceptance\n\nTwo.');
+  for (const block of [`${valid}\n\n${valid}`, `${end}\nReversed.\n${start}`, `${start}\nNo end marker.`]) {
+    await assert.rejects(readGitHubPromptCatalog({
+      sourceBytes,
+      transport: fakeTransport([promptIssue({ body: `${block}\n\n${promptIssue().body}` })]),
+      crosswalk: crosswalkFor([promptRecord()]),
+    }), /^Error: Issue #181 has a malformed definition block$/);
+  }
+});
+
+test('a stray definition marker in an unrelated public issue does not stop a REST refresh', async () => {
+  const listed = [
+    { ...promptIssue(), user: { login: 'emerald-pham' } },
+    { id: 7000, number: 700, title: 'How do definition blocks work?', body: 'I pasted <!-- DOW-DEFINITION-START --> and nothing happened.', state: 'open', user: { login: 'helpful-contributor' } },
+  ];
+  const json = (value) => ({ ok: true, status: 200, async json() { return value; } });
+  const fetchImpl = async (url) => {
+    const { pathname, search } = new URL(String(url));
+    if (pathname.endsWith('/issues') && search.includes('state=all')) return json(listed);
+    if (pathname.endsWith('/parent')) return { ok: false, status: 404, async json() { return {}; } };
+    if (pathname.endsWith('/dependencies/blocked_by') || pathname.endsWith('/comments')) return json([]);
+    throw new Error(`Unexpected fixture URL ${url}`);
+  };
+  const transport = createGitHubPromptTrackerTransport({
+    owner: 'emerald-pham',
+    repo: 'tracker',
+    token: 'fixture-token',
+    fetchImpl,
+    apiBase: 'https://api.example.test',
+  });
+  const result = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk: crosswalkFor([promptRecord()]) });
+  assert.equal(result.issueCount, 1);
+  assert.deepEqual(result.definitionSnapshots, []);
+});
+
 test('definition text cannot override tracker metadata outside the block', async () => {
   const spoof = '# Brief\n\nReadiness: ready\nExecution: active\nSource status: done\nMigration ID: DOW-BRIEF-OTHER';
   const base = heldFutureFixture();
@@ -981,20 +1019,20 @@ test('published refinement issues project their definitions to the mapped snapsh
 test('refinement definitions require the owner author and the published path', async () => {
   const { issue, record } = heldFutureFixture();
   const publication = [{ issueNumber: 900, sourcePath: 'docs/pc10-tickets/refinements/w1-01.md' }];
-  const stranger = await readGitHubPromptCatalog({
-    sourceBytes,
-    transport: fakeTransport([issue, refinementIssue({ user: { login: 'someone-else' } })]),
-    crosswalk: crosswalkFor([record]),
-    refinementPublication: publication,
-  });
-  assert.deepEqual(stranger.definitionSnapshots, []);
-  const unpublished = await readGitHubPromptCatalog({
-    sourceBytes,
-    transport: fakeTransport([issue, refinementIssue({ number: 901, id: 9010 })]),
-    crosswalk: crosswalkFor([record]),
-    refinementPublication: publication,
-  });
-  assert.deepEqual(unpublished.definitionSnapshots, []);
+  for (const [refinement, message] of [
+    [refinementIssue({ user: { login: 'someone-else' } }), /^Error: Refinement #900 is not an owner-authored issue$/],
+    [refinementIssue({ number: 901, id: 9010 }), /^Error: Refinement #900 is missing from the GitHub issue snapshot$/],
+    [refinementIssue({ body: refinementIssue().body.replace(/<!-- DOW-DEFINITION-START -->[\s\S]*<!-- DOW-DEFINITION-END -->/, '') }),
+      /^Error: Refinement #900 has no definition block$/],
+    [refinementIssue({ body: `<!-- DOW-DEFINITION-START -->\n${refinementIssue().body}` }), /^Error: Issue #900 has a malformed definition block$/],
+  ]) {
+    await assert.rejects(readGitHubPromptCatalog({
+      sourceBytes,
+      transport: fakeTransport([issue, refinement]),
+      crosswalk: crosswalkFor([record]),
+      refinementPublication: publication,
+    }), message);
+  }
   await assert.rejects(readGitHubPromptCatalog({
     sourceBytes,
     transport: fakeTransport([issue, refinementIssue({ body: refinementIssue().body.replace('w1-01.md#', 'w1-02.md#') })]),
