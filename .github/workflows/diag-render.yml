@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         label: [pre-release-main, pc10-1-release]
-        rep: [1, 2, 3]
+        rep: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         include:
           - label: pre-release-main
             ref: 9963fed4e95f9a23e3d08b081411341fb1eb815a
