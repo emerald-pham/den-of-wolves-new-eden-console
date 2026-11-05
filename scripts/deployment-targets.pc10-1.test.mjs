@@ -125,3 +125,40 @@ test('the exact PC10.1 source audit hashes every runtime file and the full range
   assert.deepEqual(native.sort(), ['hosting', ...expectedNames].sort());
   assert.equal(native.includes('functions'), false, 'There is no broad Functions fallback.');
 });
+
+// The #436 repair to recordCandidateDiscovery landed after the accepted PC10.1
+// candidate, so it needs its own exact, source-traced consumer review. The
+// consumers are the callables that reach withCandidateArrival (arrival
+// discovery on movement) or commitScoutMapKnowledge (scout resolution) in
+// functions/src/index.ts, the only importers of candidateDiscovery.ts.
+const REPAIR_FILE = 'functions/src/systemHistory.ts';
+const REPAIR_COMMIT = 'f185cb8003f5673111d371b215512876d27ce31b';
+const REPAIR_CONSUMERS = [
+  'adjudicateFailedJump', 'automaticallyResolveScoutRequest', 'jumpShip',
+  'moveShipToLocation', 'resolvePendingScoutRequest',
+];
+
+function selectRepair(currentSource = gitSource(REPAIR_COMMIT, REPAIR_FILE), previousSource = gitSource(BASELINE, REPAIR_FILE)) {
+  return deploymentSelector({
+    before: BASELINE,
+    after: 'post-candidate-repair',
+    files: [REPAIR_FILE],
+    targets: ['functions'],
+    sourceAtRevision: (revision) => revision === BASELINE ? previousSource : currentSource,
+    isAncestor: () => false,
+  });
+}
+
+test('the candidate-discovery idempotence repair deploys exactly its source-traced callables', () => {
+  assert.deepEqual(
+    selectRepair().split(',').sort(),
+    ['hosting', ...REPAIR_CONSUMERS.map(name => `functions:${name}`)].sort(),
+  );
+});
+
+test('the candidate-discovery repair audit fails closed on drift or an unknown baseline', () => {
+  assert.throws(() => selectRepair(`${gitSource(REPAIR_COMMIT, REPAIR_FILE)}\n// unaudited runtime drift\n`),
+    /PC10\.1.*audit/i, 'a later edit needs a fresh consumer review');
+  assert.throws(() => selectRepair(undefined, `${gitSource(BASELINE, REPAIR_FILE)}\n// another baseline\n`),
+    /audited callable consumer map/i, 'an unknown previous version is not covered by the repair audit');
+});
