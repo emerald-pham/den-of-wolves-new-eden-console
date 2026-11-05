@@ -31,19 +31,24 @@ function electionConsumerDiagnostics() {
   });
   const source = program.getSourceFile(filePath);
   assert.ok(source, 'The TypeScript compiler must load the actual election proof consumer.');
-  let consumer;
-  let voterReentry;
-  const findConsumer = node => {
-    if (ts.isFunctionDeclaration(node) && node.name?.text === 'configureElection') consumer = node;
-    if (consumer && ts.isForOfStatement(node) && ts.isVariableDeclarationList(node.initializer) &&
+  const consumers = source.statements.filter(node =>
+    ts.isFunctionDeclaration(node) && node.name?.text === 'configureElection');
+  assert.equal(consumers.length, 1, 'The compiler check targets the existing election consumer.');
+  // configureElection loops over `voters` more than once; only the loop that
+  // calls enterSelectedRole is the selected-voter re-entry block.
+  const reentryLoops = [];
+  const findReentry = node => {
+    if (ts.isForOfStatement(node) && ts.isVariableDeclarationList(node.initializer) &&
         node.initializer.declarations.length === 1 && ts.isIdentifier(node.initializer.declarations[0].name) &&
         node.initializer.declarations[0].name.text === 'roleId' && ts.isIdentifier(node.expression) &&
-        node.expression.text === 'voters') voterReentry = node;
-    ts.forEachChild(node, findConsumer);
+        node.expression.text === 'voters' && /\benterSelectedRole\(/.test(node.statement.getText(source))) {
+      reentryLoops.push(node);
+    }
+    ts.forEachChild(node, findReentry);
   };
-  findConsumer(source);
-  assert.ok(consumer, 'The compiler check targets the existing election consumer.');
-  assert.ok(voterReentry, 'The compiler check targets the actual selected-voter re-entry block.');
+  findReentry(consumers[0]);
+  assert.equal(reentryLoops.length, 1, 'The compiler check targets the actual selected-voter re-entry block.');
+  const [voterReentry] = reentryLoops;
   const start = voterReentry.getStart(source);
   const end = voterReentry.end;
   return program.getSemanticDiagnostics(source).filter(diagnostic =>
