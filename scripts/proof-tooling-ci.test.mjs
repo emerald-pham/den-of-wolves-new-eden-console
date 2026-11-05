@@ -123,7 +123,7 @@ test('branch verification stays enabled without an exact covering PR, on lookup 
 
 test('the named proof preflight runs only its maintained source contracts', () => {
   assert.equal(packageJson.scripts['test:proof-preflight'],
-    'node --test scripts/qualification/pc11-contract-preflight.test.mjs scripts/proof-tooling-ci.test.mjs scripts/proof-tooling-browser-lifecycle.test.mjs');
+    'node scripts/proof-test-invocation.mjs -- node --test scripts/qualification/pc11-contract-preflight.test.mjs scripts/proof-tooling-ci.test.mjs scripts/pc10-role-entry-typecheck.test.mjs scripts/proof-tooling-browser-lifecycle.test.mjs scripts/proof-test-invocation.test.mjs');
 });
 
 test('tooling and shared UI selector risks use the existing unit gate and bounded browser smoke', () => {

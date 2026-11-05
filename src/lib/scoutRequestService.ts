@@ -8,6 +8,7 @@ import {
   type ScoutEntitlementId,
   type ScoutRequestSource,
 } from './scoutRequestAuthority';
+import { normalizeCommandError } from './commandErrors';
 import {
   captureSessionAuthority,
   isCurrentSessionAuthority,
@@ -110,7 +111,19 @@ export async function requestScout(command: ScoutRequestCommand): Promise<ScoutR
     entitlementId: command.entitlementId,
     targetCoordinate: command.targetCoordinate,
   };
-  const response = await httpsCallable<typeof payload, unknown>(functions(), 'requestScout')(payload);
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'requestScout');
+  let response: Awaited<ReturnType<typeof call>>;
+  try {
+    response = await call(payload);
+  } catch (cause) {
+    if (isCurrentSessionAuthority(checkpoint) &&
+        normalizeCommandError(cause).kind === 'station-selection-required') {
+      const { requireStationReselectionForCurrentSession } = await import('./sessionService');
+      if (!isCurrentSessionAuthority(checkpoint)) throw cause;
+      requireStationReselectionForCurrentSession();
+    }
+    throw cause;
+  }
   const current = useSessionStore.getState();
   if (!isCurrentSessionAuthority(checkpoint) ||
       !isScoutEntitlementHolder(command.entitlementId, current.session, current.me)) {

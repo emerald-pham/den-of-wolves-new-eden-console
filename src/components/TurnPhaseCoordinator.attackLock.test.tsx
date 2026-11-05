@@ -63,6 +63,22 @@ it('cancels the pending clock promotion when the attack locks before the deadlin
   expect(transport.begin).not.toHaveBeenCalled();
 });
 
+it('does not resume pending observed work when an attack locks before effect cleanup', async () => {
+  let finish!: () => void;
+  transport.begin.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
+  render(<TurnPhaseCoordinator />);
+  await act(async () => { await Promise.resolve(); await vi.advanceTimersByTimeAsync(1_000); });
+  expect(transport.begin).toHaveBeenCalledTimes(1);
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the original session.');
+  await act(async () => { useSessionStore.getState().setSession({ ...session }); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+  await act(async () => { transport.receive?.(audience()); finish(); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
+  expect(transport.begin).toHaveBeenCalledTimes(1);
+});
+
 it.each([
   ['another session', { sessionId: 's2' }], ['an old cycle', { turn: 1 }],
   ['resolved', { status: 'resolved' as const, currentStep: 'resolved' as const }],

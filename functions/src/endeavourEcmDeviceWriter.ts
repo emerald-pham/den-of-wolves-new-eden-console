@@ -8,6 +8,7 @@ import {
   type EndeavourEcmDeviceState,
 } from './endeavourEcmDevice';
 import { endeavourResearchTrack } from './endeavourResearch';
+import { requireEndeavourScienceDeviceBuilt } from './endeavourScienceDevices';
 import { fleetGroupRecord, type FleetGroupRecord } from './fleetGroups';
 import {
   isValidPursuitAuthority,
@@ -413,6 +414,7 @@ export const activateEndeavourEcmDevice = onCall<{
     const actorRef = db.doc(`sessions/${command.sessionId}/players/${uid}`);
     const receiptRef = db.doc(`sessions/${command.sessionId}/commandReceipts/${command.requestId}`);
     const researchRef = db.doc(`sessions/${command.sessionId}/serverState/endeavourResearch`);
+    const constructionRef = db.doc(`sessions/${command.sessionId}/serverState/endeavourScienceDevices`);
     const deviceRef = db.doc(`sessions/${command.sessionId}/serverState/endeavourEcmDevice`);
     const navigationRef = db.doc(navigationStateDocumentPath(command.sessionId));
     const gmProjectionRef = db.doc(`sessions/${command.sessionId}/gmDiscovery/current`);
@@ -444,8 +446,8 @@ export const activateEndeavourEcmDevice = onCall<{
         throw new HttpsError('failed-precondition', 'Endeavour control changed; refresh before use.');
       }
 
-      const [research, device, navigationDoc, groupDocs, gmProjection, playerProjections, players] = await Promise.all([
-        tx.get(researchRef), tx.get(deviceRef), tx.get(navigationRef), tx.get(groupsRef),
+      const [research, construction, device, navigationDoc, groupDocs, gmProjection, playerProjections, players] = await Promise.all([
+        tx.get(researchRef), tx.get(constructionRef), tx.get(deviceRef), tx.get(navigationRef), tx.get(groupsRef),
         tx.get(gmProjectionRef), tx.get(playerProjectionsRef), tx.get(playersRef),
       ]);
       const state = deviceState(device);
@@ -454,6 +456,12 @@ export const activateEndeavourEcmDevice = onCall<{
       }
       if (state.status === 'used') {
         throw new HttpsError('failed-precondition', 'The ECM Device has already been used.');
+      }
+      try {
+        requireEndeavourScienceDeviceBuilt(construction.exists ? construction.data() : undefined, 'ecm-device');
+      } catch (cause) {
+        throw new HttpsError('failed-precondition',
+          cause instanceof Error ? cause.message : 'Build the ECM Device before activation.');
       }
       const progress = research.exists ? research.data() : {};
       if (!researchComplete(progress)) {

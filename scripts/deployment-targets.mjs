@@ -5,6 +5,7 @@ import pc06DeploymentConsumers from './pc06-deployment-consumers.json' with { ty
 import pc07DeploymentConsumers from './pc07-deployment-consumers.json' with { type: 'json' };
 import pc08DeploymentConsumers from './pc08-deployment-consumers.json' with { type: 'json' };
 import pc09DeploymentConsumers from './pc09-deployment-consumers.json' with { type: 'json' };
+import pc10_1DeploymentConsumers from './pc10-1-deployment-consumers.json' with { type: 'json' };
 import mobileGmHotfixDeploymentConsumers from './mobile-gm-hotfix-deployment-consumers.json' with { type: 'json' };
 import {
   classifyRiskGates,
@@ -29,6 +30,7 @@ const WEB_FILES = new Set([
   'pc07-review.html',
   'pc08-review.html',
   'pc09-review.html',
+  'pc10-1-review.html',
   'package.json',
   'package-lock.json',
 ]);
@@ -152,6 +154,21 @@ function pc09TransitionConsumers(file, previous, current) {
   if (digest(previous) !== audit.before) return null;
   if (digest(current) !== audit.after) {
     throw new Error(`Cannot safely map PC09 ${file} outside its exact source consumer audit.`);
+  }
+  return [...audit.consumers];
+}
+
+// PC10.1 owns a closed source transition for its new domain helpers and index
+// wiring. Historical audits remain unchanged; any edit beyond this exact
+// candidate needs a fresh callable-consumer review.
+function pc10_1TransitionConsumers(file, previous, current) {
+  const audit = file === 'functions/src/index.ts'
+    ? pc10_1DeploymentConsumers.index : pc10_1DeploymentConsumers.modules[file];
+  if (!audit) return null;
+  const digest = source => createHash('sha256').update(source).digest('hex');
+  if (digest(previous) !== audit.before) return null;
+  if (digest(current) !== audit.after) {
+    throw new Error(`Cannot safely map PC10.1 ${file} outside its exact source consumer audit.`);
   }
   return [...audit.consumers];
 }
@@ -734,6 +751,8 @@ function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
   };
   const previousSource = readAt(before);
   const currentSource = readAt(after);
+  const pc10_1Consumers = pc10_1TransitionConsumers('functions/src/index.ts', previousSource, currentSource);
+  if (pc10_1Consumers) return pc10_1Consumers;
   const mobileGmConsumers = mobileGmHotfixTransitionConsumers('functions/src/index.ts', previousSource, currentSource);
   if (mobileGmConsumers) return mobileGmConsumers;
   const pc09Consumers = pc09TransitionConsumers('functions/src/index.ts', previousSource, currentSource);
@@ -1480,6 +1499,24 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
       if (!callableIsExportedAtRevision('castingCompanionCommand', after, cwd, sourceAtRevision)) throw new Error('Casting companion callable export is absent; refusing core-only deployment.');
       selected.add('castingCompanionCommand');
       continue;
+    }
+    if (file !== 'functions/src/index.ts' && pc10_1DeploymentConsumers.modules[file]) {
+      const readAt = revision => {
+        if (sourceAtRevision) return sourceAtRevision(revision, file);
+        try {
+          return execFileSync('git', ['show', `${revision}:${file}`], {
+            encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 32 * 1024 * 1024,
+          });
+        } catch {
+          if (revision === before) return '';
+          throw new Error(`Cannot safely determine PC10.1 source ${file}.`);
+        }
+      };
+      const consumers = pc10_1TransitionConsumers(file, readAt(before), readAt(after));
+      if (consumers) {
+        for (const name of consumers) selected.add(name);
+        continue;
+      }
     }
     if (file !== 'functions/src/index.ts' && mobileGmHotfixDeploymentConsumers.modules[file]) {
       const readAt = revision => {

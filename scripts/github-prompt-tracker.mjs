@@ -14,6 +14,30 @@ const STATE_COMMENT_START = '<!-- DOW-TRACKER-STATE:v1 -->';
 const STATE_COMMENT_END = '<!-- /DOW-TRACKER-STATE -->';
 const PROMPT_STATUSES = new Set(['missing', 'partial', 'blocked', 'in-progress', 'done']);
 const INCOMPLETE_STATUSES = new Set(['missing', 'partial', 'blocked', 'in-progress']);
+// This v1 contract admits one reviewed planning-history addition. It never
+// converts planning evidence into prompt completion or gameplay acceptance.
+const APPROVED_ADDITIVE_EVIDENCE_CONTRACT_V1 = Object.freeze({
+  version: 1,
+  sourceSha256: '8536b573f44cde0e480b12cf427c3bb5668f33d6564f393572964f1679086f3f',
+  sourceStructureSha256: '2376f987ad78ef8f4a6b521295dd9af6620f07446945989d794fb841136d005e',
+  evidence: Object.freeze({
+    id: 'E-PC10-1-BP1-20261017',
+    direction: '629;651 -> PC10.1 bounded browser-asset privacy repair',
+    language: 'Owner-approved October 17 BP1 repair of the confirmed pre-existing static damage-deck exposure in executable browser assets and source maps. Isolate the four browser parser dependencies for Gorgoneion and Warrior repair drones, Macaw repairs and Voyage movement; exclude diagnostic maps from Hosting and the public deployment artifact while retaining useful diagnostics privately. Preserve current parser/projection validation, legacy/reconnect behavior, audiences and server draw rules. BP1 adds one bounded execution brief to PC10.1, not a prompt or completion credit; the canonical 751-ID endpoint and P629/P651 statuses stay unchanged. No additional billing, credential, security-setting or unrelated work is authorized.',
+    source: 'docs/pc10-tickets/62-bp1.md; docs/PRODUCT_MILESTONE_FEEDBACK.md; docs/PRODUCT_MILESTONES.md',
+    type: 'planning / owner-approved bounded repair / no closure credit',
+  }),
+  promptEvidenceIds: Object.freeze({
+    '629': Object.freeze({
+      before: 'E-AUDIT-629;E-CHECKPOINT-RECORDING-AUDIT-20260928;E-PC10-TICKETS-629',
+      after: 'E-AUDIT-629;E-CHECKPOINT-RECORDING-AUDIT-20260928;E-PC10-TICKETS-629;E-PC10-1-BP1-20261017',
+    }),
+    '651': Object.freeze({
+      before: 'E-AUDIT-651;E-PC10-TICKETS-651;E-PC10-RETRO-TICKETS-651',
+      after: 'E-AUDIT-651;E-PC10-TICKETS-651;E-PC10-RETRO-TICKETS-651;E-PC10-1-BP1-20261017',
+    }),
+  }),
+});
 const OWNED_FIELDS = new Set([
   'Prompt status',
   'Previous incomplete status',
@@ -231,6 +255,35 @@ function sourceStructureSha256(catalog, records) {
   return sha256(stableCatalogJson(normalized));
 }
 
+function removeApprovedAdditiveEvidence(catalog, crosswalk) {
+  const contract = APPROVED_ADDITIVE_EVIDENCE_CONTRACT_V1;
+  if (crosswalk.sourceSha256 !== contract.sourceSha256
+      || crosswalk.sourceStructureSha256 !== contract.sourceStructureSha256) return catalog;
+
+  const evidenceRows = (catalog.evidence ?? []).filter((row) => row?.id === contract.evidence.id);
+  if (evidenceRows.length !== 1 || stableCompactJson(evidenceRows[0]) !== stableCompactJson(contract.evidence)) {
+    return catalog;
+  }
+  const promptsById = new Map();
+  for (const prompt of catalog.prompts ?? []) {
+    if (Object.hasOwn(contract.promptEvidenceIds, prompt.id)) {
+      promptsById.set(prompt.id, [...(promptsById.get(prompt.id) ?? []), prompt]);
+    }
+  }
+  for (const [id, { after }] of Object.entries(contract.promptEvidenceIds)) {
+    if (promptsById.get(id)?.length !== 1 || promptsById.get(id)[0].evidenceIds !== after) return catalog;
+  }
+
+  return {
+    ...catalog,
+    evidence: catalog.evidence.filter((row) => row?.id !== contract.evidence.id),
+    prompts: catalog.prompts.map((prompt) => {
+      const evidenceIds = contract.promptEvidenceIds[prompt.id];
+      return evidenceIds ? { ...prompt, evidenceIds: evidenceIds.before } : prompt;
+    }),
+  };
+}
+
 function normalizeCrosswalk(crosswalk, sourceText, catalog) {
   if (!crosswalk || !Array.isArray(crosswalk.records) || crosswalk.schemaVersion !== 1) {
     throw new Error('Public crosswalk has an unsupported schema');
@@ -245,7 +298,8 @@ function normalizeCrosswalk(crosswalk, sourceText, catalog) {
     sourceBlockedByBriefIds: record.sourceBlockedByBriefIds ?? null,
   }));
   if (crosswalk.sourceStructureSha256) {
-    if (sourceStructureSha256(catalog, records) !== crosswalk.sourceStructureSha256) {
+    const structurallyComparableCatalog = removeApprovedAdditiveEvidence(catalog, crosswalk);
+    if (sourceStructureSha256(structurallyComparableCatalog, records) !== crosswalk.sourceStructureSha256) {
       throw new Error('Catalog changes outside source-reviewed definitions; restore the original fields before refresh');
     }
   } else if (crosswalk.sourceSha256 !== sha256(sourceText)) {

@@ -183,6 +183,8 @@ Verify the actual font and navigation contract, not only a source-string test.
 Every non-landing screen and device mode has a visible, keyboard-accessible
 route back to its logical parent, normally Roles; do not rely on browser Back,
 Settings, disconnecting, or a route guard as the only exit.
+For browser UI work, follow the
+[browser tooling policy](docs/AGENT_EXECUTION_POLICY.md#browser-tooling-for-ui-proof).
 
 The shared FleetBroadcast ticker is release-critical because it is the only
 common live-news surface. Run `npm run test:ticker:browser` when a change can

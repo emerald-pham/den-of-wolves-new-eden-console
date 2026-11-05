@@ -62,6 +62,7 @@ beforeEach(() => {
   put('sessions/s1/players/u2', { role: 'player', connected: true, displayName: 'Target' });
   put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['shepherd'], memberUids: ['u1', 'u2'] });
   put('sessions/s1/serverState/endeavourResearch', { 'wolf-agent-detector': 4 });
+  put('sessions/s1/serverState/endeavourScienceDevices', { revision: 1, ecmBuilt: false, detectorBuilt: true });
   put('sessions/s1/secrets/loyalty-u2', {
     visibleToUids: ['u2'], payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 },
   });
@@ -84,6 +85,15 @@ it('persists private reports separately from server-only truth and accuracy evid
     targetLoyaltyKind: 'wolf-agent', actualWolf: true, reportedWolf: true, accurate: true, accuracyRoll: 4,
   });
   expect(mock.documents.get('sessions/s1/wolfAgentDetectorStates/u1')).toEqual({ cycle: 1, revision: 1, testsUsed: 1 });
+});
+
+it('requires durable Detector construction before testing', async () => {
+  mock.documents.delete('sessions/s1/serverState/endeavourScienceDevices');
+
+  await expect(runWolfAgentDetectorTest.run(request()))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(random.randomInt).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('returns an exact replay without consuming another die or detector allowance', async () => {

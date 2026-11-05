@@ -13,6 +13,120 @@ import {
 interface AwayMissionLifecycleWorkspaceProps {
   readonly sessionId: string;
   readonly actorUid: string;
+  readonly actorRoleId: string;
+}
+
+type AssignmentPlacements = Readonly<Record<string, string>>;
+
+interface DetachedAssignmentDraft {
+  readonly actorRoleId: string;
+  readonly revision: number;
+  readonly phase: string;
+  readonly placements: AssignmentPlacements;
+}
+
+// Only card-to-opportunity choices live here; private card contents and action
+// receipts stay in the current server projection/service respectively.
+const detachedAssignmentDrafts = new Map<string, DetachedAssignmentDraft>();
+
+function assignmentDraftKey(sessionId: string, actorUid: string, missionId: string): string {
+  return JSON.stringify([sessionId, actorUid, missionId]);
+}
+
+function isAssignmentPhase(mission: AwayMissionLifecycleMission): boolean {
+  return mission.privateState.assignmentCommitted !== true &&
+    (mission.publicState.phase === 'assignment-ready' || mission.publicState.phase === 'assigning');
+}
+
+function hasCurrentRoleAssignment(
+  state: ReturnType<typeof useSessionStore.getState>,
+  sessionId: string,
+  actorUid: string,
+  actorRoleId: string,
+): boolean {
+  const me = state.me;
+  if (state.session?.id !== sessionId || me?.sessionId !== sessionId || me.uid !== actorUid ||
+      me.role !== 'player' || me.replacementStatus != null) return false;
+
+  return (me.assignedRoleId === actorRoleId && me.replacementRoleId == null) ||
+    me.replacementRoleId === actorRoleId;
+}
+
+function hasFreshRoleStationAuthority(
+  state: ReturnType<typeof useSessionStore.getState>,
+  sessionId: string,
+  actorUid: string,
+  actorRoleId: string,
+): boolean {
+  if (!window.navigator.onLine || state.connection !== 'live' || state.sessionSnapshotFreshness !== 'server' ||
+      !hasCurrentRoleAssignment(state, sessionId, actorUid, actorRoleId)) return false;
+
+  const me = state.me!;
+  return (me.assignedRoleId === actorRoleId && me.replacementRoleId == null && me.activeConsoleRoleId === actorRoleId) ||
+    (me.replacementRoleId === actorRoleId && me.activeConsoleRoleId == null);
+}
+
+function validAssignmentPlacements(
+  placements: AssignmentPlacements,
+  mission: AwayMissionLifecycleMission,
+): Record<string, string> {
+  const remainingCardIds = new Set(mission.privateState.cards
+    .filter(card => card.status === 'remaining')
+    .map(card => card.id));
+  const opportunityIds = new Set(mission.publicState.opportunities.map(opportunity => opportunity.id));
+  const result: Record<string, string> = {};
+  const usedOpportunityIds = new Set<string>();
+
+  for (const [cardId, opportunityId] of Object.entries(placements)) {
+    if (!remainingCardIds.has(cardId) || !opportunityIds.has(opportunityId) || usedOpportunityIds.has(opportunityId)) continue;
+    result[cardId] = opportunityId;
+    usedOpportunityIds.add(opportunityId);
+  }
+  return result;
+}
+
+function readAssignmentDraft(
+  sessionId: string,
+  actorUid: string,
+  actorRoleId: string,
+  mission: AwayMissionLifecycleMission,
+): Record<string, string> {
+  const key = assignmentDraftKey(sessionId, actorUid, mission.publicState.missionId);
+  const draft = detachedAssignmentDrafts.get(key);
+  if (!draft) return {};
+
+  if (!isAssignmentPhase(mission) || draft.actorRoleId !== actorRoleId ||
+      draft.revision !== mission.publicState.revision || draft.phase !== mission.publicState.phase) {
+    detachedAssignmentDrafts.delete(key);
+    return {};
+  }
+
+  const placements = validAssignmentPlacements(draft.placements, mission);
+  if (Object.keys(placements).length === 0) detachedAssignmentDrafts.delete(key);
+  else detachedAssignmentDrafts.set(key, { ...draft, placements });
+  return placements;
+}
+
+function saveAssignmentDraft(
+  sessionId: string,
+  actorUid: string,
+  actorRoleId: string,
+  mission: AwayMissionLifecycleMission,
+  placements: AssignmentPlacements,
+): void {
+  if (!isAssignmentPhase(mission)) return;
+  const validPlacements = validAssignmentPlacements(placements, mission);
+  const key = assignmentDraftKey(sessionId, actorUid, mission.publicState.missionId);
+  if (Object.keys(validPlacements).length === 0) {
+    detachedAssignmentDrafts.delete(key);
+    return;
+  }
+  detachedAssignmentDrafts.set(key, {
+    actorRoleId,
+    revision: mission.publicState.revision,
+    phase: mission.publicState.phase,
+    placements: validPlacements,
+  });
 }
 
 export const AWAY_MISSION_LIFECYCLE_WORKSPACE_STYLES = `
@@ -51,11 +165,15 @@ function hasOwnCurrentHand(mission: AwayMissionLifecycleMission, actorUid: strin
 function MissionPanel({
   sessionId,
   actorUid,
+  actorRoleId,
   mission,
+  hasFreshStationAuthority,
 }: Readonly<{
   sessionId: string;
   actorUid: string;
+  actorRoleId: string;
   mission: AwayMissionLifecycleMission;
+  hasFreshStationAuthority: boolean;
 }>) {
   const presentationSession = useSessionStore(state => state.connection === 'live' && state.sessionSnapshotFreshness === 'server' ? state.session : null);
   const presented = missionOverrunForCurrentPhase(mission.publicState, mission.sourceCycle, presentationSession);
@@ -64,6 +182,10 @@ function MissionPanel({
   const actions = useMemo(() => createAwayMissionLifecycleActions(() =>
     createCurrentAwayMissionLifecycleContext(currentMission.current, sessionId, actorUid),
   ), [sessionId, actorUid]);
+  const [initialAssignmentPlacements] = useState(() => hasFreshStationAuthority
+    ? readAssignmentDraft(sessionId, actorUid, actorRoleId, mission)
+    : {});
+  const assignmentPhase = isAssignmentPhase(mission);
 
   return (
     <AwayMissionLifecyclePanel
@@ -74,6 +196,11 @@ function MissionPanel({
       publicState={presented}
       privateState={mission.privateState}
       actions={actions}
+      initialAssignmentPlacements={initialAssignmentPlacements}
+      {...(hasFreshStationAuthority && assignmentPhase ? {
+        onAssignmentPlacementsChange: (placements: AssignmentPlacements) =>
+          saveAssignmentDraft(sessionId, actorUid, actorRoleId, mission, placements),
+      } : {})}
     />
   );
 }
@@ -81,7 +208,11 @@ function MissionPanel({
 export default function AwayMissionLifecycleWorkspace({
   sessionId,
   actorUid,
+  actorRoleId,
 }: AwayMissionLifecycleWorkspaceProps) {
+  const currentActorEntitled = useSessionStore(state => hasCurrentRoleAssignment(state, sessionId, actorUid, actorRoleId));
+  const canRestoreAssignmentDraft = useSessionStore(state =>
+    hasFreshRoleStationAuthority(state, sessionId, actorUid, actorRoleId));
   const [feed, setFeed] = useState<AwayMissionLifecycleFeedState>({
     status: 'loading',
     missions: [],
@@ -96,8 +227,10 @@ export default function AwayMissionLifecycleWorkspace({
   if (feed.status === 'loading' && feed.missions.length === 0) return null;
   if (feed.status === 'ready' && feed.missions.length === 0 && !feed.projectionMissing) return null;
 
-  const ownedMissions = feed.missions.filter((mission) => hasOwnCurrentHand(mission, actorUid));
-  const rejectedProjectionCount = feed.missions.length - ownedMissions.length;
+  const ownedMissions = currentActorEntitled
+    ? feed.missions.filter((mission) => hasOwnCurrentHand(mission, actorUid))
+    : [];
+  const rejectedProjectionCount = currentActorEntitled ? feed.missions.length - ownedMissions.length : 0;
 
   return (
     <section className="role-brief__rules away-mission-lifecycle-workspace" aria-label="Away mission workspace">
@@ -120,9 +253,19 @@ export default function AwayMissionLifecycleWorkspace({
       )}
       {feed.status === 'ready' && ownedMissions.map((mission) => (
         <MissionPanel
-          key={mission.publicState.missionId}
+          key={JSON.stringify([
+            sessionId,
+            actorUid,
+            actorRoleId,
+            mission.publicState.missionId,
+            mission.publicState.revision,
+            mission.publicState.phase,
+            canRestoreAssignmentDraft,
+          ])}
           sessionId={sessionId}
           actorUid={actorUid}
+          actorRoleId={actorRoleId}
+          hasFreshStationAuthority={canRestoreAssignmentDraft}
           mission={mission}
         />
       ))}

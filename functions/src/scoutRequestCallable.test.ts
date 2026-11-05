@@ -44,7 +44,7 @@ vi.mock('firebase-admin/firestore', () => ({
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
 vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error {
-    constructor(readonly code: string, message: string) { super(message); }
+    constructor(readonly code: string, message: string, readonly details?: unknown) { super(message); }
   },
   onCall: (handler: (request: unknown) => unknown) => ({ run: handler }),
 }));
@@ -142,6 +142,28 @@ it.each([
     sessionId: 's1', entitlementId, cycle: 2,
     scans: [{ requestId: `request-${uid}`, actorUid: uid }],
   });
+});
+
+it('requires the live Scientist station for a new Endeavour request and still replays an entitled receipt after station loss', async () => {
+  const command = {
+    sessionId: 's1', requestId: 'station-loss-scout', entitlementId: 'endeavour', targetCoordinate: '5143',
+  };
+  mock.documents.get('sessions/s1/players/scientist')!.activeConsoleRoleId = null;
+
+  await expect(requestScout.run(request(command, 'scientist'))).rejects.toMatchObject({
+    code: 'permission-denied',
+    details: { commandError: 'station-selection-required' },
+  });
+  expect(mock.documents.has('sessions/s1/scoutRequests/station-loss-scout')).toBe(false);
+  expect(mock.create).not.toHaveBeenCalled();
+
+  resetFixture();
+  await expect(requestScout.run(request(command, 'scientist'))).resolves.toMatchObject({ status: 'requested' });
+  const writes = mock.create.mock.calls.length;
+  mock.documents.get('sessions/s1/players/scientist')!.activeConsoleRoleId = null;
+
+  await expect(requestScout.run(request(command, 'scientist'))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.create).toHaveBeenCalledTimes(writes);
 });
 
 it('binds a shuttle scan to its current docked receiving ship through later docking changes', async () => {
