@@ -77,6 +77,16 @@ vi.mock('@/lib/awayMissionLifecycleService', () => ({
     sessionIsActive: true, hasFreshServerAuthority: true,
   })),
 }));
+// The scout services stand in for the callables whose authority the native emulator script proves.
+const scoutService = vi.hoisted(() => ({
+  request: vi.fn(), list: vi.fn(), read: vi.fn(), note: vi.fn(),
+}));
+vi.mock('@/lib/scoutRequestService', () => ({ requestScout: scoutService.request }));
+vi.mock('@/lib/scoutResultService', () => ({
+  listMyScoutReports: scoutService.list,
+  readPrivateScoutResult: scoutService.read,
+  readMyScoutDiscoveryNote: scoutService.note,
+}));
 vi.mock('@/lib/hummingbirdHarvestService', () => ({
   rollHummingbirdHarvest: harvestService.roll,
   allocateHummingbirdHarvest: harvestService.allocate,
@@ -155,6 +165,10 @@ beforeEach(() => {
     const me = useSessionStore.getState().me;
     if (me) useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: roleId });
   });
+  scoutService.request.mockReset().mockResolvedValue(undefined);
+  scoutService.list.mockReset().mockResolvedValue([]);
+  scoutService.read.mockReset();
+  scoutService.note.mockReset();
   seedExplorerSession();
 });
 
@@ -310,4 +324,48 @@ it('lets the Explorer join a mission from the chooser and keeps the committed re
   expect(missionFeed.assign).toHaveBeenCalledTimes(1);
   await user.click(screen.getByRole('link', { name: /return to station catalog/i }));
   expect(await screen.findByRole('heading', { name: /stations and consoles/i })).toBeInTheDocument();
+});
+
+it('lets the Explorer scout with Hummingbird from the workspace and shows its private result', async () => {
+  const user = userEvent.setup();
+  const noteId = 'a'.repeat(64);
+  const report = { requestId: 'hb-1', cycle: 2, entitlementId: 'hummingbird', targetCoordinate: '5143' } as const;
+  const fact = { coordinate: '5143', code: 'P', title: 'Ancient Space Station' };
+  render(<ExplorerRoutes initial="/console" />);
+
+  await user.click(screen.getByRole('link', { name: /quellon \/\/ explorer/i }));
+  await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledWith('quellon-explorer'));
+  await user.click(await screen.findByRole('button', { name: 'Ship systems' }));
+  await user.click(screen.getByRole('link', { name: /open hummingbird shuttle console/i }));
+  const controls = await screen.findByRole('region', { name: 'Hummingbird scouting request' });
+  expect(within(controls).getByText(/within three jumps of quellon.*one request per cycle/i)).toBeVisible();
+
+  // The request is pending first, then the server resolves it automatically.
+  let resolvedOnServer = false;
+  scoutService.list.mockImplementation(async () => [resolvedOnServer
+    ? { ...report, status: 'resolved', noteId }
+    : { ...report, status: 'pending', noteId: null }]);
+  scoutService.read.mockResolvedValue({ type: 'private-scout-result', sessionId: 's1', requestId: 'hb-1',
+    requesterUid: 'u1', sourceId: 'hummingbird', cycle: 2, targetCoordinate: '5143', systemFact: fact });
+  scoutService.note.mockResolvedValue({ type: 'player-discovery-note', id: noteId, cycle: 2,
+    targetCoordinate: '5143', systemFact: fact, recordedAt: '2026-09-12T00:01:00.000Z' });
+
+  await user.type(within(controls).getByLabelText('Printed system coordinate'), '5143');
+  await user.click(within(controls).getByRole('button', { name: 'Record request' }));
+  await waitFor(() => expect(scoutService.request).toHaveBeenCalledWith({
+    entitlementId: 'hummingbird', targetCoordinate: '5143', requestId: expect.any(String),
+  }));
+  const reportPanel = await within(controls).findByRole('region', { name: 'Hummingbird scout report' });
+  expect(await within(reportPanel).findByText('Awaiting automatic scout result.')).toBeVisible();
+  expect(scoutService.read).not.toHaveBeenCalled();
+
+  resolvedOnServer = true;
+  expect(await within(controls).findByText('Ancient Space Station', {}, { timeout: 3_000 })).toBeVisible();
+  expect(within(controls).getByText('Site P')).toBeVisible();
+  expect(await within(controls).findByText('Discovery note saved for this station.')).toBeVisible();
+  expect(scoutService.read).toHaveBeenCalledWith('hb-1');
+  expect(scoutService.request).toHaveBeenCalledTimes(1);
+
+  await user.click(screen.getByRole('link', { name: /back to quellon explorer console/i }));
+  expect(await screen.findByRole('heading', { name: 'Quellon' })).toBeInTheDocument();
 });
