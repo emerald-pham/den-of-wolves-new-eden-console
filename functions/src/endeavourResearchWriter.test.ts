@@ -572,6 +572,49 @@ describe('Endeavour Team research writer', () => {
       .rejects.toMatchObject({ code: 'permission-denied' });
   });
 
+  it.each([[0, null], [1, null], [2, 18], [3, 12], [4, 10]] as const)(
+    'projects the printed Wolf Agent Detector build availability at research progress %i',
+    async (marks, materialCost) => {
+      put('sessions/s1/serverState/endeavourResearch', { 'wolf-agent-detector': marks });
+
+      const result = await readEndeavourResearchWorkspace.run(request({ sessionId: 's1' }));
+
+      expect(result).toMatchObject({
+        scienceDevices: {
+          buildCosts: { 'wolf-agent-detector': materialCost },
+        },
+      });
+    },
+  );
+
+  it('keeps the unbuilt ECM purchase quote at five materials after all five research marks', async () => {
+    put('sessions/s1/serverState/endeavourResearch', { 'ecm-device': 5 });
+
+    await expect(readEndeavourResearchWorkspace.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
+      scienceDevices: {
+        ecmBuilt: false,
+        buildCosts: { 'ecm-device': 5 },
+      },
+    });
+  });
+
+  it('projects a previously used legacy ECM as built when its construction document is absent', async () => {
+    put('sessions/s1/serverState/endeavourResearch', { 'ecm-device': 5 });
+    put('sessions/s1/serverState/endeavourEcmDevice', {
+      status: 'used', revision: 1, ownerGroupId: 'fleet-1', pursuitBefore: 8, pursuitAfter: 5,
+    });
+
+    await expect(readEndeavourResearchWorkspace.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
+      scienceDevices: {
+        revision: 1, ecmBuilt: true, detectorBuilt: false, ecmUsed: true,
+        buildCosts: { 'ecm-device': null },
+      },
+    });
+    expect(mock.documents.has('sessions/s1/serverState/endeavourScienceDevices')).toBe(false);
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+
   it('returns only the opaque field-upgrade revision and current-cycle count with current pricing in one private read', async () => {
     put('sessions/s1/serverState/endeavourResearch', { reactor: 2 });
     put('sessions/s1/serverState/endeavourResearchCadence', {

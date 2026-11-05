@@ -222,6 +222,28 @@ it('invalidates the stale selection retry when a checkbox edit changes the draft
   }));
 });
 
+it('sends one field-upgrade purchase when Purchase is tapped twice before the server answers', async () => {
+  const user = userEvent.setup();
+  let settle!: (value: unknown) => void;
+  mocks.purchase.mockReset();
+  mocks.purchase.mockReturnValueOnce(new Promise((resolve) => { settle = resolve; }));
+  renderPanel();
+  await user.click(await screen.findByLabelText('Shepherd // Reactor // 7 materials'));
+  const purchase = screen.getByRole('button', { name: 'Purchase selected upgrades' });
+  await user.click(purchase);
+  await user.click(purchase);
+  expect(mocks.purchase).toHaveBeenCalledTimes(1);
+  expect(mocks.retry).not.toHaveBeenCalled();
+  await act(async () => {
+    settle({
+      status: 'committed', sessionId: 's1', requestId: 'request-1', shuttleId: 'endeavour',
+      cycle: 3, upgradeRevision: 7, appliedTargets: [{ shipId: 'shepherd', systemId: 'reactor' }],
+    });
+  });
+  expect(await screen.findByRole('status')).toHaveTextContent('Installed 1 console for this cycle.');
+  expect(mocks.purchase).toHaveBeenCalledTimes(1);
+});
+
 it('holds an uncertain request and exposes only an exact-ID retry until it resolves', async () => {
   const user = userEvent.setup();
   mocks.purchase.mockRejectedValueOnce(new EndeavourFieldUpgradeUncertainError('request-1'));

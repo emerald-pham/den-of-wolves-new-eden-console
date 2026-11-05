@@ -141,16 +141,28 @@ it('resolves one private fact and publishes its coordinate only to the request-t
   expect(navigation.scoutedCoordinatesByShip).toEqual({ aegis: ['0408'] });
   expect(navigation.revision).toBe(6);
   expect(navigation.createdAt).toBe('original-navigation-creation');
+  expect(navigation.systemHistory?.aegis?.['0408']?.candidateDiscovery).toEqual({
+    id: 'scout-scan-1', occurredAt: '2026-09-27T21:40:00.000Z',
+    code: 'O', title: 'Deep Nebula', source: 'scout',
+  });
   expect(wing.knownCoordinates).toContain('0408');
   expect(scientist.knownCoordinates).not.toContain('0408');
   expect(scientist.shipId).toBe('shepherd');
-  expect(JSON.stringify(wing)).not.toMatch(/Deep Nebula|accruedBonus/);
+  expect(wing.candidateReveals).toEqual([{ code: 'O', title: 'Deep Nebula' }]);
+  expect(scientist.candidateReveals).toEqual([{ code: 'O', title: 'Deep Nebula' }]);
+  expect(JSON.stringify(wing.candidateReveals)).not.toMatch(/0408|coordinate|accruedBonus|organiserSites|chartId/);
+  expect(JSON.stringify(wing)).not.toMatch(/accruedBonus|organiserSites|chartId/);
   const notePath = [...mock.documents.keys()].find((path) => path.includes('/playerDiscoveryNotes/'));
   expect(notePath).toBeDefined();
   expect(mock.documents.get(notePath!)).toMatchObject({ shipId: 'shepherd' });
 
   await expect(resolvePendingScoutRequest.run(gmRequest())).resolves.toMatchObject({ status: 'replayed' });
   expect(mock.documents.get('sessions/s1/serverState/navigation')?.revision).toBe(6);
+  expect(mock.documents.get('sessions/s1/serverState/navigation')?.systemHistory?.aegis?.['0408']?.candidateDiscovery)
+    .toEqual({
+      id: 'scout-scan-1', occurredAt: '2026-09-27T21:40:00.000Z',
+      code: 'O', title: 'Deep Nebula', source: 'scout',
+    });
 });
 
 it('fails without a map or result write when protected navigation is malformed', async () => {
@@ -170,4 +182,26 @@ it('rejects a stale fleet-group pointer before publishing a scout map', async ()
   expect(mock.documents.has('sessions/s1/scoutResults/scan-1')).toBe(false);
   expect(mock.documents.has('sessions/s1/playerDiscoveries/wing-1')).toBe(false);
   expect(mock.documents.get('sessions/s1/serverState/navigation')?.revision).toBe(5);
+});
+
+it('does not rewrite navigation when a later scout request reveals the same candidate again', async () => {
+  await expect(resolvePendingScoutRequest.run(gmRequest())).resolves.toMatchObject({ status: 'resolved' });
+  const before = structuredClone(mock.documents.get('sessions/s1/serverState/navigation')!);
+  put('sessions/s1/scoutRequests/scan-2', {
+    ...mock.documents.get('sessions/s1/scoutRequests/scan-1')!,
+    requestId: 'scan-2', cycle: 5,
+  });
+  put('sessions/s1/scoutCadence/5-endeavour', {
+    sessionId: 's1', entitlementId: 'endeavour', cycle: 5,
+    scans: [{ requestId: 'scan-2', actorUid: 'scientist-1', scan }],
+  });
+  mock.documents.get('sessions/s1')!.currentTurn = 5;
+  mock.set.mockClear();
+
+  await expect(resolvePendingScoutRequest.run({
+    data: { ...command, requestId: 'scan-2' }, auth: { uid: 'gm-1' },
+  } as CallableRequest<typeof command>)).resolves.toMatchObject({ status: 'resolved' });
+
+  expect(mock.documents.get('sessions/s1/serverState/navigation')).toEqual(before);
+  expect(mock.set.mock.calls.some(([target]) => target.path === 'sessions/s1/serverState/navigation')).toBe(false);
 });

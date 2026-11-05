@@ -357,7 +357,11 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: web-dist
-          path: dist
+          # This repository's artifacts are public. Keep diagnostic maps only
+          # in the ephemeral runner workspace; never upload them for deployment.
+          path: |
+            dist
+            !dist/**/*.map
           if-no-files-found: error
           retention-days: 1
 

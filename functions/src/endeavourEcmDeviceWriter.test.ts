@@ -95,6 +95,7 @@ function seedSession(): void {
     id: 'fleet-2', vesselIds: ['dione'], memberUids: ['captain'],
   });
   put('sessions/s1/serverState/endeavourResearch', { 'ecm-device': 5 });
+  put('sessions/s1/serverState/endeavourScienceDevices', { revision: 1, ecmBuilt: true, detectorBuilt: false });
   put('sessions/s1/serverState/navigation', {
     shipGalacticCoordinates: { shepherd: '0000', aegis: '0000', dione: '5143' },
     shipNavigationLogs: { shepherd: [], aegis: [], dione: [] },
@@ -126,6 +127,15 @@ beforeEach(() => {
 });
 
 describe('Endeavour ECM Device writer', () => {
+  it('requires durable construction before ECM activation', async () => {
+    mock.documents.delete('sessions/s1/serverState/endeavourScienceDevices');
+
+    await expect(activateEndeavourEcmDevice.run(request(command)))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.create).not.toHaveBeenCalled();
+  });
+
   it('returns only the Shepherd group pursuit and the current private device status', async () => {
     await expect(readEndeavourEcmDeviceWorkspace.run(request({ sessionId: 's1' }))).resolves.toEqual({
       status: 'ready', sessionId: 's1', cycle: 3, controlRevision: 4,

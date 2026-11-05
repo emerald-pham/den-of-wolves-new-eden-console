@@ -81,6 +81,9 @@ export interface AwayMissionLifecyclePanelProps {
   readonly publicState: PublicMissionState;
   readonly privateState: PrivateMissionState | null;
   readonly actions: AwayMissionLifecycleActions;
+  /** Safe, actor-scoped selections retained only while this panel is unmounted. */
+  readonly initialAssignmentPlacements?: Readonly<Record<string, string>>;
+  readonly onAssignmentPlacementsChange?: (placements: Readonly<Record<string, string>>) => void;
 }
 
 export default function AwayMissionLifecyclePanel({
@@ -91,12 +94,14 @@ export default function AwayMissionLifecyclePanel({
   publicState,
   privateState,
   actions,
+  initialAssignmentPlacements = {},
+  onAssignmentPlacementsChange,
 }: AwayMissionLifecyclePanelProps) {
   const id = useId();
   const [extraCount, setExtraCount] = useState(1);
   const [recipientUid, setRecipientUid] = useState('');
   const [distributionOpportunity, setDistributionOpportunity] = useState('');
-  const [placements, setPlacements] = useState<Record<string, string>>({});
+  const [placements, setPlacements] = useState<Record<string, string>>(() => ({ ...initialAssignmentPlacements }));
   const [reclamatorChoices, setReclamatorChoices] = useState<Record<string, 'food' | 'water' | 'materials'>>({});
   const [reclamatorOpportunityId, setReclamatorOpportunityId] = useState('');
   const [dropOffShipId, setDropOffShipId] = useState('');
@@ -244,7 +249,11 @@ export default function AwayMissionLifecyclePanel({
                     Opportunity for {card.id}
                     <select
                       value={placements[card.id] ?? ''}
-                      onChange={(event) => setPlacements((current) => ({ ...current, [card.id]: event.target.value }))}
+                      onChange={(event) => {
+                        const next = { ...placements, [card.id]: event.target.value };
+                        setPlacements(next);
+                        onAssignmentPlacementsChange?.(next);
+                      }}
                       disabled={busy}
                     >
                       <option value="">Choose an opportunity</option>

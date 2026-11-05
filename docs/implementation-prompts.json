@@ -6853,6 +6853,13 @@
       "language": "Owner-approved October 16 retrospective follow-up for session 01a1446d-0b24-7521-b204-dd366b37ee3b. PT4: Protect emulator allocations throughout startup; PT5: Provide compact runtime diagnostics. Each bounded brief has no blocker among PT1-PT5 and supplies tooling preparation within existing prompt support. Preserve prompt acceptance, canonical prerequisites, completion states, fixed checkpoint membership and the 751-prompt endpoint, including P660's historical done status. Publication grants no runtime restart, test/gameplay acceptance or release credit. October 16 execution refinement: PT2 consumes independent PT2A Base, PT2B Capybara diagnosis and PT2C Station repair qualification; PT7 follows inventory PT7A and verified import PT7B. Already merged preflight/browser/cleanup groundwork is reused, not mistaken for completion of all queued follow-ups. Main subsequently implemented PT6 in PR 25 at a7895711; preserve its completed tooling acceptance and carry it forward rather than requeueing it. All prompt completion states remain unchanged.",
       "source": "docs/pc10-tickets/58-pt4.md; docs/pc10-tickets/59-pt5.md",
       "type": "planning / approved tooling repair / no closure credit"
+    },
+    {
+      "direction": "629;651 -> PC10.1 bounded browser-asset privacy repair",
+      "id": "E-PC10-1-BP1-20261017",
+      "language": "Owner-approved October 17 BP1 repair of the confirmed pre-existing static damage-deck exposure in executable browser assets and source maps. Isolate the four browser parser dependencies for Gorgoneion and Warrior repair drones, Macaw repairs and Voyage movement; exclude diagnostic maps from Hosting and the public deployment artifact while retaining useful diagnostics privately. Preserve current parser/projection validation, legacy/reconnect behavior, audiences and server draw rules. BP1 adds one bounded execution brief to PC10.1, not a prompt or completion credit; the canonical 751-ID endpoint and P629/P651 statuses stay unchanged. No additional billing, credential, security-setting or unrelated work is authorized.",
+      "source": "docs/pc10-tickets/62-bp1.md; docs/PRODUCT_MILESTONE_FEEDBACK.md; docs/PRODUCT_MILESTONES.md",
+      "type": "planning / owner-approved bounded repair / no closure credit"
     }
   ],
   "plan": {
@@ -23815,7 +23822,7 @@
         "title": "Protect private projections comprehensively."
       },
       "description": "Partial: source inspection confirms current loyalty, Wolf, organiser-chart, and mission-hand paths with focused rules/callable tests; a cached private-navigation leak was reproduced and fixed by stripping the projection from new and legacy persisted sessions. The PC01 scout-result transaction now produces private discovery notes, with requester-bound callable reads and focused privacy tests; the earlier no-producer statement is superseded by the 2026-09-28 source audit. Coverage of all hidden rolls/bonuses and ordinary live entitlement paths remains incomplete, so this prompt remains partial.",
-      "evidenceIds": "E-AUDIT-629;E-CHECKPOINT-RECORDING-AUDIT-20260928;E-PC10-TICKETS-629",
+      "evidenceIds": "E-AUDIT-629;E-CHECKPOINT-RECORDING-AUDIT-20260928;E-PC10-TICKETS-629;E-PC10-1-BP1-20261017",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -24329,7 +24336,7 @@
         "title": "Run the final release-readiness audit."
       },
       "description": "Planned [PROVE] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-651;E-PC10-TICKETS-651;E-PC10-RETRO-TICKETS-651",
+      "evidenceIds": "E-AUDIT-651;E-PC10-TICKETS-651;E-PC10-RETRO-TICKETS-651;E-PC10-1-BP1-20261017",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "641-650",

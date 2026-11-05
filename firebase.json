@@ -4,6 +4,7 @@
     "ignore": [
       "firebase.json",
       "**/.*",
+      "**/*.map",
       "**/node_modules/**"
     ],
     "cleanUrls": true,

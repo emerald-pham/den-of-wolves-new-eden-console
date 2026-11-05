@@ -86,6 +86,21 @@ describe('AwayMissionLifecyclePanel', () => {
     ]);
   });
 
+  it('submits a participant assignment once when the button is tapped twice before the server answers', async () => {
+    let settle!: () => void;
+    const actions = renderPanel();
+    actions.assignCards.mockReturnValueOnce(new Promise<void>((resolve) => { settle = resolve; }));
+    const panel = screen.getByRole('region', { name: 'Away mission // mission-1' });
+    fireEvent.change(within(panel).getByLabelText('Opportunity for A♥'), { target: { value: 'D-1' } });
+    const submit = within(panel).getByRole('button', { name: 'Submit mission assignments' });
+    await act(async () => { fireEvent.click(submit); await Promise.resolve(); });
+    await act(async () => { fireEvent.click(submit); await Promise.resolve(); });
+    expect(actions.assignCards).toHaveBeenCalledTimes(1);
+    expect(submit).toBeDisabled();
+    await act(async () => { settle(); await Promise.resolve(); });
+    expect(actions.assignCards).toHaveBeenCalledTimes(1);
+  });
+
   it('lets a participant privately discard one of their own cards during the discard phase', async () => {
     const actions = renderPanel({
       publicState: { ...basePublicMission, phase: 'discarding' },

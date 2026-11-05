@@ -1,6 +1,7 @@
 import type { ShuttleControlEntry } from './shuttleControl';
 import type { AuthoritativeShuttleDocking } from './shuttleDocking';
-import { SHIP_DAMAGE_DECKS, type ShipDamageState } from './shipDamage';
+import type { ShipDamageState } from './shipDamage';
+import { PUBLIC_SHIP_SYSTEM_IDS } from './publicShipSystems';
 import { isResourceShipId } from './resources';
 
 export const MACAW_REPAIR_COST = 1;
@@ -52,7 +53,7 @@ export function parseMacawRepairLedger(value: unknown): MacawRepairLedger | null
   for (const host of raw.hosts) {
     const entry = record(host);
     const knownSystemIds = entry && typeof entry.shipId === 'string'
-      ? new Set((SHIP_DAMAGE_DECKS[entry.shipId] ?? []).map(({ systemId }) => systemId))
+      ? new Set(PUBLIC_SHIP_SYSTEM_IDS[entry.shipId] ?? [])
       : new Set<string>();
     if (!entry || Object.keys(entry).some((key) => !['shipId', 'systemIds'].includes(key)) ||
         typeof entry.shipId !== 'string' || !isResourceShipId(entry.shipId) ||

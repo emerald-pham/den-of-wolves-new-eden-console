@@ -1,8 +1,19 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
 
+const mockedSessionService = vi.hoisted(() => ({
+  requireStationReselectionForCurrentSession: vi.fn(),
+  importGate: null as Promise<void> | null,
+  onImportStarted: null as (() => void) | null,
+}));
+
 vi.mock('firebase/functions', () => ({ httpsCallable: vi.fn() }));
 vi.mock('./firebase', () => ({ functions: vi.fn(() => ({ kind: 'functions' })) }));
+vi.mock('./sessionService', async () => {
+  mockedSessionService.onImportStarted?.();
+  if (mockedSessionService.importGate) await mockedSessionService.importGate;
+  return { requireStationReselectionForCurrentSession: mockedSessionService.requireStationReselectionForCurrentSession };
+});
 
 const { httpsCallable } = await import('firebase/functions');
 const { requestScout } = await import('./scoutRequestService');
@@ -42,6 +53,9 @@ function setEntitlement(entitlementId: string): void {
 
 beforeEach(() => {
   vi.mocked(httpsCallable).mockReset();
+  mockedSessionService.requireStationReselectionForCurrentSession.mockReset();
+  mockedSessionService.importGate = null;
+  mockedSessionService.onImportStarted = null;
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity(
     {
@@ -177,4 +191,65 @@ it('rejects replies bound to a different target or session', async () => {
   await expect(requestScout({
     entitlementId: 'starlight', targetCoordinate: '5143', requestId: 'scout-1',
   })).rejects.toThrow(/invalid/i);
+});
+
+it('rechecks the original Scout actor after lazy-loading the station reset helper', async () => {
+  setEntitlement('endeavour');
+  let releaseImport!: () => void;
+  let signalImportStarted!: () => void;
+  const importStarted = new Promise<void>((resolve) => { signalImportStarted = resolve; });
+  mockedSessionService.importGate = new Promise<void>((resolve) => { releaseImport = resolve; });
+  mockedSessionService.onImportStarted = signalImportStarted;
+
+  const stationLoss = Object.assign(new Error('Server station authority is no longer current.'), {
+    code: 'functions/permission-denied',
+    details: { commandError: 'station-selection-required' },
+  });
+  const call = vi.fn().mockRejectedValue(stationLoss);
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+  const pending = requestScout({
+    entitlementId: 'endeavour', targetCoordinate: '5143', requestId: 'station-import-gap-scout',
+  });
+
+  await importStarted;
+  useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, uid: 'another-account' });
+  releaseImport();
+
+  await expect(pending).rejects.toBe(stationLoss);
+  expect(mockedSessionService.requireStationReselectionForCurrentSession).not.toHaveBeenCalled();
+});
+
+it('returns a lost Scientist station to the chooser after the server rejects a new scout request', async () => {
+  setEntitlement('endeavour');
+  const stationLoss = Object.assign(new Error('Server station authority is no longer current.'), {
+    code: 'functions/permission-denied',
+    details: { commandError: 'station-selection-required' },
+  });
+  const call = vi.fn().mockRejectedValue(stationLoss);
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+
+  await expect(requestScout({
+    entitlementId: 'endeavour', targetCoordinate: '5143', requestId: 'station-loss-scout',
+  })).rejects.toBe(stationLoss);
+
+  expect(mockedSessionService.requireStationReselectionForCurrentSession).toHaveBeenCalledOnce();
+});
+
+it('does not apply a late station-loss response to a different current account', async () => {
+  setEntitlement('endeavour');
+  let rejectCall!: (reason: unknown) => void;
+  const call = vi.fn().mockReturnValue(new Promise((_resolve, reject) => { rejectCall = reject; }));
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+  const pending = requestScout({
+    entitlementId: 'endeavour', targetCoordinate: '5143', requestId: 'late-station-loss-scout',
+  });
+  useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, uid: 'another-account' });
+  const stationLoss = Object.assign(new Error('Server station authority is no longer current.'), {
+    code: 'functions/permission-denied',
+    details: { commandError: 'station-selection-required' },
+  });
+  rejectCall(stationLoss);
+
+  await expect(pending).rejects.toBe(stationLoss);
+  expect(mockedSessionService.requireStationReselectionForCurrentSession).not.toHaveBeenCalled();
 });
