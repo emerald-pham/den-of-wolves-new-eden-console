@@ -14,11 +14,12 @@ The [execution policy](AGENT_EXECUTION_POLICY.md) owns batched release and owner
 
 ## Start with current facts
 
-Read the saved JSON prompt snapshot at
-[`implementation-prompts.json`](implementation-prompts.json), the matching
-public issue through [`github-crosswalk.json`](tracker/github-crosswalk.json),
-and its generated Markdown views, then the active shaped checkpoint and prior
-feedback. GitHub issues are the mutable authority for open prompt, brief and
+Start from the matching GitHub issue, found through
+[`github-crosswalk.json`](tracker/github-crosswalk.json) or the
+[refinement publication table](tracker/EXECUTION_REFINEMENTS_20261028.md),
+then the saved JSON prompt snapshot at
+[`implementation-prompts.json`](implementation-prompts.json), its generated
+Markdown views, the active shaped checkpoint and prior feedback. GitHub issues are the mutable authority for open prompt, brief and
 refinement definitions and tracking state; the saved catalog and brief Markdown
 remain generated offline consumer views. Use the
 catalog's readiness/dependency check for selected prompts;

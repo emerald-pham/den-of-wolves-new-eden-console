@@ -39,10 +39,11 @@ Each tracked issue body holds its definition between
   copy of those fields.
 - A brief or refinement issue's block is the full Markdown brief. Refresh
   writes it, with a generated header, to the crosswalked or published path
-  under `docs/pc10-tickets/` or `docs/future-tickets/`. Refinement issues
-  count only when the repository owner authored them and they appear as new
-  children in the
-  [refinement publication table](../tracker/EXECUTION_REFINEMENTS_20261028.md).
+  under `docs/pc10-tickets/` or `docs/future-tickets/`. Every new child in the
+  [refinement publication table](../tracker/EXECUTION_REFINEMENTS_20261028.md)
+  must be listed, authored by the repository owner and carry a block; otherwise
+  refresh fails closed instead of skipping it. An issue outside the crosswalk
+  and that table is ignored, even if it quotes a marker.
 
 Tracker metadata lines (Migration ID, Source status, Readiness and the rest)
 are read outside the block, so definition text cannot change them. An issue
@@ -53,7 +54,10 @@ refresh overwrites it and `refresh --check` reports the drift.
 Tracking changes for migrated records go through the issue writer. When an
 approved skill asks to publish a spec or ticket, reconcile it into existing
 prompt definitions and checkpoint plans. Add a definition only for new,
-authorized behavior. Preserve fixed checkpoint membership and totals. Do not
+authorized behavior, and write it in a new GitHub issue as described in
+[`PRODUCT_MILESTONE_CANDIDATES.md`](../PRODUCT_MILESTONE_CANDIDATES.md). That
+issue holds the definition; it gains a local snapshot only after a reviewed
+crosswalk or catalog change admits it. Preserve fixed checkpoint membership and totals. Do not
 create an unapproved parallel issue set, `.scratch/` tracker, or second mutable
 catalog.
 

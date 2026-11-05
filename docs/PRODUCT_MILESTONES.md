@@ -59,8 +59,10 @@ before claiming the affected gameplay prompts complete.
 The final game-completion gate includes the full-table twenty-player proof;
 the owner is never responsible for recruiting or operating that table.
 
-The [catalog](implementation-prompts.json) owns current prompt definitions,
-dependencies, decisions and status. The [completion plan](CHECKPOINT_COMPLETION_PLAN.md)
+GitHub issues own open prompt definitions and status through the
+[tracker workflow](agents/issue-tracker.md). The saved
+[catalog](implementation-prompts.json) owns dependencies and decisions and
+keeps completed-prompt history. The [completion plan](CHECKPOINT_COMPLETION_PLAN.md)
 owns the fixed PC05–PC10 membership and targets; its documented substitution
 rule governs a change to an unstarted assignment. Completed prompts remain
 available as prerequisites. Historical allocations are kept in the archive.

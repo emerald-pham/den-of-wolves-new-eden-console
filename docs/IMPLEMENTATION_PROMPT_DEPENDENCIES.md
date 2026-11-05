@@ -1,10 +1,11 @@
 # Implementation prompt dependency index
 
-This is the generated dependency view for the canonical prompt catalog. The
-single editable authority is
-[`implementation-prompts.json`](./implementation-prompts.json); the generator
-projects its prompt definitions, status, class, release mapping, hard gates,
-sequence rules, and evidence into this view. The plan and progress documents
+This is the generated dependency view for the saved prompt catalog snapshot
+[`implementation-prompts.json`](./implementation-prompts.json). Open prompt
+definitions and status come from their GitHub issues through the
+[tracker workflow](agents/issue-tracker.md); the generator projects the
+snapshot's definitions, status, class, release mapping, hard gates, sequence
+rules, and evidence into this view. The plan and progress documents
 retain acceptance context and historical release prose, while milestones retain
 their route narrative. Empty dependency fields are written as `none`, not
 inferred as permission to skip a prompt.
