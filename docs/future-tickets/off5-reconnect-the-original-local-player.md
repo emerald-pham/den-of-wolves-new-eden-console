@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #169. Edit the issue, then run the prompt-tracker refresh command. -->
 # OFF5: Reconnect the original local player
 
 **Existing future scope:** Conditional same-repository Mac offline LAN backup.

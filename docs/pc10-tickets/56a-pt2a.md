@@ -1,10 +1,11 @@
+<!-- Generated from GitHub issue #132. Edit the issue, then run the prompt-tracker refresh command. -->
 # PT2A: Qualify Base navigation and source interruptions
 
 **Existing prompt scope:** P641; P651.
 
 **Playable release:** [PC10.1 — Scientist and Explorer fieldwork](../PRODUCT_MILESTONES.md#pc10-smaller-playable-releases--2026-10-16).
 
-**Status:** ready-for-agent for planning; execution follows the owning checkpoint and current authorization.
+**Status:** ready-for-agent; execution active for PC10.1 since the [2026-11-04 owner activation](../PRODUCT_MILESTONES.md#pc101-execution-activated--2026-11-04).
 
 ## What to build
 

@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #355. Edit the issue, then run the prompt-tracker refresh command. -->
 <a id="access6-01"></a>
 # ACCESS6.1: Qualify the complete non-color interaction
 

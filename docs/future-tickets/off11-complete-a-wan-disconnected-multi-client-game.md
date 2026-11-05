@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #164. Edit the issue, then run the prompt-tracker refresh command. -->
 # OFF11: Complete a WAN-disconnected multi-client game
 
 **Existing future scope:** Conditional same-repository Mac offline LAN backup.

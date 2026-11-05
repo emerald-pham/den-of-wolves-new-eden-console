@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #347. Edit the issue, then run the prompt-tracker refresh command. -->
 <a id="access3-04"></a>
 # ACCESS3.4: Read disabled actions without color
 

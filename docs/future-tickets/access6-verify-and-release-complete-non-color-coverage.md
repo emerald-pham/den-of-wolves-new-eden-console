@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #147. Edit the issue, then run the prompt-tracker refresh command. -->
 # ACCESS6: Verify and release complete non-color coverage
 
 **Existing future scope:** Existing October 13 post-release non-color accessibility work.

@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #171. Edit the issue, then run the prompt-tracker refresh command. -->
 # OFF7: Play local movement and mission workflows
 
 **Existing future scope:** Conditional same-repository Mac offline LAN backup.

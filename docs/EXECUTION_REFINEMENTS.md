@@ -2,7 +2,7 @@
 
 The October 28 owner-approved breakdown covers 97 open execution briefs as 260 bounded units. It adds 237 child issues and reuses 23 already atomic issues. The original 48 PC10 prompt acceptances and the fixed 751-prompt endpoint remain unchanged.
 
-These are refinements of existing scope. GitHub holds mutable tracking state; the linked source files hold behavior definitions. The publication mapping records identities and dependency references only. It does not introduce a second status catalog or rewrite the immutable migration crosswalk.
+These are refinements of existing scope. GitHub issues hold mutable tracking state and the behavior definitions; the linked files are generated snapshots of those definitions. The publication mapping records identities and dependency references only. It does not introduce a second status catalog or rewrite the immutable migration crosswalk.
 
 The 32 held future source briefs and all their descendants retain their original phase/trigger and remain inactive. The PC10 gameplay pause, checkpoint release boundaries, restricted-version permissions and accepted evidence stay in force.
 

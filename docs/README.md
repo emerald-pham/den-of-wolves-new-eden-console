@@ -1,8 +1,9 @@
 # Documentation map
 
-Start from the authority for the question below. GitHub is the mutable
-authority for the imported prompt/brief set; the saved catalog supplies its offline view and
-retains definitions and history. Canonical guides own current contracts; dated
+Start from the authority for the question below. GitHub issues are the
+mutable authority for every open prompt, brief and refinement (definition and state);
+the saved catalog and brief Markdown are offline snapshots regenerated from
+them, and the catalog retains completed history. Canonical guides own current contracts; dated
 reports and archives keep bounded evidence and decision history. Update the
 owning source rather than copying live counts or requirements into another
 ledger. The crosswalk maps public issue state to the offline catalog snapshot.
@@ -25,8 +26,8 @@ ledger. The crosswalk maps public issue state to the offline catalog snapshot.
 
 | Document | Owns |
 |---|---|
-| [implementation-prompts.json](implementation-prompts.json) | Offline snapshot of prompt definitions, imported tracker state, prerequisites and release evidence |
-| [GitHub issue tracker](agents/issue-tracker.md) | Mutable tracking authority, safe refresh/update/export commands and recovery provenance |
+| [implementation-prompts.json](implementation-prompts.json) | Offline snapshot of issue-owned prompt definitions and tracker state, plus completed history, prerequisites and release evidence |
+| [GitHub issue tracker](agents/issue-tracker.md) | Definition and tracking authority, safe refresh/update/export commands and recovery provenance |
 | [github-crosswalk.json](tracker/github-crosswalk.json) | Sanitized immutable identity and source-to-issue mapping |
 | [Product checkpoints](PRODUCT_MILESTONES.md) | Current preparation, authorization, UI review and cooldown workflow |
 | [Alignment before the next checkpoint](PRODUCT_MILESTONES.md#owner-decisions-before-the-next-checkpoint) | Review owner conversations and update all affected future criteria before the next shape/build |
@@ -34,15 +35,16 @@ ledger. The crosswalk maps public issue state to the offline catalog snapshot.
 | [PC07–PC10 alignment](PC07_PC10_ALIGNMENT.md) | Future operating/presentation criteria and solo UI checks; preserves in-progress PC06 scope |
 | [Owner feedback](PRODUCT_MILESTONE_FEEDBACK.md) | Explicit decisions, review notes and their dispositions |
 | [Assumptions](PRODUCT_MILESTONE_ASSUMPTIONS.md) | Cited rules interpretations and corrections |
-| [Later candidates](PRODUCT_MILESTONE_CANDIDATES.md) | Work outside the active shaped scope |
+| [Later candidates](PRODUCT_MILESTONE_CANDIDATES.md) | How to file work outside the active shaped scope as a GitHub issue |
 | [Technical milestones](IMPLEMENTATION_MILESTONES.md) | Internal stories and exit fixtures |
-| [After the prompt campaign](POST_PROMPT_COMPLETION_TASKS.md) | Explicitly deferred post-completion work |
+| [After the prompt campaign](POST_PROMPT_COMPLETION_TASKS.md) | Explicitly deferred post-completion work and its GitHub issues |
 
 The generated Markdown views are [objectives and acceptance](IMPLEMENTATION_PLAN.md),
 [progress and release evidence](IMPLEMENTATION_PROGRESS.md), and
-[dependencies/readiness](IMPLEMENTATION_PROMPT_DEPENDENCIES.md). Update the
-catalog snapshot, then run `npm run prompt-tracker -- export` to rebuild the
-views offline. Use `npm run prompt-tracker -- refresh --check` to compare the
+[dependencies/readiness](IMPLEMENTATION_PROMPT_DEPENDENCIES.md). Edit an open
+definition on its GitHub issue and run `npm run prompt-tracker -- refresh`;
+`npm run prompt-tracker -- export` rebuilds the views offline from the saved
+snapshot. Use `npm run prompt-tracker -- refresh --check` to compare the
 saved snapshot with GitHub. `coordination:dependencies` is read-only and
 creates no nonce or receipt. `NEXT` is an advisory ready-work hint.
 

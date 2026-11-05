@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #170. Edit the issue, then run the prompt-tracker refresh command. -->
 # OFF6: Resolve concurrent local actions once
 
 **Existing future scope:** Conditional same-repository Mac offline LAN backup.

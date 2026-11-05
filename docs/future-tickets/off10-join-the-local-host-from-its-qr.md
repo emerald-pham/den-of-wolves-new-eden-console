@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #163. Edit the issue, then run the prompt-tracker refresh command. -->
 # OFF10: Join the local host from its QR
 
 **Existing future scope:** Conditional same-repository Mac offline LAN backup.

@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #168. Edit the issue, then run the prompt-tracker refresh command. -->
 # OFF4: Recover durable local play after host restart
 
 **Existing future scope:** Conditional same-repository Mac offline LAN backup.

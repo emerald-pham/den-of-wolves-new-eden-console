@@ -25,14 +25,16 @@ and evidence when a follow-up is resolved.
   narrow, revise, or remove the overlay, then record the decision and any
   follow-up implementation and release evidence here.
 - **Status:** Scheduled for review after 1.0; Prompt 503a implementation and
-  production-path proof remain campaign work.
+  production-path proof remain campaign work. Tracked by GitHub issues
+  [#148](https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/148) (review) and [#149](https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/149) (decision).
 
 ## New follow-ups
 
-When the owner defers another task beyond the full prompt campaign, add its
-source decision, concrete review or change, trigger date or release, owner,
-status, and eventual evidence here. Keep unfinished prompt acceptance in the
-catalog rather than moving it to this list.
+When the owner defers another task beyond the full prompt campaign, file it as
+a GitHub issue with its source decision, concrete review or change, trigger
+date or release, owner and status, and add a one-line link here. The issue
+holds its eventual evidence. Keep unfinished prompt acceptance on the owning
+prompt issue rather than moving it to this list.
 
 ## Prepared small follow-up chunks — October 16
 
@@ -46,5 +48,6 @@ verified playable release.
 The preserved product candidate’s October 13 owner decision also schedules an
 app-wide color-dependence audit and optional Settings **“Don’t rely on color”**
 mode after verified PC10 and the full app release. ACCESS.1/ACCESS.2 split that
-existing work into shared-state and game-display releases. They do not add a
+existing work into shared-state and game-display releases, tracked by GitHub
+issues [#142](https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/142)–[#147](https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/147). They do not add a
 PC10 requirement, reopen PC11, delay 0.9 or change existing later-work sequencing.

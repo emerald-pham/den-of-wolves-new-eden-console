@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #149. Edit the issue, then run the prompt-tracker refresh command. -->
 # ALERT2: Apply or record the bounded alert decision
 
 **Existing future scope:** Existing post-1.0 P503a real-play presentation review.

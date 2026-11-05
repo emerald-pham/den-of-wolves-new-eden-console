@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-19T16:13:14.853Z",
+  "generatedAt": "2026-11-05T00:17:26.728Z",
   "originSourceSha256": "8536b573f44cde0e480b12cf427c3bb5668f33d6564f393572964f1679086f3f",
   "catalogSha256": "ac941864eaea9b85c45992af4a355a08d0195d6482d781991c79d32a030c03b7",
   "issueStates": [
@@ -903,7 +903,7 @@
       "stateReason": null,
       "promptStatus": null,
       "readiness": "ready-for-agent",
-      "execution": "paused",
+      "execution": "active",
       "hold": null,
       "nativeParentMigrationIds": [
         "DOW-PROMPT-215B"
@@ -920,7 +920,7 @@
       "stateReason": null,
       "promptStatus": null,
       "readiness": "ready-for-agent",
-      "execution": "paused",
+      "execution": "active",
       "hold": null,
       "nativeParentMigrationIds": [
         "DOW-PROMPT-215B"
@@ -937,7 +937,7 @@
       "stateReason": null,
       "promptStatus": null,
       "readiness": "ready-for-agent",
-      "execution": "paused",
+      "execution": "active",
       "hold": null,
       "nativeParentMigrationIds": [
         "DOW-PROMPT-223B"
@@ -954,7 +954,7 @@
       "stateReason": null,
       "promptStatus": null,
       "readiness": "ready-for-agent",
-      "execution": "paused",
+      "execution": "active",
       "hold": null,
       "nativeParentMigrationIds": [
         "DOW-PROMPT-223B"
@@ -1142,7 +1142,7 @@
       "stateReason": null,
       "promptStatus": null,
       "readiness": "ready-for-agent",
-      "execution": "paused",
+      "execution": "active",
       "hold": null,
       "nativeParentMigrationIds": [],
       "nativeBlockedByMigrationIds": [],
@@ -1157,7 +1157,7 @@
       "stateReason": null,
       "promptStatus": null,
       "readiness": "ready-for-agent",
-      "execution": "paused",
+      "execution": "active",
       "hold": null,
       "nativeParentMigrationIds": [],
       "nativeBlockedByMigrationIds": [
@@ -1834,8 +1834,8 @@
       "state": "open",
       "stateReason": null,
       "promptStatus": null,
-      "readiness": "planning-only",
-      "execution": "checkpoint-gated",
+      "readiness": "ready-for-agent",
+      "execution": "active",
       "hold": null,
       "nativeParentMigrationIds": [],
       "nativeBlockedByMigrationIds": [],

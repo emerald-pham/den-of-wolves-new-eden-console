@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #141. Edit the issue, then run the prompt-tracker refresh command. -->
 # PT7A: Prepare a reversible tracker inventory
 
 **Existing prompt scope:** P651.

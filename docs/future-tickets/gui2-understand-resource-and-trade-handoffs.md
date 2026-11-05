@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #154. Edit the issue, then run the prompt-tracker refresh command. -->
 # GUI2: Understand resource and trade handoffs
 
 **Existing future scope:** Remaining PC11 cross-game guidance.

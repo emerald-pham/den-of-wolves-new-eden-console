@@ -11,10 +11,11 @@ Live deployment: [dow-new-eden-console.web.app](https://dow-new-eden-console.web
 ## Status and documentation
 
 The game is under staged development. GitHub issues are the mutable authority
-for migrated prompt and brief tracking state, using the sanitized
+for every open prompt, brief and refinement, owning both its definition and its
+tracking state, using the sanitized
 [crosswalk](docs/tracker/github-crosswalk.json). The [JSON catalog](docs/implementation-prompts.json)
-is an offline snapshot that retains definitions, completion history,
-dependencies and release evidence. Its generated Markdown views are convenient
+and brief Markdown are offline snapshots regenerated from those issues; the
+catalog also retains completion history, dependencies and release evidence. Its generated Markdown views are convenient
 reading copies. Local green checks and a deployed build do not establish that
 the entire game is complete.
 

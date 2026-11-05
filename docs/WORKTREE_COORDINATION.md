@@ -28,11 +28,13 @@ npm ci
 npm ci --prefix functions
 ```
 
-For prompt-driven work, read the matching JSON snapshot in
-[`implementation-prompts.json`](implementation-prompts.json) and its mapped
-public issue in [`github-crosswalk.json`](tracker/github-crosswalk.json). GitHub
-issues are the mutable authority for migrated tracking state; the snapshot and
-generated implementation Markdown keep offline consumers useful. Use the
+For prompt-driven work, start from the matching GitHub issue, found through
+[`github-crosswalk.json`](tracker/github-crosswalk.json) or the
+[refinement publication table](tracker/EXECUTION_REFINEMENTS_20261028.md), and
+then read its JSON snapshot in
+[`implementation-prompts.json`](implementation-prompts.json). GitHub
+issues are the mutable authority for open definitions and tracking state; the snapshot
+and generated implementation Markdown keep offline consumers useful. Use the
 optional dependency check; it is read-only and produces no local nonce or goal receipt:
 
 ```bash

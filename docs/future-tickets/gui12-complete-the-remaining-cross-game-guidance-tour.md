@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #153. Edit the issue, then run the prompt-tracker refresh command. -->
 # GUI12: Complete the remaining cross-game guidance tour
 
 **Existing future scope:** Remaining PC11 cross-game guidance.

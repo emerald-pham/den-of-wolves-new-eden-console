@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #356. Edit the issue, then run the prompt-tracker refresh command. -->
 <a id="access6-02"></a>
 # ACCESS6.2: Release the qualified non-color mode
 

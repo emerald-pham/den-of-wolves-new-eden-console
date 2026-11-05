@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #173. Edit the issue, then run the prompt-tracker refresh command. -->
 # OFF9: Finish local candidate and terminal paths
 
 **Existing future scope:** Conditional same-repository Mac offline LAN backup.

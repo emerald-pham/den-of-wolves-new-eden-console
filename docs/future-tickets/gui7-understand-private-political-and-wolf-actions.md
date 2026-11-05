@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #159. Edit the issue, then run the prompt-tracker refresh command. -->
 # GUI7: Understand private political and Wolf actions
 
 **Existing future scope:** Remaining PC11 cross-game guidance.

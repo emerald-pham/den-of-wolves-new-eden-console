@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #350. Edit the issue, then run the prompt-tracker refresh command. -->
 <a id="access4-02"></a>
 # ACCESS4.2: Read DRADIS meaning without color
 

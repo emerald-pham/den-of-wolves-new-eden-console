@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #166. Edit the issue, then run the prompt-tracker refresh command. -->
 # OFF2: Join locally with private player and GM authority
 
 **Existing future scope:** Conditional same-repository Mac offline LAN backup.

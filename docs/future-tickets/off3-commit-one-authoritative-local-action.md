@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #167. Edit the issue, then run the prompt-tracker refresh command. -->
 # OFF3: Commit one authoritative local action
 
 **Existing future scope:** Conditional same-repository Mac offline LAN backup.

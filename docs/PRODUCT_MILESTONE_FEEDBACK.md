@@ -493,3 +493,21 @@ sensitivity evidence, never contemporaneous RED; the chronology finding is
 nonblocking for PC10, and this exception does not apply to other projects.
 Catalog facts, prompt statuses, acceptance definitions, campaign membership
 and totals remain as recorded.
+
+## PC10.1-only execution and GitHub tracking — 2026-11-04
+
+The owner invoked the implement-spec workflow “on the next checkpoint”,
+authorized the agent to make its own branch, had the preserved PC10 candidate
+published to origin, and then said: “We should only be working on the next
+checkpoint which should be 10.1, I think, using github issues as the tracker.
+Make sure repo is consistent with that please.”
+
+Disposition: the [milestone plan](PRODUCT_MILESTONES.md#pc101-execution-activated--2026-11-04)
+records PC10.1-only activation and the selective-import rule. The nine PC10.1
+briefs record active execution; other PC10.x briefs stay paused and held future
+briefs stay held. Tracker-owned fields change only through the existing writer
+on those existing brief issues. The owner approved this work on the condition
+that it stays within existing tickets, so no new ticket owns it; the selective
+import boundary belongs to Z1A.1 (#129). An earlier whole-candidate merge
+attempt was aborted before any commit, because it would have imported later
+checkpoints.

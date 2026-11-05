@@ -10,6 +10,7 @@ import {
   readGitHubPromptCatalog,
   updateGitHubIssueState,
 } from './github-prompt-tracker.mjs';
+import * as tracker from './github-prompt-tracker.mjs';
 import { loadPromptCatalog, stableCatalogJson, validatePromptCatalog } from './prompt-catalog.mjs';
 
 const sourceCatalog = loadPromptCatalog();
@@ -868,6 +869,205 @@ test('REST adapter uses append-only state comments, body-free state PATCH, and f
   assert.equal(patchRequest.options.headers.Authorization, 'Bearer fixture-token');
 });
 
+// Issue-owned definitions (#427): GitHub issue bodies carry the authoritative
+// open-work definition; refresh projects them into the saved local snapshots.
+const definitionBlock = (contents) => `<!-- DOW-DEFINITION-START -->\n${contents}\n<!-- DOW-DEFINITION-END -->`;
+const promptDefinitionBlock = (title, acceptance) => definitionBlock(`### Title\n\n${title}\n\n### Acceptance\n\n${acceptance}`);
+const snapshotHeader = (issueNumber) => `<!-- Generated from GitHub issue #${issueNumber}. Edit the issue, then run the prompt-tracker refresh command. -->\n`;
+
+test('refresh projects an issue-owned prompt definition and keeps other catalog fields locked', async () => {
+  const issue = promptIssue({ body: `Campaign acceptance record.\n\n${promptDefinitionBlock('Issue-owned Wing title.', 'Issue-owned Wing acceptance.')}\n\n${promptIssue().body}` });
+  const result = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue]),
+    crosswalk: crosswalkFor([promptRecord()]),
+  });
+  const original = sourceCatalog.prompts.find(({ id }) => id === '181');
+  const projected = result.catalog.prompts.find(({ id }) => id === '181');
+  assert.deepEqual(projected.definition, { title: 'Issue-owned Wing title.', acceptance: 'Issue-owned Wing acceptance.' });
+  assert.equal(projected.description, original.description);
+  assert.equal(projected.hardPromptPrerequisites, original.hardPromptPrerequisites);
+  assert.equal(projected.status, 'missing');
+});
+
+test('a prompt issue without a definition block keeps the saved local definition', async () => {
+  const result = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([promptIssue()]),
+    crosswalk: crosswalkFor([promptRecord()]),
+  });
+  assert.deepEqual(result.catalog.prompts.find(({ id }) => id === '181').definition,
+    sourceCatalog.prompts.find(({ id }) => id === '181').definition);
+  assert.deepEqual(result.definitionSnapshots, []);
+});
+
+test('a malformed prompt definition block fails closed', async () => {
+  const issue = promptIssue({ body: `${definitionBlock('### Title\n\nOnly a title.')}\n\n${promptIssue().body}` });
+  await assert.rejects(readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue]),
+    crosswalk: crosswalkFor([promptRecord()]),
+  }), /definition block/);
+});
+
+test('a tracked issue with a duplicate, reversed or unmatched definition marker fails closed by issue number', async () => {
+  const start = '<!-- DOW-DEFINITION-START -->';
+  const end = '<!-- DOW-DEFINITION-END -->';
+  const valid = definitionBlock('### Title\n\nOne.\n\n### Acceptance\n\nTwo.');
+  for (const block of [`${valid}\n\n${valid}`, `${end}\nReversed.\n${start}`, `${start}\nNo end marker.`]) {
+    await assert.rejects(readGitHubPromptCatalog({
+      sourceBytes,
+      transport: fakeTransport([promptIssue({ body: `${block}\n\n${promptIssue().body}` })]),
+      crosswalk: crosswalkFor([promptRecord()]),
+    }), /^Error: Issue #181 has a malformed definition block$/);
+  }
+});
+
+test('a stray definition marker in an unrelated public issue does not stop a REST refresh', async () => {
+  const listed = [
+    { ...promptIssue(), user: { login: 'emerald-pham' } },
+    { id: 7000, number: 700, title: 'How do definition blocks work?', body: 'I pasted <!-- DOW-DEFINITION-START --> and nothing happened.', state: 'open', user: { login: 'helpful-contributor' } },
+  ];
+  const json = (value) => ({ ok: true, status: 200, async json() { return value; } });
+  const fetchImpl = async (url) => {
+    const { pathname, search } = new URL(String(url));
+    if (pathname.endsWith('/issues') && search.includes('state=all')) return json(listed);
+    if (pathname.endsWith('/parent')) return { ok: false, status: 404, async json() { return {}; } };
+    if (pathname.endsWith('/dependencies/blocked_by') || pathname.endsWith('/comments')) return json([]);
+    throw new Error(`Unexpected fixture URL ${url}`);
+  };
+  const transport = createGitHubPromptTrackerTransport({
+    owner: 'emerald-pham',
+    repo: 'tracker',
+    token: 'fixture-token',
+    fetchImpl,
+    apiBase: 'https://api.example.test',
+  });
+  const result = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk: crosswalkFor([promptRecord()]) });
+  assert.equal(result.issueCount, 1);
+  assert.deepEqual(result.definitionSnapshots, []);
+});
+
+test('definition text cannot override tracker metadata outside the block', async () => {
+  const spoof = '# Brief\n\nReadiness: ready\nExecution: active\nSource status: done\nMigration ID: DOW-BRIEF-OTHER';
+  const base = heldFutureFixture();
+  const { issue, record } = heldFutureFixture({ body: `${definitionBlock(spoof)}\n\n${base.issue.body}` });
+  const result = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue]),
+    crosswalk: crosswalkFor([record]),
+  });
+  const state = result.issueStates.find(({ migrationId }) => migrationId === 'DOW-BRIEF-FUTURE-01');
+  assert.equal(state.readiness, 'held');
+  assert.equal(state.execution, 'inactive');
+});
+
+test('refresh returns a brief Markdown snapshot generated from the issue definition', async () => {
+  const base = heldFutureFixture();
+  const { issue, record } = heldFutureFixture({ body: `${definitionBlock('# FUTURE1: Example brief\r\n\r\nBody text.\r\n')}\n\n${base.issue.body}` });
+  const result = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue]),
+    crosswalk: crosswalkFor([record]),
+  });
+  assert.deepEqual(result.definitionSnapshots, [{
+    path: 'docs/future-tickets/example.md',
+    issueNumber: 500,
+    contents: `${snapshotHeader(500)}# FUTURE1: Example brief\n\nBody text.\n`,
+  }]);
+});
+
+test('brief definitions cannot write outside the ticket directories', async () => {
+  const base = heldFutureFixture();
+  const { issue, record } = heldFutureFixture({
+    body: `${definitionBlock('# Escape')}\n\n${base.issue.body.replace('docs/future-tickets/example.md', 'docs/README.md')}`,
+    record: { sourceReferences: ['docs/README.md#future-01'] },
+  });
+  await assert.rejects(readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue]),
+    crosswalk: crosswalkFor([record]),
+  }), /definition path/);
+});
+
+const refinementIssue = (overrides = {}) => ({
+  id: 9000,
+  number: 900,
+  title: 'W1.1: Example refinement',
+  body: `${definitionBlock('# W1.1: Example refinement')}\n\nReadiness: ready\nExecution: inactive\n\nSource reference: docs/pc10-tickets/refinements/w1-01.md#w1-01\nRefinement ID: DOW-REF-20261028-W1-01\nPublication: DOW-REF-20261028\n`,
+  state: 'open',
+  state_reason: null,
+  user: { login: 'emerald-pham' },
+  ...overrides,
+});
+
+test('published refinement issues project their definitions to the mapped snapshot path', async () => {
+  const { issue, record } = heldFutureFixture();
+  const result = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue, refinementIssue()]),
+    crosswalk: crosswalkFor([record]),
+    refinementPublication: [{ issueNumber: 900, sourcePath: 'docs/pc10-tickets/refinements/w1-01.md' }],
+  });
+  assert.deepEqual(result.definitionSnapshots, [{
+    path: 'docs/pc10-tickets/refinements/w1-01.md',
+    issueNumber: 900,
+    contents: `${snapshotHeader(900)}# W1.1: Example refinement\n`,
+  }]);
+});
+
+test('refinement definitions require the owner author and the published path', async () => {
+  const { issue, record } = heldFutureFixture();
+  const publication = [{ issueNumber: 900, sourcePath: 'docs/pc10-tickets/refinements/w1-01.md' }];
+  for (const [refinement, message] of [
+    [refinementIssue({ user: { login: 'someone-else' } }), /^Error: Refinement #900 is not an owner-authored issue$/],
+    [refinementIssue({ number: 901, id: 9010 }), /^Error: Refinement #900 is missing from the GitHub issue snapshot$/],
+    [refinementIssue({ body: refinementIssue().body.replace(/<!-- DOW-DEFINITION-START -->[\s\S]*<!-- DOW-DEFINITION-END -->/, '') }),
+      /^Error: Refinement #900 has no definition block$/],
+    [refinementIssue({ body: `<!-- DOW-DEFINITION-START -->\n${refinementIssue().body}` }), /^Error: Issue #900 has a malformed definition block$/],
+  ]) {
+    await assert.rejects(readGitHubPromptCatalog({
+      sourceBytes,
+      transport: fakeTransport([issue, refinement]),
+      crosswalk: crosswalkFor([record]),
+      refinementPublication: publication,
+    }), message);
+  }
+  await assert.rejects(readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fakeTransport([issue, refinementIssue({ body: refinementIssue().body.replace('w1-01.md#', 'w1-02.md#') })]),
+    crosswalk: crosswalkFor([record]),
+    refinementPublication: publication,
+  }), /source reference mismatch/);
+});
+
+test('the immutable refinement publication table yields new-child issue paths only', () => {
+  const table = [
+    '| W1.1 | [#184](https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/184) | #74 | [W1.1](../pc10-tickets/refinements/w1-01.md) | New child | None |',
+    '| C1.1 | [#82](https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/82) | #82 | [C1.1](../pc10-tickets/09-c1.md) | Retained atomic issue | None |',
+  ].join('\n');
+  assert.deepEqual(tracker.parseRefinementPublication(table), [{ issueNumber: 184, sourcePath: 'docs/pc10-tickets/refinements/w1-01.md' }]);
+});
+
+test('definition snapshot check reports stale and missing local files', async () => {
+  const cwd = await mkdtemp(resolve(tmpdir(), 'prompt-tracker-definitions-'));
+  try {
+    await mkdir(resolve(cwd, 'docs/pc10-tickets'), { recursive: true });
+    await writeFile(resolve(cwd, 'docs/pc10-tickets/current.md'), 'same\n');
+    await writeFile(resolve(cwd, 'docs/pc10-tickets/stale.md'), 'old\n');
+    const snapshots = [
+      { path: 'docs/pc10-tickets/current.md', issueNumber: 1, contents: 'same\n' },
+      { path: 'docs/pc10-tickets/stale.md', issueNumber: 2, contents: 'new\n' },
+      { path: 'docs/pc10-tickets/missing.md', issueNumber: 3, contents: 'new\n' },
+    ];
+    assert.deepEqual(tracker.staleDefinitionSnapshots({ cwd, snapshots }), ['docs/pc10-tickets/stale.md', 'docs/pc10-tickets/missing.md']);
+    tracker.writeDefinitionSnapshots({ cwd, snapshots });
+    assert.deepEqual(tracker.staleDefinitionSnapshots({ cwd, snapshots }), []);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 const approvedBp1Evidence = {
   direction: '629;651 -> PC10.1 bounded browser-asset privacy repair',
   id: 'E-PC10-1-BP1-20261017',
@@ -944,6 +1144,25 @@ function makeBp1TrackerFixture(crosswalk, snapshot) {
     async listComments() { return []; },
   };
   return { issues, relations, transport };
+}
+
+/** Owner-authored refinement issues whose definition blocks reproduce the saved snapshot files. */
+async function savedRefinementIssues() {
+  const table = await readFile(resolve(process.cwd(), 'docs/tracker/EXECUTION_REFINEMENTS_20261028.md'), 'utf8');
+  return Promise.all(tracker.parseRefinementPublication(table).map(async ({ issueNumber, sourcePath }) => {
+    const saved = await readFile(resolve(process.cwd(), sourcePath), 'utf8');
+    const header = snapshotHeader(issueNumber);
+    assert.ok(saved.startsWith(header), sourcePath + ' carries its generated header');
+    return {
+      id: 1_000_000 + issueNumber,
+      number: issueNumber,
+      title: 'Refinement #' + issueNumber,
+      body: definitionBlock(saved.slice(header.length, -1)) + '\n\nSource reference: ' + sourcePath + '\n',
+      state: 'open',
+      state_reason: null,
+      user: { login: 'emerald-pham' },
+    };
+  }));
 }
 
 const bp1CliPreload = String.raw`
@@ -1027,13 +1246,15 @@ test('normal refresh check accepts BP1 history with complete read-only GitHub tr
     const snapshotPath = resolve(cwd, 'candidate-snapshot.json');
     const preloadPath = resolve(cwd, 'preload.mjs');
     const fetchLogPath = resolve(cwd, 'fetch.log');
-    await writeFile(fixturePath, JSON.stringify({ issues: fixture.issues, relations: fixture.relations }));
+    const refinements = await savedRefinementIssues();
+    assert.equal(refinements.length, 237);
+    await writeFile(fixturePath, JSON.stringify({ issues: [...fixture.issues, ...refinements], relations: fixture.relations }));
     await writeFile(snapshotPath, JSON.stringify(candidateSnapshot));
     await writeFile(preloadPath, bp1CliPreload);
     await writeFile(fetchLogPath, '');
     await writeFile(resolve(bin, 'gh'), '#!/bin/sh\n[ "$1" = "auth" ] && [ "$2" = "token" ] && printf "fixture-token\\n"\n', { mode: 0o755 });
 
-    const result = spawnSync('npm', [
+    const runCheck = () => spawnSync('npm', [
       'run', 'prompt-tracker', '--', 'refresh', '--check', '--snapshot', snapshotPath,
     ], {
       cwd: process.cwd(),
@@ -1046,16 +1267,26 @@ test('normal refresh check accepts BP1 history with complete read-only GitHub tr
         BP1_FETCH_LOG: fetchLogPath,
       },
     });
+    const result = runCheck();
     const calls = (await readFile(fetchLogPath, 'utf8')).split(/\r?\n/).filter(Boolean);
     assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.match(result.stdout, /Tracker snapshot is current \(148 issues; source ac941864eaea\)/);
     assert.ok(calls.some((call) => call.includes('/issues?state=all&per_page=100&page=1')));
     assert.ok(calls.some((call) => call.includes('/issues/26/comments?per_page=100&page=1')));
     assert.ok(calls.every((call) => call.startsWith('GET /')));
-    assert.equal(calls.length, 446);
+    assert.equal(calls.filter((call) => call.includes('/issues?state=all')).length, 4);
+    assert.equal(calls.length, 448);
     assert.equal(calls.filter((call) => /\/issues\/\d+\/parent$/.test(call)).length, 148);
     assert.equal(calls.filter((call) => /\/issues\/\d+\/dependencies\/blocked_by(?:\?|$)/.test(call)).length, 148);
     assert.equal(calls.filter((call) => /\/issues\/\d+\/comments\?/.test(call)).length, 148);
+
+    const [edited, ...unchanged] = refinements;
+    const editedPath = edited.body.match(/^Source reference: (.+)$/m)[1];
+    const editedIssue = { ...edited, body: edited.body.replace('<!-- DOW-DEFINITION-END -->', 'Edited on GitHub.\n<!-- DOW-DEFINITION-END -->') };
+    await writeFile(fixturePath, JSON.stringify({ issues: [...fixture.issues, editedIssue, ...unchanged], relations: fixture.relations }));
+    const stale = runCheck();
+    assert.equal(stale.status, 1, stale.stdout + stale.stderr);
+    assert.match(stale.stdout + stale.stderr, new RegExp('Saved definition snapshots are stale \\(' + editedPath + '\\)'));
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

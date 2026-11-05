@@ -1,15 +1,19 @@
 # Later-milestone candidates
 
-This is the overflow list for discoveries outside a shaped milestone. It is
-not permission to expand the active shape or a second prompt-status ledger.
-Finish what is in the active shape and keep going; route the rest here for
-later shaping. When a candidate changes a numbered prompt, update
-[`implementation-prompts.json`](implementation-prompts.json), regenerate its
-views, and check the dependency chart at the next safe planning boundary.
+Overflow discoveries outside a shaped milestone are filed as GitHub issues, not
+recorded in this file. A candidate issue is not permission to expand the active
+shape or a second prompt-status ledger. Finish what is in the active shape and
+keep going; file the rest for later shaping.
 
-| ID | Found during | Player-visible problem or proposed change | Why it is outside the current shape | Candidate milestone | Status |
-|---|---|---|---|---|---|
-| _No overflow recorded yet_ | — | — | — | — | — |
+Title each candidate issue `Candidate: <player-visible problem or change>` and
+give its body these sections: **Found during**, **Problem or proposed change**,
+**Why it is outside the current shape**, **Candidate milestone** and
+**Status**. Do not add labels. When a candidate changes an open numbered
+prompt, edit that prompt's issue Definition and run
+`npm run prompt-tracker -- refresh` at the next safe planning boundary, then
+check the dependency chart.
+
+No candidates were recorded in this file before the move to GitHub issues.
 
 For owner feedback, also record the original note and final disposition in
 [Product Milestone Feedback](PRODUCT_MILESTONE_FEEDBACK.md). A future shape

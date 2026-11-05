@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { loadPromptCatalog, stableCatalogJson, validatePromptCatalog } from './prompt-catalog.mjs';
 
 const API_ROOT = 'https://api.github.com';
@@ -12,6 +12,10 @@ const BLOCK_START = '<!-- DOW-TRACKER-OWNED-START -->';
 const BLOCK_END = '<!-- DOW-TRACKER-OWNED-END -->';
 const STATE_COMMENT_START = '<!-- DOW-TRACKER-STATE:v1 -->';
 const STATE_COMMENT_END = '<!-- /DOW-TRACKER-STATE -->';
+const DEFINITION_START = '<!-- DOW-DEFINITION-START -->';
+const DEFINITION_END = '<!-- DOW-DEFINITION-END -->';
+const DEFINITION_PATH = /^docs\/(pc10-tickets|future-tickets)\/(refinements\/)?[a-z0-9][a-z0-9-]*\.md$/;
+const REFINEMENT_PUBLICATION_PATH = 'docs/tracker/EXECUTION_REFINEMENTS_20261028.md';
 const PROMPT_STATUSES = new Set(['missing', 'partial', 'blocked', 'in-progress', 'done']);
 const INCOMPLETE_STATUSES = new Set(['missing', 'partial', 'blocked', 'in-progress']);
 // This v1 contract admits one reviewed planning-history addition. It never
@@ -65,6 +69,70 @@ function stableCompactJson(value) {
   return JSON.stringify(JSON.parse(stableCatalogJson(value)));
 }
 
+/**
+ * Separate the issue-owned definition block from the tracker metadata around it.
+ * A malformed block is recorded, not thrown, so an unrelated issue that merely quotes a marker
+ * cannot stop the listing; `requireDefinitionBlock` fails closed when the issue is one the tracker uses.
+ */
+function splitDefinition(body) {
+  const starts = body.split(DEFINITION_START).length - 1;
+  const ends = body.split(DEFINITION_END).length - 1;
+  if (!starts && !ends) return { definition: null, metadata: body, malformedDefinition: false };
+  const start = body.indexOf(DEFINITION_START);
+  const end = body.indexOf(DEFINITION_END);
+  if (starts !== 1 || ends !== 1 || end < start) return { definition: null, metadata: body, malformedDefinition: true };
+  const definition = body.slice(start + DEFINITION_START.length, end).replace(/\r\n?/g, '\n').replace(/^\n+|\s+$/g, '');
+  return { definition, metadata: `${body.slice(0, start)}${body.slice(end + DEFINITION_END.length)}`, malformedDefinition: false };
+}
+
+/** Refuse a normalized issue the tracker reads or writes when its definition block is malformed. */
+function requireDefinitionBlock(issue) {
+  if (issue.malformedDefinition) throw new Error(`Issue #${issue.number} has a malformed definition block`);
+  return issue;
+}
+
+function parsePromptDefinition(definition, label) {
+  const match = definition.match(/^### Title\n\n([^\n]+)\n\n### Acceptance\n\n([^\n]+)$/);
+  if (!match || !match[1].trim() || !match[2].trim()) {
+    throw new Error(`${label} has a malformed prompt definition block; use one-line Title and Acceptance sections`);
+  }
+  return { title: match[1].trim(), acceptance: match[2].trim() };
+}
+
+function definitionPath(reference, label) {
+  const path = String(reference ?? '').split('#', 1)[0];
+  if (!DEFINITION_PATH.test(path)) throw new Error(`${label} has an unsupported definition path ${path}`);
+  return path;
+}
+
+function snapshotContents(issueNumber, definition) {
+  return `<!-- Generated from GitHub issue #${issueNumber}. Edit the issue, then run the prompt-tracker refresh command. -->\n${definition}\n`;
+}
+
+/** Read the immutable October 28 refinement publication table: new child issues and their snapshot paths. */
+export function parseRefinementPublication(markdown) {
+  const rows = [];
+  for (const match of String(markdown).matchAll(/^\| [^|]+ \| \[#(\d+)\]\([^)]*\) \| #\d+ \| \[[^\]]*\]\(\.\.\/([^)]+)\) \| New child \|/gm)) {
+    rows.push({ issueNumber: Number(match[1]), sourcePath: definitionPath(`docs/${match[2]}`, `Refinement #${match[1]}`) });
+  }
+  return rows;
+}
+
+/** List snapshot paths whose saved local file differs from the issue-owned definition. */
+export function staleDefinitionSnapshots({ cwd = process.cwd(), snapshots = [] } = {}) {
+  return snapshots.filter(({ path, contents }) => {
+    try { return readFileSync(resolve(cwd, path), 'utf8') !== contents; } catch { return true; }
+  }).map(({ path }) => path);
+}
+
+export function writeDefinitionSnapshots({ cwd = process.cwd(), snapshots = [] } = {}) {
+  for (const { path, contents } of snapshots) {
+    const target = resolve(cwd, definitionPath(path, 'Snapshot'));
+    mkdirSync(dirname(target), { recursive: true });
+    atomicWrite(target, contents);
+  }
+}
+
 function normalizeIssue(issue) {
   if (!issue || !Number.isInteger(issue.id) || !Number.isInteger(issue.number)
       || typeof issue.title !== 'string' || issue.body !== null && typeof issue.body !== 'string'
@@ -72,7 +140,8 @@ function normalizeIssue(issue) {
     throw new Error('GitHub returned an invalid issue payload');
   }
   const body = issue.body ?? '';
-  const markers = [...body.matchAll(/^Migration ID: ([A-Z0-9-]+)$/gm)].map((match) => match[1]);
+  const { definition, metadata, malformedDefinition } = splitDefinition(body);
+  const markers = [...metadata.matchAll(/^Migration ID: ([A-Z0-9-]+)$/gm)].map((match) => match[1]);
   if (markers.length > 1) throw new Error(`Issue #${issue.number} has duplicate migration markers`);
   return {
     id: issue.id,
@@ -82,6 +151,10 @@ function normalizeIssue(issue) {
     state: issue.state,
     stateReason: issue.state_reason ?? issue.stateReason ?? null,
     migrationId: markers[0] ?? null,
+    authorLogin: issue.user?.login ?? issue.authorLogin ?? null,
+    definition,
+    metadata,
+    malformedDefinition,
   };
 }
 
@@ -191,33 +264,34 @@ function deltaMatches(fields, delta) {
 }
 
 function ownedFieldsForIssue(issue, comments = []) {
-  const { fields } = extractOwnedBlock(issue.body);
+  requireDefinitionBlock(issue);
+  const { fields } = extractOwnedBlock(issue.metadata);
   const marker = issue.migrationId;
   if (!marker) throw new Error(`Issue #${issue.number} has no stable migration marker`);
   const baseFields = { ...fields };
   if (marker.startsWith('DOW-PROMPT-')) {
-    baseFields['Prompt status'] ??= legacyField(issue.body, 'Source status');
+    baseFields['Prompt status'] ??= legacyField(issue.metadata, 'Source status');
   } else {
-    baseFields.Readiness ??= legacyField(issue.body, 'Readiness');
-    baseFields.Execution ??= legacyField(issue.body, 'Execution');
-    baseFields.Hold ??= legacyField(issue.body, 'Hold');
-    baseFields['Original hold status'] ??= legacyField(issue.body, 'Source status');
+    baseFields.Readiness ??= legacyField(issue.metadata, 'Readiness');
+    baseFields.Execution ??= legacyField(issue.metadata, 'Execution');
+    baseFields.Hold ??= legacyField(issue.metadata, 'Hold');
+    baseFields['Original hold status'] ??= legacyField(issue.metadata, 'Source status');
   }
   const current = latestCommentFields(comments, baseFields) ?? baseFields;
   if (marker.startsWith('DOW-PROMPT-')) {
-    const seeded = current['Prompt status'] ?? legacyField(issue.body, 'Source status');
+    const seeded = current['Prompt status'] ?? legacyField(issue.metadata, 'Source status');
     if (!PROMPT_STATUSES.has(seeded)) throw new Error(`Issue ${marker} has no valid prompt status`);
     return { ...current, 'Prompt status': seeded };
   }
-  const readiness = current.Readiness ?? legacyField(issue.body, 'Readiness');
-  const execution = current.Execution ?? legacyField(issue.body, 'Execution');
+  const readiness = current.Readiness ?? legacyField(issue.metadata, 'Readiness');
+  const execution = current.Execution ?? legacyField(issue.metadata, 'Execution');
   if (readiness === null || execution === null) throw new Error(`Issue ${marker} has no valid brief state`);
   return {
     ...current,
     Readiness: readiness,
     Execution: execution,
-    Hold: current.Hold ?? legacyField(issue.body, 'Hold'),
-    'Original hold status': current['Original hold status'] ?? legacyField(issue.body, 'Source status'),
+    Hold: current.Hold ?? legacyField(issue.metadata, 'Hold'),
+    'Original hold status': current['Original hold status'] ?? legacyField(issue.metadata, 'Source status'),
   };
 }
 
@@ -353,7 +427,7 @@ function atomicWrite(path, contents) {
 }
 
 /** Read one complete tracker snapshot and overlay only issue-owned mutable prompt status. */
-export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, completionDecisions = {}, cwd = process.cwd(), allowInvalidCatalog = false } = {}) {
+export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, refinementPublication = [], completionDecisions = {}, cwd = process.cwd(), allowInvalidCatalog = false } = {}) {
   if (typeof transport?.listIssues !== 'function' || typeof transport?.getRelationships !== 'function') {
     throw new Error('Tracker transport must provide listIssues and getRelationships');
   }
@@ -383,8 +457,10 @@ export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswal
   const byMarker = new Map();
   const byId = new Map();
   for (const raw of issues) {
+    if (!/^Migration ID: /m.test(raw?.body ?? '')) continue;
     const issue = normalizeIssue(raw);
     if (!issue.migrationId) continue;
+    requireDefinitionBlock(issue);
     if (byMarker.has(issue.migrationId)) throw new Error(`Duplicate GitHub migration marker ${issue.migrationId}`);
     if (!expected.has(issue.migrationId)) throw new Error(`Unknown GitHub migration marker ${issue.migrationId}`);
     byMarker.set(issue.migrationId, issue);
@@ -394,12 +470,13 @@ export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswal
 
   const rows = new Map(catalog.prompts.map((prompt) => [prompt.id.toUpperCase(), prompt]));
   const issueStates = [];
+  const definitionSnapshots = [];
   for (const [marker, planned] of expected) {
     const issue = byMarker.get(marker);
     if (issue.id !== planned.issueId || issue.number !== planned.issueNumber) {
       throw new Error(`GitHub issue identity mismatch for ${marker}`);
     }
-    const actualSourceReference = legacyField(issue.body, 'Source reference');
+    const actualSourceReference = legacyField(issue.metadata, 'Source reference');
     if (planned.sourceReferences?.length && !planned.sourceReferences.includes(actualSourceReference)) {
       throw new Error(`GitHub source reference mismatch for ${marker}`);
     }
@@ -407,7 +484,7 @@ export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswal
       if (marker !== `DOW-PROMPT-${planned.legacyId.toUpperCase()}` || !rows.has(planned.legacyId.toUpperCase())) {
         throw new Error(`Crosswalk prompt identity mismatch for ${marker}`);
       }
-      if (legacyField(issue.body, 'Source status') !== planned.initialStatus) {
+      if (legacyField(issue.metadata, 'Source status') !== planned.initialStatus) {
         throw new Error(`GitHub initial source status mismatch for ${marker}`);
       }
     } else if (!marker.startsWith('DOW-BRIEF-')) {
@@ -419,7 +496,7 @@ export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswal
       throw new Error(`GitHub relationship mismatch for ${marker}`);
     }
     const logicalBlockers = [...planned.blockedByMarkers, ...planned.equivalentBlockedByMarkers];
-    const sourceBlockIds = legacyField(issue.body, 'Blocked-by brief IDs');
+    const sourceBlockIds = legacyField(issue.metadata, 'Blocked-by brief IDs');
     const expectedSourceBlockIds = logicalBlockers.map((blocker) => expected.get(blocker).legacyId);
     if (planned.recordKind !== 'prompt-acceptance') {
       if (planned.sourceBlockedByBriefIds !== null) {
@@ -447,10 +524,21 @@ export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswal
           && !sameSet(parseList(sourceBlockIds), expectedSourceBlockIds)) {
         throw new Error(`Source blocker documentation mismatch for ${marker}`);
       }
-      const equivalentBody = legacyField(issue.body, 'Equivalent blocked-by issue references');
+      const equivalentBody = legacyField(issue.metadata, 'Equivalent blocked-by issue references');
       if ((equivalentBody !== null || planned.equivalentBlockedByMarkers.length > 0)
           && !sameSet(parseList(equivalentBody), planned.equivalentBlockedByMarkers)) {
         throw new Error(`Equivalent blocker documentation mismatch for ${marker}`);
+      }
+    }
+    if (issue.definition !== null) {
+      if (planned.recordKind === 'prompt-acceptance') {
+        rows.get(planned.legacyId.toUpperCase()).definition = parsePromptDefinition(issue.definition, `Issue ${marker}`);
+      } else {
+        definitionSnapshots.push({
+          path: definitionPath(planned.sourceReferences?.[0], `Issue ${marker}`),
+          issueNumber: issue.number,
+          contents: snapshotContents(issue.number, issue.definition),
+        });
       }
     }
     const comments = typeof transport.listComments === 'function' ? await transport.listComments(issue.number) : [];
@@ -459,7 +547,7 @@ export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswal
       if (fields['Original hold status'] !== planned.originalHoldStatus) {
         throw new Error(`Future hold provenance mismatch for ${marker}`);
       }
-      if (legacyField(issue.body, 'Source status') !== planned.originalHoldStatus) {
+      if (legacyField(issue.metadata, 'Source status') !== planned.originalHoldStatus) {
         throw new Error(`Original future hold provenance mismatch for ${marker}`);
       }
       if (fields.Hold === 'inactive; preserve the source trigger and sequence.') {
@@ -522,6 +610,20 @@ export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswal
     if (!PROMPT_STATUSES.has(status)) throw new Error(`Cannot restore an incomplete status for ${marker}`);
     prompt.status = status;
   }
+  const rawByNumber = new Map(issues.map((raw) => [raw?.number, raw]));
+  for (const { issueNumber, sourcePath } of refinementPublication) {
+    const raw = rawByNumber.get(issueNumber);
+    if (!raw) throw new Error(`Refinement #${issueNumber} is missing from the GitHub issue snapshot`);
+    const issue = requireDefinitionBlock(normalizeIssue(raw));
+    if (issue.authorLogin?.toLowerCase() !== TRACKER_OWNER) throw new Error(`Refinement #${issueNumber} is not an owner-authored issue`);
+    if (issue.definition === null) throw new Error(`Refinement #${issueNumber} has no definition block`);
+    const reference = legacyField(issue.metadata, 'Source reference');
+    if (definitionPath(reference, `Refinement #${issueNumber}`) !== sourcePath) {
+      throw new Error(`Refinement #${issueNumber} source reference mismatch`);
+    }
+    definitionSnapshots.push({ path: sourcePath, issueNumber, contents: snapshotContents(issueNumber, issue.definition) });
+  }
+  definitionSnapshots.sort((left, right) => left.path.localeCompare(right.path));
   const catalogValidationErrors = validatePromptCatalog(catalog);
   if (catalogValidationErrors.length && !allowInvalidCatalog) {
     throw new Error(`GitHub tracker projection is invalid: ${catalogValidationErrors.join('; ')}`);
@@ -531,6 +633,7 @@ export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswal
     catalogSource: stableCatalogJson(catalog),
     sourceSha256: sha256(sourceText),
     issueStates,
+    definitionSnapshots,
     catalogValidationErrors,
     trackerSnapshot: {
       schemaVersion: 1,
@@ -569,10 +672,10 @@ export async function updateGitHubIssueState({ transport, issueNumber, changes, 
   const promptIssue = current.migrationId?.startsWith('DOW-PROMPT-');
   const heldFuture = expectedRecord?.recordKind === 'held-future-brief';
   if (heldFuture) {
-    if (legacyField(current.body, 'Source status') !== expectedRecord.originalHoldStatus
+    if (legacyField(current.metadata, 'Source status') !== expectedRecord.originalHoldStatus
         || fields['Original hold status'] !== expectedRecord.originalHoldStatus
         || !expectedRecord.holdKind
-        || !expectedRecord.sourceReferences?.includes(legacyField(current.body, 'Source reference'))) {
+        || !expectedRecord.sourceReferences?.includes(legacyField(current.metadata, 'Source reference'))) {
       throw new Error(`Future hold provenance mismatch for ${current.migrationId}`);
     }
   }
@@ -880,9 +983,10 @@ async function runCommand({ command, options, cwd = process.cwd() }) {
   const trackerSnapshotPath = options.snapshot ?? 'docs/tracker/github-snapshot.json';
   const crosswalk = JSON.parse(readCatalogSnapshot(crosswalkPath, cwd));
   validateCutoverCrosswalk(crosswalk);
+  const refinementPublication = parseRefinementPublication(readCatalogSnapshot(options.publication ?? REFINEMENT_PUBLICATION_PATH, cwd));
   const transport = createCommandTransport();
   if (command === 'refresh') {
-    const result = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, cwd });
+    const result = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, refinementPublication, cwd });
     if (options.check) {
       const currentSource = stableCatalogJson(loadPromptCatalog({ source: sourceBytes }));
       if (currentSource !== result.catalogSource) throw new Error('Saved GitHub catalog snapshot is stale; run refresh to export current tracker state');
@@ -894,18 +998,23 @@ async function runCommand({ command, options, cwd = process.cwd() }) {
           || !sameFields({ issueStates: savedTrackerSnapshot.issueStates }, { issueStates: result.trackerSnapshot.issueStates })) {
         throw new Error('Saved GitHub tracker-state snapshot is stale; run refresh to export current tracker state');
       }
+      const staleDefinitions = staleDefinitionSnapshots({ cwd, snapshots: result.definitionSnapshots });
+      if (staleDefinitions.length) {
+        throw new Error(`Saved definition snapshots are stale (${staleDefinitions.join(', ')}); run refresh to export current issue definitions`);
+      }
       return { message: `Tracker snapshot is current (${result.issueCount} issues; source ${result.sourceSha256.slice(0, 12)}).`, result };
     }
     atomicWrite(resolve(cwd, trackerSnapshotPath), `${JSON.stringify(result.trackerSnapshot, null, 2)}\n`);
     atomicWrite(resolve(cwd, catalogPath), result.catalogSource);
+    writeDefinitionSnapshots({ cwd, snapshots: result.definitionSnapshots });
     const { generatePromptViews } = await import('./generate-prompt-views.mjs');
     await generatePromptViews({ cwd, catalog: result.catalog });
-    return { message: `Refreshed ${result.issueCount} GitHub issues and generated catalog views.`, result };
+    return { message: `Refreshed ${result.issueCount} GitHub issues, ${result.definitionSnapshots.length} definition snapshots and generated catalog views.`, result };
   }
 
   const issueNumber = Number(options.issue);
   if (!Number.isSafeInteger(issueNumber) || issueNumber < 1) throw new Error('update requires a valid --issue number');
-  const baseline = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, cwd, allowInvalidCatalog: true });
+  const baseline = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, refinementPublication, cwd, allowInvalidCatalog: true });
   const record = crosswalk.records.find(({ issueNumber: number }) => number === issueNumber);
   if (!record) throw new Error(`Issue #${issueNumber} is not in the verified public crosswalk`);
   const changes = {};
@@ -932,9 +1041,10 @@ async function runCommand({ command, options, cwd = process.cwd() }) {
     }
     : undefined;
   const updated = await updateGitHubIssueState({ transport, issueNumber, changes, expectedRecord: record, validateProjection, cwd });
-  const refreshedIssues = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, cwd });
+  const refreshedIssues = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, refinementPublication, cwd });
   atomicWrite(resolve(cwd, trackerSnapshotPath), `${JSON.stringify(refreshedIssues.trackerSnapshot, null, 2)}\n`);
   atomicWrite(resolve(cwd, catalogPath), refreshedIssues.catalogSource);
+  writeDefinitionSnapshots({ cwd, snapshots: refreshedIssues.definitionSnapshots });
   const { generatePromptViews } = await import('./generate-prompt-views.mjs');
   await generatePromptViews({ cwd, catalog: refreshedIssues.catalog });
   return { message: `Updated ${record.migrationId} with verified GitHub readback.`, issue: updated.issue, catalog: baseline.catalog };

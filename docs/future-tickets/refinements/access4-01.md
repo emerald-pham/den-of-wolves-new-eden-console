@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #349. Edit the issue, then run the prompt-tracker refresh command. -->
 <a id="access4-01"></a>
 # ACCESS4.1: Read map meaning without color
 

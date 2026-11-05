@@ -1,15 +1,18 @@
 # GitHub issue tracker operations
 
-GitHub issues are the mutable authority for the migrated prompt and brief
-tracking fields. The committed
+GitHub issues are the authority for every open prompt, brief and refinement:
+each issue owns its definition and its tracking fields. The committed
 [`../tracker/github-crosswalk.json`](../tracker/github-crosswalk.json) maps
 legacy IDs to public issue identities and preserves sanitized source provenance
 and dependency mappings. It is immutable migration metadata; normal tracking
 updates do not rewrite it or require a new plan hash.
 
 [`../implementation-prompts.json`](../implementation-prompts.json) is the
-generated offline snapshot used by existing catalog consumers. It preserves
-definitions, the other prompt fields, and completed prompt history. The
+generated offline snapshot used by existing catalog consumers. Refresh projects
+each prompt issue's definition into it; it also preserves the other prompt
+fields and completed prompt history. The brief and refinement Markdown files
+under `docs/pc10-tickets/` and `docs/future-tickets/` are generated snapshots
+of their issues, each headed with its issue number. The
 implementation plan, progress, and dependency Markdown files are generated
 views. `docs/tracker/github-snapshot.json` is the generated offline projection
 of all migrated issue states, including brief
@@ -23,11 +26,38 @@ boundaries before changing work. Check the active checkpoint plan and owner
 feedback for scope and authorization. Use
 `npm run coordination:dependencies -- --prompt NNN` for read-only readiness.
 
-Prompt definition or acceptance changes remain source-reviewed catalog changes;
-tracking changes for migrated records go through the issue writer. When an
+### Issue-owned definitions
+
+Each tracked issue body holds its definition between
+`<!-- DOW-DEFINITION-START -->` and `<!-- DOW-DEFINITION-END -->`:
+
+- A prompt issue's block has exactly a `### Title` section and an
+  `### Acceptance` section, each a single line. Refresh replaces only that
+  prompt's catalog `definition`; its other fields (dependencies, section,
+  evidence and release data) stay structure-locked and change only through a
+  reviewed catalog edit. The issue's **Catalog context** list is a read-only
+  copy of those fields.
+- A brief or refinement issue's block is the full Markdown brief. Refresh
+  writes it, with a generated header, to the crosswalked or published path
+  under `docs/pc10-tickets/` or `docs/future-tickets/`. Every new child in the
+  [refinement publication table](../tracker/EXECUTION_REFINEMENTS_20261028.md)
+  must be listed, authored by the repository owner and carry a block; otherwise
+  refresh fails closed instead of skipping it. An issue outside the crosswalk
+  and that table is ignored, even if it quotes a marker.
+
+Tracker metadata lines (Migration ID, Source status, Readiness and the rest)
+are read outside the block, so definition text cannot change them. An issue
+without a block keeps its saved local definition. Edit definitions on GitHub,
+then run `refresh`; never edit a snapshot file by hand, because the next
+refresh overwrites it and `refresh --check` reports the drift.
+
+Tracking changes for migrated records go through the issue writer. When an
 approved skill asks to publish a spec or ticket, reconcile it into existing
 prompt definitions and checkpoint plans. Add a definition only for new,
-authorized behavior. Preserve fixed checkpoint membership and totals. Do not
+authorized behavior, and write it in a new GitHub issue as described in
+[`PRODUCT_MILESTONE_CANDIDATES.md`](../PRODUCT_MILESTONE_CANDIDATES.md). That
+issue holds the definition; it gains a local snapshot only after a reviewed
+crosswalk or catalog change admits it. Preserve fixed checkpoint membership and totals. Do not
 create an unapproved parallel issue set, `.scratch/` tracker, or second mutable
 catalog.
 
@@ -41,14 +71,15 @@ incomplete until its full final-release/gameplay audit is accepted.
 
 ## Normal commands
 
-Refresh the full migrated issue set, save both offline snapshots, then
-regenerate the views:
+Refresh the full tracked issue set, save the catalog, tracker-state and
+definition snapshots, then regenerate the views:
 
 ```sh
 npm run prompt-tracker -- refresh
 ```
 
-Compare both saved snapshots with current GitHub state without writing files:
+Compare every saved snapshot, including brief definitions, with current GitHub
+state without writing files:
 
 ```sh
 npm run prompt-tracker -- refresh --check
@@ -127,8 +158,8 @@ statuses to their imported values. This permits source-reviewed definition and
 acceptance edits while detecting changes to IDs, statuses, history, and other
 source fields. Its verified value is
 `2376f987ad78ef8f4a6b521295dd9af6620f07446945989d794fb841136d005e`.
-Definition changes stay in the reviewed local catalog and are never published
-to GitHub.
+Since the November 4 move (#426), open prompt definitions are owned by their
+issues and projected into the local catalog by refresh.
 The original source bytes are retained with the migration task inventory at
 `inventory/dow-migration/implementation-prompts.source.json`; the original
 repository snapshot is available in Git history at the cutover base commit.

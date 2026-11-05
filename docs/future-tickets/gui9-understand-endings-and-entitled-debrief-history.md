@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #161. Edit the issue, then run the prompt-tracker refresh command. -->
 # GUI9: Understand endings and entitled debrief history
 
 **Existing future scope:** Remaining PC11 cross-game guidance.

@@ -1,3 +1,4 @@
+<!-- Generated from GitHub issue #353. Edit the issue, then run the prompt-tracker refresh command. -->
 <a id="access5-03"></a>
 # ACCESS5.3: Read private outcomes without color
 
