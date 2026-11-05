@@ -731,8 +731,8 @@ Each catalog row links its own briefs through planning evidence.
 
 Triage is `ready-for-agent` for the approved specification. Dependency readiness
 and runtime authorization remain separate. The owner approved **PC10.1**
-runtime execution on 2026-11-04; PC10.2 through PC10.9 remain paused until
-PC10.1 is live. PC10 was paused because no player-facing release had shipped
+runtime execution on 2026-11-04 and **PC10.2** on 2026-11-05, after PC10.1
+went live; PC10.3 through PC10.9 remain paused until PC10.2 is live. PC10 was paused because no player-facing release had shipped
 since 0.5.73 and the finished work sat unmerged on a long-lived integration
 branch that could not be merged whole. It resumes one small slice at a time:
 each slice is planned only after the previous release is verified on the
@@ -1121,3 +1121,22 @@ this release. Z1A still reconciles the remaining candidate evidence at later
 integration boundaries. This activation changes no completion status,
 acceptance, checkpoint membership or the 751-prompt endpoint, and grants no
 0.9.x/1.0.0 version authorization. PC10.1 release gates are unchanged.
+
+## PC10.2 execution activated — 2026-11-05
+
+PC10.1 shipped as 0.5.74 (#432, #440). The owner then directed: “complete the
+next checkpoint”, and “bulldoze until the work is done, don’t wait for me.”
+This activates execution for **PC10.2 — Wing, PDF and expansion actions**
+only: briefs W1, W2, P1, P2, C1, C2, C3 and PT2B (#74, #75, #80, #81, #82, #83,
+#84, #133) and their refinement children. PC10.3–PC10.9 keep their paused
+execution, and every held future brief stays held. GitHub Issues remain the
+mutable authority.
+
+As with PC10.1, the slice starts from current main and imports only the PC10.2
+family from the published candidate refs, with its own helpers and focused
+tests; whole-candidate merging stays excluded. Activation does not settle open
+source questions: AMB-06 still gates C1 deliberate Macaw dismantling until an
+owner decision is recorded, and any other unresolved rule question is surfaced
+rather than invented. This activation changes no completion status,
+acceptance, checkpoint membership or the 751-prompt endpoint, and grants no
+0.9.x/1.0.0 version authorization. PC10.2 release gates are unchanged.
