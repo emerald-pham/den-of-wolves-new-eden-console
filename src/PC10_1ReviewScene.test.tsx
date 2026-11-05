@@ -73,7 +73,7 @@ it('uses the prepared research, device, private scout, route, harvest and Cycle 
   await user.click(screen.getByRole('button', { name: '2 Explorer fieldwork' }));
   const route = screen.getByRole('region', { name: 'Explorer route planner' });
   await user.selectOptions(within(route).getByRole('combobox', { name: 'Known route destination' }), '5143');
-  expect(route).toHaveTextContent('Planned route // 0000 → 5143 // 1 jumps');
+  expect(within(route).getByRole('status')).toHaveTextContent(/^Planned route \/\/ 0000 → 5143 \/\/ 1 jump$/);
 
   const harvest = screen.getByRole('region', { name: 'Hummingbird resource harvesting' });
   expect(harvest).toHaveTextContent('PENDING SAMPLE');
