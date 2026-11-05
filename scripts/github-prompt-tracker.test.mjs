@@ -1146,6 +1146,25 @@ function makeBp1TrackerFixture(crosswalk, snapshot) {
   return { issues, relations, transport };
 }
 
+/** Owner-authored refinement issues whose definition blocks reproduce the saved snapshot files. */
+async function savedRefinementIssues() {
+  const table = await readFile(resolve(process.cwd(), 'docs/tracker/EXECUTION_REFINEMENTS_20261028.md'), 'utf8');
+  return Promise.all(tracker.parseRefinementPublication(table).map(async ({ issueNumber, sourcePath }) => {
+    const saved = await readFile(resolve(process.cwd(), sourcePath), 'utf8');
+    const header = snapshotHeader(issueNumber);
+    assert.ok(saved.startsWith(header), sourcePath + ' carries its generated header');
+    return {
+      id: 1_000_000 + issueNumber,
+      number: issueNumber,
+      title: 'Refinement #' + issueNumber,
+      body: definitionBlock(saved.slice(header.length, -1)) + '\n\nSource reference: ' + sourcePath + '\n',
+      state: 'open',
+      state_reason: null,
+      user: { login: 'emerald-pham' },
+    };
+  }));
+}
+
 const bp1CliPreload = String.raw`
 import { appendFileSync, readFileSync } from 'node:fs';
 const logPath = process.env.BP1_FETCH_LOG;
@@ -1227,13 +1246,15 @@ test('normal refresh check accepts BP1 history with complete read-only GitHub tr
     const snapshotPath = resolve(cwd, 'candidate-snapshot.json');
     const preloadPath = resolve(cwd, 'preload.mjs');
     const fetchLogPath = resolve(cwd, 'fetch.log');
-    await writeFile(fixturePath, JSON.stringify({ issues: fixture.issues, relations: fixture.relations }));
+    const refinements = await savedRefinementIssues();
+    assert.equal(refinements.length, 237);
+    await writeFile(fixturePath, JSON.stringify({ issues: [...fixture.issues, ...refinements], relations: fixture.relations }));
     await writeFile(snapshotPath, JSON.stringify(candidateSnapshot));
     await writeFile(preloadPath, bp1CliPreload);
     await writeFile(fetchLogPath, '');
     await writeFile(resolve(bin, 'gh'), '#!/bin/sh\n[ "$1" = "auth" ] && [ "$2" = "token" ] && printf "fixture-token\\n"\n', { mode: 0o755 });
 
-    const result = spawnSync('npm', [
+    const runCheck = () => spawnSync('npm', [
       'run', 'prompt-tracker', '--', 'refresh', '--check', '--snapshot', snapshotPath,
     ], {
       cwd: process.cwd(),
@@ -1246,16 +1267,26 @@ test('normal refresh check accepts BP1 history with complete read-only GitHub tr
         BP1_FETCH_LOG: fetchLogPath,
       },
     });
+    const result = runCheck();
     const calls = (await readFile(fetchLogPath, 'utf8')).split(/\r?\n/).filter(Boolean);
     assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.match(result.stdout, /Tracker snapshot is current \(148 issues; source ac941864eaea\)/);
     assert.ok(calls.some((call) => call.includes('/issues?state=all&per_page=100&page=1')));
     assert.ok(calls.some((call) => call.includes('/issues/26/comments?per_page=100&page=1')));
     assert.ok(calls.every((call) => call.startsWith('GET /')));
-    assert.equal(calls.length, 446);
+    assert.equal(calls.filter((call) => call.includes('/issues?state=all')).length, 4);
+    assert.equal(calls.length, 448);
     assert.equal(calls.filter((call) => /\/issues\/\d+\/parent$/.test(call)).length, 148);
     assert.equal(calls.filter((call) => /\/issues\/\d+\/dependencies\/blocked_by(?:\?|$)/.test(call)).length, 148);
     assert.equal(calls.filter((call) => /\/issues\/\d+\/comments\?/.test(call)).length, 148);
+
+    const [edited, ...unchanged] = refinements;
+    const editedPath = edited.body.match(/^Source reference: (.+)$/m)[1];
+    const editedIssue = { ...edited, body: edited.body.replace('<!-- DOW-DEFINITION-END -->', 'Edited on GitHub.\n<!-- DOW-DEFINITION-END -->') };
+    await writeFile(fixturePath, JSON.stringify({ issues: [...fixture.issues, editedIssue, ...unchanged], relations: fixture.relations }));
+    const stale = runCheck();
+    assert.equal(stale.status, 1, stale.stdout + stale.stderr);
+    assert.match(stale.stdout + stale.stderr, new RegExp('Saved definition snapshots are stale \\(' + editedPath + '\\)'));
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
