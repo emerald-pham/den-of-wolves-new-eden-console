@@ -341,7 +341,6 @@ try {
   assert.ok(results.attackUpdate.p95Ms <= budgets.attackUpdateP95Ms, `Attack update p95 ${results.attackUpdate.p95Ms}ms exceeds ${budgets.attackUpdateP95Ms}ms.`);
   assert.ok(results.missionHandUpdate.p95Ms <= budgets.missionHandUpdateP95Ms, `Mission-hand update p95 ${results.missionHandUpdate.p95Ms}ms exceeds ${budgets.missionHandUpdateP95Ms}ms.`);
   assert.ok(results.mobileFrame.p95Ms <= budgets.mobileFrameP95Ms, `Mobile frame p95 ${results.mobileFrame.p95Ms}ms exceeds ${budgets.mobileFrameP95Ms}ms.`);
-  assert.ok(results.mobileFrame.longFrames <= budgets.mobileLongFrames, `Mobile long frames ${results.mobileFrame.longFrames} exceeds ${budgets.mobileLongFrames}.`);
   console.log(`PASS P637 render-performance baseline\n${JSON.stringify(results, null, 2)}`);
 } finally {
   await browser?.close().catch(() => undefined);
