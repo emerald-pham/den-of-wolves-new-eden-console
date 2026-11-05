@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // PC10.1 / #437: compiled production callables against native Firestore.
-// Fills the gaps the #434-#436 emulator scripts leave: a Hummingbird harvest
-// that is retried after a dropped connection or opened again after a reload
-// shows the same private roll and credits its cargo once. Authentication and
+// Fills the gaps the #434-#436 emulator scripts leave: a result that is retried
+// after a dropped connection (a sequential retry, not only a concurrent
+// duplicate) or read again after a reload is identical and is never charged twice. Authentication and
 // initial state are local fixtures; this is not deployed gameplay.
 // Run with `node scripts/test-pc10-1-fieldwork-reload-reconnect.emulator.mjs`
 // after `npm run emulators:configure -- auto`.
@@ -30,7 +30,10 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
 } else {
   const require = createRequire(resolve(repository, 'functions/package.json'));
   const { getFirestore } = require('firebase-admin/firestore');
-  const { rollHummingbirdHarvest, allocateHummingbirdHarvest } = require('../functions/lib/index.js');
+  const {
+    rollHummingbirdHarvest, allocateHummingbirdHarvest, readEndeavourResearchWorkspace, advanceEndeavourResearchTrack,
+    buildEndeavourScienceDevice, upgradeEndeavourFieldTargets, requestScout,
+  } = require('../functions/lib/index.js');
   const db = getFirestore();
   const call = (uid, data) => ({ auth: { uid, token: { sub: uid, firebase: { sign_in_provider: 'custom' } } }, data });
   const statuses = (results) => results.map(result => result.status).sort();
@@ -123,6 +126,104 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       assert.deepEqual(await cargo(), credited);
       assert.deepEqual(without(await stored(harvestPath), 'updatedAt'), without(reloaded, 'updatedAt'));
       assert.equal(await receipts('hummingbirdHarvestRequests'), 2);
+    } finally { await db.recursiveDelete(session); }
+  });
+
+  test('Scientist results retried after a dropped connection are identical, charge nothing more, and read the same after a reload', async () => {
+    const id = `pc10-1-sci-${process.pid}`;
+    const scientist = `${id}-scientist`;
+    const session = db.doc(`sessions/${id}`);
+    const now = new Date().toISOString();
+    const phase = (state) => ({ turn: 3, teamPhaseEndsAt: '2099-01-01T00:00:00.000Z',
+      openAirspaceEndsAt: '2099-01-01T00:15:00.000Z',
+      airspace: { state, tickerActive: true, pressAccess: state === 'lifted' } });
+    const doc = (path) => db.doc(`sessions/${id}/${path}`);
+    const ledger = async () => {
+      const data = (await session.get()).data();
+      return { shepherd: data.shipResources.shepherd, aegis: data.shipResources.aegis, upgrades: data.shipUpgrades };
+    };
+    const workspace = () => readEndeavourResearchWorkspace.run(call(scientist, { sessionId: id }));
+    try {
+      const seed = db.batch();
+      seed.set(session, { phase: 'active', currentTurn: 3, chartId: 'A', chartSelectionLocked: true,
+        activeRoleIds: ['shepherd-scientist', 'wing-commander'], activeVesselIds: ['shepherd', 'aegis'],
+        turnPhase: phase('restricted'),
+        shuttleDockings: [{ shuttleId: 'endeavour', shipId: 'shepherd', dockedAt: now }],
+        shuttleControl: { endeavour: { shuttleId: 'endeavour', ownerRoleId: 'shepherd-scientist',
+          ownerUid: scientist, holderUid: scientist, revision: 3 } },
+        shuttleFuelled: { endeavour: false },
+        shipResources: {
+          shepherd: { ore: 10, fuel: 4, food: 10, water: 8, materials: 30, securityTeams: 2 },
+          aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 8, securityTeams: 9 },
+        },
+        shipUpgrades: { shepherd: [], aegis: [] } });
+      seed.set(doc(`players/${scientist}`), { uid: scientist, sessionId: id, role: 'player', connected: true,
+        fleetGroupId: 'fleet-1', assignedRoleId: 'shepherd-scientist', seatId: 'shepherd-scientist',
+        activeConsoleRoleId: 'shepherd-scientist', replacementRoleId: null });
+      seed.set(doc('fleetGroups/fleet-1'), { id: 'fleet-1', vesselIds: ['shepherd', 'aegis'], memberUids: [scientist] });
+      seed.set(doc('serverState/endeavourResearch'), { reactor: 1, 'ecm-device': 1 });
+      seed.set(doc('serverState/navigation'), { revision: 1,
+        shipGalacticCoordinates: { shepherd: '0000', aegis: '0000' }, pursuitGroups: { 'fleet-1': 8 } });
+      await seed.commit();
+
+      // First delivery of every Scientist action commits once.
+      const research = { sessionId: id, requestId: 'research-1', expectedControlRevision: 3,
+        expectedResearchRevision: 0, expectedCycle: 3, trackId: 'ecm-device', funding: 'shepherd-ore' };
+      const researched = await advanceEndeavourResearchTrack.run(call(scientist, research));
+      assert.equal(researched.status, 'committed');
+      const quoted = await workspace();
+      const price = quoted.scienceDevices.buildCosts['ecm-device'];
+      const build = { sessionId: id, requestId: 'build-1', expectedCycle: 3, expectedControlRevision: 3,
+        expectedResearchRevision: quoted.researchRevision, expectedDeviceRevision: quoted.scienceDevices.revision,
+        deviceId: 'ecm-device' };
+      const built = await buildEndeavourScienceDevice.run(call(scientist, build));
+      assert.equal(built.status, 'committed');
+      await session.update({ turnPhase: phase('lifted') });
+      const upgraded = await workspace();
+      const reactorCost = upgraded.tracks.find(track => track.trackId === 'reactor').currentMaterialCost;
+      const upgrade = { sessionId: id, requestId: 'upgrade-1', expectedHostShipId: 'shepherd',
+        expectedControlRevision: 3, expectedUpgradeRevision: upgraded.fieldUpgradeState.upgradeRevision,
+        expectedCycle: 3, targets: [{ shipId: 'shepherd', systemId: 'reactor' }, { shipId: 'aegis', systemId: 'reactor' }] };
+      const upgradeReply = await upgradeEndeavourFieldTargets.run(call(scientist, upgrade));
+      assert.equal(upgradeReply.status, 'committed');
+      const scout = { sessionId: id, requestId: 'scout-1', entitlementId: 'endeavour', targetCoordinate: '4888' };
+      const scoutReply = await requestScout.run(call(scientist, scout));
+      assert.equal(scoutReply.status, 'requested');
+
+      // What a reload would show, and what was charged, after the first deliveries.
+      const afterFirst = { workspace: await workspace(), ledger: await ledger() };
+      assert.equal(afterFirst.ledger.shepherd.ore, 5);
+      assert.equal(afterFirst.ledger.shepherd.materials, 30 - price - reactorCost);
+      assert.equal(afterFirst.ledger.aegis.materials, 8 - reactorCost);
+      assert.deepEqual(afterFirst.ledger.upgrades, { shepherd: ['reactor'], aegis: ['reactor'] });
+      assert.equal(afterFirst.workspace.scienceDevices.ecmBuilt, true);
+      assert.equal((await db.collection(`sessions/${id}/endeavourScienceDeviceAudits`).get()).size, 1);
+
+      // Reconnect: every action is delivered again with its exact request, before and after the airspace phase changes.
+      const retries = [
+        [advanceEndeavourResearchTrack, research, researched, 'replayed'],
+        [buildEndeavourScienceDevice, build, built, 'replayed'],
+        [upgradeEndeavourFieldTargets, upgrade, upgradeReply, 'replayed'],
+        [requestScout, scout, scoutReply, 'replayed'],
+      ];
+      for (const airspace of ['lifted', 'restricted']) {
+        await session.update({ turnPhase: phase(airspace) });
+        for (const [callable, request, first, status] of retries) {
+          if (airspace === 'restricted' && callable === requestScout) {
+            // A scout replay rechecks the live Coordination window: it is refused, never re-recorded.
+            await assert.rejects(callable.run(call(scientist, request)), denied('failed-precondition'));
+            continue;
+          }
+          const retried = await callable.run(call(scientist, request));
+          assert.equal(retried.status, status, `${request.requestId} while ${airspace}`);
+          assert.deepEqual(without(retried, 'status'), without(first, 'status'), `${request.requestId} while ${airspace}`);
+        }
+        assert.deepEqual(await ledger(), afterFirst.ledger);
+        assert.deepEqual(await workspace(), afterFirst.workspace);
+      }
+      assert.equal((await db.collection(`sessions/${id}/scoutRequests`).get()).size, 1);
+      assert.equal((await db.collection(`sessions/${id}/endeavourScienceDeviceAudits`).get()).size, 1);
+      assert.equal((await doc('serverState/endeavourResearchCadence').get()).get('choices').length, 1);
     } finally { await db.recursiveDelete(session); }
   });
 }
