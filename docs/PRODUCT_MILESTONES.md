@@ -728,7 +728,13 @@ PC10 release packaging and updates only the unfinished execution briefs.
 Each catalog row links its own briefs through planning evidence.
 
 Triage is `ready-for-agent` for the approved specification. Dependency readiness
-and runtime authorization remain separate: PC10 remains paused. Existing hard
+and runtime authorization remain separate. The owner approved **PC10.1**
+runtime execution on 2026-11-04; PC10.2 through PC10.9 remain paused until
+PC10.1 is live. PC10 was paused because no player-facing release had shipped
+since 0.5.73 and the finished work sat unmerged on a long-lived integration
+branch that could not be merged whole. It resumes one small slice at a time:
+each slice is planned only after the previous release is verified on the
+deployed site (GitHub issue #431). Existing hard
 prerequisites are inherited exactly; additional composition edges apply only
 to these briefs and do not create new Git, CI or release gates. The existing
 dependency chart continues to display all 48 canonical IDs and their unchanged
