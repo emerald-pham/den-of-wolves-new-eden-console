@@ -46,6 +46,7 @@ function deferredRequest(): {
 
 beforeEach(() => {
   request.mockReset();
+  sessionStorage.clear();
   request.mockResolvedValue({
     status: 'requested', resolution: 'pending', requestId: 'scout-1', sessionId: 's1', cycle: 2,
     entitlementId: 'starlight', source: 'craft', ownerRoleId: 'wing-commander',
@@ -166,6 +167,54 @@ it('keeps the exact command identity and coordinate when the caller retries', as
   await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
   expect(request.mock.calls[1]?.[0]).toEqual(request.mock.calls[0]?.[0]);
   expect(await within(controls).findByRole('status')).toHaveTextContent(/request recorded/i);
+});
+
+it('records one Scientist scout request when Record request is tapped twice before the server answers', async () => {
+  const user = userEvent.setup();
+  const pending = deferredRequest();
+  request.mockImplementationOnce(() => pending.promise);
+  setOwner('endeavour');
+  render(<ScoutRequestControls entitlementId="endeavour" />);
+
+  const controls = screen.getByRole('region', { name: 'Endeavour scouting request' });
+  await user.type(within(controls).getByLabelText('Printed system coordinate'), '5143');
+  await user.click(within(controls).getByRole('button', { name: 'Record request' }));
+  await user.click(within(controls).getByRole('button', { name: /Record(ing)? request/ }));
+  expect(request).toHaveBeenCalledTimes(1);
+
+  await act(async () => { pending.resolve(); await Promise.resolve(); });
+  expect(await within(controls).findByRole('status')).toHaveTextContent(/request recorded/i);
+  expect(request).toHaveBeenCalledTimes(1);
+});
+
+it('restores the unsent Scientist scout coordinate after a station reselect without replaying an old request', async () => {
+  const user = userEvent.setup();
+  setOwner('endeavour');
+  request.mockRejectedValueOnce(new Error('The connection closed before confirmation.'));
+  const firstRequest = render(<ScoutRequestControls entitlementId="endeavour" />);
+  const controls = screen.getByRole('region', { name: 'Endeavour scouting request' });
+  const coordinate = within(controls).getByLabelText('Printed system coordinate');
+  await user.type(coordinate, '5143');
+  await user.click(within(controls).getByRole('button', { name: 'Record request' }));
+  expect(await within(controls).findByRole('button', { name: 'Retry same request' })).toBeVisible();
+  const submittedCommand = request.mock.calls[0]?.[0];
+
+  firstRequest.unmount();
+  act(() => {
+    useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, activeConsoleRoleId: null });
+  });
+  setOwner('endeavour');
+  render(<ScoutRequestControls entitlementId="endeavour" />);
+
+  const restoredControls = screen.getByRole('region', { name: 'Endeavour scouting request' });
+  expect(within(restoredControls).getByLabelText('Printed system coordinate')).toHaveValue('5143');
+  expect(within(restoredControls).getByRole('button', { name: 'Record request' })).toBeEnabled();
+  expect(request).toHaveBeenCalledTimes(1);
+
+  await user.click(within(restoredControls).getByRole('button', { name: 'Record request' }));
+  await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+  expect(request.mock.calls[1]?.[0]).toMatchObject({ targetCoordinate: submittedCommand?.targetCoordinate });
+  expect(request.mock.calls[1]?.[0].requestId).not.toBe(submittedCommand?.requestId);
 });
 
 it('allows correction after a definitive server rejection and starts a new request', async () => {

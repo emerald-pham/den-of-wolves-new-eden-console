@@ -449,6 +449,51 @@ is changed by this planning delivery. Future PC11 extraction acceptance, PC12’
 conditional status, post-release color accessibility and post-1.0 real-play
 Wolf-alert trigger are carried forward rather than silently reopened or moved.
 
+
+## PC10.1 completed-research ECM and bounded browser privacy repair — 2026-10-17
+
+The owner expressly approved retaining the final **five-material ECM purchase
+quote after completed research**. Append this resolution to PC10.1-A1; keep
+the completed-research use prerequisite, current actor/phase authority, payment
+and exact-receipt replay protections. No further price or research rule changes
+are authorized by this decision.
+
+The owner also approved one narrow browser-privacy repair ticket for the
+pre-existing static damage-deck exposure. [BP1](pc10-tickets/62-bp1.md) covers
+the four browser parser dependencies for Gorgoneion/Warrior repair drones,
+Macaw repairs and Voyage movement; emitted executable bundles/source maps;
+and Hosting/public-artifact map exclusion with private diagnostics retained.
+Preserve server draw rules and current parser, legacy and reconnect behavior.
+This adds one execution brief to PC10.1, not a campaign prompt or closure credit.
+The existing 751-ID endpoint and prompt completion states are unchanged.
+
+The parent supplied the two explicit approvals and then the owner's explicit
+confirmation that she is awake. Conditional permission relating to sleep is
+inactive. New product or scope decisions go to the parent for the owner; no
+additional billing, credentials, security-setting or unrelated work is allowed.
+Continue PC10.1 through its required review/acceptance, retro and authorized
+implementation cycle before advancing PC10.2.
+
+## Halt–retro–implement–resume — 2026-10-18
+
+At 11:04 UTC the owner directed: “if you run into loops like this for pc10.1 or
+future checkpoints, I want a halt, retro, implement, resume”. This applies now
+to the current PC10.1 acceptance/capture loop and to future checkpoint loops
+when repeated failures bring no new discriminating evidence. The canonical
+ordered procedure and resume conditions live in
+[Acceptance-loop recovery](AGENT_EXECUTION_POLICY.md#acceptance-loop-recovery);
+the checkpoint pipeline points to this exception.
+
+Keep the PC10-only RED chronology exception and its original records
+(`pc10-red-exception-authority-20261018.json` and
+`standards-exception-reassessment-8ae4c777.md`) under
+`/tmp/dow-pc10-1-20261017/region-lifecycle-prep/` unchanged. The historical
+post-implementation actor-generation test and deliberate mutant remain
+sensitivity evidence, never contemporaneous RED; the chronology finding is
+nonblocking for PC10, and this exception does not apply to other projects.
+Catalog facts, prompt statuses, acceptance definitions, campaign membership
+and totals remain as recorded.
+
 ## PC10.1-only execution and GitHub tracking — 2026-11-04
 
 The owner invoked the implement-spec workflow “on the next checkpoint”,

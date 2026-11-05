@@ -27,7 +27,10 @@ const hash=value=>createHash('sha256').update(value).digest('hex'), short=value=
 const sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
 assert.equal(sourceCommit,process.env.PC11_SOURCE_COMMIT);
 assert.equal(execFileSync('git',['status','--porcelain','--untracked-files=no'],{cwd:root,encoding:'utf8'}).trim(),'');
-const sourceContractPreflight=runPc11ContractPreflight(root);
+const sourceContractPreflight=await runPc11ContractPreflight(root).catch(async error=>{
+ await new Promise(resolve=>process.stderr.write(`${error.message}\n`,resolve));
+ process.exit(error.exitCode??1);
+});
 const require=createRequire(`${root}/package.json`), {chromium}=require('playwright');
 
 const gmOnly=process.env.PC11_GM_ONLY==='1';

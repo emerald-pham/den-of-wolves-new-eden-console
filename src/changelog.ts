@@ -22,6 +22,19 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationProgress: {
+      completed: 703, total: 751, percentage: '93.61%',
+      done: 703, partial: 6, active: 0, missing: 42, blocked: 0,
+    },
+    changes: [
+      'Scientist research keeps costs and committed results in the eligible crew workspace, including the final ECM quote after research is complete.',
+      'Explorer scouting, harvesting, route and mission results remain available to the authorized crew after reload or reconnect.',
+      'Private ship-damage reference details are excluded from public browser diagnostics.',
+      '703 of 751 planned items are complete in the catalog snapshot used to build this release (93.61%).',
+    ],
+  },
+  {
+    version: '0.5.73',
     implementationProgress: { completed: 703, total: 751, percentage: '93.61%', done: 703, partial: 6, active: 0, missing: 42, blocked: 0 },
     changes: [
       'Casting supports customizable forms, private GM response review, and view-only personalized dossiers with up to three distinct instances of a character.',

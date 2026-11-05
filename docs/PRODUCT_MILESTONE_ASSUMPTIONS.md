@@ -560,3 +560,23 @@ broader future diegetic-rules PC11 does not enlarge this repair.
 | Source | The named Maliades component supplies an optional Medium attack/target adjustment and up to two Short attacks, with their printed self-risk and three-damage destruction. Its incomplete digital sequencing does not specify a persisted pass marker. Source routing remains in the private library and PC08_RANGE_ASSUMPTIONS. |
 | Chosen reading | The current Engineer and Maliades holder may explicitly decline all actions at either range. Persist that zero-action choice for the current attack and revision; it participates in the same locked range batch as the other sources. |
 | Alternatives and limits | A pass consumes no dice, causes no self-damage, and cannot bypass another source's pending choice. A disconnected or away assigned owner stays pending; only a genuinely unavailable holder receives an audited automatic zero-action result. The explicit durable marker is a digital extension, not quoted printed pass text. |
+
+### PC10.1-A1 — Scientist science-device construction quotes
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC10.1-A1, S1/215b Scientist device construction; recorded 2026-10-17 under the existing PC10.1 authorization. |
+| Source | *R.S.S. “Endeavour” Research Lab (Shepherd Scientist)*, Base v1.1 A4 single-sided component sheet, PDF p. 2, Science Devices panel. It distinguishes each device's Built state and construction price: ECM progresses through 18/13/9/7/5 materials; the Detector's first two construction positions are unavailable, followed by 18/12/10. |
+| Ambiguity and alternatives | The routed derivative `REFERENCE_ONLY_SHIPS.md` gives a conflicting Detector construction sequence and omits its printed unavailable span. The existing generic research `currentMaterialCost` is separately labeled as a field-upgrade cost in the Scientist workspace. |
+| Chosen reading | The printed component governs device construction in S1. Quote and atomically debit the left-most available printed construction price; leave existing research-track progression and its separate field-upgrade prices unchanged. |
+| Effect and limits | This affects the private build quote, the enabled/disabled build control, Shepherd material debit, durable Built state, and exact purchase replay. Existing completed-track requirements for ECM activation and Detector tests remain in force. This does not change research progression or general field-upgrade pricing. |
+| Review state | Applied under the settled print-over-derivative source precedence. The parent confirmed this bounded S1 correction; no new product rule was introduced. |
+
+
+### PC10.1-A1 resolution — retain the final ECM purchase quote
+
+The owner expressly resolved the unbuilt/completed-track ambiguity on
+2026-10-17: an unbuilt ECM remains purchasable for **five materials** after
+all five research marks. This supplements, rather than rewrites, PC10.1-A1's
+printed price-lane interpretation. Existing completed-track use requirements,
+authority and receipt replay remain. See [owner feedback](PRODUCT_MILESTONE_FEEDBACK.md#pc101-completed-research-ecm-and-bounded-browser-privacy-repair--2026-10-17).

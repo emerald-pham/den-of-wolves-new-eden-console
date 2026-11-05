@@ -86,7 +86,7 @@ function kicked(data: Record<string, unknown>): boolean {
  *
  * `undefined` means authority was stale or malformed; a projection with an
  * empty candidate list means authority was valid and the current group has no
- * arrival-derived candidate discovery.
+ * arrival- or scout-derived candidate discovery.
  */
 export function candidateRevealProjectionForCurrentFleetMember(
   value: unknown,
@@ -190,7 +190,7 @@ export function candidateRevealProjectionForCurrentFleetMember(
     if (!entries) continue;
     for (const [coordinate, entry] of Object.entries(entries)) {
       const discovery = entry.candidateDiscovery;
-      if (!discovery || discovery.source !== 'arrival' ||
+      if (!discovery || (discovery.source !== 'arrival' && discovery.source !== 'scout') ||
           (discovery.code !== 'N' && discovery.code !== 'O' && discovery.code !== 'P')) continue;
       const site = sites[coordinate];
       if (!site?.candidate || site.code !== discovery.code || site.name !== discovery.title) continue;

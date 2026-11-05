@@ -728,7 +728,13 @@ PC10 release packaging and updates only the unfinished execution briefs.
 Each catalog row links its own briefs through planning evidence.
 
 Triage is `ready-for-agent` for the approved specification. Dependency readiness
-and runtime authorization remain separate: PC10 remains paused. Existing hard
+and runtime authorization remain separate. The owner approved **PC10.1**
+runtime execution on 2026-11-04; PC10.2 through PC10.9 remain paused until
+PC10.1 is live. PC10 was paused because no player-facing release had shipped
+since 0.5.73 and the finished work sat unmerged on a long-lived integration
+branch that could not be merged whole. It resumes one small slice at a time:
+each slice is planned only after the previous release is verified on the
+deployed site (GitHub issue #431). Existing hard
 prerequisites are inherited exactly; additional composition edges apply only
 to these briefs and do not create new Git, CI or release gates. The existing
 dependency chart continues to display all 48 canonical IDs and their unchanged
@@ -927,7 +933,7 @@ smaller checkpoint.
 
 | Checkpoint | Playable outcome | Tickets | Count | Genuine dependency boundary |
 |---|---|---|---:|---|
-| **PC10.1 — Scientist and Explorer fieldwork** | Research, scout, harvest and use private candidate preparation through ordinary controls. | [S1](pc10-tickets/03-s1.md), [S2](pc10-tickets/04-s2.md), [X1](pc10-tickets/05-x1.md), [X2](pc10-tickets/06-x2.md), [D1](pc10-tickets/14-d1.md), [D2](pc10-tickets/15-d2.md), [PT1](pc10-tickets/55-pt1.md), [PT2A](pc10-tickets/56a-pt2a.md), [PT3](pc10-tickets/57-pt3.md) | 9 | Existing catalog prerequisites; PT2A before the affected Base rehearsal. |
+| **PC10.1 — Scientist and Explorer fieldwork** | Research, scout, harvest and use private candidate preparation through ordinary controls. | [S1](pc10-tickets/03-s1.md), [S2](pc10-tickets/04-s2.md), [X1](pc10-tickets/05-x1.md), [X2](pc10-tickets/06-x2.md), [D1](pc10-tickets/14-d1.md), [D2](pc10-tickets/15-d2.md), [PT1](pc10-tickets/55-pt1.md), [PT2A](pc10-tickets/56a-pt2a.md), [PT3](pc10-tickets/57-pt3.md), [BP1](pc10-tickets/62-bp1.md) | 10 | Existing catalog prerequisites; PT2A before the affected Base rehearsal; owner-approved BP1 privacy repair before release. |
 | **PC10.2 — Wing, PDF and expansion actions** | Operate wings, boarding and missions, then use Macaw/Boa/Scrap with truthful outcomes. | [W1](pc10-tickets/01-w1.md), [W2](pc10-tickets/02-w2.md), [P1](pc10-tickets/07-p1.md), [P2](pc10-tickets/08-p2.md), [C1](pc10-tickets/09-c1.md), [C2](pc10-tickets/10-c2.md), [C3](pc10-tickets/11-c3.md), [PT2B](pc10-tickets/56b-pt2b.md) | 8 | Existing mechanic prerequisites; PT2B preserves the current Sol diagnosis owner. |
 | **PC10.3 — Resilient private sessions** | Recover current seats, drafts, projections and clocks while keeping private audiences separate. | [L1](pc10-tickets/24-l1.md), [L2](pc10-tickets/25-l2.md), [L3](pc10-tickets/26-l3.md), [T1](pc10-tickets/27-t1.md), [T2](pc10-tickets/28-t2.md), [Q1](pc10-tickets/32-q1.md), [Q2](pc10-tickets/33-q2.md), [Q3](pc10-tickets/34-q3.md), [PT4](pc10-tickets/58-pt4.md) | 9 | Each recovery follows its own current source contract; L3 consumes L1/L2 and T2 consumes T1. |
 | **PC10.4 — Fair automatic actions and receipts** | Use server-owned randomness and automatic procedures with private attributable results and fair limits. | [U1](pc10-tickets/35-u1.md), [U2](pc10-tickets/36-u2.md), [B1](pc10-tickets/37-b1.md), [B2](pc10-tickets/38-b2.md), [J1](pc10-tickets/39-j1.md), [J2](pc10-tickets/40-j2.md), [PT5](pc10-tickets/59-pt5.md) | 7 | B2 retains U1/U2 and canonical P630; J2 consumes J1. PT5 does not wait for PT4. |
@@ -937,7 +943,7 @@ smaller checkpoint.
 | **PC10.8 — Complete Capybara game and Nebula ending** | Play the full expansion composition and the same-session Nebula loss/recovery/success/debrief. | [C4A](pc10-tickets/12a-c4a.md), [C4B](pc10-tickets/12b-c4b.md), [C4](pc10-tickets/12-c4.md), [C5](pc10-tickets/13-c5.md), [H1](pc10-tickets/50-h1.md), [H2](pc10-tickets/51-h2.md), [H3](pc10-tickets/52-h3.md), [V2](pc10-tickets/42-v2.md) | 8 | C1/C2/C3, N2/Y2, E2, L3/T2 and repaired PT2B/PT2 consumers; keep the internal full-game sequence together. |
 | **PC10.9 — Final game release and tracker handoff** | Release the reconciled complete game and verified evidence; prepare/import/cut over the requested tracker safely. | [Z1A](pc10-tickets/53a-z1a.md), [Z1](pc10-tickets/53-z1.md), [Z2](pc10-tickets/54-z2.md), [PT7A](pc10-tickets/61a-pt7a.md), [PT7B](pc10-tickets/61b-pt7b.md), [PT7](pc10-tickets/61-pt7.md) | 6 | Z1A and PT7A can prepare early. Final Z1/Z2 require all original acceptances; tracker cutover requires PT7B verification and settled writes. |
 
-F2 and implemented PT6 remain carry-forward work outside these 68 unfinished briefs.
+F2 and implemented PT6 remain carry-forward work outside these 69 unfinished briefs (including the October 17 owner-approved BP1 repair).
 PT2A/B/C, F3A, Z1A and PT7A/B refine existing tickets; they are not new prompts.
 PT7 inventory can proceed early, and cutover waits for a settled verified import.
 Tracker migration does not gate a player action or authorize an extra game run.
@@ -960,6 +966,21 @@ one large PC10 release; it still forbids a CI/release cycle per worker or ticket
 Published releases are independently playable, with a numbered optional solo
 tour and honestly labeled prepared states. Prepared tours do not prove gameplay.
 0.9.x and 1.0.0 keep their separate owner-authorization boundaries.
+
+For the remaining checkpoint sequence, follow the owner's pipeline: a human
+uses `/grill-with-docs`, then the human or an authorized bot uses `/to-spec` and
+`/to-tickets`. The bot runs `/implement-spec` through required review,
+acceptance, exact-candidate CI and verified release, then runs `/retro` on that
+released checkpoint/session. Useful retrospective findings proceed through
+existing authorized tickets, or an authorized `/to-tickets` step when needed,
+then `/implement-spec` through another verified release. Repeat for substantive
+authorized work; surface new product/scope decisions and required security
+approvals to the owner. A retrospective and its follow-up implementation occur
+after release and do not gate an otherwise qualified release.
+Repeated acceptance/capture failures without new discriminating evidence follow
+the [acceptance-loop recovery exception](AGENT_EXECUTION_POLICY.md#acceptance-loop-recovery)
+before that affected checkpoint resumes; the post-release pipeline continues
+for other findings.
 
 The owner’s one-sitting checks for each release are:
 

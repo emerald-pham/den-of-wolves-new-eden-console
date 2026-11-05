@@ -43,3 +43,48 @@ it.each([
   />);
   expect(container).toBeEmptyDOMElement();
 });
+
+// A session with no current-group reveals: the key is absent, as the server omits it.
+const cycleSix = { id: session.id, phase: session.phase, currentTurn: 6 };
+
+it.each([5, 7])('keeps the Cycle 6 plan prompt out of cycle %i while discoveries keep their help', (currentTurn) => {
+  render(<CandidateRevealPanel session={{ ...session, currentTurn }} player={player} sessionSnapshotFreshness="server" />);
+
+  expect(screen.queryByRole('region', { name: 'Cycle 6 plan encouragement' })).not.toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Candidate preparation requirements' })).toBeVisible();
+});
+
+it.each([
+  ['cached session', cycleSix, player, 'cache', false],
+  ['lobby phase', { ...cycleSix, phase: 'lobby' as const }, player, 'server', false],
+  ['facilitator', cycleSix, { ...player, role: 'gm' as const }, 'server', false],
+  ['player without a fleet group', cycleSix, { ...player, fleetGroupId: null }, 'server', false],
+  ['GM observer', cycleSix, player, 'server', true],
+] as const)('hides the Cycle 6 plan prompt for %s', (_label, nextSession, nextPlayer, freshness, observer) => {
+  const { container } = render(<CandidateRevealPanel
+    session={nextSession} player={nextPlayer} sessionSnapshotFreshness={freshness} observer={observer}
+  />);
+  expect(container).toBeEmptyDOMElement();
+});
+
+it('keeps preparation help to the three printed requirements without hidden bonuses, locations, or Wolf facts', () => {
+  render(<CandidateRevealPanel
+    session={{
+      ...session, currentTurn: 6,
+      currentGroupCandidateReveals: {
+        groupId: 'fleet-1', revision: 2,
+        candidateReveals: [
+          { code: 'N', title: 'Ancient Jump Ring' },
+          { code: 'O', title: 'Deep Nebula' },
+          { code: 'P', title: 'Ancient Space Station' },
+        ],
+      },
+    }}
+    player={player}
+    sessionSnapshotFreshness="server"
+  />);
+
+  const help = screen.getByRole('region', { name: 'Candidate preparation requirements' });
+  expect(within(help).getAllByRole('listitem')).toHaveLength(3);
+  expect(help).not.toHaveTextContent(/\b\d{4}\b|accrued|lost ship|bonus is|Wolf (count|location|agent)|chart [ABC]/i);
+});

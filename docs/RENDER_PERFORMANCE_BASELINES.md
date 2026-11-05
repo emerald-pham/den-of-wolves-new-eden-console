@@ -20,7 +20,6 @@ The versioned budgets live in
 | Hostile attack update, p95 of 30 renders | 120 ms |
 | Eight simultaneous private mission hands, p95 of 30 updates | 100 ms |
 | Mobile frame interval at 390×844, p95 of 120 update frames | 120 ms |
-| Mobile update frames over 50 ms | at most 70 |
 
 The route probe deliberately presents the real application with an offline
 cached session. This keeps the measurement local and deterministic while still
@@ -362,3 +361,22 @@ allows at most 12,400 reads, including the initial render, so a return to
 per-row forced layout fails even on a faster local machine. This counter
 records browser layout reads, not live production telemetry; the 150 ms
 CI-host timing ceiling remains the release gate.
+
+Baseline version 23 removes the limit on the count of mobile update frames
+over 50 ms. The owner authorized loosening or removing it on 2026-11-05.
+Version 22 had first raised the ceiling to 120, the number of sampled frames, so
+it could not fail; version 23 deletes the ceiling and its assertion. The count
+is still measured and written to the evidence artifact as
+`mobileFrame.longFrames`. Every other budget is unchanged, including the 120 ms
+mobile frame p95, which still catches a sustained slowdown.
+
+The reason is that this count tracks the GitHub-hosted runner's CPU model, not
+the code. In a controlled run on `ubuntu-latest`, the same PC10.1 release
+(0.5.74) measured 4 to 12 frames on an Intel Xeon 6975P-C, 64 to 78 on an AMD
+EPYC 7763, and the pre-release main code measured 20 to 56 on AMD EPYC 9V45 and
+9V74 hosts. The release failed the old limit of 70 with 78, 77 and 82 frames on
+slower hosts and passed on faster ones, with the measured component code and
+emitted CSS identical to main. The limit sat inside the range a single revision
+produces across the runner pool, so it could fail a correct commit. A future
+calibration should either pin the runner hardware or gate on a statistic that
+does not depend on it.

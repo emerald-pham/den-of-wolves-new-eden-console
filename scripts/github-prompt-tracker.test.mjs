@@ -1029,3 +1029,254 @@ test('definition snapshot check reports stale and missing local files', async ()
     await rm(cwd, { recursive: true, force: true });
   }
 });
+
+const approvedBp1Evidence = {
+  direction: '629;651 -> PC10.1 bounded browser-asset privacy repair',
+  id: 'E-PC10-1-BP1-20261017',
+  language: 'Owner-approved October 17 BP1 repair of the confirmed pre-existing static damage-deck exposure in executable browser assets and source maps. Isolate the four browser parser dependencies for Gorgoneion and Warrior repair drones, Macaw repairs and Voyage movement; exclude diagnostic maps from Hosting and the public deployment artifact while retaining useful diagnostics privately. Preserve current parser/projection validation, legacy/reconnect behavior, audiences and server draw rules. BP1 adds one bounded execution brief to PC10.1, not a prompt or completion credit; the canonical 751-ID endpoint and P629/P651 statuses stay unchanged. No additional billing, credential, security-setting or unrelated work is authorized.',
+  source: 'docs/pc10-tickets/62-bp1.md; docs/PRODUCT_MILESTONE_FEEDBACK.md; docs/PRODUCT_MILESTONES.md',
+  type: 'planning / owner-approved bounded repair / no closure credit',
+};
+
+function makeBp1TrackerFixture(crosswalk, snapshot) {
+  const stateByMarker = new Map(snapshot.issueStates.map((row) => [row.migrationId, row]));
+  const recordByMarker = new Map(crosswalk.records.map((row) => [row.migrationId, row]));
+  const issues = crosswalk.records.map((record) => {
+    const state = stateByMarker.get(record.migrationId);
+    assert.ok(state, 'fixture contains saved state for ' + record.migrationId);
+    const lines = [
+      'Human note: deterministic offline fixture.',
+      '',
+      'Migration ID: ' + record.migrationId,
+      'Source reference: ' + record.sourceReferences[0],
+    ];
+    const fields = {};
+    if (record.recordKind === 'prompt-acceptance') {
+      lines.push('Source status: ' + record.initialStatus);
+      fields['Prompt status'] = state.promptStatus;
+    } else {
+      if (record.recordKind === 'held-future-brief') {
+        lines.push('Source status: ' + record.originalHoldStatus);
+        fields['Original hold status'] = record.originalHoldStatus;
+      }
+      lines.push('Readiness: ' + state.readiness);
+      lines.push('Execution: ' + state.execution);
+      if (state.hold !== null) lines.push('Hold: ' + state.hold);
+      const blockerIds = record.sourceBlockedByBriefIds
+        ?? [...(record.blockedByMigrationIds ?? []), ...(record.equivalentBlockedByMigrationIds ?? [])]
+          .map((marker) => recordByMarker.get(marker).legacyId);
+      lines.push('Blocked-by brief IDs: ' + (blockerIds.length ? blockerIds.join(', ') : 'none'));
+      if ((record.equivalentBlockedByMigrationIds ?? []).length) {
+        lines.push('Equivalent blocked-by issue references: ' + record.equivalentBlockedByMigrationIds.join(', '));
+      }
+    }
+    if (state.completion === 'reviewed-complete') {
+      fields.Completion = 'reviewed-accepted';
+      fields['Evidence references'] = state.evidenceReferences.join(', ');
+    }
+    if (Object.keys(fields).length) {
+      lines.push('<!-- DOW-TRACKER-OWNED-START -->');
+      for (const [key, value] of Object.entries(fields)) lines.push(key + ': ' + value);
+      lines.push('<!-- DOW-TRACKER-OWNED-END -->');
+    }
+    return {
+      id: record.issueId,
+      number: record.issueNumber,
+      title: record.migrationId,
+      body: lines.join('\n') + '\n',
+      state: state.state,
+      state_reason: state.stateReason,
+    };
+  });
+  const relations = Object.fromEntries(crosswalk.records.map((record) => [
+    String(record.issueNumber),
+    {
+      parentIssueIds: (record.parentMigrationIds ?? []).map((marker) => recordByMarker.get(marker).issueId),
+      blockedByIssueIds: (record.blockedByMigrationIds ?? []).map((marker) => recordByMarker.get(marker).issueId),
+    },
+  ]));
+  const byId = new Map(issues.map((issue) => [issue.id, issue]));
+  const transport = {
+    async listIssues() { return issues; },
+    async getRelationships(issueId) {
+      const issue = byId.get(issueId);
+      assert.ok(issue, 'fixture contains issue ID ' + issueId);
+      return relations[String(issue.number)];
+    },
+    async listComments() { return []; },
+  };
+  return { issues, relations, transport };
+}
+
+const bp1CliPreload = String.raw`
+import { appendFileSync, readFileSync } from 'node:fs';
+const logPath = process.env.BP1_FETCH_LOG;
+const fixturePath = process.env.BP1_FIXTURE_DATA;
+if (!logPath || !fixturePath) throw new Error('BP1 fetch log and fixture data are required');
+const fixture = JSON.parse(readFileSync(fixturePath, 'utf8'));
+const byNumber = new Map(fixture.issues.map((issue) => [issue.number, issue]));
+const byId = new Map(fixture.issues.map((issue) => [issue.id, issue]));
+const reply = (value, status = 200) => new Response(JSON.stringify(value), {
+  status,
+  headers: { 'content-type': 'application/json' },
+});
+globalThis.fetch = async (input, init = {}) => {
+  const url = new URL(String(input));
+  const method = init.method ?? 'GET';
+  appendFileSync(logPath, method + ' ' + url.pathname + url.search + '\n');
+  if (url.origin !== 'https://api.github.com') throw new Error('Blocked unexpected network origin');
+  if (method !== 'GET') throw new Error('Blocked GitHub write in reproduction fixture');
+  if (url.pathname.endsWith('/issues')) {
+    const page = Number(url.searchParams.get('page') ?? '1');
+    const start = (page - 1) * 100;
+    return reply(fixture.issues.slice(start, start + 100));
+  }
+  const parentMatch = url.pathname.match(/\/issues\/(\d+)\/parent$/);
+  if (parentMatch) {
+    const issue = byNumber.get(Number(parentMatch[1]));
+    if (!issue) return reply({}, 404);
+    const parentId = fixture.relations[String(issue.number)]?.parentIssueIds?.[0];
+    return parentId ? reply(byId.get(parentId)) : reply({}, 404);
+  }
+  const blockedMatch = url.pathname.match(/\/issues\/(\d+)\/dependencies\/blocked_by$/);
+  if (blockedMatch) {
+    const issue = byNumber.get(Number(blockedMatch[1]));
+    if (!issue) return reply({}, 404);
+    const blockedIds = fixture.relations[String(issue.number)]?.blockedByIssueIds ?? [];
+    return reply(blockedIds.map((id) => byId.get(id)));
+  }
+  if (/\/issues\/\d+\/comments$/.test(url.pathname)) return reply([]);
+  throw new Error('Blocked unrecognized GitHub path: ' + url.pathname + url.search);
+};
+`;
+
+test('approved BP1 historical evidence round-trips through the exported reader unchanged', async () => {
+  const crosswalk = JSON.parse(await readFile(resolve(process.cwd(), 'docs/tracker/github-crosswalk.json'), 'utf8'));
+  const savedTrackerSnapshot = JSON.parse(await readFile(resolve(process.cwd(), 'docs/tracker/github-snapshot.json'), 'utf8'));
+  const fixture = makeBp1TrackerFixture(crosswalk, savedTrackerSnapshot);
+  const result = await readGitHubPromptCatalog({
+    sourceBytes,
+    transport: fixture.transport,
+    crosswalk,
+    cwd: process.cwd(),
+  });
+
+  assert.equal(result.issueCount, 148);
+  assert.deepEqual(result.catalog.evidence.find(({ id }) => id === approvedBp1Evidence.id), approvedBp1Evidence);
+  assert.equal(result.catalog.prompts.find(({ id }) => id === '629').evidenceIds,
+    'E-AUDIT-629;E-CHECKPOINT-RECORDING-AUDIT-20260928;E-PC10-TICKETS-629;E-PC10-1-BP1-20261017');
+  assert.equal(result.catalog.prompts.find(({ id }) => id === '651').evidenceIds,
+    'E-AUDIT-651;E-PC10-TICKETS-651;E-PC10-RETRO-TICKETS-651;E-PC10-1-BP1-20261017');
+  assert.equal(result.catalog.prompts.find(({ id }) => id === '629').status, 'partial');
+  assert.equal(result.catalog.prompts.find(({ id }) => id === '651').status, 'missing');
+  assert.deepEqual(result.issueStates, savedTrackerSnapshot.issueStates);
+  assert.equal(result.trackerSnapshot.originSourceSha256,
+    '8536b573f44cde0e480b12cf427c3bb5668f33d6564f393572964f1679086f3f');
+});
+test('normal refresh check accepts BP1 history with complete read-only GitHub transport', async () => {
+  const crosswalk = JSON.parse(await readFile(resolve(process.cwd(), 'docs/tracker/github-crosswalk.json'), 'utf8'));
+  const savedTrackerSnapshot = JSON.parse(await readFile(resolve(process.cwd(), 'docs/tracker/github-snapshot.json'), 'utf8'));
+  const fixture = makeBp1TrackerFixture(crosswalk, savedTrackerSnapshot);
+  const candidateSnapshot = {
+    ...savedTrackerSnapshot,
+    catalogSha256: createHash('sha256').update(stableCatalogJson(sourceCatalog)).digest('hex'),
+  };
+  const cwd = await mkdtemp(resolve(tmpdir(), 'bp1-tracker-cli-'));
+  try {
+    const bin = resolve(cwd, 'bin');
+    await mkdir(bin, { recursive: true });
+    const fixturePath = resolve(cwd, 'transport.json');
+    const snapshotPath = resolve(cwd, 'candidate-snapshot.json');
+    const preloadPath = resolve(cwd, 'preload.mjs');
+    const fetchLogPath = resolve(cwd, 'fetch.log');
+    await writeFile(fixturePath, JSON.stringify({ issues: fixture.issues, relations: fixture.relations }));
+    await writeFile(snapshotPath, JSON.stringify(candidateSnapshot));
+    await writeFile(preloadPath, bp1CliPreload);
+    await writeFile(fetchLogPath, '');
+    await writeFile(resolve(bin, 'gh'), '#!/bin/sh\n[ "$1" = "auth" ] && [ "$2" = "token" ] && printf "fixture-token\\n"\n', { mode: 0o755 });
+
+    const result = spawnSync('npm', [
+      'run', 'prompt-tracker', '--', 'refresh', '--check', '--snapshot', snapshotPath,
+    ], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: bin + ':' + (process.env.PATH ?? ''),
+        NODE_OPTIONS: [process.env.NODE_OPTIONS, '--import=' + preloadPath].filter(Boolean).join(' '),
+        BP1_FIXTURE_DATA: fixturePath,
+        BP1_FETCH_LOG: fetchLogPath,
+      },
+    });
+    const calls = (await readFile(fetchLogPath, 'utf8')).split(/\r?\n/).filter(Boolean);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, /Tracker snapshot is current \(148 issues; source ac941864eaea\)/);
+    assert.ok(calls.some((call) => call.includes('/issues?state=all&per_page=100&page=1')));
+    assert.ok(calls.some((call) => call.includes('/issues/26/comments?per_page=100&page=1')));
+    assert.ok(calls.every((call) => call.startsWith('GET /')));
+    assert.equal(calls.length, 446);
+    assert.equal(calls.filter((call) => /\/issues\/\d+\/parent$/.test(call)).length, 148);
+    assert.equal(calls.filter((call) => /\/issues\/\d+\/dependencies\/blocked_by(?:\?|$)/.test(call)).length, 148);
+    assert.equal(calls.filter((call) => /\/issues\/\d+\/comments\?/.test(call)).length, 148);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+async function readBeforeTrackerTransport(source, crosswalk) {
+  return readGitHubPromptCatalog({
+    sourceBytes: Buffer.from(stableCatalogJson(source)),
+    transport: {
+      async listIssues() { throw new Error('Unexpected tracker transport read'); },
+      async getRelationships() { throw new Error('Unexpected tracker relationship read'); },
+    },
+    crosswalk,
+    cwd: process.cwd(),
+  });
+}
+
+test('BP1 compatibility does not admit changed or unapproved evidence wording', async () => {
+  const crosswalk = JSON.parse(await readFile(resolve(process.cwd(), 'docs/tracker/github-crosswalk.json'), 'utf8'));
+  const altered = structuredClone(sourceCatalog);
+  const bp1 = altered.evidence.find(({ id }) => id === approvedBp1Evidence.id);
+  bp1.language += ' An extra unreviewed promise.';
+
+  await assert.rejects(readBeforeTrackerTransport(altered, crosswalk),
+    /Catalog changes outside source-reviewed definitions/);
+});
+
+test('catalog validation still rejects malformed BP1 evidence before tracker access', async () => {
+  const crosswalk = JSON.parse(await readFile(resolve(process.cwd(), 'docs/tracker/github-crosswalk.json'), 'utf8'));
+  const malformed = structuredClone(sourceCatalog);
+  delete malformed.evidence.find(({ id }) => id === approvedBp1Evidence.id).language;
+
+  await assert.rejects(readBeforeTrackerTransport(malformed, crosswalk),
+    /dependency evidence E-PC10-1-BP1-20261017 has empty language/);
+});
+
+test('BP1 compatibility does not admit evidence under another source identity', async () => {
+  const crosswalk = JSON.parse(await readFile(resolve(process.cwd(), 'docs/tracker/github-crosswalk.json'), 'utf8'));
+  crosswalk.sourceStructureSha256 = '0'.repeat(64);
+
+  await assert.rejects(readBeforeTrackerTransport(sourceCatalog, crosswalk),
+    /Catalog changes outside source-reviewed definitions/);
+});
+
+test('BP1 compatibility rejects a missing evidence row or either required history link', async () => {
+  const crosswalk = JSON.parse(await readFile(resolve(process.cwd(), 'docs/tracker/github-crosswalk.json'), 'utf8'));
+  const withoutRow = structuredClone(sourceCatalog);
+  withoutRow.evidence = withoutRow.evidence.filter(({ id }) => id !== approvedBp1Evidence.id);
+  await assert.rejects(readBeforeTrackerTransport(withoutRow, crosswalk),
+    /references unknown dependency evidence E-PC10-1-BP1-20261017/);
+
+  for (const promptId of ['629', '651']) {
+    const withoutLink = structuredClone(sourceCatalog);
+    const prompt = withoutLink.prompts.find(({ id }) => id === promptId);
+    prompt.evidenceIds = prompt.evidenceIds
+      .split(';')
+      .filter((id) => id !== approvedBp1Evidence.id)
+      .join(';');
+    await assert.rejects(readBeforeTrackerTransport(withoutLink, crosswalk),
+      /Catalog changes outside source-reviewed definitions/);
+  }
+});

@@ -8,6 +8,7 @@ import {
 import { useSessionStore } from '@/store/useSessionStore';
 
 export type EndeavourResearchFunding = 'standard' | 'shepherd-ore';
+export type EndeavourScienceDeviceId = 'ecm-device' | 'wolf-agent-detector';
 
 export interface EndeavourResearchTrackView {
   readonly trackId: string;
@@ -41,6 +42,38 @@ export interface EndeavourResearchWorkspace {
     upgradeRevision: number;
     targetsUsedThisCycle: number;
   }>;
+  readonly scienceDevices?: EndeavourScienceDevicesView;
+}
+
+export interface EndeavourScienceDevicesView {
+  readonly revision: number;
+  readonly ecmBuilt: boolean;
+  readonly detectorBuilt: boolean;
+  readonly ecmUsed: boolean;
+  readonly shepherdMaterials: number;
+  readonly buildCosts: Readonly<Record<EndeavourScienceDeviceId, number | null>>;
+}
+
+export interface EndeavourScienceDeviceAttempt {
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly expectedControlRevision: number;
+  readonly expectedResearchRevision: number;
+  readonly expectedDeviceRevision: number;
+  readonly expectedCycle: number;
+  readonly deviceId: EndeavourScienceDeviceId;
+}
+
+export interface EndeavourScienceDeviceReply {
+  readonly status: 'committed' | 'replayed';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly cycle: number;
+  readonly deviceId: EndeavourScienceDeviceId;
+  readonly deviceRevision: number;
+  readonly built: true;
+  readonly materialCost: number;
+  readonly shepherdMaterials: number;
 }
 
 export interface EndeavourResearchAttempt {
@@ -84,7 +117,7 @@ function isCounter(value: unknown): value is number {
 function parseWorkspace(value: unknown, expectedSessionId: string): EndeavourResearchWorkspace | null {
   const fields = [
     'status', 'sessionId', 'cycle', 'researchRevision', 'cadence', 'progress', 'tracks', 'shepherdOre',
-    'fieldUpgradeState',
+    'fieldUpgradeState', 'scienceDevices',
   ];
   if (!isRecord(value) || !hasExactKeys(value, fields) || value.status !== 'ready' ||
       value.sessionId !== expectedSessionId || !isCounter(value.cycle) || value.cycle < 1 ||
@@ -99,6 +132,20 @@ function parseWorkspace(value: unknown, expectedSessionId: string): EndeavourRes
       !isRecord(value.cadence) || !hasExactKeys(value.cadence, ['cycle', 'revision', 'choices']) ||
       value.cadence.cycle !== value.cycle || value.cadence.revision !== value.researchRevision ||
       !Array.isArray(value.cadence.choices)) return null;
+
+  const rawDevices = value.scienceDevices;
+  if (!isRecord(rawDevices) || !hasExactKeys(rawDevices, [
+    'revision', 'ecmBuilt', 'detectorBuilt', 'ecmUsed', 'shepherdMaterials', 'buildCosts',
+  ]) || !isCounter(rawDevices.revision) || rawDevices.revision > 2 ||
+      typeof rawDevices.ecmBuilt !== 'boolean' || typeof rawDevices.detectorBuilt !== 'boolean' ||
+      rawDevices.revision !== Number(rawDevices.ecmBuilt) + Number(rawDevices.detectorBuilt) ||
+      typeof rawDevices.ecmUsed !== 'boolean' || (rawDevices.ecmUsed && !rawDevices.ecmBuilt) ||
+      !isCounter(rawDevices.shepherdMaterials) || !isRecord(rawDevices.buildCosts) ||
+      !hasExactKeys(rawDevices.buildCosts, ['ecm-device', 'wolf-agent-detector'])) return null;
+  const validBuildCost = (cost: unknown): cost is number | null =>
+    cost === null || (isCounter(cost) && [5, 7, 9, 10, 12, 13, 18].includes(cost));
+  if (!validBuildCost(rawDevices.buildCosts['ecm-device']) ||
+      !validBuildCost(rawDevices.buildCosts['wolf-agent-detector'])) return null;
 
   const progress: Record<string, number> = {};
   for (const [trackId, count] of Object.entries(value.progress)) {
@@ -165,6 +212,17 @@ function parseWorkspace(value: unknown, expectedSessionId: string): EndeavourRes
     fieldUpgradeState: {
       upgradeRevision: value.fieldUpgradeState.upgradeRevision,
       targetsUsedThisCycle: value.fieldUpgradeState.targetsUsedThisCycle,
+    },
+    scienceDevices: {
+      revision: rawDevices.revision,
+      ecmBuilt: rawDevices.ecmBuilt,
+      detectorBuilt: rawDevices.detectorBuilt,
+      ecmUsed: rawDevices.ecmUsed,
+      shepherdMaterials: rawDevices.shepherdMaterials,
+      buildCosts: {
+        'ecm-device': rawDevices.buildCosts['ecm-device'] as number | null,
+        'wolf-agent-detector': rawDevices.buildCosts['wolf-agent-detector'] as number | null,
+      },
     },
   };
 }
@@ -244,6 +302,126 @@ export function createEndeavourResearchAttempt(input: Readonly<{
     trackId: input.trackId,
     funding: input.funding,
   });
+}
+
+export function createEndeavourScienceDeviceAttempt(input: Readonly<{
+  workspace: EndeavourResearchWorkspace;
+  deviceId: EndeavourScienceDeviceId;
+}>): EndeavourScienceDeviceAttempt {
+  const { session, control } = currentScientistAuthority();
+  const devices = input.workspace.scienceDevices;
+  const built = input.deviceId === 'ecm-device' ? devices?.ecmBuilt : devices?.detectorBuilt;
+  const cost = devices?.buildCosts[input.deviceId];
+  if (input.workspace.sessionId !== session.id || input.workspace.cycle !== session.currentTurn ||
+      !Number.isSafeInteger(input.workspace.researchRevision) ||
+      input.workspace.researchRevision >= Number.MAX_SAFE_INTEGER || !devices || built ||
+      (input.deviceId === 'ecm-device' && devices.ecmUsed) || !isCounter(devices.revision) ||
+      devices.revision > 1 || cost === null || cost === undefined || devices.shepherdMaterials < cost) {
+    if (devices && cost !== null && cost !== undefined && devices.shepherdMaterials < cost) {
+      throw new Error('Shepherd does not have enough materials for this science device.');
+    }
+    throw new Error('Endeavour science device state changed or this purchase is unavailable. Refresh before building.');
+  }
+  return Object.freeze({
+    sessionId: session.id,
+    requestId: requestId(),
+    expectedControlRevision: control.revision,
+    expectedResearchRevision: input.workspace.researchRevision,
+    expectedDeviceRevision: devices.revision,
+    expectedCycle: input.workspace.cycle,
+    deviceId: input.deviceId,
+  });
+}
+
+function assertWellFormedScienceDeviceAttempt(
+  attempt: EndeavourScienceDeviceAttempt,
+  sessionId: string,
+): void {
+  if (!attempt || attempt.sessionId !== sessionId ||
+      typeof attempt.requestId !== 'string' || !/^[\w-]{1,128}$/.test(attempt.requestId) ||
+      !isCounter(attempt.expectedControlRevision) || !isCounter(attempt.expectedResearchRevision) ||
+      attempt.expectedResearchRevision >= Number.MAX_SAFE_INTEGER ||
+      !isCounter(attempt.expectedDeviceRevision) || attempt.expectedDeviceRevision > 1 ||
+      !isCounter(attempt.expectedCycle) || attempt.expectedCycle < 1 ||
+      (attempt.deviceId !== 'ecm-device' && attempt.deviceId !== 'wolf-agent-detector')) {
+    throw new Error('Endeavour science device state changed. Refresh before building.');
+  }
+}
+
+function scienceDevicePayload(attempt: EndeavourScienceDeviceAttempt) {
+  return {
+    sessionId: attempt.sessionId,
+    requestId: attempt.requestId,
+    expectedControlRevision: attempt.expectedControlRevision,
+    expectedResearchRevision: attempt.expectedResearchRevision,
+    expectedDeviceRevision: attempt.expectedDeviceRevision,
+    expectedCycle: attempt.expectedCycle,
+    deviceId: attempt.deviceId,
+  };
+}
+
+function parseScienceDeviceReply(
+  value: unknown,
+  attempt: EndeavourScienceDeviceAttempt,
+): EndeavourScienceDeviceReply | null {
+  const fields = [
+    'status', 'sessionId', 'requestId', 'cycle', 'deviceId', 'deviceRevision', 'built', 'materialCost',
+    'shepherdMaterials',
+  ];
+  if (!isRecord(value) || !hasExactKeys(value, fields) ||
+      (value.status !== 'committed' && value.status !== 'replayed') ||
+      value.sessionId !== attempt.sessionId || value.requestId !== attempt.requestId ||
+      value.cycle !== attempt.expectedCycle || value.deviceId !== attempt.deviceId || value.built !== true ||
+      value.deviceRevision !== attempt.expectedDeviceRevision + 1 || !isCounter(value.materialCost) ||
+      !isCounter(value.shepherdMaterials)) return null;
+  const validCosts = attempt.deviceId === 'ecm-device' ? [18, 13, 9, 7, 5] : [18, 12, 10];
+  if (!validCosts.includes(value.materialCost)) return null;
+  return {
+    status: value.status,
+    sessionId: attempt.sessionId,
+    requestId: attempt.requestId,
+    cycle: attempt.expectedCycle,
+    deviceId: attempt.deviceId,
+    deviceRevision: attempt.expectedDeviceRevision + 1,
+    built: true,
+    materialCost: value.materialCost,
+    shepherdMaterials: value.shepherdMaterials,
+  };
+}
+
+async function submitScienceDeviceAttempt(
+  attempt: EndeavourScienceDeviceAttempt,
+  exactRetry: boolean,
+): Promise<EndeavourScienceDeviceReply> {
+  const { session, me } = currentScientistAuthority();
+  assertWellFormedScienceDeviceAttempt(attempt, session.id);
+  if (!exactRetry && (attempt.expectedCycle !== session.currentTurn ||
+      attempt.expectedControlRevision !== session.shuttleControl?.endeavour?.revision)) {
+    throw new Error('Endeavour science device authority changed. Refresh before building.');
+  }
+  const response = await httpsCallable<ReturnType<typeof scienceDevicePayload>, unknown>(
+    functions(), 'buildEndeavourScienceDevice',
+  )(scienceDevicePayload(attempt));
+  assertCurrentScientistAuthority(attempt.sessionId, me.uid,
+    exactRetry ? undefined : attempt.expectedControlRevision,
+    exactRetry ? undefined : attempt.expectedCycle);
+  const result = parseScienceDeviceReply(response.data, attempt);
+  if (!result) throw new Error('The server returned an invalid Endeavour science device result.');
+  return result;
+}
+
+/** Build one unlocked device using the exact source quote shown in the private workspace. */
+export function buildEndeavourScienceDevice(
+  attempt: EndeavourScienceDeviceAttempt,
+): Promise<EndeavourScienceDeviceReply> {
+  return submitScienceDeviceAttempt(attempt, false);
+}
+
+/** Confirm an uncertain purchase using its immutable request after a same-holder rollover. */
+export function retryUncertainEndeavourScienceDevice(
+  attempt: EndeavourScienceDeviceAttempt,
+): Promise<EndeavourScienceDeviceReply> {
+  return submitScienceDeviceAttempt(attempt, true);
 }
 
 function parseStaleReply(value: unknown, attempt: EndeavourResearchAttempt): EndeavourResearchStaleReply | null {

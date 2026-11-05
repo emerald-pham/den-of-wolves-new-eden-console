@@ -3,7 +3,8 @@ import { isExtraShipAdmitted } from './extraShipAdmission';
 import { INITIAL_SHIP_RESOURCES, isResourceShipId, type ShipResourceInventory } from './resources';
 import { replacementRoleFor } from './replacementRoles';
 import { parseSmallShipState, SMALL_SHIP_RULES } from './smallShip';
-import { SHIP_DAMAGE_DECKS, type ShipDamageState } from './shipDamage';
+import type { ShipDamageState } from './shipDamage';
+import { PUBLIC_SHIP_SYSTEM_IDS } from './publicShipSystems';
 
 const ROLE_ID = 'warrior-captain' as const;
 const SMALL_SHIP_ID = 'warrior' as const;
@@ -26,9 +27,8 @@ function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boo
 }
 
 function repairableConsoleIds(hostShipId: string): ReadonlySet<string> {
-  return new Set((SHIP_DAMAGE_DECKS[hostShipId] ?? [])
-    .filter((card) => !card.systemId.startsWith('armoured-hull'))
-    .map((card) => card.systemId));
+  return new Set((PUBLIC_SHIP_SYSTEM_IDS[hostShipId] ?? [])
+    .filter((systemId) => !systemId.startsWith('armoured-hull')));
 }
 
 export function parseWarriorRepairDronesState(value: unknown): WarriorRepairDronesState | null {
@@ -169,7 +169,7 @@ export function resolveWarriorRepairDrones(input: Readonly<{
 
   const damage = input.hostDamage;
   const damageRaw = record(damage);
-  const knownSystems = new Set((SHIP_DAMAGE_DECKS[hostShipId] ?? []).map((card) => card.systemId));
+  const knownSystems = new Set(PUBLIC_SHIP_SYSTEM_IDS[hostShipId] ?? []);
   const eligibleConsoles = repairableConsoleIds(hostShipId);
   if (!damageRaw || !exactKeys(damageRaw, ['damagedSystemIds', 'destroyed']) ||
       typeof damage.destroyed !== 'boolean' || !Array.isArray(damage.damagedSystemIds) ||
