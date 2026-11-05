@@ -159,3 +159,25 @@ test('the cheap proof preflight always runs and exact-head unit risk remains thr
   assert.match(deploy, /unit_required: \$\{\{ steps\.targets\.outputs\.unit \}\}/);
   assert.match(deploy, /unit_required: \$\{\{ needs\.determine-targets\.outputs\.unit_required == 'true' \}\}/);
 });
+
+test('the retained PT2A Base consumer checks run in the verify job', () => {
+  assert.equal(packageJson.scripts['test:pc10-base-proofs'],
+    'node --test scripts/test-pc10-election-role-entry-contract.mjs scripts/test-pc10-base-post-combat-runner-contract.mjs scripts/test-pc10-source-alert-original-gm-receipt-contract.mjs');
+  assert.equal(packageJson.scripts['test:pc10-base-proofs:browser'],
+    'node --test --test-concurrency=1 scripts/pc10-election-gm-navigation.browser.test.mjs scripts/pc10-base-maintenance-readiness.browser.test.mjs scripts/pc10-base-research-readiness.browser.test.mjs');
+
+  const workflow = load(ci);
+  const steps = workflow.jobs.verify.steps;
+  const index = name => steps.findIndex(step => step.name === name);
+  const preflight = index('Bounded proof-tool contract preflight');
+  const contracts = index('PT2A Base consumer contracts');
+  assert.ok(preflight >= 0 && contracts > preflight, 'the contracts run with the always-on preflight');
+  assert.equal(steps[contracts].run, 'npm run test:pc10-base-proofs');
+  assert.equal(steps[contracts].if, undefined);
+
+  const smoke = index('Fleetwide Red Alert selector browser smoke');
+  const browser = index('PT2A Base consumer browser checks');
+  assert.ok(smoke >= 0 && browser > smoke, 'the browser checks follow an available Playwright Chromium installation');
+  assert.equal(steps[browser].if, "steps.change_scope.outputs.unit == 'true'");
+  assert.equal(steps[browser].run, 'npm run test:pc10-base-proofs:browser');
+});

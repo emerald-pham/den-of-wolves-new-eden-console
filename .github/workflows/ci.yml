@@ -224,6 +224,9 @@ jobs:
       - name: Bounded proof-tool contract preflight
         run: npm run test:proof-preflight
 
+      - name: PT2A Base consumer contracts
+        run: npm run test:pc10-base-proofs
+
       - name: Branch cleanup safeguards
         run: npm run test:branch-cleanup
 
@@ -294,6 +297,10 @@ jobs:
       - name: Fleetwide Red Alert selector browser smoke
         if: steps.change_scope.outputs.unit == 'true'
         run: npm run test:proof-redalert-browser
+
+      - name: PT2A Base consumer browser checks
+        if: steps.change_scope.outputs.unit == 'true'
+        run: npm run test:pc10-base-proofs:browser
 
       - name: Computed-style typography gate
         if: steps.change_scope.outputs.typography == 'true'
