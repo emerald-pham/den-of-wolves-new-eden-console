@@ -341,6 +341,81 @@ it.each(['relocation', 'pallas-reroll'] as const)('R1 denies %s replay after hol
   noAdditionalWrites(before, draws);
 });
 
+async function colonelChepuRelocationFixture() {
+  completeBoardingFixture();
+  const control = fields(sessionPath).shuttleControl as Record<string, Fields>;
+  patch(sessionPath, { activeRoleIds: ['executive-officer', 'refinery-124-pdf-colonel'],
+    shuttleFuelled: { pallas: true, chepu: true },
+    shuttleControl: { ...control, chepu: { shuttleId: 'chepu', ownerRoleId: 'refinery-124-pdf-colonel',
+      ownerUid: 'colonel-1', holderUid: 'colonel-1', revision: 0 } } });
+  put(`${sessionPath}/players/colonel-1`, { uid: 'colonel-1', role: 'player', connected: true,
+    assignedRoleId: 'refinery-124-pdf-colonel', activeConsoleRoleId: 'refinery-124-pdf-colonel', fleetGroupId: 'fleet-2' });
+  put(`${sessionPath}/players/engineer-1`, { uid: 'engineer-1', role: 'player', connected: true,
+    assignedRoleId: 'refinery-124-engineer', activeConsoleRoleId: 'refinery-124-engineer', fleetGroupId: 'fleet-2' });
+  put(`${sessionPath}/fleetGroups/fleet-2`, { id: 'fleet-2', vesselIds: ['refinery-124'],
+    memberUids: ['colonel-1', 'engineer-1'], memberShipIds: { 'colonel-1': 'refinery-124', 'engineer-1': 'refinery-124' } });
+  await special('commander-1', { kind: 'commander', targetShipId: null }, 'review-no-commander');
+  await special('xo-1', { kind: 'relocation', craftId: 'pallas', targetShipId: null,
+    expectedControlRevision: 0 }, 'review-no-pallas-relocation');
+}
+function chepuVisits(): string[][] {
+  return (fields(sessionPath).shuttleVisitLog as Fields[] | undefined ?? [])
+    .filter(({ shuttleId }) => shuttleId === 'chepu').map(({ action, shipId }) => [String(action), String(shipId)]);
+}
+
+it('offers the Chepu boarding relocation only to the Colonel holder and commits it exactly once', async () => {
+  await colonelChepuRelocationFixture();
+  for (const uid of ['xo-1', 'engineer-1']) {
+    await expect(getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, uid)))
+      .resolves.toEqual({ type: 'wolf-boarding-special-choice-unavailable', sessionId: 's1', reason: 'not-your-choice' });
+  }
+  const view = await getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'colonel-1'));
+  expect(view).toMatchObject({ type: 'wolf-boarding-special-choice-view', choice: { kind: 'relocation', craftId: 'chepu',
+    currentHostId: 'refinery-124', fuelled: true, controlRevision: 0 } });
+  expect(view).not.toHaveProperty('privateNotes');
+  if (view.type !== 'wolf-boarding-special-choice-view' || view.choice.kind !== 'relocation') throw new Error('Expected relocation');
+  expect(view.choice.legalHostIds).toContain('dione');
+
+  const choice = { kind: 'relocation', craftId: 'chepu', targetShipId: 'dione', expectedControlRevision: 0 };
+  const beforeDenied = structuredClone([...testState.documents.values()]);
+  for (const uid of ['xo-1', 'engineer-1']) {
+    await expect(special(uid, choice, `not-colonel-${uid}`)).rejects.toMatchObject({ code: 'failed-precondition' });
+  }
+  expect([...testState.documents.values()]).toEqual(beforeDenied);
+  const visitsBefore = chepuVisits();
+
+  const committed = await special('colonel-1', choice, 'colonel-chepu-relocation');
+  expect(committed.result).toMatchObject({ status: 'committed', type: 'wolf-boarding-special-choice',
+    requestId: 'colonel-chepu-relocation', choiceKind: 'relocation', revision: committed.payload.expectedRevision + 1 });
+  expect((fields(sessionPath).shuttleDockings as Fields[]).find(({ shuttleId }) => shuttleId === 'chepu'))
+    .toMatchObject({ shipId: 'dione' });
+  expect(chepuVisits()).toEqual([...visitsBefore, ['departed', 'refinery-124'], ['docked', 'dione']]);
+  expect((fields(attackPath).boardingRelocationChoices as Fields).chepu).toMatchObject({ actorUid: 'colonel-1',
+    requestId: 'colonel-chepu-relocation', hostBefore: 'refinery-124', hostAfter: 'dione' });
+
+  // A lost reply retried with the same request replays the committed receipt without moving Chepu again.
+  const afterCommit = structuredClone([...testState.documents.values()]);
+  await expect(commitWolfBoardingSpecialChoice.run(request(committed.payload, 'colonel-1'))).resolves.toEqual(committed.result);
+  expect([...testState.documents.values()]).toEqual(afterCommit);
+  // A different request for the already-committed revision is stale and changes nothing.
+  await expect(commitWolfBoardingSpecialChoice.run(request({ ...committed.payload, requestId: 'colonel-chepu-second' }, 'colonel-1')))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect([...testState.documents.values()]).toEqual(afterCommit);
+});
+
+it('denies the Colonel Chepu receipt replay after Chepu custody changes', async () => {
+  await colonelChepuRelocationFixture();
+  const committed = await special('colonel-1', { kind: 'relocation', craftId: 'chepu', targetShipId: null,
+    expectedControlRevision: 0 }, 'colonel-chepu-stay');
+  const control = fields(sessionPath).shuttleControl as Record<string, Fields>;
+  patch(sessionPath, { shuttleControl: { ...control, chepu: { ...control.chepu, holderUid: 'engineer-1',
+    revision: (control.chepu!.revision as number) + 1 } } });
+  const before = structuredClone([...testState.documents.values()]);
+  await expect(commitWolfBoardingSpecialChoice.run(request(committed.payload, 'colonel-1')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect([...testState.documents.values()]).toEqual(before);
+});
+
 it.each(['expired', 'disconnected', 'foreign-holder'])('R1 rejects saved private GM ruling under a %s lease', async change => {
   const committed = await commitSpecialFixture('commander-ruling');
   patch(`${sessionPath}/gmInstances/gm-instance`, change === 'expired' ? { lastSeenAt: new Date(Date.now() - 600_000) }
