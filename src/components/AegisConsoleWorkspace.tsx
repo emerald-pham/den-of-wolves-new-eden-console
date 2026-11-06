@@ -14,7 +14,9 @@ import {
   type AegisShipSystem,
 } from '@/data/aegisConsoles';
 import aegis from '@/data/vessels/aegis';
-import type { DamageDraw, MaintenanceCycle, ShipDamageState, ShipNavigationLogs, TurnPhase } from '@/types/game';
+import type {
+  DamageDraw, MaintenanceCycle, ShipDamageState, ShipNavigationLogs, TurnPhase, WolfAttackMemberView,
+} from '@/types/game';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
 import { useConsoleAccess } from '@/lib/consoleAccess';
@@ -361,19 +363,23 @@ export function FighterWingCard({
 }
 
 /**
- * Whether the member-visible Wolf attack for this cycle is still in progress.
- * The server remains the authority (it also holds the exchange until the fleet
- * is released); this only lets the console explain the block before a click.
+ * Whether the member-visible Wolf attack still holds the fleet. This mirrors
+ * the server's `wolfAttackBlocksNormalMovement`: any attack record blocks
+ * until it is resolved and normal movement reopens, whatever cycle declared
+ * it. Members only see the resolved/finished step, which the server writes in
+ * the same commit that unlocks airspace. The server remains the authority.
  */
-function useWolfAttackInProgress(sessionId: string | undefined, currentTurn: number | undefined, live: boolean): boolean {
-  const [view, setView] = useState<Readonly<{ sessionId: string; turn: number; declared: boolean }> | null>(null);
+function wolfAttackHoldsFleet(view: Pick<WolfAttackMemberView, 'status' | 'currentStep'> | null): boolean {
+  return view !== null && (view.status !== 'resolved' || view.currentStep !== 'resolved');
+}
+
+function useWolfAttackHoldsFleet(sessionId: string | undefined, live: boolean): boolean {
+  const [view, setView] = useState<Readonly<{ sessionId: string; holds: boolean }> | null>(null);
   useEffect(() => {
     if (!sessionId || !live) return undefined;
-    return subscribeWolfAttackMemberView(sessionId, (member) => setView(member
-      ? { sessionId, turn: member.turn, declared: member.status === 'declared' }
-      : null));
+    return subscribeWolfAttackMemberView(sessionId, (member) => setView({ sessionId, holds: wolfAttackHoldsFleet(member) }));
   }, [sessionId, live]);
-  return Boolean(live && view && view.sessionId === sessionId && view.turn === currentTurn && view.declared);
+  return Boolean(live && view && view.sessionId === sessionId && view.holds);
 }
 
 /** The Admiral and Executive Officer use the same server-backed maintenance lane. */
@@ -463,7 +469,7 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
   const access = useConsoleAccess();
   const [buildingWing, setBuildingWing] = useState<string | null>(null);
   const [buildNotices, setBuildNotices] = useState<Readonly<Record<string, string>>>({});
-  const wolfAttackActive = useWolfAttackInProgress(session?.id, session?.currentTurn,
+  const wolfAttackActive = useWolfAttackHoldsFleet(session?.id,
     Boolean(session && sessionSnapshotFreshness === 'server') && connection === 'live');
   const starlight = console.craft[0];
   if (!starlight) return null;
