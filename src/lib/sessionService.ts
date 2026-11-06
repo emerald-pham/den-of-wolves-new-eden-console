@@ -7310,13 +7310,23 @@ function wolfBoardingSpecialChoiceReadReply(value: unknown): WolfBoardingSpecial
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const reply = value as Record<string, unknown>;
   if (reply.type === 'wolf-boarding-special-choice-unavailable') {
-    const allowed = new Set(['type', 'sessionId', 'reason']);
+    const allowed = new Set(['type', 'sessionId', 'reason', 'committedRelocation']);
     const reasons = ['not-your-choice', 'automatic-progress-pending', 'no-special-choice'];
-    return Object.keys(reply).every((key) => allowed.has(key)) && typeof reply.sessionId === 'string' &&
-      reasons.includes(String(reply.reason))
-      ? { type: 'wolf-boarding-special-choice-unavailable', sessionId: reply.sessionId,
-        reason: reply.reason as Extract<WolfBoardingSpecialChoiceReadResult, { type: 'wolf-boarding-special-choice-unavailable' }>['reason'] }
-      : null;
+    if (!Object.keys(reply).every((key) => allowed.has(key)) || typeof reply.sessionId !== 'string' ||
+        !reasons.includes(String(reply.reason))) return null;
+    const unavailable = { type: 'wolf-boarding-special-choice-unavailable' as const, sessionId: reply.sessionId,
+      reason: reply.reason as Extract<WolfBoardingSpecialChoiceReadResult, { type: 'wolf-boarding-special-choice-unavailable' }>['reason'] };
+    if (reply.committedRelocation === undefined) return unavailable;
+    const committed = reply.committedRelocation as Record<string, unknown> | null;
+    const isTarget = (target: unknown): target is WolfAttackTargetId =>
+      WOLF_FORCE_FIELD_TARGET_IDS.includes(target as WolfAttackTargetId);
+    if (typeof committed !== 'object' || committed === null || Array.isArray(committed) ||
+        Object.keys(committed).some((key) => !['turn', 'craftId', 'selectedHostId', 'hostShipId'].includes(key)) ||
+        !Number.isSafeInteger(committed.turn) || (committed.turn as number) < 1 ||
+        (committed.craftId !== 'pallas' && committed.craftId !== 'chepu') || !isTarget(committed.hostShipId) ||
+        (committed.selectedHostId !== null && !isTarget(committed.selectedHostId))) return null;
+    return { ...unavailable, committedRelocation: { turn: committed.turn as number, craftId: committed.craftId,
+      selectedHostId: committed.selectedHostId as WolfAttackTargetId | null, hostShipId: committed.hostShipId } };
   }
   const rootAllowed = new Set(['type', 'sessionId', 'turn', 'revision', 'choice']);
   if (Object.keys(reply).some((key) => !rootAllowed.has(key)) ||

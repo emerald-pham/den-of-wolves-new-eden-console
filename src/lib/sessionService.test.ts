@@ -93,6 +93,7 @@ const {
   getWolfBoardingDefenceChoice,
   commitWolfBoardingDefenceChoice,
   commitWolfBoardingSpecialChoice,
+  getWolfBoardingSpecialChoice,
   commitWolfRangeActionChoice,
   assignWolfRangeTargets,
   getWolfRangeActionChoice,
@@ -4497,6 +4498,25 @@ describe('Colonel Chepu boarding relocation delivery', () => {
     await commitWolfBoardingSpecialChoice(1, 12, { ...chepuMove, targetShipId: null });
     const ids = commit.mock.calls.map(([payload]) => (payload as Record<string, unknown>).requestId);
     expect(new Set(ids).size).toBe(3);
+  });
+
+  it('accepts only a well-formed committed relocation of the reader on an unavailable boarding read', async () => {
+    const unavailable = { type: 'wolf-boarding-special-choice-unavailable', sessionId: 's1', reason: 'not-your-choice' };
+    const committedRelocation = { turn: 1, craftId: 'chepu', selectedHostId: 'dione', hostShipId: 'dione' };
+    const read = Object.assign(vi.fn()
+      .mockResolvedValueOnce({ data: { ...unavailable, committedRelocation } })
+      .mockResolvedValueOnce({ data: { ...unavailable, committedRelocation: { ...committedRelocation, selectedHostId: null,
+        hostShipId: 'refinery-124' } } })
+      .mockResolvedValueOnce({ data: { ...unavailable, committedRelocation: { ...committedRelocation, craftId: 'macaw' } } })
+      .mockResolvedValueOnce({ data: { ...unavailable, committedRelocation: { ...committedRelocation, actorUid: 'u2' } } }),
+    { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(read as never);
+
+    await expect(getWolfBoardingSpecialChoice()).resolves.toEqual({ ...unavailable, committedRelocation });
+    await expect(getWolfBoardingSpecialChoice()).resolves.toMatchObject({
+      committedRelocation: { selectedHostId: null, hostShipId: 'refinery-124' } });
+    await expect(getWolfBoardingSpecialChoice()).rejects.toThrow(/invalid boarding choice view/i);
+    await expect(getWolfBoardingSpecialChoice()).rejects.toThrow(/invalid boarding choice view/i);
   });
 
   it('does not reuse a lost relocation request after the boarding authority changes', async () => {

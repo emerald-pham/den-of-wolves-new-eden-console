@@ -61,3 +61,46 @@ it('withdraws the Chepu choice without a second commit when the lost reply had a
   expect(screen.queryByRole('region', { name: 'Current boarding special choice' })).not.toBeInTheDocument();
   expect(mocks.commit).toHaveBeenCalledTimes(1);
 });
+
+it('shows the Colonel the committed Chepu relocation and its host after the choice closes and after a remount', async () => {
+  const committed = { type: 'wolf-boarding-special-choice-unavailable', sessionId: 's1', reason: 'not-your-choice',
+    committedRelocation: { turn: 1, craftId: 'chepu', selectedHostId: 'dione', hostShipId: 'dione' } } as const;
+  mocks.read.mockResolvedValueOnce(chepuChoice).mockResolvedValue(committed);
+  mocks.commit.mockResolvedValueOnce({ status: 'committed' });
+  const view = render(<WolfBoardingSpecialChoicePanel />);
+  act(() => publish(member));
+
+  await userEvent.click(await screen.findByRole('button', { name: 'Move Chepu to Dione' }));
+  act(() => publish({ ...member, revision: 13 }));
+  const result = await screen.findByRole('region', { name: 'Chepu boarding relocation' });
+  expect(result).toHaveTextContent('Chepu is now docked at Dione.');
+  expect(result).toHaveTextContent('Chepu host // Dione');
+  expect(screen.queryByRole('button', { name: /Chepu/ })).not.toBeInTheDocument();
+  expect(mocks.commit).toHaveBeenCalledTimes(1);
+  view.unmount();
+
+  // Leaving and returning keeps the committed result from the server, not local memory.
+  render(<WolfBoardingSpecialChoicePanel />);
+  act(() => publish({ ...member, revision: 13 }));
+  expect(await screen.findByText('Chepu is now docked at Dione.')).toBeVisible();
+});
+
+it('shows a committed Chepu stay at its unchanged host and ignores a result from another cycle', async () => {
+  mocks.read.mockResolvedValueOnce({ type: 'wolf-boarding-special-choice-unavailable', sessionId: 's1',
+    reason: 'no-special-choice', committedRelocation: { turn: 1, craftId: 'chepu', selectedHostId: null,
+      hostShipId: 'refinery-124' } });
+  const view = render(<WolfBoardingSpecialChoicePanel />);
+  act(() => publish(member));
+  const result = await screen.findByRole('region', { name: 'Chepu boarding relocation' });
+  expect(result).toHaveTextContent('Chepu stayed docked at Refinery 124.');
+  expect(result).toHaveTextContent('Chepu host // Refinery 124');
+  view.unmount();
+
+  mocks.read.mockResolvedValueOnce({ type: 'wolf-boarding-special-choice-unavailable', sessionId: 's1',
+    reason: 'no-special-choice', committedRelocation: { turn: 1, craftId: 'chepu', selectedHostId: null,
+      hostShipId: 'refinery-124' } });
+  render(<WolfBoardingSpecialChoicePanel />);
+  act(() => publish({ ...member, turn: 2 }));
+  await vi.waitFor(() => expect(mocks.read).toHaveBeenCalledTimes(2));
+  expect(screen.queryByRole('region', { name: 'Chepu boarding relocation' })).not.toBeInTheDocument();
+});

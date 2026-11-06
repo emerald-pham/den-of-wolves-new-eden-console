@@ -953,9 +953,16 @@ export type WolfBoardingSpecialChoiceView = Readonly<{
         condition: 'All Commander-led Wolf Boarding Parties were destroyed.' }>;
 }>;
 
+/** The reader's own committed boarding shuttle relocation for the current attack cycle. */
+export type WolfBoardingCommittedRelocation = Readonly<{
+  turn: number; craftId: 'pallas' | 'chepu';
+  selectedHostId: WolfAttackTargetId | null; hostShipId: WolfAttackTargetId;
+}>;
+
 export type WolfBoardingSpecialChoiceReadResult = WolfBoardingSpecialChoiceView | Readonly<{
   type: 'wolf-boarding-special-choice-unavailable'; sessionId: string;
   reason: 'not-your-choice' | 'automatic-progress-pending' | 'no-special-choice';
+  committedRelocation?: WolfBoardingCommittedRelocation;
 }>;
 
 export interface WolfBoardingSpecialChoiceResult {
