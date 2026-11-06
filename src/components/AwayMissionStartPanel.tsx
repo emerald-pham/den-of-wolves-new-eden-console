@@ -436,7 +436,7 @@ export default function AwayMissionStartPanel({
                 {' '}({selectedOpportunity.sourceTransitionId}).
               </p>
               {session?.boaReclamationPending?.[selectedOpportunity.id] === true && (
-                <p className="gm-console__status">
+                <p className="away-mission-start-panel__boa-pending">
                   Boa choice pending // the Boa Recycler chose a task to reclaim; the deal settles or lapses it.
                 </p>
               )}

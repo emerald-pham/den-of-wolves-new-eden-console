@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { PdfNewsRelayAudit, subscribeGmPdfNewsRelayAudits } from '@/lib/firestore';
 import { PDF_ROLE_CONSOLE } from '@/data/pdfConsoles';
 import { findConsoleRole } from '@/data/roles';
+import './PdfNewsRelayAuditLog.css';
 
 type Subscribe = typeof subscribeGmPdfNewsRelayAudits;
 
@@ -36,12 +37,12 @@ export default function PdfNewsRelayAuditLog({ sessionId, subscribe = defaultSub
   return (
     <section className="gm-console__module cic-frame" aria-label="P.D.F. news relay record">
       <h2 className="gm-console__section-title">P.D.F. news relays</h2>
-      {audits === null && <p className="gm-console__status" role="status">
+      {audits === null && <p className="pdf-news-relay-log__empty" role="status">
         The relay record is unavailable // reconnect the facilitator console.
       </p>}
       {(audits === undefined || audits?.length === 0) &&
-        <p className="gm-console__hint">No P.D.F. Colonel relay has been sent.</p>}
-      {audits && audits.length > 0 && <ul className="gm-event-log" aria-label="P.D.F. news relays">
+        <p className="pdf-news-relay-log__empty">No P.D.F. Colonel relay has been sent.</p>}
+      {audits && audits.length > 0 && <ul className="pdf-news-relay-log__list" aria-label="P.D.F. news relays">
         {audits.map((audit) => <li key={audit.requestId}>
           <time dateTime={audit.createdAt}>{new Date(audit.createdAt).toLocaleTimeString()}</time>
           <span>
