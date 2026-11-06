@@ -1,5 +1,7 @@
 import { randomInt } from 'node:crypto';
-import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
+import {
+  FieldValue, Timestamp, getFirestore, type DocumentSnapshot, type Firestore, type Transaction,
+} from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { isExtraShipAdmitted } from './extraShipAdmission';
 import { fleetGroupRecord } from './fleetGroups';
@@ -19,6 +21,7 @@ import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import { isPresenceStale } from './sessionLifecycle';
 import { requireCandidateVesselsAvailable } from './candidateAvailability';
 import { parseRetainedShuttles } from './retainedShuttles';
+import { parseAttackScrapPickups, takeAttackScrapPickup } from './attackScrapPickups';
 
 type RecordValue = Record<string, unknown>;
 type WolfAttackAftermathAction = 'doctor' | 'warrior-salvage' | 'collect-scrap';
@@ -224,6 +227,83 @@ function currentView(sessionId: string, state: RecordValue, serverTime: string):
   }
 }
 
+type ScrapCustody = Readonly<{ shuttleId: 'macaw' | 'boa'; targetShipId: string; actorRoleId: string }>;
+
+/**
+ * The current holder may collect only a pickup its shuttle can reach: a unique
+ * dock at a live target, or retained custody from the destroyed target.
+ * `opportunity` is the pending pickup, or undefined when there is none.
+ */
+async function requireScrapCustody(tx: Transaction, db: Firestore, command: WolfAttackAftermathCommand,
+  actor: DocumentSnapshot, sessionData: RecordValue, uid: string,
+  opportunity: Readonly<{ destroyed: boolean }> | undefined): Promise<ScrapCustody> {
+  const shuttleId = command.shuttleId!;
+  const targetShipId = command.targetShipId!;
+  const actorExpectedRole = shuttleId === 'macaw' ? 'capybara-captain' : 'capybara-recycler';
+  if (shuttleId === 'macaw') {
+    if (actor.get('activeConsoleRoleId') !== actorExpectedRole || actor.get('assignedRoleId') !== actorExpectedRole) {
+      throw new HttpsError('permission-denied', 'Only the current Macaw holder may collect Scrap.');
+    }
+  } else if (actor.get('assignedRoleId') !== actorExpectedRole) {
+    throw new HttpsError('permission-denied', 'Only the current Boa Recycler may collect Scrap.');
+  }
+  if (sessionData.phase !== 'active' || sessionData.capybaraEnabled === false) {
+    throw new HttpsError('failed-precondition', 'The Capybara Scrap authority is unavailable.');
+  }
+  const activeVesselIds = sessionData.activeVesselIds;
+  const rawDockings = sessionData.shuttleDockings;
+  const controls = parseShuttleControl(sessionData.shuttleControl);
+  const control = controls?.[shuttleId];
+  if (!Array.isArray(activeVesselIds) || !activeVesselIds.includes('capybara') ||
+      !activeVesselIds.includes(targetShipId) ||
+      activeVesselIds.some((id) => typeof id !== 'string' || !isResourceShipId(id)) ||
+      !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings as never, activeVesselIds) ||
+      !shuttleHostIsAllowed(shuttleId, targetShipId) ||
+      !control || control.holderUid !== uid || control.ownerRoleId !== actorExpectedRole) {
+    throw new HttpsError('failed-precondition', 'The authoritative Capybara shuttle and fleet state is unavailable.');
+  }
+  const groupId = actor.get('fleetGroupId');
+  if (typeof groupId !== 'string' || groupId.length < 1) {
+    throw new HttpsError('permission-denied', 'This shuttle holder has no current fleet group.');
+  }
+  const groupSnapshot = await tx.get(db.doc(`sessions/${command.sessionId}/fleetGroups/${groupId}`));
+  const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+  if (!group || group.id !== groupId || !group.memberUids.includes(uid) || !group.vesselIds.includes(targetShipId)) {
+    throw new HttpsError('permission-denied', 'The selected ship is outside this shuttle holder’s fleet group.');
+  }
+  const retained = parseRetainedShuttles(sessionData.retainedShuttles);
+  if (!retained) throw new HttpsError('failed-precondition', 'The retained shuttle custody is malformed.');
+  const retainedEntry = retained[shuttleId];
+  const dockingRows = rawDockings.filter((row) => record(row) && row.shuttleId === shuttleId);
+  if (!opportunity) {
+    throw new HttpsError('failed-precondition', 'That ship has no collectable Scrap opportunity from this attack.');
+  }
+  // A live target's pickup is reachable only from a unique dock there. A ship
+  // destroyed by its attack still earned its pickup; the only craft at that
+  // location is the one its current holder retained from that destroyed host.
+  const dockedAtLiveTarget = !opportunity.destroyed && retainedEntry === undefined &&
+    dockingRows.length === 1 && dockingRows[0]?.shipId === targetShipId;
+  const retainedAtDestroyedTarget = opportunity.destroyed && dockingRows.length === 0 &&
+    retainedEntry?.status === 'retained' && retainedEntry.ownerRoleId === actorExpectedRole &&
+    retainedEntry.holderUid === uid && retainedEntry.destroyedHostShipId === targetShipId &&
+    retainedEntry.controlRevision === control.revision;
+  if (!dockedAtLiveTarget && !retainedAtDestroyedTarget) {
+    throw new HttpsError('failed-precondition', `${shuttleId === 'macaw' ? 'Macaw' : 'Boa'} must be docked at a live Scrap target or retained from its destroyed host.`);
+  }
+  return { shuttleId, targetShipId, actorRoleId: actorExpectedRole };
+}
+
+/** The shuttle cargo map after adding exactly one Scrap to the collecting shuttle. */
+function cargoWithOneMoreScrap(sessionData: RecordValue, shuttleId: 'macaw' | 'boa'): RecordValue {
+  const cargoRoot = record(sessionData.shuttleCargo) ? { ...sessionData.shuttleCargo } : {};
+  const cargo = safeCargo(cargoRoot[shuttleId], shuttleId);
+  if (!safeCounter(cargo.scrap) || cargo.scrap >= Number.MAX_SAFE_INTEGER) {
+    throw new HttpsError('failed-precondition', 'The shuttle cannot safely hold another Scrap.');
+  }
+  cargoRoot[shuttleId] = { ...cargo, scrap: cargo.scrap + 1 };
+  return cargoRoot;
+}
+
 export const resolveWolfAttackAftermath = onCall<{
   sessionId?: unknown; attackId?: unknown; requestId?: unknown; action?: unknown;
   selectedShipIds?: unknown; shuttleId?: unknown; targetShipId?: unknown;
@@ -247,9 +327,37 @@ export const resolveWolfAttackAftermath = onCall<{
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const sessionData = session.data() ?? {};
     currentAftermathActor(actor, uid, command, sessionData);
-    if (session.get('phase') !== 'active' || !attack.exists || attack.get('status') !== 'resolved' ||
-        attack.get('attackId') !== command.attackId || !Number.isSafeInteger(attack.get('turn')) ||
-        attack.get('turn') !== session.get('currentTurn')) {
+    const collectsScrap = command.action === 'collect-scrap';
+    // A Scrap pickup has no expiry, so its committed receipt stays replayable
+    // for the current holder after its attack stops being the current attack.
+    if (collectsScrap) {
+      const replay = replayResult(receiptDoc, fingerprint);
+      if (replay) return replay;
+    }
+    const isCurrentAttack = session.get('phase') === 'active' && attack.exists &&
+      attack.get('status') === 'resolved' && attack.get('attackId') === command.attackId &&
+      Number.isSafeInteger(attack.get('turn')) && (collectsScrap || attack.get('turn') === session.get('currentTurn'));
+    if (!isCurrentAttack) {
+      if (collectsScrap && session.get('phase') === 'active') {
+        // A later attack replaced this attack's state; its uncollected pickups
+        // were carried into the session's server-owned pickup ledger.
+        requireCandidateVesselsAvailable(session, ['capybara', command.targetShipId!]);
+        const ledger = parseAttackScrapPickups(sessionData.attackScrapPickups);
+        if (!ledger) throw new HttpsError('failed-precondition', 'The attack Scrap pickup ledger is malformed.');
+        const taken = takeAttackScrapPickup(ledger, command.targetShipId!, command.attackId);
+        const custody = await requireScrapCustody(tx, db, command, actor, sessionData, uid, taken?.pickup);
+        const reply = { status: 'committed', sessionId: command.sessionId, attackId: command.attackId,
+          requestId: command.requestId, action: command.action, targetShipId: custody.targetShipId,
+          shuttleId: custody.shuttleId, scrapGained: 1 };
+        tx.update(sessionRef, {
+          shuttleCargo: cargoWithOneMoreScrap(sessionData, custody.shuttleId),
+          attackScrapPickups: taken!.ledger,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        tx.set(receiptRef, { fingerprint, actorRoleId: custody.actorRoleId, result: reply,
+          createdAt: FieldValue.serverTimestamp() });
+        return reply;
+      }
       throw new HttpsError('failed-precondition', 'This aftermath belongs to a stale or unresolved attack.');
     }
     const stateData = attack.data() ?? {};
@@ -382,61 +490,11 @@ export const resolveWolfAttackAftermath = onCall<{
         materialsGained: result.materialsGained, committedAt: now };
       privateAftermath.warriorSalvage = privateResult;
     } else {
-      const shuttleId = command.shuttleId!;
-      const targetShipId = command.targetShipId!;
-      const actorExpectedRole = shuttleId === 'macaw' ? 'capybara-captain' : 'capybara-recycler';
-      actorRoleId = actorExpectedRole;
-      if (shuttleId === 'macaw') {
-        if (actor.get('activeConsoleRoleId') !== actorExpectedRole || actor.get('assignedRoleId') !== actorExpectedRole) {
-          throw new HttpsError('permission-denied', 'Only the current Macaw holder may collect Scrap.');
-        }
-      } else if (actor.get('assignedRoleId') !== actorExpectedRole) {
-        throw new HttpsError('permission-denied', 'Only the current Boa Recycler may collect Scrap.');
-      }
-      if (sessionData.phase !== 'active' || sessionData.capybaraEnabled === false) {
-        throw new HttpsError('failed-precondition', 'The Capybara Scrap authority is unavailable.');
-      }
-      const activeVesselIds = sessionData.activeVesselIds;
-      const rawDockings = sessionData.shuttleDockings;
-      const controls = parseShuttleControl(sessionData.shuttleControl);
-      const control = controls?.[shuttleId];
-      if (!Array.isArray(activeVesselIds) || !activeVesselIds.includes('capybara') ||
-          !activeVesselIds.includes(targetShipId) ||
-          activeVesselIds.some((id) => typeof id !== 'string' || !isResourceShipId(id)) ||
-          !Array.isArray(rawDockings) || !shuttleDockingsAreParked(rawDockings as never, activeVesselIds) ||
-          !shuttleHostIsAllowed(shuttleId, targetShipId) ||
-          !control || control.holderUid !== uid || control.ownerRoleId !== actorExpectedRole) {
-        throw new HttpsError('failed-precondition', 'The authoritative Capybara shuttle and fleet state is unavailable.');
-      }
-      const groupId = actor.get('fleetGroupId');
-      if (typeof groupId !== 'string' || groupId.length < 1) {
-        throw new HttpsError('permission-denied', 'This shuttle holder has no current fleet group.');
-      }
-      const groupSnapshot = await tx.get(db.doc(`sessions/${command.sessionId}/fleetGroups/${groupId}`));
-      const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
-      if (!group || group.id !== groupId || !group.memberUids.includes(uid) || !group.vesselIds.includes(targetShipId)) {
-        throw new HttpsError('permission-denied', 'The selected ship is outside this shuttle holder’s fleet group.');
-      }
-      const retained = parseRetainedShuttles(sessionData.retainedShuttles);
-      if (!retained) throw new HttpsError('failed-precondition', 'The retained shuttle custody is malformed.');
-      const retainedEntry = retained[shuttleId];
-      const dockingRows = rawDockings.filter((row) => record(row) && row.shuttleId === shuttleId);
-      const targetDamage = damage.find((row) => row.target === targetShipId);
-      if (!targetDamage || targetDamage.amount < 3) {
-        throw new HttpsError('failed-precondition', 'That ship has no collectable Scrap opportunity from this attack.');
-      }
-      // A live target's pickup is reachable only from a unique dock there. A ship
-      // destroyed by this attack still earned its pickup; the only craft at that
-      // location is the one its current holder retained from that destroyed host.
-      const dockedAtLiveTarget = !targetDamage.state.destroyed && retainedEntry === undefined &&
-        dockingRows.length === 1 && dockingRows[0]?.shipId === targetShipId;
-      const retainedAtDestroyedTarget = targetDamage.state.destroyed && dockingRows.length === 0 &&
-        retainedEntry?.status === 'retained' && retainedEntry.ownerRoleId === actorExpectedRole &&
-        retainedEntry.holderUid === uid && retainedEntry.destroyedHostShipId === targetShipId &&
-        retainedEntry.controlRevision === control.revision;
-      if (!dockedAtLiveTarget && !retainedAtDestroyedTarget) {
-        throw new HttpsError('failed-precondition', `${shuttleId === 'macaw' ? 'Macaw' : 'Boa'} must be docked at a live Scrap target or retained from its destroyed host.`);
-      }
+      const targetDamage = damage.find((row) => row.target === command.targetShipId);
+      const { shuttleId, targetShipId, actorRoleId: custodyRoleId } = await requireScrapCustody(tx, db, command,
+        actor, sessionData, uid, targetDamage && targetDamage.amount >= 3
+          ? { destroyed: targetDamage.state.destroyed } : undefined);
+      actorRoleId = custodyRoleId;
       const opportunities = wolfDamageScrapOpportunities(command.attackId,
         damage.map(({ target, amount, draws }) => ({ target, amount, draws })));
       if (!opportunities.some((row) => row.shipId === targetShipId)) {
@@ -446,13 +504,7 @@ export const resolveWolfAttackAftermath = onCall<{
       if (claims[targetShipId] !== undefined) {
         throw new HttpsError('failed-precondition', 'This attack’s Scrap opportunity has already been collected.');
       }
-      const cargoRoot = record(sessionData.shuttleCargo) ? { ...sessionData.shuttleCargo } : {};
-      const cargo = safeCargo(cargoRoot[shuttleId], shuttleId);
-      if (!safeCounter(cargo.scrap) || cargo.scrap >= Number.MAX_SAFE_INTEGER) {
-        throw new HttpsError('failed-precondition', 'The shuttle cannot safely hold another Scrap.');
-      }
-      cargoRoot[shuttleId] = { ...cargo, scrap: cargo.scrap + 1 };
-      sessionPatch.shuttleCargo = cargoRoot;
+      sessionPatch.shuttleCargo = cargoWithOneMoreScrap(sessionData, shuttleId);
       const claim = { shuttleId, actorUid: uid, actorRoleId, requestId: command.requestId, scrap: 1, committedAt: now };
       claims[targetShipId] = claim;
       privateAftermath.scrapClaims = claims;
