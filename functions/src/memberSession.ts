@@ -57,7 +57,7 @@ const PUBLIC_FIELDS = [
 export const MEMBER_VESSEL_MAP_FIELDS = [
   'shipResources', 'shipDamage', 'shipUpgrades', 'shipUnrest', 'shipMutinies', 'shipSurvivors',
   'shipConsoleLocks', 'vesselActionRevisions', 'shipJumpStates', 'shipJumpTransitions',
-  'populationAlerts', 'unrestAlerts', 'maintenanceCycles', 'smallShipStates',
+  'populationAlerts', 'unrestAlerts', 'maintenanceCycles', 'smallShipStates', 'attackScrapPickups',
 ] as const;
 const CRAFT_MAP_FIELDS = ['shuttleControl', 'shuttleCargo', 'shuttleFuelled', 'shuttleEvacuations',
   'serviceShuttleRecharges', 'retainedShuttles'] as const;

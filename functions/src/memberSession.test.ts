@@ -53,6 +53,14 @@ describe('current member session privacy', () => {
     expect(value.pressClaimed).toBe(true);
   });
 
+  it('shows pending attack Scrap pickups only for the current group ships', () => {
+    const value = memberSessionProjection({ ...root, attackScrapPickups: {
+      aegis: [{ attackId: 'wolf-attack-7', turn: 1, destroyed: false }],
+      shepherd: [{ attackId: 'wolf-attack-7', turn: 1, destroyed: true }],
+    } }, memberSessionScope(player, groups));
+    expect(value.attackScrapPickups).toEqual({ shepherd: [{ attackId: 'wolf-attack-7', turn: 1, destroyed: true }] });
+  });
+
   it('removes craft immediately when its authoritative host moves to another group', () => {
     const value = memberSessionProjection({ ...root, shuttleDockings: [{ shuttleId: 'endeavour', shipId: 'aegis' }] }, memberSessionScope(player, groups));
     expect(value.shuttleDockings).toEqual([]);

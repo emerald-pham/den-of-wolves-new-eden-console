@@ -491,6 +491,68 @@ it('consumes only the finalized prior attack survivors once and preserves its im
     .toMatchObject({ sourceInstanceIds: ['0:wolf-fighter-wing', '1:wolf-fighter-wing'] });
 });
 
+describe('uncollected attack Scrap pickups', () => {
+  const damageRow = (target: string, amount: number, destroyed = false): Fields => ({
+    target, amount, populationBefore: 2_500, population: 2_000,
+    state: { damagedSystemIds: [], destroyed }, draws: Array.from({ length: amount }, () => ({ casualty: false })),
+  });
+  const declareSecond = (sessionFields: Fields = {}) => {
+    session({ currentTurn: 2, turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: new Date(Date.now() - 2_000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.now() + 60_000).toISOString(),
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    }, ...sessionFields });
+    preparation({
+      turn: 2, revision: 2,
+      shipIds: [...Array<string>(13).fill('wolf-fighter-wing'), 'wolf-assault-transport'],
+      targetAssignments: [], modifiers: [],
+    });
+    dueWindow({ status: 'due', turn: 2, revision: 3 });
+    if (Array.isArray(sessionFields.activeVesselIds)) fleetGroup('fleet-1', { vesselIds: sessionFields.activeVesselIds });
+    return declareWolfAttack.run(request({ ...baseData, requestId: 'wolf-declare-second', expectedRevision: 2 }));
+  };
+  const capybaraFleet = {
+    capybaraEnabled: true,
+    activeVesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124', 'capybara'],
+  };
+
+  it('carries the finished attack’s uncollected pickups into the session ledger when the next attack replaces it', async () => {
+    resolvedPriorAttack({
+      calculationReceipt: { fleetDamage: [damageRow('aegis', 3), damageRow('dione', 2), damageRow('quellon', 4, true),
+        damageRow('shepherd', 5)] },
+      state: { aftermath: { scrapClaims: { shepherd: { shuttleId: 'boa', scrap: 1 } } } },
+    });
+
+    await expect(declareSecond({ ...capybaraFleet,
+      attackScrapPickups: { aegis: [{ attackId: 'wolf-attack-older', turn: 1, destroyed: false }] } }))
+      .resolves.toMatchObject({ status: 'committed', turn: 2 });
+
+    expect(mock.documents.get('sessions/s1').attackScrapPickups).toEqual({
+      aegis: [{ attackId: 'wolf-attack-older', turn: 1, destroyed: false },
+        { attackId: 'wolf-attack-prior', turn: 1, destroyed: false }],
+      quellon: [{ attackId: 'wolf-attack-prior', turn: 1, destroyed: true }],
+    });
+  });
+
+  it('records no pickup ledger when the Capybara is not in the fleet', async () => {
+    resolvedPriorAttack({ calculationReceipt: { fleetDamage: [damageRow('aegis', 3)] } });
+
+    await expect(declareSecond()).resolves.toMatchObject({ status: 'committed' });
+    expect(mock.documents.get('sessions/s1')).not.toHaveProperty('attackScrapPickups');
+  });
+
+  it('refuses to replace an attack while the pickup ledger is malformed', async () => {
+    resolvedPriorAttack({ calculationReceipt: { fleetDamage: [damageRow('aegis', 3)] } });
+    const archive = 'sessions/s1/wolfAttackState/current/archives/wolf-attack-prior';
+
+    await expect(declareSecond({ ...capybaraFleet, attackScrapPickups: { aegis: 'lost' } }))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.documents.has(archive)).toBe(false);
+    expect(mock.documents.get('sessions/s1').attackScrapPickups).toEqual({ aegis: 'lost' });
+  });
+});
+
 it('keeps ordinary carryover verifiable after a committed Doctor action without rewriting finalization', async () => {
   const prior = resolvedPriorAttack({
     state: { deadlineAt: '2026-10-03T20:10:00.000Z' },
@@ -1728,6 +1790,39 @@ it('fails closed when no PDF Escort Wing fighters remain to launch', async () =>
     sessionId: 's1', requestId: 'launch-pdf-empty', expectedTurn: 1,
     expectedRevision: view.revision, expectedWingRevision: view.wingRevision,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('keeps the P.D.F. launch readable and committable after an ordinary paid Refinery jump', async () => {
+  await declareThenSeatPdfColonel();
+  const cycles = mock.documents.get('sessions/s1')!.maintenanceCycles as Fields;
+  const refineryCycle = cycles['refinery-124'] as Fields;
+  mock.documents.get('sessions/s1')!.maintenanceCycles = {
+    'refinery-124': { ...refineryCycle, results: {
+      ...(refineryCycle.results as Fields),
+      ftl: 'FTL jump complete // 0000 → 1964 // LONG // 8 fuel.',
+    } },
+  };
+
+  const view = await getPdfEscortWingLaunch.run(request({ sessionId: 's1' }));
+  expect(view).toMatchObject({ eligible: true, launched: false, turn: 1, revision: 1, wingRevision: 0 });
+  expect(JSON.stringify(view)).not.toContain('FTL jump complete');
+  const launchRequest = {
+    sessionId: 's1', requestId: 'launch-pdf-after-jump', expectedTurn: 1,
+    expectedRevision: view.revision, expectedWingRevision: view.wingRevision,
+  };
+  await expect(launchPdfEscortWing.run(request(launchRequest))).resolves.toMatchObject({
+    status: 'committed', launched: true, eligible: false, reason: 'already-launched',
+  });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    launchedCraftIds: ['pdf-escort-fighter-wing'],
+  });
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(launchPdfEscortWing.run(request(launchRequest))).resolves.toMatchObject({
+    status: 'replayed', launched: true,
+  });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 });

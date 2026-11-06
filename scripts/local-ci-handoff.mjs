@@ -82,7 +82,7 @@ const CHROMIUM_INSTALL_ARGS = Object.freeze({
 });
 
 // Updated only alongside a reviewed workflow/scope/command contract change.
-const SUPPORTED_CI_FINGERPRINT = '3f3f69edb1627e90b13ebbe4c5bb5334f51cd406ba3b2ff08769d393e75b1237';
+const SUPPORTED_CI_FINGERPRINT = 'c74db7fef3fe50b70c2e43a1376961fb0d8d88db5f011a22b26aa7d290cc6cb0';
 
 function fail(message) {
   throw new Error(message);

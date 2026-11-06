@@ -12,6 +12,8 @@ import type * as ScoutRequestServiceModule from '@/lib/scoutRequestService';
 import type * as ShuttleEvacuationServiceModule from '@/lib/shuttleEvacuationService';
 import type * as BlacksmithRepairServiceModule from '@/lib/blacksmithRepairService';
 import type * as ServiceShuttleRechargeServiceModule from '@/lib/serviceShuttleRechargeService';
+import AssignedShuttlecraft from '@/components/AssignedShuttlecraft';
+import type { TurnPhase } from '@/types/game';
 import ShuttleConsole from './ShuttleConsole';
 
 const endeavourResearchMocks = vi.hoisted(() => ({ read: vi.fn(), advance: vi.fn() }));
@@ -147,6 +149,17 @@ function reachedTransit(holderUid: string, transitRequestId = 'transit-arrived')
   };
 }
 
+function cargoPhase(state: TurnPhase['airspace']['state']): { currentTurn: number; turnPhase: TurnPhase } {
+  return {
+    currentTurn: 3,
+    turnPhase: {
+      turn: 3, teamPhaseEndsAt: '2099-09-21T12:00:00.000Z',
+      openAirspaceEndsAt: '2099-09-21T12:15:00.000Z',
+      airspace: { state, tickerActive: true, pressAccess: false },
+    },
+  };
+}
+
 function prepareBlacksmithRepairState() {
   const state = useSessionStore.getState();
   state.setSession({
@@ -262,6 +275,7 @@ beforeEach(() => {
   });
   vi.mocked(evacuateShuttleSurvivors).mockReset();
   vi.mocked(evacuateShuttleSurvivors).mockResolvedValue(undefined);
+  sessionStorage.clear();
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
     id: 's1', name: 'Table one', joinCode: '4821', phase: 'lobby', ownerUid: 'u1',
@@ -315,6 +329,36 @@ it('shows permissioned dismantling to the active Philia holder with a live targe
     damagedSystemIds: ['reactor'],
     connection: 'live',
     canAct: true,
+  }));
+});
+
+it('shows Macaw permissioned dismantling to the Capybara Captain holding it at its docked host', () => {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!,
+    phase: 'active',
+    activeRoleIds: ['capybara-captain', 'capybara-recycler', 'dione-captain'],
+    activeVesselIds: ['capybara', 'dione'],
+    shuttleDockings: [{ shuttleId: 'macaw', shipId: 'capybara', dockedAt: 'SESSION START' }],
+    shuttleControl: {
+      macaw: { shuttleId: 'macaw', ownerRoleId: 'capybara-captain',
+        ownerUid: 'u1', holderUid: 'u1', revision: 3 },
+    },
+    shipDamage: { capybara: { damagedSystemIds: [], destroyed: false } },
+  });
+  state.setMe({
+    ...state.me!, role: 'player', assignedRoleId: 'capybara-captain',
+    activeConsoleRoleId: 'capybara-captain', replacementStatus: null,
+  });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+
+  render(<MemoryRouter initialEntries={['/shuttles/macaw']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  expect(dismantlingPanelMock.render).toHaveBeenCalledWith(expect.objectContaining({
+    mode: 'proposer', craftId: 'macaw', targetShipId: 'capybara', connection: 'live', canAct: true,
   }));
 });
 
@@ -751,7 +795,7 @@ it('lets the current holder transfer only Hummingbird printed cargo while docked
   const user = userEvent.setup();
   const state = useSessionStore.getState();
   state.setSession({
-    ...state.session!, phase: 'active', activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
+    ...state.session!, phase: 'active', ...cargoPhase('lifted'), activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
     shipResources: { quellon: { ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2 } },
     shuttleCargo: { hummingbird: { food: 1, water: 2 } },
     shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'SESSION START' }],
@@ -781,11 +825,65 @@ it('lets the current holder transfer only Hummingbird printed cargo while docked
   expect(screen.getByText('Loaded 2 Food.')).toHaveAttribute('role', 'status');
 });
 
+it('keeps docked cargo transfers truthful outside the Coordination window for every shuttle', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', ...cargoPhase('restricted'),
+    activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
+    shipResources: { quellon: { ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2 } },
+    shuttleCargo: { hummingbird: { food: 1, water: 2 } },
+    shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'SESSION START' }],
+    shuttleControl: { hummingbird: {
+      shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'u1',
+      holderUid: 'u1', revision: 3,
+    } },
+  });
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'quellon-explorer', fleetGroupId: 'fleet-1' });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+  const view = render(<MemoryRouter initialEntries={['/shuttles/hummingbird']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  const cargo = screen.getByRole('region', { name: 'Shuttle cargo transfer' });
+  await user.selectOptions(within(cargo).getByLabelText('Resource'), 'food');
+  expect(within(cargo).getByRole('button', { name: 'Load shuttle' })).toBeDisabled();
+  expect(within(cargo).getByRole('button', { name: 'Unload shuttle' })).toBeDisabled();
+  expect(within(cargo).getByText(
+    'Cargo transfers are closed during Team Phase. They open when the Coordination Phase begins.',
+  )).toBeVisible();
+  await user.click(within(cargo).getByRole('button', { name: 'Load shuttle' }));
+  expect(transferShuttleCargo).not.toHaveBeenCalled();
+
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!, ...cargoPhase('lifted'),
+  }));
+  expect(within(cargo).getByRole('button', { name: 'Load shuttle' })).toBeEnabled();
+  expect(within(cargo).queryByText(/Cargo transfers are closed/i)).not.toBeInTheDocument();
+  view.unmount();
+
+  // No current server phase is never treated as an open window.
+  prepareColonelChepuState();
+  act(() => {
+    const withoutPhase = { ...useSessionStore.getState().session! };
+    delete withoutPhase.turnPhase;
+    useSessionStore.getState().setSession(withoutPhase);
+  });
+  renderColonelWorkspaceWithChepu('/shuttles/chepu');
+  const chepu = screen.getByRole('region', { name: 'Shuttle cargo transfer' });
+  await user.selectOptions(within(chepu).getByLabelText('Resource'), 'securityTeams');
+  expect(within(chepu).getByRole('button', { name: 'Load shuttle' })).toBeDisabled();
+  expect(within(chepu).getByText('Cargo transfers open during the Coordination Phase.')).toBeVisible();
+  expect(screen.getByRole('link', { name: /back to refinery 124 p.d.f. colonel console/i })).toBeVisible();
+  expect(transferShuttleCargo).not.toHaveBeenCalled();
+});
+
 it('shows cargo transfer pending and retries an uncertain result with the exact receipt identity', async () => {
   const user = userEvent.setup();
   const state = useSessionStore.getState();
   state.setSession({
-    ...state.session!, phase: 'active', activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
+    ...state.session!, phase: 'active', ...cargoPhase('lifted'), activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
     shipResources: { quellon: { ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2 } },
     shuttleCargo: { hummingbird: { food: 1, water: 2 } },
     shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'SESSION START' }],
@@ -841,11 +939,74 @@ it('shows cargo transfer pending and retries an uncertain result with the exact 
   expect(within(cargo).getByRole('status')).toHaveTextContent('Loaded 2 Food.');
 });
 
+it('lets an already-sent uncertain cargo transfer replay its receipt after the Coordination window closes', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', ...cargoPhase('lifted'), activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
+    shipResources: { quellon: { ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2 } },
+    shuttleCargo: { hummingbird: { food: 1, water: 2 } },
+    shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'SESSION START' }],
+    shuttleControl: { hummingbird: {
+      shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'u1',
+      holderUid: 'u1', revision: 3,
+    } },
+  });
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'quellon-explorer', fleetGroupId: 'fleet-1' });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+  const originalMe = useSessionStore.getState().me!;
+  const exactAttempt = {
+    command: {
+      sessionId: 's1', requestId: 'cargo-request-late', shuttleId: 'hummingbird',
+      resourceId: 'food', direction: 'load', amount: 1, expectedControlRevision: 3,
+    },
+    authority: {
+      sessionId: 's1', uid: 'u1', role: 'player',
+      assignedRoleId: originalMe.assignedRoleId,
+      activeConsoleRoleId: originalMe.activeConsoleRoleId,
+      replacementRoleId: originalMe.replacementRoleId,
+      seatId: originalMe.seatId,
+      fleetGroupId: 'fleet-1',
+      shuttleId: 'hummingbird', hostShipId: 'quellon', expectedControlRevision: 3,
+      ownerRoleId: 'quellon-explorer', ownerUid: 'u1', holderUid: 'u1',
+    },
+  };
+  vi.mocked(transferShuttleCargo).mockRejectedValueOnce(Object.assign(new Error('The callable timed out.'), {
+    name: 'ShuttleCargoTransferUncertainError', attempt: exactAttempt,
+  }));
+  vi.mocked(replayShuttleCargoTransfer).mockResolvedValueOnce({ status: 'replayed' } as never);
+  render(<MemoryRouter initialEntries={['/shuttles/hummingbird']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+    <Route path="/console" element={<p>Role selection</p>} />
+    <Route path="/ships/:shipId/roles/:roleId" element={<p>Owner console</p>} />
+  </Routes></MemoryRouter>);
+
+  const cargo = screen.getByRole('region', { name: 'Shuttle cargo transfer' });
+  await user.selectOptions(within(cargo).getByLabelText('Resource'), 'food');
+  await user.click(within(cargo).getByRole('button', { name: 'Load shuttle' }));
+  expect(await within(cargo).findByRole('button', { name: 'Retry exact cargo request' })).toBeEnabled();
+
+  // Team Phase begins: new transfers close, but the sent request may still read its receipt.
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!, ...cargoPhase('restricted'),
+  }));
+  expect(within(cargo).getByRole('button', { name: 'Load shuttle' })).toBeDisabled();
+  const retry = within(cargo).getByRole('button', { name: 'Retry exact cargo request' });
+  expect(retry).toBeEnabled();
+  await user.click(retry);
+  await waitFor(() => expect(replayShuttleCargoTransfer).toHaveBeenCalledWith(exactAttempt));
+  expect(transferShuttleCargo).toHaveBeenCalledTimes(1);
+  expect(within(cargo).getByRole('status')).toHaveTextContent('Loaded 1 Food.');
+  await user.click(screen.getByRole('link', { name: /back to/i }));
+  expect(screen.getByText(/owner console|role selection/i)).toBeVisible();
+});
+
 it('scopes uncertain cargo recovery to its holder and reconciles a fresh transfer for the next holder', async () => {
   const user = userEvent.setup();
   const state = useSessionStore.getState();
   state.setSession({
-    ...state.session!, phase: 'active', activeRoleIds: ['quellon-explorer', 'quellon-engineer'],
+    ...state.session!, phase: 'active', ...cargoPhase('lifted'), activeRoleIds: ['quellon-explorer', 'quellon-engineer'],
     activeVesselIds: ['quellon'],
     shipResources: { quellon: { ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2 } },
     shuttleCargo: { hummingbird: { food: 1, water: 2 } },
@@ -961,7 +1122,7 @@ it('keeps the cargo draft and waits for the newer control snapshot when stale re
   const user = userEvent.setup();
   const state = useSessionStore.getState();
   state.setSession({
-    ...state.session!, phase: 'active', activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
+    ...state.session!, phase: 'active', ...cargoPhase('lifted'), activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
     shipResources: { quellon: { ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2 } },
     shuttleCargo: { hummingbird: { food: 1, water: 2 } },
     shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'SESSION START' }],
@@ -1013,7 +1174,7 @@ it('uses an already-arrived newer control snapshot when stale response arrives l
   const user = userEvent.setup();
   const state = useSessionStore.getState();
   state.setSession({
-    ...state.session!, phase: 'active', activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
+    ...state.session!, phase: 'active', ...cargoPhase('lifted'), activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
     shipResources: { quellon: { ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2 } },
     shuttleCargo: { hummingbird: { food: 1, water: 2 } },
     shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'SESSION START' }],
@@ -1063,7 +1224,7 @@ it('drops stale cargo recovery when the acting role changes while the request is
   const user = userEvent.setup();
   const state = useSessionStore.getState();
   state.setSession({
-    ...state.session!, phase: 'active', activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
+    ...state.session!, phase: 'active', ...cargoPhase('lifted'), activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
     shipResources: { quellon: { ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2 } },
     shuttleCargo: { hummingbird: { food: 1, water: 2 } },
     shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'SESSION START' }],
@@ -1101,7 +1262,7 @@ it('drops stale cargo recovery when the fleet group changes while the request is
   const user = userEvent.setup();
   const state = useSessionStore.getState();
   state.setSession({
-    ...state.session!, phase: 'active', activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
+    ...state.session!, phase: 'active', ...cargoPhase('lifted'), activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
     shipResources: { quellon: { ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2 } },
     shuttleCargo: { hummingbird: { food: 1, water: 2 } },
     shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'SESSION START' }],
@@ -1699,7 +1860,7 @@ it('opens Chacau on its Refinery 124 Engineer route with its repair and cargo en
   const user = userEvent.setup();
   const state = useSessionStore.getState();
   state.setSession({
-    ...state.session!,
+    ...state.session!, phase: 'active', ...cargoPhase('lifted'),
     activeRoleIds: ['refinery-124-engineer'],
     shuttleDockings: [{ shuttleId: 'chacau', shipId: 'refinery-124', dockedAt: 'SESSION START' }],
     shuttleFuelled: { chacau: true },
@@ -1938,6 +2099,198 @@ it('opens Chepu on its PDF Colonel route with its security and boarding envelope
   expect(back).toHaveFocus();
   await user.keyboard('{Enter}');
   expect(screen.getByText('PDF Colonel parent')).toBeInTheDocument();
+});
+
+function prepareColonelChepuState(holderUid = 'u1') {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', ...cargoPhase('lifted'),
+    activeRoleIds: ['refinery-124-pdf-colonel'], activeVesselIds: ['refinery-124'],
+    shipResources: { 'refinery-124': {
+      ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 4,
+    } },
+    shuttleCargo: { chepu: { securityTeams: 1 } },
+    shuttleDockings: [{ shuttleId: 'chepu', shipId: 'refinery-124', dockedAt: 'SESSION START' }],
+    shuttleFuelled: { chepu: true },
+    shuttleControl: { chepu: {
+      shuttleId: 'chepu', ownerRoleId: 'refinery-124-pdf-colonel', ownerUid: 'u1',
+      holderUid, revision: 5,
+    } },
+  });
+  state.setMe({ ...state.me!, displayName: 'Colonel', assignedRoleId: 'refinery-124-pdf-colonel',
+    activeConsoleRoleId: 'refinery-124-pdf-colonel', seatId: 'seat-colonel', fleetGroupId: 'fleet-1' });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+}
+
+function renderColonelWorkspaceWithChepu(initialEntry: string) {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <Routes>
+        <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+        <Route path="/ships/refinery-124/roles/refinery-124-pdf-colonel" element={<>
+          <h2>PDF Colonel workspace</h2>
+          <AssignedShuttlecraft roleId="refinery-124-pdf-colonel" />
+        </>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+it('lets the Colonel open Chepu from the workspace, move only security teams, and see the committed result', async () => {
+  const user = userEvent.setup();
+  prepareColonelChepuState();
+  vi.mocked(transferShuttleCargo).mockImplementationOnce(async () => {
+    act(() => useSessionStore.getState().setSession({
+      ...useSessionStore.getState().session!,
+      shipResources: { 'refinery-124': {
+        ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2,
+      } },
+      shuttleCargo: { chepu: { securityTeams: 3 } },
+    }));
+    return { status: 'committed' } as never;
+  });
+  renderColonelWorkspaceWithChepu('/ships/refinery-124/roles/refinery-124-pdf-colonel');
+
+  await user.click(screen.getByRole('link', { name: 'Open Chepu shuttle console' }));
+  expect(screen.getByRole('heading', { name: 'P.D.S. Chepu' })).toBeInTheDocument();
+  expect(selectConsoleRole).not.toHaveBeenCalled();
+  const control = screen.getByRole('region', { name: 'Shuttle control' });
+  expect(control).toHaveTextContent('Current holder // Colonel');
+  expect(screen.getByRole('region', { name: 'Shuttle systems' })).toHaveTextContent(/docked.*refinery 124/i);
+  expect(screen.getByText('Fuelled this cycle')).toBeInTheDocument();
+
+  const cargo = within(control).getByRole('region', { name: 'Shuttle cargo transfer' });
+  expect(cargo).toHaveTextContent('Docked at Refinery 124');
+  const resource = within(cargo).getByLabelText('Resource');
+  expect(within(resource).getAllByRole('option').map((option) => option.textContent))
+    .toEqual(['Choose permitted cargo', 'Security Teams']);
+  await user.selectOptions(resource, 'securityTeams');
+  expect(cargo).toHaveTextContent('Host // 4 // Shuttle // 1');
+  await user.clear(within(cargo).getByLabelText('Amount'));
+  await user.type(within(cargo).getByLabelText('Amount'), '2');
+  await user.click(within(cargo).getByRole('button', { name: 'Load shuttle' }));
+
+  expect(transferShuttleCargo).toHaveBeenCalledExactlyOnceWith('chepu', 'securityTeams', 'load', 2, 5);
+  expect(await within(cargo).findByRole('status')).toHaveTextContent('Loaded 2 Security Teams.');
+  expect(cargo).toHaveTextContent('Host // 2 // Shuttle // 3');
+
+  await user.click(screen.getByRole('link', { name: /back to refinery 124 p.d.f. colonel console/i }));
+  expect(screen.getByRole('heading', { name: 'PDF Colonel workspace' })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Open Chepu shuttle console' })).toHaveAttribute('href', '/shuttles/chepu');
+});
+
+it('shows the Colonel truthful Chepu authority when another player holds it or it is not docked', () => {
+  prepareColonelChepuState('u2');
+  const view = renderColonelWorkspaceWithChepu('/shuttles/chepu');
+
+  const control = screen.getByRole('region', { name: 'Shuttle control' });
+  expect(control).toHaveTextContent('Current holder // Connected player');
+  expect(within(control).getByRole('button', { name: 'Reclaim control' })).toBeEnabled();
+  expect(within(control).queryByRole('region', { name: 'Shuttle cargo transfer' })).not.toBeInTheDocument();
+  expect(within(control).queryByRole('region', { name: 'Shuttle departure' })).not.toBeInTheDocument();
+  expect(transferShuttleCargo).not.toHaveBeenCalled();
+  view.unmount();
+
+  prepareColonelChepuState();
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!, shuttleDockings: [],
+  }));
+  renderColonelWorkspaceWithChepu('/shuttles/chepu');
+  const undocked = screen.getByRole('region', { name: 'Shuttle control' });
+  expect(undocked).toHaveTextContent('Current holder // Colonel');
+  expect(within(undocked).getByRole('region', { name: 'Shuttle departure' })).toBeInTheDocument();
+  expect(within(undocked).queryByRole('region', { name: 'Shuttle cargo transfer' })).not.toBeInTheDocument();
+});
+
+it('keeps a Chepu security-team transfer pending and replays an uncertain result with its exact receipt', async () => {
+  const user = userEvent.setup();
+  prepareColonelChepuState();
+  const me = useSessionStore.getState().me!;
+  const response = deferred<unknown>();
+  const exactAttempt = {
+    command: {
+      sessionId: 's1', requestId: 'chepu-cargo-1', shuttleId: 'chepu',
+      resourceId: 'securityTeams', direction: 'unload', amount: 1, expectedControlRevision: 5,
+    },
+    authority: {
+      sessionId: 's1', uid: 'u1', role: 'player', assignedRoleId: me.assignedRoleId,
+      activeConsoleRoleId: me.activeConsoleRoleId, replacementRoleId: me.replacementRoleId,
+      seatId: me.seatId, fleetGroupId: 'fleet-1', shuttleId: 'chepu', hostShipId: 'refinery-124',
+      expectedControlRevision: 5, ownerRoleId: 'refinery-124-pdf-colonel', ownerUid: 'u1', holderUid: 'u1',
+    },
+  };
+  vi.mocked(transferShuttleCargo).mockReturnValueOnce(response.promise as never);
+  renderColonelWorkspaceWithChepu('/shuttles/chepu');
+
+  const cargo = screen.getByRole('region', { name: 'Shuttle cargo transfer' });
+  await user.selectOptions(within(cargo).getByLabelText('Resource'), 'securityTeams');
+  await user.click(within(cargo).getByRole('button', { name: 'Unload shuttle' }));
+  expect(await within(cargo).findByRole('status')).toHaveTextContent(/transferring 1 security teams/i);
+  expect(within(cargo).getByRole('button', { name: 'Unload shuttle' })).toBeDisabled();
+
+  await act(async () => response.reject(Object.assign(new Error('The callable timed out.'), {
+    name: 'ShuttleCargoTransferUncertainError', attempt: exactAttempt,
+  })));
+  expect(within(cargo).getByRole('status')).toHaveTextContent(/result is uncertain/i);
+  await user.click(within(cargo).getByRole('button', { name: 'Retry exact cargo request' }));
+  await waitFor(() => expect(replayShuttleCargoTransfer).toHaveBeenCalledWith(exactAttempt));
+  expect(transferShuttleCargo).toHaveBeenCalledTimes(1);
+  expect(within(cargo).getByRole('status')).toHaveTextContent('Unloaded 1 Security Teams.');
+});
+
+it('keeps the Colonel\'s unsent Chepu cargo choice through Back to the Colonel console without sending it', async () => {
+  const user = userEvent.setup();
+  prepareColonelChepuState();
+  renderColonelWorkspaceWithChepu('/shuttles/chepu');
+
+  const cargo = screen.getByRole('region', { name: 'Shuttle cargo transfer' });
+  await user.selectOptions(within(cargo).getByLabelText('Resource'), 'securityTeams');
+  await user.clear(within(cargo).getByLabelText('Amount'));
+  await user.type(within(cargo).getByLabelText('Amount'), '2');
+  await user.click(screen.getByRole('link', { name: /back to refinery 124 p.d.f. colonel console/i }));
+  expect(screen.getByRole('heading', { name: 'PDF Colonel workspace' })).toBeInTheDocument();
+
+  await user.click(screen.getByRole('link', { name: 'Open Chepu shuttle console' }));
+  const restored = screen.getByRole('region', { name: 'Shuttle cargo transfer' });
+  expect(within(restored).getByLabelText('Resource')).toHaveValue('securityTeams');
+  expect(within(restored).getByLabelText('Amount')).toHaveValue(2);
+  expect(within(restored).getByRole('button', { name: 'Load shuttle' })).toBeEnabled();
+  expect(within(restored).queryByRole('status')).not.toBeInTheDocument();
+  expect(transferShuttleCargo).not.toHaveBeenCalled();
+});
+
+it('keeps an unsent Chepu cargo choice private to its own player, craft and dock', async () => {
+  const user = userEvent.setup();
+  prepareColonelChepuState();
+  const view = renderColonelWorkspaceWithChepu('/shuttles/chepu');
+  const cargo = screen.getByRole('region', { name: 'Shuttle cargo transfer' });
+  await user.selectOptions(within(cargo).getByLabelText('Resource'), 'securityTeams');
+  await user.clear(within(cargo).getByLabelText('Amount'));
+  await user.type(within(cargo).getByLabelText('Amount'), '3');
+  view.unmount();
+
+  // A different holder on the same browser never sees the Colonel's draft.
+  prepareColonelChepuState('u2');
+  act(() => useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, uid: 'u2' }));
+  const other = renderColonelWorkspaceWithChepu('/shuttles/chepu');
+  expect(within(screen.getByRole('region', { name: 'Shuttle cargo transfer' })).getByLabelText('Resource'))
+    .toHaveValue('');
+  other.unmount();
+
+  // The same Colonel at a different dock starts from a clean choice.
+  act(() => useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, uid: 'u1' }));
+  prepareColonelChepuState();
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    activeRoleIds: ['refinery-124-pdf-colonel', 'wing-commander'], activeVesselIds: ['refinery-124', 'aegis'],
+    shuttleDockings: [{ shuttleId: 'chepu', shipId: 'aegis', dockedAt: 'CYCLE 1' }],
+  }));
+  renderColonelWorkspaceWithChepu('/shuttles/chepu');
+  const moved = screen.getByRole('region', { name: 'Shuttle cargo transfer' });
+  expect(within(moved).getByLabelText('Resource')).toHaveValue('');
+  expect(within(moved).getByLabelText('Amount')).toHaveValue(1);
+  expect(transferShuttleCargo).not.toHaveBeenCalled();
 });
 
 it('keeps a GM-controlled Union shuttle out of the default roster', () => {

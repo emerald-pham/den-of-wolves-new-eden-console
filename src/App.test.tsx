@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App, { stationRoleFromPath } from './App';
@@ -15,6 +15,8 @@ import { recommendedRoleIds } from '@/data/rolePresets';
 import { normalizeCommandError } from '@/lib/commandErrors';
 
 vi.mock('@/lib/sessionService', () => ({
+  buildFighter: vi.fn(),
+  exchangeFighterWings: vi.fn(),
   getWolfAmnestyView: vi.fn(async () => ({ type: 'wolf-amnesty-view',
     sessionId: useSessionStore.getState().session?.id ?? 's1', offer: null })),
   getWolfBoardingDefenceChoice: vi.fn(async () => null),
@@ -63,10 +65,18 @@ vi.mock('@/lib/sessionService', () => ({
   triggerDradisContact: vi.fn(),
 }));
 
+vi.mock('@/lib/scoutRequestService', () => ({ requestScout: vi.fn() }));
+vi.mock('@/lib/shuttleCargoService', () => ({
+  canReplayShuttleCargoTransfer: vi.fn(() => false),
+  replayShuttleCargoTransfer: vi.fn(),
+  transferShuttleCargo: vi.fn(),
+}));
+
 vi.mock('@/lib/firestore', () => ({
   subscribeCrisisReport: vi.fn(() => vi.fn()),
   sessionSnapshotAuthorityFor: vi.fn(() => ({ hasServerSessionAuthority: false })),
   subscribeConnectedPlayers: vi.fn(() => vi.fn()),
+  subscribeShuttleDeparture: vi.fn(() => vi.fn()),
   subscribeSessionState: vi.fn(() => vi.fn()),
   subscribeWolfAttackMemberView: vi.fn((_sessionId: string, onView: (view: WolfAttackMemberView | null) => void) => {
     onView(null);
@@ -74,6 +84,7 @@ vi.mock('@/lib/firestore', () => ({
   }),
   subscribeLoyaltyCensus: vi.fn(() => vi.fn()),
   subscribeGmWolfHackingAlerts: vi.fn(() => vi.fn()),
+  subscribeGmPdfNewsRelayAudits: vi.fn(() => vi.fn()),
   subscribePlayerHackingNotices: vi.fn(() => vi.fn()),
   subscribeGmInstances: vi.fn((
     _sessionId: string,
@@ -117,6 +128,8 @@ const {
   subscribeSessionState,
 } = await import('@/lib/firestore');
 const { startVersionUpgradeMonitor } = await import('@/lib/versionUpgrade');
+const { requestScout } = await import('@/lib/scoutRequestService');
+const { transferShuttleCargo } = await import('@/lib/shuttleCargoService');
 
 describe('App', () => {
   const session: GameSession = {
@@ -141,6 +154,9 @@ describe('App', () => {
     window.location.hash = '#/';
     useSessionStore.getState().reset();
     localStorage.clear();
+    sessionStorage.clear();
+    vi.mocked(requestScout).mockReset();
+    vi.mocked(transferShuttleCargo).mockReset();
     localStorage.setItem(MOTION_SAFETY_STORAGE_KEY, JSON.stringify({
       acknowledgedAt: Date.now(),
       choice: 'reduce',
@@ -416,6 +432,382 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: 'Stations and consoles' })).toBeInTheDocument();
     expect(useSessionStore.getState().communicationError?.kind).toBe('station-selection-required');
+  });
+
+  const STARLIGHT_DRAFT_KEY = 'pc10:scout-draft:s1:u1:starlight';
+  const starlightDraft = {
+    version: 1, sessionId: 's1', uid: 'u1', entitlementId: 'starlight', targetCoordinate: '5143',
+  };
+
+  it.each([
+    ['Starlight, player freshness first', 'starlight', 'wing-commander', false],
+    ['Starlight, session freshness first', 'starlight', 'wing-commander', true],
+    ['Ally, Union owner', 'ally', 'joint-engineering-shepherd-icebreaker', false],
+  ] as const)('returns the released canonical shuttle owner to station selection: %s', async (
+    _name, shuttleId, roleId, sessionFreshFirst,
+  ) => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    window.location.hash = `#/shuttles/${shuttleId}`;
+    const assigned: Player = {
+      ...player, role: 'player', assignedRoleId: roleId, seatId: roleId,
+      activeConsoleRoleId: roleId,
+    };
+    useSessionStore.getState().setIdentity({
+      ...session, phase: 'casting', activeRoleIds: recommendedRoleIds(8),
+      activeVesselIds: ['aegis', 'shepherd', 'icebreaker', 'quellon', 'refinery-124'],
+    }, assigned);
+    useSessionStore.getState().setMode('console');
+    if (shuttleId === 'starlight') sessionStorage.setItem(STARLIGHT_DRAFT_KEY, JSON.stringify(starlightDraft));
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    if (shuttleId === 'starlight') {
+      expect(await screen.findByRole('textbox', { name: 'Printed system coordinate' })).toHaveValue('5143');
+      expect(screen.getByRole('button', { name: 'Record request' })).toBeDisabled();
+    } else {
+      expect(await screen.findByRole('heading', { name: 'U.S. Ally' })).toBeInTheDocument();
+    }
+
+    if (sessionFreshFirst) act(() => handlers?.onSessionFreshness?.(true));
+    act(() => handlers?.onPlayer?.({
+      ...assigned, assignedRoleId: null, seatId: null, activeConsoleRoleId: null,
+    }));
+    if (!sessionFreshFirst) {
+      act(() => handlers?.onPlayerFreshness?.(true));
+      expect(useSessionStore.getState().communicationError).toBeNull();
+      act(() => handlers?.onSessionFreshness?.(true));
+    } else {
+      act(() => handlers?.onPlayerFreshness?.(true));
+    }
+
+    expect(await screen.findByRole('heading', { name: 'Stations and consoles' })).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Your previous station is no longer available. Return to station select and reselect your role.',
+    );
+    expect(window.location.hash).toBe('#/console');
+    expect(useSessionStore.getState().me).toMatchObject({
+      uid: 'u1', sessionId: 's1', assignedRoleId: null, seatId: null, activeConsoleRoleId: null,
+    });
+    if (shuttleId === 'starlight') {
+      expect(JSON.parse(sessionStorage.getItem(STARLIGHT_DRAFT_KEY) ?? 'null')).toEqual(starlightDraft);
+    }
+  });
+
+  it('restores the unsent Starlight coordinate when the reselected Wing Commander re-enters without submitting it', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    window.location.hash = '#/shuttles/starlight';
+    const assigned: Player = {
+      ...player, role: 'player', assignedRoleId: 'wing-commander', seatId: 'wing-commander',
+      activeConsoleRoleId: 'wing-commander',
+    };
+    useSessionStore.getState().setIdentity({
+      ...session, phase: 'casting', activeRoleIds: recommendedRoleIds(8),
+      activeVesselIds: ['aegis', 'shepherd', 'icebreaker', 'quellon', 'refinery-124'],
+    }, assigned);
+    useSessionStore.getState().setMode('console');
+    sessionStorage.setItem(STARLIGHT_DRAFT_KEY, JSON.stringify(starlightDraft));
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    expect(await screen.findByRole('textbox', { name: 'Printed system coordinate' })).toHaveValue('5143');
+
+    act(() => {
+      handlers?.onPlayer?.({ ...assigned, assignedRoleId: null, seatId: null, activeConsoleRoleId: null });
+      handlers?.onPlayerFreshness?.(true);
+      handlers?.onSessionFreshness?.(true);
+    });
+    expect(await screen.findByRole('heading', { name: 'Stations and consoles' })).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('reselect your role');
+
+    act(() => {
+      handlers?.onPlayer?.(assigned);
+      handlers?.onPlayerFreshness?.(true);
+      useSessionStore.getState().setCommunicationError(null);
+    });
+    act(() => { window.location.hash = '#/shuttles/starlight'; });
+
+    expect(await screen.findByRole('textbox', { name: 'Printed system coordinate' })).toHaveValue('5143');
+    expect(screen.getByRole('button', { name: 'Record request' })).toBeDisabled();
+    expect(requestScout).not.toHaveBeenCalled();
+  });
+
+  it('keeps the unsent Starlight coordinate through Back to the Wing console and ship consoles', async () => {
+    const user = userEvent.setup();
+    window.location.hash = '#/shuttles/starlight';
+    const assigned: Player = {
+      ...player, role: 'player', assignedRoleId: 'wing-commander', seatId: 'wing-commander',
+      activeConsoleRoleId: 'wing-commander',
+    };
+    useSessionStore.getState().setIdentity({
+      ...session, phase: 'casting', activeRoleIds: recommendedRoleIds(8),
+      activeVesselIds: ['aegis', 'shepherd', 'icebreaker', 'quellon', 'refinery-124'],
+    }, assigned);
+    useSessionStore.getState().setMode('console');
+    render(<App />);
+
+    await user.type(await screen.findByRole('textbox', { name: 'Printed system coordinate' }), '5143');
+    await user.click(screen.getByRole('link', { name: 'Back to AEGIS Wing Commander console' }));
+    expect(window.location.hash).toBe('#/ships/aegis/roles/wing-commander');
+    await user.click(await screen.findByRole('link', { name: 'View ship consoles' }));
+    expect(window.location.hash).toBe('#/ships/aegis/roles');
+
+    act(() => { window.location.hash = '#/ships/aegis/roles/wing-commander'; });
+    await user.click(await screen.findByRole('link', { name: 'Open Starlight shuttle console' }));
+    expect(window.location.hash).toBe('#/shuttles/starlight');
+    expect(await screen.findByRole('textbox', { name: 'Printed system coordinate' })).toHaveValue('5143');
+    expect(screen.getByRole('button', { name: 'Record request' })).toBeDisabled();
+    expect(requestScout).not.toHaveBeenCalled();
+  });
+
+  it('keeps the Starlight owner whose assignment is restored before fresh reconciliation', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    window.location.hash = '#/shuttles/starlight';
+    const assigned: Player = {
+      ...player, role: 'player', assignedRoleId: 'wing-commander', seatId: 'wing-commander',
+      activeConsoleRoleId: 'wing-commander',
+    };
+    useSessionStore.getState().setIdentity({ ...session, phase: 'casting' }, assigned);
+    useSessionStore.getState().setMode('console');
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    vi.mocked(requireStationReselectionForCurrentSession).mockClear();
+    act(() => {
+      handlers?.onPlayer?.({ ...assigned, assignedRoleId: null, seatId: null, activeConsoleRoleId: null });
+      handlers?.onPlayerFreshness?.(true);
+      handlers?.onPlayer?.(assigned);
+      handlers?.onPlayerFreshness?.(true);
+      handlers?.onSessionFreshness?.(true);
+    });
+    expect(requireStationReselectionForCurrentSession).not.toHaveBeenCalled();
+    expect(window.location.hash).toBe('#/shuttles/starlight');
+    expect(useSessionStore.getState().communicationError).toBeNull();
+  });
+
+  it.each(['visitor', 'other-role control holder', 'GM'] as const)(
+    'keeps the Starlight %s outside canonical owner-release routing', async (audience) => {
+      let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+      vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+        handlers = nextHandlers;
+        return vi.fn();
+      });
+      window.location.hash = '#/shuttles/starlight';
+      const member: Player = {
+        ...player, role: audience === 'GM' ? 'gm' : 'player',
+        assignedRoleId: audience === 'other-role control holder' ? 'shepherd-captain' : null,
+        seatId: audience === 'other-role control holder' ? 'shepherd-captain' : null,
+        activeConsoleRoleId: audience === 'other-role control holder' ? 'shepherd-captain' : null,
+      };
+      useSessionStore.getState().setIdentity({
+        ...session, phase: 'casting',
+        shuttleControl: { starlight: {
+          shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'u2',
+          holderUid: audience === 'other-role control holder' ? 'u1' : 'u2', revision: 2,
+        } },
+      }, member);
+      useSessionStore.getState().setMode('console');
+      render(<App />);
+      await waitFor(() => expect(handlers).toBeDefined());
+      vi.mocked(requireStationReselectionForCurrentSession).mockClear();
+      act(() => {
+        handlers?.onSessionFreshness?.(true);
+        handlers?.onPlayer?.({ ...member, assignedRoleId: null, seatId: null, activeConsoleRoleId: null });
+        handlers?.onPlayerFreshness?.(true);
+      });
+      expect(requireStationReselectionForCurrentSession).not.toHaveBeenCalled();
+      expect(useSessionStore.getState().communicationError).toBeNull();
+      expect(window.location.hash).toBe('#/shuttles/starlight');
+    },
+  );
+
+  it.each(['UID', 'session'] as const)('discards a pending Starlight release across a changed %s', async (changed) => {
+    const subscriptions: Parameters<typeof subscribeSessionState>[2][] = [];
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      subscriptions.push(nextHandlers);
+      return vi.fn();
+    });
+    window.location.hash = '#/shuttles/starlight';
+    const assigned: Player = {
+      ...player, role: 'player', assignedRoleId: 'wing-commander', seatId: 'wing-commander',
+      activeConsoleRoleId: 'wing-commander',
+    };
+    useSessionStore.getState().setIdentity({ ...session, phase: 'casting' }, assigned);
+    useSessionStore.getState().setMode('console');
+    render(<App />);
+    await waitFor(() => expect(subscriptions).toHaveLength(1));
+    const former = subscriptions[0]!;
+    act(() => {
+      former.onPlayer?.({ ...assigned, assignedRoleId: null, seatId: null, activeConsoleRoleId: null });
+      former.onPlayerFreshness?.(true);
+    });
+    const nextSession = { ...session, id: changed === 'session' ? 's2' : 's1', phase: 'casting' as const };
+    const nextPlayer = { ...assigned, uid: changed === 'UID' ? 'u2' : 'u1', sessionId: nextSession.id };
+    act(() => useSessionStore.getState().setIdentity(nextSession, nextPlayer));
+    await waitFor(() => expect(subscriptions).toHaveLength(2));
+    vi.mocked(requireStationReselectionForCurrentSession).mockClear();
+    act(() => {
+      former.onSessionFreshness?.(true);
+      former.onPlayer?.({ ...assigned, assignedRoleId: null, seatId: null, activeConsoleRoleId: null });
+      former.onPlayerFreshness?.(true);
+    });
+    expect(requireStationReselectionForCurrentSession).not.toHaveBeenCalled();
+    expect(useSessionStore.getState()).toMatchObject({
+      session: { id: nextSession.id }, me: { uid: nextPlayer.uid }, communicationError: null,
+    });
+    expect(window.location.hash).toBe('#/shuttles/starlight');
+  });
+
+  const COLONEL = 'refinery-124-pdf-colonel';
+  const CHEPU_DRAFT_KEY = 'pc10:shuttle-cargo-draft:s1:u1:chepu';
+  const chepuDraft = {
+    version: 1, sessionId: 's1', uid: 'u1', scope: 'chepu',
+    value: { hostShipId: 'refinery-124', resourceId: 'securityTeams', amount: 2 },
+  };
+  const colonel: Player = {
+    ...player, displayName: 'Colonel', role: 'player', assignedRoleId: COLONEL, seatId: COLONEL,
+    activeConsoleRoleId: COLONEL, fleetGroupId: 'fleet-1',
+  };
+  const colonelSession: GameSession = {
+    ...session, phase: 'active', currentTurn: 1, activeRoleIds: [COLONEL], activeVesselIds: ['refinery-124'],
+    shipResources: { 'refinery-124': {
+      ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 4,
+    } },
+    shuttleCargo: { chepu: { securityTeams: 1 } },
+    shuttleDockings: [{ shuttleId: 'chepu', shipId: 'refinery-124', dockedAt: 'SESSION START' }],
+    shuttleControl: { chepu: {
+      shuttleId: 'chepu', ownerRoleId: COLONEL, ownerUid: 'u1', holderUid: 'u1', revision: 5,
+    } },
+  };
+
+  function chepuCargo(): HTMLElement {
+    return screen.getByRole('region', { name: 'Shuttle cargo transfer' });
+  }
+
+  it('returns a released Colonel from Chepu to station selection and restores the unsent cargo choice only after reselect', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    window.location.hash = '#/shuttles/chepu';
+    useSessionStore.getState().setIdentity(colonelSession, colonel);
+    useSessionStore.getState().setMode('console');
+    sessionStorage.setItem(CHEPU_DRAFT_KEY, JSON.stringify(chepuDraft));
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    expect(await screen.findByRole('heading', { name: 'P.D.S. Chepu' }, { timeout: 5_000 })).toBeInTheDocument();
+    expect(within(chepuCargo()).getByLabelText('Resource')).toHaveValue('securityTeams');
+    expect(within(chepuCargo()).getByLabelText('Amount')).toHaveValue(2);
+
+    act(() => {
+      handlers?.onPlayer?.({ ...colonel, assignedRoleId: null, seatId: null, activeConsoleRoleId: null });
+      handlers?.onPlayerFreshness?.(true);
+      handlers?.onSessionFreshness?.(true);
+    });
+    expect(await screen.findByRole('heading', { name: 'Stations and consoles' })).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Your previous station is no longer available. Return to station select and reselect your role.',
+    );
+    expect(window.location.hash).toBe('#/console');
+    expect(screen.queryByRole('region', { name: 'Shuttle cargo transfer' })).not.toBeInTheDocument();
+    expect(JSON.parse(sessionStorage.getItem(CHEPU_DRAFT_KEY) ?? 'null')).toEqual(chepuDraft);
+
+    act(() => {
+      handlers?.onPlayer?.(colonel);
+      handlers?.onPlayerFreshness?.(true);
+      useSessionStore.getState().setCommunicationError(null);
+    });
+    act(() => { window.location.hash = '#/shuttles/chepu'; });
+
+    await waitFor(() => expect(within(chepuCargo()).getByLabelText('Resource')).toHaveValue('securityTeams'));
+    expect(within(chepuCargo()).getByLabelText('Amount')).toHaveValue(2);
+    expect(transferShuttleCargo).not.toHaveBeenCalled();
+  });
+
+  it('returns a released Colonel from the console to station selection and restores the unsent relay only after reselect', async () => {
+    const user = userEvent.setup();
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    const relayDraftKey = 'pc10:pdf-news-relay-draft:s1:u1:fleet-1';
+    const relayDraft = { version: 1, sessionId: 's1', uid: 'u1', scope: 'fleet-1', value: 'Outer marker clear.' };
+    sessionStorage.setItem(relayDraftKey, JSON.stringify(relayDraft));
+    window.location.hash = `#/ships/refinery-124/roles/${COLONEL}`;
+    useSessionStore.getState().setIdentity(colonelSession, colonel);
+    useSessionStore.getState().setMode('console');
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    act(() => {
+      useSessionStore.getState().setConnection('live');
+      useSessionStore.getState().setSessionSnapshotFreshness('server');
+    });
+    const relayText = () => within(screen.getByRole('region', { name: 'P.D.F. Colonel news relay' }))
+      .getByRole('textbox', { name: 'News for your current fleet group' });
+    await user.click(await screen.findByRole('button', { name: 'Ship systems' }, { timeout: 5_000 }));
+    expect(relayText()).toHaveValue('Outer marker clear.');
+
+    act(() => {
+      handlers?.onPlayer?.({ ...colonel, assignedRoleId: null, seatId: null, activeConsoleRoleId: null });
+      handlers?.onPlayerFreshness?.(true);
+      handlers?.onSessionFreshness?.(true);
+    });
+    expect(await screen.findByRole('heading', { name: 'Stations and consoles' })).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Your previous station is no longer available. Return to station select and reselect your role.',
+    );
+    expect(window.location.hash).toBe('#/console');
+    expect(screen.queryByRole('region', { name: 'P.D.F. Colonel news relay' })).not.toBeInTheDocument();
+    expect(JSON.parse(sessionStorage.getItem(relayDraftKey) ?? 'null')).toEqual(relayDraft);
+
+    act(() => {
+      handlers?.onPlayer?.(colonel);
+      handlers?.onPlayerFreshness?.(true);
+      useSessionStore.getState().setCommunicationError(null);
+    });
+    act(() => { window.location.hash = `#/ships/refinery-124/roles/${COLONEL}`; });
+    await user.click(await screen.findByRole('button', { name: 'Ship systems' }, { timeout: 5_000 }));
+    await waitFor(() => expect(relayText()).toHaveValue('Outer marker clear.'));
+    await user.click(screen.getByRole('link', { name: 'View ship consoles' }));
+    expect(window.location.hash).toBe('#/ships/refinery-124/roles');
+  });
+
+  it('keeps the unsent Chepu cargo choice through Back to the Colonel console and Refinery 124 consoles', async () => {
+    const user = userEvent.setup();
+    window.location.hash = '#/shuttles/chepu';
+    useSessionStore.getState().setIdentity(colonelSession, colonel);
+    useSessionStore.getState().setMode('console');
+    act(() => {
+      useSessionStore.getState().setConnection('live');
+      useSessionStore.getState().setSessionSnapshotFreshness('server');
+    });
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'P.D.S. Chepu' }, { timeout: 5_000 })).toBeInTheDocument();
+    await user.selectOptions(within(chepuCargo()).getByLabelText('Resource'), 'securityTeams');
+    await user.clear(within(chepuCargo()).getByLabelText('Amount'));
+    await user.type(within(chepuCargo()).getByLabelText('Amount'), '2');
+    await user.click(screen.getByRole('link', { name: 'Back to Refinery 124 P.D.F. Colonel console' }));
+    expect(window.location.hash).toBe(`#/ships/refinery-124/roles/${COLONEL}`);
+    await user.click(await screen.findByRole('link', { name: 'View ship consoles' }));
+    expect(window.location.hash).toBe('#/ships/refinery-124/roles');
+
+    act(() => { window.location.hash = `#/ships/refinery-124/roles/${COLONEL}`; });
+    await user.click(await screen.findByRole('link', { name: 'Open Chepu shuttle console' }));
+    expect(window.location.hash).toBe('#/shuttles/chepu');
+    await waitFor(() => expect(within(chepuCargo()).getByLabelText('Resource')).toHaveValue('securityTeams'));
+    expect(within(chepuCargo()).getByLabelText('Amount')).toHaveValue(2);
+    expect(transferShuttleCargo).not.toHaveBeenCalled();
   });
 
   it('drops a pending station release when the listener identity changes', async () => {

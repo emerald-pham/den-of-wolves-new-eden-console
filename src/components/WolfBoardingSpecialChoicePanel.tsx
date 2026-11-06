@@ -52,12 +52,23 @@ export default function WolfBoardingSpecialChoicePanel({
     </section>;
   }
   if (view.type === 'wolf-boarding-special-choice-unavailable') {
+    // The server returns the reader's own committed relocation once its choice closes.
+    const committed = view.committedRelocation?.turn === memberView.turn ? view.committedRelocation : undefined;
+    const committedResult = committed && <WolfBoardingSupportChoicePanelView
+      view={{ type: 'wolf-boarding-support-choice-view', status: 'committed', craftId: committed.craftId,
+        currentHostId: committed.hostShipId, fuelled: false, legalHostIds: [],
+        selectedHostId: committed.selectedHostId, hostShipId: committed.hostShipId }}
+      onChoose={() => undefined} />;
     if (view.reason === 'automatic-progress-pending') {
       return <section className="wolf-boarding-defence cic-frame" aria-label="Boarding decision">
+        {committedResult}
         <p className="wolf-boarding-defence__notice" role="status">The server is locking the committed defence dice. Refresh shortly for the next choice.</p>
       </section>;
     }
-    return null;
+    return committed ? <section className="wolf-boarding-defence cic-frame" aria-label="Committed boarding choice">
+      <p className="eyebrow">Cycle {committed.turn} // boarding</p>
+      {committedResult}
+    </section> : null;
   }
 
   const revisionKey = `${view.sessionId}:${view.turn}:${view.revision}:${view.choice.kind}`;

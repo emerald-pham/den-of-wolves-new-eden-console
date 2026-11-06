@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { PDF_FIGHTER_WING_SYSTEM, PDF_ROLE_CONSOLE } from '@/data/pdfConsoles';
 import { getPdfEscortWingLaunch, launchPdfEscortWing, passWolfFighterLaunchChoice } from '@/lib/sessionService';
 import type { PdfEscortWingLaunchView, PdfEscortWingMemberView } from '@/types/game';
@@ -8,12 +8,21 @@ import { useSessionStore } from '@/store/useSessionStore';
 import refinery124 from '@/data/vessels/refinery-124';
 import './PdfEscortWingReference.css';
 
-function launchStatus(view: PdfEscortWingLaunchView | null, canRead: boolean): string {
+/**
+ * Outside targeting the server's launch view reports only 'waiting'; the member
+ * wing projection for the same cycle is what records a committed launch.
+ */
+function launchedOutsideTargeting(view: PdfEscortWingLaunchView | null, launchedCycle: number | null): boolean {
+  return !!view && !view.launched && !view.eligible && view.reason === 'waiting' &&
+    view.choiceStatus === undefined && launchedCycle === view.turn;
+}
+
+function launchStatus(view: PdfEscortWingLaunchView | null, canRead: boolean, launchedCycle: number | null): string {
   if (!view) return canRead ? 'Checking current Wolf attack launch authority…' :
     'Launch authority is available to the active P.D.F. Colonel in a live session.';
   if (view.choiceStatus === 'passed' || view.reason === 'passed') return 'Launch choice passed for this attack.';
   if (view.choiceStatus === 'unavailable') return 'The Escort Wing could not launch for this attack.';
-  if (view.launched) return `Launched // Cycle ${view.turn}`;
+  if (view.launched || launchedOutsideTargeting(view, launchedCycle)) return `Launched // Cycle ${view.turn}`;
   if (view.eligible) return 'Wolf Attack targeting // Refinery 8♦ Fighter Bay charged and operational';
   if (view.reason === 'uncharged') return 'Refinery 8♦ Fighter Bay uncharged // launch denied';
   if (view.reason === 'damaged') return 'Refinery 8♦ Fighter Bay damaged // launch denied';
@@ -27,25 +36,32 @@ export interface PdfEscortWingLaunchPanelViewProps {
   readonly canRead: boolean;
   readonly busy?: boolean;
   readonly error?: string | null;
+  readonly blocker?: string | null;
+  /** Cycle in which the member wing projection records a launch, if any. */
+  readonly launchedCycle?: number | null;
   readonly onLaunch: (view: PdfEscortWingLaunchView) => void;
   readonly onPass: (view: PdfEscortWingLaunchView) => void;
 }
 
 export function PdfEscortWingLaunchPanelView({
-  view, canRead, busy = false, error, onLaunch, onPass,
+  view, canRead, busy = false, error, blocker, launchedCycle = null, onLaunch, onPass,
 }: PdfEscortWingLaunchPanelViewProps) {
+  const statusId = useId();
+  const launched = !!view?.launched || launchedOutsideTargeting(view, launchedCycle);
   return (
     <div className="cic-frame pdf-escort-launch" aria-label="PDF Escort Wing launch control">
       <p className="ship-resources__eyebrow">Wolf Attack // Refinery Fighter Bay 8♦</p>
-      <p aria-live="polite">{launchStatus(view, canRead)}</p>
+      <p id={statusId} aria-live="polite">{blocker ?? launchStatus(view, canRead, launchedCycle)}</p>
       {error && <p role="alert">{error}</p>}
       <div className="pdf-escort-launch__actions">
         <button className="cic-action-button" type="button"
+          aria-describedby={statusId}
           disabled={!canRead || busy || !view?.eligible}
           onClick={() => { if (view?.eligible) onLaunch(view); }}>
-          {busy ? 'Launching PDF Escort Wing…' : view?.launched ? 'PDF Escort Wing launched' : 'Launch PDF Escort Wing'}
+          {busy ? 'Launching PDF Escort Wing…' : launched ? 'PDF Escort Wing launched' : 'Launch PDF Escort Wing'}
         </button>
         {view?.eligible && <button className="cic-action-button pdf-escort-launch__pass" type="button"
+          aria-describedby={statusId}
           disabled={!canRead || busy} onClick={() => onPass(view)}>
           Pass PDF Escort Wing
         </button>}
@@ -61,53 +77,82 @@ export default function PdfEscortWingReference({ state, writable = false }: {
 }) {
   const session = useSessionStore((current) => current.session);
   const connection = useSessionStore((current) => current.connection);
+  const freshness = useSessionStore((current) => current.sessionSnapshotFreshness);
   const me = useSessionStore((current) => current.me);
   const wing = PDF_ROLE_CONSOLE.craft[0]!;
   const fighterBay = refinery124.systems?.find((system) => system.id === wing.launch.systemId);
   const current = state ?? initialPdfEscortWingMemberView();
-  const [launchView, setLaunchView] = useState<PdfEscortWingLaunchView | null>(null);
+  const [launchView, setLaunchView] = useState<{
+    readonly authorityKey: string;
+    readonly view: PdfEscortWingLaunchView;
+  } | null>(null);
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ readonly authorityKey: string; readonly message: string } | null>(null);
   const launchReadGeneration = useRef(0);
-  const canReadLaunchAuthority = writable && connection === 'live' && Boolean(session) &&
-    me?.activeConsoleRoleId === PDF_ROLE_CONSOLE.roleId;
+  const canReadLaunchAuthority = writable && connection === 'live' && freshness === 'server' &&
+    session?.phase === 'active' && typeof session.currentTurn === 'number' &&
+    Number.isSafeInteger(session.currentTurn) && session.currentTurn >= 1 &&
+    me?.role === 'player' && Boolean(me.uid) && me.sessionId === session.id &&
+    me.activeConsoleRoleId === PDF_ROLE_CONSOLE.roleId;
+  const authorityKey = JSON.stringify([
+    session?.id, session?.phase, session?.currentTurn, session?.turnPhase?.airspace.state,
+    me?.uid, me?.sessionId, me?.activeConsoleRoleId, connection, freshness, writable,
+  ]);
+  const currentLaunchView = canReadLaunchAuthority && launchView?.authorityKey === authorityKey ? launchView.view : null;
+  const currentError = canReadLaunchAuthority && error?.authorityKey === authorityKey ? error.message : null;
+  // After targeting the launch read reports only 'waiting'; the member projection
+  // keeps the committed launch so Ace permission stays reachable in the range steps.
+  const wingLaunched = !!currentLaunchView?.launched ||
+    launchedOutsideTargeting(currentLaunchView, current.launched ? current.cycle : null);
+  const awaitingStart = session?.phase === 'lobby' || session?.phase === 'casting' || session?.phase === 'briefing' ||
+    (session?.phase === 'active' && session.currentTurn === 0);
+  const launchAuthorityBlocker = !session ? null : awaitingStart
+    ? 'Awaiting GM start // launch authority opens in Cycle 1.'
+    : session.phase !== 'active'
+      ? 'Game ended // Escort Wing launch unavailable.'
+      : connection !== 'live' || freshness !== 'server'
+        ? 'Reconnect // await live session state before checking launch authority.'
+        : typeof session.currentTurn !== 'number' || !Number.isSafeInteger(session.currentTurn) || session.currentTurn < 1
+          ? 'Current cycle unavailable // await the GM’s live game state.'
+          : !canReadLaunchAuthority
+            ? 'Select the active P.D.F. Colonel console to check launch authority.'
+            : null;
 
   const refreshLaunchView = useCallback(async () => {
     const generation = ++launchReadGeneration.current;
     setLaunchView(null);
     setPending(false);
     setError(null);
-    if (!writable || connection !== 'live' || !session ||
-        me?.activeConsoleRoleId !== PDF_ROLE_CONSOLE.roleId) return;
+    if (!canReadLaunchAuthority) return;
     try {
       const view = await getPdfEscortWingLaunch();
       if (launchReadGeneration.current !== generation) return;
-      setLaunchView(view);
+      setLaunchView(view ? { authorityKey, view } : null);
     } catch (cause) {
       if (launchReadGeneration.current !== generation) return;
       setLaunchView(null);
-      setError(cause instanceof Error ? cause.message : 'Escort Wing launch authority is unavailable.');
+      setError({ authorityKey, message: cause instanceof Error ? cause.message : 'Escort Wing launch authority is unavailable.' });
     }
-  }, [connection, me?.activeConsoleRoleId, session, writable]);
+  }, [authorityKey, canReadLaunchAuthority]);
 
   useEffect(() => {
     void refreshLaunchView();
     return () => { launchReadGeneration.current += 1; };
-  }, [refreshLaunchView, session?.currentTurn, session?.turnPhase?.airspace.state]);
+  }, [refreshLaunchView, session]);
 
   async function launch(): Promise<void> {
-    if (!canReadLaunchAuthority || !launchView?.eligible) return;
+    if (!canReadLaunchAuthority || !currentLaunchView?.eligible) return;
     const generation = launchReadGeneration.current;
     setPending(true);
     setError(null);
     try {
       const result = await launchPdfEscortWing(
-        launchView.turn, launchView.revision, launchView.wingRevision,
+        currentLaunchView.turn, currentLaunchView.revision, currentLaunchView.wingRevision,
       );
-      if (launchReadGeneration.current === generation) setLaunchView(result);
+      if (launchReadGeneration.current === generation) setLaunchView({ authorityKey, view: result });
     } catch (cause) {
       if (launchReadGeneration.current !== generation) return;
-      setError(cause instanceof Error ? cause.message : 'Escort Wing launch failed.');
+      setError({ authorityKey, message: cause instanceof Error ? cause.message : 'Escort Wing launch failed.' });
       await refreshLaunchView();
     } finally {
       if (launchReadGeneration.current === generation) setPending(false);
@@ -115,18 +160,18 @@ export default function PdfEscortWingReference({ state, writable = false }: {
   }
 
   async function pass(): Promise<void> {
-    if (!canReadLaunchAuthority || !launchView?.eligible) return;
+    if (!canReadLaunchAuthority || !currentLaunchView?.eligible) return;
     const generation = launchReadGeneration.current;
     setPending(true);
     setError(null);
     try {
       await passWolfFighterLaunchChoice(
-        'pdf-escort-fighter-wing', launchView.turn, launchView.revision, launchView.wingRevision,
+        'pdf-escort-fighter-wing', currentLaunchView.turn, currentLaunchView.revision, currentLaunchView.wingRevision,
       );
       if (launchReadGeneration.current === generation) await refreshLaunchView();
     } catch (cause) {
       if (launchReadGeneration.current !== generation) return;
-      setError(cause instanceof Error ? cause.message : 'Escort Wing pass failed.');
+      setError({ authorityKey, message: cause instanceof Error ? cause.message : 'Escort Wing pass failed.' });
       await refreshLaunchView();
     } finally {
       if (launchReadGeneration.current === generation) setPending(false);
@@ -152,20 +197,21 @@ export default function PdfEscortWingReference({ state, writable = false }: {
               ? `Resolved // ${current.shortRollCount} fighter rolls`
               : 'Not resolved'}</dd></div>
             <div><dt>Wing losses</dt><dd>{current.losses}</dd></div>
-            <div><dt>Away mission reference</dt><dd>Fuel-free participation // printed bonuses +{wing.mission.bonuses.searchAndRescue} search &amp; rescue // +{wing.mission.bonuses.salvage} salvage // result integration pending</dd></div>
+            <div><dt>Away mission reference</dt><dd>Fuel-free participation // +{wing.mission.bonuses.searchAndRescue} search &amp; rescue // +{wing.mission.bonuses.salvage} salvage // server applies these bonuses only to opportunities this participant contributes to</dd></div>
             <div><dt>Combat launch</dt><dd>{PDF_FIGHTER_WING_SYSTEM.name} // charged and undamaged // {wing.launch.phase}</dd></div>
           </dl>
           <p>{fighterBay?.effect ?? `${PDF_FIGHTER_WING_SYSTEM.name} launch reference unavailable`}</p>
           <p className="aegis-craft__system-label">Combat reference</p>
           <p>{wing.combat.mediumRange}</p>
           <p>{wing.combat.shortRange} {wing.combat.lossRule}</p>
-          <p>Medium and Short combat resolution is not available in the console yet.</p>
+          <p>Live Medium and Short choices appear during the matching Wolf Attack range step below this reference.</p>
           <p className="aegis-system__damaged-rule">{fighterBay?.effect.match(/Damaged:.*$/i)?.[0] ?? 'Damaged: launch unavailable.'}</p>
-          <PdfEscortWingLaunchPanelView view={launchView} canRead={canReadLaunchAuthority}
-            busy={pending} error={error}
+          <PdfEscortWingLaunchPanelView view={currentLaunchView} canRead={canReadLaunchAuthority}
+            busy={pending} error={currentError} blocker={launchAuthorityBlocker}
+            launchedCycle={current.launched ? current.cycle : null}
             onLaunch={() => void launch()} onPass={() => void pass()} />
-          {launchView?.launched && <PdfFighterAcePermissionControl sourceId="pdf-escort-fighter-wing"
-            enabled={canReadLaunchAuthority} refreshKey={launchView.revision} />}
+          {currentLaunchView && wingLaunched && <PdfFighterAcePermissionControl sourceId="pdf-escort-fighter-wing"
+            enabled={canReadLaunchAuthority} refreshKey={currentLaunchView.revision} />}
         </article>
       </div>
     </section>

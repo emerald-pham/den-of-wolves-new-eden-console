@@ -1538,6 +1538,29 @@ describe('session header', () => {
     await assertFails(setDoc(receipt, { reply: { status: 'committed' } }));
   });
 
+  it('keeps the Fighter Wing exchange server-owned for the Wing Commander and the GM', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), {
+        activeConsoleRoleId: 'wing-commander', assignedRoleId: 'wing-commander', seatId: 'wing-commander',
+      }, { merge: true });
+      await setDoc(doc(ctx.firestore(), `${SESSION}/commandReceipts/exchange-1`), {
+        fingerprint: { action: 'fighter-wing-exchange', actorUid: 'alice' },
+        result: { status: 'committed', amount: 2 },
+      });
+    });
+    for (const uid of ['alice', 'gm1']) {
+      await assertFails(updateDoc(doc(as(uid), SESSION), {
+        'fighterWingCounts.fighter-wing-alpha': { count: 2, revision: 3 },
+        'fighterWingCounts.fighter-wing-bravo': { count: 3, revision: 6 },
+      }));
+      await assertFails(getDoc(doc(as(uid), `${SESSION}/commandReceipts/exchange-1`)));
+      await assertFails(setDoc(doc(as(uid), `${SESSION}/commandReceipts/exchange-forged-${uid}`), {
+        fingerprint: { action: 'fighter-wing-exchange', actorUid: uid },
+        result: { status: 'committed', amount: 6 },
+      }));
+    }
+  });
+
   it('cannot enable or retract the shared finale from a client', async () => {
     const session = doc(as('gm1'), SESSION);
     await assertFails(updateDoc(session, { debriefMode: { active: true, revision: 1 } }));
@@ -2195,6 +2218,24 @@ describe('first-arrival mission opportunities', () => {
       await assertFails(deleteDoc(target));
     }
   });
+});
+
+it('keeps pre-deal Boa reclamation choices server-only for every client', async () => {
+  const path = `${SESSION}/boaMissionReclamationChoices/arrival-fleet-1-A-1413`;
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), path), {
+      type: 'boa-mission-reclamation-choice', schemaVersion: 1, status: 'selected', sessionId: 's1',
+      opportunityId: 'arrival-fleet-1-A-1413', actorUid: 'alice', opportunityTaskId: 'D-1', revision: 1,
+    });
+  });
+  for (const uid of ['alice', 'gm1', 'press', 'observer']) {
+    const target = doc(as(uid), path);
+    await assertFails(getDoc(target));
+    await assertFails(getDocs(collection(as(uid), `${SESSION}/boaMissionReclamationChoices`)));
+    await assertFails(setDoc(target, { status: 'selected', opportunityTaskId: 'D-2' }));
+    await assertFails(updateDoc(target, { status: 'consumed' }));
+    await assertFails(deleteDoc(target));
+  }
 });
 
 it('exposes immutable mission-start receipts only to the current facilitator', async () => {
@@ -3189,7 +3230,7 @@ it('denies player and GM client writes to maintenance, charges, cargo and shuttl
     const db = env.authenticatedContext(uid).firestore();
     if (uid === 'gm1') await assertSucceeds(getDoc(doc(db, SESSION)));
     else await assertFails(getDoc(doc(db, SESSION)));
-    for (const field of ['currentTurn', 'maintenanceCycles', 'voyage33Movement', 'voyage33Maintenance', 'shuttleCargo', 'shuttleFuelled', 'highwallMining', 'blacksmithRepairs', 'philiaRepairs', 'macawRepairs', 'boaRecycling', 'chacauRepairs', 'allyRepairs', 'maliadesState', 'baseCapybaraCargo', 'shipUpgrades', 'pressDispatch', 'fleetTicker', 'admiralDirectives']) {
+    for (const field of ['currentTurn', 'maintenanceCycles', 'voyage33Movement', 'voyage33Maintenance', 'shuttleCargo', 'shuttleFuelled', 'highwallMining', 'blacksmithRepairs', 'philiaRepairs', 'macawRepairs', 'boaRecycling', 'chacauRepairs', 'allyRepairs', 'maliadesState', 'baseCapybaraCargo', 'shipUpgrades', 'pressDispatch', 'fleetTicker', 'admiralDirectives', 'attackScrapPickups']) {
       await assertFails(updateDoc(doc(db, SESSION), { [field]: { aegis: { step: 7 } } }));
     }
   }
@@ -3291,6 +3332,44 @@ describe('VIP Host maintenance projection', () => {
       });
     });
     await assertFails(getDoc(doc(as('alice'), benefit)));
+  });
+});
+
+describe('P.D.F. news relay stores', () => {
+  it('keeps relay text facilitator-only and every relay store server-written', async () => {
+    const audit = `${SESSION}/pdfNewsRelayAudits/relay-1`;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, audit), {
+        type: 'pdf-news-relay-audit', sessionId: 's1', requestId: 'relay-1', actorUid: 'alice',
+        actorRoleId: 'refinery-124-pdf-colonel', groupId: 'fleet-1', cycle: 1, text: 'Outer marker clear.',
+        handedToPress: true, createdAt: Timestamp.now(),
+      });
+      await setDoc(doc(db, `${SESSION}/pdfNewsRelayAudits/foreign`), {
+        type: 'fleet-group-known-system-share', sessionId: 's1',
+      });
+    });
+
+    await assertSucceeds(getDoc(doc(as('gm1'), audit)));
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/pdfNewsRelayAudits/foreign`)));
+    for (const uid of ['alice', 'bob', 'press', 'observer']) {
+      await assertFails(getDoc(doc(as(uid), audit)));
+      await assertFails(getDocs(collection(as(uid), `${SESSION}/pdfNewsRelayAudits`)));
+    }
+    for (const uid of ['alice', 'press', 'gm1']) {
+      await assertFails(setDoc(doc(as(uid), `${SESSION}/pdfNewsRelayAudits/forged`), {
+        type: 'pdf-news-relay-audit', sessionId: 's1', text: 'Forged relay',
+      }));
+      await assertFails(updateDoc(doc(as(uid), audit), { text: 'Rewritten relay' }));
+      await assertFails(deleteDoc(doc(as(uid), audit)));
+      await assertFails(setDoc(doc(as(uid), `${SESSION}/pressLog/forged-relay`), {
+        type: 'pdf-news-relay', sourceId: 'pdf-news-relay:forged', text: 'Forged hand-off', cycle: 1,
+        recordedAt: '2026-11-05T00:00:00.000Z',
+      }));
+      await assertFails(setDoc(doc(as(uid), `${SESSION}/fleetGroupMessages/fleet-1`), {
+        groupId: 'fleet-1', messages: [{ id: 'forged', actorUid: uid, text: 'Forged relay', sentAt: '2026-11-05T00:00:00.000Z' }],
+      }));
+    }
   });
 });
 
@@ -3407,6 +3486,79 @@ describe('permissioned dismantling target inbox', () => {
       await updateDoc(doc(ctx.firestore(), inboxPath), { unexpectedSecret: 'private-data' });
     });
     await assertFails(getDoc(doc(as('targetDione'), inboxPath)));
+  });
+
+  describe('Macaw Scrap dismantling', () => {
+    const capybaraInbox = `${SESSION}/permissionedDismantlingInboxes/capybara`;
+    const macawInbox = (targetShipId: string, overrides: Record<string, unknown> = {}) => ({
+      type: 'permissioned-dismantling-inbox', sessionId: 's1', targetShipId,
+      proposalId: 'proposal-macaw', proposerUid: 'macawHolder', craftId: 'macaw',
+      targetConsoleId: 'reactor', targetRevision: 0, scrapGain: 1, status: 'applied',
+      consentId: 'consent-macaw', scrapAfter: 4, updatedAt: new Date('2026-09-30T17:00:00.000Z'),
+      ...overrides,
+    });
+
+    beforeEach(async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        await updateDoc(doc(db, SESSION), {
+          activeRoleIds: ['dione-captain', 'icebreaker-captain', 'capybara-captain', 'capybara-recycler'],
+          activeVesselIds: ['dione', 'icebreaker', 'capybara'],
+        });
+        for (const [uid, assignedRoleId] of [['macawHolder', 'capybara-captain'], ['recycler', 'capybara-recycler']]) {
+          await setDoc(doc(db, `${SESSION}/players/${uid}`), {
+            uid, role: 'player', connected: true, assignedRoleId, replacementRoleId: null,
+            replacementStatus: null, escapeState: null,
+          });
+        }
+        await setDoc(doc(db, inboxPath), macawInbox('dione'));
+        await setDoc(doc(db, capybaraInbox), macawInbox('capybara', { targetConsoleId: 'advanced-hydroponics' }));
+      });
+    });
+
+    it('shows the one-Scrap result only to the target-ship players and the Macaw holder', async () => {
+      await assertSucceeds(getDoc(doc(as('targetDione'), inboxPath)));
+      await assertSucceeds(getDoc(doc(as('macawHolder'), inboxPath)));
+      await assertFails(getDoc(doc(as('recycler'), inboxPath)));
+      await assertSucceeds(getDoc(doc(as('recycler'), capybaraInbox)));
+      await assertSucceeds(getDoc(doc(as('macawHolder'), capybaraInbox)));
+      await assertFails(getDoc(doc(as('targetDione'), capybaraInbox)));
+      await assertFails(getDoc(doc(as('gm1'), capybaraInbox)));
+      await assertFails(getDoc(doc(as('observer'), capybaraInbox)));
+    });
+
+    it.each([
+      ['an engineering material gain', { materialGain: 3 }],
+      ['a materials balance', { materialsAfter: 5 }],
+      ['more than one Scrap', { scrapGain: 2 }],
+      ['a negative Scrap balance', { scrapAfter: -1 }],
+      ['a non-integer Scrap balance', { scrapAfter: 'four' }],
+    ])('fails closed for a Macaw inbox carrying %s', async (_label, overrides) => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), capybaraInbox), macawInbox('capybara', overrides));
+      });
+      await assertFails(getDoc(doc(as('recycler'), capybaraInbox)));
+    });
+
+    it('denies every client write to Macaw dismantling records and the Scrap ledger', async () => {
+      for (const uid of ['macawHolder', 'recycler', 'gm1']) {
+        const db = as(uid);
+        await assertFails(setDoc(doc(db, capybaraInbox), macawInbox('capybara', { scrapAfter: 99 })));
+        await assertFails(updateDoc(doc(db, capybaraInbox), { status: 'applied', scrapAfter: 99 }));
+        await assertFails(setDoc(doc(db, `${SESSION}/permissionedDismantlingProposals/forged`), {
+          craftId: 'macaw', targetShipId: 'capybara', scrapGain: 1, status: 'pending',
+        }));
+        await assertFails(setDoc(doc(db, `${SESSION}/permissionedDismantlingConsents/forged`), {
+          craftId: 'macaw', actorUid: uid, scrapGain: 1, status: 'granted',
+        }));
+        await assertFails(setDoc(doc(db, `${SESSION}/permissionedDismantlingReceipts/forged`), {
+          result: { status: 'applied', scrapGain: 1, scrapAfter: 99 },
+        }));
+        await assertFails(setDoc(doc(db, `${SESSION}/permissionedDismantlingTargetStates/capybara`), { revision: 0 }));
+        await assertFails(updateDoc(doc(db, SESSION), { 'shipResources.capybara.scrap': 99 }));
+        await assertFails(updateDoc(doc(db, SESSION), { 'shipDamage.capybara': { damagedSystemIds: [], destroyed: false } }));
+      }
+    });
   });
 
   it('keeps the declined decision readable to the same authorized players', async () => {

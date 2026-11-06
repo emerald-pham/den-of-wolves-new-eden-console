@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { arch, cpus, platform, totalmem } from 'node:os';
 import { initializeApp, deleteApp } from 'firebase/app';
@@ -18,7 +19,7 @@ import {
   readCoordinationState,
 } from './emulator-resource-registry.mjs';
 
-const root = resolve(new URL('..', import.meta.url).pathname);
+const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const projectId = 'dow-new-eden-console';
 const freshReservationMaxAgeMs = 10 * 60 * 1000;
 const arg = (name, fallback) => {

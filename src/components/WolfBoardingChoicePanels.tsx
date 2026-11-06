@@ -9,6 +9,8 @@ export interface WolfBoardingSupportChoiceView {
   readonly fuelled: boolean;
   readonly legalHostIds: readonly WolfAttackTargetId[];
   readonly selectedHostId?: WolfAttackTargetId | null;
+  /** The craft's host after the committed choice, as the server recorded it. */
+  readonly hostShipId?: WolfAttackTargetId;
 }
 
 export function WolfBoardingSupportChoicePanelView({
@@ -26,6 +28,7 @@ export function WolfBoardingSupportChoicePanelView({
         ? view.selectedHostId ? `${craftName} is now docked at ${shipName(view.selectedHostId)}.`
           : `${craftName} stayed docked at ${shipName(view.currentHostId)}.`
         : `${craftName} relocation is unavailable.`}</p>
+      {view.status === 'committed' && view.hostShipId && <p>{craftName} host // {shipName(view.hostShipId)}</p>}
     </section>;
   }
   return <section aria-label={`${craftName} boarding relocation`}>

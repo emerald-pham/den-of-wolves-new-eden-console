@@ -56,6 +56,7 @@ const {
   subscribeGmWolfActionReceipt,
   subscribeGmWolfSuspicionHistory,
   subscribeGmWolfHackingAlerts,
+  subscribeGmPdfNewsRelayAudits,
   subscribePlayerHackingNotices,
   subscribeGmWolfClueDisclosure,
   subscribeGmWolfCultIntelligence,
@@ -595,6 +596,37 @@ it('hydrates retained shuttle custody without resurrecting its destroyed-host do
   });
   expect(session.shuttleDockings?.some((docking) =>
     docking.shuttleId === 'snn-press-shuttle')).toBe(false);
+});
+
+it('hydrates pending attack Scrap pickups and drops malformed entries', () => {
+  const session = sessionFrom('pickups', {
+    ...sessionData(8),
+    attackScrapPickups: {
+      aegis: [{ attackId: 'wolf-attack-7', turn: 7, destroyed: false },
+        { attackId: 'wolf-attack-8', turn: 0, destroyed: false }],
+      dione: [{ attackId: 'wolf-attack-7', turn: 7, destroyed: true, scrap: 4 }],
+      quellon: [{ attackId: 'wolf-attack-8', turn: 8, destroyed: true }],
+      'not-a-ship': [{ attackId: 'wolf-attack-8', turn: 8, destroyed: true }],
+    },
+  });
+  expect(session.attackScrapPickups).toEqual({
+    aegis: [{ attackId: 'wolf-attack-7', turn: 7, destroyed: false }],
+    quellon: [{ attackId: 'wolf-attack-8', turn: 8, destroyed: true }],
+  });
+  expect(sessionFrom('none', sessionData(8)).attackScrapPickups).toEqual({});
+});
+
+it('hydrates the facilitator-only Boa choice pending flags and drops anything but a true flag', () => {
+  const session = sessionFrom('boa-pending', {
+    ...sessionData(8),
+    boaReclamationPending: {
+      'arrival-fleet-1-A-5143': true,
+      'arrival-fleet-1-A-4000': 'L-1',
+      'bad id/with slash': true,
+    },
+  });
+  expect(session.boaReclamationPending).toEqual({ 'arrival-fleet-1-A-5143': true });
+  expect(sessionFrom('none', sessionData(8)).boaReclamationPending).toBeUndefined();
 });
 
 it('hydrates only canonical quarantine docking state with communications allowed', () => {
@@ -2630,6 +2662,34 @@ it('hydrates only canonical durable Wolf suspicion history from server snapshots
   stop();
   expect(unsubscribeSpies[0]).toHaveBeenCalledOnce();
   expect(onHistory).toHaveBeenLastCalledWith([]);
+});
+
+it('projects facilitator-only P.D.F. news relay records newest first and drops malformed ones', () => {
+  const { callbacks, unsubscribeSpies } = captureSessionListener();
+  const onAudits = vi.fn();
+  const stop = subscribeGmPdfNewsRelayAudits('s1', onAudits);
+  const relay = {
+    type: 'pdf-news-relay-audit', sessionId: 's1', requestId: 'relay-1', actorUid: 'colonel',
+    actorRoleId: 'refinery-124-pdf-colonel', groupId: 'fleet-1', cycle: 3,
+    text: 'Raiders sighted near the refinery.', handedToPress: true, createdAt: '2026-11-05T20:00:00.000Z',
+  };
+  callbacks[0]?.({ metadata: { fromCache: true }, docs: [{ id: 'relay-1', data: () => relay }] });
+  expect(onAudits).not.toHaveBeenCalled();
+  callbacks[0]?.({ metadata: { fromCache: false }, docs: [
+    { id: 'relay-1', data: () => relay },
+    { id: 'relay-2', data: () => ({ ...relay, requestId: 'relay-2', handedToPress: false,
+      createdAt: '2026-11-05T20:05:00.000Z' }) },
+    { id: 'relay-3', data: () => ({ ...relay, requestId: 'relay-3', groupId: 'not-a-group' }) },
+  ] });
+  expect(onAudits).toHaveBeenLastCalledWith([
+    { requestId: 'relay-2', actorRoleId: 'refinery-124-pdf-colonel', groupId: 'fleet-1', cycle: 3,
+      text: 'Raiders sighted near the refinery.', handedToPress: false, createdAt: '2026-11-05T20:05:00.000Z' },
+    { requestId: 'relay-1', actorRoleId: 'refinery-124-pdf-colonel', groupId: 'fleet-1', cycle: 3,
+      text: 'Raiders sighted near the refinery.', handedToPress: true, createdAt: '2026-11-05T20:00:00.000Z' },
+  ]);
+  expect(onAudits.mock.calls.at(-1)?.[0]?.[0]).not.toHaveProperty('actorUid');
+  stop();
+  expect(unsubscribeSpies[0]).toHaveBeenCalledOnce();
 });
 
 it('strictly projects pending GM sabotage alerts and clears malformed or stale callbacks', () => {

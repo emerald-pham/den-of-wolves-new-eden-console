@@ -71,7 +71,10 @@ import { createSameTableTradeCallables } from './sameTableTradeCallable';
 import { createGorgoneionMissionSupportCallables } from './gorgoneionMissionSupportCallable';
 import { applyAwayMissionLifecycleCommand, createAwayMissionLifecycleBootstrap, markAwayMissionOverrun, projectAwayMissionPrivateState, projectAwayMissionPublicState, type AwayMissionLifecycleRecord, type AwayMissionLifecycleCommand } from './awayMissionLifecycleAdapter';
 import { missionCraftIdsCarriedByShip, nextMissionCraftCommitments, parseMissionCraftCommitments, requireMissionCraftMovementAvailable } from './missionCraftCommitment';
-import { planMissionRewardDelivery } from './missionRewardDelivery';
+import { planBoaMissionRewardDelivery, planMissionRewardDelivery } from './missionRewardDelivery';
+import { createBoaMissionReclamationCallables } from './boaMissionReclamationCallable';
+import type { BoaMissionReclamationLapseReason } from './boaMissionReclamationContract';
+import { halvedBoaReclamationDifficulty, parseStoredBoaReclamationChoice } from './boaMissionReclamation';
 import { createAwayMissionLifecycleCallables } from './awayMissionLifecycleCallable';
 import { deriveAwayMissionParticipantCraftSnapshots } from './awayMissionCraftSnapshot';
 import { createPermissionedDismantlingCallables } from './permissionedDismantlingCallable';
@@ -110,6 +113,7 @@ import {
 } from './politicalCapital';
 import {
   buildCommissarPurgePressLogEntry,
+  buildPdfNewsRelayPressLogEntry,
   buildPresidentActionPressLogEntry,
   buildShuttleSurvivorTransferPressLogEntry,
   buildSurvivorChangePressLogEntry,
@@ -285,6 +289,7 @@ import {
 } from './arrivalPressure';
 import {
   firstArrivalMissionOpportunity,
+  laterCycleMissionOpportunityIds,
   legacyCycleRepeatableMissionOpportunity,
   missionOpportunityDocumentPath,
   parseStoredMissionOpportunity,
@@ -526,6 +531,13 @@ import {
   type FighterWingId,
 } from './fighterWings';
 import {
+  isFighterWingExchangeResult,
+  otherFighterWing,
+  planFighterWingExchange,
+  requireFighterWingExchangeRequest,
+  type FighterWingExchangeResult,
+} from './fighterWingExchange';
+import {
   initialAegisFighterWingAttack,
   launchAegisFighterWing as launchAegisFighterWingState,
   parseAegisFighterWingCombatState,
@@ -556,6 +568,10 @@ import {
   parseRetainedShuttles,
   retainShuttlesFromDestroyedHost,
 } from './retainedShuttles';
+import {
+  carryForwardAttackScrapPickups, parseAttackScrapPickups, withCurrentShipDestruction,
+  type AttackScrapPickupLedger,
+} from './attackScrapPickups';
 import {
   acceptQuarantineDocking,
   parseQuarantineDockingState,
@@ -880,6 +896,30 @@ const gorgoneionMissionSupportCallables = createGorgoneionMissionSupportCallable
   serverTimestamp: () => FieldValue.serverTimestamp(),
 });
 
+const boaMissionReclamationCallables = createBoaMissionReclamationCallables({
+  db,
+  commandMarkers: {
+    read: (transaction, sessionId, requestId) =>
+      (transaction as Transaction).get(commandReceiptRef(sessionId, requestId)),
+    create: (transaction, fingerprint, result) => {
+      const sessionId = fingerprint.sessionId;
+      if (!sessionId) throw new Error('Boa mission choices require a session ID.');
+      (transaction as Transaction).create(commandReceiptRef(sessionId, fingerprint.requestId), {
+        fingerprint,
+        result,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    },
+  },
+  isActivePlayer: (player) => isActivePlayer(player as DocumentSnapshot),
+  serverTimestamp: () => FieldValue.serverTimestamp(),
+});
+
+export const readBoaMissionReclamationWorkspace = onCall(request =>
+  boaMissionReclamationCallables.readBoaMissionReclamationWorkspace({ auth: request.auth, data: request.data }));
+export const chooseBoaMissionReclamationOpportunity = onCall(request =>
+  boaMissionReclamationCallables.chooseBoaMissionReclamationOpportunity({ auth: request.auth, data: request.data }));
+
 const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
   db,
   prepareCraftCommitments: async ({ transaction, sessionId, session, nextRecord }) => {
@@ -963,22 +1003,43 @@ const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
     if (storedPopulation !== undefined && !isRecord(storedPopulation)) {
       throw new HttpsError('failed-precondition', 'The destination population is malformed.');
     }
-    const delivery = planMissionRewardDelivery({
+    const deliveryInput = {
       shipId, inventory, population: isRecord(storedPopulation) && Object.hasOwn(storedPopulation, shipId)
         ? storedPopulation[shipId] : INITIAL_SHIP_SURVIVORS[shipId],
       minerals: isRecord(mineralCargo) && Object.hasOwn(mineralCargo, shipId) ? mineralCargo[shipId] : 0,
       rewards: nextRecord.rewards ?? [], specialRewards: nextRecord.specialRewards ?? [],
-    });
+    };
+    // A Boa reclamation reward is one Scrap carried by the Boa, never the drop-off ship.
+    let boaDelivery: Readonly<{ boaScrapAwarded: 0 | 1; boaScrapCargo: Readonly<{ scrap?: number }> }> | undefined;
+    let delivery: ReturnType<typeof planMissionRewardDelivery>;
+    if (nextRecord.boaReclamation !== undefined) {
+      const cargoRoot = session.get('shuttleCargo');
+      if (cargoRoot !== undefined && !isRecord(cargoRoot)) {
+        throw new HttpsError('failed-precondition', 'The Boa Scrap cargo is malformed.');
+      }
+      const boaScrapCargo = parseBoaScrapCargo(isRecord(cargoRoot) ? cargoRoot.boa : undefined);
+      if (!boaScrapCargo) throw new HttpsError('failed-precondition', 'The Boa Scrap cargo is malformed.');
+      const routed = planBoaMissionRewardDelivery({
+        ...deliveryInput, boaReclamationOpportunityId: nextRecord.boaReclamation.opportunityId, boaScrapCargo,
+      });
+      delivery = routed;
+      boaDelivery = routed ?? undefined;
+    } else {
+      delivery = planMissionRewardDelivery(deliveryInput);
+    }
     if (!delivery) throw new HttpsError('failed-precondition', 'Mission rewards cannot be delivered safely.');
+    const plannedDelivery = delivery;
     return () => {
       tx.update(db.doc(`sessions/${sessionId}`), {
-        [`shipResources.${shipId}`]: delivery.inventory,
-        [`shipSurvivors.${shipId}`]: delivery.population,
-        [`shipMissionMinerals.${shipId}`]: delivery.minerals,
+        [`shipResources.${shipId}`]: plannedDelivery.inventory,
+        [`shipSurvivors.${shipId}`]: plannedDelivery.population,
+        [`shipMissionMinerals.${shipId}`]: plannedDelivery.minerals,
+        ...(boaDelivery ? { 'shuttleCargo.boa': boaDelivery.boaScrapCargo } : {}),
         updatedAt: FieldValue.serverTimestamp(),
       });
       tx.create(receiptRef, {
-        missionId, shipId, revision: nextRecord.revision, deltas: delivery.deltas,
+        missionId, shipId, revision: nextRecord.revision, deltas: plannedDelivery.deltas,
+        ...(boaDelivery ? { boaScrapAwarded: boaDelivery.boaScrapAwarded, boaScrapCargo: boaDelivery.boaScrapCargo } : {}),
         createdAt: FieldValue.serverTimestamp(),
       });
     };
@@ -10173,6 +10234,44 @@ function isAwayMissionDealReply(value: unknown, sessionId: string): value is Awa
 }
 
 /** Start a source-bound mission and perform the existing private initial deal atomically. */
+type BoaReclamationDealBinding = Readonly<{
+  actorUid: string; opportunityId: string; locationOpportunityId: string; choiceRevision: number;
+  printedDifficulty: number | null; effectiveDifficulty: number | null;
+  criticalThreshold: number | null; difficultyRule: unknown; rounding: 'up';
+}>;
+
+/**
+ * Validate the server-written pre-deal Boa choice for this mission location.
+ * Malformed data fails closed; a sound choice that is no longer selected or no
+ * longer bound to this exact location lapses at the deal instead of blocking it.
+ */
+function parseBoaReclamationSelection(
+  rawChoice: unknown,
+  sessionId: string,
+  opportunity: MissionOpportunityEligibility,
+  missionDefinition: NonNullable<ReturnType<typeof missionCardForCode>>,
+): Readonly<{
+  actorUid: string; taskOpportunityId: string; controlRevision: number; revision: number; mismatched: boolean;
+}> | undefined {
+  if (rawChoice === undefined) return undefined;
+  const choice = parseStoredBoaReclamationChoice(rawChoice, sessionId);
+  if (!choice) {
+    throw commandError('failed-precondition', 'The Boa mission selection is malformed; refresh before dealing.', 'conflict');
+  }
+  const mismatched = choice.status !== 'selected' || choice.opportunityId !== opportunity.id ||
+    choice.groupId !== opportunity.groupId || choice.chart !== opportunity.chart ||
+    choice.coordinate !== opportunity.coordinate || choice.siteCode !== opportunity.siteCode ||
+    choice.sourceCycle !== opportunity.sourceCycle ||
+    !missionDefinition.opportunities.some(({ id }) => id === choice.taskOpportunityId);
+  return {
+    actorUid: choice.actorUid,
+    taskOpportunityId: choice.taskOpportunityId,
+    controlRevision: choice.controlRevision,
+    revision: choice.revision,
+    mismatched,
+  };
+}
+
 export const dealPrivateInitialCards = onCall<{
   sessionId?: unknown;
   instanceId?: unknown;
@@ -10193,6 +10292,9 @@ export const dealPrivateInitialCards = onCall<{
   const markerRef = commandReceiptRef(command.sessionId, command.requestId);
   const eventRef = db.doc(`sessions/${command.sessionId}/events/mission-cards-dealt-${command.requestId}`);
   const opportunityRef = db.doc(missionOpportunityDocumentPath(command.sessionId, command.opportunityId));
+  const boaChoiceRef = db.doc(
+    `sessions/${command.sessionId}/boaMissionReclamationChoices/${command.opportunityId}`,
+  );
   const startSnapshotRef = db.doc(`sessions/${command.sessionId}/missionStartSnapshots/${command.opportunityId}`);
   const playersRef = db.collection(`sessions/${command.sessionId}/players`);
   const fleetGroupsRef = db.collection(`sessions/${command.sessionId}/fleetGroups`);
@@ -10228,8 +10330,8 @@ export const dealPrivateInitialCards = onCall<{
 
   return db.runTransaction(async (tx) => {
     const [marker, authority, players, fleetGroups, craftOwnershipManifest,
-      missionDeckSnapshot, gorgoneionMissionSupportViewsSnapshot, navigationSnapshot, opportunitySnapshot, startSnapshotSnapshot,
-      missionSnapshot, eventSnapshot] =
+      missionDeckSnapshot, gorgoneionMissionSupportViewsSnapshot, navigationSnapshot, opportunitySnapshot,
+      boaChoiceSnapshot, startSnapshotSnapshot, missionSnapshot, eventSnapshot] =
       await Promise.all([
         tx.get(markerRef),
         requireFacilitatorInstance(tx, command.sessionId, uid, command.instanceId),
@@ -10240,6 +10342,7 @@ export const dealPrivateInitialCards = onCall<{
         tx.get(gorgoneionMissionSupportViewsRef),
         tx.get(navigationRef),
         tx.get(opportunityRef),
+        tx.get(boaChoiceRef),
         tx.get(startSnapshotRef),
         tx.get(missionRef),
         tx.get(eventRef),
@@ -10366,17 +10469,15 @@ export const dealPrivateInitialCards = onCall<{
         'conflict',
       );
     }
-    if (missionDefinition.siteRules.repeatability === 'everyTurn' &&
-        opportunity.sourceCycle < currentCycle) {
-      const laterCycleOpportunitySnapshots = await Promise.all(
-        Array.from(
-          { length: currentCycle - opportunity.sourceCycle },
-          (_, index) => opportunity.sourceCycle + index + 1,
-        ).map((cycle) => tx.get(db.doc(missionOpportunityDocumentPath(
-          command.sessionId,
-          `arrival-${opportunity.groupId}-${opportunity.chart}-${opportunity.coordinate}-cycle-${cycle}`,
-        )))),
-      );
+    const boaReclamationSelection = parseBoaReclamationSelection(
+      boaChoiceSnapshot.exists ? boaChoiceSnapshot.data() : undefined,
+      command.sessionId, opportunity, missionDefinition,
+    );
+    // Shared with the Boa pre-deal choice, so the Recycler is offered only what this deal accepts.
+    const laterCycleOpportunityIds = laterCycleMissionOpportunityIds(opportunity, currentCycle);
+    if (laterCycleOpportunityIds.length > 0) {
+      const laterCycleOpportunitySnapshots = await Promise.all(laterCycleOpportunityIds.map((id) =>
+        tx.get(db.doc(missionOpportunityDocumentPath(command.sessionId, id)))));
       for (const laterOpportunitySnapshot of laterCycleOpportunitySnapshots) {
         if (!laterOpportunitySnapshot.exists) continue;
         const later = laterOpportunitySnapshot.data();
@@ -10607,6 +10708,50 @@ export const dealPrivateInitialCards = onCall<{
         'conflict',
       );
     }
+    // A Boa choice never blocks a location's mission (coordinator ruling,
+    // 2026-11-05): when its Recycler cannot apply it at the deal, it lapses.
+    let boaReclamation: BoaReclamationDealBinding | undefined;
+    // 'location-changed' is recorded server-side; the member workspace contract does not list it yet.
+    let boaReclamationLapse: BoaMissionReclamationLapseReason | 'location-changed' | undefined;
+    if (boaReclamationSelection) {
+      const boaControl = shuttleControls?.boa;
+      const actorPlayer = playerDocumentsByUid.get(boaReclamationSelection.actorUid);
+      const participant = participants.find(({ uid: participantUid }) =>
+        participantUid === boaReclamationSelection.actorUid);
+      const participantCraftBinding = participantCrafts.find(({ participantUid }) =>
+        participantUid === boaReclamationSelection.actorUid);
+      if (boaReclamationSelection.mismatched) {
+        boaReclamationLapse = 'location-changed';
+      } else if (!boaControl || boaControl.holderUid !== boaReclamationSelection.actorUid ||
+          boaControl.ownerRoleId !== 'capybara-recycler' ||
+          boaControl.revision !== boaReclamationSelection.controlRevision) {
+        boaReclamationLapse = 'boa-control-changed';
+      } else if (!actorPlayer || !isActivePlayer(actorPlayer) || actorPlayer.get('role') !== 'player' ||
+          actorPlayer.get('assignedRoleId') !== 'capybara-recycler' ||
+          actorPlayer.get('replacementStatus') != null) {
+        boaReclamationLapse = 'recycler-unavailable';
+      } else if (participant?.roleId !== 'capybara-recycler' ||
+          !participantCraftBinding?.craftIds.includes('boa') || !carrierCraftIds.includes('boa')) {
+        boaReclamationLapse = 'recycler-not-on-mission';
+      }
+    }
+    if (boaReclamationSelection && !boaReclamationLapse) {
+      const selectedTask = missionDefinition.opportunities.find(({ id }) =>
+        id === boaReclamationSelection.taskOpportunityId)!;
+      const printedDifficulty = Number.isSafeInteger(selectedTask.difficulty) ? selectedTask.difficulty! : null;
+      boaReclamation = {
+        actorUid: boaReclamationSelection.actorUid,
+        opportunityId: selectedTask.id,
+        locationOpportunityId: opportunity.id,
+        choiceRevision: boaReclamationSelection.revision,
+        printedDifficulty,
+        effectiveDifficulty: printedDifficulty === null ? null : halvedBoaReclamationDifficulty(printedDifficulty),
+        criticalThreshold: Number.isSafeInteger(selectedTask.criticalThreshold)
+          ? selectedTask.criticalThreshold! : null,
+        difficultyRule: selectedTask.difficultyRule ?? null,
+        rounding: 'up',
+      };
+    }
     const pressureSnapshot = await tx.get(
       wolfArrivalPressureStateRef(command.sessionId, missionGroupId),
     );
@@ -10653,6 +10798,9 @@ export const dealPrivateInitialCards = onCall<{
       groupId: missionGroupId,
       sourceCycle: opportunity.sourceCycle,
       participantCrafts,
+      ...(boaReclamation
+        ? { boaReclamation: { actorUid: boaReclamation.actorUid, opportunityId: boaReclamation.opportunityId } }
+        : {}),
       lifecycle: {
         missionId,
         siteCode: missionDefinition.code,
@@ -10707,7 +10855,31 @@ export const dealPrivateInitialCards = onCall<{
         participantCrafts,
         missionLeaderUid: missionLeader.uid,
       },
-      modifiers: [], outcome: 'started',
+      modifiers: boaReclamationSelection && boaReclamationLapse ? [
+        `Boa reclamation ${boaReclamationSelection.taskOpportunityId} lapsed (${boaReclamationLapse}) // dealt without the Boa adjustment or Scrap replacement`,
+      ] : boaReclamation ? [
+        `Boa reclamation ${boaReclamation.opportunityId} // printed difficulty ${boaReclamation.printedDifficulty ?? 'server-calculated'} // effective difficulty ${boaReclamation.effectiveDifficulty ?? 'half of server-calculated difficulty'} (odd halves round up; owner decision 2026-11-05) // reward replaced by 1 Scrap on success; no ordinary or critical bonus`,
+      ] : [],
+      ...(boaReclamationSelection && boaReclamationLapse ? { boaReclamation: {
+        status: 'lapsed',
+        reason: boaReclamationLapse,
+        actorUid: boaReclamationSelection.actorUid,
+        missionCardOpportunityId: boaReclamationSelection.taskOpportunityId,
+        choiceRevision: boaReclamationSelection.revision,
+      } } : {}),
+      ...(boaReclamation ? { boaReclamation: {
+        status: 'applied',
+        actorUid: boaReclamation.actorUid,
+        missionCardOpportunityId: boaReclamation.opportunityId,
+        locationOpportunityId: boaReclamation.locationOpportunityId,
+        choiceRevision: boaReclamation.choiceRevision,
+        printedDifficulty: boaReclamation.printedDifficulty,
+        effectiveDifficulty: boaReclamation.effectiveDifficulty,
+        criticalThreshold: boaReclamation.criticalThreshold,
+        difficultyRule: boaReclamation.difficultyRule,
+        rounding: boaReclamation.rounding,
+      } } : {}),
+      outcome: 'started',
       stateDelta: {
         missionSnapshotCreated: true,
         participantHandCount: participants.length,
@@ -10732,7 +10904,21 @@ export const dealPrivateInitialCards = onCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     };
-    tx.update(db.doc(`sessions/${command.sessionId}`), { missionCraftCommitments: commitments, updatedAt: FieldValue.serverTimestamp() });
+    tx.update(db.doc(`sessions/${command.sessionId}`), {
+      missionCraftCommitments: commitments,
+      // The deal settles any pending Boa choice, so the facilitator's pending flag clears with it.
+      ...(boaReclamationSelection ? { [`boaReclamationPending.${opportunity.id}`]: FieldValue.delete() } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    if (boaReclamationSelection) {
+      tx.update(boaChoiceRef, boaReclamationLapse ? {
+        status: 'lapsed', missionId, lapseReason: boaReclamationLapse, lapsedCycle: currentCycle,
+        lapsedByRequestId: command.requestId, lapsedAt: FieldValue.serverTimestamp(),
+      } : {
+        status: 'consumed', missionId, consumedByRequestId: command.requestId,
+        consumedAt: FieldValue.serverTimestamp(),
+      });
+    }
     tx.set(missionRef, {
       schemaVersion: 1,
       lifecycleRecord: lifecycleBootstrap.record,
@@ -16929,6 +17115,17 @@ function storedGroupNotes(snapshot: DocumentSnapshot, groupId: string): readonly
   return raw.messages as FleetGroupNote[];
 }
 
+/** Append one ordinary note to the group's bounded (latest 20) history; a stored note without its receipt is refused. */
+function appendGroupNote(
+  tx: Transaction, notesRef: DocumentReference, notes: DocumentSnapshot, groupId: string, note: FleetGroupNote,
+): void {
+  const current = storedGroupNotes(notes, groupId);
+  if (current.some(existing => existing.id === note.id)) {
+    throw commandError('failed-precondition', 'Group note has no replay receipt.', 'conflict');
+  }
+  tx.set(notesRef, { groupId, messages: [...current.slice(-19), note], updatedAt: FieldValue.serverTimestamp() });
+}
+
 /** Server-only storage; every read rechecks the live audience after a partition. */
 export const readFleetGroupMessages = onCall(async request => {
   const uid = requireUid(request.auth);
@@ -16961,11 +17158,90 @@ export const sendFleetGroupMessage = onCall(async request => {
     const replay = replayBoundCommand(receipt, fingerprint, (value): value is FleetGroupMessageReply =>
       isFleetGroupMessageReply(value) && value.groupId === data.expectedGroupId && value.messageId === data.requestId, 'fleet group note');
     if (replay) return replay;
-    const current = storedGroupNotes(notes, groupId);
-    if (current.some(note => note.id === data.requestId)) throw commandError('failed-precondition', 'Group note has no replay receipt.', 'conflict');
     const message = { id: data.requestId!, actorUid: uid, text: data.text!, sentAt: now };
-    tx.set(notesRef, { groupId, messages: [...current.slice(-19), message], updatedAt: FieldValue.serverTimestamp() });
+    appendGroupNote(tx, notesRef, notes, groupId, message);
     const result: FleetGroupMessageReply = { status: 'committed', groupId, messageId: message.id };
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+interface PdfNewsRelayRequest {
+  readonly sessionId: string; readonly requestId: string; readonly expectedGroupId: string;
+  readonly text: string; readonly handToPress: boolean;
+}
+interface PdfNewsRelayReply {
+  readonly status: 'committed'; readonly groupId: string; readonly messageId: string; readonly handedToPress: boolean;
+}
+function parsePdfNewsRelayRequest(raw: unknown): PdfNewsRelayRequest {
+  const allowed = ['sessionId', 'requestId', 'expectedGroupId', 'text', 'handToPress'];
+  if (!isRecord(raw) || Object.keys(raw).some(key => !allowed.includes(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.requestId !== 'string' || !isCanonicalRequestId(raw.requestId) ||
+      typeof raw.expectedGroupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(raw.expectedGroupId) ||
+      typeof raw.text !== 'string' || raw.text.trim().length < 1 || raw.text.length > 240 ||
+      typeof raw.handToPress !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'Invalid P.D.F. news relay request.');
+  }
+  return { sessionId: raw.sessionId, requestId: raw.requestId, expectedGroupId: raw.expectedGroupId,
+    text: raw.text.trim(), handToPress: raw.handToPress };
+}
+function isPdfNewsRelayReply(value: unknown): value is PdfNewsRelayReply {
+  return isRecord(value) && Object.keys(value).every(key => ['status', 'groupId', 'messageId', 'handedToPress'].includes(key)) &&
+    value.status === 'committed' && typeof value.groupId === 'string' && /^fleet-[1-9][0-9]*$/.test(value.groupId) &&
+    typeof value.messageId === 'string' && isCanonicalRequestId(value.messageId) && typeof value.handedToPress === 'boolean';
+}
+
+/**
+ * The current P.D.F. Colonel relays news to their own fleet group outside Wolf
+ * attacks. The group receives an ordinary group note, the GM a private audit,
+ * and the Press intake only the text, and only when explicitly handed over.
+ * The Press still decides whether and how to publish it.
+ */
+export const relayPdfColonelNews = onCall(async request => {
+  const uid = requireUid(request.auth);
+  const data = parsePdfNewsRelayRequest(request.data);
+  const fingerprint: CommandFingerprint = { action: 'relay-pdf-colonel-news', sessionId: data.sessionId,
+    requestId: data.requestId, actorUid: uid, instanceId: null, expectedRevision: null,
+    payload: { groupId: data.expectedGroupId, text: data.text, handToPress: data.handToPress } };
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const auditRef = db.doc(`sessions/${data.sessionId}/pdfNewsRelayAudits/${data.requestId}`);
+  const attackStateRef = db.doc(`sessions/${data.sessionId}/wolfAttackState/current`);
+  const now = new Date().toISOString();
+  return db.runTransaction(async tx => {
+    const actor = await tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`));
+    requirePdfColonel(actor);
+    const group = await groupNoteAuthority(tx, data.sessionId, uid, data.expectedGroupId);
+    const notesRef = db.doc(`sessions/${data.sessionId}/fleetGroupMessages/${group.id}`);
+    const [session, notes, receipt, audit, attackState] = await Promise.all([
+      tx.get(db.doc(`sessions/${data.sessionId}`)), tx.get(notesRef), tx.get(receiptRef),
+      tx.get(auditRef), tx.get(attackStateRef),
+    ]);
+    const replay = replayBoundCommand(receipt, fingerprint, (value): value is PdfNewsRelayReply =>
+      isPdfNewsRelayReply(value) && value.groupId === data.expectedGroupId && value.messageId === data.requestId &&
+        value.handedToPress === data.handToPress, 'P.D.F. news relay');
+    if (replay) return replay;
+    if (audit.exists) throw commandError('failed-precondition', 'The P.D.F. news relay has no replay receipt.', 'conflict');
+    if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
+      throw commandError('failed-precondition',
+        'P.D.F. news relays wait until the Wolf attack is resolved.', 'invalid-phase');
+    }
+    if (data.handToPress && session.get('pressEnabled') === false) {
+      throw commandError('failed-precondition',
+        'The Press is not enabled. Relay without the Press hand-off.', 'conflict');
+    }
+    const cycle = sessionTurn(session.get('currentTurn'));
+    appendGroupNote(tx, notesRef, notes, group.id, { id: data.requestId, actorUid: uid, text: data.text, sentAt: now });
+    if (data.handToPress) {
+      writePressLogEvent(tx, data.sessionId, buildPdfNewsRelayPressLogEntry({
+        sourceId: `pdf-news-relay:${data.requestId}`, text: data.text, cycle, recordedAt: now,
+      }));
+    }
+    tx.create(auditRef, { type: 'pdf-news-relay-audit', sessionId: data.sessionId, requestId: data.requestId,
+      actorUid: uid, actorRoleId: 'refinery-124-pdf-colonel', groupId: group.id, cycle, text: data.text,
+      handedToPress: data.handToPress, createdAt: FieldValue.serverTimestamp() });
+    const result: PdfNewsRelayReply = { status: 'committed', groupId: group.id, messageId: data.requestId,
+      handedToPress: data.handToPress };
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
@@ -17720,6 +17996,21 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
     } catch (error) {
       throw commandError('failed-precondition', error instanceof Error ? error.message : 'Pending mission authority is malformed.', 'conflict');
     }
+    // A pending Boa choice is keyed by its arrival, so it moves with that arrival
+    // (and lapses at the deal if its Recycler is not on that group's mission).
+    const boaChoiceSnapshots = await Promise.all(missionMigrations.map(({ fromId }) =>
+      tx.get(db.doc(`sessions/${data.sessionId}/boaMissionReclamationChoices/${fromId}`))));
+    const boaChoiceMigrations = missionMigrations.flatMap((migration, index) => {
+      const snapshot = boaChoiceSnapshots[index]!;
+      if (!snapshot.exists) return [];
+      const choice = parseStoredBoaReclamationChoice(snapshot.data(), data.sessionId);
+      if (!choice) throw commandError('failed-precondition', 'A pending Boa mission choice is malformed.', 'conflict');
+      if (choice.status !== 'selected') return [];
+      return [{ fromId: migration.fromId, toId: migration.opportunity.id, value: {
+        ...snapshot.data(), opportunityId: migration.opportunity.id, groupId: migration.opportunity.groupId,
+        migratedFromOpportunityId: migration.fromId, updatedAt: FieldValue.serverTimestamp(),
+      } }];
+    });
     const shuttleAudienceChanges: { readonly shuttleId: string; readonly fromGroupId: string; readonly toGroupId: string }[] = [];
     for (let index = 0; index < shuttleIds.length; index += 1) {
       const shuttleId = shuttleIds[index]!;
@@ -17755,7 +18046,13 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
     const revision = data.expectedNavigationRevision + (changed ? 1 : 0);
     const nextPartitionRevision = (partitionRevision as number) + (changed ? 1 : 0);
     if (changed) {
-      tx.update(db.doc(`sessions/${data.sessionId}`), { fleetPartitionRevision: nextPartitionRevision, updatedAt: FieldValue.serverTimestamp() });
+      tx.update(db.doc(`sessions/${data.sessionId}`), {
+        fleetPartitionRevision: nextPartitionRevision,
+        ...Object.fromEntries(boaChoiceMigrations.flatMap(({ fromId, toId }) => [
+          [`boaReclamationPending.${fromId}`, FieldValue.delete()], [`boaReclamationPending.${toId}`, true],
+        ])),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
       for (const group of plan.groups) tx.set(db.doc(`sessions/${data.sessionId}/fleetGroups/${group.id}`), {
         ...group, updatedAt: FieldValue.serverTimestamp(),
       });
@@ -17778,6 +18075,10 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
       for (const migration of missionMigrations) {
         writeMissionOpportunity(tx, data.sessionId, migration.opportunity);
         tx.delete(db.doc(missionOpportunityDocumentPath(data.sessionId, migration.fromId)));
+      }
+      for (const choice of boaChoiceMigrations) {
+        tx.set(db.doc(`sessions/${data.sessionId}/boaMissionReclamationChoices/${choice.toId}`), choice.value);
+        tx.delete(db.doc(`sessions/${data.sessionId}/boaMissionReclamationChoices/${choice.fromId}`));
       }
       for (const change of shuttleAudienceChanges) {
         tx.update(db.doc(`sessions/${data.sessionId}/shuttleDepartures/${change.shuttleId}`), { fleetGroupId: change.toGroupId });
@@ -17884,6 +18185,10 @@ function publicMemberSessionSource(sessionSnap: DocumentSnapshot, sessionId: str
     ...(fighterWingCounts === undefined ? {} : { fighterWingCounts }),
     shipDamage: activeVesselRecord(shipDamage(sessionSnap.get('shipDamage')), activeVesselIds),
     shipResources: activeVesselRecord(shipResources(sessionSnap.get('shipResources')), activeVesselIds),
+    // Carried pickups are scoped per damaged ship; the member filter keeps only the reader's group.
+    attackScrapPickups: activeVesselRecord(withCurrentShipDestruction(
+      parseAttackScrapPickups(sessionSnap.get('attackScrapPickups')) ?? {}, sessionSnap.get('shipDamage'),
+    ), activeVesselIds),
     shipUnrest: activeVesselRecord(shipUnrest(sessionSnap.get('shipUnrest')), activeVesselIds),
     shipMutinies: publicShipMutinies(sessionSnap.get('shipMutinies'), activeVesselIds),
     unrestAlerts: publicAlertMap(sessionSnap.get('unrestAlerts'), activeVesselIds, false),
@@ -23413,6 +23718,27 @@ function configuredWolfTargetRingForAttack(
     : configuredWolfTargetRingForSession(session);
 }
 
+/**
+ * The pickup ledger after the current attack state is replaced, or undefined
+ * when there is nothing to record. Only a fleet with the Capybara can collect.
+ */
+function carriedAttackScrapPickups(
+  session: DocumentSnapshot,
+  replacedState: DocumentSnapshot,
+): AttackScrapPickupLedger | undefined {
+  const existing = parseAttackScrapPickups(session.get('attackScrapPickups'));
+  if (!existing) {
+    throw commandError('failed-precondition', 'The attack Scrap pickup ledger is malformed.', 'conflict');
+  }
+  const activeVesselIds = session.get('activeVesselIds');
+  if (!replacedState.exists || session.get('capybaraEnabled') === false ||
+      !Array.isArray(activeVesselIds) || !activeVesselIds.includes('capybara')) return undefined;
+  const next = withCurrentShipDestruction(
+    carryForwardAttackScrapPickups(existing, replacedState.data()), session.get('shipDamage'),
+  );
+  return next === existing ? undefined : next;
+}
+
 function wolfAttackCarryoverDocumentRefs(
   sessionId: string,
   stateProjection: DocumentSnapshot,
@@ -24328,9 +24654,13 @@ export const declareWolfAttack = onCall<{
       ...(inputs.window.threatSiteCode ? { threatSiteCode: inputs.window.threatSiteCode } : {}),
       ...(inputs.window.threatSourceId ? { threatSourceId: inputs.window.threatSourceId } : {}),
     };
+    // The replaced attack's uncollected Scrap pickups have no printed expiry;
+    // keep them collectable once from the server-owned session ledger.
+    const attackScrapPickups = carriedAttackScrapPickups(session, state);
     tx.update(sessionRef, {
       turnPhase: lockedPhase,
       ...(turnState ? { turnState } : {}),
+      ...(attackScrapPickups ? { attackScrapPickups } : {}),
       fleetTicker,
       shuttleDockings: inputs.parkedShuttleDockings.map((docking) => ({ ...docking })),
       shuttleVisitLog: inputs.shuttleVisitLog.map((visit) => ({ ...visit })),
@@ -31459,10 +31789,45 @@ type WolfBoardingSpecialChoiceView = Readonly<{
       condition: 'All Commander-led Wolf Boarding Parties were destroyed.' }>;
 }>;
 
+/** The reader's own committed shuttle relocation in the current attack, never another actor's. */
+type WolfBoardingCommittedRelocation = Readonly<{
+  turn: number; craftId: 'pallas' | 'chepu';
+  selectedHostId: WolfFleetTargetId | null; hostShipId: WolfFleetTargetId;
+}>;
+
 type WolfBoardingSpecialChoiceReadResult = WolfBoardingSpecialChoiceView | Readonly<{
   type: 'wolf-boarding-special-choice-unavailable'; sessionId: string;
   reason: 'not-your-choice' | 'automatic-progress-pending' | 'no-special-choice';
+  committedRelocation?: WolfBoardingCommittedRelocation;
 }>;
+
+function wolfBoardingCommittedRelocationFor(
+  state: DocumentSnapshot,
+  uid: string,
+  turn: number,
+  supportCraft: readonly WolfBoardingCraftAuthority[],
+): WolfBoardingCommittedRelocation | undefined {
+  const ledger = state.get('boardingRelocationChoices');
+  const attackId = state.get('attackId');
+  if (!isRecord(ledger) || typeof attackId !== 'string' || !attackId) return undefined;
+  const isTarget = (value: unknown): value is WolfFleetTargetId =>
+    typeof value === 'string' && (EXPANDED_WOLF_TARGET_RING as readonly string[]).includes(value);
+  let latest: (WolfBoardingCommittedRelocation & { revision: number }) | undefined;
+  for (const craftId of ['pallas', 'chepu'] as const) {
+    const entry = ledger[craftId];
+    // Only the craft's current holder sees its committed result; a hand-off ends the old holder's view.
+    if (supportCraft.find(({ shuttleId }) => shuttleId === craftId)?.holderUid !== uid) continue;
+    if (!isRecord(entry) || entry.actorUid !== uid || entry.attackId !== attackId || entry.turn !== turn ||
+        !Number.isSafeInteger(entry.revision) || !isTarget(entry.hostAfter) ||
+        (entry.target !== null && !isTarget(entry.target))) continue;
+    if (!latest || (entry.revision as number) > latest.revision) {
+      latest = { turn, craftId, selectedHostId: entry.target as WolfFleetTargetId | null,
+        hostShipId: entry.hostAfter, revision: entry.revision as number };
+    }
+  }
+  return latest && { turn: latest.turn, craftId: latest.craftId,
+    selectedHostId: latest.selectedHostId, hostShipId: latest.hostShipId };
+}
 
 type WolfBoardingSpecialChoiceResult = Readonly<{
   status: 'committed'; type: 'wolf-boarding-special-choice'; sessionId: string;
@@ -31521,8 +31886,11 @@ export const getWolfBoardingSpecialChoice = onCall<{
     if (!player.exists) throw new HttpsError('permission-denied', 'Join the session first.');
     const snapshot = wolfBoardingProtocolSnapshot(session, state, players.docs, groups.docs);
     const stage = snapshot.stage;
+    const committedRelocation = player.get('role') === 'player' && isActivePlayer(player)
+      ? wolfBoardingCommittedRelocationFor(state, uid, snapshot.inputs.turn, snapshot.supportCraft) : undefined;
     const noChoice = (reason: 'not-your-choice' | 'automatic-progress-pending' | 'no-special-choice') =>
-      ({ type: 'wolf-boarding-special-choice-unavailable', sessionId, reason } as const);
+      ({ type: 'wolf-boarding-special-choice-unavailable', sessionId, reason,
+        ...(committedRelocation ? { committedRelocation } : {}) } as const);
     if (stage.kind === 'complete') return noChoice('no-special-choice');
     if (stage.kind === 'lock-rolls') return noChoice('automatic-progress-pending');
     if (stage.kind === 'defence') return noChoice('not-your-choice');
@@ -38767,10 +39135,12 @@ export const buildFighter = onCall<{
     'fighter-build', change.sessionId, identity.requestId, uid, change.instanceId ?? null,
     change.expectedRevision, { shipId: 'aegis', wingId: change.wingId },
   );
+  const attackStateRef = db.doc(`sessions/${change.sessionId}/wolfAttackState/current`);
   return db.runTransaction(async tx => {
-    const [player, session] = await Promise.all([
+    const [player, session, attackState] = await Promise.all([
       tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`)),
       tx.get(sessionRef),
+      tx.get(attackStateRef),
     ]);
     await requireConsoleAuthority(tx, change.sessionId, player, 'wing-commander', change.instanceId);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
@@ -38783,6 +39153,14 @@ export const buildFighter = onCall<{
     if (replay) return replay;
 
     requireActionPhase(session, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
+    // A launched wing's strength is fixed at the combat table until the attack releases the fleet.
+    if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
+      throw commandError(
+        'failed-precondition',
+        'Replacement fighters cannot be built while a Wolf attack is active.',
+        'invalid-phase',
+      );
+    }
 
     const currentRevision = vesselActionRevision(session, 'aegis');
     const currentCounts = fighterWingCounts(session.get('fighterWingCounts'));
@@ -38872,6 +39250,110 @@ export const buildFighter = onCall<{
     });
     txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
+  });
+});
+
+/**
+ * Team Phase Fighter Wing exchange: the Wing Commander moves fighters between
+ * Alpha and Bravo, keeping each wing within its 4-fighter capacity (6 after
+ * the Construction Bay upgrade). Only wing counts change; the result is kept
+ * in the server-only command receipt so a retry replays it exactly.
+ */
+export const exchangeAegisFighterWings = onCall<unknown>(async request => {
+  const uid = requireUid(request.auth);
+  const change = requireFighterWingExchangeRequest(request.data);
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const attackStateRef = db.doc(`sessions/${change.sessionId}/wolfAttackState/current`);
+  const receiptRef = commandReceiptRef(change.sessionId, change.requestId);
+  const fingerprint = vesselActionFingerprint(
+    'fighter-wing-exchange', change.sessionId, change.requestId, uid, change.instanceId ?? null, null, {
+      sourceWingId: change.sourceWingId,
+      amount: change.amount,
+      expectedAlphaRevision: change.expectedAlphaRevision,
+      expectedBravoRevision: change.expectedBravoRevision,
+    },
+  );
+  return db.runTransaction(async (tx): Promise<FighterWingExchangeResult> => {
+    const [player, session, attackState] = await Promise.all([
+      tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`)),
+      tx.get(sessionRef),
+      tx.get(attackStateRef),
+    ]);
+    await requireConsoleAuthority(tx, change.sessionId, player, 'wing-commander', change.instanceId);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (player.get('role') !== 'gm' &&
+        (!isActivePlayer(player) || player.get('activeConsoleRoleId') !== 'wing-commander')) {
+      throw new HttpsError('permission-denied', 'An active Wing Commander console is required.');
+    }
+    const replay = replayBoundCommand(
+      await tx.get(receiptRef), fingerprint, isFighterWingExchangeResult, 'Fighter Wing exchange',
+    );
+    if (replay) return replay;
+
+    requireActionPhase(session, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
+    const currentTurn = sessionTurn(session.get('currentTurn'));
+    const phase = turnPhaseState(session.get('turnPhase'));
+    if (!phase || phase.turn !== currentTurn || phase.timerPause !== undefined) {
+      throw commandError(
+        'failed-precondition',
+        'Fighter Wing exchange is available only while the current Team Phase is running.',
+        'invalid-phase',
+      );
+    }
+    // The wings are at the combat table until the attack resolves and releases the fleet.
+    if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
+      throw commandError(
+        'failed-precondition',
+        'Fighter Wing exchange is unavailable while a Wolf attack is active.',
+        'invalid-phase',
+      );
+    }
+    const parsed = fighterWingCounts(session.get('fighterWingCounts'));
+    const alpha = parsed['fighter-wing-alpha'];
+    const bravo = parsed['fighter-wing-bravo'];
+    if (!alpha || !bravo) {
+      throw commandError(
+        'failed-precondition',
+        'Fighter-wing strength is unavailable; wait for a server snapshot before exchanging fighters.',
+        'conflict',
+      );
+    }
+    const counts = { 'fighter-wing-alpha': alpha, 'fighter-wing-bravo': bravo };
+    const capacity = fighterWingCapacity(session.get('shipUpgrades'));
+    const reply = (status: FighterWingExchangeResult['status'], resultCounts: typeof counts) => ({
+      status,
+      sessionId: change.sessionId,
+      requestId: change.requestId,
+      sourceWingId: change.sourceWingId,
+      targetWingId: otherFighterWing(change.sourceWingId),
+      amount: change.amount,
+      capacity,
+      turn: currentTurn,
+      counts: resultCounts,
+    });
+    if (alpha.revision !== change.expectedAlphaRevision || bravo.revision !== change.expectedBravoRevision) {
+      const stale = reply('stale', counts);
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    const plan = planFighterWingExchange(counts, change.sourceWingId, change.amount, capacity);
+    if (!plan.ok) {
+      throw commandError(
+        'failed-precondition',
+        plan.reason === 'source-short'
+          ? 'That wing does not have that many fighters to exchange.'
+          : `That exchange would put more than ${capacity} fighters in the receiving wing.`,
+        'conflict',
+      );
+    }
+    const committed = reply('committed', plan.counts);
+    tx.update(sessionRef, {
+      'fighterWingCounts.fighter-wing-alpha': plan.counts['fighter-wing-alpha'],
+      'fighterWingCounts.fighter-wing-bravo': plan.counts['fighter-wing-bravo'],
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    txSetIfSupported(tx, receiptRef, { fingerprint, result: committed, createdAt: FieldValue.serverTimestamp() });
+    return committed;
   });
 });
 

@@ -60,3 +60,24 @@ it('strictly accepts host-bound fighter-wing rows without exposing another group
   const rejected = createFleetGroupActions(() => context, vi.fn().mockResolvedValue(foreign));
   await expect(rejected.readNavigation()).rejects.toThrow(/malformed/i);
 });
+
+it('binds a P.D.F. relay retry to the same text and Press choice, and rejects a mismatched reply', async () => {
+  context = { ...context, groupId: 'fleet-1', live: true };
+  const transport = vi.fn().mockRejectedValueOnce({ code: 'functions/unavailable' }).mockResolvedValue({
+    status: 'committed', groupId: 'fleet-1', messageId: 'relay-1', handedToPress: true,
+  });
+  const actions = createFleetGroupActions(() => context, transport, () => 'relay-1');
+  await expect(actions.relayPdfNews(' Outer marker clear. ', true)).rejects.toThrow(/uncertain/i);
+  await expect(actions.relayPdfNews('Outer marker clear.', false)).rejects.toThrow(/pending/i);
+  await expect(actions.relayPdfNews('Outer marker clear.', true)).resolves.toMatchObject({ handedToPress: true });
+  expect(transport.mock.calls[0]).toEqual(transport.mock.calls[1]);
+  expect(transport).toHaveBeenCalledWith('relayPdfColonelNews', {
+    sessionId: 's1', expectedGroupId: 'fleet-1', text: 'Outer marker clear.', handToPress: true, requestId: 'relay-1',
+  });
+
+  const mismatched = createFleetGroupActions(() => context, vi.fn().mockResolvedValue({
+    status: 'committed', groupId: 'fleet-1', messageId: 'relay-2', handedToPress: true,
+  }), () => 'relay-2');
+  await expect(mismatched.relayPdfNews('No Press copy.', false)).rejects.toThrow(/uncertain/i);
+  await expect(actions.relayPdfNews('   ', false)).rejects.toThrow(/1 to 240/);
+});

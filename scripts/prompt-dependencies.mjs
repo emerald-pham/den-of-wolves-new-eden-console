@@ -3,6 +3,7 @@
 import { performance } from 'node:perf_hooks';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   CATALOG_PATH,
   buildPromptDispatch,
@@ -243,7 +244,7 @@ async function main() {
   process.stdout.write(formatDependencyPacket(packet, { full: options.full, json: options.json }));
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === resolve(new URL('.', import.meta.url).pathname, '..', 'scripts', 'prompt-dependencies.mjs')) {
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;

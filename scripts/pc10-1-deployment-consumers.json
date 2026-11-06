@@ -159,6 +159,23 @@
         "moveShipToLocation",
         "resolvePendingScoutRequest"
       ]
+    },
+    "functions/src/refineryFighterBay.ts": {
+      "reason": "PC10.2 repair (#202): authorizeRefineryFighterBayLaunch accepts the private string `ftl` result an ordinary, emergency or GM-adjudicated jump retains in the raw Refinery maintenance cycle, so the P.D.F. Colonel launch read no longer fails after a jump. Its only importer is functions/src/index.ts, where pdfEscortWingLaunchView calls it from getPdfEscortWingLaunch, launchPdfEscortWing and passWolfFighterLaunchChoice, and wolfFighterLaunchGateState reaches it through reconcileWolfAttackProgress. The consumers are the exported callables that reach either path.",
+      "before": "199423200d392fb19f92f45c5f20bddb423eaca52647f28ac894d9f322bd0af3",
+      "after": "fc95cc21f7408c2dfd40ad518bd1a371ef94bd664b20d914c952b22582e6a954",
+      "consumers": [
+        "advanceWolfAttackLifecycle",
+        "commitWolfEscortRangeActionChoice",
+        "commitWolfFighterRangeActionChoice",
+        "commitWolfRangeSupportActionChoice",
+        "getPdfEscortWingLaunch",
+        "launchAegisFighterWing",
+        "launchDioneMaliades",
+        "launchPdfEscortWing",
+        "passWolfFighterLaunchChoice",
+        "refreshWolfAttackDecisionSummaryOnPlayerChange"
+      ]
     }
   }
 }
