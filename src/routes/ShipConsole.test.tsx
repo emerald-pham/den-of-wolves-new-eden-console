@@ -2350,6 +2350,57 @@ it('lets the Wing Commander exchange fighters between wings and still return to 
   expect(screen.getByText('Ship consoles')).toBeVisible();
 });
 
+it('keeps the unsent exchange choice across Back and return without sending it', async () => {
+  window.sessionStorage.clear();
+  const session = useSessionStore.getState().session!;
+  const me = useSessionStore.getState().me!;
+  useSessionStore.getState().setSession({
+    ...session,
+    phase: 'active',
+    currentTurn: 1,
+    turnPhase: { turn: 1, teamPhaseEndsAt: '2099-01-01T00:10:00.000Z', openAirspaceEndsAt: '2099-01-01T00:30:00.000Z', airspace: { state: 'restricted', tickerActive: false, pressAccess: false } },
+    shipUpgrades: { aegis: [] },
+    shipDamage: { aegis: { damagedSystemIds: [], destroyed: false } },
+    fighterWingCounts: {
+      'fighter-wing-alpha': { count: 1, revision: 2 },
+      'fighter-wing-bravo': { count: 4, revision: 5 },
+    },
+  });
+  useSessionStore.getState().setMe({
+    ...me, assignedRoleId: 'wing-commander', seatId: 'wing-commander', activeConsoleRoleId: 'wing-commander',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  const user = userEvent.setup();
+  render(<MemoryRouter initialEntries={['/ships/aegis/roles/wing-commander']}>
+    <Routes>
+      <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+      <Route path="/ships/:shipId/roles" element={<Link to="/ships/aegis/roles/wing-commander">Return to Wing Commander</Link>} />
+    </Routes>
+  </MemoryRouter>);
+
+  let exchange = screen.getByRole('region', { name: 'Fighter Wing exchange' });
+  await user.selectOptions(within(exchange).getByRole('combobox', { name: 'Move fighters from' }), 'fighter-wing-bravo');
+  await user.selectOptions(within(exchange).getByRole('combobox', { name: 'Fighters to move' }), '2');
+  await user.click(screen.getByRole('link', { name: /view ship consoles/i }));
+  await user.click(screen.getByRole('link', { name: 'Return to Wing Commander' }));
+
+  exchange = screen.getByRole('region', { name: 'Fighter Wing exchange' });
+  expect(within(exchange).getByRole('combobox', { name: 'Move fighters from' })).toHaveValue('fighter-wing-bravo');
+  expect(within(exchange).getByRole('combobox', { name: 'Fighters to move' })).toHaveValue('2');
+  expect(within(exchange).getByRole('button', { name: 'Move 2 fighters from Bravo to Alpha' })).toBeEnabled();
+  expect(exchangeFighterWings).not.toHaveBeenCalled();
+  expect(JSON.stringify(Object.entries(window.sessionStorage))).not.toMatch(/requestId/);
+
+  // Changing only the direction keeps that direction, too.
+  await user.selectOptions(within(exchange).getByRole('combobox', { name: 'Move fighters from' }), 'fighter-wing-alpha');
+  await user.click(screen.getByRole('link', { name: /view ship consoles/i }));
+  await user.click(screen.getByRole('link', { name: 'Return to Wing Commander' }));
+  exchange = screen.getByRole('region', { name: 'Fighter Wing exchange' });
+  expect(within(exchange).getByRole('combobox', { name: 'Move fighters from' })).toHaveValue('fighter-wing-alpha');
+  expect(within(exchange).getByRole('combobox', { name: 'Fighters to move' })).toHaveValue('1');
+});
+
 it('keeps Construction Bay building disabled when the server says it is damaged', () => {
   const session = useSessionStore.getState().session!;
   const me = useSessionStore.getState().me!;

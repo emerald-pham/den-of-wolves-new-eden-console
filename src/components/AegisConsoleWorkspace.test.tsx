@@ -25,6 +25,7 @@ type FighterBuildReply = Awaited<ReturnType<typeof buildFighter>>;
 type FighterWingExchangeReply = Awaited<ReturnType<typeof exchangeFighterWings>>;
 
 beforeEach(() => {
+  window.sessionStorage.clear();
   attackFeed.listeners = [];
   vi.mocked(buildFighter).mockReset();
   vi.mocked(exchangeFighterWings).mockReset();

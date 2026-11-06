@@ -1,9 +1,28 @@
 import { useState } from 'react';
-import { fighterWingCallsign, otherFighterWing, type FighterWingId } from '@/data/aegisConsoles';
+import { FIGHTER_WING_IDS, fighterWingCallsign, otherFighterWing, type FighterWingId } from '@/data/aegisConsoles';
 import type { FighterWingExchangeResult } from '@/lib/sessionService';
+import {
+  clearSessionDraft, readSessionDraft, writeSessionDraft, type SessionDraftScope,
+} from '@/lib/sessionDraftStorage';
+import { useSessionStore } from '@/store/useSessionStore';
 import './AegisFighterWingExchangePanel.css';
 
 type WingCount = Readonly<{ count: number; revision: number }>;
+
+type ExchangeDraft = Readonly<{ sourceWingId: FighterWingId; amount: number }>;
+
+function exchangeDraftScope(sessionId: string | undefined, uid: string | undefined): SessionDraftScope {
+  return { kind: 'aegis-fighter-exchange-draft', sessionId, uid, scope: 'aegis' };
+}
+
+/** Only the player's choice is kept: never a request identity, and it is never sent on restore. */
+function parseExchangeDraft(value: unknown): ExchangeDraft | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const draft = value as Record<string, unknown>;
+  if (Object.keys(draft).length !== 2 || !FIGHTER_WING_IDS.includes(draft.sourceWingId as FighterWingId) ||
+      !Number.isSafeInteger(draft.amount) || (draft.amount as number) < 1 || (draft.amount as number) > 6) return null;
+  return { sourceWingId: draft.sourceWingId as FighterWingId, amount: draft.amount as number };
+}
 
 function fighters(count: number): string {
   return `${count} fighter${count === 1 ? '' : 's'}`;
@@ -27,8 +46,20 @@ export default function AegisFighterWingExchangePanel({ counts, capacity, blocke
   readonly blockerFor: (sourceWingId: FighterWingId) => string | null;
   readonly onExchange: (sourceWingId: FighterWingId, amount: number) => Promise<FighterWingExchangeResult | null>;
 }) {
-  const [sourceWingId, setSourceWingId] = useState<FighterWingId>('fighter-wing-alpha');
-  const [amount, setAmount] = useState(1);
+  const sessionId = useSessionStore((state) => state.session?.id);
+  const uid = useSessionStore((state) => state.me?.uid);
+  const draftScope = exchangeDraftScope(sessionId, uid);
+  const [restored] = useState(() => readSessionDraft(draftScope, parseExchangeDraft));
+  const [sourceWingId, setSourceWingIdState] = useState<FighterWingId>(restored?.sourceWingId ?? 'fighter-wing-alpha');
+  const [amount, setAmountState] = useState(restored?.amount ?? 1);
+  const saveDraft = (draft: ExchangeDraft) => writeSessionDraft(draftScope, draft);
+  // Choosing a direction restarts the amount at one fighter, as the form always has.
+  const setSourceWingId = (wingId: FighterWingId) => {
+    setSourceWingIdState(wingId);
+    setAmountState(1);
+    saveDraft({ sourceWingId: wingId, amount: 1 });
+  };
+  const setAmount = (value: number) => { setAmountState(value); saveDraft({ sourceWingId, amount: value }); };
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState<string>();
   const targetWingId = otherFighterWing(sourceWingId);
@@ -45,7 +76,10 @@ export default function AegisFighterWingExchangePanel({ counts, capacity, blocke
     setPending(true);
     setNotice(undefined);
     void onExchange(sourceWingId, chosen).then(
-      (result) => setNotice(resultNotice(result)),
+      (result) => {
+        if (result && result.status !== 'stale') clearSessionDraft(draftScope);
+        setNotice(resultNotice(result));
+      },
       () => setNotice(resultNotice(null)),
     ).finally(() => setPending(false));
   }
@@ -67,7 +101,7 @@ export default function AegisFighterWingExchangePanel({ counts, capacity, blocke
         <label>
           Move fighters from
           <select value={sourceWingId} disabled={pending}
-            onChange={(event) => { setSourceWingId(event.target.value as FighterWingId); setAmount(1); setNotice(undefined); }}>
+            onChange={(event) => { setSourceWingId(event.target.value as FighterWingId); setNotice(undefined); }}>
             <option value="fighter-wing-alpha">Alpha to Bravo</option>
             <option value="fighter-wing-bravo">Bravo to Alpha</option>
           </select>
