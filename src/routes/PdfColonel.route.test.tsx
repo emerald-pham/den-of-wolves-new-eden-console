@@ -7,6 +7,7 @@ import type { PdfEscortWingLaunchView, PdfEscortWingMemberView, Player, WolfAtta
 import type * as FirebaseModule from '@/lib/firebase';
 import type * as FirestoreModule from '@/lib/firestore';
 import type * as SessionServiceModule from '@/lib/sessionService';
+import type * as FleetGroupServiceModule from '@/lib/fleetGroupService';
 import ShipConsole from './ShipConsole';
 import ShipRoleSelect from './ShipRoleSelect';
 import SessionMode from './SessionMode';
@@ -14,6 +15,7 @@ import SessionMode from './SessionMode';
 const launchService = vi.hoisted(() => ({ read: vi.fn(), launch: vi.fn(), pass: vi.fn() }));
 const aceService = vi.hoisted(() => ({ read: vi.fn(), grant: vi.fn() }));
 const rangeService = vi.hoisted(() => ({ read: vi.fn(), commit: vi.fn() }));
+const relayService = vi.hoisted(() => ({ relay: vi.fn() }));
 // Mimics the member Wolf attack listener: each subscription starts from the latest published view.
 const attackFeed = vi.hoisted(() => ({
   latest: null as unknown,
@@ -45,6 +47,10 @@ vi.mock('@/lib/pdfFighterAceService', () => ({
 vi.mock('@/lib/wolfEscortRangeService', () => ({
   getWolfEscortRangeActionChoice: rangeService.read,
   commitWolfEscortRangeActionChoice: rangeService.commit,
+}));
+vi.mock('@/lib/fleetGroupService', async (importOriginal) => ({
+  ...(await importOriginal<typeof FleetGroupServiceModule>()),
+  createCurrentFleetGroupActions: () => ({ relayPdfNews: relayService.relay }),
 }));
 vi.mock('@/lib/firestore', async (importOriginal) => ({
   ...(await importOriginal<typeof FirestoreModule>()),
@@ -115,6 +121,8 @@ beforeEach(() => {
   aceService.grant.mockReset();
   rangeService.read.mockReset();
   rangeService.commit.mockReset();
+  relayService.relay.mockReset();
+  sessionStorage.clear();
   attackFeed.latest = null;
   attackFeed.listeners.clear();
   vi.mocked(selectConsoleRole).mockReset().mockImplementation(async (roleId) => {
@@ -274,4 +282,30 @@ it('carries the launched P.D.F. Escort Wing through committed Medium and Short r
 
   await user.click(screen.getByRole('link', { name: 'View ship consoles' }));
   expect(await screen.findByRole('heading', { name: /refinery 124 \/\/ station overview/i })).toBeInTheDocument();
+});
+
+it('relays P.D.F. news from the Colonel console with an explicit Press hand-off, then returns to the chooser', async () => {
+  const user = userEvent.setup();
+  launchService.read.mockResolvedValue({ ...eligible, eligible: false, reason: 'waiting' });
+  relayService.relay.mockResolvedValue({ status: 'committed', groupId: 'fleet-1', messageId: 'relay-1', handedToPress: true });
+  act(() => {
+    const session = useSessionStore.getState().session!;
+    useSessionStore.getState().setSession({ ...session, pressEnabled: true } as never);
+  });
+  render(<ColonelRoutes initial="/console" />);
+
+  await user.click(screen.getByRole('link', { name: /refinery 124 \/\/ p\.d\.f\. colonel/i }));
+  await user.click(await screen.findByRole('button', { name: 'Ship systems' }));
+  const relay = await screen.findByRole('region', { name: 'P.D.F. Colonel news relay' });
+  const handOff = within(relay).getByRole('checkbox', { name: 'Also hand to the Press' });
+  expect(handOff).not.toBeChecked();
+  await user.type(within(relay).getByRole('textbox', { name: 'News for your current fleet group' }), 'Outer marker clear.');
+  await user.click(handOff);
+  await user.click(within(relay).getByRole('button', { name: 'Relay to current fleet group' }));
+  expect(relayService.relay).toHaveBeenCalledWith('Outer marker clear.', true);
+  expect(await within(relay).findByRole('status')).toHaveTextContent(/Handed to the Press; the Press decides/);
+
+  await user.click(screen.getByRole('link', { name: 'View ship consoles' }));
+  expect(await screen.findByRole('heading', { name: /refinery 124 \/\/ station overview/i })).toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: 'P.D.F. Colonel news relay' })).not.toBeInTheDocument();
 });

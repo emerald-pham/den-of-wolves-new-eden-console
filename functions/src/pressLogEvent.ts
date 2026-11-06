@@ -55,6 +55,14 @@ export type PressLogEvent =
     text: string;
     cycle: number;
     recordedAt: string;
+  }>
+  | Readonly<{
+    /** Text a P.D.F. Colonel explicitly handed to the Press; no sender or audience details. */
+    type: 'pdf-news-relay';
+    sourceId: string;
+    text: string;
+    cycle: number;
+    recordedAt: string;
   }>;
 
 type EventEnvelopeInput = Readonly<{
@@ -185,6 +193,14 @@ export function buildPresidentActionPressLogEntry(input: EventEnvelopeInput & Re
     actionKind: input.actionKind,
     text,
   };
+}
+
+export function buildPdfNewsRelayPressLogEntry(input: EventEnvelopeInput & Readonly<{
+  text: string;
+}>): PressLogEvent {
+  const text = input.text.trim();
+  if (!text || text.length > 240) throw new Error('Invalid P.D.F. news relay for the Press log.');
+  return { type: 'pdf-news-relay', ...envelope(input), text };
 }
 
 /** Stable per-source document IDs make retries and transaction recovery idempotent. */

@@ -17,6 +17,9 @@ function entryCopy(entry: PressLogEntry): string {
   if (entry.type === 'commissar-purge') {
     return `COMMISSAR PURGE // ${entry.shipId.toUpperCase()} // ${count(entry.survivorsRemoved)} SURVIVORS REMOVED // UNREST ${entry.unrestBefore} → ${entry.unrestAfter}`;
   }
+  if (entry.type === 'pdf-news-relay') {
+    return `P.D.F. COLONEL // NEWS HAND-OFF // ${entry.text}`;
+  }
   return `PRESIDENT // ${entry.actionKind.replaceAll('-', ' ').toUpperCase()} // ${entry.text}`;
 }
 

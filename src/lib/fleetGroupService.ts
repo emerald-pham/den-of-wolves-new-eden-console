@@ -40,7 +40,10 @@ export interface FleetGroupNavigationProjection {
 type Transport = (name: string, payload: Record<string, unknown>) => Promise<unknown>;
 export type FleetTaxiPayload = Readonly<{ kind: 'players'; playerUids: readonly string[] }> | Readonly<{ kind: 'fuel'; units: 1 | 2 }>;
 export type FleetTaxiShuttleId = 'starlight' | 'hummingbird';
-type Action = 'sendFleetGroupMessage' | 'confirmFleetPartition' | 'shareKnownSystemDetails' | 'sendScoutTaxiTransfer';
+type Action = 'sendFleetGroupMessage' | 'relayPdfColonelNews' | 'confirmFleetPartition' | 'shareKnownSystemDetails' | 'sendScoutTaxiTransfer';
+export interface PdfNewsRelayReply {
+  readonly status: 'committed'; readonly groupId: string; readonly messageId: string; readonly handedToPress: boolean;
+}
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const rejected = new Set(['aborted', 'already-exists', 'failed-precondition', 'invalid-argument', 'not-found',
   'out-of-range', 'permission-denied', 'resource-exhausted', 'unauthenticated', 'unimplemented']);
@@ -158,6 +161,8 @@ export function createFleetGroupActions(getContext: () => FleetGroupContext, tra
     if (flights.has(action)) return flights.get(action)!;
     const basePayload: Record<string, unknown> = action === 'sendFleetGroupMessage'
       ? { sessionId: context.sessionId, expectedGroupId: context.groupId, text: text!, requestId: requestId() }
+      : action === 'relayPdfColonelNews'
+        ? { ...extra, sessionId: context.sessionId, expectedGroupId: context.groupId, requestId: requestId() }
       : action === 'shareKnownSystemDetails'
         ? { ...extra, sessionId: context.sessionId, expectedGroupId: context.groupId,
           expectedNavigationRevision: context.navigationRevision, requestId: requestId() }
@@ -179,6 +184,9 @@ export function createFleetGroupActions(getContext: () => FleetGroupContext, tra
       }
       const valid = record(reply) && (reply.status === 'committed' || (action === 'sendScoutTaxiTransfer' && reply.status === 'replayed')) && (action === 'sendFleetGroupMessage'
         ? reply.groupId === context.groupId && reply.messageId === attempt.payload.requestId
+        : action === 'relayPdfColonelNews'
+          ? reply.groupId === context.groupId && reply.messageId === attempt.payload.requestId &&
+            reply.handedToPress === attempt.payload.handToPress
         : action === 'shareKnownSystemDetails'
           ? reply.groupId === context.groupId && reply.requestId === attempt.payload.requestId &&
             reply.coordinate === attempt.payload.coordinate && Array.isArray(reply.recipientShipIds) &&
@@ -205,6 +213,12 @@ export function createFleetGroupActions(getContext: () => FleetGroupContext, tra
     send: async (text: string) => {
       if (!text.trim() || text.length > 240) throw new Error('Enter a group note of 1 to 240 characters.');
       return invoke('sendFleetGroupMessage', text.trim());
+    },
+    /** P.D.F. Colonel only; the server rejects any other role and any relay during a Wolf attack. */
+    relayPdfNews: async (text: string, handToPress: boolean) => {
+      if (!text.trim() || text.length > 240) throw new Error('Enter a relay message of 1 to 240 characters.');
+      const data = { text: text.trim(), handToPress };
+      return await invoke('relayPdfColonelNews', JSON.stringify(data), data) as PdfNewsRelayReply;
     },
     confirmPartition: async () => invoke('confirmFleetPartition'),
     share: async (coordinate: string, recipientShipIds: 'all' | readonly string[]) => {

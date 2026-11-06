@@ -580,3 +580,13 @@ The owner expressly resolved the unbuilt/completed-track ambiguity on
 all five research marks. This supplements, rather than rewrites, PC10.1-A1's
 printed price-lane interpretation. Existing completed-track use requirements,
 authority and receipt replay remain. See [owner feedback](PRODUCT_MILESTONE_FEEDBACK.md#pc101-completed-research-ecm-and-bounded-browser-privacy-repair--2026-10-17).
+
+### PC10.2-P2.2 — P.D.F. Colonel news relay with an explicit Press hand-off
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC10.2-P2.2, P233b PDF news relay (#207, parent P2 #81). Owner decision, approved 2026-11-05. |
+| Source | The P.D.F. Colonel role summary in the authorized private library says only that the Colonel relays messages and news outside attacks (the public role brief carries the same intent). It does not define audiences or publication. The Press-publication contract in [PC07_PC10_ALIGNMENT](PC07_PC10_ALIGNMENT.md) says a Press hand-off is not automatic publication. |
+| Chosen reading | Only the current P.D.F. Colonel may relay, and only to their own current fleet group; the server checks the role and group and denies a relay during an active Wolf attack. A separate, default-off "Also hand to the Press" choice forwards only that message text to the Press intake, and the Press still decides whether and how to publish it. The choice is hidden, and refused by the server, while the Press is not enabled. |
+| Audiences | The current fleet group receives the message as a group note. The Press receives only the handed-off text, with no sender or group details. The facilitator receives a private record of the relay and the hand-off choice. |
+| Alternatives and limits | No relay to other fleet groups, no automatic publication, and no relay during an attack. The relay reuses the existing fleet-group note store; the global fleet-group panel stays visible on the Colonel route. |

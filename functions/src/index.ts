@@ -110,6 +110,7 @@ import {
 } from './politicalCapital';
 import {
   buildCommissarPurgePressLogEntry,
+  buildPdfNewsRelayPressLogEntry,
   buildPresidentActionPressLogEntry,
   buildShuttleSurvivorTransferPressLogEntry,
   buildSurvivorChangePressLogEntry,
@@ -16966,6 +16967,92 @@ export const sendFleetGroupMessage = onCall(async request => {
     const message = { id: data.requestId!, actorUid: uid, text: data.text!, sentAt: now };
     tx.set(notesRef, { groupId, messages: [...current.slice(-19), message], updatedAt: FieldValue.serverTimestamp() });
     const result: FleetGroupMessageReply = { status: 'committed', groupId, messageId: message.id };
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+interface PdfNewsRelayRequest {
+  readonly sessionId: string; readonly requestId: string; readonly expectedGroupId: string;
+  readonly text: string; readonly handToPress: boolean;
+}
+interface PdfNewsRelayReply {
+  readonly status: 'committed'; readonly groupId: string; readonly messageId: string; readonly handedToPress: boolean;
+}
+function parsePdfNewsRelayRequest(raw: unknown): PdfNewsRelayRequest {
+  const allowed = ['sessionId', 'requestId', 'expectedGroupId', 'text', 'handToPress'];
+  if (!isRecord(raw) || Object.keys(raw).some(key => !allowed.includes(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.requestId !== 'string' || !isCanonicalRequestId(raw.requestId) ||
+      typeof raw.expectedGroupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(raw.expectedGroupId) ||
+      typeof raw.text !== 'string' || raw.text.trim().length < 1 || raw.text.length > 240 ||
+      typeof raw.handToPress !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'Invalid P.D.F. news relay request.');
+  }
+  return { sessionId: raw.sessionId, requestId: raw.requestId, expectedGroupId: raw.expectedGroupId,
+    text: raw.text.trim(), handToPress: raw.handToPress };
+}
+function isPdfNewsRelayReply(value: unknown): value is PdfNewsRelayReply {
+  return isRecord(value) && Object.keys(value).every(key => ['status', 'groupId', 'messageId', 'handedToPress'].includes(key)) &&
+    value.status === 'committed' && typeof value.groupId === 'string' && /^fleet-[1-9][0-9]*$/.test(value.groupId) &&
+    typeof value.messageId === 'string' && isCanonicalRequestId(value.messageId) && typeof value.handedToPress === 'boolean';
+}
+
+/**
+ * The current P.D.F. Colonel relays news to their own fleet group outside Wolf
+ * attacks. The group receives an ordinary group note, the GM a private audit,
+ * and the Press intake only the text, and only when explicitly handed over.
+ * The Press still decides whether and how to publish it.
+ */
+export const relayPdfColonelNews = onCall(async request => {
+  const uid = requireUid(request.auth);
+  const data = parsePdfNewsRelayRequest(request.data);
+  const fingerprint: CommandFingerprint = { action: 'relay-pdf-colonel-news', sessionId: data.sessionId,
+    requestId: data.requestId, actorUid: uid, instanceId: null, expectedRevision: null,
+    payload: { groupId: data.expectedGroupId, text: data.text, handToPress: data.handToPress } };
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const auditRef = db.doc(`sessions/${data.sessionId}/pdfNewsRelayAudits/${data.requestId}`);
+  const attackStateRef = db.doc(`sessions/${data.sessionId}/wolfAttackState/current`);
+  const now = new Date().toISOString();
+  return db.runTransaction(async tx => {
+    const actor = await tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`));
+    requirePdfColonel(actor);
+    const group = await groupNoteAuthority(tx, data.sessionId, uid, data.expectedGroupId);
+    const notesRef = db.doc(`sessions/${data.sessionId}/fleetGroupMessages/${group.id}`);
+    const [session, notes, receipt, audit, attackState] = await Promise.all([
+      tx.get(db.doc(`sessions/${data.sessionId}`)), tx.get(notesRef), tx.get(receiptRef),
+      tx.get(auditRef), tx.get(attackStateRef),
+    ]);
+    const replay = replayBoundCommand(receipt, fingerprint, (value): value is PdfNewsRelayReply =>
+      isPdfNewsRelayReply(value) && value.groupId === data.expectedGroupId && value.messageId === data.requestId &&
+        value.handedToPress === data.handToPress, 'P.D.F. news relay');
+    if (replay) return replay;
+    if (audit.exists) throw commandError('failed-precondition', 'The P.D.F. news relay has no replay receipt.', 'conflict');
+    if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
+      throw commandError('failed-precondition',
+        'P.D.F. news relays wait until the Wolf attack is resolved.', 'invalid-phase');
+    }
+    if (data.handToPress && session.get('pressEnabled') === false) {
+      throw commandError('failed-precondition',
+        'The Press is not enabled. Relay without the Press hand-off.', 'conflict');
+    }
+    const current = storedGroupNotes(notes, group.id);
+    if (current.some(note => note.id === data.requestId)) {
+      throw commandError('failed-precondition', 'Group note has no replay receipt.', 'conflict');
+    }
+    const cycle = sessionTurn(session.get('currentTurn'));
+    const message = { id: data.requestId, actorUid: uid, text: data.text, sentAt: now };
+    tx.set(notesRef, { groupId: group.id, messages: [...current.slice(-19), message], updatedAt: FieldValue.serverTimestamp() });
+    if (data.handToPress) {
+      writePressLogEvent(tx, data.sessionId, buildPdfNewsRelayPressLogEntry({
+        sourceId: `pdf-news-relay:${data.requestId}`, text: data.text, cycle, recordedAt: now,
+      }));
+    }
+    tx.create(auditRef, { type: 'pdf-news-relay-audit', sessionId: data.sessionId, requestId: data.requestId,
+      actorUid: uid, actorRoleId: 'refinery-124-pdf-colonel', groupId: group.id, cycle, text: data.text,
+      handedToPress: data.handToPress, createdAt: FieldValue.serverTimestamp() });
+    const result: PdfNewsRelayReply = { status: 'committed', groupId: group.id, messageId: data.requestId,
+      handedToPress: data.handToPress };
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
