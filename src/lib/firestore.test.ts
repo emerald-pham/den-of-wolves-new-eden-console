@@ -597,6 +597,24 @@ it('hydrates retained shuttle custody without resurrecting its destroyed-host do
     docking.shuttleId === 'snn-press-shuttle')).toBe(false);
 });
 
+it('hydrates pending attack Scrap pickups and drops malformed entries', () => {
+  const session = sessionFrom('pickups', {
+    ...sessionData(8),
+    attackScrapPickups: {
+      aegis: [{ attackId: 'wolf-attack-7', turn: 7, destroyed: false },
+        { attackId: 'wolf-attack-8', turn: 0, destroyed: false }],
+      dione: [{ attackId: 'wolf-attack-7', turn: 7, destroyed: true, scrap: 4 }],
+      quellon: [{ attackId: 'wolf-attack-8', turn: 8, destroyed: true }],
+      'not-a-ship': [{ attackId: 'wolf-attack-8', turn: 8, destroyed: true }],
+    },
+  });
+  expect(session.attackScrapPickups).toEqual({
+    aegis: [{ attackId: 'wolf-attack-7', turn: 7, destroyed: false }],
+    quellon: [{ attackId: 'wolf-attack-8', turn: 8, destroyed: true }],
+  });
+  expect(sessionFrom('none', sessionData(8)).attackScrapPickups).toEqual({});
+});
+
 it('hydrates only canonical quarantine docking state with communications allowed', () => {
   const session = sessionFrom('quarantine', {
     ...sessionData(8),
