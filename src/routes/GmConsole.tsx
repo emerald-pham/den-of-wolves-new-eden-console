@@ -3013,6 +3013,7 @@ export default function GmConsole() {
       shuttleDockings: session?.shuttleDockings,
       shuttleControl: session?.shuttleControl,
       retainedShuttles: session?.retainedShuttles,
+      attackScrapPickups: session?.attackScrapPickups,
     }) : null;
 
   const renderGmDradis = (expanded: boolean) => (

@@ -1,13 +1,11 @@
-import { SHUTTLECRAFT } from '@/data/shuttles';
-import type { GameSession, WolfAttackDeclarationState } from '@/types/game';
+import { retainedFromDestroyedShip, type ScrapCustodyContext } from '@/lib/attackScrapCustody';
+import type { AttackScrapPickup, GameSession, WolfAttackDeclarationState } from '@/types/game';
 import './WolfAttackGmAftermathView.css';
 
 type UnknownRecord = Record<string, unknown>;
-type ScrapCustodyContext = {
-  readonly shuttleDockings?: GameSession['shuttleDockings'];
-  readonly shuttleControl?: GameSession['shuttleControl'];
-  readonly retainedShuttles?: GameSession['retainedShuttles'];
-};
+type GmScrapContext = ScrapCustodyContext & Readonly<{
+  attackScrapPickups?: GameSession['attackScrapPickups'];
+}>;
 
 export interface WolfAttackGmAftermathDamageRow {
   readonly shipId: string;
@@ -40,6 +38,8 @@ export interface WolfAttackGmAftermathViewModel {
     doctorShipIds: readonly string[];
     salvageAvailable: boolean;
     scrapShipIds: readonly string[];
+    /** Uncollected pickups carried from earlier attacks that a shuttle can still reach. */
+    carriedPickups: readonly Readonly<AttackScrapPickup & { shipId: string }>[];
     damagedSystems: readonly Readonly<{ shipId: string; systemIds: readonly string[] }>[];
     survivingThreatInstanceIds: readonly string[];
   }>;
@@ -57,7 +57,7 @@ function safeId(value: unknown): value is string {
 export function projectWolfAttackGmAftermathView(
   state: WolfAttackDeclarationState,
   currentShipDamage?: GameSession['shipDamage'],
-  scrapCustody?: ScrapCustodyContext,
+  scrapCustody?: GmScrapContext,
 ): WolfAttackGmAftermathViewModel | null {
   const receipt = record(state.calculationReceipt) ? state.calculationReceipt : null;
   if (state.status !== 'resolved' || !state.attackId || !receipt || !Array.isArray(receipt.fleetDamage)) return null;
@@ -87,22 +87,19 @@ export function projectWolfAttackGmAftermathView(
     record(row.outcome) && Number.isSafeInteger(row.outcome.damage) && (row.outcome.damage as number) > 0) === true;
   const scrapClaims = aftermath?.scrapClaims;
   // A destroyed ship's pickup is pending only while a shuttle is retained from it.
-  const retainedAtDestroyedTarget = (shipId: string, shuttleId: 'macaw' | 'boa'): boolean => {
-    if (!Array.isArray(scrapCustody?.shuttleDockings)) return false;
-    const roleId = SHUTTLECRAFT.find((shuttle) => shuttle.id === shuttleId)?.captainRoleId;
-    if (!roleId) return false;
-    const retained = scrapCustody.retainedShuttles?.[shuttleId];
-    const control = scrapCustody.shuttleControl?.[shuttleId];
-    return !scrapCustody.shuttleDockings.some((docking) => docking.shuttleId === shuttleId) &&
-      retained?.status === 'retained' && retained.shuttleId === shuttleId && retained.ownerRoleId === roleId &&
-      control?.shuttleId === shuttleId && control.ownerRoleId === roleId &&
-      retained.holderUid === control.holderUid && retained.destroyedHostShipId === shipId &&
-      retained.controlRevision === control.revision;
-  };
+  const retainedAtDestroyedTarget = (shipId: string): boolean =>
+    retainedFromDestroyedShip(scrapCustody, 'macaw', shipId) || retainedFromDestroyedShip(scrapCustody, 'boa', shipId);
   const scrapShipIds = damage.filter((row) => row.amount >= 3 &&
-    (!row.destroyed || retainedAtDestroyedTarget(row.shipId, 'macaw') || retainedAtDestroyedTarget(row.shipId, 'boa')) &&
+    (!row.destroyed || retainedAtDestroyedTarget(row.shipId)) &&
     !scrapClaims?.[row.shipId])
     .map(({ shipId }) => shipId);
+  const carriedPickups = Object.entries(scrapCustody?.attackScrapPickups ?? {}).flatMap(([shipId, pickups]) =>
+    !safeId(shipId) || !Array.isArray(pickups) ? [] : pickups.flatMap((pickup) => {
+      if (pickup.attackId === state.attackId) return [];
+      const destroyed = pickup.destroyed || currentShipDamage?.[shipId]?.destroyed === true;
+      return !destroyed || retainedAtDestroyedTarget(shipId)
+        ? [{ shipId, attackId: pickup.attackId, turn: pickup.turn, destroyed }] : [];
+    }));
   const currentDamage = currentShipDamage
     ? Object.entries(currentShipDamage).flatMap(([shipId, ship]) => {
       if (!safeId(shipId) || !ship || typeof ship.destroyed !== 'boolean' || !Array.isArray(ship.damagedSystemIds) ||
@@ -126,6 +123,7 @@ export function projectWolfAttackGmAftermathView(
       doctorShipIds: aftermath?.doctor ? [] : casualtyShipIds,
       salvageAvailable: !aftermath?.warriorSalvage && (rangeDamageExists || fighterAceDamageExists || damage.some(({ amount }) => amount > 0)),
       scrapShipIds,
+      carriedPickups,
       damagedSystems: currentDamage,
       survivingThreatInstanceIds: survivingWolfShips.map(({ instanceId }) => instanceId),
     },
@@ -138,6 +136,8 @@ export function WolfAttackGmAftermathView({ view }: Readonly<{ view: WolfAttackG
   view.pendingWork.doctorShipIds.forEach((shipId) => recoveryRows.push(`Doctor Medical Aid // ${shipId}`));
   if (view.pendingWork.salvageAvailable) recoveryRows.push('Warrior Salvage Drones // resolve charged salvage');
   view.pendingWork.scrapShipIds.forEach((shipId) => recoveryRows.push(`Collect Scrap // ${shipId}`));
+  view.pendingWork.carriedPickups.forEach(({ shipId, turn, destroyed }) => recoveryRows.push(
+    `Collect carried Scrap // ${shipId.toUpperCase()} // cycle ${turn} attack${destroyed ? ' // retained shuttle only' : ''}`));
   view.pendingWork.damagedSystems.forEach(({ shipId, systemIds }) =>
     systemIds.forEach((systemId) => recoveryRows.push(`Repair ${systemId} on ${shipId.toUpperCase()}`)));
   view.pendingWork.survivingThreatInstanceIds.forEach((instanceId) => recoveryRows.push(`Surviving threat // ${instanceId}`));
