@@ -580,3 +580,14 @@ The owner expressly resolved the unbuilt/completed-track ambiguity on
 all five research marks. This supplements, rather than rewrites, PC10.1-A1's
 printed price-lane interpretation. Existing completed-track use requirements,
 authority and receipt replay remain. See [owner feedback](PRODUCT_MILESTONE_FEEDBACK.md#pc101-completed-research-ecm-and-bounded-browser-privacy-repair--2026-10-17).
+
+### PC10.2-C2 — Boa reclamation halves odd difficulty rounding up
+
+| Field | Record |
+|---|---|
+| ID and checkpoint | PC10.2-C2, ticket C2 (issue #83, Prompt 579) Boa reclamation choice and result; recorded 2026-11-05 under the PC10.2 execution activation. |
+| Source | Capybara expansion v1.1, Boa shuttle component sheet, Reclamation (away mission). Paraphrase: before mission cards are dealt, choose one opportunity; its difficulty is halved and its reward becomes one Scrap, with no critical bonus. |
+| Ambiguity and alternatives | The sheet does not say how to halve an odd difficulty (for example 17). Alternatives are rounding down (8), rounding up (9), or comparing against the exact half-point (8.5). With integer card totals, the exact half-point and rounding up give the same outcome; rounding down makes one more total succeed. The October 8 half-loss house rule rounds *losses* down and was expressly not applied to this difficulty. |
+| Chosen reading | Coordinator ruling for PC10.2: a halved odd difficulty **rounds up** (17 → 9). The server stores and displays the integer and records `rounding: 'up'` on the private mission-start receipt. The printed critical threshold is unchanged; a critical result still pays only the one Scrap. |
+| Effect and limits | Affects only the one task chosen with Boa reclamation before the deal: its success comparison, its reward (one Scrap to Boa cargo instead of the printed reward, effects and Bulk Haulage), and the Boa choice panel's displayed difficulty. A single helper (`halvedBoaReclamationDifficulty`) owns the rounding, so a different owner ruling is a one-line change plus its tests. No other mission arithmetic changes. |
+| Review state | **Provisional — pending owner confirmation.** |
