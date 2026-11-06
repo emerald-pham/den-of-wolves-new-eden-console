@@ -155,3 +155,16 @@ it('labels each mission location with the cycle its opportunity came from', asyn
   fireEvent.click(within(panel).getByRole('button', { name: 'Review Asterion mission tasks (cycle 2)' }));
   expect(within(panel).getByText(/Asterion \/\/ 5143 \/\/ arrived cycle 2 \/\/ Select the printed mission-card task/)).toBeVisible();
 });
+
+it('explains a choice that lapsed because the fleet location changed before the deal', async () => {
+  mocks.read.mockResolvedValueOnce({
+    status: 'available', sessionId: 's1', actorUid: 'holder', groupId: 'fleet-1',
+    hostShipId: 'aegis', controlRevision: 4, cycle: 3, opportunities: [],
+    lapsedChoices: [{ missionOpportunityId: 'arrival-fleet-1-A-5143', siteName: 'Asterion', coordinate: '5143',
+      taskOpportunityId: 'L-1', reason: 'location-changed' }],
+  });
+  renderPanel();
+  const panel = await screen.findByRole('region', { name: 'Boa mission reclamation' });
+  const notice = await within(panel).findByText(/L-1 choice for Asterion \/\/ 5143 lapsed/);
+  expect(notice).toHaveTextContent(/the fleet location changed before the deal/);
+});

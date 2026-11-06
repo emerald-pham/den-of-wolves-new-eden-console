@@ -21,6 +21,7 @@ const LAPSE_EXPLANATIONS: Readonly<Record<BoaMissionReclamationLapseReason, stri
   'recycler-not-on-mission': 'the Boa Recycler was not on the mission',
   'boa-control-changed': 'Boa control changed after the choice',
   'recycler-unavailable': 'the Boa Recycler was not active at the deal',
+  'location-changed': 'the fleet location changed before the deal',
 };
 import type { ShuttleControlEntry, ShuttleDocking } from '@/types/game';
 

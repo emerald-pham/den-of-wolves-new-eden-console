@@ -21,7 +21,7 @@ export interface BoaMissionReclamationChoiceCommand {
 
 const ID = /^[\w-]{1,128}$/;
 const LAPSE_REASONS: readonly BoaMissionReclamationLapseReason[] = [
-  'boa-control-changed', 'recycler-unavailable', 'recycler-not-on-mission',
+  'boa-control-changed', 'recycler-unavailable', 'recycler-not-on-mission', 'location-changed',
 ];
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);

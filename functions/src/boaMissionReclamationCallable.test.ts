@@ -196,6 +196,18 @@ describe('Boa mission reclamation callables', () => {
       .toMatchObject({ opportunities: [] });
   });
 
+  it('shows the Recycler a choice that lapsed because the dealt location changed', async () => {
+    put(`sessions/s1/boaMissionReclamationChoices/${ARRIVAL}`, {
+      type: 'boa-mission-reclamation-choice', schemaVersion: 1, status: 'lapsed', sessionId: SESSION,
+      opportunityId: ARRIVAL, groupId: 'fleet-1', chart: 'A', coordinate: '5143', siteCode: 'L', sourceCycle: 2,
+      actorUid: ACTOR, actorRoleId: 'capybara-recycler', opportunityTaskId: 'L-1', controlRevision: 2, revision: 1,
+      requestId: 'boa-choice-1', missionId: `mission-${ARRIVAL}`, lapseReason: 'location-changed', lapsedCycle: 2,
+    });
+    await expect(callables.readBoaMissionReclamationWorkspace(request({ sessionId: SESSION }))).resolves.toMatchObject({
+      lapsedChoices: [{ missionOpportunityId: ARRIVAL, taskOpportunityId: 'L-1', reason: 'location-changed' }],
+    });
+  });
+
   it('shows the Recycler a lapsed choice this cycle without offering that location again', async () => {
     put(`sessions/s1/boaMissionReclamationChoices/${ARRIVAL}`, {
       type: 'boa-mission-reclamation-choice', schemaVersion: 1, status: 'lapsed', sessionId: SESSION,

@@ -85,7 +85,7 @@ const ACTION = 'boa-mission-reclamation-choice';
 const ID = /^[\w-]{1,128}$/;
 const GROUP_ID = /^fleet-[1-9][0-9]*$/;
 const LAPSE_REASONS: readonly BoaMissionReclamationLapseReason[] = [
-  'boa-control-changed', 'recycler-unavailable', 'recycler-not-on-mission',
+  'boa-control-changed', 'recycler-unavailable', 'recycler-not-on-mission', 'location-changed',
 ];
 
 function isRecord(value: unknown): value is Data {
