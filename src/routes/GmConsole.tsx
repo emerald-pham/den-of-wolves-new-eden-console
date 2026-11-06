@@ -3009,7 +3009,11 @@ export default function GmConsole() {
   }
 
   const wolfAftermathView = wolfAttackState
-    ? projectWolfAttackGmAftermathView(wolfAttackState, session?.shipDamage) : null;
+    ? projectWolfAttackGmAftermathView(wolfAttackState, session?.shipDamage, {
+      shuttleDockings: session?.shuttleDockings,
+      shuttleControl: session?.shuttleControl,
+      retainedShuttles: session?.retainedShuttles,
+    }) : null;
 
   const renderGmDradis = (expanded: boolean) => (
     <ShipPlot
