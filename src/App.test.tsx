@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App, { stationRoleFromPath } from './App';
@@ -64,11 +64,17 @@ vi.mock('@/lib/sessionService', () => ({
 }));
 
 vi.mock('@/lib/scoutRequestService', () => ({ requestScout: vi.fn() }));
+vi.mock('@/lib/shuttleCargoService', () => ({
+  canReplayShuttleCargoTransfer: vi.fn(() => false),
+  replayShuttleCargoTransfer: vi.fn(),
+  transferShuttleCargo: vi.fn(),
+}));
 
 vi.mock('@/lib/firestore', () => ({
   subscribeCrisisReport: vi.fn(() => vi.fn()),
   sessionSnapshotAuthorityFor: vi.fn(() => ({ hasServerSessionAuthority: false })),
   subscribeConnectedPlayers: vi.fn(() => vi.fn()),
+  subscribeShuttleDeparture: vi.fn(() => vi.fn()),
   subscribeSessionState: vi.fn(() => vi.fn()),
   subscribeWolfAttackMemberView: vi.fn((_sessionId: string, onView: (view: WolfAttackMemberView | null) => void) => {
     onView(null);
@@ -120,6 +126,7 @@ const {
 } = await import('@/lib/firestore');
 const { startVersionUpgradeMonitor } = await import('@/lib/versionUpgrade');
 const { requestScout } = await import('@/lib/scoutRequestService');
+const { transferShuttleCargo } = await import('@/lib/shuttleCargoService');
 
 describe('App', () => {
   const session: GameSession = {
@@ -146,6 +153,7 @@ describe('App', () => {
     localStorage.clear();
     sessionStorage.clear();
     vi.mocked(requestScout).mockReset();
+    vi.mocked(transferShuttleCargo).mockReset();
     localStorage.setItem(MOTION_SAFETY_STORAGE_KEY, JSON.stringify({
       acknowledgedAt: Date.now(),
       choice: 'reduce',
@@ -653,6 +661,101 @@ describe('App', () => {
       session: { id: nextSession.id }, me: { uid: nextPlayer.uid }, communicationError: null,
     });
     expect(window.location.hash).toBe('#/shuttles/starlight');
+  });
+
+  const COLONEL = 'refinery-124-pdf-colonel';
+  const CHEPU_DRAFT_KEY = 'pc10:shuttle-cargo-draft:s1:u1:chepu';
+  const chepuDraft = {
+    version: 1, sessionId: 's1', uid: 'u1', scope: 'chepu',
+    value: { hostShipId: 'refinery-124', resourceId: 'securityTeams', amount: 2 },
+  };
+  const colonel: Player = {
+    ...player, displayName: 'Colonel', role: 'player', assignedRoleId: COLONEL, seatId: COLONEL,
+    activeConsoleRoleId: COLONEL, fleetGroupId: 'fleet-1',
+  };
+  const colonelSession: GameSession = {
+    ...session, phase: 'active', currentTurn: 1, activeRoleIds: [COLONEL], activeVesselIds: ['refinery-124'],
+    shipResources: { 'refinery-124': {
+      ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 4,
+    } },
+    shuttleCargo: { chepu: { securityTeams: 1 } },
+    shuttleDockings: [{ shuttleId: 'chepu', shipId: 'refinery-124', dockedAt: 'SESSION START' }],
+    shuttleControl: { chepu: {
+      shuttleId: 'chepu', ownerRoleId: COLONEL, ownerUid: 'u1', holderUid: 'u1', revision: 5,
+    } },
+  };
+
+  function chepuCargo(): HTMLElement {
+    return screen.getByRole('region', { name: 'Shuttle cargo transfer' });
+  }
+
+  it('returns a released Colonel from Chepu to station selection and restores the unsent cargo choice only after reselect', async () => {
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    window.location.hash = '#/shuttles/chepu';
+    useSessionStore.getState().setIdentity(colonelSession, colonel);
+    useSessionStore.getState().setMode('console');
+    sessionStorage.setItem(CHEPU_DRAFT_KEY, JSON.stringify(chepuDraft));
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    expect(await screen.findByRole('heading', { name: 'P.D.S. Chepu' }, { timeout: 5_000 })).toBeInTheDocument();
+    expect(within(chepuCargo()).getByLabelText('Resource')).toHaveValue('securityTeams');
+    expect(within(chepuCargo()).getByLabelText('Amount')).toHaveValue(2);
+
+    act(() => {
+      handlers?.onPlayer?.({ ...colonel, assignedRoleId: null, seatId: null, activeConsoleRoleId: null });
+      handlers?.onPlayerFreshness?.(true);
+      handlers?.onSessionFreshness?.(true);
+    });
+    expect(await screen.findByRole('heading', { name: 'Stations and consoles' })).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Your previous station is no longer available. Return to station select and reselect your role.',
+    );
+    expect(window.location.hash).toBe('#/console');
+    expect(screen.queryByRole('region', { name: 'Shuttle cargo transfer' })).not.toBeInTheDocument();
+    expect(JSON.parse(sessionStorage.getItem(CHEPU_DRAFT_KEY) ?? 'null')).toEqual(chepuDraft);
+
+    act(() => {
+      handlers?.onPlayer?.(colonel);
+      handlers?.onPlayerFreshness?.(true);
+      useSessionStore.getState().setCommunicationError(null);
+    });
+    act(() => { window.location.hash = '#/shuttles/chepu'; });
+
+    await waitFor(() => expect(within(chepuCargo()).getByLabelText('Resource')).toHaveValue('securityTeams'));
+    expect(within(chepuCargo()).getByLabelText('Amount')).toHaveValue(2);
+    expect(transferShuttleCargo).not.toHaveBeenCalled();
+  });
+
+  it('keeps the unsent Chepu cargo choice through Back to the Colonel console and Refinery 124 consoles', async () => {
+    const user = userEvent.setup();
+    window.location.hash = '#/shuttles/chepu';
+    useSessionStore.getState().setIdentity(colonelSession, colonel);
+    useSessionStore.getState().setMode('console');
+    act(() => {
+      useSessionStore.getState().setConnection('live');
+      useSessionStore.getState().setSessionSnapshotFreshness('server');
+    });
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'P.D.S. Chepu' }, { timeout: 5_000 })).toBeInTheDocument();
+    await user.selectOptions(within(chepuCargo()).getByLabelText('Resource'), 'securityTeams');
+    await user.clear(within(chepuCargo()).getByLabelText('Amount'));
+    await user.type(within(chepuCargo()).getByLabelText('Amount'), '2');
+    await user.click(screen.getByRole('link', { name: 'Back to Refinery 124 P.D.F. Colonel console' }));
+    expect(window.location.hash).toBe(`#/ships/refinery-124/roles/${COLONEL}`);
+    await user.click(await screen.findByRole('link', { name: 'View ship consoles' }));
+    expect(window.location.hash).toBe('#/ships/refinery-124/roles');
+
+    act(() => { window.location.hash = `#/ships/refinery-124/roles/${COLONEL}`; });
+    await user.click(await screen.findByRole('link', { name: 'Open Chepu shuttle console' }));
+    expect(window.location.hash).toBe('#/shuttles/chepu');
+    await waitFor(() => expect(within(chepuCargo()).getByLabelText('Resource')).toHaveValue('securityTeams'));
+    expect(within(chepuCargo()).getByLabelText('Amount')).toHaveValue(2);
+    expect(transferShuttleCargo).not.toHaveBeenCalled();
   });
 
   it('drops a pending station release when the listener identity changes', async () => {

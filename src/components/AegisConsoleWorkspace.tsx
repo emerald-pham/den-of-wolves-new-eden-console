@@ -14,13 +14,19 @@ import {
   type AegisShipSystem,
 } from '@/data/aegisConsoles';
 import aegis from '@/data/vessels/aegis';
-import type { DamageDraw, MaintenanceCycle, ShipDamageState, ShipNavigationLogs } from '@/types/game';
+import type { DamageDraw, MaintenanceCycle, ShipDamageState, ShipNavigationLogs, TurnPhase } from '@/types/game';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
 import { useConsoleAccess } from '@/lib/consoleAccess';
 import { phaseForSession } from '@/lib/turnPhase';
-import { buildFighter as buildFighterAction, type FighterBuildResult } from '@/lib/sessionService';
+import {
+  buildFighter as buildFighterAction,
+  exchangeFighterWings,
+  type AegisFighterWingId,
+  type FighterBuildResult,
+} from '@/lib/sessionService';
 import AdmiralDirectiveWorkspace from './AdmiralDirectives';
+import AegisFighterWingExchangePanel from './AegisFighterWingExchangePanel';
 
 interface Props {
   readonly roleId: string | undefined;
@@ -181,6 +187,43 @@ function fighterBuildGuidance({ hasServerSnapshot, connection, writable, constru
   if (materials === undefined) return 'Build unavailable // construction materials are not published. Next actor // Wing Commander waits for the current server resource state.';
   if (materials < 1) return 'Build unavailable // 1 material required. Next actor // AEGIS crew obtains construction materials, then the Wing Commander builds.';
   return `${materials} material${materials === 1 ? '' : 's'} available. Next actor // Wing Commander builds one fighter for one material.`;
+}
+
+/**
+ * Explain the first reason the Team Phase exchange cannot be sent, mirroring
+ * the server's guards so a disabled control always says what to wait for.
+ */
+function fighterWingExchangeBlocker({ hasServerSnapshot, connection, writable, currentTurn, phase,
+  counts, capacity, sourceWingId }: {
+  readonly hasServerSnapshot: boolean;
+  readonly connection: 'idle' | 'connecting' | 'live' | 'offline';
+  readonly writable: boolean;
+  readonly currentTurn: number | undefined;
+  readonly phase: TurnPhase | undefined;
+  readonly counts: Readonly<Record<AegisFighterWingId, { readonly count: number; readonly revision: number } | undefined>>;
+  readonly capacity: 4 | 6;
+  readonly sourceWingId: AegisFighterWingId;
+}): string | null {
+  if (!hasServerSnapshot) return 'Exchange unavailable // awaiting live server state. Next actor // Wing Commander reconnects for the current wing counts.';
+  if (connection !== 'live') return 'Exchange unavailable // reconnect required. Next actor // Wing Commander restores the live connection.';
+  if (!writable) return 'Exchange unavailable // read-only view. Next actor // the Wing Commander uses their own console; a GM observer needs explicit Write access.';
+  if (currentTurn === 0) return 'Exchange unavailable // Cycle 1 required. Next actor // GM completes the normal start.';
+  if (!phase || phase.airspace.state !== 'restricted') return 'Exchange unavailable // Team Phase required. Next actor // Wing Commander waits for the next Team Phase; GM controls cycle advancement.';
+  if (phase.timerPause) return 'Exchange unavailable // Team Phase clock paused. Next actor // GM resumes the clock.';
+  const targetWingId: AegisFighterWingId = sourceWingId === 'fighter-wing-alpha' ? 'fighter-wing-bravo' : 'fighter-wing-alpha';
+  const wingName = (wingId: AegisFighterWingId) => wingId === 'fighter-wing-alpha' ? 'Alpha' : 'Bravo';
+  const source = counts[sourceWingId];
+  const target = counts[targetWingId];
+  if (!source || !target) return 'Exchange unavailable // fighter strength is not published. Next actor // Wing Commander waits for the current server strength.';
+  const reverseOpen = target.count >= 1 && source.count < capacity;
+  const alternative = reverseOpen
+    ? ` Choose ${wingName(targetWingId)} to ${wingName(sourceWingId)} instead.`
+    : source.count < 1 ? ' Neither wing can give a fighter.' : ' Both wings are full.';
+  if (source.count < 1) return `Exchange unavailable // ${wingName(sourceWingId)} has no fighters to move.${alternative}`;
+  if (target.count >= capacity) {
+    return `Exchange unavailable // ${wingName(targetWingId)} already holds ${capacity} fighters, its capacity.${alternative}`;
+  }
+  return null;
 }
 
 /** Describe the latest server reply to this console's build request without inventing state. */
@@ -419,6 +462,11 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
   const fighterWingCounts = shipState?.fighterWingCounts ?? session?.fighterWingCounts;
   const fighterWings = console.craft.filter((craft) => craft.fighterWing);
   const fighterWingCombat = fighterWings[0]?.fighterWing?.combat;
+  const exchangeCounts = {
+    'fighter-wing-alpha': hasServerSnapshot ? fighterWingCounts?.['fighter-wing-alpha'] : undefined,
+    'fighter-wing-bravo': hasServerSnapshot ? fighterWingCounts?.['fighter-wing-bravo'] : undefined,
+  };
+  const exchangeCapacity = constructionBayUpgraded ? 6 : 4;
 
   return (
     <FleetRoleConsoleTemplate shipName="AEGIS" roleName="Wing Commander"
@@ -497,6 +545,15 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
                 materials: resources?.materials })}
             />
           ))}
+          <AegisFighterWingExchangePanel
+            counts={exchangeCounts}
+            capacity={exchangeCapacity}
+            blockerFor={(sourceWingId) => fighterWingExchangeBlocker({
+              hasServerSnapshot, connection, writable: access.writable, currentTurn: session?.currentTurn,
+              phase: phaseForSession(session), counts: exchangeCounts, capacity: exchangeCapacity, sourceWingId,
+            })}
+            onExchange={exchangeFighterWings}
+          />
         </div>
       ) : (
         <div className="aegis-combat-grid">

@@ -113,6 +113,7 @@ import {
 } from './politicalCapital';
 import {
   buildCommissarPurgePressLogEntry,
+  buildPdfNewsRelayPressLogEntry,
   buildPresidentActionPressLogEntry,
   buildShuttleSurvivorTransferPressLogEntry,
   buildSurvivorChangePressLogEntry,
@@ -528,6 +529,13 @@ import {
   type FighterWingCountState,
   type FighterWingId,
 } from './fighterWings';
+import {
+  isFighterWingExchangeResult,
+  otherFighterWing,
+  planFighterWingExchange,
+  requireFighterWingExchangeRequest,
+  type FighterWingExchangeResult,
+} from './fighterWingExchange';
 import {
   initialAegisFighterWingAttack,
   launchAegisFighterWing as launchAegisFighterWingState,
@@ -17135,6 +17143,92 @@ export const sendFleetGroupMessage = onCall(async request => {
     const message = { id: data.requestId!, actorUid: uid, text: data.text!, sentAt: now };
     tx.set(notesRef, { groupId, messages: [...current.slice(-19), message], updatedAt: FieldValue.serverTimestamp() });
     const result: FleetGroupMessageReply = { status: 'committed', groupId, messageId: message.id };
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+interface PdfNewsRelayRequest {
+  readonly sessionId: string; readonly requestId: string; readonly expectedGroupId: string;
+  readonly text: string; readonly handToPress: boolean;
+}
+interface PdfNewsRelayReply {
+  readonly status: 'committed'; readonly groupId: string; readonly messageId: string; readonly handedToPress: boolean;
+}
+function parsePdfNewsRelayRequest(raw: unknown): PdfNewsRelayRequest {
+  const allowed = ['sessionId', 'requestId', 'expectedGroupId', 'text', 'handToPress'];
+  if (!isRecord(raw) || Object.keys(raw).some(key => !allowed.includes(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.requestId !== 'string' || !isCanonicalRequestId(raw.requestId) ||
+      typeof raw.expectedGroupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(raw.expectedGroupId) ||
+      typeof raw.text !== 'string' || raw.text.trim().length < 1 || raw.text.length > 240 ||
+      typeof raw.handToPress !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'Invalid P.D.F. news relay request.');
+  }
+  return { sessionId: raw.sessionId, requestId: raw.requestId, expectedGroupId: raw.expectedGroupId,
+    text: raw.text.trim(), handToPress: raw.handToPress };
+}
+function isPdfNewsRelayReply(value: unknown): value is PdfNewsRelayReply {
+  return isRecord(value) && Object.keys(value).every(key => ['status', 'groupId', 'messageId', 'handedToPress'].includes(key)) &&
+    value.status === 'committed' && typeof value.groupId === 'string' && /^fleet-[1-9][0-9]*$/.test(value.groupId) &&
+    typeof value.messageId === 'string' && isCanonicalRequestId(value.messageId) && typeof value.handedToPress === 'boolean';
+}
+
+/**
+ * The current P.D.F. Colonel relays news to their own fleet group outside Wolf
+ * attacks. The group receives an ordinary group note, the GM a private audit,
+ * and the Press intake only the text, and only when explicitly handed over.
+ * The Press still decides whether and how to publish it.
+ */
+export const relayPdfColonelNews = onCall(async request => {
+  const uid = requireUid(request.auth);
+  const data = parsePdfNewsRelayRequest(request.data);
+  const fingerprint: CommandFingerprint = { action: 'relay-pdf-colonel-news', sessionId: data.sessionId,
+    requestId: data.requestId, actorUid: uid, instanceId: null, expectedRevision: null,
+    payload: { groupId: data.expectedGroupId, text: data.text, handToPress: data.handToPress } };
+  const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const auditRef = db.doc(`sessions/${data.sessionId}/pdfNewsRelayAudits/${data.requestId}`);
+  const attackStateRef = db.doc(`sessions/${data.sessionId}/wolfAttackState/current`);
+  const now = new Date().toISOString();
+  return db.runTransaction(async tx => {
+    const actor = await tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`));
+    requirePdfColonel(actor);
+    const group = await groupNoteAuthority(tx, data.sessionId, uid, data.expectedGroupId);
+    const notesRef = db.doc(`sessions/${data.sessionId}/fleetGroupMessages/${group.id}`);
+    const [session, notes, receipt, audit, attackState] = await Promise.all([
+      tx.get(db.doc(`sessions/${data.sessionId}`)), tx.get(notesRef), tx.get(receiptRef),
+      tx.get(auditRef), tx.get(attackStateRef),
+    ]);
+    const replay = replayBoundCommand(receipt, fingerprint, (value): value is PdfNewsRelayReply =>
+      isPdfNewsRelayReply(value) && value.groupId === data.expectedGroupId && value.messageId === data.requestId &&
+        value.handedToPress === data.handToPress, 'P.D.F. news relay');
+    if (replay) return replay;
+    if (audit.exists) throw commandError('failed-precondition', 'The P.D.F. news relay has no replay receipt.', 'conflict');
+    if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
+      throw commandError('failed-precondition',
+        'P.D.F. news relays wait until the Wolf attack is resolved.', 'invalid-phase');
+    }
+    if (data.handToPress && session.get('pressEnabled') === false) {
+      throw commandError('failed-precondition',
+        'The Press is not enabled. Relay without the Press hand-off.', 'conflict');
+    }
+    const current = storedGroupNotes(notes, group.id);
+    if (current.some(note => note.id === data.requestId)) {
+      throw commandError('failed-precondition', 'Group note has no replay receipt.', 'conflict');
+    }
+    const cycle = sessionTurn(session.get('currentTurn'));
+    const message = { id: data.requestId, actorUid: uid, text: data.text, sentAt: now };
+    tx.set(notesRef, { groupId: group.id, messages: [...current.slice(-19), message], updatedAt: FieldValue.serverTimestamp() });
+    if (data.handToPress) {
+      writePressLogEvent(tx, data.sessionId, buildPdfNewsRelayPressLogEntry({
+        sourceId: `pdf-news-relay:${data.requestId}`, text: data.text, cycle, recordedAt: now,
+      }));
+    }
+    tx.create(auditRef, { type: 'pdf-news-relay-audit', sessionId: data.sessionId, requestId: data.requestId,
+      actorUid: uid, actorRoleId: 'refinery-124-pdf-colonel', groupId: group.id, cycle, text: data.text,
+      handedToPress: data.handToPress, createdAt: FieldValue.serverTimestamp() });
+    const result: PdfNewsRelayReply = { status: 'committed', groupId: group.id, messageId: data.requestId,
+      handedToPress: data.handToPress };
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
@@ -39041,6 +39135,100 @@ export const buildFighter = onCall<{
     });
     txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
+  });
+});
+
+/**
+ * Team Phase Fighter Wing exchange: the Wing Commander moves fighters between
+ * Alpha and Bravo, keeping each wing within its 4-fighter capacity (6 after
+ * the Construction Bay upgrade). Only wing counts change; the result is kept
+ * in the server-only command receipt so a retry replays it exactly.
+ */
+export const exchangeAegisFighterWings = onCall<unknown>(async request => {
+  const uid = requireUid(request.auth);
+  const change = requireFighterWingExchangeRequest(request.data);
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const receiptRef = commandReceiptRef(change.sessionId, change.requestId);
+  const fingerprint = vesselActionFingerprint(
+    'fighter-wing-exchange', change.sessionId, change.requestId, uid, change.instanceId ?? null, null, {
+      sourceWingId: change.sourceWingId,
+      amount: change.amount,
+      expectedAlphaRevision: change.expectedAlphaRevision,
+      expectedBravoRevision: change.expectedBravoRevision,
+    },
+  );
+  return db.runTransaction(async (tx): Promise<FighterWingExchangeResult> => {
+    const [player, session] = await Promise.all([
+      tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`)),
+      tx.get(sessionRef),
+    ]);
+    await requireConsoleAuthority(tx, change.sessionId, player, 'wing-commander', change.instanceId);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (player.get('role') !== 'gm' &&
+        (!isActivePlayer(player) || player.get('activeConsoleRoleId') !== 'wing-commander')) {
+      throw new HttpsError('permission-denied', 'An active Wing Commander console is required.');
+    }
+    const replay = replayBoundCommand(
+      await tx.get(receiptRef), fingerprint, isFighterWingExchangeResult, 'Fighter Wing exchange',
+    );
+    if (replay) return replay;
+
+    requireActionPhase(session, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
+    const currentTurn = sessionTurn(session.get('currentTurn'));
+    const phase = turnPhaseState(session.get('turnPhase'));
+    if (!phase || phase.turn !== currentTurn || phase.timerPause !== undefined) {
+      throw commandError(
+        'failed-precondition',
+        'Fighter Wing exchange is available only while the current Team Phase is running.',
+        'invalid-phase',
+      );
+    }
+    const parsed = fighterWingCounts(session.get('fighterWingCounts'));
+    const alpha = parsed['fighter-wing-alpha'];
+    const bravo = parsed['fighter-wing-bravo'];
+    if (!alpha || !bravo) {
+      throw commandError(
+        'failed-precondition',
+        'Fighter-wing strength is unavailable; wait for a server snapshot before exchanging fighters.',
+        'conflict',
+      );
+    }
+    const counts = { 'fighter-wing-alpha': alpha, 'fighter-wing-bravo': bravo };
+    const capacity = fighterWingCapacity(session.get('shipUpgrades'));
+    const reply = (status: FighterWingExchangeResult['status'], resultCounts: typeof counts) => ({
+      status,
+      sessionId: change.sessionId,
+      requestId: change.requestId,
+      sourceWingId: change.sourceWingId,
+      targetWingId: otherFighterWing(change.sourceWingId),
+      amount: change.amount,
+      capacity,
+      turn: currentTurn,
+      counts: resultCounts,
+    });
+    if (alpha.revision !== change.expectedAlphaRevision || bravo.revision !== change.expectedBravoRevision) {
+      const stale = reply('stale', counts);
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    const plan = planFighterWingExchange(counts, change.sourceWingId, change.amount, capacity);
+    if (!plan.ok) {
+      throw commandError(
+        'failed-precondition',
+        plan.reason === 'source-short'
+          ? 'That wing does not have that many fighters to exchange.'
+          : `That exchange would put more than ${capacity} fighters in the receiving wing.`,
+        'conflict',
+      );
+    }
+    const committed = reply('committed', plan.counts);
+    tx.update(sessionRef, {
+      'fighterWingCounts.fighter-wing-alpha': plan.counts['fighter-wing-alpha'],
+      'fighterWingCounts.fighter-wing-bravo': plan.counts['fighter-wing-bravo'],
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    txSetIfSupported(tx, receiptRef, { fingerprint, result: committed, createdAt: FieldValue.serverTimestamp() });
+    return committed;
   });
 });
 

@@ -263,6 +263,7 @@ beforeEach(() => {
   });
   vi.mocked(evacuateShuttleSurvivors).mockReset();
   vi.mocked(evacuateShuttleSurvivors).mockResolvedValue(undefined);
+  sessionStorage.clear();
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
     id: 's1', name: 'Table one', joinCode: '4821', phase: 'lobby', ownerUid: 'u1',
@@ -2107,6 +2108,60 @@ it('keeps a Chepu security-team transfer pending and replays an uncertain result
   await waitFor(() => expect(replayShuttleCargoTransfer).toHaveBeenCalledWith(exactAttempt));
   expect(transferShuttleCargo).toHaveBeenCalledTimes(1);
   expect(within(cargo).getByRole('status')).toHaveTextContent('Unloaded 1 Security Teams.');
+});
+
+it('keeps the Colonel\'s unsent Chepu cargo choice through Back to the Colonel console without sending it', async () => {
+  const user = userEvent.setup();
+  prepareColonelChepuState();
+  renderColonelWorkspaceWithChepu('/shuttles/chepu');
+
+  const cargo = screen.getByRole('region', { name: 'Shuttle cargo transfer' });
+  await user.selectOptions(within(cargo).getByLabelText('Resource'), 'securityTeams');
+  await user.clear(within(cargo).getByLabelText('Amount'));
+  await user.type(within(cargo).getByLabelText('Amount'), '2');
+  await user.click(screen.getByRole('link', { name: /back to refinery 124 p.d.f. colonel console/i }));
+  expect(screen.getByRole('heading', { name: 'PDF Colonel workspace' })).toBeInTheDocument();
+
+  await user.click(screen.getByRole('link', { name: 'Open Chepu shuttle console' }));
+  const restored = screen.getByRole('region', { name: 'Shuttle cargo transfer' });
+  expect(within(restored).getByLabelText('Resource')).toHaveValue('securityTeams');
+  expect(within(restored).getByLabelText('Amount')).toHaveValue(2);
+  expect(within(restored).getByRole('button', { name: 'Load shuttle' })).toBeEnabled();
+  expect(within(restored).queryByRole('status')).not.toBeInTheDocument();
+  expect(transferShuttleCargo).not.toHaveBeenCalled();
+});
+
+it('keeps an unsent Chepu cargo choice private to its own player, craft and dock', async () => {
+  const user = userEvent.setup();
+  prepareColonelChepuState();
+  const view = renderColonelWorkspaceWithChepu('/shuttles/chepu');
+  const cargo = screen.getByRole('region', { name: 'Shuttle cargo transfer' });
+  await user.selectOptions(within(cargo).getByLabelText('Resource'), 'securityTeams');
+  await user.clear(within(cargo).getByLabelText('Amount'));
+  await user.type(within(cargo).getByLabelText('Amount'), '3');
+  view.unmount();
+
+  // A different holder on the same browser never sees the Colonel's draft.
+  prepareColonelChepuState('u2');
+  act(() => useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, uid: 'u2' }));
+  const other = renderColonelWorkspaceWithChepu('/shuttles/chepu');
+  expect(within(screen.getByRole('region', { name: 'Shuttle cargo transfer' })).getByLabelText('Resource'))
+    .toHaveValue('');
+  other.unmount();
+
+  // The same Colonel at a different dock starts from a clean choice.
+  act(() => useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, uid: 'u1' }));
+  prepareColonelChepuState();
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    activeRoleIds: ['refinery-124-pdf-colonel', 'wing-commander'], activeVesselIds: ['refinery-124', 'aegis'],
+    shuttleDockings: [{ shuttleId: 'chepu', shipId: 'aegis', dockedAt: 'CYCLE 1' }],
+  }));
+  renderColonelWorkspaceWithChepu('/shuttles/chepu');
+  const moved = screen.getByRole('region', { name: 'Shuttle cargo transfer' });
+  expect(within(moved).getByLabelText('Resource')).toHaveValue('');
+  expect(within(moved).getByLabelText('Amount')).toHaveValue(1);
+  expect(transferShuttleCargo).not.toHaveBeenCalled();
 });
 
 it('keeps a GM-controlled Union shuttle out of the default roster', () => {
