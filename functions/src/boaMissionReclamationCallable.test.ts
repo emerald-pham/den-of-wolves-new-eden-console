@@ -138,6 +138,10 @@ describe('Boa mission reclamation callables', () => {
     });
     expect(mock.set).toHaveBeenCalledTimes(1);
     expect(mock.create).toHaveBeenCalledTimes(1);
+    // The facilitator's deal preview sees only that a Boa choice is pending, never the chosen task.
+    expect(mock.update).toHaveBeenCalledWith({ path: 'sessions/s1', id: 's1' }, {
+      [`boaReclamationPending.${ARRIVAL}`]: true, updatedAt: 'server-time',
+    });
   });
 
   it('replays an exact retry without writing and rejects another player reusing the request', async () => {
@@ -288,5 +292,46 @@ describe('Boa mission reclamation callables', () => {
     }))).rejects.toMatchObject({ code: 'failed-precondition' });
     expect(mock.documents.has(`sessions/s1/boaMissionReclamationChoices/${ARRIVAL}`)).toBe(false);
     expect(mock.documents.has('sessions/s1/commandReceipts/boa-invalid-task')).toBe(false);
+  });
+
+  /** The repeatable Abandoned Wolf Supply Outpost (K) at A-6943, reached in cycle 1 and again in cycle 2. */
+  function seedRepeatableArrivals(): readonly [string, string] {
+    const earlier = 'arrival-fleet-1-A-6943-cycle-1';
+    const later = 'arrival-fleet-1-A-6943-cycle-2';
+    mock.documents.delete(`sessions/s1/missionOpportunities/${ARRIVAL}`);
+    put('sessions/s1/serverState/navigation', {
+      shipGalacticCoordinates: { capybara: '6943', aegis: '6943' }, revision: 5,
+    });
+    for (const [id, cycle] of [[earlier, 1], [later, 2]] as const) {
+      put(`sessions/s1/missionOpportunities/${id}`, { ...ARRIVAL_FIELDS, id, coordinate: '6943', siteCode: 'K',
+        sourceTransitionId: `jump-entry-${cycle}`, sourceCycle: cycle });
+    }
+    return [earlier, later];
+  }
+
+  it('offers only dealable locations: never a started mission or a superseded repeatable arrival', async () => {
+    const [earlier, later] = seedRepeatableArrivals();
+    const offered = async () => (await callables.readBoaMissionReclamationWorkspace(request({ sessionId: SESSION })))
+      .opportunities.map(({ missionOpportunityId, sourceCycle }) => [missionOpportunityId, sourceCycle]);
+    expect(await offered()).toEqual([[later, 2]]);
+    expect(earlier).not.toBe(later);
+
+    put(`sessions/s1/missionStartSnapshots/${later}`, { type: 'away-mission-start-snapshot' });
+    expect(await offered()).toEqual([]);
+    mock.documents.delete(`sessions/s1/missionStartSnapshots/${later}`);
+    put(`sessions/s1/serverState/awayMissions/instances/mission-${later}`, { status: 'active' });
+    expect(await offered()).toEqual([]);
+  });
+
+  it('rejects a choice for a repeatable arrival superseded by a later visit, before writes', async () => {
+    const [earlier, later] = seedRepeatableArrivals();
+    await expect(callables.chooseBoaMissionReclamationOpportunity(request({
+      ...command, requestId: 'boa-superseded', missionOpportunityId: earlier, taskOpportunityId: 'K-1',
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.documents.has(`sessions/s1/boaMissionReclamationChoices/${earlier}`)).toBe(false);
+    expect(mock.documents.has('sessions/s1/commandReceipts/boa-superseded')).toBe(false);
+    await expect(callables.chooseBoaMissionReclamationOpportunity(request({
+      ...command, requestId: 'boa-current-visit', missionOpportunityId: later, taskOpportunityId: 'K-1',
+    }))).resolves.toMatchObject({ status: 'committed', missionOpportunityId: later });
   });
 });

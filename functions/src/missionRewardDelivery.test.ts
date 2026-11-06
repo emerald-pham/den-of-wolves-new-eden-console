@@ -55,3 +55,16 @@ it('does not mint Boa Scrap on failure and rejects any malformed replacement rew
     rewards: [{ opportunityId: 'G-3', branch: 'none', resources: {}, effects: [], bulkHaulageApplied: false }],
   })).toBeNull();
 });
+
+it('delivers the Boa Scrap alongside a kept non-reward effect but never alongside a reward effect', () => {
+  const valid = {
+    shipId: 'aegis', inventory, population: 1000, minerals: 0, specialRewards: [],
+    boaReclamationOpportunityId: 'K-1', boaScrapCargo: {},
+  };
+  expect(planBoaMissionRewardDelivery({ ...valid, rewards: [{ opportunityId: 'K-1', branch: 'success',
+    resources: { scrap: 1 }, effects: [{ kind: 'immediateWolfAttack', scope: 'group', unless: 'critical' }],
+    bulkHaulageApplied: false }] })).toMatchObject({ boaScrapAwarded: 1, boaScrapCargo: { scrap: 1 } });
+  expect(planBoaMissionRewardDelivery({ ...valid, rewards: [{ opportunityId: 'K-1', branch: 'success',
+    resources: { scrap: 1 }, effects: [{ kind: 'upgradeConsoles', count: 1 }],
+    bulkHaulageApplied: false }] })).toBeNull();
+});

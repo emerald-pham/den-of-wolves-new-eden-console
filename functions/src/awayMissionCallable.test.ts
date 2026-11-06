@@ -847,6 +847,10 @@ describe('dealPrivateInitialCards', () => {
       expect.objectContaining({ path: `sessions/s1/boaMissionReclamationChoices/${asteroidOpportunityId}` }),
       expect.objectContaining({ status: 'consumed', missionId: `mission-${asteroidOpportunityId}` }),
     );
+    expect(mock.update).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'sessions/s1' }),
+      expect.objectContaining({ [`boaReclamationPending.${asteroidOpportunityId}`]: 'delete-field' }),
+    );
   });
 
   it('deals an ordinary mission without a Boa modifier when no Boa choice exists', async () => {
@@ -887,6 +891,31 @@ describe('dealPrivateInitialCards', () => {
       expect.objectContaining({
         status: 'lapsed', lapseReason: reason, lapsedCycle: 2, missionId: `mission-${defaultOpportunity.id}`,
       }),
+    );
+  });
+
+  it.each([
+    ['its location binding no longer matches the opportunity', { groupId: 'fleet-9' }],
+    ['it is no longer a selected choice', { status: 'consumed' }],
+  ] as const)('lapses a well-formed Boa choice whose %s instead of blocking the deal', async (_label, change) => {
+    seedBoaRecyclerAt('5143');
+    mock.documents[`sessions/s1/boaMissionReclamationChoices/${defaultOpportunity.id}`] = {
+      ...boaChoice(defaultOpportunity.id, '5143', 'L', 'L-1'), ...change,
+    };
+    await expect(dealPrivateInitialCards.run(request({
+      ...command, requestId: 'deal-boa-mismatch', participantUids: ['alice', 'bob', 'capybara'],
+    }))).resolves.toMatchObject({ status: 'committed' });
+    const missionWrite = mock.set.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/serverState/awayMissions/instances/mission-${defaultOpportunity.id}`);
+    expect(missionWrite?.[1]?.lifecycleRecord).not.toHaveProperty('boaReclamation');
+    const startWrite = mock.create.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/missionStartSnapshots/${defaultOpportunity.id}`);
+    expect(startWrite?.[1]).toMatchObject({
+      boaReclamation: { status: 'lapsed', reason: 'location-changed', missionCardOpportunityId: 'L-1' },
+    });
+    expect(mock.update).toHaveBeenCalledWith(
+      expect.objectContaining({ path: `sessions/s1/boaMissionReclamationChoices/${defaultOpportunity.id}` }),
+      expect.objectContaining({ status: 'lapsed', lapseReason: 'location-changed' }),
     );
   });
 
