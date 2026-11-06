@@ -5,7 +5,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import type {
   BoaMissionReclamationChoiceReply,
   BoaMissionReclamationWorkspaceReply,
-} from '../../functions/src/boaMissionReclamationCallable';
+} from '../../functions/src/boaMissionReclamationContract';
 
 export interface BoaMissionReclamationChoiceCommand {
   readonly requestId: string;

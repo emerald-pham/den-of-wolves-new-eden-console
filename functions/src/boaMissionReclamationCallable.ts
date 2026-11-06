@@ -4,6 +4,18 @@ import { missionCardForCode } from './missionCards';
 import { missionOpportunityDocumentPath, parseStoredMissionOpportunity,
   type MissionOpportunityEligibility } from './missionEligibility';
 import { requireCandidateVesselsAvailable } from './candidateAvailability';
+import type {
+  BoaMissionReclamationChoiceReply,
+  BoaMissionReclamationTaskOpportunity,
+  BoaMissionReclamationWorkspaceReply,
+} from './boaMissionReclamationContract';
+
+export type {
+  BoaMissionReclamationChoiceReply,
+  BoaMissionReclamationTaskOpportunity,
+  BoaMissionReclamationWorkspaceOpportunity,
+  BoaMissionReclamationWorkspaceReply,
+} from './boaMissionReclamationContract';
 
 type Data = Record<string, unknown>;
 
@@ -33,45 +45,6 @@ export interface BoaMissionReclamationCallableDependencies {
   readonly serverTimestamp: () => unknown;
 }
 
-export interface BoaMissionReclamationTaskOpportunity {
-  readonly id: string;
-  readonly description: string;
-  readonly difficulty: number | null;
-  readonly criticalThreshold: number | null;
-}
-
-export interface BoaMissionReclamationWorkspaceOpportunity {
-  readonly missionOpportunityId: string;
-  readonly groupId: string;
-  readonly chart: string;
-  readonly coordinate: string;
-  readonly siteCode: string;
-  readonly siteName: string;
-  readonly sourceCycle: number;
-  readonly taskOpportunities: readonly BoaMissionReclamationTaskOpportunity[];
-  readonly choiceRevision: number;
-  readonly selectedTaskOpportunityId?: string;
-}
-
-export interface BoaMissionReclamationWorkspaceReply {
-  readonly status: 'available';
-  readonly sessionId: string;
-  readonly actorUid: string;
-  readonly groupId: string;
-  readonly hostShipId: string;
-  readonly controlRevision: number;
-  readonly cycle: number;
-  readonly opportunities: readonly BoaMissionReclamationWorkspaceOpportunity[];
-}
-
-export interface BoaMissionReclamationChoiceReply {
-  readonly status: 'committed' | 'replayed';
-  readonly sessionId: string;
-  readonly requestId: string;
-  readonly missionOpportunityId: string;
-  readonly taskOpportunityId: string;
-  readonly choiceRevision: number;
-}
 
 interface Transaction {
   get(reference: unknown): Promise<unknown>;

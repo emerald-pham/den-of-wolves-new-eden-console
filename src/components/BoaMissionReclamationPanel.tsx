@@ -11,8 +11,10 @@ import {
   readBoaMissionReclamationWorkspace,
   type BoaMissionReclamationChoiceCommand,
 } from '@/lib/boaMissionReclamationService';
-import type { BoaMissionReclamationWorkspaceOpportunity } from '../../functions/src/boaMissionReclamationCallable';
-import { halvedBoaReclamationDifficulty } from '../../functions/src/boaMissionReclamation';
+import {
+  halvedBoaReclamationDifficulty,
+  type BoaMissionReclamationWorkspaceOpportunity,
+} from '../../functions/src/boaMissionReclamationContract';
 import type { ShuttleControlEntry, ShuttleDocking } from '@/types/game';
 
 interface Props {

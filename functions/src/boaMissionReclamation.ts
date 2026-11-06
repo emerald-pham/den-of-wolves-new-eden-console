@@ -1,15 +1,7 @@
 import type { MissionOpportunityResolution } from './missionLifecycle';
+import { halvedBoaReclamationDifficulty } from './boaMissionReclamationContract';
 
-/**
- * Halve the difficulty of the printed Boa reclamation opportunity, rounding
- * an odd difficulty up (owner decision, 2026-11-05; PRODUCT_MILESTONE_ASSUMPTIONS
- * PC10.2-C2). With integer card totals this is equivalent to comparing
- * against the exact half-point. The printed critical threshold is unchanged;
- * the reward replacement (one Scrap, no critical bonus) happens in rewards.
- */
-export function halvedBoaReclamationDifficulty(difficulty: number): number {
-  return Math.ceil(difficulty / 2);
-}
+export { halvedBoaReclamationDifficulty };
 
 /** Apply the Boa halving only to the player's selected mission-card opportunity. */
 export function applyBoaReclamationDifficulty(
