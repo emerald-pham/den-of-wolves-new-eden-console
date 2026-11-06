@@ -284,6 +284,48 @@ it('carries the launched P.D.F. Escort Wing through committed Medium and Short r
   expect(await screen.findByRole('heading', { name: /refinery 124 \/\/ station overview/i })).toBeInTheDocument();
 });
 
+it('keeps Fighter Ace permission grantable through the range steps after targeting until the Ace acts', async () => {
+  const user = userEvent.setup();
+  publishWing({ revision: 1, launched: true });
+  // Outside targeting the launch read reports only 'waiting'; the member projection keeps the launch.
+  launchService.read.mockResolvedValue({ ...eligible, revision: 3, wingRevision: 1, eligible: false, reason: 'waiting' });
+  rangeService.read.mockResolvedValue(null);
+  const aceView = (status: 'ready' | 'granted' | 'closed', reason: string | null = null) => ({
+    type: 'pdf-fighter-ace-permission-view', sessionId: 's1', attackId: 'attack-1', turn: 1, revision: 3,
+    range: 'medium', sourceId: 'pdf-escort-fighter-wing', sourceLabel: 'P.D.F. Escort Fighter Wing',
+    status, reason, fighters: 4, availableFighterIndexes: status === 'ready' ? [0, 1, 2, 3] : [],
+  });
+  let granted = false;
+  aceService.read.mockImplementation(async () => granted ? aceView('granted') : aceView('ready'));
+  aceService.grant.mockImplementation(async () => { granted = true; return { status: 'committed' }; });
+  act(() => attackFeed.publish(memberView('medium-range', 3)));
+  render(<ColonelRoutes initial="/console" />);
+
+  await user.click(screen.getByRole('link', { name: /refinery 124 \/\/ p\.d\.f\. colonel/i }));
+  await user.click(await screen.findByRole('button', { name: 'Ship systems' }));
+  const wing = await screen.findByRole('region', { name: 'PDF Escort Fighter Wing' });
+  expect(await within(wing).findByText('Launched // Cycle 1')).toBeVisible();
+  const ace = await within(wing).findByRole('region', { name: 'Fighter Ace source permission' });
+  const authorize = await within(ace).findByRole('button', { name: 'Authorize Fighter Ace' });
+  expect(authorize).toBeEnabled();
+  await user.click(authorize);
+  expect(aceService.grant).toHaveBeenCalledWith({
+    attackId: 'attack-1', expectedRevision: 3, sourceId: 'pdf-escort-fighter-wing', fighterIndex: 0,
+  });
+  expect(await within(ace).findByText('A fighter slot is already authorized for this attack.')).toBeVisible();
+
+  // Once the Ace has acted the server closes the grant and the Colonel sees why.
+  aceService.read.mockResolvedValue(aceView('closed', 'ace-already-acted'));
+  act(() => attackFeed.publish(memberView('short-range', 4)));
+  publishWing({ revision: 2, mediumResolved: true, mediumActionCount: 1 });
+  expect(await within(wing).findByText('The Fighter Ace has already acted in this attack.')).toBeVisible();
+  const closed = within(wing).getByRole('region', { name: 'Fighter Ace source permission' });
+  expect(within(closed).getByRole('button', { name: 'Authorize Fighter Ace' })).toBeDisabled();
+
+  await user.click(screen.getByRole('link', { name: 'View ship consoles' }));
+  expect(await screen.findByRole('heading', { name: /refinery 124 \/\/ station overview/i })).toBeInTheDocument();
+});
+
 it('relays P.D.F. news from the Colonel console with an explicit Press hand-off, then returns to the chooser', async () => {
   const user = userEvent.setup();
   launchService.read.mockResolvedValue({ ...eligible, eligible: false, reason: 'waiting' });
