@@ -1846,6 +1846,120 @@ export async function buildFighter(wingId: string): Promise<FighterBuildResult |
   }
 }
 
+export type AegisFighterWingId = 'fighter-wing-alpha' | 'fighter-wing-bravo';
+
+export interface FighterWingExchangeResult {
+  readonly status: 'committed' | 'stale';
+  readonly sourceWingId: AegisFighterWingId;
+  readonly targetWingId: AegisFighterWingId;
+  readonly amount: number;
+  readonly capacity: 4 | 6;
+  readonly turn: number;
+  readonly counts: Readonly<Record<AegisFighterWingId, Readonly<{ count: number; revision: number }>>>;
+}
+
+type FighterWingExchangePayload = Readonly<{
+  sessionId: string;
+  requestId: string;
+  sourceWingId: AegisFighterWingId;
+  amount: number;
+  expectedAlphaRevision: number;
+  expectedBravoRevision: number;
+  instanceId?: string;
+}>;
+
+/**
+ * An exchange whose reply was lost in transport. Retrying the same choice
+ * resends this exact request so the server replays its receipt instead of
+ * moving fighters a second time.
+ */
+let unconfirmedFighterWingExchange: Readonly<{ key: string; payload: FighterWingExchangePayload }> | null = null;
+
+function fighterWingExchangeReply(
+  value: unknown,
+  payload: FighterWingExchangePayload,
+): FighterWingExchangeResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const counts = typeof raw.counts === 'object' && raw.counts !== null
+    ? raw.counts as Record<string, unknown> : {};
+  const count = (entry: unknown) => {
+    if (typeof entry !== 'object' || entry === null) return null;
+    const { count: fighters, revision } = entry as Record<string, unknown>;
+    return Number.isSafeInteger(fighters) && (fighters as number) >= 0 &&
+      Number.isSafeInteger(revision) && (revision as number) >= 0
+      ? { count: fighters as number, revision: revision as number } : null;
+  };
+  const alpha = count(counts['fighter-wing-alpha']);
+  const bravo = count(counts['fighter-wing-bravo']);
+  if ((raw.status !== 'committed' && raw.status !== 'stale') || raw.sessionId !== payload.sessionId ||
+      raw.requestId !== payload.requestId || raw.sourceWingId !== payload.sourceWingId ||
+      raw.amount !== payload.amount || (raw.capacity !== 4 && raw.capacity !== 6) ||
+      !Number.isSafeInteger(raw.turn) || !alpha || !bravo) return null;
+  return {
+    status: raw.status,
+    sourceWingId: payload.sourceWingId,
+    targetWingId: payload.sourceWingId === 'fighter-wing-alpha' ? 'fighter-wing-bravo' : 'fighter-wing-alpha',
+    amount: payload.amount,
+    capacity: raw.capacity,
+    turn: raw.turn as number,
+    counts: { 'fighter-wing-alpha': alpha, 'fighter-wing-bravo': bravo },
+  };
+}
+
+/** Move fighters between AEGIS wings during the Team Phase as the Wing Commander. */
+export async function exchangeFighterWings(
+  sourceWingId: AegisFighterWingId,
+  amount: number,
+): Promise<FighterWingExchangeResult | null> {
+  const store = useSessionStore.getState();
+  if (!store.session) throw new Error('Join a session before exchanging fighters.');
+  requireFreshSessionAuthority();
+  const sessionId = store.session.id;
+  const alpha = store.session.fighterWingCounts?.['fighter-wing-alpha'];
+  const bravo = store.session.fighterWingCounts?.['fighter-wing-bravo'];
+  if (!alpha || !bravo) throw new Error('Wait for the live Fighter Wing strength before exchanging fighters.');
+  const uid = sessionAuthorityUid(store);
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, uid);
+  const key = JSON.stringify([sessionId, uid, store.gmInstance?.id ?? null, sourceWingId, amount]);
+  const payload: FighterWingExchangePayload = unconfirmedFighterWingExchange?.key === key
+    ? unconfirmedFighterWingExchange.payload
+    : {
+      sessionId,
+      requestId: commandId(),
+      sourceWingId,
+      amount,
+      expectedAlphaRevision: alpha.revision,
+      expectedBravoRevision: bravo.revision,
+      ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
+    };
+  unconfirmedFighterWingExchange = { key, payload };
+  try {
+    await ensureSignedIn();
+    const call = httpsCallable<FighterWingExchangePayload, unknown>(functions(), 'exchangeAegisFighterWings');
+    const reply = fighterWingExchangeReply((await call(payload)).data, payload);
+    if (!reply) throw new Error('The server returned an invalid Fighter Wing exchange result.');
+    unconfirmedFighterWingExchange = null;
+    const current = useSessionStore.getState().session;
+    if (!current || current.id !== sessionId || !authorityCheckpointIsCurrent(checkpoint) ||
+      reply.status !== 'committed') return reply;
+    // Never regress a newer live snapshot that already carries this exchange.
+    const newer = (['fighter-wing-alpha', 'fighter-wing-bravo'] as const).some((wingId) =>
+      (current.fighterWingCounts?.[wingId]?.revision ?? -1) >= reply.counts[wingId].revision);
+    if (!newer) {
+      useSessionStore.getState().setSession({
+        ...current,
+        fighterWingCounts: { ...current.fighterWingCounts, ...reply.counts },
+      });
+    }
+    return reply;
+  } catch (cause) {
+    if (!isTransientCommandError(cause)) unconfirmedFighterWingExchange = null;
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    return null;
+  }
+}
+
 export async function adjustShipResource(
   shipId: string,
   resourceId: ResourceId,

@@ -70,6 +70,7 @@ const {
   adjustShipUnrest,
   dismissPopulationAlert,
   dismissUnrestAlert,
+  exchangeFighterWings,
   jumpShip,
   moveShipToLocation,
   startAwayMission,
@@ -5638,5 +5639,91 @@ describe('GM recovery reconciliation', () => {
       ? callableReturning({ data: { instances: [] } }) : claim);
     await expect(reconcileGmAuthority()).rejects.toThrow(/recovery.*response/i);
     expect(useSessionStore.getState().gmInstance).toBeNull();
+  });
+});
+
+describe('Fighter Wing exchange', () => {
+  const wingSession = {
+    ...session, phase: 'active' as const, currentTurn: 2,
+    fighterWingCounts: {
+      'fighter-wing-alpha': { count: 4, revision: 2 },
+      'fighter-wing-bravo': { count: 1, revision: 5 },
+    },
+  };
+  const committedCounts = {
+    'fighter-wing-alpha': { count: 2, revision: 3 },
+    'fighter-wing-bravo': { count: 3, revision: 6 },
+  };
+
+  function reply(payload: unknown, status: 'committed' | 'stale' = 'committed') {
+    const sent = payload as Record<string, unknown>;
+    return { data: {
+      status, sessionId: 's1', requestId: sent.requestId, sourceWingId: sent.sourceWingId,
+      targetWingId: 'fighter-wing-bravo', amount: sent.amount, capacity: 4, turn: 2,
+      counts: status === 'committed' ? committedCounts : wingSession.fighterWingCounts,
+    } };
+  }
+
+  beforeEach(() => {
+    authMockState.uid = 'u1';
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity(wingSession, {
+      ...player, assignedRoleId: 'wing-commander', seatId: 'wing-commander', activeConsoleRoleId: 'wing-commander',
+    });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('sends the wing revisions the Wing Commander saw and applies the committed counts', async () => {
+    const exchange = Object.assign(vi.fn(async (payload: unknown) => reply(payload)), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(exchange as never);
+
+    await expect(exchangeFighterWings('fighter-wing-alpha', 2)).resolves.toMatchObject({
+      status: 'committed', amount: 2, counts: committedCounts,
+    });
+    expect(vi.mocked(httpsCallable).mock.calls.at(-1)?.[1]).toBe('exchangeAegisFighterWings');
+    expect(exchange).toHaveBeenCalledWith({
+      sessionId: 's1', requestId: expect.any(String), sourceWingId: 'fighter-wing-alpha', amount: 2,
+      expectedAlphaRevision: 2, expectedBravoRevision: 5,
+    });
+    expect(useSessionStore.getState().session?.fighterWingCounts).toEqual(committedCounts);
+  });
+
+  it('retries an unconfirmed exchange with the same request so the server replays it instead of moving fighters twice', async () => {
+    const payloads: Array<Record<string, unknown>> = [];
+    const exchange = Object.assign(vi.fn(async (payload: unknown) => {
+      payloads.push(payload as Record<string, unknown>);
+      if (payloads.length === 1) throw Object.assign(new Error('network'), { code: 'functions/unavailable' });
+      return reply(payload);
+    }), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(exchange as never);
+
+    await expect(exchangeFighterWings('fighter-wing-alpha', 2)).resolves.toBeNull();
+    expect(useSessionStore.getState().session?.fighterWingCounts).toEqual(wingSession.fighterWingCounts);
+    await expect(exchangeFighterWings('fighter-wing-alpha', 2)).resolves.toMatchObject({ status: 'committed' });
+    expect(payloads[1]).toEqual(payloads[0]);
+
+    await exchangeFighterWings('fighter-wing-alpha', 1);
+    expect(payloads[2]?.requestId).not.toBe(payloads[0]?.requestId);
+  });
+
+  it('starts a new request after a definite rejection and leaves counts untouched on a stale result', async () => {
+    const payloads: Array<Record<string, unknown>> = [];
+    const exchange = Object.assign(vi.fn(async (payload: unknown) => {
+      payloads.push(payload as Record<string, unknown>);
+      if (payloads.length === 1) throw Object.assign(new Error('denied'), { code: 'functions/permission-denied' });
+      return reply(payload, 'stale');
+    }), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(exchange as never);
+
+    await expect(exchangeFighterWings('fighter-wing-alpha', 2)).resolves.toBeNull();
+    expect(useSessionStore.getState().communicationError).not.toBeNull();
+    await expect(exchangeFighterWings('fighter-wing-alpha', 2)).resolves.toMatchObject({ status: 'stale' });
+    expect(payloads[1]?.requestId).not.toBe(payloads[0]?.requestId);
+    expect(useSessionStore.getState().session?.fighterWingCounts).toEqual(wingSession.fighterWingCounts);
   });
 });
