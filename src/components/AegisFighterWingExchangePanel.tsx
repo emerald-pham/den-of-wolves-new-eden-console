@@ -24,7 +24,8 @@ function resultNotice(result: FighterWingExchangeResult | null): string {
   if (result.status === 'stale') {
     return 'Exchange not committed // the wing counts changed first. No fighters moved; review the live counts and try again.';
   }
-  return `Exchange committed // ${fighters(result.amount)} moved from ${WING_NAMES[result.sourceWingId]} to ${WING_NAMES[result.targetWingId]} // Alpha now ${fighters(result.counts['fighter-wing-alpha'].count)}, Bravo now ${fighters(result.counts['fighter-wing-bravo'].count)}.`;
+  const prefix = result.status === 'replayed' ? 'Exchange already committed' : 'Exchange committed';
+  return `${prefix} // ${fighters(result.amount)} moved from ${WING_NAMES[result.sourceWingId]} to ${WING_NAMES[result.targetWingId]} // Alpha now ${fighters(result.counts['fighter-wing-alpha'].count)}, Bravo now ${fighters(result.counts['fighter-wing-bravo'].count)}.`;
 }
 
 /** Team Phase transfer of fighters between the two AEGIS wings. */

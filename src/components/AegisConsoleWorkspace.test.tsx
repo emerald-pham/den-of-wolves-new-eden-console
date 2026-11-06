@@ -408,3 +408,19 @@ it.each([
   expect(await within(panel).findByText(notice)).toBeVisible();
   expect(within(panel).queryByText(/exchange committed/i)).not.toBeInTheDocument();
 });
+
+it('tells the Wing Commander when a retry found the exchange already committed', async () => {
+  stageWingExchange();
+  vi.mocked(exchangeFighterWings).mockResolvedValue({
+    status: 'replayed', sourceWingId: 'fighter-wing-alpha', targetWingId: 'fighter-wing-bravo', amount: 1,
+    capacity: 4, turn: 1,
+    counts: { 'fighter-wing-alpha': { count: 3, revision: 3 }, 'fighter-wing-bravo': { count: 2, revision: 6 } },
+  });
+  const user = userEvent.setup();
+  const panel = renderExchange();
+
+  await user.click(within(panel).getByRole('button', { name: 'Move 1 fighter from Alpha to Bravo' }));
+  expect(await within(panel).findByText(
+    /exchange already committed \/\/ 1 fighter moved from alpha to bravo \/\/ alpha now 3 fighters, bravo now 2 fighters/i,
+  )).toBeVisible();
+});

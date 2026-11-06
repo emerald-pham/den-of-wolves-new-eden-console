@@ -342,6 +342,71 @@ function commandId(): string {
   return window.crypto.randomUUID();
 }
 
+/**
+ * Whether a failed callable may still have committed on the server. Only a
+ * confirmed rejection (or a rate limit, which runs before any mutation) proves
+ * nothing happened; every transport loss, timeout, or unreadable reply is an
+ * unknown outcome whose request identity must be kept for an exact retry.
+ */
+export function isCommandOutcomeUnknown(cause: unknown): boolean {
+  const code = commandErrorCode(cause);
+  const confirmedRejection = CONFIRMED_JUMP_REJECTION_ERRORS.has(code) ||
+    (code === 'resource-exhausted' && isRateLimitedCommandError(cause));
+  return !confirmedRejection;
+}
+
+interface CommandAttempt<P> {
+  readonly payload: P;
+  /** Live revisions this request was checked against; passing any retires it. */
+  readonly expected: Readonly<Record<string, number>>;
+}
+
+/**
+ * Idempotent-command request identities whose outcome is unknown, one per
+ * command key. Retrying the same key resends the same request so the server
+ * replays its receipt. An entry is dropped once settled, or once live
+ * revisions pass the ones it expected: the result is then visible live, and a
+ * further identical command is a deliberate new request.
+ */
+export class CommandAttempts<P> {
+  readonly #entries = new Map<string, CommandAttempt<P>>();
+
+  /** Reuse this key's unsettled attempt, or record a new one. */
+  begin(
+    key: string,
+    live: Readonly<Record<string, number | undefined>>,
+    create: () => CommandAttempt<P>,
+  ): Readonly<{ payload: P; resent: boolean }> {
+    this.prune(live);
+    const existing = this.#entries.get(key);
+    if (existing) return { payload: existing.payload, resent: true };
+    const attempt = create();
+    this.#entries.set(key, attempt);
+    return { payload: attempt.payload, resent: false };
+  }
+
+  /** Clear this exact attempt after a reply, or after a failure known not to have committed. */
+  settle(key: string, payload: P, cause?: unknown): void {
+    if (cause !== undefined && isCommandOutcomeUnknown(cause)) return;
+    if (this.#entries.get(key)?.payload === payload) this.#entries.delete(key);
+  }
+
+  /** Retire every attempt whose expected revisions the live state has passed. */
+  prune(live: Readonly<Record<string, number | undefined>>): void {
+    for (const [key, attempt] of this.#entries) {
+      const passed = Object.entries(attempt.expected).some(([name, expected]) => {
+        const current = live[name];
+        return current !== undefined && current > expected;
+      });
+      if (passed) this.#entries.delete(key);
+    }
+  }
+
+  has(key: string): boolean {
+    return this.#entries.has(key);
+  }
+}
+
 interface PendingArrestPosseAttempt {
   readonly sessionId: string;
   readonly instanceId: string;
@@ -1808,11 +1873,11 @@ interface FighterBuildPayload {
 }
 
 /**
- * A replacement-fighter build whose reply was lost in transport. Building the
- * same wing again resends this exact request so the server replays its
+ * Replacement-fighter builds whose reply was lost, one per wing. Building the
+ * same wing again resends that exact request so the server replays its
  * receipt instead of spending another material.
  */
-let unconfirmedFighterBuild: Readonly<{ key: string; payload: FighterBuildPayload }> | null = null;
+const fighterBuildAttempts = new CommandAttempts<FighterBuildPayload>();
 
 /** Build one fighter through the server-owned, charged AEGIS Construction Bay. */
 export async function buildFighter(wingId: string): Promise<FighterBuildResult | null> {
@@ -1823,22 +1888,25 @@ export async function buildFighter(wingId: string): Promise<FighterBuildResult |
   const uid = sessionAuthorityUid(store);
   const checkpoint = sessionAuthorityCheckpoint(sessionId, uid);
   const key = JSON.stringify([sessionId, uid, store.gmInstance?.id ?? null, wingId]);
-  const payload: FighterBuildPayload = unconfirmedFighterBuild?.key === key
-    ? unconfirmedFighterBuild.payload
-    : {
+  const liveRevision = store.session.vesselActionRevisions?.aegis ?? 0;
+  const { payload, resent } = fighterBuildAttempts.begin(key, { aegis: liveRevision }, () => ({
+    payload: {
       sessionId,
       requestId: commandId(),
       wingId,
-      expectedRevision: store.session.vesselActionRevisions?.aegis ?? 0,
+      expectedRevision: liveRevision,
       ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
-    };
-  unconfirmedFighterBuild = { key, payload };
+    },
+    expected: { aegis: liveRevision },
+  }));
   try {
     await ensureSignedIn();
     const call = httpsCallable<FighterBuildPayload, unknown>(functions(), 'buildFighter');
-    const reply = fighterBuildReply((await call(payload)).data);
-    if (!reply || reply.wingId !== wingId) throw new Error('The server returned an invalid fighter construction result.');
-    unconfirmedFighterBuild = null;
+    const parsed = fighterBuildReply((await call(payload)).data);
+    if (!parsed || parsed.wingId !== wingId) throw new Error('The server returned an invalid fighter construction result.');
+    fighterBuildAttempts.settle(key, payload);
+    const reply: FighterBuildResult = resent && parsed.status === 'committed'
+      ? { ...parsed, status: 'replayed' } : parsed;
     const current = useSessionStore.getState().session;
     if (!current || current.id !== sessionId || !authorityCheckpointIsCurrent(checkpoint) ||
       reply.status === 'stale' || reply.count === undefined || reply.fighterWingRevision === undefined ||
@@ -1868,7 +1936,7 @@ export async function buildFighter(wingId: string): Promise<FighterBuildResult |
     });
     return reply;
   } catch (cause) {
-    if (!isTransientCommandError(cause)) unconfirmedFighterBuild = null;
+    fighterBuildAttempts.settle(key, payload, cause);
     useSessionStore.getState().setCommunicationError(interception(cause));
     return null;
   }
@@ -1877,7 +1945,8 @@ export async function buildFighter(wingId: string): Promise<FighterBuildResult |
 export type AegisFighterWingId = 'fighter-wing-alpha' | 'fighter-wing-bravo';
 
 export interface FighterWingExchangeResult {
-  readonly status: 'committed' | 'stale';
+  /** `replayed`: the server returned the receipt of an earlier request whose reply was lost. */
+  readonly status: 'committed' | 'replayed' | 'stale';
   readonly sourceWingId: AegisFighterWingId;
   readonly targetWingId: AegisFighterWingId;
   readonly amount: number;
@@ -1897,11 +1966,11 @@ type FighterWingExchangePayload = Readonly<{
 }>;
 
 /**
- * An exchange whose reply was lost in transport. Retrying the same choice
- * resends this exact request so the server replays its receipt instead of
- * moving fighters a second time.
+ * Exchanges whose reply was lost, keyed by the exact choice. Retrying the
+ * same choice resends that request so the server replays its receipt instead
+ * of moving fighters a second time.
  */
-let unconfirmedFighterWingExchange: Readonly<{ key: string; payload: FighterWingExchangePayload }> | null = null;
+const fighterWingExchangeAttempts = new CommandAttempts<FighterWingExchangePayload>();
 
 function fighterWingExchangeReply(
   value: unknown,
@@ -1950,9 +2019,9 @@ export async function exchangeFighterWings(
   const uid = sessionAuthorityUid(store);
   const checkpoint = sessionAuthorityCheckpoint(sessionId, uid);
   const key = JSON.stringify([sessionId, uid, store.gmInstance?.id ?? null, sourceWingId, amount]);
-  const payload: FighterWingExchangePayload = unconfirmedFighterWingExchange?.key === key
-    ? unconfirmedFighterWingExchange.payload
-    : {
+  const live = { alpha: alpha.revision, bravo: bravo.revision };
+  const { payload, resent } = fighterWingExchangeAttempts.begin(key, live, () => ({
+    payload: {
       sessionId,
       requestId: commandId(),
       sourceWingId,
@@ -1960,17 +2029,20 @@ export async function exchangeFighterWings(
       expectedAlphaRevision: alpha.revision,
       expectedBravoRevision: bravo.revision,
       ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
-    };
-  unconfirmedFighterWingExchange = { key, payload };
+    },
+    expected: live,
+  }));
   try {
     await ensureSignedIn();
     const call = httpsCallable<FighterWingExchangePayload, unknown>(functions(), 'exchangeAegisFighterWings');
-    const reply = fighterWingExchangeReply((await call(payload)).data, payload);
-    if (!reply) throw new Error('The server returned an invalid Fighter Wing exchange result.');
-    unconfirmedFighterWingExchange = null;
+    const parsed = fighterWingExchangeReply((await call(payload)).data, payload);
+    if (!parsed) throw new Error('The server returned an invalid Fighter Wing exchange result.');
+    fighterWingExchangeAttempts.settle(key, payload);
+    const reply: FighterWingExchangeResult = resent && parsed.status === 'committed'
+      ? { ...parsed, status: 'replayed' } : parsed;
     const current = useSessionStore.getState().session;
     if (!current || current.id !== sessionId || !authorityCheckpointIsCurrent(checkpoint) ||
-      reply.status !== 'committed') return reply;
+      reply.status === 'stale') return reply;
     // Never regress a newer live snapshot that already carries this exchange.
     const newer = (['fighter-wing-alpha', 'fighter-wing-bravo'] as const).some((wingId) =>
       (current.fighterWingCounts?.[wingId]?.revision ?? -1) >= reply.counts[wingId].revision);
@@ -1982,7 +2054,7 @@ export async function exchangeFighterWings(
     }
     return reply;
   } catch (cause) {
-    if (!isTransientCommandError(cause)) unconfirmedFighterWingExchange = null;
+    fighterWingExchangeAttempts.settle(key, payload, cause);
     useSessionStore.getState().setCommunicationError(interception(cause));
     return null;
   }
@@ -3712,10 +3784,7 @@ export function createJumpShipAttempt(
 }
 
 export function isJumpShipOutcomeUncertain(cause: unknown): boolean {
-  const code = commandErrorCode(cause);
-  const confirmedRejection = CONFIRMED_JUMP_REJECTION_ERRORS.has(code) ||
-    (code === 'resource-exhausted' && isRateLimitedCommandError(cause));
-  return !confirmedRejection;
+  return isCommandOutcomeUnknown(cause);
 }
 
 export interface FailedJumpSummary {
@@ -7520,7 +7589,7 @@ const UNCERTAIN_BOARDING_CHOICE_MESSAGE = 'The connection was lost before the se
  * identical choice for the same actor, attack revision and role reuses it, so
  * the server replays its receipt instead of rejecting the retry as stale.
  */
-let pendingBoardingSpecialChoiceAttempt: Readonly<{ key: string; requestId: string }> | null = null;
+const boardingSpecialChoiceAttempts = new CommandAttempts<string>();
 
 function boardingSpecialChoiceAttemptKey(
   store: ReturnType<typeof useSessionStore.getState>, sessionId: string, instanceId: string | undefined,
@@ -7554,9 +7623,8 @@ export async function commitWolfBoardingSpecialChoice(
   await ensureSignedIn();
   const attemptKey = boardingSpecialChoiceAttemptKey(useSessionStore.getState(), sessionId, instance?.id,
     turn, revision, choice);
-  const requestId = pendingBoardingSpecialChoiceAttempt?.key === attemptKey
-    ? pendingBoardingSpecialChoiceAttempt.requestId : commandId();
-  pendingBoardingSpecialChoiceAttempt = { key: attemptKey, requestId };
+  const { payload: requestId } = boardingSpecialChoiceAttempts.begin(attemptKey, { attack: revision },
+    () => ({ payload: commandId(), expected: { attack: revision } }));
   const payload = { sessionId, requestId, expectedTurn: turn, expectedRevision: revision,
     ...(instance ? { instanceId: instance.id } : {}), choice };
   const call = httpsCallable<typeof payload, unknown>(functions(), 'commitWolfBoardingSpecialChoice');
@@ -7565,13 +7633,13 @@ export async function commitWolfBoardingSpecialChoice(
     response = (await call(payload)).data;
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));
-    if (isJumpShipOutcomeUncertain(cause)) {
+    boardingSpecialChoiceAttempts.settle(attemptKey, requestId, cause);
+    if (isCommandOutcomeUnknown(cause)) {
       throw Object.assign(new Error(UNCERTAIN_BOARDING_CHOICE_MESSAGE), { code: commandErrorCode(cause) });
     }
-    if (pendingBoardingSpecialChoiceAttempt?.requestId === requestId) pendingBoardingSpecialChoiceAttempt = null;
     throw cause;
   }
-  if (pendingBoardingSpecialChoiceAttempt?.requestId === requestId) pendingBoardingSpecialChoiceAttempt = null;
+  boardingSpecialChoiceAttempts.settle(attemptKey, requestId);
   try {
     const reply = wolfBoardingSpecialChoiceResultReply(response);
     if (!reply || reply.sessionId !== sessionId || reply.requestId !== requestId || reply.turn !== turn ||

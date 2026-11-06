@@ -5873,11 +5873,41 @@ describe('Fighter Wing exchange', () => {
 
     await expect(exchangeFighterWings('fighter-wing-alpha', 2)).resolves.toBeNull();
     expect(useSessionStore.getState().session?.fighterWingCounts).toEqual(wingSession.fighterWingCounts);
-    await expect(exchangeFighterWings('fighter-wing-alpha', 2)).resolves.toMatchObject({ status: 'committed' });
+    await expect(exchangeFighterWings('fighter-wing-alpha', 2)).resolves.toMatchObject({ status: 'replayed' });
     expect(payloads[1]).toEqual(payloads[0]);
 
     await exchangeFighterWings('fighter-wing-alpha', 1);
     expect(payloads[2]?.requestId).not.toBe(payloads[0]?.requestId);
+  });
+
+  it('reports a resent lost exchange as replayed, and treats a repeat after live revisions passed as a new request', async () => {
+    const payloads: Array<Record<string, unknown>> = [];
+    const exchange = Object.assign(vi.fn(async (payload: unknown) => {
+      payloads.push(payload as Record<string, unknown>);
+      if (payloads.length === 1 || payloads.length === 3) {
+        throw Object.assign(new Error('network'), { code: 'functions/unavailable' });
+      }
+      return reply(payload);
+    }), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(exchange as never);
+
+    await expect(exchangeFighterWings('fighter-wing-alpha', 1)).resolves.toBeNull();
+    // The server receipt for the lost request comes back on the identical retry.
+    await expect(exchangeFighterWings('fighter-wing-alpha', 1)).resolves.toMatchObject({ status: 'replayed' });
+    expect(payloads[1]).toEqual(payloads[0]);
+
+    // A new lost attempt, then the live snapshot shows the wings moved past its revisions.
+    useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, fighterWingCounts: {
+      'fighter-wing-alpha': { count: 2, revision: 3 }, 'fighter-wing-bravo': { count: 3, revision: 6 },
+    } });
+    await expect(exchangeFighterWings('fighter-wing-alpha', 1)).resolves.toBeNull();
+    useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, fighterWingCounts: {
+      'fighter-wing-alpha': { count: 1, revision: 4 }, 'fighter-wing-bravo': { count: 4, revision: 7 },
+    } });
+    // The Wing Commander deliberately repeats the same choice: it is a new exchange.
+    await expect(exchangeFighterWings('fighter-wing-alpha', 1)).resolves.toMatchObject({ status: 'committed' });
+    expect(payloads[3]?.requestId).not.toBe(payloads[2]?.requestId);
+    expect(payloads[3]).toMatchObject({ expectedAlphaRevision: 4, expectedBravoRevision: 7 });
   });
 
   it('starts a new request after a definite rejection and leaves counts untouched on a stale result', async () => {
@@ -5963,7 +5993,7 @@ describe('Fighter rebuild after combat losses', () => {
 
     await expect(buildFighter('fighter-wing-alpha')).resolves.toBeNull();
     expect(useSessionStore.getState().session?.fighterWingCounts?.['fighter-wing-alpha']).toEqual({ count: 2, revision: 4 });
-    await expect(buildFighter('fighter-wing-alpha')).resolves.toMatchObject({ status: 'committed', count: 3 });
+    await expect(buildFighter('fighter-wing-alpha')).resolves.toMatchObject({ status: 'replayed', count: 3 });
     expect(payloads[1]).toEqual(payloads[0]);
 
     // A confirmed result ends the recovery: the next replacement is a new request.
@@ -5989,27 +6019,69 @@ describe('Fighter rebuild after combat losses', () => {
     expect(payloads[2]?.requestId).not.toBe(payloads[1]?.requestId);
   });
 
-  it('does not regress a newer live snapshot when a replayed rebuild result arrives late', async () => {
-    let fail = true;
+  it('keeps one unconfirmed rebuild per wing so a lost Bravo build does not replace the lost Alpha build', async () => {
+    const payloads: Array<Record<string, unknown>> = [];
     const build = Object.assign(vi.fn(async (payload: unknown) => {
-      if (fail) { fail = false; throw Object.assign(new Error('network'), { code: 'functions/deadline-exceeded' }); }
+      payloads.push(payload as Record<string, unknown>);
+      if (payloads.length <= 2) throw Object.assign(new Error('network'), { code: 'functions/unavailable' });
+      // Bravo's lost request won revision 7, so Alpha's identical retry is stale.
+      if ((payload as Record<string, unknown>).wingId === 'fighter-wing-alpha') {
+        return committed(payload, { status: 'stale', currentRevision: 8, count: undefined,
+          fighterWingRevision: undefined, materials: undefined, revision: undefined });
+      }
+      return committed(payload, { wingId: 'fighter-wing-bravo' });
+    }), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(build as never);
+
+    await expect(buildFighter('fighter-wing-alpha')).resolves.toBeNull();
+    await expect(buildFighter('fighter-wing-bravo')).resolves.toBeNull();
+    await expect(buildFighter('fighter-wing-alpha')).resolves.toMatchObject({ status: 'stale' });
+    expect(payloads[2]).toEqual(payloads[0]);
+    // Settling Alpha leaves Bravo's unconfirmed request intact for its own replay.
+    await expect(buildFighter('fighter-wing-bravo')).resolves.toMatchObject({ status: 'replayed' });
+    expect(payloads[3]).toEqual(payloads[1]);
+  });
+
+  it('starts a new rebuild once the live AEGIS revision passes the lost request', async () => {
+    const payloads: Array<Record<string, unknown>> = [];
+    const build = Object.assign(vi.fn(async (payload: unknown) => {
+      payloads.push(payload as Record<string, unknown>);
+      if (payloads.length === 1) throw Object.assign(new Error('network'), { code: 'functions/unavailable' });
+      return committed(payload, { revision: 9 });
+    }), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(build as never);
+
+    await expect(buildFighter('fighter-wing-alpha')).resolves.toBeNull();
+    const live = useSessionStore.getState().session!;
+    useSessionStore.getState().setSession({ ...live, vesselActionRevisions: { aegis: 8 } });
+    await expect(buildFighter('fighter-wing-alpha')).resolves.toMatchObject({ status: 'committed' });
+    expect(payloads[1]?.requestId).not.toBe(payloads[0]?.requestId);
+    expect(payloads[1]).toMatchObject({ expectedRevision: 8 });
+  });
+
+  it('does not regress a newer live snapshot when a replayed rebuild result arrives late', async () => {
+    let calls = 0;
+    const build = Object.assign(vi.fn(async (payload: unknown) => {
+      calls += 1;
+      if (calls === 1) throw Object.assign(new Error('network'), { code: 'functions/deadline-exceeded' });
+      // While the identical retry is in flight, the live snapshot carries this build and a later one.
+      const live = useSessionStore.getState().session!;
+      useSessionStore.getState().setSession({
+        ...live,
+        fighterWingCounts: { ...live.fighterWingCounts, 'fighter-wing-alpha': { count: 4, revision: 6 } },
+        shipResources: { ...live.shipResources, aegis: { ...live.shipResources!.aegis!, materials: 18 } },
+        vesselActionRevisions: { aegis: 9 },
+      });
       return committed(payload);
     }), { stream: vi.fn() });
     vi.mocked(httpsCallable).mockReturnValue(build as never);
 
     await expect(buildFighter('fighter-wing-alpha')).resolves.toBeNull();
-    // The live snapshot already carries this build and a later one.
-    const live = useSessionStore.getState().session!;
-    useSessionStore.getState().setSession({
-      ...live,
-      fighterWingCounts: { ...live.fighterWingCounts, 'fighter-wing-alpha': { count: 4, revision: 6 } },
-      shipResources: { ...live.shipResources, aegis: { ...live.shipResources!.aegis!, materials: 18 } },
-      vesselActionRevisions: { aegis: 9 },
-    });
-    await expect(buildFighter('fighter-wing-alpha')).resolves.toMatchObject({ status: 'committed', count: 3 });
+    await expect(buildFighter('fighter-wing-alpha')).resolves.toMatchObject({ status: 'replayed', count: 3 });
     const current = useSessionStore.getState().session;
     expect(current?.fighterWingCounts?.['fighter-wing-alpha']).toEqual({ count: 4, revision: 6 });
     expect(current?.shipResources?.aegis?.materials).toBe(18);
     expect(current?.vesselActionRevisions?.aegis).toBe(9);
   });
+
 });
