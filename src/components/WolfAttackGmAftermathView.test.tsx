@@ -67,4 +67,31 @@ describe('GM aftermath receipt view', () => {
     expect(projected?.damage[0]?.damagedSystemIds).toEqual(['storage']);
     expect(projected?.pendingWork.damagedSystems).toEqual([]);
   });
+  it('lists a destroyed threshold ship as pending Scrap only while a shuttle is retained from it', () => {
+    const state = {
+      status: 'resolved', attackId: 'attack-7', turn: 7, memberResults: [],
+      calculationReceipt: { fleetDamage: [
+        { target: 'aegis', amount: 3, populationBefore: 2_500, population: 2_000,
+          state: { damagedSystemIds: ['storage'], destroyed: true }, draws: [] },
+        { target: 'dione', amount: 4, populationBefore: 9_000, population: 8_000,
+          state: { damagedSystemIds: [], destroyed: true }, draws: [] },
+        { target: 'quellon', amount: 2, populationBefore: 4_000, population: 4_000,
+          state: { damagedSystemIds: [], destroyed: false }, draws: [] },
+      ], ranges: [], returningInstanceIds: [] },
+    } as unknown as WolfAttackDeclarationState;
+    const custody = {
+      shuttleDockings: [],
+      shuttleControl: { macaw: { shuttleId: 'macaw', ownerRoleId: 'capybara-captain',
+        ownerUid: 'captain', holderUid: 'captain', revision: 3 } },
+      retainedShuttles: { macaw: { status: 'retained', shuttleId: 'macaw', ownerRoleId: 'capybara-captain',
+        holderUid: 'captain', destroyedHostShipId: 'aegis', controlRevision: 3,
+        retainedAt: '2026-10-04T09:59:00.000Z' } },
+    } as never;
+
+    expect(projectWolfAttackGmAftermathView(state, undefined, custody)?.pendingWork.scrapShipIds).toEqual(['aegis']);
+    expect(projectWolfAttackGmAftermathView(state)?.pendingWork.scrapShipIds).toEqual([]);
+    expect(projectWolfAttackGmAftermathView({ ...state,
+      aftermath: { scrapClaims: { aegis: { shuttleId: 'macaw', scrap: 1 } } } } as never, undefined, custody)
+      ?.pendingWork.scrapShipIds).toEqual([]);
+  });
 });
