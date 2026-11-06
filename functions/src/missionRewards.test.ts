@@ -96,6 +96,35 @@ describe('authoritative away-mission rewards', () => {
     expect(rewards?.find(({ opportunityId }) => opportunityId === 'E-1')?.effects).toEqual([]);
   });
 
+  it('replaces Boa reclamation rewards with exactly one Scrap on success, including critical success', () => {
+    const rewards = resolveMissionOpportunityRewards('D', [
+      result('D-1', 'critical-success', 'critical'),
+      result('D-2', 'success', 'success'),
+      result('D-3', 'automatic-failure', 'none'),
+    ], {
+      boaReclamationOpportunityId: 'D-1',
+      bulkHaulageContributorUidsByOpportunity: { 'D-1': ['capybara-captain'] },
+    });
+
+    expect(rewards?.find(({ opportunityId }) => opportunityId === 'D-1')).toEqual({
+      opportunityId: 'D-1', branch: 'critical', resources: { scrap: 1 }, effects: [],
+      bulkHaulageApplied: false,
+    });
+    expect(rewards?.find(({ opportunityId }) => opportunityId === 'D-2')?.resources).toEqual({ ore: 6 });
+    expect(rewards?.find(({ opportunityId }) => opportunityId === 'D-3')?.resources).toEqual({});
+  });
+
+  it('does not award Boa Scrap when the selected opportunity fails', () => {
+    const rewards = resolveMissionOpportunityRewards('D', [
+      result('D-1', 'failure', 'none'),
+      result('D-2', 'automatic-failure', 'none'),
+      result('D-3', 'automatic-failure', 'none'),
+    ], { boaReclamationOpportunityId: 'D-1' });
+    expect(rewards?.find(({ opportunityId }) => opportunityId === 'D-1')).toMatchObject({
+      branch: 'none', resources: {}, bulkHaulageApplied: false,
+    });
+  });
+
   it('awards one material plus the chosen food or water for every discarded Warrior card', () => {
     expect(resolveWarriorReclamatorHand({
       participantUid: 'warrior',
