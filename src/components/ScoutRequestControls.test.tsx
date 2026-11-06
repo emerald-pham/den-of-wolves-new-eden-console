@@ -187,12 +187,17 @@ it('records one Scientist scout request when Record request is tapped twice befo
   expect(request).toHaveBeenCalledTimes(1);
 });
 
-it('restores the unsent Scientist scout coordinate after a station reselect without replaying an old request', async () => {
+it.each([
+  ['Scientist', 'endeavour', 'Endeavour'],
+  ['Wing Commander Starlight', 'starlight', 'Starlight'],
+] as const)('restores the unsent %s scout coordinate after a station reselect without replaying an old request', async (
+  _owner, entitlementId, craftName,
+) => {
   const user = userEvent.setup();
-  setOwner('endeavour');
+  setOwner(entitlementId);
   request.mockRejectedValueOnce(new Error('The connection closed before confirmation.'));
-  const firstRequest = render(<ScoutRequestControls entitlementId="endeavour" />);
-  const controls = screen.getByRole('region', { name: 'Endeavour scouting request' });
+  const firstRequest = render(<ScoutRequestControls entitlementId={entitlementId} />);
+  const controls = screen.getByRole('region', { name: `${craftName} scouting request` });
   const coordinate = within(controls).getByLabelText('Printed system coordinate');
   await user.type(coordinate, '5143');
   await user.click(within(controls).getByRole('button', { name: 'Record request' }));
@@ -203,10 +208,10 @@ it('restores the unsent Scientist scout coordinate after a station reselect with
   act(() => {
     useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, activeConsoleRoleId: null });
   });
-  setOwner('endeavour');
-  render(<ScoutRequestControls entitlementId="endeavour" />);
+  setOwner(entitlementId);
+  render(<ScoutRequestControls entitlementId={entitlementId} />);
 
-  const restoredControls = screen.getByRole('region', { name: 'Endeavour scouting request' });
+  const restoredControls = screen.getByRole('region', { name: `${craftName} scouting request` });
   expect(within(restoredControls).getByLabelText('Printed system coordinate')).toHaveValue('5143');
   expect(within(restoredControls).getByRole('button', { name: 'Record request' })).toBeEnabled();
   expect(request).toHaveBeenCalledTimes(1);
