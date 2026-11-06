@@ -17114,6 +17114,17 @@ function storedGroupNotes(snapshot: DocumentSnapshot, groupId: string): readonly
   return raw.messages as FleetGroupNote[];
 }
 
+/** Append one ordinary note to the group's bounded (latest 20) history; a stored note without its receipt is refused. */
+function appendGroupNote(
+  tx: Transaction, notesRef: DocumentReference, notes: DocumentSnapshot, groupId: string, note: FleetGroupNote,
+): void {
+  const current = storedGroupNotes(notes, groupId);
+  if (current.some(existing => existing.id === note.id)) {
+    throw commandError('failed-precondition', 'Group note has no replay receipt.', 'conflict');
+  }
+  tx.set(notesRef, { groupId, messages: [...current.slice(-19), note], updatedAt: FieldValue.serverTimestamp() });
+}
+
 /** Server-only storage; every read rechecks the live audience after a partition. */
 export const readFleetGroupMessages = onCall(async request => {
   const uid = requireUid(request.auth);
@@ -17146,10 +17157,8 @@ export const sendFleetGroupMessage = onCall(async request => {
     const replay = replayBoundCommand(receipt, fingerprint, (value): value is FleetGroupMessageReply =>
       isFleetGroupMessageReply(value) && value.groupId === data.expectedGroupId && value.messageId === data.requestId, 'fleet group note');
     if (replay) return replay;
-    const current = storedGroupNotes(notes, groupId);
-    if (current.some(note => note.id === data.requestId)) throw commandError('failed-precondition', 'Group note has no replay receipt.', 'conflict');
     const message = { id: data.requestId!, actorUid: uid, text: data.text!, sentAt: now };
-    tx.set(notesRef, { groupId, messages: [...current.slice(-19), message], updatedAt: FieldValue.serverTimestamp() });
+    appendGroupNote(tx, notesRef, notes, groupId, message);
     const result: FleetGroupMessageReply = { status: 'committed', groupId, messageId: message.id };
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
@@ -17220,13 +17229,8 @@ export const relayPdfColonelNews = onCall(async request => {
       throw commandError('failed-precondition',
         'The Press is not enabled. Relay without the Press hand-off.', 'conflict');
     }
-    const current = storedGroupNotes(notes, group.id);
-    if (current.some(note => note.id === data.requestId)) {
-      throw commandError('failed-precondition', 'Group note has no replay receipt.', 'conflict');
-    }
     const cycle = sessionTurn(session.get('currentTurn'));
-    const message = { id: data.requestId, actorUid: uid, text: data.text, sentAt: now };
-    tx.set(notesRef, { groupId: group.id, messages: [...current.slice(-19), message], updatedAt: FieldValue.serverTimestamp() });
+    appendGroupNote(tx, notesRef, notes, group.id, { id: data.requestId, actorUid: uid, text: data.text, sentAt: now });
     if (data.handToPress) {
       writePressLogEvent(tx, data.sessionId, buildPdfNewsRelayPressLogEntry({
         sourceId: `pdf-news-relay:${data.requestId}`, text: data.text, cycle, recordedAt: now,
