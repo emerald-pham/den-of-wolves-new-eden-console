@@ -436,6 +436,20 @@ it('shows the Colonel a committed Chepu stay at its unchanged host', async () =>
   });
 });
 
+it('stops showing a committed relocation once the reader no longer holds that craft', async () => {
+  await colonelChepuRelocationFixture();
+  await special('colonel-1', { kind: 'relocation', craftId: 'chepu', targetShipId: 'dione',
+    expectedControlRevision: 0 }, 'colonel-chepu-handed-off');
+  const control = fields(sessionPath).shuttleControl as Record<string, Fields>;
+  patch(sessionPath, { shuttleControl: { ...control, chepu: { ...control.chepu, holderUid: 'engineer-1',
+    revision: (control.chepu!.revision as number) + 1 } } });
+  await expect(getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'colonel-1')))
+    .resolves.not.toHaveProperty('committedRelocation');
+  // The new holder never receives the previous holder's committed result either.
+  await expect(getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'engineer-1')))
+    .resolves.not.toHaveProperty('committedRelocation');
+});
+
 it('denies the Colonel Chepu receipt replay after Chepu custody changes', async () => {
   await colonelChepuRelocationFixture();
   const committed = await special('colonel-1', { kind: 'relocation', craftId: 'chepu', targetShipId: null,

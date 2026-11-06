@@ -31771,6 +31771,7 @@ function wolfBoardingCommittedRelocationFor(
   state: DocumentSnapshot,
   uid: string,
   turn: number,
+  supportCraft: readonly WolfBoardingCraftAuthority[],
 ): WolfBoardingCommittedRelocation | undefined {
   const ledger = state.get('boardingRelocationChoices');
   const attackId = state.get('attackId');
@@ -31780,6 +31781,8 @@ function wolfBoardingCommittedRelocationFor(
   let latest: (WolfBoardingCommittedRelocation & { revision: number }) | undefined;
   for (const craftId of ['pallas', 'chepu'] as const) {
     const entry = ledger[craftId];
+    // Only the craft's current holder sees its committed result; a hand-off ends the old holder's view.
+    if (supportCraft.find(({ shuttleId }) => shuttleId === craftId)?.holderUid !== uid) continue;
     if (!isRecord(entry) || entry.actorUid !== uid || entry.attackId !== attackId || entry.turn !== turn ||
         !Number.isSafeInteger(entry.revision) || !isTarget(entry.hostAfter) ||
         (entry.target !== null && !isTarget(entry.target))) continue;
@@ -31850,7 +31853,7 @@ export const getWolfBoardingSpecialChoice = onCall<{
     const snapshot = wolfBoardingProtocolSnapshot(session, state, players.docs, groups.docs);
     const stage = snapshot.stage;
     const committedRelocation = player.get('role') === 'player' && isActivePlayer(player)
-      ? wolfBoardingCommittedRelocationFor(state, uid, snapshot.inputs.turn) : undefined;
+      ? wolfBoardingCommittedRelocationFor(state, uid, snapshot.inputs.turn, snapshot.supportCraft) : undefined;
     const noChoice = (reason: 'not-your-choice' | 'automatic-progress-pending' | 'no-special-choice') =>
       ({ type: 'wolf-boarding-special-choice-unavailable', sessionId, reason,
         ...(committedRelocation ? { committedRelocation } : {}) } as const);
