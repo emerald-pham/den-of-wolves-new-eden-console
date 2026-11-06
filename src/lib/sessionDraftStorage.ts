@@ -68,3 +68,14 @@ export function writeSessionDraft(draft: SessionDraftScope, value: unknown): voi
     // Storage is a convenience only; the visible form and server authority remain primary.
   }
 }
+
+/** Removes only the exact session, UID and scope draft, e.g. after the player's explicit submit succeeds. */
+export function clearSessionDraft(draft: SessionDraftScope): void {
+  const key = storageKey(draft);
+  if (!key || typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch {
+    // Storage is a convenience only.
+  }
+}

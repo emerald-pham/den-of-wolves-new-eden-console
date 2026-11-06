@@ -1,15 +1,19 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
-import { pdfNewsRelayDraftKey } from '@/lib/pdfNewsRelayDraft';
+import { readSessionDraft, writeSessionDraft } from '@/lib/sessionDraftStorage';
 import PdfNewsRelayPanel from './PdfNewsRelayPanel';
 
 const mocks = vi.hoisted(() => ({ createActions: vi.fn(), relay: vi.fn() }));
 vi.mock('@/lib/fleetGroupService', () => ({ createCurrentFleetGroupActions: mocks.createActions }));
 
 const COLONEL = 'refinery-124-pdf-colonel';
-const DRAFT_KEY = pdfNewsRelayDraftKey('s1', 'colonel', 'fleet-2');
+// The relay draft uses the shared per-tab session draft helper, one draft per fleet group.
+const relayScope = (groupId = 'fleet-2') =>
+  ({ kind: 'pdf-news-relay-draft', sessionId: 's1', uid: 'colonel', scope: groupId });
+const storedDraft = (groupId?: string) =>
+  readSessionDraft(relayScope(groupId), (value) => typeof value === 'string' ? value : null);
 
 function seed(sessionPatch: Record<string, unknown> = {}, mePatch: Record<string, unknown> = {}): void {
   useSessionStore.getState().reset();
@@ -46,7 +50,7 @@ it('relays to the current group only, with the Press hand-off off by default', a
   expect(mocks.relay).toHaveBeenCalledWith('Outer marker clear.', false);
   expect(await screen.findByRole('status')).toHaveTextContent('Relayed to fleet-2. Not handed to the Press.');
   expect(screen.getByRole('textbox', { name: 'News for your current fleet group' })).toHaveValue('');
-  expect(sessionStorage.getItem(DRAFT_KEY)).toBeNull();
+  expect(storedDraft()).toBeNull();
   expect(panel).toBeVisible();
 });
 
@@ -79,7 +83,7 @@ it('keeps an unsent draft in this tab across a remount and after a rejected rela
   const user = userEvent.setup();
   const { unmount } = render(<PdfNewsRelayPanel enabled />);
   await user.type(screen.getByRole('textbox', { name: 'News for your current fleet group' }), 'Draft before reselect.');
-  expect(sessionStorage.getItem(DRAFT_KEY)).toBe('Draft before reselect.');
+  expect(storedDraft()).toBe('Draft before reselect.');
   unmount();
 
   render(<PdfNewsRelayPanel enabled />);
@@ -91,12 +95,29 @@ it('keeps an unsent draft in this tab across a remount and after a rejected rela
 });
 
 it('does not show another group’s draft after the Colonel moves to a different fleet group', async () => {
-  sessionStorage.setItem(DRAFT_KEY, 'Only for fleet-2.');
+  writeSessionDraft(relayScope(), 'Only for fleet-2.');
   seed({}, { fleetGroupId: 'fleet-3' });
   render(<PdfNewsRelayPanel enabled />);
 
   expect(screen.getByRole('textbox', { name: 'News for your current fleet group' })).toHaveValue('');
-  expect(sessionStorage.getItem(DRAFT_KEY)).toBe('Only for fleet-2.');
+  expect(storedDraft()).toBe('Only for fleet-2.');
+});
+
+it('hides but keeps each group draft when the Colonel switches group, and restores it on return', async () => {
+  const user = userEvent.setup();
+  render(<PdfNewsRelayPanel enabled />);
+  const text = () => screen.getByRole('textbox', { name: 'News for your current fleet group' });
+  await user.type(text(), 'Fleet two only.');
+
+  act(() => useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, fleetGroupId: 'fleet-3' }));
+  expect(text()).toHaveValue('');
+  await user.type(text(), 'Fleet three only.');
+  expect(storedDraft('fleet-2')).toBe('Fleet two only.');
+  expect(storedDraft('fleet-3')).toBe('Fleet three only.');
+
+  act(() => useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, fleetGroupId: 'fleet-2' }));
+  expect(text()).toHaveValue('Fleet two only.');
+  expect(mocks.relay).not.toHaveBeenCalled();
 });
 
 it('does not relay while the connection or server snapshot is stale', () => {

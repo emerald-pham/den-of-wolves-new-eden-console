@@ -1,15 +1,35 @@
 import { useEffect, useRef, useState } from 'react';
 import { createCurrentFleetGroupActions } from '@/lib/fleetGroupService';
 import {
-  pdfNewsRelayDraftKey,
-  readPdfNewsRelayDraft as readDraft,
-  writePdfNewsRelayDraft as writeDraft,
-} from '@/lib/pdfNewsRelayDraft';
+  clearSessionDraft,
+  readSessionDraft,
+  writeSessionDraft,
+  type SessionDraftScope,
+} from '@/lib/sessionDraftStorage';
 import { useSessionStore } from '@/store/useSessionStore';
 import './PdfNewsRelayPanel.css';
 
 const PDF_COLONEL_ROLE_ID = 'refinery-124-pdf-colonel';
 const MAX_RELAY_LENGTH = 240;
+
+/**
+ * One unsent relay draft per session, player and fleet group: a later group
+ * never sees text written for another audience, and returning to a group or
+ * reselecting the station in it restores that group's draft.
+ */
+function relayDraftScope(sessionId: string, uid: string, groupId: string): SessionDraftScope {
+  return { kind: 'pdf-news-relay-draft', sessionId, uid, scope: groupId };
+}
+
+function readDraft(scope: SessionDraftScope | null): string {
+  return scope ? readSessionDraft(scope, (value) => typeof value === 'string' ? value : null) ?? '' : '';
+}
+
+function writeDraft(scope: SessionDraftScope | null, text: string): void {
+  if (!scope) return;
+  if (text) writeSessionDraft(scope, text);
+  else clearSessionDraft(scope);
+}
 
 /** The P.D.F. Colonel relays news to the current fleet group; a Press hand-off is a separate explicit choice. */
 export default function PdfNewsRelayPanel({ enabled }: Readonly<{ enabled: boolean }>) {
@@ -25,7 +45,10 @@ export default function PdfNewsRelayPanel({ enabled }: Readonly<{ enabled: boole
     me?.sessionId === session.id && /^fleet-[1-9][0-9]*$/.test(groupId);
   const ready = authorized && connection === 'live' && freshness === 'server';
   const pressAvailable = session?.pressEnabled !== false;
-  const draftKey = authorized ? pdfNewsRelayDraftKey(session!.id, me!.uid, groupId) : null;
+  const draftSessionId = authorized && session ? session.id : null;
+  const draftUid = authorized && me ? me.uid : null;
+  const draftScope = draftSessionId && draftUid ? relayDraftScope(draftSessionId, draftUid, groupId) : null;
+  const draftKey = draftScope ? JSON.stringify(draftScope) : null;
   // A new audience gets fresh actions, so an uncertain attempt never retries into another group.
   const actionsFor = useRef<{ key: string | null; actions: ReturnType<typeof createCurrentFleetGroupActions> } | null>(null);
   if (actionsFor.current?.key !== draftKey) {
@@ -34,25 +57,25 @@ export default function PdfNewsRelayPanel({ enabled }: Readonly<{ enabled: boole
   const actions = actionsFor.current.actions;
   const activeKey = useRef(draftKey);
   activeKey.current = draftKey;
-  const [draft, setDraft] = useState(() => readDraft(draftKey));
+  const [draft, setDraft] = useState(() => readDraft(draftScope));
   const [handToPress, setHandToPress] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    setDraft(readDraft(draftKey));
+    setDraft(readDraft(draftSessionId && draftUid ? relayDraftScope(draftSessionId, draftUid, groupId) : null));
     setHandToPress(false);
     setNotice('');
     setError('');
     setBusy(false);
-  }, [draftKey]);
+  }, [draftSessionId, draftUid, groupId]);
 
   if (!authorized) return null;
 
   const updateDraft = (text: string) => {
     setDraft(text);
-    writeDraft(draftKey, text);
+    writeDraft(draftScope, text);
   };
 
   const relay = async () => {
