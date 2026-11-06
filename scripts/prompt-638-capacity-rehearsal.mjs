@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { deleteApp, initializeApp } from 'firebase/app';
 import {
   connectAuthEmulator,
@@ -26,7 +27,7 @@ import {
 } from 'firebase/functions';
 import { createHealthMetricsRecorder, listenerDelayAfter } from './health-metrics.mjs';
 
-const repositoryDirectory = resolve(new URL('..', import.meta.url).pathname);
+const repositoryDirectory = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const firebaseConfigPath = resolve(repositoryDirectory, 'firebase.local.json');
 const scenario = process.argv.includes('--scenario=core') || process.argv.includes('--scenario') && process.argv[process.argv.indexOf('--scenario') + 1] === 'core'
   ? 'core-one-gm-no-press' : 'press-multi-gm';
