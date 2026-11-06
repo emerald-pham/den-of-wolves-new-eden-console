@@ -23,6 +23,7 @@ const workspace = {
     siteCode: 'L', siteName: 'Asterion', sourceCycle: 5, choiceRevision: 0,
     taskOpportunities: [{ id: 'L-1', description: 'Recover the survey crew.', difficulty: 15, criticalThreshold: 25 }],
   }],
+  lapsedChoices: [],
 };
 
 beforeEach(() => {
@@ -80,4 +81,13 @@ it('does not call the server when this browser no longer holds the Boa', async (
   } } } as GameSession);
   await expect(chooseBoaMissionReclamationOpportunity(command)).rejects.toThrow(/Boa Recycler station/);
   expect(mocks.call).not.toHaveBeenCalled();
+});
+
+it('carries the Recycler’s lapsed choice and rejects an unknown lapse reason', async () => {
+  const lapsed = { missionOpportunityId: 'arrival-fleet-1-A-6837', siteName: 'Derelict', coordinate: '6837',
+    taskOpportunityId: 'D-1', reason: 'recycler-not-on-mission' };
+  mocks.call.mockResolvedValueOnce({ data: { ...workspace, lapsedChoices: [lapsed] } });
+  await expect(readBoaMissionReclamationWorkspace('s1')).resolves.toMatchObject({ lapsedChoices: [lapsed] });
+  mocks.call.mockResolvedValueOnce({ data: { ...workspace, lapsedChoices: [{ ...lapsed, reason: 'invented' }] } });
+  await expect(readBoaMissionReclamationWorkspace('s1')).rejects.toThrow(/lapsed/);
 });

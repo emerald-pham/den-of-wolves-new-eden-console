@@ -6,12 +6,16 @@ import { missionOpportunityDocumentPath, parseStoredMissionOpportunity,
 import { requireCandidateVesselsAvailable } from './candidateAvailability';
 import type {
   BoaMissionReclamationChoiceReply,
+  BoaMissionReclamationLapsedChoice,
+  BoaMissionReclamationLapseReason,
   BoaMissionReclamationTaskOpportunity,
   BoaMissionReclamationWorkspaceReply,
 } from './boaMissionReclamationContract';
 
 export type {
   BoaMissionReclamationChoiceReply,
+  BoaMissionReclamationLapsedChoice,
+  BoaMissionReclamationLapseReason,
   BoaMissionReclamationTaskOpportunity,
   BoaMissionReclamationWorkspaceOpportunity,
   BoaMissionReclamationWorkspaceReply,
@@ -81,6 +85,9 @@ const ACTION = 'boa-mission-reclamation-choice';
 const ID = /^[\w-]{1,128}$/;
 const SESSION_ID = /^[\w-]{1,128}$/;
 const GROUP_ID = /^fleet-[1-9][0-9]*$/;
+const LAPSE_REASONS: readonly BoaMissionReclamationLapseReason[] = [
+  'boa-control-changed', 'recycler-unavailable', 'recycler-not-on-mission',
+];
 
 function isRecord(value: unknown): value is Data {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -330,6 +337,7 @@ export function createBoaMissionReclamationCallables(dependencies: BoaMissionRec
         const opportunityDocs = requireQuery(opportunitiesRead).docs;
         const choiceDocs = requireQuery(choicesRead).docs;
         const choicesById = new Map(choiceDocs.map((choice) => [choice.id, choice]));
+        const lapsedChoices: BoaMissionReclamationLapsedChoice[] = [];
         const opportunities = opportunityDocs.flatMap((opportunitySnapshot) => {
           if (!opportunitySnapshot.exists) return [];
           const opportunity = parseOpportunity(opportunitySnapshot, sessionId);
@@ -341,6 +349,17 @@ export function createBoaMissionReclamationCallables(dependencies: BoaMissionRec
           const choice = currentChoice?.data();
           const choiceRevision = !choice ? 0 : isRecord(choice) &&
             Number.isSafeInteger(choice.revision) && (choice.revision as number) >= 0 ? choice.revision as number : -1;
+          if (isRecord(choice) && choice.status === 'lapsed') {
+            if (choice.actorUid === actorUid && choice.lapsedCycle === context.cycle &&
+                typeof choice.opportunityTaskId === 'string' && LAPSE_REASONS.includes(choice.lapseReason as never)) {
+              lapsedChoices.push({
+                missionOpportunityId: opportunity.id, siteName: definition.name, coordinate: opportunity.coordinate,
+                taskOpportunityId: choice.opportunityTaskId,
+                reason: choice.lapseReason as BoaMissionReclamationLapseReason,
+              });
+            }
+            return [];
+          }
           if (choiceRevision < 0 || isRecord(choice) && choice.status === 'consumed') return [];
           return [{
             missionOpportunityId: opportunity.id,
@@ -360,7 +379,7 @@ export function createBoaMissionReclamationCallables(dependencies: BoaMissionRec
         return {
           status: 'available', sessionId, actorUid, groupId: context.groupId,
           hostShipId: context.hostShipId, controlRevision: context.controlRevision,
-          cycle: context.cycle, opportunities,
+          cycle: context.cycle, opportunities, lapsedChoices,
         };
       });
     },

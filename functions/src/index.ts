@@ -73,6 +73,7 @@ import { applyAwayMissionLifecycleCommand, createAwayMissionLifecycleBootstrap, 
 import { missionCraftIdsCarriedByShip, nextMissionCraftCommitments, parseMissionCraftCommitments, requireMissionCraftMovementAvailable } from './missionCraftCommitment';
 import { planBoaMissionRewardDelivery, planMissionRewardDelivery } from './missionRewardDelivery';
 import { createBoaMissionReclamationCallables } from './boaMissionReclamationCallable';
+import type { BoaMissionReclamationLapseReason } from './boaMissionReclamationContract';
 import { halvedBoaReclamationDifficulty } from './boaMissionReclamation';
 import { createAwayMissionLifecycleCallables } from './awayMissionLifecycleCallable';
 import { deriveAwayMissionParticipantCraftSnapshots } from './awayMissionCraftSnapshot';
@@ -10698,7 +10699,10 @@ export const dealPrivateInitialCards = onCall<{
         'conflict',
       );
     }
+    // A Boa choice never blocks a location's mission (coordinator ruling,
+    // 2026-11-05): when its Recycler cannot apply it at the deal, it lapses.
     let boaReclamation: BoaReclamationDealBinding | undefined;
+    let boaReclamationLapse: BoaMissionReclamationLapseReason | undefined;
     if (boaReclamationSelection) {
       const boaControl = shuttleControls?.boa;
       const actorPlayer = playerDocumentsByUid.get(boaReclamationSelection.actorUid);
@@ -10706,17 +10710,20 @@ export const dealPrivateInitialCards = onCall<{
         participantUid === boaReclamationSelection.actorUid);
       const participantCraftBinding = participantCrafts.find(({ participantUid }) =>
         participantUid === boaReclamationSelection.actorUid);
-      if (!actorPlayer || !isActivePlayer(actorPlayer) || actorPlayer.get('role') !== 'player' ||
-          actorPlayer.get('assignedRoleId') !== 'capybara-recycler' ||
-          actorPlayer.get('replacementStatus') != null ||
-          participant?.roleId !== 'capybara-recycler' ||
-          !participantCraftBinding?.craftIds.includes('boa') || !carrierCraftIds.includes('boa') ||
-          !boaControl || boaControl.holderUid !== boaReclamationSelection.actorUid ||
+      if (!boaControl || boaControl.holderUid !== boaReclamationSelection.actorUid ||
           boaControl.ownerRoleId !== 'capybara-recycler' ||
           boaControl.revision !== boaReclamationSelection.controlRevision) {
-        throw commandError('failed-precondition',
-          'The Boa Recycler who selected this task must remain a mission participant and current Boa holder.', 'conflict');
+        boaReclamationLapse = 'boa-control-changed';
+      } else if (!actorPlayer || !isActivePlayer(actorPlayer) || actorPlayer.get('role') !== 'player' ||
+          actorPlayer.get('assignedRoleId') !== 'capybara-recycler' ||
+          actorPlayer.get('replacementStatus') != null) {
+        boaReclamationLapse = 'recycler-unavailable';
+      } else if (participant?.roleId !== 'capybara-recycler' ||
+          !participantCraftBinding?.craftIds.includes('boa') || !carrierCraftIds.includes('boa')) {
+        boaReclamationLapse = 'recycler-not-on-mission';
       }
+    }
+    if (boaReclamationSelection && !boaReclamationLapse) {
       const selectedTask = missionDefinition.opportunities.find(({ id }) =>
         id === boaReclamationSelection.taskOpportunityId)!;
       const printedDifficulty = Number.isSafeInteger(selectedTask.difficulty) ? selectedTask.difficulty! : null;
@@ -10836,10 +10843,20 @@ export const dealPrivateInitialCards = onCall<{
         participantCrafts,
         missionLeaderUid: missionLeader.uid,
       },
-      modifiers: boaReclamation ? [
+      modifiers: boaReclamationSelection && boaReclamationLapse ? [
+        `Boa reclamation ${boaReclamationSelection.taskOpportunityId} lapsed (${boaReclamationLapse}) // dealt without the Boa adjustment or Scrap replacement`,
+      ] : boaReclamation ? [
         `Boa reclamation ${boaReclamation.opportunityId} // printed difficulty ${boaReclamation.printedDifficulty ?? 'server-calculated'} // effective difficulty ${boaReclamation.effectiveDifficulty ?? 'half of server-calculated difficulty'} (odd halves round up; owner decision 2026-11-05) // reward replaced by 1 Scrap on success; no ordinary or critical bonus`,
       ] : [],
+      ...(boaReclamationSelection && boaReclamationLapse ? { boaReclamation: {
+        status: 'lapsed',
+        reason: boaReclamationLapse,
+        actorUid: boaReclamationSelection.actorUid,
+        missionCardOpportunityId: boaReclamationSelection.taskOpportunityId,
+        choiceRevision: boaReclamationSelection.revision,
+      } } : {}),
       ...(boaReclamation ? { boaReclamation: {
+        status: 'applied',
         actorUid: boaReclamation.actorUid,
         missionCardOpportunityId: boaReclamation.opportunityId,
         locationOpportunityId: boaReclamation.locationOpportunityId,
@@ -10877,7 +10894,10 @@ export const dealPrivateInitialCards = onCall<{
     };
     tx.update(db.doc(`sessions/${command.sessionId}`), { missionCraftCommitments: commitments, updatedAt: FieldValue.serverTimestamp() });
     if (boaReclamationSelection) {
-      tx.update(boaChoiceRef, {
+      tx.update(boaChoiceRef, boaReclamationLapse ? {
+        status: 'lapsed', missionId, lapseReason: boaReclamationLapse, lapsedCycle: currentCycle,
+        lapsedByRequestId: command.requestId, lapsedAt: FieldValue.serverTimestamp(),
+      } : {
         status: 'consumed', missionId, consumedByRequestId: command.requestId,
         consumedAt: FieldValue.serverTimestamp(),
       });

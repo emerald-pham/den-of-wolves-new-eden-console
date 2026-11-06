@@ -13,8 +13,15 @@ import {
 } from '@/lib/boaMissionReclamationService';
 import {
   halvedBoaReclamationDifficulty,
+  type BoaMissionReclamationLapseReason,
   type BoaMissionReclamationWorkspaceOpportunity,
 } from '../../functions/src/boaMissionReclamationContract';
+
+const LAPSE_EXPLANATIONS: Readonly<Record<BoaMissionReclamationLapseReason, string>> = {
+  'recycler-not-on-mission': 'the Boa Recycler was not on the mission',
+  'boa-control-changed': 'Boa control changed after the choice',
+  'recycler-unavailable': 'the Boa Recycler was not active at the deal',
+};
 import type { ShuttleControlEntry, ShuttleDocking } from '@/types/game';
 
 interface Props {
@@ -184,6 +191,10 @@ export default function BoaMissionReclamationPanel({ control, docking }: Props) 
     {stationReady && error && <p role="alert">{error}</p>}
     {stationReady && error && <button type="button" disabled={loading}
       onClick={() => setRefreshVersion((version) => version + 1)}>Refresh Boa mission opportunities</button>}
+    {authorityReady && !loading && !error && workspace?.lapsedChoices.map((lapsed) =>
+      <p role="status" key={`lapsed-${lapsed.missionOpportunityId}`}>
+        Boa’s {lapsed.taskOpportunityId} choice for {lapsed.siteName} // {lapsed.coordinate} lapsed because {LAPSE_EXPLANATIONS[lapsed.reason]}. The mission was dealt without the Boa adjustment or Scrap replacement.
+      </p>)}
     {authorityReady && !loading && !error && workspace?.opportunities.length === 0 &&
       <p role="status">No unstarted mission-card opportunity is waiting at Boa’s current fleet location. Return after the group reaches a new system.</p>}
     {authorityReady && !loading && !error && workspace && workspace.opportunities.length > 0 && !selectedOpportunity && (

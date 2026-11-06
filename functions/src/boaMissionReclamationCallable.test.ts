@@ -192,6 +192,23 @@ describe('Boa mission reclamation callables', () => {
       .toMatchObject({ opportunities: [] });
   });
 
+  it('shows the Recycler a lapsed choice this cycle without offering that location again', async () => {
+    put(`sessions/s1/boaMissionReclamationChoices/${ARRIVAL}`, {
+      type: 'boa-mission-reclamation-choice', schemaVersion: 1, status: 'lapsed', sessionId: SESSION,
+      opportunityId: ARRIVAL, groupId: 'fleet-1', chart: 'A', coordinate: '5143', siteCode: 'L', sourceCycle: 2,
+      actorUid: ACTOR, actorRoleId: 'capybara-recycler', opportunityTaskId: 'L-1', controlRevision: 2, revision: 1,
+      requestId: 'boa-choice-1', missionId: `mission-${ARRIVAL}`, lapseReason: 'recycler-not-on-mission', lapsedCycle: 2,
+    });
+    await expect(callables.readBoaMissionReclamationWorkspace(request({ sessionId: SESSION }))).resolves.toMatchObject({
+      opportunities: [],
+      lapsedChoices: [{ missionOpportunityId: ARRIVAL, siteName: expect.any(String), coordinate: '5143',
+        taskOpportunityId: 'L-1', reason: 'recycler-not-on-mission' }],
+    });
+    await expect(callables.chooseBoaMissionReclamationOpportunity(request({
+      ...command, requestId: 'boa-after-lapse', expectedChoiceRevision: 1,
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  });
+
   it.each([
     ['the actor disposition', () => {
       mock.documents.get(`sessions/s1/players/${ACTOR}`)!.candidateDisposition = {

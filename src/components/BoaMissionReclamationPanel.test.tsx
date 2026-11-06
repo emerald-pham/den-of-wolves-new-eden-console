@@ -49,8 +49,22 @@ beforeEach(() => {
   installSession();
   mocks.read.mockResolvedValue({
     status: 'available', sessionId: 's1', actorUid: 'holder', groupId: 'fleet-1',
-    hostShipId: 'aegis', controlRevision: 4, cycle: 3, opportunities: [opportunity],
+    hostShipId: 'aegis', controlRevision: 4, cycle: 3, opportunities: [opportunity], lapsedChoices: [],
   });
+});
+
+it('tells the Recycler when their choice lapsed at the deal and the mission was dealt without it', async () => {
+  mocks.read.mockResolvedValueOnce({
+    status: 'available', sessionId: 's1', actorUid: 'holder', groupId: 'fleet-1',
+    hostShipId: 'aegis', controlRevision: 4, cycle: 3, opportunities: [],
+    lapsedChoices: [{ missionOpportunityId: 'arrival-fleet-1-A-5143', siteName: 'Asterion', coordinate: '5143',
+      taskOpportunityId: 'L-1', reason: 'recycler-not-on-mission' }],
+  });
+  renderPanel();
+  const panel = await screen.findByRole('region', { name: 'Boa mission reclamation' });
+  const notice = await within(panel).findByText(/L-1 choice for Asterion \/\/ 5143 lapsed/);
+  expect(notice).toHaveTextContent(/Boa Recycler was not on the mission/);
+  expect(notice).toHaveTextContent(/dealt without the Boa adjustment/);
 });
 
 it('shows only the current fleet’s mission tasks and binds the pre-deal choice to server revisions', async () => {
@@ -86,6 +100,7 @@ it('shows the rounded-up halved difficulty for the 17-difficulty mission task', 
         difficulty: 17, criticalThreshold: null,
       }],
     }],
+    lapsedChoices: [],
   });
 
   renderPanel();

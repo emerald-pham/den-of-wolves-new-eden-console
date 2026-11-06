@@ -22,6 +22,18 @@ export interface BoaMissionReclamationWorkspaceOpportunity {
   readonly selectedTaskOpportunityId?: string;
 }
 
+/** Why a pre-deal Boa choice did not apply when its mission was dealt. */
+export type BoaMissionReclamationLapseReason = 'boa-control-changed' | 'recycler-unavailable' | 'recycler-not-on-mission';
+
+/** The Recycler's own choice that lapsed at this cycle's deal; the mission was dealt without it. */
+export interface BoaMissionReclamationLapsedChoice {
+  readonly missionOpportunityId: string;
+  readonly siteName: string;
+  readonly coordinate: string;
+  readonly taskOpportunityId: string;
+  readonly reason: BoaMissionReclamationLapseReason;
+}
+
 export interface BoaMissionReclamationWorkspaceReply {
   readonly status: 'available';
   readonly sessionId: string;
@@ -31,6 +43,7 @@ export interface BoaMissionReclamationWorkspaceReply {
   readonly controlRevision: number;
   readonly cycle: number;
   readonly opportunities: readonly BoaMissionReclamationWorkspaceOpportunity[];
+  readonly lapsedChoices: readonly BoaMissionReclamationLapsedChoice[];
 }
 
 export interface BoaMissionReclamationChoiceReply {

@@ -4,6 +4,7 @@ import { hasFreshSessionAuthority, requireFreshSessionAuthority } from './sessio
 import { useSessionStore } from '@/store/useSessionStore';
 import type {
   BoaMissionReclamationChoiceReply,
+  BoaMissionReclamationLapseReason,
   BoaMissionReclamationWorkspaceReply,
 } from '../../functions/src/boaMissionReclamationContract';
 
@@ -17,6 +18,9 @@ export interface BoaMissionReclamationChoiceCommand {
 }
 
 const ID = /^[\w-]{1,128}$/;
+const LAPSE_REASONS: readonly BoaMissionReclamationLapseReason[] = [
+  'boa-control-changed', 'recycler-unavailable', 'recycler-not-on-mission',
+];
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 const isCount = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
@@ -90,9 +94,24 @@ function parseWorkspace(value: unknown, expected: Readonly<{
   if (new Set(opportunities.map(({ missionOpportunityId }) => missionOpportunityId)).size !== opportunities.length) {
     throw new Error('The Boa mission workspace repeats an opportunity. Refresh before choosing.');
   }
+  if (!Array.isArray(value.lapsedChoices)) {
+    throw new Error('The Boa mission workspace changed. Refresh before making a choice.');
+  }
+  const lapsedChoices = value.lapsedChoices.map((raw) => {
+    if (!isRecord(raw) || !ID.test(String(raw.missionOpportunityId)) || typeof raw.siteName !== 'string' ||
+        raw.siteName.length === 0 || !/^\d{4}$/.test(String(raw.coordinate)) ||
+        !/^[A-M]-\d+$/.test(String(raw.taskOpportunityId)) || !LAPSE_REASONS.includes(raw.reason as never)) {
+      throw new Error('A lapsed Boa mission choice is malformed. Refresh the Boa workspace.');
+    }
+    return {
+      missionOpportunityId: raw.missionOpportunityId as string, siteName: raw.siteName,
+      coordinate: raw.coordinate as string, taskOpportunityId: raw.taskOpportunityId as string,
+      reason: raw.reason as BoaMissionReclamationLapseReason,
+    };
+  });
   return { status: 'available', sessionId: expected.sessionId, actorUid: expected.actorUid,
     groupId: expected.groupId, hostShipId: expected.hostShipId, controlRevision: expected.controlRevision,
-    cycle: expected.cycle, opportunities };
+    cycle: expected.cycle, opportunities, lapsedChoices };
 }
 
 export async function readBoaMissionReclamationWorkspace(sessionId: string):

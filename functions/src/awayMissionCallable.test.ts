@@ -839,7 +839,7 @@ describe('dealPrivateInitialCards', () => {
     expect(startWrite?.[1]).toMatchObject({
       modifiers: [expect.stringContaining('Boa reclamation A-1')],
       boaReclamation: expect.objectContaining({
-        actorUid: 'capybara', missionCardOpportunityId: 'A-1',
+        status: 'applied', actorUid: 'capybara', missionCardOpportunityId: 'A-1',
         rounding: 'up', printedDifficulty: 17, effectiveDifficulty: 9,
       }),
     });
@@ -860,24 +860,33 @@ describe('dealPrivateInitialCards', () => {
   });
 
   it.each([
-    ['its selecting player is absent from the mission roster', ['alice', 'bob'], 1],
-    ['Boa control changed after the choice', ['alice', 'bob', 'capybara'], 0],
-  ] as const)('refuses to consume a Boa choice when %s', async (_label, participantUids, controlRevision) => {
+    ['its selecting player is absent from the mission roster', ['alice', 'bob'], 1, 'recycler-not-on-mission'],
+    ['Boa control changed after the choice', ['alice', 'bob', 'capybara'], 0, 'boa-control-changed'],
+  ] as const)('lets a Boa choice lapse without blocking the deal when %s', async (_label, participantUids, controlRevision, reason) => {
     seedBoaRecyclerAt('5143');
     mock.documents[`sessions/s1/boaMissionReclamationChoices/${defaultOpportunity.id}`] = {
       ...boaChoice(defaultOpportunity.id, '5143', 'L', 'L-1'), controlRevision,
     };
 
     await expect(dealPrivateInitialCards.run(request({
-      ...command, requestId: 'deal-boa-refused', participantUids: [...participantUids],
-    }))).rejects.toMatchObject({ code: 'failed-precondition' });
-    expect(mock.set).not.toHaveBeenCalledWith(
-      expect.objectContaining({ path: `sessions/s1/serverState/awayMissions/instances/mission-${defaultOpportunity.id}` }),
-      expect.anything(),
-    );
-    expect(mock.update).not.toHaveBeenCalledWith(
+      ...command, requestId: 'deal-boa-lapsed', participantUids: [...participantUids],
+    }))).resolves.toMatchObject({ status: 'committed' });
+    const missionWrite = mock.set.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/serverState/awayMissions/instances/mission-${defaultOpportunity.id}`);
+    expect(missionWrite?.[1]?.lifecycleRecord).not.toHaveProperty('boaReclamation');
+    const startWrite = mock.create.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/missionStartSnapshots/${defaultOpportunity.id}`);
+    expect(startWrite?.[1]).toMatchObject({
+      modifiers: [expect.stringContaining('Boa reclamation L-1 lapsed')],
+      boaReclamation: {
+        status: 'lapsed', reason, actorUid: 'capybara', missionCardOpportunityId: 'L-1', choiceRevision: 1,
+      },
+    });
+    expect(mock.update).toHaveBeenCalledWith(
       expect.objectContaining({ path: `sessions/s1/boaMissionReclamationChoices/${defaultOpportunity.id}` }),
-      expect.anything(),
+      expect.objectContaining({
+        status: 'lapsed', lapseReason: reason, lapsedCycle: 2, missionId: `mission-${defaultOpportunity.id}`,
+      }),
     );
   });
 
