@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { subscribeWolfAttackMemberView } from '@/lib/firestore';
 import { commitWolfAttackAftermath, type WolfAttackAftermathChoice } from '@/lib/wolfAttackAftermathService';
 import { hasFreshSessionAuthority } from '@/lib/sessionMutationAuthority';
+import { retainedFromDestroyedShip, scrapCollectionRoleId, type ScrapCollectionCraftId } from '@/lib/attackScrapCustody';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { WolfAttackMemberView } from '@/types/game';
 
-type Operator = 'doctor' | 'warrior' | Readonly<{ shuttleId: 'macaw' | 'boa' }>;
+type Operator = 'doctor' | 'warrior' | Readonly<{ shuttleId: ScrapCollectionCraftId }>;
 
 function actionSource(operator: Operator): (sourceId: string) => boolean {
   if (operator === 'doctor') return (sourceId) => sourceId === 'doctor-medical-aid';
@@ -46,7 +47,7 @@ export default function WolfAttackAftermathActionPanel({ operator }: Readonly<{ 
   }, [sessionId]);
 
   const expectedRole = operator === 'doctor' ? 'doctor' : operator === 'warrior' ? 'warrior-captain'
-    : operator.shuttleId === 'macaw' ? 'capybara-captain' : 'capybara-recycler';
+    : scrapCollectionRoleId(operator.shuttleId) ?? 'unconfigured-scrap-collector';
   const shuttleControl = typeof operator === 'object' ? session?.shuttleControl?.[operator.shuttleId] : undefined;
   const correctRole = operator === 'doctor' || operator === 'warrior'
     ? me?.replacementRoleId === expectedRole && me.activeConsoleRoleId === null && me.seatId === null
@@ -68,12 +69,10 @@ export default function WolfAttackAftermathActionPanel({ operator }: Readonly<{ 
     if (typeof operator !== 'object') return false;
     const shuttleId = operator.shuttleId;
     const dockings = session?.shuttleDockings?.filter((docking) => docking.shuttleId === shuttleId) ?? [];
-    const retained = session?.retainedShuttles?.[shuttleId];
-    const dockedAtLiveTarget = !destroyed && retained === undefined &&
+    const dockedAtLiveTarget = !destroyed && session?.retainedShuttles?.[shuttleId] === undefined &&
       dockings.length === 1 && dockings[0]?.shipId === shipId;
-    const retainedAtDestroyedTarget = destroyed && dockings.length === 0 && retained?.status === 'retained' &&
-      retained.ownerRoleId === expectedRole && retained.holderUid === me?.uid &&
-      retained.destroyedHostShipId === shipId && shuttleControl?.revision === retained.controlRevision;
+    const retainedAtDestroyedTarget = destroyed && session?.retainedShuttles?.[shuttleId]?.holderUid === me?.uid &&
+      retainedFromDestroyedShip(session ?? undefined, shuttleId, shipId);
     return dockedAtLiveTarget || retainedAtDestroyedTarget;
   };
   const scrapTargets = typeof operator === 'object' && view?.status === 'resolved' &&
