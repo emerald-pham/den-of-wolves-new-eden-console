@@ -113,6 +113,34 @@ it('moves Macaw Scrap between the current host and Macaw atomically', async () =
   expect(mock.set).toHaveBeenCalledTimes(1);
 });
 
+it('moves Boa Scrap, and only Scrap, between the Capybara and the Boa atomically', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.activeRoleIds = ['capybara-captain', 'capybara-recycler'];
+  session.activeVesselIds = ['capybara'];
+  session.shuttleDockings = [{ shuttleId: 'boa', shipId: 'capybara', dockedAt: 'now' }];
+  session.shuttleControl = { boa: {
+    shuttleId: 'boa', ownerRoleId: 'capybara-recycler', ownerUid: 'holder', holderUid: 'holder', revision: 0,
+  } };
+  session.shipResources = { capybara: {
+    ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 3,
+  } };
+  session.shuttleCargo = { boa: { scrap: 2 } };
+  mock.documents.get('sessions/s1/players/holder')!.assignedRoleId = 'capybara-recycler';
+  mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.vesselIds = ['capybara'];
+
+  const boaCommand = { ...command, requestId: 'boa-scrap', shuttleId: 'boa', resourceId: 'scrap',
+    direction: 'unload', amount: 2 };
+  await expect(transferShuttleCargoCommand.run(request(boaCommand))).resolves.toMatchObject({
+    status: 'committed', hostShipId: 'capybara', shipAmount: 5, shuttleAmount: 0,
+  });
+  expect(mock.documents.get('sessions/s1')).toMatchObject({
+    shipResources: { capybara: expect.objectContaining({ scrap: 5 }) },
+    shuttleCargo: { boa: expect.objectContaining({ scrap: 0 }) },
+  });
+  await expect(transferShuttleCargoCommand.run(request({ ...boaCommand, requestId: 'boa-food',
+    resourceId: 'food', direction: 'load' }))).rejects.toMatchObject({ code: expect.any(String) });
+});
+
 it.each([
   ['foreign holder', 'owner', command],
   ['forbidden type', 'holder', { ...command, requestId: 'ore', resourceId: 'ore' }],
