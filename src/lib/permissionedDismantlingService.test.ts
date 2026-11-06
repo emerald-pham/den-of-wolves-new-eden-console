@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 interface MockCurrent {
   session: {
@@ -158,4 +158,74 @@ it('declines only the exact pending request for the current target player', asyn
   await expect(declinePermissionedDismantling({ inbox }))
     .resolves.toMatchObject({ status: 'declined', proposalId: 'proposal-1' });
   expect(declineCall).toHaveBeenCalledWith({ sessionId: 's1', proposalId: 'proposal-1' });
+});
+
+describe('Macaw deliberate dismantling', () => {
+  const macawInbox = {
+    type: 'permissioned-dismantling-inbox' as const,
+    sessionId: 's1', targetShipId: 'capybara', proposalId: 'proposal-macaw',
+    proposerUid: 'captain', craftId: 'macaw' as const, targetConsoleId: 'advanced-hydroponics',
+    targetRevision: 2, scrapGain: 1 as const, status: 'pending' as const,
+    consentId: null, scrapAfter: null, updatedAt: new Date('2026-09-30T17:00:00.000Z'),
+  };
+
+  beforeEach(() => {
+    mocks.current.session.shuttleControl = { macaw: { holderUid: 'captain', revision: 9 } };
+    mocks.current.session.shuttleDockings = [{ shuttleId: 'macaw', shipId: 'capybara', dockedAt: 'SESSION START' }];
+    mocks.current.me = {
+      uid: 'captain', sessionId: 's1', role: 'player', assignedRoleId: 'capybara-captain',
+      activeConsoleRoleId: 'capybara-captain', replacementRoleId: null, replacementStatus: null,
+    };
+  });
+
+  it('proposes and applies a one-Scrap request and returns the Capybara Scrap balance', async () => {
+    const proposeCall = vi.fn().mockResolvedValue({ data: {
+      status: 'proposed', sessionId: 's1', proposalId: 'proposal-macaw', craftId: 'macaw',
+      targetShipId: 'capybara', targetConsoleId: 'advanced-hydroponics', targetRevision: 2,
+      controlRevision: 9, scrapGain: 1,
+    } });
+    mocks.callable.mockReturnValue(proposeCall);
+    await expect(proposePermissionedDismantling({
+      proposalId: 'proposal-macaw', craftId: 'macaw', targetShipId: 'capybara',
+      targetConsoleId: 'advanced-hydroponics',
+    })).resolves.toMatchObject({ status: 'proposed', scrapGain: 1 });
+
+    const applyCall = vi.fn().mockResolvedValue({ data: {
+      status: 'applied', sessionId: 's1', requestId: 'apply-macaw', proposalId: 'proposal-macaw',
+      consentId: 'consent-macaw', targetShipId: 'capybara', targetConsoleId: 'advanced-hydroponics',
+      targetRevision: 3, scrapGain: 1, scrapAfter: 4,
+    } });
+    mocks.callable.mockReturnValue(applyCall);
+    await expect(applyPermissionedDismantling({
+      inbox: { ...macawInbox, status: 'consented', consentId: 'consent-macaw' }, requestId: 'apply-macaw',
+    })).resolves.toMatchObject({ status: 'applied', scrapGain: 1, scrapAfter: 4 });
+  });
+
+  it('rejects a Macaw reply that claims an engineering material gain', async () => {
+    mocks.callable.mockReturnValue(vi.fn().mockResolvedValue({ data: {
+      status: 'proposed', sessionId: 's1', proposalId: 'proposal-macaw', craftId: 'macaw',
+      targetShipId: 'capybara', targetConsoleId: 'advanced-hydroponics', targetRevision: 2,
+      controlRevision: 9, materialGain: 3,
+    } }));
+    await expect(proposePermissionedDismantling({
+      proposalId: 'proposal-macaw', craftId: 'macaw', targetShipId: 'capybara',
+      targetConsoleId: 'advanced-hydroponics',
+    })).rejects.toThrow(/malformed/i);
+  });
+
+  it('accepts only the exact Macaw Scrap inbox projection', () => {
+    let next: ((snapshot: unknown) => void) | undefined;
+    const onInbox = vi.fn();
+    mocks.onSnapshot.mockImplementation((_reference, _options, callback) => {
+      next = callback;
+      return vi.fn();
+    });
+    subscribePermissionedDismantlingInbox('s1', 'capybara', { onInbox, onError: vi.fn() });
+    next?.({ exists: () => true, metadata: { fromCache: false }, data: () => macawInbox });
+    expect(onInbox).toHaveBeenLastCalledWith(macawInbox);
+    next?.({ exists: () => true, metadata: { fromCache: false }, data: () => ({ ...macawInbox, scrapGain: 2 }) });
+    expect(onInbox).toHaveBeenLastCalledWith(null);
+    next?.({ exists: () => true, metadata: { fromCache: false }, data: () => ({ ...macawInbox, materialsAfter: null }) });
+    expect(onInbox).toHaveBeenLastCalledWith(null);
+  });
 });
