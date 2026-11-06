@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, expect, it, vi } from 'vitest';
@@ -7,8 +7,15 @@ import { useSessionStore } from '@/store/useSessionStore';
 
 vi.mock('@/lib/airspaceService', () => ({ unlockPressAirspace: vi.fn() }));
 const { unlockPressAirspace } = await import('@/lib/airspaceService');
+vi.mock(import('@/lib/sessionService'), async (importOriginal) => ({
+  ...await importOriginal(),
+  buildFighter: vi.fn(),
+}));
+const { buildFighter } = await import('@/lib/sessionService');
+type FighterBuildReply = Awaited<ReturnType<typeof buildFighter>>;
 
 beforeEach(() => {
+  vi.mocked(buildFighter).mockReset();
   const now = Date.now();
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
@@ -116,4 +123,102 @@ it('keeps fighter status unavailable while reconnecting from a cached session', 
   if (!alpha) throw new Error('Expected the Alpha fighter-wing card.');
   expect(alpha).toHaveTextContent(/unavailable.*reconnect required.*effective capacity.*unavailable.*live strength.*awaiting fighter count from the server/i);
   expect(alpha).toHaveTextContent(/launch eligibility.*unavailable.*awaiting live bay state.*condition.*unavailable/i);
+});
+
+function stageWingConstruction(overrides: Record<string, unknown> = {}) {
+  const session = useSessionStore.getState().session;
+  const me = useSessionStore.getState().me;
+  if (!session || !me) throw new Error('Expected a session.');
+  useSessionStore.getState().setSession({
+    ...session,
+    maintenanceCycles: {
+      aegis: { step: 5, revision: 3, results: {}, charges: ['construction-bay'], refuelled: [] },
+    },
+    shipUpgrades: { aegis: [] },
+    shipDamage: { aegis: { damagedSystemIds: [], destroyed: false } },
+    shipResources: { aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 2, securityTeams: 9 } },
+    fighterWingCounts: {
+      'fighter-wing-alpha': { count: 3, revision: 0 },
+      'fighter-wing-bravo': { count: 4, revision: 0 },
+    },
+    vesselActionRevisions: { aegis: 0 },
+    ...overrides,
+  } as never);
+  useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: 'wing-commander' });
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+}
+
+function renderWingCard(name: 'Fighter Wing Alpha' | 'Fighter Wing Bravo' = 'Fighter Wing Alpha') {
+  render(<MemoryRouter><AegisConsoleWorkspace roleId="wing-commander" galacticCoordinate="0000" fuel={3} /></MemoryRouter>);
+  const card = screen.getByRole('heading', { name }).closest('article');
+  if (!(card instanceof HTMLElement)) throw new Error(`Expected the ${name} card.`);
+  return card;
+}
+
+it.each([
+  ['the Construction Bay is not charged', { maintenanceCycles: { aegis: { step: 5, revision: 3, results: {}, charges: [], refuelled: [] } } },
+    /build unavailable \/\/ construction bay not charged\. next actor \/\/ aegis admiral or executive officer charges it through maintenance/i],
+  ['the Construction Bay is damaged', { shipDamage: { aegis: { damagedSystemIds: ['construction-bay'], destroyed: false } } },
+    /build unavailable \/\/ construction bay damaged\. next actor \/\/ an engineering shuttle repairs it/i],
+  ['AEGIS has no materials', { shipResources: { aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 0, securityTeams: 9 } } },
+    /build unavailable \/\/ 1 material required/i],
+  ['the game has not reached Cycle 1', { currentTurn: 0 },
+    /build unavailable \/\/ cycle 1 required\. next actor \/\/ gm completes the normal start/i],
+  ['Team Phase has ended', { turnPhase: {
+    turn: 1, teamPhaseEndsAt: '2026-01-01T00:10:00.000Z', openAirspaceEndsAt: '2099-01-01T00:30:00.000Z',
+    airspace: { state: 'open', tickerActive: true, pressAccess: true },
+  } }, /build unavailable \/\/ team phase required/i],
+])('explains the blocker and next actor when %s', (_case, overrides, guidance) => {
+  stageWingConstruction(overrides);
+  const alpha = renderWingCard();
+
+  expect(within(alpha).getByText(guidance)).toBeVisible();
+  expect(within(alpha).getByRole('button', { name: /build 1 fighter/i })).toBeDisabled();
+});
+
+it('explains a full wing separately from an eligible wing and its one-material cost', () => {
+  stageWingConstruction();
+  render(<MemoryRouter><AegisConsoleWorkspace roleId="wing-commander" galacticCoordinate="0000" fuel={3} /></MemoryRouter>);
+  const alpha = screen.getByRole('heading', { name: 'Fighter Wing Alpha' }).closest('article');
+  const bravo = screen.getByRole('heading', { name: 'Fighter Wing Bravo' }).closest('article');
+  if (!(alpha instanceof HTMLElement) || !(bravo instanceof HTMLElement)) throw new Error('Expected both cards.');
+
+  expect(within(alpha).getByText(/2 materials available\. next actor \/\/ wing commander builds one fighter for one material/i)).toBeVisible();
+  expect(within(alpha).getByRole('button', { name: /build 1 fighter/i })).toBeEnabled();
+  expect(within(bravo).getByText(/build unavailable \/\/ wing at capacity \(4 fighters\)/i)).toBeVisible();
+  expect(within(bravo).getByRole('button', { name: /build 1 fighter/i })).toBeDisabled();
+});
+
+it('shows the pending build and then the committed wing strength and material cost', async () => {
+  stageWingConstruction();
+  let resolveBuild: (reply: FighterBuildReply) => void = () => undefined;
+  vi.mocked(buildFighter).mockImplementation(() => new Promise((resolve) => { resolveBuild = resolve; }));
+  const user = userEvent.setup();
+  const alpha = renderWingCard();
+
+  await user.click(within(alpha).getByRole('button', { name: /build 1 fighter/i }));
+  expect(buildFighter).toHaveBeenCalledWith('fighter-wing-alpha');
+  expect(within(alpha).getByText(/build pending \/\/ awaiting the server commit/i)).toBeVisible();
+
+  resolveBuild({ status: 'committed', wingId: 'fighter-wing-alpha', count: 4, fighterWingRevision: 1, materials: 1, capacity: 4 });
+  expect(await within(alpha).findByText(
+    /last build committed \/\/ fighter wing alpha now 4 fighters \(revision 1\) \/\/ 1 material spent \/\/ 1 material remains/i,
+  )).toBeVisible();
+  expect(within(alpha).queryByText(/build pending/i)).not.toBeInTheDocument();
+});
+
+it.each([
+  ['a stale reply', { status: 'stale', wingId: 'fighter-wing-alpha', capacity: 4, currentRevision: 3 } as const,
+    /last build not committed \/\/ aegis state changed before the build committed\. no material was spent/i],
+  ['no confirmed reply', null,
+    /last build not confirmed \/\/ check live strength and materials before building again/i],
+])('reports %s without claiming a committed fighter', async (_case, reply, notice) => {
+  stageWingConstruction();
+  vi.mocked(buildFighter).mockResolvedValue(reply);
+  const user = userEvent.setup();
+  const alpha = renderWingCard();
+
+  await user.click(within(alpha).getByRole('button', { name: /build 1 fighter/i }));
+  expect(await within(alpha).findByText(notice)).toBeVisible();
+  expect(within(alpha).queryByText(/last build committed/i)).not.toBeInTheDocument();
 });
