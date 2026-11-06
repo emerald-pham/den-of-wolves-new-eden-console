@@ -565,6 +565,9 @@ import {
   retainShuttlesFromDestroyedHost,
 } from './retainedShuttles';
 import {
+  carryForwardAttackScrapPickups, parseAttackScrapPickups, type AttackScrapPickupLedger,
+} from './attackScrapPickups';
+import {
   acceptQuarantineDocking,
   parseQuarantineDockingState,
   setQuarantineDockingPolicy,
@@ -23507,6 +23510,25 @@ function configuredWolfTargetRingForAttack(
     : configuredWolfTargetRingForSession(session);
 }
 
+/**
+ * The pickup ledger after the current attack state is replaced, or undefined
+ * when there is nothing to record. Only a fleet with the Capybara can collect.
+ */
+function carriedAttackScrapPickups(
+  session: DocumentSnapshot,
+  replacedState: DocumentSnapshot,
+): AttackScrapPickupLedger | undefined {
+  const existing = parseAttackScrapPickups(session.get('attackScrapPickups'));
+  if (!existing) {
+    throw commandError('failed-precondition', 'The attack Scrap pickup ledger is malformed.', 'conflict');
+  }
+  const activeVesselIds = session.get('activeVesselIds');
+  if (!replacedState.exists || session.get('capybaraEnabled') === false ||
+      !Array.isArray(activeVesselIds) || !activeVesselIds.includes('capybara')) return undefined;
+  const next = carryForwardAttackScrapPickups(existing, replacedState.data());
+  return next === existing ? undefined : next;
+}
+
 function wolfAttackCarryoverDocumentRefs(
   sessionId: string,
   stateProjection: DocumentSnapshot,
@@ -24422,9 +24444,13 @@ export const declareWolfAttack = onCall<{
       ...(inputs.window.threatSiteCode ? { threatSiteCode: inputs.window.threatSiteCode } : {}),
       ...(inputs.window.threatSourceId ? { threatSourceId: inputs.window.threatSourceId } : {}),
     };
+    // The replaced attack's uncollected Scrap pickups have no printed expiry;
+    // keep them collectable once from the server-owned session ledger.
+    const attackScrapPickups = carriedAttackScrapPickups(session, state);
     tx.update(sessionRef, {
       turnPhase: lockedPhase,
       ...(turnState ? { turnState } : {}),
+      ...(attackScrapPickups ? { attackScrapPickups } : {}),
       fleetTicker,
       shuttleDockings: inputs.parkedShuttleDockings.map((docking) => ({ ...docking })),
       shuttleVisitLog: inputs.shuttleVisitLog.map((visit) => ({ ...visit })),

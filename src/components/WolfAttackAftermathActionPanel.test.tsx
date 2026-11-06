@@ -137,3 +137,46 @@ it('offers no pickup for a ship below the three-damage threshold', () => {
 
   expect(screen.queryByRole('region', { name: 'Macaw Scrap collection' })).not.toBeInTheDocument();
 });
+
+it('offers an earlier attack pickup carried past a later attack and hides it once collected', async () => {
+  installMacawHolder({ shuttleDockings: [{ shuttleId: 'macaw', shipId: 'aegis', dockedAt: 'SESSION START' }],
+    attackScrapPickups: { aegis: [{ attackId: 'attack-6', turn: 6, destroyed: false }] } });
+  mocks.commit.mockResolvedValue({ status: 'committed', sessionId: 's1', attackId: 'attack-6', requestId: 'request-1',
+    action: 'collect-scrap', shuttleId: 'macaw', targetShipId: 'aegis', scrapGained: 1 });
+  const laterAttackInProgress = { ...member, attackId: 'attack-8', turn: 8, status: 'declared' as const,
+    currentStep: 'targeting' as const, results: [] };
+  render(<WolfAttackAftermathActionPanel operator={{ shuttleId: 'macaw' }} />);
+  act(() => publish?.(laterAttackInProgress));
+
+  const panel = screen.getByRole('region', { name: 'Macaw Scrap collection' });
+  expect(within(panel).getByText(/AEGIS \/\/ cycle 6 attack \/\/ 1 Scrap pickup/)).toBeInTheDocument();
+  fireEvent.click(within(panel).getByRole('button', { name: 'Collect Scrap from AEGIS (cycle 6 attack)' }));
+  await waitFor(() => expect(mocks.commit).toHaveBeenCalledWith('attack-6', {
+    action: 'collect-scrap', shuttleId: 'macaw', targetShipId: 'aegis',
+  }, expect.any(String)));
+  expect(await within(panel).findByRole('status')).toHaveTextContent('Macaw collected 1 Scrap from AEGIS.');
+
+  const session = useSessionStore.getState().session!;
+  act(() => useSessionStore.getState().setSession({ ...session, attackScrapPickups: {} } as never));
+  expect(screen.queryByRole('button', { name: /Collect Scrap from AEGIS/ })).not.toBeInTheDocument();
+});
+
+it('offers both an earlier carried pickup and the current attack pickup at the same ship', () => {
+  installMacawHolder({ shuttleDockings: [{ shuttleId: 'macaw', shipId: 'aegis', dockedAt: 'SESSION START' }],
+    attackScrapPickups: { aegis: [{ attackId: 'attack-6', turn: 6, destroyed: false }] } });
+  render(<WolfAttackAftermathActionPanel operator={{ shuttleId: 'macaw' }} />);
+  act(() => publish?.(member));
+
+  const panel = screen.getByRole('region', { name: 'Macaw Scrap collection' });
+  expect(within(panel).getByRole('button', { name: 'Collect Scrap from AEGIS' })).toBeEnabled();
+  expect(within(panel).getByRole('button', { name: 'Collect Scrap from AEGIS (cycle 6 attack)' })).toBeEnabled();
+});
+
+it('does not offer a carried pickup at a ship the Macaw is not docked at', () => {
+  installMacawHolder({ shuttleDockings: [{ shuttleId: 'macaw', shipId: 'capybara', dockedAt: 'SESSION START' }],
+    attackScrapPickups: { aegis: [{ attackId: 'attack-6', turn: 6, destroyed: false }] } });
+  render(<WolfAttackAftermathActionPanel operator={{ shuttleId: 'macaw' }} />);
+  act(() => publish?.(member));
+
+  expect(screen.queryByRole('region', { name: 'Macaw Scrap collection' })).not.toBeInTheDocument();
+});

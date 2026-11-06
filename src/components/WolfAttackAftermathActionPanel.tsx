@@ -64,18 +64,29 @@ export default function WolfAttackAftermathActionPanel({ operator }: Readonly<{ 
   const doctorTargets = damage.filter((row) => row.populationLoss > 0);
   // Offer only pickups this craft can legally reach: a unique dock at a live
   // target, or retained custody from the destroyed target. The server rechecks.
-  const scrapTargets = typeof operator === 'object' ? damage.filter((row) => {
+  const canReachPickup = (shipId: string, destroyed: boolean) => {
+    if (typeof operator !== 'object') return false;
     const shuttleId = operator.shuttleId;
     const dockings = session?.shuttleDockings?.filter((docking) => docking.shuttleId === shuttleId) ?? [];
     const retained = session?.retainedShuttles?.[shuttleId];
-    const dockedAtLiveTarget = !row.destroyed && retained === undefined &&
-      dockings.length === 1 && dockings[0]?.shipId === row.shipId;
-    const retainedAtDestroyedTarget = row.destroyed && dockings.length === 0 && retained?.status === 'retained' &&
+    const dockedAtLiveTarget = !destroyed && retained === undefined &&
+      dockings.length === 1 && dockings[0]?.shipId === shipId;
+    const retainedAtDestroyedTarget = destroyed && dockings.length === 0 && retained?.status === 'retained' &&
       retained.ownerRoleId === expectedRole && retained.holderUid === me?.uid &&
-      retained.destroyedHostShipId === row.shipId && shuttleControl?.revision === retained.controlRevision;
-    return row.damage >= 3 && (dockedAtLiveTarget || retainedAtDestroyedTarget) &&
-      !results.some((result) => result.targetId === row.shipId && result.sourceId.startsWith('capybara-scrap-collection-'));
-  }) : [];
+      retained.destroyedHostShipId === shipId && shuttleControl?.revision === retained.controlRevision;
+    return dockedAtLiveTarget || retainedAtDestroyedTarget;
+  };
+  const scrapTargets = typeof operator === 'object' && view?.status === 'resolved' &&
+    view.currentStep === 'resolved' ? damage.filter((row) =>
+      row.damage >= 3 && canReachPickup(row.shipId, row.destroyed) &&
+      !results.some((result) => result.targetId === row.shipId && result.sourceId.startsWith('capybara-scrap-collection-')))
+    : [];
+  // Pickups the server carried past a later attack stay collectable once.
+  const carriedPickups = typeof operator === 'object'
+    ? Object.entries(session?.attackScrapPickups ?? {}).flatMap(([shipId, pickups]) => pickups
+      .filter((pickup) => pickup.attackId !== view?.attackId && canReachPickup(shipId, pickup.destroyed))
+      .map((pickup) => ({ shipId, ...pickup })))
+    : [];
   const warrior = session?.smallShipStates?.warrior;
   const salvageCharged = Boolean(warrior && view && warrior.cycle?.turn === view.turn &&
     warrior.cycle?.charges?.includes('salvage-drones') === true && warrior.hostShipId !== null &&
@@ -84,16 +95,17 @@ export default function WolfAttackAftermathActionPanel({ operator }: Readonly<{ 
     result.sourceId === 'pdf-fighter-ace' && typeof result.outcome.damage === 'number' && result.outcome.damage > 0);
   const viewReady = view?.status === 'resolved' && view.currentStep === 'resolved';
 
-  const submit = useCallback(async (choice: WolfAttackAftermathChoice) => {
-    if (!viewReady || !view || busy || !canAct) return;
-    const fingerprint = JSON.stringify([view.attackId, choice]);
+  const submit = useCallback(async (choice: WolfAttackAftermathChoice, carriedAttackId?: string) => {
+    const attackId = carriedAttackId ?? (viewReady ? view?.attackId : undefined);
+    if (!attackId || busy || !canAct) return;
+    const fingerprint = JSON.stringify([attackId, choice]);
     if (requestRef.current?.fingerprint !== fingerprint) {
       requestRef.current = { fingerprint, requestId: window.crypto.randomUUID() };
     }
     setBusy(true);
     setError('');
     try {
-      const result = await commitWolfAttackAftermath(view.attackId, choice, requestRef.current.requestId);
+      const result = await commitWolfAttackAftermath(attackId, choice, requestRef.current.requestId);
       if (choice.action === 'doctor') {
         setMessage(`Medical Aid committed // ${result.mitigated?.length ?? 0} ship result${result.mitigated?.length === 1 ? '' : 's'}.`);
         setSelectedShipIds([]);
@@ -111,8 +123,8 @@ export default function WolfAttackAftermathActionPanel({ operator }: Readonly<{ 
   }, [busy, canAct, view, viewReady]);
 
   if (!sessionId || !correctRole) return null;
-  if (!viewReady || !view) return null;
   if (operator === 'doctor') {
+    if (!viewReady || !view) return null;
     if (!doctorTargets.length && !alreadyCommitted) return null;
     return <section className="role-brief__rules wolf-attack-aftermath-action" aria-label="Doctor Medical Aid">
       <p className="eyebrow">Cycle {view.turn} // resolved attack</p>
@@ -137,6 +149,7 @@ export default function WolfAttackAftermathActionPanel({ operator }: Readonly<{ 
     </section>;
   }
   if (operator === 'warrior') {
+    if (!viewReady || !view) return null;
     if (!salvageCharged || !salvageDamageExists) return null;
     return <section className="role-brief__rules wolf-attack-aftermath-action" aria-label="Warrior Salvage Drones">
       <p className="eyebrow">Cycle {view.turn} // resolved attack</p>
@@ -150,10 +163,18 @@ export default function WolfAttackAftermathActionPanel({ operator }: Readonly<{ 
       {message && <p role="status">{message}</p>}{error && <p role="alert">{error}</p>}
     </section>;
   }
-  if (!session.capybaraEnabled || !scrapTargets.length) return null;
+  if (!session.capybaraEnabled || !scrapTargets.length && !carriedPickups.length) return null;
   return <section className="role-brief__rules wolf-attack-aftermath-action" aria-label={`${operator.shuttleId === 'macaw' ? 'Macaw' : 'Boa'} Scrap collection`}>
-    <p className="eyebrow">Cycle {view.turn} // resolved attack</p>
+    {scrapTargets.length > 0 && view && <p className="eyebrow">Cycle {view.turn} // resolved attack</p>}
     <h3>{operator.shuttleId === 'macaw' ? 'Macaw' : 'Boa'} Scrap collection</h3>
+    {carriedPickups.map((pickup) => <article key={`${pickup.attackId}:${pickup.shipId}`}>
+      <p>{pickup.shipId.toUpperCase()} // cycle {pickup.turn} attack // 1 Scrap pickup</p>
+      <button type="button" disabled={!canAct || busy}
+        onClick={() => void submit({ action: 'collect-scrap', shuttleId: operator.shuttleId, targetShipId: pickup.shipId },
+          pickup.attackId)}>
+        {busy ? 'Collecting Scrap…' : `Collect Scrap from ${pickup.shipId.toUpperCase()} (cycle ${pickup.turn} attack)`}
+      </button>
+    </article>)}
     {scrapTargets.map((row) => <article key={row.shipId}>
       <p>{row.shipId.toUpperCase()} // {row.damage} damage // 1 Scrap opportunity</p>
       <button type="button" disabled={!canAct || busy}

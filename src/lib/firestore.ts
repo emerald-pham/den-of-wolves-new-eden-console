@@ -3012,6 +3012,23 @@ function shipUpgrades(value: unknown): NonNullable<GameSession['shipUpgrades']> 
     Array.isArray(stored[shipId]) ? [[shipId, stringArray(stored[shipId])]] : []));
 }
 
+/** Server-carried attack Scrap pickups; a malformed entry is dropped rather than offered. */
+function attackScrapPickups(value: unknown): NonNullable<GameSession['attackScrapPickups']> {
+  const stored = recordValue(value);
+  if (!stored) return {};
+  return Object.fromEntries(Object.keys(INITIAL_SHIP_CONSOLE_LOCKS).flatMap((shipId) => {
+    const entries = Array.isArray(stored[shipId]) ? stored[shipId] as unknown[] : [];
+    const pickups = entries.flatMap((entry) => {
+      const raw = recordValue(entry);
+      if (!raw || Object.keys(raw).length !== 3 || typeof raw.attackId !== 'string' ||
+          !/^[\w.:-]{1,160}$/.test(raw.attackId) || !Number.isSafeInteger(raw.turn) ||
+          (raw.turn as number) < 1 || typeof raw.destroyed !== 'boolean') return [];
+      return [{ attackId: raw.attackId, turn: raw.turn as number, destroyed: raw.destroyed }];
+    });
+    return pickups.length ? [[shipId, pickups]] : [];
+  }));
+}
+
 function shipDamage(value: unknown): NonNullable<GameSession['shipDamage']> {
   const stored = recordValue(value);
   if (!stored) return {};
@@ -3571,6 +3588,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     warriorRepairDrones: warriorRepairDrones(data.warriorRepairDrones),
     ...(currentHighwallMining ? { highwallMining: currentHighwallMining } : {}),
     retainedShuttles: retained,
+    attackScrapPickups: attackScrapPickups(data.attackScrapPickups),
     ...(quarantine ? { quarantineDocking: quarantine } : {}),
     shipUpgrades: shipUpgrades(data.shipUpgrades),
     shipResources: currentShipResources,
