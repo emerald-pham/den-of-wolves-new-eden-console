@@ -111,6 +111,7 @@ const terminalGuardDelegates: Readonly<Record<string, {
   },
   readFleetGroupMessages: { target: 'groupNoteAuthority(', source, guard: 'requireActiveGameplayPhase(session);' },
   sendFleetGroupMessage: { target: 'groupNoteAuthority(', source, guard: 'requireActiveGameplayPhase(session);' },
+  relayPdfColonelNews: { target: 'groupNoteAuthority(', source, guard: 'requireActiveGameplayPhase(session);' },
   proposePermissionedDismantling: {
     target: 'permissionedDismantlingCallables.proposePermissionedDismantling(request)',
     source: permissionedDismantlingSource,
@@ -249,7 +250,7 @@ it('keeps fleet note reads and writes routed through the actual active-game auth
   const end = source.indexOf('function storedGroupNotes(', start);
   expect(start).toBeGreaterThanOrEqual(0);
   expect(source.slice(start, end)).toContain('requireActiveGameplayPhase(session);');
-  for (const name of ['readFleetGroupMessages', 'sendFleetGroupMessage']) {
+  for (const name of ['readFleetGroupMessages', 'sendFleetGroupMessage', 'relayPdfColonelNews']) {
     expect(callableBody(matches.findIndex(match => match[1] === name))).toContain('await groupNoteAuthority(');
   }
 });

@@ -49,6 +49,11 @@ export type PressLogEntry =
     type: 'president-action';
     actionKind: typeof PRESIDENT_ACTION_KINDS[number];
     text: string;
+  }>)
+  | (PressLogBase & Readonly<{
+    /** Text a P.D.F. Colonel explicitly handed over; the Press decides publication. */
+    type: 'pdf-news-relay';
+    text: string;
   }>);
 
 function object(value: unknown): Record<string, unknown> | null {
@@ -146,6 +151,11 @@ export function parsePressLogEntry(id: string, value: unknown): PressLogEntry | 
       actionKind: raw.actionKind as typeof PRESIDENT_ACTION_KINDS[number],
       text: raw.text,
     };
+  }
+
+  if (raw.type === 'pdf-news-relay' &&
+      typeof raw.text === 'string' && raw.text.trim().length > 0 && raw.text.length <= 240) {
+    return { ...shared, type: 'pdf-news-relay', text: raw.text };
   }
 
   return null;

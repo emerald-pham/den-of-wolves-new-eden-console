@@ -32,6 +32,19 @@ describe('Press log projection', () => {
     })).toBeNull();
   });
 
+  it('projects a P.D.F. news hand-off as text only, without sender or audience fields', () => {
+    expect(parsePressLogEntry('relay-1', {
+      type: 'pdf-news-relay', sourceId: 'pdf-news-relay:req-8', text: 'Outer marker clear.',
+      cycle: 2, recordedAt, actorUid: 'colonel-uid', groupId: 'fleet-1',
+    })).toEqual({
+      id: 'relay-1', type: 'pdf-news-relay', sourceId: 'pdf-news-relay:req-8',
+      text: 'Outer marker clear.', cycle: 2, recordedAt,
+    });
+    expect(parsePressLogEntry('relay-bad', {
+      type: 'pdf-news-relay', sourceId: 'pdf-news-relay:req-9', text: 'x'.repeat(241), cycle: 2, recordedAt,
+    })).toBeNull();
+  });
+
   it('requires internally consistent transfer counts and safe source identity', () => {
     expect(parsePressLogEntry('transfer-1', {
       type: 'survivor-transfer', sourceId: 'evacuation:req-5', shuttleId: 'endeavour',
