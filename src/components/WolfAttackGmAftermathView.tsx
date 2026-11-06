@@ -2,6 +2,11 @@ import type { GameSession, WolfAttackDeclarationState } from '@/types/game';
 import './WolfAttackGmAftermathView.css';
 
 type UnknownRecord = Record<string, unknown>;
+type ScrapCustodyContext = {
+  readonly shuttleDockings?: GameSession['shuttleDockings'];
+  readonly shuttleControl?: GameSession['shuttleControl'];
+  readonly retainedShuttles?: GameSession['retainedShuttles'];
+};
 
 export interface WolfAttackGmAftermathDamageRow {
   readonly shipId: string;
@@ -51,6 +56,7 @@ function safeId(value: unknown): value is string {
 export function projectWolfAttackGmAftermathView(
   state: WolfAttackDeclarationState,
   currentShipDamage?: GameSession['shipDamage'],
+  scrapCustody?: ScrapCustodyContext,
 ): WolfAttackGmAftermathViewModel | null {
   const receipt = record(state.calculationReceipt) ? state.calculationReceipt : null;
   if (state.status !== 'resolved' || !state.attackId || !receipt || !Array.isArray(receipt.fleetDamage)) return null;
@@ -79,7 +85,21 @@ export function projectWolfAttackGmAftermathView(
   const fighterAceDamageExists = state.memberResults?.some((row) => record(row) && row.sourceId === 'pdf-fighter-ace' &&
     record(row.outcome) && Number.isSafeInteger(row.outcome.damage) && (row.outcome.damage as number) > 0) === true;
   const scrapClaims = aftermath?.scrapClaims;
-  const scrapShipIds = damage.filter((row) => row.amount >= 3 && !row.destroyed && !scrapClaims?.[row.shipId])
+  // A destroyed ship's pickup is pending only while a shuttle is retained from it.
+  const retainedAtDestroyedTarget = (shipId: string, shuttleId: 'macaw' | 'boa'): boolean => {
+    if (!Array.isArray(scrapCustody?.shuttleDockings)) return false;
+    const roleId = shuttleId === 'macaw' ? 'capybara-captain' : 'capybara-recycler';
+    const retained = scrapCustody.retainedShuttles?.[shuttleId];
+    const control = scrapCustody.shuttleControl?.[shuttleId];
+    return !scrapCustody.shuttleDockings.some((docking) => docking.shuttleId === shuttleId) &&
+      retained?.status === 'retained' && retained.shuttleId === shuttleId && retained.ownerRoleId === roleId &&
+      control?.shuttleId === shuttleId && control.ownerRoleId === roleId &&
+      retained.holderUid === control.holderUid && retained.destroyedHostShipId === shipId &&
+      retained.controlRevision === control.revision;
+  };
+  const scrapShipIds = damage.filter((row) => row.amount >= 3 &&
+    (!row.destroyed || retainedAtDestroyedTarget(row.shipId, 'macaw') || retainedAtDestroyedTarget(row.shipId, 'boa')) &&
+    !scrapClaims?.[row.shipId])
     .map(({ shipId }) => shipId);
   const currentDamage = currentShipDamage
     ? Object.entries(currentShipDamage).flatMap(([shipId, ship]) => {
