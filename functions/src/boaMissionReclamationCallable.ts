@@ -83,7 +83,6 @@ interface ChoiceCommand {
 const ROLE_ID = 'capybara-recycler';
 const ACTION = 'boa-mission-reclamation-choice';
 const ID = /^[\w-]{1,128}$/;
-const SESSION_ID = /^[\w-]{1,128}$/;
 const GROUP_ID = /^fleet-[1-9][0-9]*$/;
 const LAPSE_REASONS: readonly BoaMissionReclamationLapseReason[] = [
   'boa-control-changed', 'recycler-unavailable', 'recycler-not-on-mission', 'location-changed',
@@ -110,7 +109,7 @@ function requireActorUid(auth: BoaMissionReclamationCallableRequest['auth']): st
 
 function parseWorkspaceRequest(value: unknown): string {
   if (!isRecord(value) || Object.keys(value).length !== 1 ||
-      typeof value.sessionId !== 'string' || !SESSION_ID.test(value.sessionId)) {
+      typeof value.sessionId !== 'string' || !ID.test(value.sessionId)) {
     throw new HttpsError('invalid-argument', 'Refresh the Boa mission workspace.');
   }
   return value.sessionId;
@@ -122,7 +121,7 @@ function parseChoiceCommand(value: unknown): ChoiceCommand {
         'sessionId', 'requestId', 'missionOpportunityId', 'taskOpportunityId',
         'expectedControlRevision', 'expectedChoiceRevision', 'expectedCycle',
       ].includes(key)) ||
-      typeof value.sessionId !== 'string' || !SESSION_ID.test(value.sessionId) ||
+      typeof value.sessionId !== 'string' || !ID.test(value.sessionId) ||
       typeof value.requestId !== 'string' || !ID.test(value.requestId) ||
       typeof value.missionOpportunityId !== 'string' || !ID.test(value.missionOpportunityId) ||
       typeof value.taskOpportunityId !== 'string' || !ID.test(value.taskOpportunityId) ||
