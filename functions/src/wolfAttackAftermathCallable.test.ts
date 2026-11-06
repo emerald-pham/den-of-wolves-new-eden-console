@@ -520,6 +520,33 @@ describe('Wolf attack aftermath command contract', () => {
         revision: 1, aftermath: undefined, memberResults: [] });
       delete state.aftermath;
     };
+    /** The later attack resolves and releases the fleet, so shuttles may move again. */
+    const releaseLaterAttack = () => {
+      Object.assign(mock.documents.get('sessions/s-1/wolfAttackState/current')!, {
+        status: 'resolved', currentStep: 'resolved', airspaceLocked: false,
+        parkingReleaseCondition: 'normal-movement-reopened' });
+    };
+
+    it('blocks a carried pickup while a later attack holds the fleet, then allows it once released', async () => {
+      fixture([live('aegis', 3)]);
+      laterAttack({ aegis: [{ attackId: 'attack-7', turn: 7, destroyed: false }] });
+      mock.set.mockClear();
+      mock.update.mockClear();
+
+      await expect(resolveWolfAttackAftermath.run(request(collect('carried-mid-attack'), 'macaw-uid')))
+        .rejects.toMatchObject({ code: 'failed-precondition' });
+      Object.assign(mock.documents.get('sessions/s-1/wolfAttackState/current')!, {
+        status: 'resolved', currentStep: 'resolved', airspaceLocked: true });
+      await expect(resolveWolfAttackAftermath.run(request(collect('carried-locked-aftermath'), 'macaw-uid')))
+        .rejects.toMatchObject({ code: 'failed-precondition' });
+      expect(cargo()).toEqual({});
+      expect(writeCount()).toBe(0);
+
+      releaseLaterAttack();
+      await expect(resolveWolfAttackAftermath.run(request(collect('carried-after-release'), 'macaw-uid')))
+        .resolves.toMatchObject({ status: 'committed', attackId: 'attack-7', scrapGained: 1 });
+      expect(cargo()).toEqual({ macaw: { scrap: 1 } });
+    });
 
     it('lets a competing second request for the same pickup fail without adding stock', async () => {
       fixture([live('aegis', 3)]);
@@ -547,6 +574,7 @@ describe('Wolf attack aftermath command contract', () => {
     it('collects a pickup carried past a later attack exactly once and leaves the later attack separate', async () => {
       fixture([live('aegis', 3)]);
       laterAttack({ aegis: [{ attackId: 'attack-7', turn: 7, destroyed: false }] });
+      releaseLaterAttack();
 
       const first = await resolveWolfAttackAftermath.run(request(collect('carried-scrap'), 'macaw-uid'));
       expect(first).toEqual({ status: 'committed', sessionId: 's-1', attackId: 'attack-7',
@@ -554,7 +582,7 @@ describe('Wolf attack aftermath command contract', () => {
       expect(cargo()).toEqual({ macaw: { scrap: 1 } });
       expect(mock.documents.get('sessions/s-1')).not.toHaveProperty('attackScrapPickups.aegis');
       const laterState = mock.documents.get('sessions/s-1/wolfAttackState/current')!;
-      expect(laterState).toMatchObject({ attackId: 'attack-8', status: 'declared', revision: 1 });
+      expect(laterState).toMatchObject({ attackId: 'attack-8', status: 'resolved', revision: 1 });
       expect(laterState).not.toHaveProperty('aftermath');
       const writes = writeCount();
 
@@ -574,6 +602,7 @@ describe('Wolf attack aftermath command contract', () => {
 
       await expect(resolveWolfAttackAftermath.run(request(collect('later-attack-scrap', { attackId: 'attack-8' }), 'macaw-uid')))
         .resolves.toMatchObject({ status: 'committed', attackId: 'attack-8' });
+      releaseLaterAttack();
       await expect(resolveWolfAttackAftermath.run(request(collect('earlier-attack-scrap', { shuttleId: 'boa' }), 'boa-uid')))
         .resolves.toMatchObject({ status: 'committed', attackId: 'attack-7', shuttleId: 'boa' });
       expect(cargo()).toEqual({ macaw: { scrap: 1 }, boa: { scrap: 1 } });

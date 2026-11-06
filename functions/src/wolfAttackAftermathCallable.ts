@@ -22,6 +22,7 @@ import { isPresenceStale } from './sessionLifecycle';
 import { requireCandidateVesselsAvailable } from './candidateAvailability';
 import { parseRetainedShuttles } from './retainedShuttles';
 import { parseAttackScrapPickups, takeAttackScrapPickup } from './attackScrapPickups';
+import { wolfAttackBlocksNormalMovement } from './wolfAttackDeclaration';
 
 type RecordValue = Record<string, unknown>;
 type WolfAttackAftermathAction = 'doctor' | 'warrior-salvage' | 'collect-scrap';
@@ -346,6 +347,10 @@ export const resolveWolfAttackAftermath = onCall<{
         if (!ledger) throw new HttpsError('failed-precondition', 'The attack Scrap pickup ledger is malformed.');
         const taken = takeAttackScrapPickup(ledger, command.targetShipId!, command.attackId);
         const custody = await requireScrapCustody(tx, db, command, actor, sessionData, uid, taken?.pickup);
+        // Shuttles do not move while a later attack holds the fleet, so the pickup waits for its release.
+        if (attack.exists && wolfAttackBlocksNormalMovement(attack.data())) {
+          throw new HttpsError('failed-precondition', 'Carried Scrap cannot be collected while a Wolf attack is active.');
+        }
         const reply = { status: 'committed', sessionId: command.sessionId, attackId: command.attackId,
           requestId: command.requestId, action: command.action, targetShipId: custody.targetShipId,
           shuttleId: custody.shuttleId, scrapGained: 1 };
