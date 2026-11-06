@@ -34,6 +34,74 @@ describe('permissioned dismantling', () => {
     });
   });
 
+  describe('Macaw deliberate dismantling', () => {
+    const macawProposal = {
+      craftId: 'macaw',
+      targetShipId: 'dione',
+      targetConsoleId: 'reactor',
+      targetRevision: 7,
+      scrapGain: 1,
+    } as const;
+    const macawConsent = { id: 'consent-macaw', status: 'granted', actorUid: 'target-player', ...macawProposal } as const;
+    const macawBase = {
+      proposal: macawProposal,
+      consent: macawConsent,
+      activeTargetShipPlayerUids: ['target-player'],
+      currentTargetRevision: 7,
+      targetDamage: { damagedSystemIds: ['storage'], destroyed: false },
+      targetResources: { ore: 0, fuel: 3, food: 9, water: 4, materials: 5, securityTeams: 2 },
+      capybaraScrap: 3,
+    } as const;
+
+    it('damages one consented console on another ship and credits exactly one Capybara Scrap', () => {
+      expect(resolvePermissionedDismantling(macawBase)).toEqual({
+        targetDamage: { damagedSystemIds: ['storage', 'reactor'], destroyed: false },
+        targetResources: macawBase.targetResources,
+        capybaraScrapAfter: 4,
+        consumedConsent: { ...macawConsent, status: 'consumed' },
+      });
+    });
+
+    it('applies host dismantling to the Capybara inventory it damages in one combined result', () => {
+      const hostProposal = { ...macawProposal, targetShipId: 'capybara', targetConsoleId: 'advanced-hydroponics' };
+      const hostConsent = { ...macawConsent, actorUid: 'capybara-recycler', ...hostProposal };
+      const hostResources = { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 3 };
+      expect(resolvePermissionedDismantling({
+        ...macawBase,
+        proposal: hostProposal,
+        consent: hostConsent,
+        activeTargetShipPlayerUids: ['capybara-recycler'],
+        targetDamage: { damagedSystemIds: [], destroyed: false },
+        targetResources: hostResources,
+      })).toEqual({
+        targetDamage: { damagedSystemIds: ['advanced-hydroponics'], destroyed: false },
+        targetResources: { ...hostResources, scrap: 4 },
+        capybaraScrapAfter: 4,
+        consumedConsent: { ...hostConsent, status: 'consumed' },
+      });
+    });
+
+    it.each([
+      ['a material gain instead of Scrap', { proposal: { ...macawProposal, scrapGain: undefined, materialGain: 3 } }],
+      ['more than one Scrap', { proposal: { ...macawProposal, scrapGain: 2 } }],
+      ['a consent for a different Scrap amount', { consent: { ...macawConsent, scrapGain: 2 } }],
+      ['a consenter not assigned to the target ship', { activeTargetShipPlayerUids: ['someone-else'] }],
+      ['an unavailable Capybara Scrap ledger', { capybaraScrap: undefined }],
+      ['an unsafe Capybara Scrap overflow', { capybaraScrap: Number.MAX_SAFE_INTEGER }],
+    ])('rejects %s', (_label, change) => {
+      const input = { ...macawBase, ...change } as Record<string, unknown>;
+      for (const key of ['proposal', 'consent'] as const) {
+        const value = input[key] as Record<string, unknown>;
+        if (value.scrapGain === undefined) {
+          const { scrapGain: _omit, ...rest } = value;
+          input[key] = rest;
+        }
+      }
+      if (input.capybaraScrap === undefined) delete input.capybaraScrap;
+      expect(() => resolvePermissionedDismantling(input as never)).toThrow();
+    });
+  });
+
   it.each([
     ['missing consent', { consent: undefined }],
     ['revoked consent', { consent: { ...consent, status: 'revoked' } }],
@@ -45,7 +113,7 @@ describe('permissioned dismantling', () => {
     ['different console', { proposal: { ...proposal, targetConsoleId: 'storage' } }],
     ['different material amount', { proposal: { ...proposal, materialGain: 4 } }],
     ['different proposal revision', { proposal: { ...proposal, targetRevision: 6 } }],
-    ['unknown engineering craft', { proposal: { ...proposal, craftId: 'macaw' } }],
+    ['Macaw carrying an engineering material gain', { proposal: { ...proposal, craftId: 'macaw' } }],
     ['destroyed target', { targetDamage: { damagedSystemIds: [], destroyed: true } }],
     ['already damaged console', { targetDamage: { damagedSystemIds: ['reactor'], destroyed: false } }],
     ['malformed damage', { targetDamage: { damagedSystemIds: ['unknown-system'], destroyed: false } }],
