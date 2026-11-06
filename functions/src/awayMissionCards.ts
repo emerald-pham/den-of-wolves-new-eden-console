@@ -15,6 +15,7 @@ export const AWAY_MISSION_ROLE_CRAFT = {
   'shepherd-scientist': ['endeavour'],
   'quellon-explorer': ['hummingbird'],
   'refinery-124-pdf-colonel': ['pdf-escort-fighter-wing'],
+  'capybara-recycler': ['boa'],
 } as const satisfies Readonly<Record<string, readonly string[]>>;
 
 export type AwayMissionParticipantSnapshot = Readonly<{
