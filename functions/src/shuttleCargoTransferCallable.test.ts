@@ -210,3 +210,51 @@ it('rejects a stale player fleet-group pointer after canonical membership is rem
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
 });
+
+it('lets the Colonel holding Chepu move only security teams with its Refinery host once', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.activeRoleIds = ['refinery-124-pdf-colonel'];
+  session.activeVesselIds = ['refinery-124'];
+  session.shuttleDockings = [{ shuttleId: 'chepu', shipId: 'refinery-124', dockedAt: 'now' }];
+  session.shuttleControl = { chepu: {
+    shuttleId: 'chepu', ownerRoleId: 'refinery-124-pdf-colonel', ownerUid: 'holder',
+    holderUid: 'holder', revision: 2,
+  } };
+  session.shipResources = { 'refinery-124': {
+    ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 4,
+  } };
+  session.shuttleCargo = { chepu: { securityTeams: 1 } };
+  mock.documents.get('sessions/s1/players/holder')!.assignedRoleId = 'refinery-124-pdf-colonel';
+  mock.documents.get('sessions/s1/players/owner')!.assignedRoleId = 'refinery-124-pdf-colonel';
+  mock.documents.get('sessions/s1/fleetGroups/fleet-1')!.vesselIds = ['refinery-124'];
+  const chepuCommand = {
+    ...command, requestId: 'chepu-teams', shuttleId: 'chepu', resourceId: 'securityTeams',
+    amount: 2, expectedControlRevision: 2,
+  };
+
+  for (const [uid, data, message] of [
+    ['owner', { ...chepuCommand, requestId: 'chepu-not-holder' }, /current shuttle holder/i],
+    ['holder', { ...chepuCommand, requestId: 'chepu-food', resourceId: 'food' }, /printed cargo rule/i],
+  ] as const) {
+    await expect(transferShuttleCargoCommand.run(request(data, uid))).rejects.toMatchObject({
+      code: expect.stringMatching(/invalid-argument|permission-denied|failed-precondition/),
+      message: expect.stringMatching(message),
+    });
+  }
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+
+  await expect(transferShuttleCargoCommand.run(request(chepuCommand))).resolves.toMatchObject({
+    status: 'committed', hostShipId: 'refinery-124', resourceId: 'securityTeams',
+    shipAmount: 2, shuttleAmount: 3,
+  });
+  expect(mock.documents.get('sessions/s1')).toMatchObject({
+    shipResources: { 'refinery-124': expect.objectContaining({ securityTeams: 2, food: 10 }) },
+    shuttleCargo: { chepu: { securityTeams: 3 } },
+  });
+  const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
+  await expect(transferShuttleCargoCommand.run(request(chepuCommand))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+  expect(mock.documents.get('sessions/s1')).toMatchObject({
+    shuttleCargo: { chepu: { securityTeams: 3 } },
+  });
+});
