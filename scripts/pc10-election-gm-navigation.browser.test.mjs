@@ -91,7 +91,7 @@ for (const {action, staleVoters = false} of [{action:'configureElection'},{actio
   const functions = tree.statements.filter(node => ts.isFunctionDeclaration(node) && names.has(node.name?.text))
     .map(node => node.getText(tree)).join('\n');
   await withProofBrowserCleanup(async resources => {
-    resources.browserServer = await chromium.launchServer({ channel: 'chrome', headless: true });
+    resources.browserServer = await chromium.launchServer({ headless: true });
     resources.browser = await chromium.connect(resources.browserServer.wsEndpoint());
     resources.context = await resources.browser.newContext();
     await resources.context.route('**/*', route => route.request().isNavigationRequest() &&
@@ -205,7 +205,7 @@ test('secret ballots wait for each original voter’s normal Election route and 
   const functions = tree.statements.filter(node => ts.isFunctionDeclaration(node) && names.has(node.name?.text))
     .map(node => node.getText(tree)).join('\n');
   await withProofBrowserCleanup(async resources => {
-    resources.browserServer = await chromium.launchServer({ channel: 'chrome', headless: true });
+    resources.browserServer = await chromium.launchServer({ headless: true });
     resources.browser = await chromium.connect(resources.browserServer.wsEndpoint());
     resources.context = await resources.browser.newContext();
     await resources.context.route('**/*', route => route.request().isNavigationRequest() &&
