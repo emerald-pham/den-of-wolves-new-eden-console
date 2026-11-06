@@ -192,6 +192,54 @@ describe('PDF Escort Wing reference', () => {
     expect(within(wing).getAllByText('Not resolved')).toHaveLength(2);
   });
 
+  it.each([
+    ['keeps a committed launch visible', 1, 'Launched // Cycle 1', 'PDF Escort Wing launched'],
+    ['does not carry a previous cycle launch forward', 0, 'Waiting for an active Wolf Attack targeting window.', 'Launch PDF Escort Wing'],
+  ] as const)('%s once the attack leaves targeting', async (_label, launchedCycle, status, button) => {
+    useSessionStore.getState().setIdentity(
+      {
+        id: 's1', name: 'Table one', joinCode: '4821', phase: 'active', currentTurn: 1,
+        createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        uid: 'u1', sessionId: 's1', displayName: 'PDF Colonel', role: 'player',
+        seatId: 'refinery-124-pdf-colonel', assignedRoleId: 'refinery-124-pdf-colonel',
+        activeConsoleRoleId: 'refinery-124-pdf-colonel', joinedAt: '2026-01-01T00:00:00.000Z',
+      },
+    );
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    // The server's launch view outside targeting does not restate the committed launch.
+    mocks.read.mockResolvedValue({
+      type: 'pdf-escort-wing-launch-view', sessionId: 's1', turn: 1,
+      revision: 0, wingRevision: 1, launched: false, eligible: false, reason: 'waiting',
+    });
+
+    render(<PdfEscortWingReference writable state={{
+      type: 'pdf-escort-fighter-wing-view', revision: 1, cycle: launchedCycle, capacity: 4, fighters: 4,
+      launched: true, mediumResolved: false, mediumActionCount: 0,
+      shortResolved: false, shortRollCount: 0, losses: 0,
+    }} />);
+
+    const control = screen.getByLabelText('PDF Escort Wing launch control');
+    expect(await within(control).findByText(status)).toBeVisible();
+    expect(within(control).getByRole('button', { name: button })).toBeDisabled();
+    expect(within(control).queryByRole('button', { name: 'Pass PDF Escort Wing' })).not.toBeInTheDocument();
+  });
+
+  it('points the Colonel to the live range step instead of claiming combat or mission results are unavailable', () => {
+    render(<PdfEscortWingReference />);
+
+    const wing = screen.getByRole('region', { name: 'PDF Escort Fighter Wing' });
+    expect(within(wing).getByText(
+      'Live Medium and Short choices appear during the matching Wolf Attack range step below this reference.',
+    )).toBeVisible();
+    expect(within(wing).getByText('Away mission reference').nextElementSibling).toHaveTextContent(
+      'Fuel-free participation // +2 search & rescue // +1 salvage // server applies these bonuses only to opportunities this participant contributes to',
+    );
+    expect(wing).not.toHaveTextContent(/not available in the console yet|integration pending/i);
+  });
+
   it('shows the member-safe live fighter, launch, range, and loss state', () => {
     render(<PdfEscortWingReference state={{
       type: 'pdf-escort-fighter-wing-view',
@@ -249,9 +297,9 @@ describe('PDF Escort Wing reference', () => {
 
     await waitFor(() => expect(mocks.launch).toHaveBeenCalledWith(2, 5, 3));
     expect(await screen.findByRole('button', { name: 'PDF Escort Wing launched' })).toBeDisabled();
-    expect(screen.getByText('Medium and Short combat resolution is not available in the console yet.'))
-      .toBeVisible();
-    expect(screen.getByText(/result integration pending/)).toBeVisible();
+    expect(screen.getByText(
+      'Live Medium and Short choices appear during the matching Wolf Attack range step below this reference.',
+    )).toBeVisible();
   });
 
   it('shows the server denial when no wing fighters remain', async () => {

@@ -8,12 +8,21 @@ import { useSessionStore } from '@/store/useSessionStore';
 import refinery124 from '@/data/vessels/refinery-124';
 import './PdfEscortWingReference.css';
 
-function launchStatus(view: PdfEscortWingLaunchView | null, canRead: boolean): string {
+/**
+ * Outside targeting the server's launch view reports only 'waiting'; the member
+ * wing projection for the same cycle is what records a committed launch.
+ */
+function launchedOutsideTargeting(view: PdfEscortWingLaunchView | null, launchedCycle: number | null): boolean {
+  return !!view && !view.launched && !view.eligible && view.reason === 'waiting' &&
+    view.choiceStatus === undefined && launchedCycle === view.turn;
+}
+
+function launchStatus(view: PdfEscortWingLaunchView | null, canRead: boolean, launchedCycle: number | null): string {
   if (!view) return canRead ? 'Checking current Wolf attack launch authority…' :
     'Launch authority is available to the active P.D.F. Colonel in a live session.';
   if (view.choiceStatus === 'passed' || view.reason === 'passed') return 'Launch choice passed for this attack.';
   if (view.choiceStatus === 'unavailable') return 'The Escort Wing could not launch for this attack.';
-  if (view.launched) return `Launched // Cycle ${view.turn}`;
+  if (view.launched || launchedOutsideTargeting(view, launchedCycle)) return `Launched // Cycle ${view.turn}`;
   if (view.eligible) return 'Wolf Attack targeting // Refinery 8♦ Fighter Bay charged and operational';
   if (view.reason === 'uncharged') return 'Refinery 8♦ Fighter Bay uncharged // launch denied';
   if (view.reason === 'damaged') return 'Refinery 8♦ Fighter Bay damaged // launch denied';
@@ -28,25 +37,28 @@ export interface PdfEscortWingLaunchPanelViewProps {
   readonly busy?: boolean;
   readonly error?: string | null;
   readonly blocker?: string | null;
+  /** Cycle in which the member wing projection records a launch, if any. */
+  readonly launchedCycle?: number | null;
   readonly onLaunch: (view: PdfEscortWingLaunchView) => void;
   readonly onPass: (view: PdfEscortWingLaunchView) => void;
 }
 
 export function PdfEscortWingLaunchPanelView({
-  view, canRead, busy = false, error, blocker, onLaunch, onPass,
+  view, canRead, busy = false, error, blocker, launchedCycle = null, onLaunch, onPass,
 }: PdfEscortWingLaunchPanelViewProps) {
   const statusId = useId();
+  const launched = !!view?.launched || launchedOutsideTargeting(view, launchedCycle);
   return (
     <div className="cic-frame pdf-escort-launch" aria-label="PDF Escort Wing launch control">
       <p className="ship-resources__eyebrow">Wolf Attack // Refinery Fighter Bay 8♦</p>
-      <p id={statusId} aria-live="polite">{blocker ?? launchStatus(view, canRead)}</p>
+      <p id={statusId} aria-live="polite">{blocker ?? launchStatus(view, canRead, launchedCycle)}</p>
       {error && <p role="alert">{error}</p>}
       <div className="pdf-escort-launch__actions">
         <button className="cic-action-button" type="button"
           aria-describedby={statusId}
           disabled={!canRead || busy || !view?.eligible}
           onClick={() => { if (view?.eligible) onLaunch(view); }}>
-          {busy ? 'Launching PDF Escort Wing…' : view?.launched ? 'PDF Escort Wing launched' : 'Launch PDF Escort Wing'}
+          {busy ? 'Launching PDF Escort Wing…' : launched ? 'PDF Escort Wing launched' : 'Launch PDF Escort Wing'}
         </button>
         {view?.eligible && <button className="cic-action-button pdf-escort-launch__pass" type="button"
           aria-describedby={statusId}
@@ -181,17 +193,18 @@ export default function PdfEscortWingReference({ state, writable = false }: {
               ? `Resolved // ${current.shortRollCount} fighter rolls`
               : 'Not resolved'}</dd></div>
             <div><dt>Wing losses</dt><dd>{current.losses}</dd></div>
-            <div><dt>Away mission reference</dt><dd>Fuel-free participation // printed bonuses +{wing.mission.bonuses.searchAndRescue} search &amp; rescue // +{wing.mission.bonuses.salvage} salvage // result integration pending</dd></div>
+            <div><dt>Away mission reference</dt><dd>Fuel-free participation // +{wing.mission.bonuses.searchAndRescue} search &amp; rescue // +{wing.mission.bonuses.salvage} salvage // server applies these bonuses only to opportunities this participant contributes to</dd></div>
             <div><dt>Combat launch</dt><dd>{PDF_FIGHTER_WING_SYSTEM.name} // charged and undamaged // {wing.launch.phase}</dd></div>
           </dl>
           <p>{fighterBay?.effect ?? `${PDF_FIGHTER_WING_SYSTEM.name} launch reference unavailable`}</p>
           <p className="aegis-craft__system-label">Combat reference</p>
           <p>{wing.combat.mediumRange}</p>
           <p>{wing.combat.shortRange} {wing.combat.lossRule}</p>
-          <p>Medium and Short combat resolution is not available in the console yet.</p>
+          <p>Live Medium and Short choices appear during the matching Wolf Attack range step below this reference.</p>
           <p className="aegis-system__damaged-rule">{fighterBay?.effect.match(/Damaged:.*$/i)?.[0] ?? 'Damaged: launch unavailable.'}</p>
           <PdfEscortWingLaunchPanelView view={currentLaunchView} canRead={canReadLaunchAuthority}
             busy={pending} error={currentError} blocker={launchAuthorityBlocker}
+            launchedCycle={current.launched ? current.cycle : null}
             onLaunch={() => void launch()} onPass={() => void pass()} />
           {currentLaunchView?.launched && <PdfFighterAcePermissionControl sourceId="pdf-escort-fighter-wing"
             enabled={canReadLaunchAuthority} refreshKey={currentLaunchView.revision} />}
