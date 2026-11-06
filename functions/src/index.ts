@@ -39091,10 +39091,12 @@ export const buildFighter = onCall<{
     'fighter-build', change.sessionId, identity.requestId, uid, change.instanceId ?? null,
     change.expectedRevision, { shipId: 'aegis', wingId: change.wingId },
   );
+  const attackStateRef = db.doc(`sessions/${change.sessionId}/wolfAttackState/current`);
   return db.runTransaction(async tx => {
-    const [player, session] = await Promise.all([
+    const [player, session, attackState] = await Promise.all([
       tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`)),
       tx.get(sessionRef),
+      tx.get(attackStateRef),
     ]);
     await requireConsoleAuthority(tx, change.sessionId, player, 'wing-commander', change.instanceId);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
@@ -39107,6 +39109,14 @@ export const buildFighter = onCall<{
     if (replay) return replay;
 
     requireActionPhase(session, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
+    // A launched wing's strength is fixed at the combat table until the attack releases the fleet.
+    if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
+      throw commandError(
+        'failed-precondition',
+        'Replacement fighters cannot be built while a Wolf attack is active.',
+        'invalid-phase',
+      );
+    }
 
     const currentRevision = vesselActionRevision(session, 'aegis');
     const currentCounts = fighterWingCounts(session.get('fighterWingCounts'));
