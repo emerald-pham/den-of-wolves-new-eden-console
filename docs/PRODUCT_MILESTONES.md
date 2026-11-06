@@ -1140,3 +1140,22 @@ owner decision is recorded, and any other unresolved rule question is surfaced
 rather than invented. This activation changes no completion status,
 acceptance, checkpoint membership or the 751-prompt endpoint, and grants no
 0.9.x/1.0.0 version authorization. PC10.2 release gates are unchanged.
+
+### PC10.2 release candidate — 2026-11-05
+
+Version 0.5.75 is the PC10.2 release candidate, reconciled with main and the
+final review repairs (integration `88f26dc1`). It ships W1/W2 Wing Commander
+bay builds with blocker reasons, Bravo launch state, fighter-wing exchange and
+post-mission rebuild; P1/P2 P.D.F. Colonel Fighter Bay, Escort Wing, Chepu
+security team, boarding relocation, news relay with an optional Press hand-off
+and mission bonuses; C1 Macaw dismantling with distinct player consent; C2 Boa
+reclamation choice and result; C3 one-time attack Scrap collection; and the
+PT2B population-alert binding. The catalog still reads 703/751 (93.61%); no
+prompt status changed.
+
+Evidence so far is local: unit, Functions and component tests, Firestore rules
+on the emulator, and the `test-pc10-2-*` emulator proofs for wing missions, Boa
+reclamation and attack Scrap. The named-callable deployment audit
+(`scripts/pc10-2-deployment-consumers.json`) selects every changed callable
+without a broad Functions fallback. Exact-commit CI, deployment, and gameplay
+on the live site with real accounts are not yet verified.
