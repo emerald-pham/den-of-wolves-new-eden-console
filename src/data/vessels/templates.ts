@@ -172,6 +172,16 @@ export type AwayMissionSupport =
       readonly bonuses?: Readonly<Partial<Record<'exploration' | 'searchAndRescue' | 'salvage', number>>>;
     };
 
+/**
+ * Printed permissioned-dismantling reward: damage one console on the docked
+ * ship, with a ship player's permission, instead of repairing. Engineering
+ * craft add materials to the dismantled ship; the Macaw adds Scrap to the
+ * Capybara ledger (PC10-C1). The server remains the authority for the grant.
+ */
+export type ShuttleDismantlingReward =
+  | { readonly resource: 'materials'; readonly amount: 3; readonly recipient: 'target-ship' }
+  | { readonly resource: 'scrap'; readonly amount: 1; readonly recipient: 'capybara' };
+
 /** Printed operational rule shown in the shared shuttle role workspace. */
 export interface ShuttleOperation {
   readonly name: string;
@@ -207,6 +217,8 @@ export interface Shuttlecraft {
   readonly cargoTransferTypes?: readonly ResourceId[];
   /** The printed cargo rule shown in the shared shuttle role workspace. */
   readonly cargoTransfer?: string;
+  /** Present only on craft whose printed sheet allows permissioned dismantling. */
+  readonly dismantlingReward?: ShuttleDismantlingReward;
   readonly dockingEntrance?: 'press';
   readonly dockingPort?: string;
   readonly initialDocking?: Omit<ShuttleDocking, 'shuttleId'>;

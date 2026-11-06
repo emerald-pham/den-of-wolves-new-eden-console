@@ -2,6 +2,8 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
 import { hasFreshSessionAuthority, requireFreshSessionAuthority } from './sessionMutationAuthority';
 import { useSessionStore } from '@/store/useSessionStore';
+import { dockingForShuttle } from '@/data/shuttles';
+import boa from '@/data/vessels/boa';
 import type {
   BoaMissionReclamationChoiceReply,
   BoaMissionReclamationLapseReason,
@@ -25,24 +27,27 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 const isCount = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
 
-function currentBoaHolder(sessionId: string, uid: string): Readonly<{ controlRevision: number; cycle: number }> {
+/** The Boa's owner role and docking come from its typed vessel config. */
+function currentBoaHolder(sessionId: string, uid: string): Readonly<{
+  controlRevision: number; cycle: number; hostShipId: string;
+}> {
   const current = useSessionStore.getState();
   const session = current.session;
   const me = current.me;
-  const control = session?.shuttleControl?.boa;
-  const dockings = session?.shuttleDockings?.filter((entry) => entry.shuttleId === 'boa') ?? [];
+  const control = session?.shuttleControl?.[boa.id];
+  const docking = session ? dockingForShuttle(session, boa.id) : undefined;
   if (!hasFreshSessionAuthority() || !session || !me || session.id !== sessionId || me.sessionId !== sessionId ||
-      me.uid !== uid || me.role !== 'player' || me.assignedRoleId !== 'capybara-recycler' ||
+      me.uid !== uid || me.role !== 'player' || me.assignedRoleId !== boa.captainRoleId ||
       typeof me.fleetGroupId !== 'string' || !/^fleet-[1-9]\d*$/.test(me.fleetGroupId) ||
       session.phase !== 'active' || session.expansion !== 'capybara' || session.capybaraEnabled !== true ||
-      !session.activeRoleIds?.includes('capybara-captain') || !session.activeRoleIds.includes('capybara-recycler') ||
-      !session.activeVesselIds?.includes('capybara') || control?.shuttleId !== 'boa' ||
-      control.ownerRoleId !== 'capybara-recycler' || control.holderUid !== uid || !isCount(control.revision) ||
+      !session.activeRoleIds?.includes('capybara-captain') || !session.activeRoleIds.includes(boa.captainRoleId) ||
+      !session.activeVesselIds?.includes('capybara') || control?.shuttleId !== boa.id ||
+      control.ownerRoleId !== boa.captainRoleId || control.holderUid !== uid || !isCount(control.revision) ||
       !Number.isSafeInteger(session.currentTurn) || (session.currentTurn as number) < 1 ||
-      dockings.length !== 1 || !session.activeVesselIds.includes(dockings[0]!.shipId)) {
+      !docking || !session.activeVesselIds.includes(docking.shipId)) {
     throw new Error('The current Boa Recycler station is unavailable. Return to the Boa console and refresh.');
   }
-  return { controlRevision: control.revision, cycle: session.currentTurn as number };
+  return { controlRevision: control.revision, cycle: session.currentTurn as number, hostShipId: docking.shipId };
 }
 
 function parseWorkspace(value: unknown, expected: Readonly<{
@@ -121,19 +126,14 @@ Promise<BoaMissionReclamationWorkspaceReply> {
     throw new Error('Reconnect to the current fleet before reading Boa mission opportunities.');
   }
   requireFreshSessionAuthority('Reconnect to read the current Boa mission opportunities.');
-  const { controlRevision, cycle } = currentBoaHolder(sessionId, me.uid);
-  const docking = session.shuttleDockings?.filter((entry) => entry.shuttleId === 'boa') ?? [];
-  const binding = { sessionId, actorUid: me.uid, groupId: me.fleetGroupId, hostShipId: docking[0]!.shipId,
-    controlRevision, cycle };
+  const { controlRevision, cycle, hostShipId } = currentBoaHolder(sessionId, me.uid);
+  const binding = { sessionId, actorUid: me.uid, groupId: me.fleetGroupId, hostShipId, controlRevision, cycle };
   const response = await httpsCallable<{ sessionId: string }, unknown>(
     functions(), 'readBoaMissionReclamationWorkspace',
   )({ sessionId });
-  currentBoaHolder(sessionId, me.uid);
-  const current = useSessionStore.getState();
-  const liveSession = current.session!;
-  if (current.me?.fleetGroupId !== binding.groupId || liveSession.shuttleControl?.boa?.revision !== binding.controlRevision ||
-      liveSession.currentTurn !== binding.cycle ||
-      liveSession.shuttleDockings?.filter((entry) => entry.shuttleId === 'boa')[0]?.shipId !== binding.hostShipId) {
+  const live = currentBoaHolder(sessionId, me.uid);
+  if (useSessionStore.getState().me?.fleetGroupId !== binding.groupId || live.controlRevision !== binding.controlRevision ||
+      live.cycle !== binding.cycle || live.hostShipId !== binding.hostShipId) {
     throw new Error('Boa changed stations while loading mission opportunities. Refresh the current workspace.');
   }
   return parseWorkspace(response.data, binding);

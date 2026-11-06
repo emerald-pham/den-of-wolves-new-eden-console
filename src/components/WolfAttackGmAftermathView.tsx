@@ -1,3 +1,4 @@
+import { SHUTTLECRAFT } from '@/data/shuttles';
 import type { GameSession, WolfAttackDeclarationState } from '@/types/game';
 import './WolfAttackGmAftermathView.css';
 
@@ -88,7 +89,8 @@ export function projectWolfAttackGmAftermathView(
   // A destroyed ship's pickup is pending only while a shuttle is retained from it.
   const retainedAtDestroyedTarget = (shipId: string, shuttleId: 'macaw' | 'boa'): boolean => {
     if (!Array.isArray(scrapCustody?.shuttleDockings)) return false;
-    const roleId = shuttleId === 'macaw' ? 'capybara-captain' : 'capybara-recycler';
+    const roleId = SHUTTLECRAFT.find((shuttle) => shuttle.id === shuttleId)?.captainRoleId;
+    if (!roleId) return false;
     const retained = scrapCustody.retainedShuttles?.[shuttleId];
     const control = scrapCustody.shuttleControl?.[shuttleId];
     return !scrapCustody.shuttleDockings.some((docking) => docking.shuttleId === shuttleId) &&

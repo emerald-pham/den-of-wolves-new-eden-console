@@ -489,7 +489,9 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
     'fighter-wing-alpha': hasServerSnapshot ? fighterWingCounts?.['fighter-wing-alpha'] : undefined,
     'fighter-wing-bravo': hasServerSnapshot ? fighterWingCounts?.['fighter-wing-bravo'] : undefined,
   };
-  const exchangeCapacity = constructionBayUpgraded ? 6 : 4;
+  // Exchange uses the same printed wing capacity as build guidance.
+  const wingCapacity = fighterWings[0]?.fighterWing?.capacity ?? console.fighterCapacity;
+  const exchangeCapacity = constructionBayUpgraded ? wingCapacity.upgraded : wingCapacity.standard;
 
   return (
     <FleetRoleConsoleTemplate shipName="AEGIS" roleName="Wing Commander"
