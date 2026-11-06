@@ -57,6 +57,8 @@ const {
   advanceWolfAttackToLongRange,
   getDioneMaliadesLaunch,
   launchDioneMaliades,
+  getAegisFighterWingLaunch,
+  launchAegisFighterWing,
   getPdfEscortWingLaunch,
   passWolfFighterLaunchChoice,
   launchPdfEscortWing,
@@ -3150,6 +3152,93 @@ describe('GM instance commands', () => {
       sessionId: 's1', sourceId: 'pdf-escort-fighter-wing', expectedTurn: 2,
       expectedRevision: 6, expectedWingRevision: 3, requestId: expect.any(String),
     }));
+  });
+
+  it('reads a committed Bravo launch after targeting as launched while the attack advances', async () => {
+    useSessionStore.getState().setIdentity(
+      { ...session, phase: 'active', currentTurn: 2 },
+      {
+        ...player, assignedRoleId: 'wing-commander', seatId: 'wing-commander',
+        activeConsoleRoleId: 'wing-commander',
+      },
+    );
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    // The server projection for a launched wing once the attack has left targeting.
+    const launchedDuringRanges = {
+      type: 'aegis-fighter-wing-launch-view', sessionId: 's1', wingId: 'fighter-wing-bravo',
+      turn: 2, attackId: 'wolf-attack-2', revision: 8, wingRevision: 4, fighters: 3,
+      launched: true, eligible: false, choiceStatus: 'launched', reason: 'waiting',
+    } as const;
+    const read = callableReturning({ data: launchedDuringRanges });
+    vi.mocked(httpsCallable).mockImplementation((_functions, name) => {
+      expect(name).toBe('getAegisFighterWingLaunch');
+      return read;
+    });
+
+    await expect(getAegisFighterWingLaunch('fighter-wing-bravo')).resolves.toEqual(launchedDuringRanges);
+    expect(read).toHaveBeenCalledWith({ sessionId: 's1', wingId: 'fighter-wing-bravo' });
+  });
+
+  it.each([
+    ['without a launched choice', { choiceStatus: undefined }],
+    ['with a passed choice', { choiceStatus: 'passed' }],
+    ['while still eligible', { eligible: true }],
+  ])('rejects a launched waiting AEGIS wing view %s', async (_label, overrides) => {
+    useSessionStore.getState().setIdentity(
+      { ...session, phase: 'active', currentTurn: 2 },
+      {
+        ...player, assignedRoleId: 'wing-commander', seatId: 'wing-commander',
+        activeConsoleRoleId: 'wing-commander',
+      },
+    );
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    const view: Record<string, unknown> = {
+      type: 'aegis-fighter-wing-launch-view', sessionId: 's1', wingId: 'fighter-wing-bravo',
+      turn: 2, attackId: 'wolf-attack-2', revision: 8, wingRevision: 4, fighters: 3,
+      launched: true, eligible: false, choiceStatus: 'launched', reason: 'waiting', ...overrides,
+    };
+    if (view.choiceStatus === undefined) delete view.choiceStatus;
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: view }) as never);
+
+    await expect(getAegisFighterWingLaunch('fighter-wing-bravo'))
+      .rejects.toThrow(/invalid AEGIS Fighter Wing launch view/i);
+  });
+
+  it('accepts a Bravo launch receipt only when it commits the already-launched wing', async () => {
+    useSessionStore.getState().setIdentity(
+      { ...session, phase: 'active', currentTurn: 2 },
+      {
+        ...player, assignedRoleId: 'wing-commander', seatId: 'wing-commander',
+        activeConsoleRoleId: 'wing-commander',
+      },
+    );
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    const receipt = (requestId: unknown, reason: string) => ({ data: {
+      type: 'aegis-fighter-wing-launch-view', sessionId: 's1', wingId: 'fighter-wing-bravo',
+      turn: 2, attackId: 'wolf-attack-2', revision: 7, wingRevision: 4, fighters: 3,
+      launched: true, eligible: false, choiceStatus: 'launched', reason,
+      status: 'committed', requestId,
+    } });
+    let reason = 'already-launched';
+    const launch = Object.assign(vi.fn(async (payload: unknown) =>
+      receipt((payload as Record<string, unknown>).requestId, reason)), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(launch as never);
+
+    await expect(launchAegisFighterWing('fighter-wing-bravo', 2, 6, 3)).resolves.toMatchObject({
+      status: 'committed', wingId: 'fighter-wing-bravo', launched: true, fighters: 3,
+      reason: 'already-launched', revision: 7, wingRevision: 4,
+    });
+    expect(launch).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 's1', wingId: 'fighter-wing-bravo', expectedTurn: 2,
+      expectedRevision: 6, expectedWingRevision: 3, requestId: expect.any(String),
+    }));
+
+    reason = 'waiting';
+    await expect(launchAegisFighterWing('fighter-wing-bravo', 2, 6, 3))
+      .rejects.toThrow(/invalid AEGIS Fighter Wing launch receipt/i);
   });
 
   it('discards a deferred PDF launch view after active-console authority changes', async () => {
