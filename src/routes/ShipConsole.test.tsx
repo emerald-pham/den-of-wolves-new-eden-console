@@ -2279,18 +2279,26 @@ it('exposes the live Construction Bay action on the Wing Commander cards', async
   });
   const user = userEvent.setup();
   render(<MemoryRouter initialEntries={['/ships/aegis/roles/wing-commander']}>
-    <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    <Routes>
+      <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+      <Route path="/ships/:shipId/roles" element={<p>Ship consoles</p>} />
+    </Routes>
   </MemoryRouter>);
 
   const wingWorkspace = screen.getByRole('region', { name: 'AEGIS Wing Commander console' });
   const alpha = within(wingWorkspace).getByRole('heading', { name: 'Fighter Wing Alpha' }).closest('article');
-  if (!alpha) throw new Error('Expected Fighter Wing Alpha card.');
+  if (!(alpha instanceof HTMLElement)) throw new Error('Expected Fighter Wing Alpha card.');
   const build = within(alpha).getByRole('button', { name: /build 1 fighter/i });
   expect(build).toBeEnabled();
   expect(build).toHaveClass('cic-action-button');
+  expect(within(alpha).getByText(/2 materials available\. next actor \/\/ wing commander builds one fighter/i)).toBeVisible();
   await user.click(build);
   expect(buildFighter).toHaveBeenCalledWith('fighter-wing-alpha');
-  expect(screen.getByRole('link', { name: /view ship consoles/i })).toBeVisible();
+  expect(await within(alpha).findByText(
+    /last build committed \/\/ fighter wing alpha now 4 fighters \(revision 1\) \/\/ 1 material spent \/\/ 1 material remains/i,
+  )).toBeVisible();
+  await user.click(screen.getByRole('link', { name: /view ship consoles/i }));
+  expect(screen.getByText('Ship consoles')).toBeVisible();
 });
 
 it('keeps Construction Bay building disabled when the server says it is damaged', () => {
