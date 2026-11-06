@@ -1,6 +1,7 @@
 import { isSupportedShipPopulation } from './shipPopulation';
 import { RESOURCE_IDS, type ShipResourceInventory } from './resources';
 import type { MissionRewardResourceId } from './missionCards';
+import { isNonRewardMissionEffect } from './missionRewards';
 
 interface RewardAmounts { readonly resources: unknown }
 export interface MissionRewardDeliveryInput {
@@ -79,7 +80,8 @@ export function planBoaMissionRewardDelivery(
   const selected = matches[0] as unknown as Record<string, unknown>;
   const selectedResources = selected.resources;
   const effects = selected.effects;
-  if (!record(selectedResources) || !Array.isArray(effects) || effects.length !== 0 ||
+  // Only a kept non-reward consequence may accompany the Scrap; any reward effect means a broken replacement.
+  if (!record(selectedResources) || !Array.isArray(effects) || !effects.every(isNonRewardMissionEffect) ||
       selected.bulkHaulageApplied !== false) return null;
   let boaScrapAwarded: 0 | 1;
   if (selected.branch === 'none') {
