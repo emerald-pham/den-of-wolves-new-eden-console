@@ -44,6 +44,7 @@ vi.mock('@/lib/sessionService', () => ({
   adjustShipResource: vi.fn(),
   adjustShipUnrest: vi.fn(),
   buildFighter: vi.fn(),
+  exchangeFighterWings: vi.fn(),
   getDioneMaliadesLaunch: vi.fn(),
   launchDioneMaliades: vi.fn(),
   getAegisCommandAndControl: vi.fn(async () => ({
@@ -90,7 +91,7 @@ const { popShipConfetti } = await import('@/lib/sessionService');
 const { selectConsoleRole } = await import('@/lib/sessionService');
 const { setGmShipConsoleWriteGrant } = await import('@/lib/sessionService');
 const { adjustShipResource, adjustShipUnrest } = await import('@/lib/sessionService');
-const { buildFighter } = await import('@/lib/sessionService');
+const { buildFighter, exchangeFighterWings } = await import('@/lib/sessionService');
 const { getDioneMaliadesLaunch, launchDioneMaliades } = await import('@/lib/sessionService');
 const { getWolfRangeActionChoice, commitWolfRangeActionChoice } = await import('@/lib/sessionService');
 const { subscribeWolfAttackMemberView } = await import('@/lib/firestore');
@@ -109,6 +110,8 @@ beforeEach(() => {
   vi.mocked(adjustShipUnrest).mockResolvedValue(undefined);
   vi.mocked(buildFighter).mockReset();
   vi.mocked(buildFighter).mockResolvedValue(null);
+  vi.mocked(exchangeFighterWings).mockReset();
+  vi.mocked(exchangeFighterWings).mockResolvedValue(null);
   vi.mocked(getDioneMaliadesLaunch).mockReset();
   vi.mocked(getDioneMaliadesLaunch).mockResolvedValue({
     type: 'dione-maliades-launch-view', sessionId: 's1', turn: 1, revision: 0,
@@ -2296,6 +2299,51 @@ it('exposes the live Construction Bay action on the Wing Commander cards', async
   expect(buildFighter).toHaveBeenCalledWith('fighter-wing-alpha');
   expect(await within(alpha).findByText(
     /last build committed \/\/ fighter wing alpha now 4 fighters \(revision 1\) \/\/ 1 material spent \/\/ 1 material remains/i,
+  )).toBeVisible();
+  await user.click(screen.getByRole('link', { name: /view ship consoles/i }));
+  expect(screen.getByText('Ship consoles')).toBeVisible();
+});
+
+it('lets the Wing Commander exchange fighters between wings and still return to the ship consoles', async () => {
+  const session = useSessionStore.getState().session!;
+  const me = useSessionStore.getState().me!;
+  useSessionStore.getState().setSession({
+    ...session,
+    phase: 'active',
+    currentTurn: 1,
+    turnPhase: { turn: 1, teamPhaseEndsAt: '2099-01-01T00:10:00.000Z', openAirspaceEndsAt: '2099-01-01T00:30:00.000Z', airspace: { state: 'restricted', tickerActive: false, pressAccess: false } },
+    shipUpgrades: { aegis: [] },
+    shipDamage: { aegis: { damagedSystemIds: [], destroyed: false } },
+    fighterWingCounts: {
+      'fighter-wing-alpha': { count: 4, revision: 2 },
+      'fighter-wing-bravo': { count: 1, revision: 5 },
+    },
+  });
+  useSessionStore.getState().setMe({
+    ...me, assignedRoleId: 'wing-commander', seatId: 'wing-commander', activeConsoleRoleId: 'wing-commander',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  vi.mocked(exchangeFighterWings).mockResolvedValue({
+    status: 'committed', sourceWingId: 'fighter-wing-alpha', targetWingId: 'fighter-wing-bravo', amount: 3,
+    capacity: 4, turn: 1,
+    counts: { 'fighter-wing-alpha': { count: 1, revision: 3 }, 'fighter-wing-bravo': { count: 4, revision: 6 } },
+  });
+  const user = userEvent.setup();
+  render(<MemoryRouter initialEntries={['/ships/aegis/roles/wing-commander']}>
+    <Routes>
+      <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+      <Route path="/ships/:shipId/roles" element={<p>Ship consoles</p>} />
+    </Routes>
+  </MemoryRouter>);
+
+  const wingWorkspace = screen.getByRole('region', { name: 'AEGIS Wing Commander console' });
+  const exchange = within(wingWorkspace).getByRole('region', { name: 'Fighter Wing exchange' });
+  await user.selectOptions(within(exchange).getByRole('combobox', { name: 'Fighters to move' }), '3');
+  await user.click(within(exchange).getByRole('button', { name: 'Move 3 fighters from Alpha to Bravo' }));
+  expect(exchangeFighterWings).toHaveBeenCalledWith('fighter-wing-alpha', 3);
+  expect(await within(exchange).findByText(
+    /exchange committed \/\/ 3 fighters moved from alpha to bravo \/\/ alpha now 1 fighter, bravo now 4 fighters/i,
   )).toBeVisible();
   await user.click(screen.getByRole('link', { name: /view ship consoles/i }));
   expect(screen.getByText('Ship consoles')).toBeVisible();

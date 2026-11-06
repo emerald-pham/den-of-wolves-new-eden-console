@@ -10,12 +10,15 @@ const { unlockPressAirspace } = await import('@/lib/airspaceService');
 vi.mock(import('@/lib/sessionService'), async (importOriginal) => ({
   ...await importOriginal(),
   buildFighter: vi.fn(),
+  exchangeFighterWings: vi.fn(),
 }));
-const { buildFighter } = await import('@/lib/sessionService');
+const { buildFighter, exchangeFighterWings } = await import('@/lib/sessionService');
 type FighterBuildReply = Awaited<ReturnType<typeof buildFighter>>;
+type FighterWingExchangeReply = Awaited<ReturnType<typeof exchangeFighterWings>>;
 
 beforeEach(() => {
   vi.mocked(buildFighter).mockReset();
+  vi.mocked(exchangeFighterWings).mockReset();
   const now = Date.now();
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
@@ -221,4 +224,107 @@ it.each([
   await user.click(within(alpha).getByRole('button', { name: /build 1 fighter/i }));
   expect(await within(alpha).findByText(notice)).toBeVisible();
   expect(within(alpha).queryByText(/last build committed/i)).not.toBeInTheDocument();
+});
+
+function stageWingExchange(overrides: Record<string, unknown> = {}) {
+  stageWingConstruction({
+    fighterWingCounts: {
+      'fighter-wing-alpha': { count: 4, revision: 2 },
+      'fighter-wing-bravo': { count: 1, revision: 5 },
+    },
+    ...overrides,
+  });
+}
+
+function renderExchange() {
+  render(<MemoryRouter><AegisConsoleWorkspace roleId="wing-commander" galacticCoordinate="0000" fuel={3} /></MemoryRouter>);
+  return screen.getByRole('region', { name: 'Fighter Wing exchange' });
+}
+
+it('offers only exchanges the receiving wing can hold and shows the pending then committed counts', async () => {
+  stageWingExchange();
+  let resolveExchange: (reply: FighterWingExchangeReply) => void = () => undefined;
+  vi.mocked(exchangeFighterWings).mockImplementation(() => new Promise((resolve) => { resolveExchange = resolve; }));
+  const user = userEvent.setup();
+  const panel = renderExchange();
+
+  expect(panel).toHaveTextContent(/alpha.*4 fighters.*bravo.*1 fighter.*capacity 4 per wing/i);
+  const amount = within(panel).getByRole('combobox', { name: 'Fighters to move' });
+  expect(within(amount).getAllByRole('option').map((option) => option.textContent)).toEqual(['1', '2', '3']);
+  await user.selectOptions(amount, '2');
+  await user.click(within(panel).getByRole('button', { name: 'Move 2 fighters from Alpha to Bravo' }));
+  expect(exchangeFighterWings).toHaveBeenCalledWith('fighter-wing-alpha', 2);
+  expect(within(panel).getByText(/exchange pending \/\/ awaiting the server commit/i)).toBeVisible();
+  expect(within(panel).getByRole('button', { name: /move 2 fighters/i })).toBeDisabled();
+
+  resolveExchange({
+    status: 'committed', sourceWingId: 'fighter-wing-alpha', targetWingId: 'fighter-wing-bravo', amount: 2,
+    capacity: 4, turn: 1,
+    counts: { 'fighter-wing-alpha': { count: 2, revision: 3 }, 'fighter-wing-bravo': { count: 3, revision: 6 } },
+  });
+  expect(await within(panel).findByText(
+    /exchange committed \/\/ 2 fighters moved from alpha to bravo \/\/ alpha now 2 fighters, bravo now 3 fighters/i,
+  )).toBeVisible();
+});
+
+it('moves fighters the other way within the upgraded six-fighter capacity', async () => {
+  stageWingExchange({ shipUpgrades: { aegis: ['construction-bay'] } });
+  vi.mocked(exchangeFighterWings).mockResolvedValue(null);
+  const user = userEvent.setup();
+  const panel = renderExchange();
+
+  await user.selectOptions(within(panel).getByRole('combobox', { name: 'Move fighters from' }), 'fighter-wing-bravo');
+  await user.click(within(panel).getByRole('button', { name: 'Move 1 fighter from Bravo to Alpha' }));
+  expect(exchangeFighterWings).toHaveBeenCalledWith('fighter-wing-bravo', 1);
+});
+
+it.each([
+  ['the receiving wing is full', { fighterWingCounts: {
+    'fighter-wing-alpha': { count: 4, revision: 2 }, 'fighter-wing-bravo': { count: 4, revision: 5 },
+  } }, /exchange unavailable \/\/ bravo already holds 4 fighters, its capacity/i],
+  ['Team Phase has ended', { turnPhase: {
+    turn: 1, teamPhaseEndsAt: '2026-01-01T00:10:00.000Z', openAirspaceEndsAt: '2099-01-01T00:30:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+  } }, /exchange unavailable \/\/ team phase required\. next actor \/\/ wing commander waits for the next team phase/i],
+  ['the Team clock is paused', { turnPhase: {
+    turn: 1, teamPhaseEndsAt: '2099-01-01T00:10:00.000Z', openAirspaceEndsAt: '2099-01-01T00:30:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    timerPause: { window: 'restricted', remainingMs: 60_000, pausedAt: '2026-01-01T00:05:00.000Z' },
+  } }, /exchange unavailable \/\/ team phase clock paused\. next actor \/\/ gm resumes the clock/i],
+  ['the game has not reached Cycle 1', { currentTurn: 0 }, /exchange unavailable \/\/ cycle 1 required/i],
+])('explains why the exchange is unavailable when %s', (_case, overrides, guidance) => {
+  stageWingExchange(overrides);
+  const panel = renderExchange();
+
+  expect(within(panel).getByText(guidance)).toBeVisible();
+  expect(within(panel).getByRole('button', { name: /move \d fighters? from/i })).toBeDisabled();
+});
+
+it('keeps the exchange unavailable while reconnecting from a cached session', () => {
+  stageWingExchange();
+  useSessionStore.getState().setSessionSnapshotFreshness('cache');
+  useSessionStore.getState().setConnection('offline');
+  const panel = renderExchange();
+
+  expect(within(panel).getByText(/exchange unavailable \/\/ awaiting live server state/i)).toBeVisible();
+  expect(within(panel).getByRole('button', { name: /move \d fighters? from/i })).toBeDisabled();
+});
+
+it.each([
+  ['a stale reply', {
+    status: 'stale', sourceWingId: 'fighter-wing-alpha', targetWingId: 'fighter-wing-bravo', amount: 1,
+    capacity: 4, turn: 1,
+    counts: { 'fighter-wing-alpha': { count: 3, revision: 3 }, 'fighter-wing-bravo': { count: 1, revision: 5 } },
+  } as const, /exchange not committed \/\/ the wing counts changed first\. no fighters moved; review the live counts and try again/i],
+  ['no confirmed reply', null,
+    /exchange not confirmed \/\/ check the live counts\. retrying the same choice resends the same request and cannot move fighters twice/i],
+])('reports %s without claiming fighters moved', async (_case, reply, notice) => {
+  stageWingExchange();
+  vi.mocked(exchangeFighterWings).mockResolvedValue(reply);
+  const user = userEvent.setup();
+  const panel = renderExchange();
+
+  await user.click(within(panel).getByRole('button', { name: 'Move 1 fighter from Alpha to Bravo' }));
+  expect(await within(panel).findByText(notice)).toBeVisible();
+  expect(within(panel).queryByText(/exchange committed/i)).not.toBeInTheDocument();
 });
