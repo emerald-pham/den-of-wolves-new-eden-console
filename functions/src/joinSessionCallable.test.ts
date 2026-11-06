@@ -1090,6 +1090,12 @@ it('projects carried attack Scrap pickups to the damaged ship’s fleet group on
   const response = await getCurrentMemberSession.run({ auth: { uid: 'u1' }, data: { sessionId: 's1' } } as CallableRequest<{ sessionId: string }>) as { session: Record<string, unknown> };
   expect(response.session.attackScrapPickups).toEqual({ aegis: own });
 
+  // A ship destroyed after its attack reports its carried pickup as destroyed-status.
+  (fields as Record<string, unknown>).shipDamage = { aegis: { damagedSystemIds: [], destroyed: true } };
+  const wrecked = await getCurrentMemberSession.run({ auth: { uid: 'u1' }, data: { sessionId: 's1' } } as CallableRequest<{ sessionId: string }>) as { session: Record<string, unknown> };
+  expect(wrecked.session.attackScrapPickups).toEqual({ aegis: [{ ...own[0], destroyed: true }] });
+  delete (fields as Record<string, unknown>).shipDamage;
+
   // A malformed stored ledger fails closed instead of leaking partial entries.
   fields.attackScrapPickups = { aegis: [{ attackId: 'wolf-attack-3', turn: 1, destroyed: false, extra: 1 }] } as never;
   const malformed = await getCurrentMemberSession.run({ auth: { uid: 'u1' }, data: { sessionId: 's1' } } as CallableRequest<{ sessionId: string }>) as { session: Record<string, unknown> };

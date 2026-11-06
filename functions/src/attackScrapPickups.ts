@@ -96,3 +96,34 @@ export function takeAttackScrapPickup(
   else delete next[shipId];
   return { pickup: found, ledger: next };
 }
+
+/**
+ * Coordinator ruling (C3.2, 2026-11-05, extending the owner's C3 decision): a
+ * pending pickup whose ship is destroyed after its attack becomes
+ * destroyed-status, so only the shuttle retained from that ship can collect it.
+ * Derived from the authoritative ship damage on every read and write, so every
+ * destruction path is covered without each one rewriting this ledger.
+ */
+export function withCurrentShipDestruction(
+  ledger: AttackScrapPickupLedger,
+  shipDamage: unknown,
+): AttackScrapPickupLedger {
+  let changed = false;
+  const next: Record<string, readonly AttackScrapPickup[]> = {};
+  for (const [shipId, entries] of Object.entries(ledger)) {
+    const destroyed = shipIsDestroyed(shipDamage, shipId);
+    next[shipId] = entries.map((entry) => {
+      if (!destroyed || entry.destroyed) return entry;
+      changed = true;
+      return { ...entry, destroyed: true };
+    });
+  }
+  return changed ? next : ledger;
+}
+
+/** Whether the authoritative damage map currently records the ship as destroyed. */
+export function shipIsDestroyed(shipDamage: unknown, shipId: string): boolean {
+  if (!record(shipDamage)) return false;
+  const damage = shipDamage[shipId];
+  return record(damage) && damage.destroyed === true;
+}

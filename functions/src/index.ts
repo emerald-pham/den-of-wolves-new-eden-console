@@ -568,7 +568,8 @@ import {
   retainShuttlesFromDestroyedHost,
 } from './retainedShuttles';
 import {
-  carryForwardAttackScrapPickups, parseAttackScrapPickups, type AttackScrapPickupLedger,
+  carryForwardAttackScrapPickups, parseAttackScrapPickups, withCurrentShipDestruction,
+  type AttackScrapPickupLedger,
 } from './attackScrapPickups';
 import {
   acceptQuarantineDocking,
@@ -18151,9 +18152,9 @@ function publicMemberSessionSource(sessionSnap: DocumentSnapshot, sessionId: str
     shipDamage: activeVesselRecord(shipDamage(sessionSnap.get('shipDamage')), activeVesselIds),
     shipResources: activeVesselRecord(shipResources(sessionSnap.get('shipResources')), activeVesselIds),
     // Carried pickups are scoped per damaged ship; the member filter keeps only the reader's group.
-    attackScrapPickups: activeVesselRecord(
-      parseAttackScrapPickups(sessionSnap.get('attackScrapPickups')) ?? {}, activeVesselIds,
-    ),
+    attackScrapPickups: activeVesselRecord(withCurrentShipDestruction(
+      parseAttackScrapPickups(sessionSnap.get('attackScrapPickups')) ?? {}, sessionSnap.get('shipDamage'),
+    ), activeVesselIds),
     shipUnrest: activeVesselRecord(shipUnrest(sessionSnap.get('shipUnrest')), activeVesselIds),
     shipMutinies: publicShipMutinies(sessionSnap.get('shipMutinies'), activeVesselIds),
     unrestAlerts: publicAlertMap(sessionSnap.get('unrestAlerts'), activeVesselIds, false),
@@ -23698,7 +23699,9 @@ function carriedAttackScrapPickups(
   const activeVesselIds = session.get('activeVesselIds');
   if (!replacedState.exists || session.get('capybaraEnabled') === false ||
       !Array.isArray(activeVesselIds) || !activeVesselIds.includes('capybara')) return undefined;
-  const next = carryForwardAttackScrapPickups(existing, replacedState.data());
+  const next = withCurrentShipDestruction(
+    carryForwardAttackScrapPickups(existing, replacedState.data()), session.get('shipDamage'),
+  );
   return next === existing ? undefined : next;
 }
 

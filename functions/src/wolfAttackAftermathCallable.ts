@@ -21,7 +21,9 @@ import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import { isPresenceStale } from './sessionLifecycle';
 import { requireCandidateVesselsAvailable } from './candidateAvailability';
 import { parseRetainedShuttles } from './retainedShuttles';
-import { parseAttackScrapPickups, takeAttackScrapPickup } from './attackScrapPickups';
+import {
+  parseAttackScrapPickups, shipIsDestroyed, takeAttackScrapPickup, withCurrentShipDestruction,
+} from './attackScrapPickups';
 import { wolfAttackBlocksNormalMovement } from './wolfAttackDeclaration';
 
 type RecordValue = Record<string, unknown>;
@@ -343,8 +345,9 @@ export const resolveWolfAttackAftermath = onCall<{
         // A later attack replaced this attack's state; its uncollected pickups
         // were carried into the session's server-owned pickup ledger.
         requireCandidateVesselsAvailable(session, ['capybara', command.targetShipId!]);
-        const ledger = parseAttackScrapPickups(sessionData.attackScrapPickups);
-        if (!ledger) throw new HttpsError('failed-precondition', 'The attack Scrap pickup ledger is malformed.');
+        const stored = parseAttackScrapPickups(sessionData.attackScrapPickups);
+        if (!stored) throw new HttpsError('failed-precondition', 'The attack Scrap pickup ledger is malformed.');
+        const ledger = withCurrentShipDestruction(stored, sessionData.shipDamage);
         const taken = takeAttackScrapPickup(ledger, command.targetShipId!, command.attackId);
         const custody = await requireScrapCustody(tx, db, command, actor, sessionData, uid, taken?.pickup);
         // Shuttles do not move while a later attack holds the fleet, so the pickup waits for its release.
@@ -498,7 +501,9 @@ export const resolveWolfAttackAftermath = onCall<{
       const targetDamage = damage.find((row) => row.target === command.targetShipId);
       const { shuttleId, targetShipId, actorRoleId: custodyRoleId } = await requireScrapCustody(tx, db, command,
         actor, sessionData, uid, targetDamage && targetDamage.amount >= 3
-          ? { destroyed: targetDamage.state.destroyed } : undefined);
+          // A ship destroyed after its attack keeps its pickup for the shuttle retained from it.
+          ? { destroyed: targetDamage.state.destroyed || shipIsDestroyed(sessionData.shipDamage, targetDamage.target) }
+          : undefined);
       actorRoleId = custodyRoleId;
       const opportunities = wolfDamageScrapOpportunities(command.attackId,
         damage.map(({ target, amount, draws }) => ({ target, amount, draws })));

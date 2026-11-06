@@ -639,6 +639,43 @@ describe('Wolf attack aftermath command contract', () => {
       expect(writeCount()).toBe(0);
     });
 
+    /** The ship was destroyed after its attack: the Macaw it hosted is retained, the Boa elsewhere. */
+    const destroyAfterAttack = () => {
+      const session = mock.documents.get('sessions/s-1')!;
+      session.shipDamage = { aegis: { damagedSystemIds: [], destroyed: true } };
+      session.shuttleDockings = [{ shuttleId: 'boa', shipId: 'capybara', dockedAt: 'fixture' }];
+      session.retainedShuttles = { macaw: { status: 'retained', shuttleId: 'macaw', ownerRoleId: 'capybara-captain',
+        holderUid: 'macaw-uid', destroyedHostShipId: 'aegis', controlRevision: 0,
+        retainedAt: '2026-11-05T10:00:00.000Z' } };
+    };
+
+    it('makes a carried pickup on a ship destroyed later collectable only by the shuttle retained from it', async () => {
+      fixture([live('aegis', 3)]);
+      laterAttack({ aegis: [{ attackId: 'attack-7', turn: 7, destroyed: false }] });
+      releaseLaterAttack();
+      destroyAfterAttack();
+      mock.documents.get('sessions/s-1')!.shuttleDockings = [{ shuttleId: 'boa', shipId: 'aegis', dockedAt: 'fixture' }];
+
+      await expect(resolveWolfAttackAftermath.run(request(collect('docked-at-wreck', { shuttleId: 'boa' }), 'boa-uid')))
+        .rejects.toMatchObject({ code: 'failed-precondition' });
+      expect(cargo()).toEqual({});
+
+      mock.documents.get('sessions/s-1')!.shuttleDockings = [{ shuttleId: 'boa', shipId: 'capybara', dockedAt: 'fixture' }];
+      await expect(resolveWolfAttackAftermath.run(request(collect('retained-from-wreck'), 'macaw-uid')))
+        .resolves.toMatchObject({ status: 'committed', attackId: 'attack-7', shuttleId: 'macaw', scrapGained: 1 });
+      expect(cargo()).toEqual({ macaw: { scrap: 1 } });
+      expect(mock.documents.get('sessions/s-1')).not.toHaveProperty('attackScrapPickups.aegis');
+    });
+
+    it('applies the same destroyed-ship custody to the current attack pickup', async () => {
+      fixture([live('aegis', 3)]);
+      destroyAfterAttack();
+
+      await expect(resolveWolfAttackAftermath.run(request(collect('current-retained-wreck'), 'macaw-uid')))
+        .resolves.toMatchObject({ status: 'committed', attackId: 'attack-7', shuttleId: 'macaw', scrapGained: 1 });
+      expect(cargo()).toEqual({ macaw: { scrap: 1 } });
+    });
+
     it('replays a current-attack receipt after that attack is carried past without crediting again', async () => {
       fixture([live('aegis', 3)]);
       const first = await resolveWolfAttackAftermath.run(request(collect('before-archive'), 'macaw-uid'));
