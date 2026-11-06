@@ -1,17 +1,9 @@
 import { useState } from 'react';
-import type { AegisFighterWingId, FighterWingExchangeResult } from '@/lib/sessionService';
+import { fighterWingCallsign, otherFighterWing, type FighterWingId } from '@/data/aegisConsoles';
+import type { FighterWingExchangeResult } from '@/lib/sessionService';
 import './AegisFighterWingExchangePanel.css';
 
 type WingCount = Readonly<{ count: number; revision: number }>;
-
-const WING_NAMES: Readonly<Record<AegisFighterWingId, 'Alpha' | 'Bravo'>> = {
-  'fighter-wing-alpha': 'Alpha',
-  'fighter-wing-bravo': 'Bravo',
-};
-
-function otherWing(wingId: AegisFighterWingId): AegisFighterWingId {
-  return wingId === 'fighter-wing-alpha' ? 'fighter-wing-bravo' : 'fighter-wing-alpha';
-}
 
 function fighters(count: number): string {
   return `${count} fighter${count === 1 ? '' : 's'}`;
@@ -25,28 +17,28 @@ function resultNotice(result: FighterWingExchangeResult | null): string {
     return 'Exchange not committed // the wing counts changed first. No fighters moved; review the live counts and try again.';
   }
   const prefix = result.status === 'replayed' ? 'Exchange already committed' : 'Exchange committed';
-  return `${prefix} // ${fighters(result.amount)} moved from ${WING_NAMES[result.sourceWingId]} to ${WING_NAMES[result.targetWingId]} // Alpha now ${fighters(result.counts['fighter-wing-alpha'].count)}, Bravo now ${fighters(result.counts['fighter-wing-bravo'].count)}.`;
+  return `${prefix} // ${fighters(result.amount)} moved from ${fighterWingCallsign(result.sourceWingId)} to ${fighterWingCallsign(result.targetWingId)} // Alpha now ${fighters(result.counts['fighter-wing-alpha'].count)}, Bravo now ${fighters(result.counts['fighter-wing-bravo'].count)}.`;
 }
 
 /** Team Phase transfer of fighters between the two AEGIS wings. */
 export default function AegisFighterWingExchangePanel({ counts, capacity, blockerFor, onExchange }: {
-  readonly counts: Readonly<Record<AegisFighterWingId, WingCount | undefined>>;
+  readonly counts: Readonly<Record<FighterWingId, WingCount | undefined>>;
   readonly capacity: 4 | 6;
-  readonly blockerFor: (sourceWingId: AegisFighterWingId) => string | null;
-  readonly onExchange: (sourceWingId: AegisFighterWingId, amount: number) => Promise<FighterWingExchangeResult | null>;
+  readonly blockerFor: (sourceWingId: FighterWingId) => string | null;
+  readonly onExchange: (sourceWingId: FighterWingId, amount: number) => Promise<FighterWingExchangeResult | null>;
 }) {
-  const [sourceWingId, setSourceWingId] = useState<AegisFighterWingId>('fighter-wing-alpha');
+  const [sourceWingId, setSourceWingId] = useState<FighterWingId>('fighter-wing-alpha');
   const [amount, setAmount] = useState(1);
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState<string>();
-  const targetWingId = otherWing(sourceWingId);
+  const targetWingId = otherFighterWing(sourceWingId);
   const source = counts[sourceWingId];
   const target = counts[targetWingId];
   const maximum = source && target ? Math.max(0, Math.min(source.count, capacity - target.count)) : 0;
   const chosen = Math.min(amount, Math.max(1, maximum));
   const blocker = blockerFor(sourceWingId);
-  const sourceName = WING_NAMES[sourceWingId];
-  const targetName = WING_NAMES[targetWingId];
+  const sourceName = fighterWingCallsign(sourceWingId);
+  const targetName = fighterWingCallsign(targetWingId);
 
   function submit() {
     if (blocker || pending || chosen > maximum) return;
@@ -75,7 +67,7 @@ export default function AegisFighterWingExchangePanel({ counts, capacity, blocke
         <label>
           Move fighters from
           <select value={sourceWingId} disabled={pending}
-            onChange={(event) => { setSourceWingId(event.target.value as AegisFighterWingId); setAmount(1); setNotice(undefined); }}>
+            onChange={(event) => { setSourceWingId(event.target.value as FighterWingId); setAmount(1); setNotice(undefined); }}>
             <option value="fighter-wing-alpha">Alpha to Bravo</option>
             <option value="fighter-wing-bravo">Bravo to Alpha</option>
           </select>

@@ -9,7 +9,10 @@ import { Link } from 'react-router-dom';
 import {
   AEGIS_FIGHTER_BAY_SYSTEMS,
   AEGIS_ROLE_CONSOLES,
+  fighterWingCallsign,
   isImplementedAegisRole,
+  otherFighterWing,
+  type FighterWingId,
   type AegisCraft,
   type AegisShipSystem,
 } from '@/data/aegisConsoles';
@@ -24,7 +27,6 @@ import { phaseForSession } from '@/lib/turnPhase';
 import {
   buildFighter as buildFighterAction,
   exchangeFighterWings,
-  type AegisFighterWingId,
   type FighterBuildResult,
 } from '@/lib/sessionService';
 import { subscribeWolfAttackMemberView } from '@/lib/firestore';
@@ -206,9 +208,9 @@ function fighterWingExchangeBlocker({ hasServerSnapshot, connection, writable, c
   readonly writable: boolean;
   readonly currentTurn: number | undefined;
   readonly phase: TurnPhase | undefined;
-  readonly counts: Readonly<Record<AegisFighterWingId, { readonly count: number; readonly revision: number } | undefined>>;
+  readonly counts: Readonly<Record<FighterWingId, { readonly count: number; readonly revision: number } | undefined>>;
   readonly capacity: 4 | 6;
-  readonly sourceWingId: AegisFighterWingId;
+  readonly sourceWingId: FighterWingId;
 }): string | null {
   if (!hasServerSnapshot) return 'Exchange unavailable // awaiting live server state. Next actor // Wing Commander reconnects for the current wing counts.';
   if (connection !== 'live') return 'Exchange unavailable // reconnect required. Next actor // Wing Commander restores the live connection.';
@@ -217,8 +219,8 @@ function fighterWingExchangeBlocker({ hasServerSnapshot, connection, writable, c
   if (!phase || phase.airspace.state !== 'restricted') return 'Exchange unavailable // Team Phase required. Next actor // Wing Commander waits for the next Team Phase; GM controls cycle advancement.';
   if (phase.timerPause) return 'Exchange unavailable // Team Phase clock paused. Next actor // GM resumes the clock.';
   if (wolfAttackActive) return 'Exchange unavailable // Wolf attack active; the wings are at the combat table. Next actor // Wing Commander waits for the attack to resolve.';
-  const targetWingId: AegisFighterWingId = sourceWingId === 'fighter-wing-alpha' ? 'fighter-wing-bravo' : 'fighter-wing-alpha';
-  const wingName = (wingId: AegisFighterWingId) => wingId === 'fighter-wing-alpha' ? 'Alpha' : 'Bravo';
+  const targetWingId = otherFighterWing(sourceWingId);
+  const wingName = fighterWingCallsign;
   const source = counts[sourceWingId];
   const target = counts[targetWingId];
   if (!source || !target) return 'Exchange unavailable // fighter strength is not published. Next actor // Wing Commander waits for the current server strength.';

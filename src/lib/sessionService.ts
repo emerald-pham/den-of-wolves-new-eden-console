@@ -62,7 +62,7 @@ import type {
   PursuitEmergencyWindow,
 } from '@/types/game';
 import { parseEntityId } from '@/types/identifiers';
-import { AEGIS_FIGHTER_WING_CAPACITY } from '@/data/aegisConsoles';
+import { AEGIS_FIGHTER_WING_CAPACITY, otherFighterWing, type FighterWingId } from '@/data/aegisConsoles';
 import type { VesselActionEnvelope } from '@/types/vesselAction';
 import { resourcesForShip, type ResourceId, type ShipResourceInventory } from '@/data/resources';
 import type { CounterStep } from './counterPreview';
@@ -1942,23 +1942,22 @@ export async function buildFighter(wingId: string): Promise<FighterBuildResult |
   }
 }
 
-export type AegisFighterWingId = 'fighter-wing-alpha' | 'fighter-wing-bravo';
 
 export interface FighterWingExchangeResult {
   /** `replayed`: the server returned the receipt of an earlier request whose reply was lost. */
   readonly status: 'committed' | 'replayed' | 'stale';
-  readonly sourceWingId: AegisFighterWingId;
-  readonly targetWingId: AegisFighterWingId;
+  readonly sourceWingId: FighterWingId;
+  readonly targetWingId: FighterWingId;
   readonly amount: number;
   readonly capacity: 4 | 6;
   readonly turn: number;
-  readonly counts: Readonly<Record<AegisFighterWingId, Readonly<{ count: number; revision: number }>>>;
+  readonly counts: Readonly<Record<FighterWingId, Readonly<{ count: number; revision: number }>>>;
 }
 
 type FighterWingExchangePayload = Readonly<{
   sessionId: string;
   requestId: string;
-  sourceWingId: AegisFighterWingId;
+  sourceWingId: FighterWingId;
   amount: number;
   expectedAlphaRevision: number;
   expectedBravoRevision: number;
@@ -1996,7 +1995,7 @@ function fighterWingExchangeReply(
   return {
     status: raw.status,
     sourceWingId: payload.sourceWingId,
-    targetWingId: payload.sourceWingId === 'fighter-wing-alpha' ? 'fighter-wing-bravo' : 'fighter-wing-alpha',
+    targetWingId: otherFighterWing(payload.sourceWingId),
     amount: payload.amount,
     capacity: raw.capacity,
     turn: raw.turn as number,
@@ -2006,7 +2005,7 @@ function fighterWingExchangeReply(
 
 /** Move fighters between AEGIS wings during the Team Phase as the Wing Commander. */
 export async function exchangeFighterWings(
-  sourceWingId: AegisFighterWingId,
+  sourceWingId: FighterWingId,
   amount: number,
 ): Promise<FighterWingExchangeResult | null> {
   const store = useSessionStore.getState();
