@@ -10837,7 +10837,7 @@ export const dealPrivateInitialCards = onCall<{
         missionLeaderUid: missionLeader.uid,
       },
       modifiers: boaReclamation ? [
-        `Boa reclamation ${boaReclamation.opportunityId} // printed difficulty ${boaReclamation.printedDifficulty ?? 'server-calculated'} // effective difficulty ${boaReclamation.effectiveDifficulty ?? 'half of server-calculated difficulty'} (odd halves round up; provisional ruling) // reward replaced by 1 Scrap on success; no ordinary or critical bonus`,
+        `Boa reclamation ${boaReclamation.opportunityId} // printed difficulty ${boaReclamation.printedDifficulty ?? 'server-calculated'} // effective difficulty ${boaReclamation.effectiveDifficulty ?? 'half of server-calculated difficulty'} (odd halves round up; owner decision 2026-11-05) // reward replaced by 1 Scrap on success; no ordinary or critical bonus`,
       ] : [],
       ...(boaReclamation ? { boaReclamation: {
         actorUid: boaReclamation.actorUid,

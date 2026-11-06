@@ -33,7 +33,7 @@ describe('Boa reclamation difficulty', () => {
   });
 
   it('rounds an odd halved difficulty up and leaves the printed critical threshold unchanged', () => {
-    // Provisional coordinator ruling (pending owner confirmation): 15 / 2 rounds up to 8.
+    // Owner decision (2026-11-05): an odd halved difficulty rounds up, so 15 / 2 becomes 8.
     expect(applyBoaReclamationDifficulty([outcome('E-2', 7, 15, 25, 'failure')], 'E-2')).toEqual([
       expect.objectContaining({ difficulty: 8, criticalThreshold: 25, outcome: 'failure', rewardBranch: 'none' }),
     ]);
