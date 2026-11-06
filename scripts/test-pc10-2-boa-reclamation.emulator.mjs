@@ -38,8 +38,8 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
   const db = getFirestore();
   const request = (uid, data) => ({ auth: { uid, token: { sub: uid, firebase: { sign_in_provider: 'custom' } } }, data });
 
-  test('a pre-deal Boa choice resolves once to one Scrap in Boa cargo and replays exactly', async () => {
-    const id = `pc10-2-boa-${process.pid}`;
+  /** Seeds one live 19-player Capybara session at a Chart A Derelict Station (D) arrival. */
+  async function seedSession(id) {
     const session = db.doc(`sessions/${id}`);
     const activeRoleIds = [...recommendedRoleIds(19)];
     const activeVesselIds = [...activeVesselIdsForRoles(activeRoleIds)];
@@ -56,41 +56,46 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
     const prefix = ['10♥', '4♦', '4♣'];
     const deck = missionDeckStateFromCards([...prefix.map(cardId => allCards.find(card => card.id === cardId)),
       ...allCards.filter(card => !prefix.includes(card.id))]);
-    try {
-      const batch = db.batch();
-      batch.set(session, { phase: 'active', currentTurn: 2, setupRevision: 1, playerCount: 19,
-        expansion: 'capybara', turnLimit: 6, chartId: 'A', chartSelectionLocked: true,
-        dioneEnabled: true, capybaraEnabled: true, universalArbourEnabled: false, wolfCultEnabled: false,
-        activeRoleIds, activeVesselIds,
-        shipResources: { aegis: { food: 20, water: 20, fuel: 10, ore: 0, materials: 10, securityTeams: 9 } },
-        shipSurvivors: { aegis: 2500 },
-        shuttleCargo: { boa: { scrap: 2 } },
-        shuttleDockings: [{ shuttleId: 'boa', shipId: 'capybara', dockedAt: now }],
-        shuttleControl: {
-          boa: { shuttleId: 'boa', ownerRoleId: 'capybara-recycler', ownerUid: 'boa', holderUid: 'boa', revision: 1 },
-        }, retainedShuttles: {},
-        turnPhase: { turn: 2, teamPhaseEndsAt: now, openAirspaceEndsAt: end,
-          airspace: { state: 'lifted', tickerActive: true, pressAccess: true } },
-        turnState: { currentTurn: 2, maxTurn: 6, phase: 'coordination', phaseRevision: 3, startedAt: now, endsAt: end } });
-      batch.set(db.doc(`sessions/${id}/serverState/navigation`), { revision: 4,
-        shipGalacticCoordinates: Object.fromEntries(activeVesselIds.map(ship => [ship, coordinate])),
-        shipNavigationLogs: Object.fromEntries(activeVesselIds.map(ship => [ship, []])), pursuitGroups: { 'fleet-1': 0 } });
-      batch.set(db.doc(`sessions/${id}/fleetGroups/fleet-1`), { id: 'fleet-1', vesselIds: activeVesselIds,
-        memberUids: ['gm', 'boa', 'captain'] });
-      for (const [uid, role, assignedRoleId] of [['gm', 'gm', null], ['boa', 'player', 'capybara-recycler'],
-        ['captain', 'player', 'capybara-captain']]) {
-        batch.set(db.doc(`sessions/${id}/players/${uid}`), { uid, sessionId: id, role, connected: true,
-          fleetGroupId: 'fleet-1', assignedRoleId });
-      }
-      batch.set(db.doc(`sessions/${id}/gmInstances/bridge`), { uid: 'gm', connected: true, lastSeenAt: now });
-      batch.set(db.doc(`sessions/${id}/craftOwnership/manifest`),
-        roleOwnedCraftManifestForSetup(activeRoleIds, 'expansion-capybara'));
-      batch.set(db.doc(`sessions/${id}/serverState/missionDeck`), { ...deck, dealtCount: 0 });
-      batch.set(db.doc(`sessions/${id}/missionOpportunities/${opportunityId}`), { type: 'mission-opportunity',
-        status: 'available', sessionId: id, id: opportunityId, groupId: 'fleet-1', chart: 'A', coordinate,
-        siteCode: 'D', sourceShipId: 'capybara', sourceTransitionId: 'jump-source-arrival', sourceCycle: 2 });
-      await batch.commit();
+    const batch = db.batch();
+    batch.set(session, { phase: 'active', currentTurn: 2, setupRevision: 1, playerCount: 19,
+      expansion: 'capybara', turnLimit: 6, chartId: 'A', chartSelectionLocked: true,
+      dioneEnabled: true, capybaraEnabled: true, universalArbourEnabled: false, wolfCultEnabled: false,
+      activeRoleIds, activeVesselIds,
+      shipResources: { aegis: { food: 20, water: 20, fuel: 10, ore: 0, materials: 10, securityTeams: 9 } },
+      shipSurvivors: { aegis: 2500 },
+      shuttleCargo: { boa: { scrap: 2 } },
+      shuttleDockings: [{ shuttleId: 'boa', shipId: 'capybara', dockedAt: now }],
+      shuttleControl: {
+        boa: { shuttleId: 'boa', ownerRoleId: 'capybara-recycler', ownerUid: 'boa', holderUid: 'boa', revision: 1 },
+      }, retainedShuttles: {},
+      turnPhase: { turn: 2, teamPhaseEndsAt: now, openAirspaceEndsAt: end,
+        airspace: { state: 'lifted', tickerActive: true, pressAccess: true } },
+      turnState: { currentTurn: 2, maxTurn: 6, phase: 'coordination', phaseRevision: 3, startedAt: now, endsAt: end } });
+    batch.set(db.doc(`sessions/${id}/serverState/navigation`), { revision: 4,
+      shipGalacticCoordinates: Object.fromEntries(activeVesselIds.map(ship => [ship, coordinate])),
+      shipNavigationLogs: Object.fromEntries(activeVesselIds.map(ship => [ship, []])), pursuitGroups: { 'fleet-1': 0 } });
+    batch.set(db.doc(`sessions/${id}/fleetGroups/fleet-1`), { id: 'fleet-1', vesselIds: activeVesselIds,
+      memberUids: ['gm', 'boa', 'captain'] });
+    for (const [uid, role, assignedRoleId] of [['gm', 'gm', null], ['boa', 'player', 'capybara-recycler'],
+      ['captain', 'player', 'capybara-captain']]) {
+      batch.set(db.doc(`sessions/${id}/players/${uid}`), { uid, sessionId: id, role, connected: true,
+        fleetGroupId: 'fleet-1', assignedRoleId });
+    }
+    batch.set(db.doc(`sessions/${id}/gmInstances/bridge`), { uid: 'gm', connected: true, lastSeenAt: now });
+    batch.set(db.doc(`sessions/${id}/craftOwnership/manifest`),
+      roleOwnedCraftManifestForSetup(activeRoleIds, 'expansion-capybara'));
+    batch.set(db.doc(`sessions/${id}/serverState/missionDeck`), { ...deck, dealtCount: 0 });
+    batch.set(db.doc(`sessions/${id}/missionOpportunities/${opportunityId}`), { type: 'mission-opportunity',
+      status: 'available', sessionId: id, id: opportunityId, groupId: 'fleet-1', chart: 'A', coordinate,
+      siteCode: 'D', sourceShipId: 'capybara', sourceTransitionId: 'jump-source-arrival', sourceCycle: 2 });
+    await batch.commit();
+    return { session, coordinate, opportunityId, missionId, missionRef, choiceRef };
+  }
 
+  test('a pre-deal Boa choice resolves once to one Scrap in Boa cargo and replays exactly', async () => {
+    const id = `pc10-2-boa-${process.pid}`;
+    const { session, coordinate, opportunityId, missionId, missionRef, choiceRef } = await seedSession(id);
+    try {
       const workspace = await readBoaMissionReclamationWorkspace.run(request('boa', { sessionId: id }));
       assert.equal(workspace.opportunities.length, 1);
       assert.equal(workspace.opportunities[0].missionOpportunityId, opportunityId);
@@ -156,6 +161,29 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
       assert.equal(receipt.boaScrapAwarded, 1);
       assert.deepEqual(receipt.boaScrapCargo, { scrap: 3 });
       assert.equal((await missionRef.get()).get('status'), 'complete');
+    } finally { await db.recursiveDelete(session); }
+  });
+
+  test('a Boa choice whose Recycler is not dealt in lapses and stays visible to that Recycler', async () => {
+    const id = `pc10-2-boa-lapse-${process.pid}`;
+    const { session, coordinate, opportunityId, choiceRef } = await seedSession(id);
+    try {
+      const choice = { sessionId: id, requestId: 'boa-choice-lapse', missionOpportunityId: opportunityId,
+        taskOpportunityId: 'D-1', expectedControlRevision: 1, expectedChoiceRevision: 0, expectedCycle: 2 };
+      assert.equal((await chooseBoaMissionReclamationOpportunity.run(request('boa', choice))).status, 'committed');
+      const deal = request('gm', { sessionId: id, instanceId: 'bridge', requestId: 'start-without-boa',
+        expectedSetupRevision: 1, expectedPhaseRevision: 3, expectedCycle: 2, opportunityId, groupId: 'fleet-1',
+        chart: 'A', coordinate, sourceCycle: 2, missionLeaderUid: 'captain', participantUids: ['captain'] });
+      assert.equal((await dealPrivateInitialCards.run(deal)).status, 'committed');
+      assert.deepEqual({ status: (await choiceRef.get()).get('status'), reason: (await choiceRef.get()).get('lapseReason') },
+        { status: 'lapsed', reason: 'recycler-not-on-mission' });
+      assert.equal((await db.doc(`sessions/${id}/missionStartSnapshots/${opportunityId}`).get()).exists, true);
+
+      const workspace = await readBoaMissionReclamationWorkspace.run(request('boa', { sessionId: id }));
+      assert.deepEqual(workspace.opportunities, []);
+      assert.deepEqual(workspace.lapsedChoices.map(({ missionOpportunityId, taskOpportunityId, reason }) =>
+        ({ missionOpportunityId, taskOpportunityId, reason })),
+      [{ missionOpportunityId: opportunityId, taskOpportunityId: 'D-1', reason: 'recycler-not-on-mission' }]);
     } finally { await db.recursiveDelete(session); }
   });
 }

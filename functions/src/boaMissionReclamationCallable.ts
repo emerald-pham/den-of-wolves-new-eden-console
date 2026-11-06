@@ -352,13 +352,10 @@ export function createBoaMissionReclamationCallables(dependencies: BoaMissionRec
             requireDocument(await transaction.get(dependencies.db.doc(path)), 'The mission-start record'))))
             .some(({ exists }) => exists)));
         const opportunities = local.flatMap(({ opportunity, definition }, index) => {
-          // Offer only what the deal would accept: unstarted and not superseded by a later visit.
-          if (started[index] || laterCycleMissionOpportunityIds(opportunity, context.cycle)
-            .some((id) => recordedIds.has(id))) return [];
           const currentChoice = choicesById.get(opportunity.id);
           const choice = currentChoice?.data();
-          const choiceRevision = !choice ? 0 : isRecord(choice) &&
-            Number.isSafeInteger(choice.revision) && (choice.revision as number) >= 0 ? choice.revision as number : -1;
+          // A choice lapses only inside the deal that starts its mission, so report it before the
+          // started filter below; that filter applies only to what is offered.
           if (isRecord(choice) && choice.status === 'lapsed') {
             if (choice.actorUid === actorUid && choice.lapsedCycle === context.cycle &&
                 typeof choice.opportunityTaskId === 'string' && LAPSE_REASONS.includes(choice.lapseReason as never)) {
@@ -370,6 +367,11 @@ export function createBoaMissionReclamationCallables(dependencies: BoaMissionRec
             }
             return [];
           }
+          // Offer only what the deal would accept: unstarted and not superseded by a later visit.
+          if (started[index] || laterCycleMissionOpportunityIds(opportunity, context.cycle)
+            .some((id) => recordedIds.has(id))) return [];
+          const choiceRevision = !choice ? 0 : isRecord(choice) &&
+            Number.isSafeInteger(choice.revision) && (choice.revision as number) >= 0 ? choice.revision as number : -1;
           if (choiceRevision < 0 || isRecord(choice) && choice.status === 'consumed') return [];
           return [{
             missionOpportunityId: opportunity.id,

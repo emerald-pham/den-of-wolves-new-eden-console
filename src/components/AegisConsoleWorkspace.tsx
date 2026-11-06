@@ -18,7 +18,7 @@ import {
 } from '@/data/aegisConsoles';
 import aegis from '@/data/vessels/aegis';
 import type {
-  DamageDraw, MaintenanceCycle, ShipDamageState, ShipNavigationLogs, TurnPhase, WolfAttackMemberView,
+  DamageDraw, MaintenanceCycle, ShipDamageState, ShipNavigationLogs, TurnPhase,
 } from '@/types/game';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
@@ -30,6 +30,7 @@ import {
   type FighterBuildResult,
 } from '@/lib/sessionService';
 import { subscribeWolfAttackMemberView } from '@/lib/firestore';
+import { wolfAttackHoldsFleet } from '@/lib/wolfAttackFleetHold';
 import AdmiralDirectiveWorkspace from './AdmiralDirectives';
 import AegisFighterWingExchangePanel from './AegisFighterWingExchangePanel';
 
@@ -364,17 +365,6 @@ export function FighterWingCard({
       </>}
     </article>
   );
-}
-
-/**
- * Whether the member-visible Wolf attack still holds the fleet. This mirrors
- * the server's `wolfAttackBlocksNormalMovement`: any attack record blocks
- * until it is resolved and normal movement reopens, whatever cycle declared
- * it. Members only see the resolved/finished step, which the server writes in
- * the same commit that unlocks airspace. The server remains the authority.
- */
-function wolfAttackHoldsFleet(view: Pick<WolfAttackMemberView, 'status' | 'currentStep'> | null): boolean {
-  return view !== null && (view.status !== 'resolved' || view.currentStep !== 'resolved');
 }
 
 function useWolfAttackHoldsFleet(sessionId: string | undefined, live: boolean): boolean {
