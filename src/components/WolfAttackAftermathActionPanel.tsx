@@ -78,9 +78,10 @@ export default function WolfAttackAftermathActionPanel({ operator }: Readonly<{ 
       retainedFromDestroyedShip(session ?? undefined, shuttleId, shipId);
     return dockedAtLiveTarget || retainedAtDestroyedTarget;
   };
+  // A ship destroyed after this attack counts as destroyed, as the server rechecks.
   const scrapTargets = typeof operator === 'object' && view?.status === 'resolved' &&
     view.currentStep === 'resolved' ? damage.filter((row) =>
-      row.damage >= 3 && canReachPickup(row.shipId, row.destroyed) &&
+      row.damage >= 3 && canReachPickup(row.shipId, pickupShipDestroyed(row, row.shipId, session?.shipDamage)) &&
       !results.some((result) => result.targetId === row.shipId && result.sourceId.startsWith('capybara-scrap-collection-')))
     : [];
   // Pickups the server carried past a later attack stay collectable once, but

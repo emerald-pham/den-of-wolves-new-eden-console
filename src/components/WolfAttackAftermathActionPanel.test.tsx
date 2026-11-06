@@ -116,6 +116,23 @@ it('offers the Scrap from a destroyed threshold ship to the Macaw retained from 
   }, expect.any(String)));
 });
 
+it('offers the current attack Scrap to the retained Macaw when its ship was destroyed after that attack', async () => {
+  installMacawHolder({ shuttleDockings: [], retainedShuttles: { macaw: { status: 'retained', shuttleId: 'macaw',
+    ownerRoleId: 'capybara-captain', holderUid: 'actor-1', destroyedHostShipId: 'aegis',
+    controlRevision: 1, retainedAt: '2026-10-04T09:59:00.000Z' } },
+  shipDamage: { aegis: { damagedSystemIds: [], destroyed: true } } });
+  render(<WolfAttackAftermathActionPanel operator={{ shuttleId: 'macaw' }} />);
+  // The attack record still says AEGIS survived; the later destruction is in the session ship damage.
+  act(() => publish?.(member));
+
+  const collect = screen.getByRole('button', { name: 'Collect Scrap from AEGIS' });
+  expect(collect).toBeEnabled();
+  fireEvent.click(collect);
+  await waitFor(() => expect(mocks.commit).toHaveBeenCalledWith('attack-7', {
+    action: 'collect-scrap', shuttleId: 'macaw', targetShipId: 'aegis',
+  }, expect.any(String)));
+});
+
 it('offers no Scrap from a destroyed ship to a Macaw retained from a different host', () => {
   installMacawHolder({ shuttleDockings: [], retainedShuttles: { macaw: { status: 'retained', shuttleId: 'macaw',
     ownerRoleId: 'capybara-captain', holderUid: 'actor-1', destroyedHostShipId: 'dione',
