@@ -318,3 +318,21 @@ it('lets the Wing Commander retry an interrupted choice with the same request an
   expect(within(panel).queryByRole('button', { name: 'Submit mission assignments' })).not.toBeInTheDocument();
   expect(invoke).toHaveBeenCalledTimes(2);
 });
+
+it('shows a resolved Boa reclamation task with its one-Scrap replacement reward and no printed bonus', () => {
+  renderPanel({
+    actorUid: 'alice', isMissionLeader: true, privateState: null,
+    publicState: {
+      ...basePublicMission,
+      status: 'resolved', phase: 'resolved',
+      outcomes: [
+        { opportunityId: 'D-1', total: 20, outcome: 'critical-success' },
+        { opportunityId: 'D-2', total: 4, outcome: 'failure' },
+      ],
+      rewards: [{ opportunityId: 'D-1', resources: { scrap: 1 } }, { opportunityId: 'D-2', resources: {} }],
+    },
+  });
+  const panel = screen.getByRole('region', { name: 'Away mission // mission-1' });
+  const boaTask = within(panel).getByRole('heading', { name: 'D-1' }).closest('article')!;
+  expect(within(boaTask as HTMLElement).getByText('Reward // scrap 1')).toBeVisible();
+});

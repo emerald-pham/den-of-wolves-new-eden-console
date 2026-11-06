@@ -1788,6 +1788,7 @@ function fighterBuildReply(value: unknown): FighterBuildResult | null {
     ...(typeof raw.materials === 'number' && Number.isSafeInteger(raw.materials) ? { materials: raw.materials } : {}),
     ...(typeof raw.currentRevision === 'number' && Number.isSafeInteger(raw.currentRevision)
       ? { currentRevision: raw.currentRevision } : {}),
+    ...(typeof raw.revision === 'number' && Number.isSafeInteger(raw.revision) ? { revision: raw.revision } : {}),
     ...(typeof raw.actorUid === 'string' ? { actorUid: raw.actorUid } : {}),
     ...(typeof raw.actorRoleId === 'string' || raw.actorRoleId === null ? { actorRoleId: raw.actorRoleId as string | null } : {}),
     ...(typeof raw.vesselId === 'string' ? { vesselId: raw.vesselId } : {}),
@@ -1798,49 +1799,76 @@ function fighterBuildReply(value: unknown): FighterBuildResult | null {
   };
 }
 
+interface FighterBuildPayload {
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly wingId: string;
+  readonly expectedRevision: number;
+  readonly instanceId?: string;
+}
+
+/**
+ * A replacement-fighter build whose reply was lost in transport. Building the
+ * same wing again resends this exact request so the server replays its
+ * receipt instead of spending another material.
+ */
+let unconfirmedFighterBuild: Readonly<{ key: string; payload: FighterBuildPayload }> | null = null;
+
 /** Build one fighter through the server-owned, charged AEGIS Construction Bay. */
 export async function buildFighter(wingId: string): Promise<FighterBuildResult | null> {
   const store = useSessionStore.getState();
   if (!store.session) throw new Error('Join a session before building a fighter.');
   requireFreshSessionAuthority();
   const sessionId = store.session.id;
-  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
-  const expectedRevision = store.session.vesselActionRevisions?.aegis ?? 0;
-  const payload = {
-    sessionId,
-    requestId: commandId(),
-    wingId,
-    expectedRevision,
-    ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
-  };
+  const uid = sessionAuthorityUid(store);
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, uid);
+  const key = JSON.stringify([sessionId, uid, store.gmInstance?.id ?? null, wingId]);
+  const payload: FighterBuildPayload = unconfirmedFighterBuild?.key === key
+    ? unconfirmedFighterBuild.payload
+    : {
+      sessionId,
+      requestId: commandId(),
+      wingId,
+      expectedRevision: store.session.vesselActionRevisions?.aegis ?? 0,
+      ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
+    };
+  unconfirmedFighterBuild = { key, payload };
   try {
     await ensureSignedIn();
-    const call = httpsCallable<typeof payload, unknown>(functions(), 'buildFighter');
+    const call = httpsCallable<FighterBuildPayload, unknown>(functions(), 'buildFighter');
     const reply = fighterBuildReply((await call(payload)).data);
-    if (!reply) throw new Error('The server returned an invalid fighter construction result.');
+    if (!reply || reply.wingId !== wingId) throw new Error('The server returned an invalid fighter construction result.');
+    unconfirmedFighterBuild = null;
     const current = useSessionStore.getState().session;
     if (!current || current.id !== sessionId || !authorityCheckpointIsCurrent(checkpoint) ||
       reply.status === 'stale' || reply.count === undefined || reply.fighterWingRevision === undefined ||
       reply.materials === undefined) return reply;
+    // A replayed result can arrive after a newer live snapshot; never regress it.
+    const wingIsNewer = (current.fighterWingCounts?.[reply.wingId]?.revision ?? -1) >= reply.fighterWingRevision;
+    const aegisRevision = reply.revision;
+    const aegisIsNewer = aegisRevision === undefined || (current.vesselActionRevisions?.aegis ?? -1) >= aegisRevision;
+    if (wingIsNewer && aegisIsNewer) return reply;
     useSessionStore.getState().setSession({
       ...current,
-      fighterWingCounts: {
-        ...current.fighterWingCounts,
-        [reply.wingId]: { count: reply.count, revision: reply.fighterWingRevision },
-      },
-      ...(current.shipResources?.aegis ? {
-        shipResources: {
-          ...current.shipResources,
-          aegis: { ...current.shipResources.aegis, materials: reply.materials },
+      ...(wingIsNewer ? {} : {
+        fighterWingCounts: {
+          ...current.fighterWingCounts,
+          [reply.wingId]: { count: reply.count, revision: reply.fighterWingRevision },
         },
-      } : {}),
-      vesselActionRevisions: {
-        ...(current.vesselActionRevisions ?? {}),
-        ...(reply.revision === undefined ? {} : { aegis: reply.revision }),
-      },
+      }),
+      ...(aegisIsNewer || aegisRevision === undefined ? {} : {
+        ...(current.shipResources?.aegis ? {
+          shipResources: {
+            ...current.shipResources,
+            aegis: { ...current.shipResources.aegis, materials: reply.materials },
+          },
+        } : {}),
+        vesselActionRevisions: { ...(current.vesselActionRevisions ?? {}), aegis: aegisRevision },
+      }),
     });
     return reply;
   } catch (cause) {
+    if (!isTransientCommandError(cause)) unconfirmedFighterBuild = null;
     useSessionStore.getState().setCommunicationError(interception(cause));
     return null;
   }

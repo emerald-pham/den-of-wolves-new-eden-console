@@ -73,6 +73,7 @@ const {
   dismissPopulationAlert,
   dismissUnrestAlert,
   exchangeFighterWings,
+  buildFighter,
   jumpShip,
   moveShipToLocation,
   startAwayMission,
@@ -5893,5 +5894,122 @@ describe('Fighter Wing exchange', () => {
     await expect(exchangeFighterWings('fighter-wing-alpha', 2)).resolves.toMatchObject({ status: 'stale' });
     expect(payloads[1]?.requestId).not.toBe(payloads[0]?.requestId);
     expect(useSessionStore.getState().session?.fighterWingCounts).toEqual(wingSession.fighterWingCounts);
+  });
+});
+
+describe('Fighter rebuild after combat losses', () => {
+  // Alpha lost two fighters in combat; AEGIS has materials for replacements.
+  const rebuildSession = {
+    ...session, phase: 'active' as const, currentTurn: 2,
+    fighterWingCounts: {
+      'fighter-wing-alpha': { count: 2, revision: 4 },
+      'fighter-wing-bravo': { count: 4, revision: 1 },
+    },
+    shipResources: { aegis: { fuel: 3, food: 5, water: 5, materials: 20 } },
+    vesselActionRevisions: { aegis: 7 },
+  };
+
+  function committed(payload: unknown, overrides: Record<string, unknown> = {}) {
+    const sent = payload as Record<string, unknown>;
+    return { data: {
+      status: 'committed', sessionId: 's1', requestId: sent.requestId, wingId: sent.wingId,
+      count: 3, fighterWingRevision: 5, materials: 19, capacity: 4,
+      actorUid: 'u1', actorRoleId: 'wing-commander', vesselId: 'aegis', turn: 2, phase: 'maintenance',
+      revision: 8, idempotencyKey: sent.requestId, auditId: `fighter-build-${String(sent.requestId)}`,
+      ...overrides,
+    } };
+  }
+
+  beforeEach(() => {
+    authMockState.uid = 'u1';
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity(rebuildSession as never, {
+      ...player, assignedRoleId: 'wing-commander', seatId: 'wing-commander', activeConsoleRoleId: 'wing-commander',
+    });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('pays one material for one replacement fighter and applies the committed wing state and AEGIS revision', async () => {
+    const build = Object.assign(vi.fn(async (payload: unknown) => committed(payload)), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(build as never);
+
+    await expect(buildFighter('fighter-wing-alpha')).resolves.toMatchObject({
+      status: 'committed', wingId: 'fighter-wing-alpha', count: 3, materials: 19, revision: 8,
+    });
+    expect(vi.mocked(httpsCallable).mock.calls.at(-1)?.[1]).toBe('buildFighter');
+    expect(build).toHaveBeenCalledWith({
+      sessionId: 's1', requestId: expect.any(String), wingId: 'fighter-wing-alpha', expectedRevision: 7,
+    });
+    const current = useSessionStore.getState().session;
+    expect(current?.fighterWingCounts?.['fighter-wing-alpha']).toEqual({ count: 3, revision: 5 });
+    expect(current?.shipResources?.aegis?.materials).toBe(19);
+    // The next rebuild is checked against the AEGIS revision this build produced.
+    expect(current?.vesselActionRevisions?.aegis).toBe(8);
+  });
+
+  it('retries an unconfirmed rebuild with the same request so the server replays it instead of charging twice', async () => {
+    const payloads: Array<Record<string, unknown>> = [];
+    const build = Object.assign(vi.fn(async (payload: unknown) => {
+      payloads.push(payload as Record<string, unknown>);
+      if (payloads.length === 1) throw Object.assign(new Error('network'), { code: 'functions/unavailable' });
+      return committed(payload);
+    }), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(build as never);
+
+    await expect(buildFighter('fighter-wing-alpha')).resolves.toBeNull();
+    expect(useSessionStore.getState().session?.fighterWingCounts?.['fighter-wing-alpha']).toEqual({ count: 2, revision: 4 });
+    await expect(buildFighter('fighter-wing-alpha')).resolves.toMatchObject({ status: 'committed', count: 3 });
+    expect(payloads[1]).toEqual(payloads[0]);
+
+    // A confirmed result ends the recovery: the next replacement is a new request.
+    await buildFighter('fighter-wing-alpha');
+    expect(payloads[2]?.requestId).not.toBe(payloads[0]?.requestId);
+  });
+
+  it('starts a new request after a definite rejection or for another wing', async () => {
+    const payloads: Array<Record<string, unknown>> = [];
+    const build = Object.assign(vi.fn(async (payload: unknown) => {
+      payloads.push(payload as Record<string, unknown>);
+      if (payloads.length === 1) throw Object.assign(new Error('network'), { code: 'functions/unavailable' });
+      if (payloads.length === 2) throw Object.assign(new Error('no materials'), { code: 'functions/failed-precondition' });
+      return committed(payload);
+    }), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(build as never);
+
+    await expect(buildFighter('fighter-wing-alpha')).resolves.toBeNull();
+    await expect(buildFighter('fighter-wing-bravo')).resolves.toBeNull();
+    expect(payloads[1]?.requestId).not.toBe(payloads[0]?.requestId);
+    expect(useSessionStore.getState().communicationError).not.toBeNull();
+    await buildFighter('fighter-wing-bravo');
+    expect(payloads[2]?.requestId).not.toBe(payloads[1]?.requestId);
+  });
+
+  it('does not regress a newer live snapshot when a replayed rebuild result arrives late', async () => {
+    let fail = true;
+    const build = Object.assign(vi.fn(async (payload: unknown) => {
+      if (fail) { fail = false; throw Object.assign(new Error('network'), { code: 'functions/deadline-exceeded' }); }
+      return committed(payload);
+    }), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(build as never);
+
+    await expect(buildFighter('fighter-wing-alpha')).resolves.toBeNull();
+    // The live snapshot already carries this build and a later one.
+    const live = useSessionStore.getState().session!;
+    useSessionStore.getState().setSession({
+      ...live,
+      fighterWingCounts: { ...live.fighterWingCounts, 'fighter-wing-alpha': { count: 4, revision: 6 } },
+      shipResources: { ...live.shipResources, aegis: { ...live.shipResources!.aegis!, materials: 18 } },
+      vesselActionRevisions: { aegis: 9 },
+    });
+    await expect(buildFighter('fighter-wing-alpha')).resolves.toMatchObject({ status: 'committed', count: 3 });
+    const current = useSessionStore.getState().session;
+    expect(current?.fighterWingCounts?.['fighter-wing-alpha']).toEqual({ count: 4, revision: 6 });
+    expect(current?.shipResources?.aegis?.materials).toBe(18);
+    expect(current?.vesselActionRevisions?.aegis).toBe(9);
   });
 });

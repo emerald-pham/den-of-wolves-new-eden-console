@@ -4,7 +4,7 @@ import JumpFailureReadout from './JumpFailureReadout';
 import JumpDriveConsole from './JumpDriveConsole';
 import FleetRoleConsoleTemplate from './FleetRoleConsoleTemplate';
 import ShipNavigationWorkspace from './ShipNavigationWorkspace';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AEGIS_FIGHTER_BAY_SYSTEMS,
@@ -25,6 +25,7 @@ import {
   type AegisFighterWingId,
   type FighterBuildResult,
 } from '@/lib/sessionService';
+import { subscribeWolfAttackMemberView } from '@/lib/firestore';
 import AdmiralDirectiveWorkspace from './AdmiralDirectives';
 import AegisFighterWingExchangePanel from './AegisFighterWingExchangePanel';
 
@@ -194,8 +195,9 @@ function fighterBuildGuidance({ hasServerSnapshot, connection, writable, constru
  * the server's guards so a disabled control always says what to wait for.
  */
 function fighterWingExchangeBlocker({ hasServerSnapshot, connection, writable, currentTurn, phase,
-  counts, capacity, sourceWingId }: {
+  wolfAttackActive, counts, capacity, sourceWingId }: {
   readonly hasServerSnapshot: boolean;
+  readonly wolfAttackActive: boolean;
   readonly connection: 'idle' | 'connecting' | 'live' | 'offline';
   readonly writable: boolean;
   readonly currentTurn: number | undefined;
@@ -210,6 +212,7 @@ function fighterWingExchangeBlocker({ hasServerSnapshot, connection, writable, c
   if (currentTurn === 0) return 'Exchange unavailable // Cycle 1 required. Next actor // GM completes the normal start.';
   if (!phase || phase.airspace.state !== 'restricted') return 'Exchange unavailable // Team Phase required. Next actor // Wing Commander waits for the next Team Phase; GM controls cycle advancement.';
   if (phase.timerPause) return 'Exchange unavailable // Team Phase clock paused. Next actor // GM resumes the clock.';
+  if (wolfAttackActive) return 'Exchange unavailable // Wolf attack active; the wings are at the combat table. Next actor // Wing Commander waits for the attack to resolve.';
   const targetWingId: AegisFighterWingId = sourceWingId === 'fighter-wing-alpha' ? 'fighter-wing-bravo' : 'fighter-wing-alpha';
   const wingName = (wingId: AegisFighterWingId) => wingId === 'fighter-wing-alpha' ? 'Alpha' : 'Bravo';
   const source = counts[sourceWingId];
@@ -228,7 +231,9 @@ function fighterWingExchangeBlocker({ hasServerSnapshot, connection, writable, c
 
 /** Describe the latest server reply to this console's build request without inventing state. */
 function fighterBuildResultNotice(wingName: string, result: FighterBuildResult | null): string {
-  if (!result) return 'Last build not confirmed // check live strength and materials before building again.';
+  if (!result) {
+    return 'Last build not confirmed // check live strength and materials before building again. Building this wing again resends the same request and cannot spend a second material.';
+  }
   if (result.status === 'stale') {
     return 'Last build not committed // AEGIS state changed before the build committed. No material was spent; review the live state and try again.';
   }
@@ -317,7 +322,7 @@ export function FighterWingCard({
         <div><dt>Effective capacity</dt><dd>{capacity}</dd></div>
         <div><dt>Launch eligibility</dt><dd>{launchEligibility}</dd></div>
         <div><dt>Live strength</dt><dd>{hasServerSnapshot && fighterWingCount
-          ? `${fighterWingCount.count} fighters // revision ${fighterWingCount.revision}`
+          ? `${fighterWingCount.count} fighter${fighterWingCount.count === 1 ? '' : 's'} // revision ${fighterWingCount.revision}`
           : hasServerSnapshot
             ? 'Unavailable // server has not published a fighter count'
             : 'Unavailable // awaiting fighter count from the server'}</dd></div>
@@ -353,6 +358,22 @@ export function FighterWingCard({
       </>}
     </article>
   );
+}
+
+/**
+ * Whether the member-visible Wolf attack for this cycle is still in progress.
+ * The server remains the authority (it also holds the exchange until the fleet
+ * is released); this only lets the console explain the block before a click.
+ */
+function useWolfAttackInProgress(sessionId: string | undefined, currentTurn: number | undefined, live: boolean): boolean {
+  const [view, setView] = useState<Readonly<{ sessionId: string; turn: number; declared: boolean }> | null>(null);
+  useEffect(() => {
+    if (!sessionId || !live) return undefined;
+    return subscribeWolfAttackMemberView(sessionId, (member) => setView(member
+      ? { sessionId, turn: member.turn, declared: member.status === 'declared' }
+      : null));
+  }, [sessionId, live]);
+  return Boolean(live && view && view.sessionId === sessionId && view.turn === currentTurn && view.declared);
 }
 
 /** The Admiral and Executive Officer use the same server-backed maintenance lane. */
@@ -442,6 +463,8 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
   const access = useConsoleAccess();
   const [buildingWing, setBuildingWing] = useState<string | null>(null);
   const [buildNotices, setBuildNotices] = useState<Readonly<Record<string, string>>>({});
+  const wolfAttackActive = useWolfAttackInProgress(session?.id, session?.currentTurn,
+    Boolean(session && sessionSnapshotFreshness === 'server') && connection === 'live');
   const starlight = console.craft[0];
   if (!starlight) return null;
   const hasServerSnapshot = Boolean(session && sessionSnapshotFreshness === 'server');
@@ -550,7 +573,7 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
             capacity={exchangeCapacity}
             blockerFor={(sourceWingId) => fighterWingExchangeBlocker({
               hasServerSnapshot, connection, writable: access.writable, currentTurn: session?.currentTurn,
-              phase: phaseForSession(session), counts: exchangeCounts, capacity: exchangeCapacity, sourceWingId,
+              phase: phaseForSession(session), wolfAttackActive, counts: exchangeCounts, capacity: exchangeCapacity, sourceWingId,
             })}
             onExchange={exchangeFighterWings}
           />

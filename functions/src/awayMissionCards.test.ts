@@ -16,7 +16,7 @@ describe('away mission private-card allocation', () => {
     expect(awayMissionCraftForRole('admiral')).toEqual([]);
     expect(awayMissionCraftForRole('gorgoneion-captain')).toEqual([]);
     expect(awayMissionCraftForRole('capybara-captain')).toEqual([]);
-    expect(awayMissionCraftForRole('capybara-recycler')).toEqual([]);
+    expect(awayMissionCraftForRole('capybara-recycler')).toEqual(['boa']);
     expect(awayMissionCraftForRole('warrior-captain')).toEqual([]);
     expect(awayMissionCraftForRole('joint-engineering-quellon-refinery')).toEqual([]);
     expect(awayMissionCraftForRole('joint-engineering-shepherd-icebreaker')).toEqual([]);

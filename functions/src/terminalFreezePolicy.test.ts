@@ -13,11 +13,16 @@ const missionLifecycleSource = readFileSync(new URL('./awayMissionLifecycleCalla
 const smallShipJumpSource = readFileSync(new URL('./smallShipJump.ts', import.meta.url), 'utf8');
 const turnInterstitialSource = readFileSync(new URL('./turnInterstitialCallable.ts', import.meta.url), 'utf8');
 const unionCraftSetupSource = readFileSync(new URL('./unionCraftSetupCallable.ts', import.meta.url), 'utf8');
-function sourceFunction(name: string): string {
-  const start = source.indexOf(`function ${name}(`);
+const boaMissionReclamationSource = readFileSync(
+  new URL('./boaMissionReclamationCallable.ts', import.meta.url), 'utf8');
+function sourceFunctionIn(sourceText: string, name: string): string {
+  const start = sourceText.indexOf(`function ${name}(`);
   if (start < 0) throw new Error(`Missing actual terminal authority helper: ${name}`);
-  const end = source.indexOf('\nfunction ', start + 1);
-  return source.slice(start, end < 0 ? undefined : end);
+  const end = sourceText.indexOf('\nfunction ', start + 1);
+  return sourceText.slice(start, end < 0 ? undefined : end);
+}
+function sourceFunction(name: string): string {
+  return sourceFunctionIn(source, name);
 }
 const rangeStateGuard = sourceFunction('requireWolfRangeState');
 const boardingSnapshotGuard = sourceFunction('wolfBoardingProtocolSnapshot') + sourceFunction('wolfBoardingDefenceInputs');
@@ -104,6 +109,16 @@ const terminalGuardDelegates: Readonly<Record<string, {
   getSmallShipJumpWorkspace: {
     target: 'smallShipJumpCallables.getSmallShipJumpWorkspace(request)',
     source: smallShipJumpSource, guard: 'requireActiveSession(session);',
+  },
+  readBoaMissionReclamationWorkspace: {
+    target: 'boaMissionReclamationCallables.readBoaMissionReclamationWorkspace({ auth: request.auth, data: request.data })',
+    source: sourceFunctionIn(boaMissionReclamationSource, 'requireBoaActor'),
+    guard: "session.get('phase') !== 'active'",
+  },
+  chooseBoaMissionReclamationOpportunity: {
+    target: 'boaMissionReclamationCallables.chooseBoaMissionReclamationOpportunity({ auth: request.auth, data: request.data })',
+    source: sourceFunctionIn(boaMissionReclamationSource, 'requireBoaActor'),
+    guard: "session.get('phase') !== 'active'",
   },
   jumpSmallShip: {
     target: 'smallShipJumpCallables.jumpSmallShip(request)',
@@ -253,4 +268,16 @@ it('keeps fleet note reads and writes routed through the actual active-game auth
   for (const name of ['readFleetGroupMessages', 'sendFleetGroupMessage', 'relayPdfColonelNews']) {
     expect(callableBody(matches.findIndex(match => match[1] === name))).toContain('await groupNoteAuthority(');
   }
+});
+
+it('routes both Boa mission-reclamation paths through their live-phase actor guard', () => {
+  const readStart = boaMissionReclamationSource.indexOf('readBoaMissionReclamationWorkspace: async (');
+  const chooseStart = boaMissionReclamationSource.indexOf('chooseBoaMissionReclamationOpportunity: async (');
+  expect(readStart).toBeGreaterThanOrEqual(0);
+  expect(chooseStart).toBeGreaterThan(readStart);
+  const guardCall = 'requireBoaActor(session, actor, group, actorUid, dependencies.isActivePlayer)';
+  expect(boaMissionReclamationSource.slice(readStart, chooseStart)).toContain(guardCall);
+  expect(boaMissionReclamationSource.slice(chooseStart)).toContain(guardCall);
+  expect(sourceFunctionIn(boaMissionReclamationSource, 'requireBoaActor'))
+    .toContain("session.get('phase') !== 'active'");
 });

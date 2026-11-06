@@ -1484,6 +1484,13 @@ export interface WarriorRepairDronesState {
 }
 
 /** A surviving shuttle released from a destroyed host and held until redocking. */
+/** One attack's Scrap pickup at a damaged ship, pending until a Capybara shuttle collects it. */
+export interface AttackScrapPickup {
+  readonly attackId: string;
+  readonly turn: number;
+  readonly destroyed: boolean;
+}
+
 export interface RetainedShuttleEntry {
   readonly status: 'retained';
   readonly shuttleId: ShuttleId;
@@ -1652,6 +1659,8 @@ export interface GameSession {
   readonly maliadesState?: MaliadesStateRecord | MaliadesOperationalView;
   readonly highwallMining?: HighwallMiningState;
   readonly retainedShuttles?: Readonly<Record<string, RetainedShuttleEntry>>;
+  /** Uncollected attack Scrap pickups carried past their attack, keyed by the damaged ship. */
+  readonly attackScrapPickups?: Readonly<Record<string, readonly AttackScrapPickup[]>>;
   readonly quarantineDocking?: QuarantineDockingState;
   readonly shipUpgrades?: Readonly<Record<string, readonly string[]>>;
   readonly shipSurvivors?: Readonly<Record<string, number>>;

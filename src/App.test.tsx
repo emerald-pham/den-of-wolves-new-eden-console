@@ -15,6 +15,8 @@ import { recommendedRoleIds } from '@/data/rolePresets';
 import { normalizeCommandError } from '@/lib/commandErrors';
 
 vi.mock('@/lib/sessionService', () => ({
+  buildFighter: vi.fn(),
+  exchangeFighterWings: vi.fn(),
   getWolfAmnestyView: vi.fn(async () => ({ type: 'wolf-amnesty-view',
     sessionId: useSessionStore.getState().session?.id ?? 's1', offer: null })),
   getWolfBoardingDefenceChoice: vi.fn(async () => null),
