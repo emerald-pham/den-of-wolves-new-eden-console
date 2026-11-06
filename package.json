@@ -21,6 +21,7 @@
     "test:functions": "vitest run --project functions",
     "test:proof-preflight": "node scripts/proof-test-invocation.mjs -- node --test scripts/qualification/pc11-contract-preflight.test.mjs scripts/proof-tooling-ci.test.mjs scripts/pc10-role-entry-typecheck.test.mjs scripts/proof-tooling-browser-lifecycle.test.mjs scripts/proof-test-invocation.test.mjs",
     "test:proof-redalert-browser": "node --test scripts/proof-tooling-redalert.browser.test.mjs",
+    "test:proof-population-alert": "node --test scripts/pc10-source-population-alert-consumer.test.mjs scripts/pc10-source-population-alert-consumer.browser.test.mjs",
     "test:font-consistency": "vitest run --project unit src/styles/aesthetic.test.ts",
     "test:typography:browser": "node scripts/test-typography-browser.mjs",
     "test:cycle-briefing:browser": "node scripts/test-cycle-briefing-render.mjs",
