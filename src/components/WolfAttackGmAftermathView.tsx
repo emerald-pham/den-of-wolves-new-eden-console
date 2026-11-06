@@ -1,4 +1,4 @@
-import { retainedFromDestroyedShip, type ScrapCustodyContext } from '@/lib/attackScrapCustody';
+import { pickupShipDestroyed, retainedFromDestroyedShip, type ScrapCustodyContext } from '@/lib/attackScrapCustody';
 import type { AttackScrapPickup, GameSession, WolfAttackDeclarationState } from '@/types/game';
 import './WolfAttackGmAftermathView.css';
 
@@ -96,7 +96,7 @@ export function projectWolfAttackGmAftermathView(
   const carriedPickups = Object.entries(scrapCustody?.attackScrapPickups ?? {}).flatMap(([shipId, pickups]) =>
     !safeId(shipId) || !Array.isArray(pickups) ? [] : pickups.flatMap((pickup) => {
       if (pickup.attackId === state.attackId) return [];
-      const destroyed = pickup.destroyed || currentShipDamage?.[shipId]?.destroyed === true;
+      const destroyed = pickupShipDestroyed(pickup, shipId, currentShipDamage);
       return !destroyed || retainedAtDestroyedTarget(shipId)
         ? [{ shipId, attackId: pickup.attackId, turn: pickup.turn, destroyed }] : [];
     }));

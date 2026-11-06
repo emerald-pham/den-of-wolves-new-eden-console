@@ -123,5 +123,10 @@ describe('GM aftermath receipt view', () => {
     expect(within(work).getByText('Collect carried Scrap // AEGIS // cycle 7 attack')).toBeVisible();
     expect(within(work).getByText('Collect carried Scrap // DIONE // cycle 8 attack // retained shuttle only')).toBeVisible();
     expect(within(work).queryByText(/QUELLON/)).not.toBeInTheDocument();
+
+    // The raw ledger can still say false after the ship was destroyed: custody then decides.
+    const lagging = { ...(custody as object), attackScrapPickups: { quellon: [{ attackId: 'attack-8', turn: 8, destroyed: false }] } };
+    expect(projectWolfAttackGmAftermathView(state, { quellon: { damagedSystemIds: [], destroyed: true } }, lagging as never)
+      ?.pendingWork.carriedPickups).toEqual([]);
   });
 });

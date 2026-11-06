@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { retainedFromDestroyedShip, scrapCollectionRoleId } from './attackScrapCustody';
+import { pickupShipDestroyed, retainedFromDestroyedShip, scrapCollectionRoleId } from './attackScrapCustody';
 
 const retainedMacaw = {
   shuttleDockings: [],
@@ -24,5 +24,12 @@ describe('attack Scrap custody', () => {
     expect(retainedFromDestroyedShip(changedControl as never, 'macaw', 'aegis')).toBe(false);
     const redocked = { ...(retainedMacaw as object), shuttleDockings: [{ shuttleId: 'macaw', shipId: 'dione', dockedAt: 'now' }] };
     expect(retainedFromDestroyedShip(redocked as never, 'macaw', 'aegis')).toBe(false);
+  });
+
+  it('treats a pickup as destroyed-status from its ledger entry or the current ship damage', () => {
+    const pickup = { attackId: 'attack-6', turn: 6, destroyed: false };
+    expect(pickupShipDestroyed(pickup, 'aegis', undefined)).toBe(false);
+    expect(pickupShipDestroyed(pickup, 'aegis', { aegis: { damagedSystemIds: [], destroyed: true } })).toBe(true);
+    expect(pickupShipDestroyed({ ...pickup, destroyed: true }, 'aegis', {})).toBe(true);
   });
 });

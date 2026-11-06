@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { subscribeWolfAttackMemberView } from '@/lib/firestore';
 import { commitWolfAttackAftermath, type WolfAttackAftermathChoice } from '@/lib/wolfAttackAftermathService';
 import { hasFreshSessionAuthority } from '@/lib/sessionMutationAuthority';
-import { retainedFromDestroyedShip, scrapCollectionRoleId, type ScrapCollectionCraftId } from '@/lib/attackScrapCustody';
+import {
+  pickupShipDestroyed, retainedFromDestroyedShip, scrapCollectionRoleId, type ScrapCollectionCraftId,
+} from '@/lib/attackScrapCustody';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { WolfAttackMemberView } from '@/types/game';
 
@@ -83,7 +85,8 @@ export default function WolfAttackAftermathActionPanel({ operator }: Readonly<{ 
   // Pickups the server carried past a later attack stay collectable once.
   const carriedPickups = typeof operator === 'object'
     ? Object.entries(session?.attackScrapPickups ?? {}).flatMap(([shipId, pickups]) => pickups
-      .filter((pickup) => pickup.attackId !== view?.attackId && canReachPickup(shipId, pickup.destroyed))
+      .filter((pickup) => pickup.attackId !== view?.attackId &&
+        canReachPickup(shipId, pickupShipDestroyed(pickup, shipId, session?.shipDamage)))
       .map((pickup) => ({ shipId, ...pickup })))
     : [];
   const warrior = session?.smallShipStates?.warrior;

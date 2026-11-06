@@ -1,5 +1,5 @@
 import { SHUTTLECRAFT } from '@/data/shuttles';
-import type { GameSession } from '@/types/game';
+import type { AttackScrapPickup, GameSession } from '@/types/game';
 
 /** The craft that collect attack Scrap pickups. */
 export type ScrapCollectionCraftId = 'macaw' | 'boa';
@@ -35,4 +35,16 @@ export function retainedFromDestroyedShip(
     control?.shuttleId === shuttleId && control.ownerRoleId === roleId &&
     retained.holderUid === control.holderUid && retained.destroyedHostShipId === shipId &&
     retained.controlRevision === control.revision;
+}
+
+/**
+ * A carried pickup is destroyed-status when its ledger entry says so or the
+ * ship is now destroyed: the raw ledger can lag a later destruction (PC10 C3.2).
+ */
+export function pickupShipDestroyed(
+  pickup: Pick<AttackScrapPickup, 'destroyed'>,
+  shipId: string,
+  shipDamage: GameSession['shipDamage'] | undefined,
+): boolean {
+  return pickup.destroyed || shipDamage?.[shipId]?.destroyed === true;
 }
