@@ -102,4 +102,23 @@ describe('wolf attack aftermath', () => {
       { attackId: 'attack-7', shipId: 'capybara', scrap: 1 },
     ]);
   });
+  it('keeps the threshold pickup for a ship whose final attack draw destroys it', () => {
+    expect(wolfDamageScrapOpportunities('attack-7', [
+      { target: 'aegis', amount: 3, draws: [{ casualty: true }, { casualty: false }, { casualty: false }] },
+      { target: 'dione', amount: 2, draws: [{ casualty: true }, { casualty: false }] },
+    ])).toEqual([{ attackId: 'attack-7', shipId: 'aegis', scrap: 1 }]);
+  });
+
+  it('never generates a second pickup for the same ship and attack', () => {
+    const receipt = [
+      { target: 'aegis', amount: 4, draws: [{ casualty: true }] },
+      { target: 'dione', amount: 1, draws: [{ casualty: true }] },
+    ];
+    const first = wolfDamageScrapOpportunities('attack-7', receipt);
+    expect(first).toEqual([{ attackId: 'attack-7', shipId: 'aegis', scrap: 1 }]);
+    expect(wolfDamageScrapOpportunities('attack-7', receipt)).toEqual(first);
+    expect(() => wolfDamageScrapOpportunities('attack-7', [
+      { target: 'aegis', amount: 3 }, { target: 'aegis', amount: 3 },
+    ])).toThrow(/once/);
+  });
 });

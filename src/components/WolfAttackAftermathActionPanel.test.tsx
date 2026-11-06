@@ -71,7 +71,8 @@ it('lets the current Macaw operator collect one threshold Scrap opportunity', as
   installIdentity(null, 'capybara-captain', 'capybara-captain');
   const session = useSessionStore.getState().session!;
   useSessionStore.getState().setSession({ ...session, shuttleControl: { macaw: { shuttleId: 'macaw',
-    ownerRoleId: 'capybara-captain', ownerUid: 'actor-1', holderUid: 'actor-1', revision: 1 } } } as never);
+    ownerRoleId: 'capybara-captain', ownerUid: 'actor-1', holderUid: 'actor-1', revision: 1 } },
+    shuttleDockings: [{ shuttleId: 'macaw', shipId: 'aegis', dockedAt: 'SESSION START' }] } as never);
   render(<WolfAttackAftermathActionPanel operator={{ shuttleId: 'macaw' }} />);
   act(() => publish?.(member));
   fireEvent.click(screen.getByRole('button', { name: 'Collect Scrap from AEGIS' }));
@@ -79,4 +80,60 @@ it('lets the current Macaw operator collect one threshold Scrap opportunity', as
   await waitFor(() => expect(mocks.commit).toHaveBeenCalledWith('attack-7', {
     action: 'collect-scrap', shuttleId: 'macaw', targetShipId: 'aegis',
   }, expect.any(String)));
+});
+
+function installMacawHolder(extra: Record<string, unknown>) {
+  installIdentity(null, 'capybara-captain', 'capybara-captain');
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...session,
+    shuttleControl: { macaw: { shuttleId: 'macaw', ownerRoleId: 'capybara-captain',
+      ownerUid: 'actor-1', holderUid: 'actor-1', revision: 1 } },
+    ...extra } as never);
+}
+
+it('does not offer attack Scrap for a ship the current Macaw is not docked at', () => {
+  installMacawHolder({ shuttleDockings: [{ shuttleId: 'macaw', shipId: 'capybara', dockedAt: 'SESSION START' }] });
+  render(<WolfAttackAftermathActionPanel operator={{ shuttleId: 'macaw' }} />);
+  act(() => publish?.(member));
+
+  expect(screen.queryByRole('region', { name: 'Macaw Scrap collection' })).not.toBeInTheDocument();
+});
+
+it('offers the Scrap from a destroyed threshold ship to the Macaw retained from it', async () => {
+  installMacawHolder({ shuttleDockings: [], retainedShuttles: { macaw: { status: 'retained', shuttleId: 'macaw',
+    ownerRoleId: 'capybara-captain', holderUid: 'actor-1', destroyedHostShipId: 'aegis',
+    controlRevision: 1, retainedAt: '2026-10-04T09:59:00.000Z' } } });
+  const destroyed = { ...member, results: member.results.map((result) => ({ ...result,
+    outcome: { ...result.outcome, destroyed: true } })) };
+  render(<WolfAttackAftermathActionPanel operator={{ shuttleId: 'macaw' }} />);
+  act(() => publish?.(destroyed));
+
+  const collect = screen.getByRole('button', { name: 'Collect Scrap from AEGIS' });
+  expect(collect).toBeEnabled();
+  fireEvent.click(collect);
+  await waitFor(() => expect(mocks.commit).toHaveBeenCalledWith('attack-7', {
+    action: 'collect-scrap', shuttleId: 'macaw', targetShipId: 'aegis',
+  }, expect.any(String)));
+});
+
+it('offers no Scrap from a destroyed ship to a Macaw retained from a different host', () => {
+  installMacawHolder({ shuttleDockings: [], retainedShuttles: { macaw: { status: 'retained', shuttleId: 'macaw',
+    ownerRoleId: 'capybara-captain', holderUid: 'actor-1', destroyedHostShipId: 'dione',
+    controlRevision: 1, retainedAt: '2026-10-04T09:59:00.000Z' } } });
+  const destroyed = { ...member, results: member.results.map((result) => ({ ...result,
+    outcome: { ...result.outcome, destroyed: true } })) };
+  render(<WolfAttackAftermathActionPanel operator={{ shuttleId: 'macaw' }} />);
+  act(() => publish?.(destroyed));
+
+  expect(screen.queryByRole('region', { name: 'Macaw Scrap collection' })).not.toBeInTheDocument();
+});
+
+it('offers no pickup for a ship below the three-damage threshold', () => {
+  installMacawHolder({ shuttleDockings: [{ shuttleId: 'macaw', shipId: 'aegis', dockedAt: 'SESSION START' }] });
+  const belowThreshold = { ...member, results: member.results.map((result) => ({ ...result,
+    outcome: { ...result.outcome, damage: 2 } })) };
+  render(<WolfAttackAftermathActionPanel operator={{ shuttleId: 'macaw' }} />);
+  act(() => publish?.(belowThreshold));
+
+  expect(screen.queryByRole('region', { name: 'Macaw Scrap collection' })).not.toBeInTheDocument();
 });

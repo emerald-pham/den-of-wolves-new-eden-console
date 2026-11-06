@@ -17,6 +17,8 @@ import { parseSmallShipState, isSmallShipInMutiny } from './smallShip';
 import { SHUTTLE_CARGO_TYPES } from './shuttleCargoTransfer';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import { isPresenceStale } from './sessionLifecycle';
+import { requireCandidateVesselsAvailable } from './candidateAvailability';
+import { parseRetainedShuttles } from './retainedShuttles';
 
 type RecordValue = Record<string, unknown>;
 type WolfAttackAftermathAction = 'doctor' | 'warrior-salvage' | 'collect-scrap';
@@ -257,6 +259,9 @@ export const resolveWolfAttackAftermath = onCall<{
     }
     const replay = replayResult(receiptDoc, fingerprint);
     if (replay) return replay;
+    if (command.action === 'collect-scrap') {
+      requireCandidateVesselsAvailable(session, ['capybara', command.targetShipId!]);
+    }
     const receipt = attack.get('calculationReceipt');
     if (!isWolfCalculationReceipt(receipt)) throw new HttpsError('failed-precondition', 'The private combat receipt is unavailable.');
     const damage = damageResults(receipt as unknown as RecordValue);
@@ -412,13 +417,25 @@ export const resolveWolfAttackAftermath = onCall<{
       if (!group || group.id !== groupId || !group.memberUids.includes(uid) || !group.vesselIds.includes(targetShipId)) {
         throw new HttpsError('permission-denied', 'The selected ship is outside this shuttle holder’s fleet group.');
       }
+      const retained = parseRetainedShuttles(sessionData.retainedShuttles);
+      if (!retained) throw new HttpsError('failed-precondition', 'The retained shuttle custody is malformed.');
+      const retainedEntry = retained[shuttleId];
       const dockingRows = rawDockings.filter((row) => record(row) && row.shuttleId === shuttleId);
-      if (dockingRows.length !== 1 || dockingRows[0]?.shipId !== targetShipId) {
-        throw new HttpsError('failed-precondition', `${shuttleId === 'macaw' ? 'Macaw' : 'Boa'} must be docked uniquely at the Scrap target.`);
-      }
       const targetDamage = damage.find((row) => row.target === targetShipId);
-      if (!targetDamage || targetDamage.amount < 3 || targetDamage.state.destroyed) {
+      if (!targetDamage || targetDamage.amount < 3) {
         throw new HttpsError('failed-precondition', 'That ship has no collectable Scrap opportunity from this attack.');
+      }
+      // A live target's pickup is reachable only from a unique dock there. A ship
+      // destroyed by this attack still earned its pickup; the only craft at that
+      // location is the one its current holder retained from that destroyed host.
+      const dockedAtLiveTarget = !targetDamage.state.destroyed && retainedEntry === undefined &&
+        dockingRows.length === 1 && dockingRows[0]?.shipId === targetShipId;
+      const retainedAtDestroyedTarget = targetDamage.state.destroyed && dockingRows.length === 0 &&
+        retainedEntry?.status === 'retained' && retainedEntry.ownerRoleId === actorExpectedRole &&
+        retainedEntry.holderUid === uid && retainedEntry.destroyedHostShipId === targetShipId &&
+        retainedEntry.controlRevision === control.revision;
+      if (!dockedAtLiveTarget && !retainedAtDestroyedTarget) {
+        throw new HttpsError('failed-precondition', `${shuttleId === 'macaw' ? 'Macaw' : 'Boa'} must be docked at a live Scrap target or retained from its destroyed host.`);
       }
       const opportunities = wolfDamageScrapOpportunities(command.attackId,
         damage.map(({ target, amount, draws }) => ({ target, amount, draws })));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseMacawRepairLedger, resolveMacawRepair } from './macawRepair';
+import { parseMacawRepairLedger, recordMacawSalvageUse, resolveMacawRepair } from './macawRepair';
 
 const base = {
   actorUid: 'holder', actorRoleId: 'capybara-captain', currentCycle: 3, expectedCycle: 3,
@@ -101,5 +101,54 @@ describe('Macaw repairs', () => {
     })).toThrow();
     expect(() => resolveMacawRepair({ ...base, expectedControlRevision: Number.NaN } as never)).toThrow();
     expect(() => resolveMacawRepair({ ...base, expectedCycle: Number.NaN } as never)).toThrow();
+  });
+});
+
+describe('Macaw salvage shares the repair allowance', () => {
+  const salvage = {
+    currentCycle: 3, hostShipId: 'dione', systemId: 'reactor', fuelled: false,
+    ledger: { cycle: 0, revision: 0, hosts: [] },
+  } as const;
+
+  it('records one salvaged console in the same per-cycle ledger repairs use', () => {
+    expect(recordMacawSalvageUse(salvage)).toEqual({
+      cycle: 3, revision: 1, hosts: [{ shipId: 'dione', systemIds: ['reactor'] }],
+    });
+    expect(recordMacawSalvageUse({
+      ...salvage,
+      ledger: { cycle: 3, revision: 4, hosts: [{ shipId: 'dione', systemIds: ['storage'] }] },
+    })).toEqual({ cycle: 3, revision: 5, hosts: [{ shipId: 'dione', systemIds: ['storage', 'reactor'] }] });
+  });
+
+  it('starts a fresh allowance in a later cycle', () => {
+    expect(recordMacawSalvageUse({
+      ...salvage,
+      ledger: { cycle: 2, revision: 6, hosts: [{ shipId: 'dione', systemIds: ['storage', 'jump-drive'] }] },
+    })).toEqual({ cycle: 3, revision: 7, hosts: [{ shipId: 'dione', systemIds: ['reactor'] }] });
+  });
+
+  it('allows a second ship only when Macaw is fuelled', () => {
+    const ledger = { cycle: 3, revision: 1, hosts: [{ shipId: 'icebreaker', systemIds: ['reactor'] }] };
+    expect(() => recordMacawSalvageUse({ ...salvage, ledger })).toThrow(/fuel macaw/i);
+    expect(recordMacawSalvageUse({ ...salvage, ledger, fuelled: true }).hosts).toEqual([
+      { shipId: 'icebreaker', systemIds: ['reactor'] },
+      { shipId: 'dione', systemIds: ['reactor'] },
+    ]);
+  });
+
+  it.each([
+    ['a console already repaired or salvaged this cycle',
+      { ledger: { cycle: 3, revision: 1, hosts: [{ shipId: 'dione', systemIds: ['reactor'] }] } }],
+    ['a third console on one ship',
+      { ledger: { cycle: 3, revision: 1, hosts: [{ shipId: 'dione', systemIds: ['storage', 'jump-drive'] }] } }],
+    ['a third ship even when fuelled', {
+      fuelled: true,
+      ledger: { cycle: 3, revision: 2, hosts: [
+        { shipId: 'icebreaker', systemIds: ['reactor'] }, { shipId: 'aegis', systemIds: ['reactor'] },
+      ] },
+    }],
+    ['an unknown console', { systemId: 'not-a-console' }],
+  ])('rejects %s', (_label, change) => {
+    expect(() => recordMacawSalvageUse({ ...salvage, ...change })).toThrow();
   });
 });
