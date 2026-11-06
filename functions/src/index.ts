@@ -10711,7 +10711,8 @@ export const dealPrivateInitialCards = onCall<{
     // A Boa choice never blocks a location's mission (coordinator ruling,
     // 2026-11-05): when its Recycler cannot apply it at the deal, it lapses.
     let boaReclamation: BoaReclamationDealBinding | undefined;
-    let boaReclamationLapse: BoaMissionReclamationLapseReason | undefined;
+    // 'location-changed' is recorded server-side; the member workspace contract does not list it yet.
+    let boaReclamationLapse: BoaMissionReclamationLapseReason | 'location-changed' | undefined;
     if (boaReclamationSelection) {
       const boaControl = shuttleControls?.boa;
       const actorPlayer = playerDocumentsByUid.get(boaReclamationSelection.actorUid);

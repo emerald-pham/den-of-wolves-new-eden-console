@@ -23,10 +23,7 @@ export interface BoaMissionReclamationWorkspaceOpportunity {
 }
 
 /** Why a pre-deal Boa choice did not apply when its mission was dealt. */
-export type BoaMissionReclamationLapseReason =
-  | 'boa-control-changed' | 'recycler-unavailable' | 'recycler-not-on-mission'
-  /** The stored choice no longer matches the dealt location (for example a fleet partition moved it). */
-  | 'location-changed';
+export type BoaMissionReclamationLapseReason = 'boa-control-changed' | 'recycler-unavailable' | 'recycler-not-on-mission';
 
 /** The Recycler's own choice that lapsed at this cycle's deal; the mission was dealt without it. */
 export interface BoaMissionReclamationLapsedChoice {
