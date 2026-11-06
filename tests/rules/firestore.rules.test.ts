@@ -1538,6 +1538,29 @@ describe('session header', () => {
     await assertFails(setDoc(receipt, { reply: { status: 'committed' } }));
   });
 
+  it('keeps the Fighter Wing exchange server-owned for the Wing Commander and the GM', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), {
+        activeConsoleRoleId: 'wing-commander', assignedRoleId: 'wing-commander', seatId: 'wing-commander',
+      }, { merge: true });
+      await setDoc(doc(ctx.firestore(), `${SESSION}/commandReceipts/exchange-1`), {
+        fingerprint: { action: 'fighter-wing-exchange', actorUid: 'alice' },
+        result: { status: 'committed', amount: 2 },
+      });
+    });
+    for (const uid of ['alice', 'gm1']) {
+      await assertFails(updateDoc(doc(as(uid), SESSION), {
+        'fighterWingCounts.fighter-wing-alpha': { count: 2, revision: 3 },
+        'fighterWingCounts.fighter-wing-bravo': { count: 3, revision: 6 },
+      }));
+      await assertFails(getDoc(doc(as(uid), `${SESSION}/commandReceipts/exchange-1`)));
+      await assertFails(setDoc(doc(as(uid), `${SESSION}/commandReceipts/exchange-forged-${uid}`), {
+        fingerprint: { action: 'fighter-wing-exchange', actorUid: uid },
+        result: { status: 'committed', amount: 6 },
+      }));
+    }
+  });
+
   it('cannot enable or retract the shared finale from a client', async () => {
     const session = doc(as('gm1'), SESSION);
     await assertFails(updateDoc(session, { debriefMode: { active: true, revision: 1 } }));
