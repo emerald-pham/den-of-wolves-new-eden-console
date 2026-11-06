@@ -57,6 +57,8 @@ const {
   advanceWolfAttackToLongRange,
   getDioneMaliadesLaunch,
   launchDioneMaliades,
+  getAegisFighterWingLaunch,
+  launchAegisFighterWing,
   getPdfEscortWingLaunch,
   passWolfFighterLaunchChoice,
   launchPdfEscortWing,
@@ -90,6 +92,7 @@ const {
   listUnresolvedJumpFailures,
   getWolfBoardingDefenceChoice,
   commitWolfBoardingDefenceChoice,
+  commitWolfBoardingSpecialChoice,
   commitWolfRangeActionChoice,
   assignWolfRangeTargets,
   getWolfRangeActionChoice,
@@ -3153,6 +3156,93 @@ describe('GM instance commands', () => {
     }));
   });
 
+  it('reads a committed Bravo launch after targeting as launched while the attack advances', async () => {
+    useSessionStore.getState().setIdentity(
+      { ...session, phase: 'active', currentTurn: 2 },
+      {
+        ...player, assignedRoleId: 'wing-commander', seatId: 'wing-commander',
+        activeConsoleRoleId: 'wing-commander',
+      },
+    );
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    // The server projection for a launched wing once the attack has left targeting.
+    const launchedDuringRanges = {
+      type: 'aegis-fighter-wing-launch-view', sessionId: 's1', wingId: 'fighter-wing-bravo',
+      turn: 2, attackId: 'wolf-attack-2', revision: 8, wingRevision: 4, fighters: 3,
+      launched: true, eligible: false, choiceStatus: 'launched', reason: 'waiting',
+    } as const;
+    const read = callableReturning({ data: launchedDuringRanges });
+    vi.mocked(httpsCallable).mockImplementation((_functions, name) => {
+      expect(name).toBe('getAegisFighterWingLaunch');
+      return read;
+    });
+
+    await expect(getAegisFighterWingLaunch('fighter-wing-bravo')).resolves.toEqual(launchedDuringRanges);
+    expect(read).toHaveBeenCalledWith({ sessionId: 's1', wingId: 'fighter-wing-bravo' });
+  });
+
+  it.each([
+    ['without a launched choice', { choiceStatus: undefined }],
+    ['with a passed choice', { choiceStatus: 'passed' }],
+    ['while still eligible', { eligible: true }],
+  ])('rejects a launched waiting AEGIS wing view %s', async (_label, overrides) => {
+    useSessionStore.getState().setIdentity(
+      { ...session, phase: 'active', currentTurn: 2 },
+      {
+        ...player, assignedRoleId: 'wing-commander', seatId: 'wing-commander',
+        activeConsoleRoleId: 'wing-commander',
+      },
+    );
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    const view: Record<string, unknown> = {
+      type: 'aegis-fighter-wing-launch-view', sessionId: 's1', wingId: 'fighter-wing-bravo',
+      turn: 2, attackId: 'wolf-attack-2', revision: 8, wingRevision: 4, fighters: 3,
+      launched: true, eligible: false, choiceStatus: 'launched', reason: 'waiting', ...overrides,
+    };
+    if (view.choiceStatus === undefined) delete view.choiceStatus;
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: view }) as never);
+
+    await expect(getAegisFighterWingLaunch('fighter-wing-bravo'))
+      .rejects.toThrow(/invalid AEGIS Fighter Wing launch view/i);
+  });
+
+  it('accepts a Bravo launch receipt only when it commits the already-launched wing', async () => {
+    useSessionStore.getState().setIdentity(
+      { ...session, phase: 'active', currentTurn: 2 },
+      {
+        ...player, assignedRoleId: 'wing-commander', seatId: 'wing-commander',
+        activeConsoleRoleId: 'wing-commander',
+      },
+    );
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    const receipt = (requestId: unknown, reason: string) => ({ data: {
+      type: 'aegis-fighter-wing-launch-view', sessionId: 's1', wingId: 'fighter-wing-bravo',
+      turn: 2, attackId: 'wolf-attack-2', revision: 7, wingRevision: 4, fighters: 3,
+      launched: true, eligible: false, choiceStatus: 'launched', reason,
+      status: 'committed', requestId,
+    } });
+    let reason = 'already-launched';
+    const launch = Object.assign(vi.fn(async (payload: unknown) =>
+      receipt((payload as Record<string, unknown>).requestId, reason)), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(launch as never);
+
+    await expect(launchAegisFighterWing('fighter-wing-bravo', 2, 6, 3)).resolves.toMatchObject({
+      status: 'committed', wingId: 'fighter-wing-bravo', launched: true, fighters: 3,
+      reason: 'already-launched', revision: 7, wingRevision: 4,
+    });
+    expect(launch).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 's1', wingId: 'fighter-wing-bravo', expectedTurn: 2,
+      expectedRevision: 6, expectedWingRevision: 3, requestId: expect.any(String),
+    }));
+
+    reason = 'waiting';
+    await expect(launchAegisFighterWing('fighter-wing-bravo', 2, 6, 3))
+      .rejects.toThrow(/invalid AEGIS Fighter Wing launch receipt/i);
+  });
+
   it('discards a deferred PDF launch view after active-console authority changes', async () => {
     useSessionStore.getState().setIdentity(
       { ...session, phase: 'active', currentTurn: 2 },
@@ -4365,6 +4455,64 @@ it('reads the current boarding choice and commits the exact entitled zero-team d
     sessionId: 's1', requestId: expect.any(String), expectedTurn: 1, expectedRevision: 12,
     targetShipId: 'aegis', securityTeams: 0,
   }));
+});
+
+describe('Colonel Chepu boarding relocation delivery', () => {
+  const chepuMove = { kind: 'relocation', craftId: 'chepu', targetShipId: 'dione', expectedControlRevision: 0 } as const;
+  const receipt = (payload: Record<string, unknown>) => ({ data: {
+    status: 'committed', type: 'wolf-boarding-special-choice', sessionId: 's1', requestId: payload.requestId,
+    turn: 1, revision: 13, currentStep: 'boarding', choiceKind: 'relocation',
+  } });
+  beforeEach(() => {
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity({ ...session, phase: 'active' as const } as never,
+      { ...player, role: 'player' as const, assignedRoleId: 'refinery-124-pdf-colonel',
+        activeConsoleRoleId: 'refinery-124-pdf-colonel' } as never);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+
+  it('retries the exact relocation request after a lost reply so the server can replay its receipt', async () => {
+    const commit = Object.assign(vi.fn()
+      .mockRejectedValueOnce({ code: 'functions/deadline-exceeded', message: 'deadline-exceeded' })
+      .mockImplementationOnce(async (payload: Record<string, unknown>) => receipt(payload)), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(commit as never);
+
+    await expect(commitWolfBoardingSpecialChoice(1, 12, chepuMove))
+      .rejects.toThrow(/connection was lost before the server confirmed this boarding choice/i);
+    await expect(commitWolfBoardingSpecialChoice(1, 12, chepuMove)).resolves.toMatchObject({ status: 'committed', revision: 13 });
+    const [first, second] = commit.mock.calls.map(([payload]) => payload as Record<string, unknown>);
+    expect(first).toMatchObject({ sessionId: 's1', expectedTurn: 1, expectedRevision: 12, choice: chepuMove });
+    expect(second?.requestId).toBe(first?.requestId);
+  });
+
+  it('uses a fresh request for a different choice or after the earlier request was confirmed', async () => {
+    const commit = Object.assign(vi.fn()
+      .mockRejectedValueOnce({ code: 'functions/unavailable', message: 'unavailable' })
+      .mockImplementation(async (payload: Record<string, unknown>) => receipt(payload)), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(commit as never);
+
+    await expect(commitWolfBoardingSpecialChoice(1, 12, chepuMove)).rejects.toThrow();
+    await commitWolfBoardingSpecialChoice(1, 12, { ...chepuMove, targetShipId: null });
+    await commitWolfBoardingSpecialChoice(1, 12, { ...chepuMove, targetShipId: null });
+    const ids = commit.mock.calls.map(([payload]) => (payload as Record<string, unknown>).requestId);
+    expect(new Set(ids).size).toBe(3);
+  });
+
+  it('does not reuse a lost relocation request after the boarding authority changes', async () => {
+    const commit = Object.assign(vi.fn()
+      .mockRejectedValueOnce({ code: 'functions/unavailable', message: 'unavailable' })
+      .mockImplementation(async (payload: Record<string, unknown>) => receipt(payload)), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(commit as never);
+
+    await expect(commitWolfBoardingSpecialChoice(1, 12, chepuMove)).rejects.toThrow();
+    const me = useSessionStore.getState().me!;
+    useSessionStore.getState().setMe({ ...me, assignedRoleId: 'refinery-124-engineer',
+      activeConsoleRoleId: 'refinery-124-engineer' });
+    await commitWolfBoardingSpecialChoice(1, 12, chepuMove);
+    const [first, second] = commit.mock.calls.map(([payload]) => (payload as Record<string, unknown>).requestId);
+    expect(second).not.toBe(first);
+  });
 });
 
 it('reads and commits the current Wing Commander fighter range choice, including a zero-fighter pass', async () => {
