@@ -6,7 +6,7 @@ import test from 'node:test';
 import { deploymentSelector } from './deployment-targets.mjs';
 
 const BASELINE = '06f596cc8616bf571cb6b60e0184632ecdf2825b';
-const CANDIDATE = 'e7dedbd9a3a7313a02bb4a893aeb33637953638e';
+const CANDIDATE = '88f26dc1cce494718c4cf6e30b36f2aefc9e16ff';
 const CANDIDATE_ALIAS = 'pc10-2-candidate';
 const EMPTY_SOURCE_HASH = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 

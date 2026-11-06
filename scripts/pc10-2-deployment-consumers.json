@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "baseline": "06f596cc8616bf571cb6b60e0184632ecdf2825b",
-  "candidate": "e7dedbd9a3a7313a02bb4a893aeb33637953638e",
-  "auditBoundary": "Exact PC10.2 source transition from main to the reviewed integration candidate. Consumers are the exported callables whose runtime code reaches a changed top-level declaration, traced through TypeScript symbol references across functions/src (type-only edits excluded): attack Scrap pickups and member-session projection, Aegis fighter-wing exchange, Boa mission reclamation and mission eligibility/rewards through the away-mission lifecycle adapter and legacy mission synchronization, permissioned Macaw dismantling, the Wolf attack aftermath Scrap custody, and the index wiring for P.D.F. news relay, boarding relocation, fleet group messages and fighter builds. macawRepair.ts and pressLogEvent.ts keep their module-level static lists, and refineryFighterBay.ts keeps its PC10.1 repair receipt.",
+  "candidate": "88f26dc1cce494718c4cf6e30b36f2aefc9e16ff",
+  "auditBoundary": "Exact PC10.2 source transition from main to the reviewed integration candidate 88f26dc1. Consumers are the exported callables whose runtime code reaches a changed top-level declaration, traced through TypeScript symbol references across functions/src (type-only edits excluded): attack Scrap pickups and member-session projection, Aegis fighter-wing exchange, Boa mission reclamation and mission eligibility/rewards through the away-mission lifecycle adapter and legacy mission synchronization, permissioned Macaw dismantling, the Wolf attack aftermath Scrap custody, and the index wiring for P.D.F. news relay, boarding relocation, fleet group messages and fighter builds. macawRepair.ts and pressLogEvent.ts keep their module-level static lists, and refineryFighterBay.ts keeps its PC10.1 repair receipt.",
   "modules": {
     "functions/src/attackScrapPickups.ts": {
       "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -48,7 +48,7 @@
     },
     "functions/src/boaMissionReclamationCallable.ts": {
       "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "after": "0b6ff216cf4b4c114b8b097fdd4d41420d1a54cc596af64a54a7503efcd8550c",
+      "after": "8e4896cd274a51a940d953bb791e6f51069f5a8a31ebf10381fd55295290636b",
       "consumers": [
         "chooseBoaMissionReclamationOpportunity",
         "readBoaMissionReclamationWorkspace"
