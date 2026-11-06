@@ -2197,6 +2197,24 @@ describe('first-arrival mission opportunities', () => {
   });
 });
 
+it('keeps pre-deal Boa reclamation choices server-only for every client', async () => {
+  const path = `${SESSION}/boaMissionReclamationChoices/arrival-fleet-1-A-1413`;
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), path), {
+      type: 'boa-mission-reclamation-choice', schemaVersion: 1, status: 'selected', sessionId: 's1',
+      opportunityId: 'arrival-fleet-1-A-1413', actorUid: 'alice', opportunityTaskId: 'D-1', revision: 1,
+    });
+  });
+  for (const uid of ['alice', 'gm1', 'press', 'observer']) {
+    const target = doc(as(uid), path);
+    await assertFails(getDoc(target));
+    await assertFails(getDocs(collection(as(uid), `${SESSION}/boaMissionReclamationChoices`)));
+    await assertFails(setDoc(target, { status: 'selected', opportunityTaskId: 'D-2' }));
+    await assertFails(updateDoc(target, { status: 'consumed' }));
+    await assertFails(deleteDoc(target));
+  }
+});
+
 it('exposes immutable mission-start receipts only to the current facilitator', async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), `${SESSION}/missionStartSnapshots/arrival-fleet-1-A-1413`), {
