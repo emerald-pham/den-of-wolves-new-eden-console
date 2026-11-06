@@ -381,6 +381,15 @@ export default function ShuttleControl({ control }: Props) {
   const uncertainCargo = visibleCargoAuthorityKey === null
     ? null : uncertainCargoAttempts.get(visibleCargoAuthorityKey) ?? null;
   const cargoAmountIsValid = Number.isSafeInteger(cargoAmount) && cargoAmount >= 1;
+  // The server accepts docked transfers only during the current Coordination
+  // Phase; mirror that window so Load/Unload never look available early.
+  const cargoWindowOpen = session.phase === 'active' &&
+    session.turnPhase?.turn === session.currentTurn &&
+    session.turnPhase?.airspace.state === 'lifted';
+  const cargoWindowMessage = cargoWindowOpen ? null
+    : session.turnPhase?.airspace.state === 'restricted' && session.turnPhase.turn === session.currentTurn
+      ? 'Cargo transfers are closed during Team Phase. They open when the Coordination Phase begins.'
+      : 'Cargo transfers open during the Coordination Phase.';
   const cargoRetryMatchesDraft = Boolean(activeCargoRetry &&
     activeCargoRetry.resourceId === cargoResourceId && activeCargoRetry.amount === cargoAmount);
   const cargoRetryReady = Boolean(currentCargoAuthority && cargoRetryMatchesDraft && activeCargoRetry &&
@@ -890,7 +899,7 @@ export default function ShuttleControl({ control }: Props) {
   }
 
   async function submitCargo(direction: 'load' | 'unload'): Promise<void> {
-    if (busy || activeCargoRetry || uncertainCargo || !currentCargoAuthority || !docking || !cargoResourceId ||
+    if (busy || !cargoWindowOpen || activeCargoRetry || uncertainCargo || !currentCargoAuthority || !docking || !cargoResourceId ||
         !Number.isSafeInteger(cargoAmount) || cargoAmount < 1) return;
     const authority = currentCargoAuthority;
     await performCargoTransfer({
@@ -910,7 +919,7 @@ export default function ShuttleControl({ control }: Props) {
   }
 
   async function retryCargoTransfer(): Promise<void> {
-    if (busy || !activeCargoRetry || !cargoRetryReady ||
+    if (busy || !cargoWindowOpen || !activeCargoRetry || !cargoRetryReady ||
         !cargoAttemptAuthorityIsCurrent(activeCargoRetry.authority, activeCargoRetry.currentControlRevision)) return;
     const currentSession = useSessionStore.getState().session;
     const currentRevision = currentSession?.shuttleControl?.[activeCargoRetry.authority.shuttleId]?.revision;
@@ -1194,18 +1203,19 @@ export default function ShuttleControl({ control }: Props) {
       </p>}
       <div className="console-workspace__actions">
         <button className="cic-action-button shuttle-control__touch-target" type="button"
-          disabled={busy || cargoRetryMatchesDraft || uncertainCargo !== null || !currentCargoAuthority || !cargoResourceId || !cargoAmountIsValid}
+          disabled={busy || !cargoWindowOpen || cargoRetryMatchesDraft || uncertainCargo !== null || !currentCargoAuthority || !cargoResourceId || !cargoAmountIsValid}
           onClick={() => void submitCargo('load')}>Load shuttle</button>
         <button className="cic-action-button shuttle-control__touch-target" type="button"
-          disabled={busy || cargoRetryMatchesDraft || uncertainCargo !== null || !currentCargoAuthority || !cargoResourceId || !cargoAmountIsValid}
+          disabled={busy || !cargoWindowOpen || cargoRetryMatchesDraft || uncertainCargo !== null || !currentCargoAuthority || !cargoResourceId || !cargoAmountIsValid}
           onClick={() => void submitCargo('unload')}>Unload shuttle</button>
         {cargoRetryMatchesDraft && cargoRetryReady && <button
-          className="cic-action-button shuttle-control__touch-target" type="button" disabled={busy}
+          className="cic-action-button shuttle-control__touch-target" type="button" disabled={busy || !cargoWindowOpen}
           onClick={() => void retryCargoTransfer()}>Retry cargo transfer with current revision</button>}
         {uncertainCargo && uncertainCargoReady && <button
           className="cic-action-button shuttle-control__touch-target" type="button" disabled={busy}
           onClick={() => void retryExactCargoTransfer()}>Retry exact cargo request</button>}
       </div>
+      {cargoWindowMessage && <p>{cargoWindowMessage}</p>}
       {!currentCargoAuthority && <p role="status">
         Cargo transfers unlock when a fresh live server snapshot confirms the current shuttle holder and inventory.
       </p>}
