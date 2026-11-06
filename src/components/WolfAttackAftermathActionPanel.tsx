@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { subscribeWolfAttackMemberView } from '@/lib/firestore';
 import { commitWolfAttackAftermath, type WolfAttackAftermathChoice } from '@/lib/wolfAttackAftermathService';
 import { hasFreshSessionAuthority } from '@/lib/sessionMutationAuthority';
+import { wolfAttackHoldsFleet } from '@/lib/wolfAttackFleetHold';
 import {
   pickupShipDestroyed, retainedFromDestroyedShip, scrapCollectionRoleId, type ScrapCollectionCraftId,
 } from '@/lib/attackScrapCustody';
@@ -82,7 +83,10 @@ export default function WolfAttackAftermathActionPanel({ operator }: Readonly<{ 
       row.damage >= 3 && canReachPickup(row.shipId, row.destroyed) &&
       !results.some((result) => result.targetId === row.shipId && result.sourceId.startsWith('capybara-scrap-collection-')))
     : [];
-  // Pickups the server carried past a later attack stay collectable once.
+  // Pickups the server carried past a later attack stay collectable once, but
+  // shuttles do not move while that attack holds the fleet, so the server
+  // refuses them until it resolves.
+  const carriedPickupsHeld = wolfAttackHoldsFleet(view);
   const carriedPickups = typeof operator === 'object'
     ? Object.entries(session?.attackScrapPickups ?? {}).flatMap(([shipId, pickups]) => pickups
       .filter((pickup) => pickup.attackId !== view?.attackId &&
@@ -171,11 +175,12 @@ export default function WolfAttackAftermathActionPanel({ operator }: Readonly<{ 
     <h3>{operator.shuttleId === 'macaw' ? 'Macaw' : 'Boa'} Scrap collection</h3>
     {carriedPickups.map((pickup) => <article key={`${pickup.attackId}:${pickup.shipId}`}>
       <p>{pickup.shipId.toUpperCase()} // cycle {pickup.turn} attack // 1 Scrap pickup</p>
-      <button type="button" disabled={!canAct || busy}
-        onClick={() => void submit({ action: 'collect-scrap', shuttleId: operator.shuttleId, targetShipId: pickup.shipId },
-          pickup.attackId)}>
-        {busy ? 'Collecting Scrap…' : `Collect Scrap from ${pickup.shipId.toUpperCase()} (cycle ${pickup.turn} attack)`}
-      </button>
+      {carriedPickupsHeld ? <p>Pickup held until the current Wolf attack resolves.</p> :
+        <button type="button" disabled={!canAct || busy}
+          onClick={() => void submit({ action: 'collect-scrap', shuttleId: operator.shuttleId, targetShipId: pickup.shipId },
+            pickup.attackId)}>
+          {busy ? 'Collecting Scrap…' : `Collect Scrap from ${pickup.shipId.toUpperCase()} (cycle ${pickup.turn} attack)`}
+        </button>}
     </article>)}
     {scrapTargets.map((row) => <article key={row.shipId}>
       <p>{row.shipId.toUpperCase()} // {row.damage} damage // 1 Scrap opportunity</p>
