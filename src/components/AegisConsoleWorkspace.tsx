@@ -162,9 +162,10 @@ function liveStateLabel(
 }
 
 function fighterBuildGuidance({ hasServerSnapshot, connection, writable, constructionTurnAvailable,
-  teamPhaseAvailable, constructionBayDamaged, constructionBayCharged, maintenance,
+  teamPhaseAvailable, wolfAttackActive, constructionBayDamaged, constructionBayCharged, maintenance,
   fighterWingCount, capacity, materials }: {
   readonly hasServerSnapshot: boolean;
+  readonly wolfAttackActive: boolean;
   readonly connection: 'idle' | 'connecting' | 'live' | 'offline';
   readonly writable: boolean;
   readonly constructionTurnAvailable: boolean;
@@ -181,6 +182,7 @@ function fighterBuildGuidance({ hasServerSnapshot, connection, writable, constru
   if (!writable) return 'Build unavailable // read-only view. Next actor // the current entitled console actor uses their own console; a GM observer needs explicit Write access.';
   if (!constructionTurnAvailable) return 'Build unavailable // Cycle 1 required. Next actor // GM completes the normal start.';
   if (!teamPhaseAvailable) return 'Build unavailable // Team Phase required. Next actor // Wing Commander waits for Team Phase; GM controls cycle advancement.';
+  if (wolfAttackActive) return 'Build unavailable // Wolf attack active; the wings are at the combat table. Next actor // Wing Commander waits for the attack to resolve.';
   if (constructionBayDamaged === null) return 'Build unavailable // awaiting Construction Bay state. Next actor // Wing Commander waits for the current server state.';
   if (constructionBayDamaged) return 'Build unavailable // Construction Bay damaged. Next actor // an Engineering shuttle repairs it.';
   if (!maintenance) return 'Build unavailable // Construction Bay charge state unavailable. Next actor // AEGIS Admiral or Executive Officer uses the current maintenance cycle.';
@@ -546,7 +548,7 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
               canBuild={Boolean(
                 access.writable && connection === 'live' && hasServerSnapshot &&
                 constructionBayCharged && constructionBayDamaged === false && teamPhaseAvailable &&
-                constructionTurnAvailable && craft.fighterWing &&
+                !wolfAttackActive && constructionTurnAvailable && craft.fighterWing &&
                 fighterWingCounts?.[craft.fighterWing.countId] &&
                 fighterWingCounts[craft.fighterWing.countId]!.count <
                   (constructionBayUpgraded ? craft.fighterWing.capacity.upgraded : craft.fighterWing.capacity.standard) &&
@@ -568,7 +570,7 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
               snapshotLabel={snapshotLabel}
               fighterCapacity={craft.fighterWing?.capacity ?? console.fighterCapacity}
               buildGuidance={fighterBuildGuidance({ hasServerSnapshot, connection, writable: access.writable,
-                constructionTurnAvailable, teamPhaseAvailable, constructionBayDamaged, constructionBayCharged,
+                constructionTurnAvailable, teamPhaseAvailable, wolfAttackActive, constructionBayDamaged, constructionBayCharged,
                 maintenance, fighterWingCount: craft.fighterWing ? fighterWingCounts?.[craft.fighterWing.countId] : undefined,
                 capacity: constructionBayUpgraded
                   ? (craft.fighterWing?.capacity ?? console.fighterCapacity).upgraded
