@@ -1075,6 +1075,7 @@ it('projects carried attack Scrap pickups to the damaged ship’s fleet group on
     playerCount: 18, chartId: 'A', expansion: 'base', turnLimit: 8,
     activeRoleIds: roles, activeVesselIds: vessels, shuttleDockings: [],
     attackScrapPickups: { aegis: own, shepherd: foreign },
+    boaReclamationPending: { 'arrival-fleet-2-A-5143': true },
   };
   mock.get.mockImplementation(({ path }: { path: string }) => {
     if (path === 'sessions/s1') return snapshot(fields);
@@ -1089,6 +1090,8 @@ it('projects carried attack Scrap pickups to the damaged ship’s fleet group on
   });
   const response = await getCurrentMemberSession.run({ auth: { uid: 'u1' }, data: { sessionId: 's1' } } as CallableRequest<{ sessionId: string }>) as { session: Record<string, unknown> };
   expect(response.session.attackScrapPickups).toEqual({ aegis: own });
+  // The facilitator-only Boa pending flag never reaches a member projection.
+  expect(response.session).not.toHaveProperty('boaReclamationPending');
 
   // A ship destroyed after its attack reports its carried pickup as destroyed-status.
   (fields as Record<string, unknown>).shipDamage = { aegis: { damagedSystemIds: [], destroyed: true } };

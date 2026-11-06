@@ -138,6 +138,10 @@ describe('Boa mission reclamation callables', () => {
     });
     expect(mock.set).toHaveBeenCalledTimes(1);
     expect(mock.create).toHaveBeenCalledTimes(1);
+    // The facilitator's deal preview sees only that a Boa choice is pending, never the chosen task.
+    expect(mock.update).toHaveBeenCalledWith({ path: 'sessions/s1', id: 's1' }, {
+      [`boaReclamationPending.${ARRIVAL}`]: true, updatedAt: 'server-time',
+    });
   });
 
   it('replays an exact retry without writing and rejects another player reusing the request', async () => {

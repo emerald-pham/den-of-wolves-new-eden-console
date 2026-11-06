@@ -847,6 +847,10 @@ describe('dealPrivateInitialCards', () => {
       expect.objectContaining({ path: `sessions/s1/boaMissionReclamationChoices/${asteroidOpportunityId}` }),
       expect.objectContaining({ status: 'consumed', missionId: `mission-${asteroidOpportunityId}` }),
     );
+    expect(mock.update).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'sessions/s1' }),
+      expect.objectContaining({ [`boaReclamationPending.${asteroidOpportunityId}`]: 'delete-field' }),
+    );
   });
 
   it('deals an ordinary mission without a Boa modifier when no Boa choice exists', async () => {

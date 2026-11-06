@@ -2972,7 +2972,9 @@ it('moves a pending Boa choice with its arrival, so the partition never strands 
   expect(mock.set).toHaveBeenCalledWith(`sessions/s1/boaMissionReclamationChoices/${nextId}`, expect.objectContaining({
     ...choice, opportunityId: nextId, groupId: 'fleet-2', migratedFromOpportunityId: oldId, updatedAt: 'server-time',
   }));
-  expect(mock.delete).toHaveBeenCalledWith(`sessions/s1/boaMissionReclamationChoices/${oldId}`);
+  expect(mock.delete).toHaveBeenCalledWith(`sessions/s1/boaMissionReclamationChoices/${oldId}`);  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    [`boaReclamationPending.${oldId}`]: 'delete-field', [`boaReclamationPending.${nextId}`]: true,
+  }));
 });
 
 it('fails the partition closed on a malformed Boa choice for a moving arrival', async () => {

@@ -10903,7 +10903,12 @@ export const dealPrivateInitialCards = onCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     };
-    tx.update(db.doc(`sessions/${command.sessionId}`), { missionCraftCommitments: commitments, updatedAt: FieldValue.serverTimestamp() });
+    tx.update(db.doc(`sessions/${command.sessionId}`), {
+      missionCraftCommitments: commitments,
+      // The deal settles any pending Boa choice, so the facilitator's pending flag clears with it.
+      ...(boaReclamationSelection ? { [`boaReclamationPending.${opportunity.id}`]: FieldValue.delete() } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
     if (boaReclamationSelection) {
       tx.update(boaChoiceRef, boaReclamationLapse ? {
         status: 'lapsed', missionId, lapseReason: boaReclamationLapse, lapsedCycle: currentCycle,
@@ -18036,7 +18041,13 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
     const revision = data.expectedNavigationRevision + (changed ? 1 : 0);
     const nextPartitionRevision = (partitionRevision as number) + (changed ? 1 : 0);
     if (changed) {
-      tx.update(db.doc(`sessions/${data.sessionId}`), { fleetPartitionRevision: nextPartitionRevision, updatedAt: FieldValue.serverTimestamp() });
+      tx.update(db.doc(`sessions/${data.sessionId}`), {
+        fleetPartitionRevision: nextPartitionRevision,
+        ...Object.fromEntries(boaChoiceMigrations.flatMap(({ fromId, toId }) => [
+          [`boaReclamationPending.${fromId}`, FieldValue.delete()], [`boaReclamationPending.${toId}`, true],
+        ])),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
       for (const group of plan.groups) tx.set(db.doc(`sessions/${data.sessionId}/fleetGroups/${group.id}`), {
         ...group, updatedAt: FieldValue.serverTimestamp(),
       });

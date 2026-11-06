@@ -499,6 +499,10 @@ export function createBoaMissionReclamationCallables(dependencies: BoaMissionRec
           updatedAt: timestamp,
         };
         transaction.set(choiceRef, nextChoice);
+        // Facilitator-only deal-preview flag: which location has a pending choice, never which task.
+        transaction.update(sessionRef, {
+          [`boaReclamationPending.${opportunity.id}`]: true, updatedAt: timestamp,
+        });
         dependencies.commandMarkers.create(rawTransaction, expectedFingerprint, reply);
         return reply;
       });
