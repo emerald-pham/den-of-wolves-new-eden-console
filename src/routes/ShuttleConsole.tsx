@@ -11,7 +11,7 @@ import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import type { DismantlingProposalCommand } from '@/lib/permissionedDismantlingService';
 
 const PERMISSIONED_DISMANTLING_CRAFTS: readonly DismantlingProposalCommand['craftId'][] = [
-  'philia', 'blacksmith', 'chacau', 'ally',
+  'philia', 'blacksmith', 'chacau', 'ally', 'macaw',
 ];
 
 function dismantlingConnection(
