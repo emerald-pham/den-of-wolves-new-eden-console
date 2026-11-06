@@ -13,6 +13,7 @@ import WolfAttackRecoveryControl from '@/components/WolfAttackRecoveryControl';
 import DradisEffectControls from '@/components/DradisEffectControls';
 import GmWolfDecisionSummary from '@/components/GmWolfDecisionSummary';
 import { projectWolfAttackGmAftermathView, WolfAttackGmAftermathView } from '@/components/WolfAttackGmAftermathView';
+import PdfNewsRelayAuditLog from '@/components/PdfNewsRelayAuditLog';
 import { GmWolfAmnestyPanel } from '@/components/WolfCommanderAmnestyPanels';
 import ShipPlot from '@/components/ShipPlot';
 import { useFleetGroupNavigation } from '@/lib/useFleetGroupNavigation';
@@ -3009,7 +3010,12 @@ export default function GmConsole() {
   }
 
   const wolfAftermathView = wolfAttackState
-    ? projectWolfAttackGmAftermathView(wolfAttackState, session?.shipDamage) : null;
+    ? projectWolfAttackGmAftermathView(wolfAttackState, session?.shipDamage, {
+      shuttleDockings: session?.shuttleDockings,
+      shuttleControl: session?.shuttleControl,
+      retainedShuttles: session?.retainedShuttles,
+      attackScrapPickups: session?.attackScrapPickups,
+    }) : null;
 
   const renderGmDradis = (expanded: boolean) => (
     <ShipPlot
@@ -5567,6 +5573,7 @@ export default function GmConsole() {
                 </>}
             </ul>
           </section>
+          {isGm && session?.id && <PdfNewsRelayAuditLog sessionId={session.id} />}
         </div>
         </RoleConsoleTemplate>
       </section>

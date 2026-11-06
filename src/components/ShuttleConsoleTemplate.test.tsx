@@ -17,6 +17,9 @@ vi.mock('./PressConfetti', () => ({ default: () => <section aria-label="Newspape
 vi.mock('./PressDispatch', () => ({ default: () => <section aria-label="Press dispatch desk" /> }));
 vi.mock('./MacawRepairPanel', () => ({ default: () => <section aria-label="Macaw repair controls" /> }));
 vi.mock('./BoaRecyclingPanel', () => ({ default: () => <section aria-label="Boa recycling controls" /> }));
+vi.mock('@/lib/boaMissionReclamationService', () => ({
+  readBoaMissionReclamationWorkspace: vi.fn(), chooseBoaMissionReclamationOpportunity: vi.fn(),
+}));
 vi.mock('@/components/WolfAttackAftermathActionPanel', () => ({
   default: ({ operator }: { operator: { shuttleId: string } }) => <section aria-label={`${operator.shuttleId} aftermath controls`} />,
 }));
@@ -94,6 +97,20 @@ it.each(['macaw', 'boa'] as const)('mounts %s aftermath Scrap collection only in
   /></MemoryRouter>);
 
   expect(await screen.findByRole('region', { name: `${id} aftermath controls` })).toBeInTheDocument();
+});
+
+it('mounts the Boa mission reclamation procedure in the live Boa workspace beside its return control', () => {
+  const shuttle = SHUTTLECRAFT.find((craft) => craft.id === 'boa')!;
+  render(<MemoryRouter><ShuttleConsoleTemplate shuttle={shuttle} captainName="Recycler" canLeave={true}
+    control={{ shuttleId: 'boa', ownerRoleId: 'capybara-recycler', holderUid: 'someone-else', revision: 0 } as never}
+    docking={{ shuttleId: 'boa', shipId: 'capybara', dockedAt: 'SESSION START' }}
+  /></MemoryRouter>);
+
+  const workspace = screen.getByRole('region', { name: 'Recycler console' });
+  const procedure = within(workspace).getByRole('region', { name: 'Boa mission reclamation' });
+  expect(within(procedure).getByText(/replaces that task’s reward with one Scrap/)).toBeVisible();
+  expect(within(procedure).getByRole('status')).toHaveTextContent(/Only the current Boa Recycler/);
+  expect(screen.getByRole('link', { name: 'Leave shuttle' })).toHaveAttribute('href', '/console');
 });
 
 it('renders a presentation-only shuttle control snapshot without mounting live controls', () => {

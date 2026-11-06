@@ -10,6 +10,7 @@ export default defineShuttle({
   vesselType: 'Salvage shuttle',
   description: 'Repairs or salvages consoles with scrap for the Capybara Captain.',
   captainRoleId: 'capybara-captain',
+  dismantlingReward: { resource: 'scrap', amount: 1, recipient: 'capybara' },
   boardingSupport: 'security-teams',
   cargoTransferTypes: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials', 'scrap'],
   cargoTransfer: 'Security teams, strytium ore, fuel, food, water, materials, and scrap',

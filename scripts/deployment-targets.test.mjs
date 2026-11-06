@@ -610,11 +610,15 @@ test('maps Boa recycling callable contract changes to only recycleWithBoa', () =
   assert.deepEqual(selectedFunctions(selected), functionTargets(BOA_RECYCLING_CALLABLES));
 });
 
-test('maps Macaw repair resolver and callable changes to only repairConsolesFromMacaw', () => {
-  for (const file of ['functions/src/macawRepair.ts', 'functions/src/macawRepairCallable.ts']) {
-    const selected = selectorFor([file]);
-    assert.deepEqual(selectedFunctions(selected), functionTargets(MACAW_REPAIR_CALLABLES));
-  }
+test('maps Macaw repair callable changes to only repairConsolesFromMacaw', () => {
+  const selected = selectorFor(['functions/src/macawRepairCallable.ts']);
+  assert.deepEqual(selectedFunctions(selected), functionTargets(MACAW_REPAIR_CALLABLES));
+});
+
+test('maps Macaw repair resolver changes to Macaw repair and the dismantling application that records salvage', () => {
+  const selected = selectorFor(['functions/src/macawRepair.ts']);
+  assert.deepEqual(selectedFunctions(selected),
+    functionTargets([...MACAW_REPAIR_CALLABLES, 'applyPermissionedDismantling']));
 });
 
 test('maps Ally repair callable changes to only repairConsolesFromAlly', () => {
@@ -1410,6 +1414,7 @@ test('maps Press event builder changes to every authoritative writer', () => {
     'runVoyage33Maintenance',
     'runMaintenance',
     'recordPresidentActionCommand',
+    'relayPdfColonelNews',
   ]));
 });
 

@@ -7,6 +7,8 @@ import {
   initialShuttleDockingsForRoles,
   normalizeShuttleManifest,
   isShuttleEnabled,
+  PERMISSIONED_DISMANTLING_CRAFT_IDS,
+  dismantlingRewardFor,
   SHUTTLECRAFT,
   shuttlebayForShip,
 } from './shuttles';
@@ -17,8 +19,27 @@ import { PDF_ESCORT_FIGHTER_WING } from './pdfConsoles';
 import { SHUTTLE_CARGO_TYPES as SERVER_SHUTTLE_CARGO_TYPES } from '../../functions/src/shuttleCargoTransfer';
 import { awayMissionCraftForRole } from '../../functions/src/awayMissionCards';
 import { ROLE_OWNED_CRAFT_CATALOG } from '../../functions/src/craftOwnership';
+import { dismantlingRewardField, isPermissionedDismantlingCraftId } from '../../functions/src/permissionedDismantling';
 
 describe('fleet shuttlebays', () => {
+  it('derives the permissioned-dismantling craft and their printed rewards from typed shuttle config', () => {
+    expect(PERMISSIONED_DISMANTLING_CRAFT_IDS).toEqual(SHUTTLECRAFT
+      .filter((craft) => craft.dismantlingReward !== undefined).map((craft) => craft.id));
+    expect([...PERMISSIONED_DISMANTLING_CRAFT_IDS].sort()).toEqual(['ally', 'blacksmith', 'chacau', 'macaw', 'philia']);
+    expect(dismantlingRewardFor('macaw')).toEqual({ resource: 'scrap', amount: 1, recipient: 'capybara' });
+    expect(dismantlingRewardFor('philia')).toEqual({ resource: 'materials', amount: 3, recipient: 'target-ship' });
+    expect(dismantlingRewardFor('boa')).toBeUndefined();
+    expect(dismantlingRewardFor('not-a-craft')).toBeUndefined();
+    // The server owns the reward; the client registry must name the same craft and reward field.
+    for (const craft of SHUTTLECRAFT) {
+      expect(isPermissionedDismantlingCraftId(craft.id)).toBe(craft.dismantlingReward !== undefined);
+      if (!craft.dismantlingReward) continue;
+      expect(dismantlingRewardField(craft.id)).toEqual(craft.dismantlingReward.resource === 'scrap'
+        ? { key: 'scrapGain', value: craft.dismantlingReward.amount }
+        : { key: 'materialGain', value: craft.dismantlingReward.amount });
+    }
+  });
+
   it('keeps the player shuttle board and server craft allowlist aligned for boarding support', () => {
     const ids = [
       'pallas', 'philia', 'blacksmith', 'macaw', 'black-sheep', 'condor', 'chacau', 'chepu', 'wobbly', 'ally',

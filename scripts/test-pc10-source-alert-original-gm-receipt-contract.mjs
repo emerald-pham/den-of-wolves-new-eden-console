@@ -39,6 +39,9 @@ function makeFixture({
   alertSequence = false,
   renderWrongVessel = false,
   staleBeforeRecipe = false,
+  // The shipped `.unrest-alert` styling uppercases the dialog heading and paragraphs, so
+  // Chromium's innerText is uppercase; a mixed-case fixture would hide a case-sensitive match.
+  renderUppercase = true,
 } = {}) {
   const actorUidHash = hash(actorUid);
   const sourceState = {
@@ -86,9 +89,11 @@ function makeFixture({
     : mountedType;
   const labelFor = type => type === 'population' ? 'Dismiss population alert' : 'Dismiss unrest alert';
   const visibleShipName = visibleShipId === 'aegis' ? 'AEGIS' : 'Dione';
-  const dialogText = type => type === 'population'
-    ? `Survivor population threshold reached. ${visibleShipName} survivor population has reached 500. A census threshold requires GM attention.`
-    : `Unrest threshold exceeded. ${visibleShipName} has exceeded the maximum unrest dial rating of 7. Shipboard stability is no longer measurable.`;
+  const rendered = text => renderUppercase ? text.toUpperCase() : text;
+  // The heading and paragraph are separate blocks, so innerText puts each on its own line.
+  const dialogText = type => rendered(type === 'population'
+    ? `Survivor population threshold reached\n${visibleShipName} survivor population has reached 500. A census threshold requires GM attention.`
+    : `Unrest threshold exceeded\n${visibleShipName} has exceeded the maximum unrest dial rating of 7. Shipboard stability is no longer measurable.`);
   const mounted = () => ++mountPolls > mountDelayPolls;
   const button = {
     count: async () => mounted() ? 1 : 0,
@@ -268,6 +273,13 @@ test('the real eligible-alert callback binds its mounted dismissal receipt to th
   assert.equal(fixture.lastRequest.postDataJSON().data.expectedRevision, 3);
   assert.equal(fixture.replayCount, 1);
   assert.ok(result.events.indexOf('post-wolf/eligible-alert') < result.events.indexOf('governance'));
+});
+
+test('a mixed-case rendering of the exact source alert still binds, so the match is case-insensitive', async () => {
+  const fixture = makeFixture({ renderUppercase: false });
+  const result = await callbacksFor(fixture).onEligibleAlert(fixture.context);
+  assert.equal(result.sourceInterruptionsReady, true);
+  assert.equal(result.evidence.cases[0].status, 'completed');
 });
 
 test('the exact source alert may mount after a short delay and still complete its original receipt', async () => {

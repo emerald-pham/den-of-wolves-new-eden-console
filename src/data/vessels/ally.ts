@@ -14,6 +14,7 @@ export default defineShuttle({
   vesselType: 'Engineering shuttle',
   description: 'Repairs fleet consoles and carries full cargo for the Shepherd / Icebreaker Union Engineer.',
   captainRoleId: 'joint-engineering-shepherd-icebreaker',
+  dismantlingReward: { resource: 'materials', amount: 3, recipient: 'target-ship' },
   boardingSupport: 'security-teams',
   availability: 'gm-controlled',
   cargoTransferTypes: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],

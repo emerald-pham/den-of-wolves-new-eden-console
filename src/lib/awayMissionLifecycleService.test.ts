@@ -254,3 +254,42 @@ it('sends an exploration choice through current GM authority and parses only its
     opportunityId: 'D-1', targetCoordinates: ['4454', '5143'], instanceId: 'gm-instance', expectedRevision: 3 }));
   expect(parseAwayMissionLifecyclePublicState({ ...state, explorationTargets: ['4454', '5143'] }, 'mission-1')).toBeNull();
 });
+
+it('retries the Wing Commander’s interrupted final choice exactly and accepts only the Wing’s resolved private result', async () => {
+  const wingContext: AwayMissionLifecycleClientContext = {
+    ...playerContext, actorUid: 'alice', authenticatedUid: 'alice',
+  };
+  const resolvedPublic = {
+    ...publicState, siteCode: 'A', revision: 4, phase: 'resolved', status: 'resolved',
+    opportunities: [{ id: 'A-1', label: 'Harvest proto-lichen' }], requestCounts: [],
+    outcomes: [{ opportunityId: 'A-1', contributorCount: 1, total: 17, bonusTotal: 3, difficulty: 17,
+      criticalThreshold: null, outcome: 'success' }],
+    rewards: [{ opportunityId: 'A-1', branch: 'success', resources: { food: 8 }, effects: [], bulkHaulageApplied: false }],
+  };
+  const wingPrivate = {
+    missionId: 'mission-1', participantUid: 'alice', revision: 4, phase: 'resolved', assignmentCommitted: true, canUseReclamator: false,
+    cards: [{ id: '4♦', value: 4, status: 'assigned', opportunityId: 'A-1' }], reclamatorSalvage: null,
+  };
+  const reply = (privateResult: Record<string, unknown>) => ({
+    status: 'replayed', sessionId: 's1', missionId: 'mission-1', requestId: 'wing-choice',
+    revision: 4, publicState: resolvedPublic, privateState: privateResult,
+  });
+  const invoke = vi.fn()
+    .mockRejectedValueOnce({ code: 'functions/deadline-exceeded' })
+    .mockResolvedValueOnce(reply({ ...wingPrivate, participantUid: 'bob' }))
+    .mockResolvedValueOnce(reply(wingPrivate));
+  const actions = createAwayMissionLifecycleActions(() => wingContext, { invoke, createRequestId: () => 'wing-choice' });
+  const choice = [{ cardId: '4♦', opportunityId: 'A-1' }];
+
+  await expect(actions.assignCards(choice)).rejects.toMatchObject({ code: 'functions/deadline-exceeded' });
+  await expect(actions.assignCards([])).rejects.toThrow(/same away-mission request/i);
+  await expect(actions.assignCards(choice)).rejects.toThrow(/invalid private away-mission projection/i);
+  await expect(actions.assignCards(choice)).resolves.toBeUndefined();
+
+  expect(invoke).toHaveBeenCalledTimes(3);
+  expect(invoke.mock.calls.map(([payload]) => payload)).toEqual(Array(3).fill({
+    sessionId: 's1', missionId: 'mission-1', requestId: 'wing-choice', expectedRevision: 3,
+    type: 'assignCards', placements: choice,
+  }));
+  expect(parseAwayMissionLifecyclePublicState(resolvedPublic, 'mission-1')).toEqual(resolvedPublic);
+});

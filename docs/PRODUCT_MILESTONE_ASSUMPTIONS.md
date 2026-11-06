@@ -580,3 +580,35 @@ The owner expressly resolved the unbuilt/completed-track ambiguity on
 all five research marks. This supplements, rather than rewrites, PC10.1-A1's
 printed price-lane interpretation. Existing completed-track use requirements,
 authority and receipt replay remain. See [owner feedback](PRODUCT_MILESTONE_FEEDBACK.md#pc101-completed-research-ecm-and-bounded-browser-privacy-repair--2026-10-17).
+
+### PC10-C1 — Macaw dismantling, including its Capybara host, with distinct-player consent
+
+| Field | Record |
+|---|---|
+| ID and checkpoint | PC10-C1; PC10.2 ticket C1 (issue #82), Prompt 576. Owner decision, 2026-11-05. |
+| Source passage | Capybara Expansion v1.1: the Macaw shuttle rule in the A4 card pack, with the Capybara A3 ship sheet for the target consoles. Paraphrase: instead of repairing, Macaw may damage a console with the permission of at least one player on that ship and gain one Scrap; when fuelled it may act on a second ship. The routed private source was checked for this decision; no source wording is reproduced here. |
+| Ambiguity and alternatives | The print source names no exception for the Capybara host, and it does not define digital consent. Readings: (a) block the host target; (b) allow it, with the holder able to approve it; (c) allow it with consent from a different Capybara player. The ledger that receives the Scrap, and whether dismantling shares the repair allowance, are also not spelled out digitally. |
+| Chosen reading | Reading (c). The host is a valid target. Consent must come from a different active player currently assigned to the target ship (PC06-A7). The Macaw holder can never approve, decline or revoke their own request. Each approval is bound to the exact target and craft-control revisions and applies once. The Scrap goes to main's existing Macaw Scrap ledger, the Capybara inventory (`shipResources.capybara.scrap`, as in P575 repairs). Because the rule says "instead of repairing", a dismantled console uses Macaw's per-cycle repair allowance: two consoles per ship, a second ship only when fuelled, during the live Coordination window. |
+| Product effect | The Macaw holder can request one-Scrap dismantling on its docked ship, including the Capybara. Another player on that ship approves or declines. Only the holder can apply a live approval: one console is damaged and Capybara Scrap rises by one, exactly once. If the holder is the only active Capybara player, host dismantling is impossible by design. Covered by the domain, callable, rules, service, panel and route tests for C1. |
+| Review state | **Accepted: owner decision, 2026-11-05.** The product owner approved this ruling. Noted for later: the C3 Wolf-attack pickups credit Macaw cargo (`shuttleCargo.macaw`), while this entry and P575 credit the Capybara inventory. |
+
+### PC10.2-P2.2 — P.D.F. Colonel news relay with an explicit Press hand-off
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC10.2-P2.2, P233b PDF news relay (#207, parent P2 #81). Owner decision, approved 2026-11-05. |
+| Source | The P.D.F. Colonel role summary in the authorized private library says only that the Colonel relays messages and news outside attacks (the public role brief carries the same intent). It does not define audiences or publication. The Press-publication contract in [PC07_PC10_ALIGNMENT](PC07_PC10_ALIGNMENT.md) says a Press hand-off is not automatic publication. |
+| Chosen reading | Only the current P.D.F. Colonel may relay, and only to their own current fleet group; the server checks the role and group and denies a relay during an active Wolf attack. A separate, default-off "Also hand to the Press" choice forwards only that message text to the Press intake, and the Press still decides whether and how to publish it. The choice is hidden, and refused by the server, while the Press is not enabled. |
+| Audiences | The current fleet group receives the message as a group note. The Press receives only the handed-off text, with no sender or group details. The facilitator receives a private record of the relay and the hand-off choice. |
+| Alternatives and limits | No relay to other fleet groups, no automatic publication, and no relay during an attack. The relay reuses the existing fleet-group note store; the global fleet-group panel stays visible on the Colonel route. |
+
+### PC10.2-C2 — Boa reclamation halves odd difficulty rounding up (owner decision)
+
+| Field | Record |
+|---|---|
+| ID and checkpoint | PC10.2-C2, ticket C2 (issue #83, Prompt 579) Boa reclamation choice and result; recorded 2026-11-05 under the PC10.2 execution activation. |
+| Source | Capybara expansion v1.1, Boa shuttle component sheet, Reclamation (away mission). Paraphrase: before mission cards are dealt, choose one opportunity; its difficulty is halved and its reward becomes one Scrap, with no critical bonus. |
+| Ambiguity and alternatives | The sheet does not say how to halve an odd difficulty (for example 17). Alternatives are rounding down (8), rounding up (9), or comparing against the exact half-point (8.5). With integer card totals, the exact half-point and rounding up give the same outcome; rounding down makes one more total succeed. The October 8 half-loss house rule rounds *losses* down and was expressly not applied to this difficulty. |
+| Chosen reading | Owner decision, 2026-11-05: a halved odd difficulty **rounds up** (17 → 9). The server stores and displays the integer and records `rounding: 'up'` on the private mission-start receipt. The printed critical threshold is unchanged; a critical result still pays only the one Scrap. |
+| Effect and limits | Affects only the one task chosen with Boa reclamation before the deal: its success comparison, its reward (one Scrap to Boa cargo instead of the printed reward, effects and Bulk Haulage), and the Boa choice panel's displayed difficulty. A single helper (`halvedBoaReclamationDifficulty`) owns the rounding. No other mission arithmetic changes. A choice never blocks the location's mission (coordinator ruling, 2026-11-05): if, at the deal, Boa control changed, the Recycler is not active, or the Recycler is not on the mission with the Boa, the choice lapses, the mission is dealt without halving or Scrap replacement, and the GM receipt and the Recycler's Boa view record the lapse and its reason. |
+| Review state | **Accepted — owner decision, 2026-11-05** (the product owner approved the PC10.2 coordinator's proposal that Boa's halved difficulty rounds up). |

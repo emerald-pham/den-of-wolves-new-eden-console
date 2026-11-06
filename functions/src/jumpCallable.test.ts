@@ -72,6 +72,7 @@ const mock = vi.hoisted(() => ({
   missionOpportunityRecord: undefined as Record<string, unknown> | undefined,
   missionOpportunityRecordPath: undefined as string | undefined,
   partitionOpportunities: [] as Array<Record<string, unknown>>,
+  boaChoices: {} as Record<string, Record<string, unknown>>,
   shuttleDepartures: {} as Record<string, Record<string, unknown>>,
   shuttleTransitChains: {} as Record<string, Record<string, unknown>>,
   startedOpportunityIds: [] as string[],
@@ -259,6 +260,7 @@ beforeEach(() => {
   mock.missionOpportunityRecord = undefined;
   mock.missionOpportunityRecordPath = undefined;
   mock.partitionOpportunities = [];
+  mock.boaChoices = {};
   mock.shuttleDepartures = {};
   mock.shuttleTransitChains = {};
   mock.startedOpportunityIds = [];
@@ -331,6 +333,11 @@ beforeEach(() => {
         exists: true, id: record.id, data: () => record,
       })),
     };
+    if (path.startsWith('sessions/s1/boaMissionReclamationChoices/')) {
+      const fields = mock.boaChoices[path];
+      return { exists: fields !== undefined, id: path.split('/').at(-1), ref: { path }, data: () => fields,
+        get: (key: string) => fields?.[key] };
+    }
     if (path === 'sessions/s1/missionStartSnapshots') return {
       docs: mock.startedOpportunityIds.map(id => ({ exists: true, id })),
     };
@@ -2946,6 +2953,41 @@ it.each([false, true])('moves an unstarted arrival to its source ship group, inc
   mock.set.mockClear(); mock.delete.mockClear();
   await call.run(command);
   expect(mock.set).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
+});
+
+it('moves a pending Boa choice with its arrival, so the partition never strands the selection', async () => {
+  mock.coordinates = { quellon: '1413' };
+  const oldId = 'arrival-fleet-1-A-1413';
+  const nextId = 'arrival-fleet-2-A-1413';
+  mock.partitionOpportunities = [{ type: 'mission-opportunity', status: 'available',
+    sessionId: 's1', id: oldId, groupId: 'fleet-1', chart: 'A', coordinate: '1413', siteCode: 'A',
+    sourceShipId: 'quellon', sourceTransitionId: 'jump-original-arrival', sourceCycle: 1 }];
+  const choice = { type: 'boa-mission-reclamation-choice', schemaVersion: 1, status: 'selected', sessionId: 's1',
+    opportunityId: oldId, groupId: 'fleet-1', chart: 'A', coordinate: '1413', siteCode: 'A', sourceCycle: 1,
+    actorUid: 'boa-player', actorRoleId: 'capybara-recycler', opportunityTaskId: 'A-1', controlRevision: 2,
+    revision: 3, requestId: 'boa-choice-1', updatedAt: 'earlier' };
+  mock.boaChoices[`sessions/s1/boaMissionReclamationChoices/${oldId}`] = choice;
+  const call = (jumpCallables as unknown as { confirmFleetPartition: { run: (request: unknown) => Promise<unknown> } }).confirmFleetPartition;
+  await call.run(request({ sessionId: 's1', instanceId: 'bridge', expectedNavigationRevision: 0 }));
+  expect(mock.set).toHaveBeenCalledWith(`sessions/s1/boaMissionReclamationChoices/${nextId}`, expect.objectContaining({
+    ...choice, opportunityId: nextId, groupId: 'fleet-2', migratedFromOpportunityId: oldId, updatedAt: 'server-time',
+  }));
+  expect(mock.delete).toHaveBeenCalledWith(`sessions/s1/boaMissionReclamationChoices/${oldId}`);  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    [`boaReclamationPending.${oldId}`]: 'delete-field', [`boaReclamationPending.${nextId}`]: true,
+  }));
+});
+
+it('fails the partition closed on a malformed Boa choice for a moving arrival', async () => {
+  mock.coordinates = { quellon: '1413' };
+  const oldId = 'arrival-fleet-1-A-1413';
+  mock.partitionOpportunities = [{ type: 'mission-opportunity', status: 'available',
+    sessionId: 's1', id: oldId, groupId: 'fleet-1', chart: 'A', coordinate: '1413', siteCode: 'A',
+    sourceShipId: 'quellon', sourceTransitionId: 'jump-original-arrival', sourceCycle: 1 }];
+  mock.boaChoices[`sessions/s1/boaMissionReclamationChoices/${oldId}`] = { type: 'something-else' };
+  const call = (jumpCallables as unknown as { confirmFleetPartition: { run: (request: unknown) => Promise<unknown> } }).confirmFleetPartition;
+  await expect(call.run(request({ sessionId: 's1', instanceId: 'bridge', expectedNavigationRevision: 0 })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('leaves an already-started mission arrival bound to its immutable start', async () => {

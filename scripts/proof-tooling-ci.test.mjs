@@ -4,12 +4,13 @@ import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
 import test from 'node:test';
 import { load } from 'js-yaml';
 import { classifyRiskGates } from './risk-gates.mjs';
 
-const root = resolve(new URL('..', import.meta.url).pathname);
+const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const packageJson = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
 const ci = await readFile(resolve(root, '.github/workflows/ci.yml'), 'utf8');
 const deploy = await readFile(resolve(root, '.github/workflows/deploy.yml'), 'utf8');

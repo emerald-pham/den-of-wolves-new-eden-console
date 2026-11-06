@@ -7,6 +7,7 @@ import ShipNavigationWorkspace from './ShipNavigationWorkspace';
 import ExplorerRoutePlanner from './ExplorerRoutePlanner';
 import AssignedShuttlecraft from './AssignedShuttlecraft';
 import PdfEscortWingReference from './PdfEscortWingReference';
+import PdfNewsRelayPanel from './PdfNewsRelayPanel';
 import type { Ship } from '@/data/ships';
 import type { ConsoleRole } from '@/data/roles';
 import { EXECUTIVE_SYSTEMS, proceduresForRole } from '@/data/roleProcedures';
@@ -193,6 +194,8 @@ export default function FleetSystemsWorkspace({
         state={shipState?.pdfEscortWing ?? session?.pdfEscortWing}
         writable={pdfColonelWritable}
       />}
+      {ship.id === 'refinery-124' && role.id === PDF_ROLE_CONSOLE.roleId &&
+        <PdfNewsRelayPanel enabled={pdfColonelWritable} />}
       {role.id === 'dione-president' && <PresidentWorkspace
         writable={writable && (me?.role === 'gm' || (
           me?.role === 'player' && (session?.presidentialOffices

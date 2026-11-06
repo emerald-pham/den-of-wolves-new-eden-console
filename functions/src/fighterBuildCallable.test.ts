@@ -7,6 +7,7 @@ const mock = vi.hoisted(() => ({
   players: [] as Array<Record<string, unknown>>,
   session: {} as Record<string, unknown>,
   receipts: {} as Record<string, Record<string, unknown>>,
+  attack: undefined as Record<string, unknown> | undefined,
 }));
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -55,6 +56,7 @@ beforeEach(() => {
     vesselActionRevisions: { aegis: 0 },
   };
   mock.receipts = {};
+  mock.attack = undefined;
   mock.get.mockReset();
   mock.update.mockReset();
   mock.set.mockReset();
@@ -74,6 +76,12 @@ beforeEach(() => {
     }
     if (path.includes('/gmInstances/')) {
       return snapshot({ uid: mock.owner, connected: mock.connected, lastSeenAt: new Date() });
+    }
+    if (path.endsWith('/wolfAttackState/current')) {
+      const attack = mock.attack;
+      return attack
+        ? { exists: true, data: () => attack, get: (key: string) => attack[key] }
+        : { exists: false, data: () => undefined, get: () => undefined };
     }
     if (path.endsWith('/players')) return { exists: true, docs: mock.players.map((fields) => snapshot(fields)) };
     return snapshot(mock.session);
@@ -167,4 +175,36 @@ it('returns a stale result without mutation and replays a committed request', as
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('is blocked while a Wolf attack holds the fleet, so a launched wing count cannot change mid-attack', async () => {
+  const holding = [
+    { status: 'declared', airspaceLocked: true, turn: 1, attackId: 'attack-1' },
+    { status: 'resolving', airspaceLocked: true, turn: 1, attackId: 'attack-1' },
+    { status: 'resolved', airspaceLocked: true, turn: 1, attackId: 'attack-1' },
+  ];
+  for (const [index, attack] of holding.entries()) {
+    mock.attack = attack;
+    await expect(buildFighter.run(request({ ...base, requestId: `build-attack-${index}` })))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+  }
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  mock.attack = {
+    status: 'resolved', airspaceLocked: false, parkingReleaseCondition: 'normal-movement-reopened',
+    turn: 1, attackId: 'attack-1',
+  };
+  await expect(buildFighter.run(request({ ...base, requestId: 'build-after-attack' })))
+    .resolves.toMatchObject({ status: 'committed', count: 4 });
+});
+
+it('still replays a build committed before the attack was declared', async () => {
+  await buildFighter.run(request(base));
+  mock.receipts['sessions/s1/commandReceipts/build-1'] = mock.set.mock.calls.at(-1)?.[1] as Record<string, unknown>;
+  mock.update.mockReset();
+  mock.set.mockReset();
+  mock.attack = { status: 'declared', airspaceLocked: true, turn: 1, attackId: 'attack-1' };
+  await expect(buildFighter.run(request(base))).resolves.toMatchObject({ status: 'committed', count: 4 });
+  expect(mock.update).not.toHaveBeenCalled();
 });

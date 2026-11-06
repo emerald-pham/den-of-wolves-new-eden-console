@@ -49,7 +49,7 @@ const GM_SAMPLE: WolfAttackGmAftermathViewModel = {
     casualtiesAfter: 500, casualtiesPrevented: 500, foodSpent: 0, waterSpent: 0}]},
   scrapClaims: {aegis: {shuttleId: 'macaw', scrap: 1}}, returningInstanceIds: [],
   survivingWolfShips: [{instanceId: 'prepared-wolf-2', shipId: 'wolf-destroyer', target: 'aegis'}],
-  pendingWork: {doctorShipIds: [], salvageAvailable: true, scrapShipIds: [],
+  pendingWork: {doctorShipIds: [], salvageAvailable: true, scrapShipIds: [], carriedPickups: [],
     damagedSystems: [{shipId: 'aegis', systemIds: ['missile-launchers']}], survivingThreatInstanceIds: ['prepared-wolf-2']},
 };
 

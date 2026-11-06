@@ -163,3 +163,61 @@ it('describes the proposal handoff before the craft holder sends it', () => {
   );
   expect(mocks.propose).not.toHaveBeenCalled();
 });
+
+const macawInbox = {
+  type: 'permissioned-dismantling-inbox' as const,
+  sessionId: 's1', targetShipId: 'capybara', proposalId: 'macaw-proposal', proposerUid: 'captain',
+  craftId: 'macaw' as const, targetConsoleId: 'advanced-hydroponics', targetRevision: 2, scrapGain: 1 as const,
+  status: 'pending' as const, consentId: null, scrapAfter: null,
+  updatedAt: new Date('2026-09-30T17:00:00.000Z'),
+};
+
+it('offers Macaw dismantling for one Capybara Scrap and shows the committed Scrap balance', async () => {
+  const user = userEvent.setup();
+  sessionStorage.setItem('permissioned-dismantling:v1:s1:captain:macaw', JSON.stringify({
+    proposalId: 'macaw-proposal', craftId: 'macaw', targetShipId: 'capybara', targetConsoleId: 'advanced-hydroponics',
+  }));
+  let handlers: { onInbox: (value: unknown) => void } | undefined;
+  mocks.subscribe.mockImplementation((_sessionId, _shipId, value) => {
+    handlers = value;
+    value.onInbox({ ...macawInbox, status: 'consented', consentId: 'consent-macaw' });
+    return vi.fn();
+  });
+  mocks.apply.mockResolvedValue({
+    status: 'applied', targetConsoleId: 'advanced-hydroponics', scrapGain: 1, scrapAfter: 4,
+  });
+  render(<PermissionedDismantlingPanel mode="proposer" sessionId="s1" currentPlayerUid="captain" craftId="macaw"
+    targetShipId="capybara" targetSystems={[{ id: 'advanced-hydroponics', name: 'Advanced Hydroponics' }]}
+    damagedSystemIds={[]} connection="live" canAct />);
+
+  const panel = screen.getByRole('region', { name: /permissioned dismantling proposal/i });
+  expect(within(panel).getByText(/instead of repairing.*1 scrap.*capybara/i)).toBeInTheDocument();
+  expect(within(panel).getByText(/another player on that ship.*not you/i)).toBeInTheDocument();
+  expect(within(panel).queryByText(/3 materials/i)).not.toBeInTheDocument();
+
+  await user.click(await within(panel).findByRole('button', { name: /apply consented dismantling/i }));
+  expect(await within(panel).findByText(/advanced-hydroponics damaged.*1 scrap.*capybara now has 4/i)).toBeInTheDocument();
+
+  await act(async () => handlers?.onInbox({ ...macawInbox, status: 'applied', consentId: 'consent-macaw', scrapAfter: 4 }));
+  expect(within(panel).getByText(/applied.*advanced-hydroponics damaged.*1 scrap.*capybara balance 4/i)).toBeInTheDocument();
+});
+
+it('asks a different Capybara player to decide a host request and never lets the Macaw holder approve it', async () => {
+  mocks.subscribe.mockImplementation((_sessionId, _shipId, handlers) => {
+    handlers.onInbox(macawInbox);
+    return vi.fn();
+  });
+  const holderView = render(<PermissionedDismantlingPanel mode="target" sessionId="s1" targetShipId="capybara"
+    currentPlayerUid="captain" />);
+  expect(screen.getByText(/macaw.*advanced-hydroponics.*\+1 scrap.*capybara/i)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /grant permission/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /decline request/i })).not.toBeInTheDocument();
+  expect(screen.getByText(/you sent this request.*another capybara player/i)).toBeInTheDocument();
+
+  holderView.unmount();
+  render(<PermissionedDismantlingPanel mode="target" sessionId="s1" targetShipId="capybara"
+    currentPlayerUid="recycler" />);
+  expect(screen.getByRole('button', { name: 'Grant permission' })).toHaveAccessibleDescription(
+    /does not damage.*macaw holder acts next.*1 scrap to the capybara/i,
+  );
+});

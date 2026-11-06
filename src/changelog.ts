@@ -32,6 +32,21 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     ],
   },
   {
+    version: '0.5.75',
+    implementationProgress: {
+      completed: 703, total: 751, percentage: '93.61%',
+      done: 703, partial: 6, active: 0, missing: 42, blocked: 0,
+    },
+    changes: [
+      'Wing Commanders see why a bay fighter build is blocked and what was built, keep a launched Bravo wing shown as launched after targeting, exchange fighters between wings and rebuild a fighter after a mission.',
+      'The P.D.F. Colonel can run the Fighter Bay and Escort Wing, send a Chepu security team, relocate during boarding, relay news with an optional hand-off to the Press, and claim mission bonuses.',
+      'The Macaw can dismantle a console for Scrap after another player on the target ship consents.',
+      'Capybara crews can choose a Boa reclamation for an eligible mission and see its result.',
+      'Scrap left by a Wolf attack can be collected once by the crew entitled to it.',
+      '703 of 751 planned items are complete in the catalog snapshot used to build this release (93.61%).',
+    ],
+  },
+  {
     version: '0.5.74',
     implementationProgress: {
       completed: 703, total: 751, percentage: '93.61%',

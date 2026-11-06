@@ -56,6 +56,7 @@ import {
   hasFreshSessionAuthority,
   type SessionAuthorityCheckpoint,
 } from '@/lib/sessionMutationAuthority';
+import { readSessionDraft, writeSessionDraft, type SessionDraftScope } from '@/lib/sessionDraftStorage';
 
 interface Props {
   readonly control: ShuttleControlEntry;
@@ -85,6 +86,39 @@ interface CargoDraft {
   readonly authorityKey: string | null;
   readonly resourceId: ResourceId | '';
   readonly amount: number;
+}
+
+/** Unsent cargo choice kept per tab so Back and a station reselect do not discard it. */
+interface StoredCargoDraft {
+  readonly hostShipId: string;
+  readonly resourceId: ResourceId | '';
+  readonly amount: number;
+}
+
+const MAX_STORED_CARGO_AMOUNT = 9999;
+
+function cargoDraftScope(
+  authority: Pick<CargoAttemptAuthority, 'sessionId' | 'uid' | 'shuttleId'>,
+): SessionDraftScope {
+  return {
+    kind: 'shuttle-cargo-draft', sessionId: authority.sessionId, uid: authority.uid, scope: authority.shuttleId,
+  };
+}
+
+function parseStoredCargoDraft(
+  value: unknown,
+  hostShipId: string,
+  cargoTypes: readonly ResourceId[],
+): StoredCargoDraft | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const draft = value as Record<string, unknown>;
+  if (draft.hostShipId !== hostShipId) return null;
+  const resourceId = draft.resourceId;
+  if (resourceId !== '' && !cargoTypes.some((type) => type === resourceId)) return null;
+  const amount = draft.amount;
+  if (typeof amount !== 'number' || !Number.isSafeInteger(amount) || amount < 0 ||
+      amount > MAX_STORED_CARGO_AMOUNT) return null;
+  return { hostShipId, resourceId: resourceId as ResourceId | '', amount };
 }
 
 interface CargoStatus {
@@ -118,6 +152,7 @@ type ServiceShuttleRechargeRecovery =
     };
 
 const EMPTY_SYSTEM_IDS: readonly string[] = Object.freeze([]);
+const EMPTY_CARGO_TYPES: readonly ResourceId[] = Object.freeze([]);
 const AMBIGUOUS_RECHARGE_OUTCOME_CODES = new Set([
   'unavailable', 'deadline-exceeded',
 ]);
@@ -323,16 +358,38 @@ export default function ShuttleControl({ control }: Props) {
     ? cargoAuthorityScopeKey(visibleCargoAuthority) : null;
   const cargoDraftMatchesAuthority = visibleCargoAuthorityKey !== null &&
     cargoDraft.authorityKey === visibleCargoAuthorityKey;
-  const cargoResourceId = cargoDraftMatchesAuthority ? cargoDraft.resourceId : '';
-  const cargoAmount = cargoDraftMatchesAuthority ? cargoDraft.amount : 1;
+  const cargoTypes = SHUTTLECRAFT.find((shuttle) => shuttle.id === control.shuttleId)
+    ?.cargoTransferTypes ?? EMPTY_CARGO_TYPES;
+  // Re-read only when the visible authority changes: a remount after Back or a
+  // fresh station reselect refills the player's own unsent choice for this dock.
+  const cargoDraftSessionId = visibleCargoAuthority?.sessionId;
+  const cargoDraftUid = visibleCargoAuthority?.uid;
+  const cargoDraftHostShipId = visibleCargoAuthority?.hostShipId;
+  const storedCargoDraft = useMemo(() => visibleCargoAuthorityKey !== null &&
+      cargoDraftSessionId && cargoDraftUid && cargoDraftHostShipId
+    ? readSessionDraft(
+        cargoDraftScope({ sessionId: cargoDraftSessionId, uid: cargoDraftUid, shuttleId: control.shuttleId }),
+        (value) => parseStoredCargoDraft(value, cargoDraftHostShipId, cargoTypes),
+      )
+    : null, [visibleCargoAuthorityKey, cargoDraftSessionId, cargoDraftUid, cargoDraftHostShipId,
+    control.shuttleId, cargoTypes]);
+  const cargoResourceId = cargoDraftMatchesAuthority ? cargoDraft.resourceId : storedCargoDraft?.resourceId ?? '';
+  const cargoAmount = cargoDraftMatchesAuthority ? cargoDraft.amount : storedCargoDraft?.amount ?? 1;
   const activeCargoRetry = cargoRetry && visibleCargoAuthorityKey !== null &&
     cargoAuthorityScopeKey(cargoRetry.authority) === visibleCargoAuthorityKey
     ? cargoRetry : null;
   const uncertainCargo = visibleCargoAuthorityKey === null
     ? null : uncertainCargoAttempts.get(visibleCargoAuthorityKey) ?? null;
-  const cargoTypes = SHUTTLECRAFT.find((shuttle) => shuttle.id === control.shuttleId)
-    ?.cargoTransferTypes ?? [];
   const cargoAmountIsValid = Number.isSafeInteger(cargoAmount) && cargoAmount >= 1;
+  // The server accepts docked transfers only during the current Coordination
+  // Phase; mirror that window so Load/Unload never look available early.
+  const cargoWindowOpen = session.phase === 'active' &&
+    session.turnPhase?.turn === session.currentTurn &&
+    session.turnPhase?.airspace.state === 'lifted';
+  const cargoWindowMessage = cargoWindowOpen ? null
+    : session.turnPhase?.airspace.state === 'restricted' && session.turnPhase.turn === session.currentTurn
+      ? 'Cargo transfers are closed during Team Phase. They open when the Coordination Phase begins.'
+      : 'Cargo transfers open during the Coordination Phase.';
   const cargoRetryMatchesDraft = Boolean(activeCargoRetry &&
     activeCargoRetry.resourceId === cargoResourceId && activeCargoRetry.amount === cargoAmount);
   const cargoRetryReady = Boolean(currentCargoAuthority && cargoRetryMatchesDraft && activeCargoRetry &&
@@ -764,13 +821,17 @@ export default function ShuttleControl({ control }: Props) {
   }
 
   function updateCargoDraft(patch: Partial<Pick<CargoDraft, 'resourceId' | 'amount'>>): void {
-    if (visibleCargoAuthorityKey === null) return;
-    setCargoDraft((current) => {
-      const base = current.authorityKey === visibleCargoAuthorityKey
-        ? current
-        : { authorityKey: visibleCargoAuthorityKey, resourceId: '' as const, amount: 1 };
-      return { ...base, ...patch };
-    });
+    if (visibleCargoAuthorityKey === null || !visibleCargoAuthority) return;
+    const next: CargoDraft = {
+      authorityKey: visibleCargoAuthorityKey, resourceId: cargoResourceId, amount: cargoAmount, ...patch,
+    };
+    setCargoDraft(next);
+    const stored: StoredCargoDraft = {
+      hostShipId: visibleCargoAuthority.hostShipId, resourceId: next.resourceId, amount: next.amount,
+    };
+    if (parseStoredCargoDraft(stored, stored.hostShipId, cargoTypes)) {
+      writeSessionDraft(cargoDraftScope(visibleCargoAuthority), stored);
+    }
   }
 
   async function performCargoTransfer(
@@ -838,7 +899,7 @@ export default function ShuttleControl({ control }: Props) {
   }
 
   async function submitCargo(direction: 'load' | 'unload'): Promise<void> {
-    if (busy || activeCargoRetry || uncertainCargo || !currentCargoAuthority || !docking || !cargoResourceId ||
+    if (busy || !cargoWindowOpen || activeCargoRetry || uncertainCargo || !currentCargoAuthority || !docking || !cargoResourceId ||
         !Number.isSafeInteger(cargoAmount) || cargoAmount < 1) return;
     const authority = currentCargoAuthority;
     await performCargoTransfer({
@@ -858,7 +919,7 @@ export default function ShuttleControl({ control }: Props) {
   }
 
   async function retryCargoTransfer(): Promise<void> {
-    if (busy || !activeCargoRetry || !cargoRetryReady ||
+    if (busy || !cargoWindowOpen || !activeCargoRetry || !cargoRetryReady ||
         !cargoAttemptAuthorityIsCurrent(activeCargoRetry.authority, activeCargoRetry.currentControlRevision)) return;
     const currentSession = useSessionStore.getState().session;
     const currentRevision = currentSession?.shuttleControl?.[activeCargoRetry.authority.shuttleId]?.revision;
@@ -1142,18 +1203,19 @@ export default function ShuttleControl({ control }: Props) {
       </p>}
       <div className="console-workspace__actions">
         <button className="cic-action-button shuttle-control__touch-target" type="button"
-          disabled={busy || cargoRetryMatchesDraft || uncertainCargo !== null || !currentCargoAuthority || !cargoResourceId || !cargoAmountIsValid}
+          disabled={busy || !cargoWindowOpen || cargoRetryMatchesDraft || uncertainCargo !== null || !currentCargoAuthority || !cargoResourceId || !cargoAmountIsValid}
           onClick={() => void submitCargo('load')}>Load shuttle</button>
         <button className="cic-action-button shuttle-control__touch-target" type="button"
-          disabled={busy || cargoRetryMatchesDraft || uncertainCargo !== null || !currentCargoAuthority || !cargoResourceId || !cargoAmountIsValid}
+          disabled={busy || !cargoWindowOpen || cargoRetryMatchesDraft || uncertainCargo !== null || !currentCargoAuthority || !cargoResourceId || !cargoAmountIsValid}
           onClick={() => void submitCargo('unload')}>Unload shuttle</button>
         {cargoRetryMatchesDraft && cargoRetryReady && <button
-          className="cic-action-button shuttle-control__touch-target" type="button" disabled={busy}
+          className="cic-action-button shuttle-control__touch-target" type="button" disabled={busy || !cargoWindowOpen}
           onClick={() => void retryCargoTransfer()}>Retry cargo transfer with current revision</button>}
         {uncertainCargo && uncertainCargoReady && <button
           className="cic-action-button shuttle-control__touch-target" type="button" disabled={busy}
           onClick={() => void retryExactCargoTransfer()}>Retry exact cargo request</button>}
       </div>
+      {cargoWindowMessage && <p>{cargoWindowMessage}</p>}
       {!currentCargoAuthority && <p role="status">
         Cargo transfers unlock when a fresh live server snapshot confirms the current shuttle holder and inventory.
       </p>}

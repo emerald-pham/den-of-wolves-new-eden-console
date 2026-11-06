@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import test from 'node:test';
@@ -15,7 +16,7 @@ import { observeUiReceipt, attachUiReceiptDiagnostics } from '../pc10-browser-ui
 import { originalProofError, retainProofFailure } from '../pc10-proof-failure-evidence.mjs';
 import * as adapter from './pc11-normal-start-adapter.mjs';
 
-const root = resolve(new URL('../..', import.meta.url).pathname);
+const root = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const require = createRequire(`${root}/package.json`);
 const ts = require('typescript');
 const hash = uid => createHash('sha256').update(uid).digest('hex').slice(0, 16);

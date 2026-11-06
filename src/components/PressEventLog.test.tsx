@@ -43,6 +43,8 @@ it('shows survivor changes, Commissar purges and presidential copy on the Press 
       populationBefore: 2_000, populationAfter: 1_500, unrestBefore: 4, unrestAfter: 3 },
     { id: 'three', type: 'president-action', sourceId: 'president:r3', actionKind: 'address',
       text: 'The fleet will hold course.', cycle: 3, recordedAt: '2026-09-27T21:02:00.000Z' },
+    { id: 'four', type: 'pdf-news-relay', sourceId: 'pdf-news-relay:r4',
+      text: 'Outer marker clear.', cycle: 3, recordedAt: '2026-09-27T21:03:00.000Z' },
   ];
   act(() => deliver?.(entries));
 
@@ -53,6 +55,7 @@ it('shows survivor changes, Commissar purges and presidential copy on the Press 
   expect(log).toHaveTextContent('COMMISSAR');
   expect(log).toHaveTextContent('500 SURVIVORS');
   expect(log).toHaveTextContent('The fleet will hold course.');
+  expect(log).toHaveTextContent('P.D.F. COLONEL // NEWS HAND-OFF // Outer marker clear.');
 });
 
 it('does not subscribe or show the restricted log outside the Press Officer role', () => {

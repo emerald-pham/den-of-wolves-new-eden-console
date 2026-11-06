@@ -17,7 +17,7 @@ const view: WolfAttackGmAftermathViewModel = {
   scrapClaims: { aegis: { shuttleId: 'macaw', scrap: 1 } },
   returningInstanceIds: ['2:wolf-fighter-wing'],
   survivingWolfShips: [{ instanceId: '3:wolf-fighter-wing', shipId: 'fighter-wing', target: 'dione' }],
-  pendingWork: { doctorShipIds: [], salvageAvailable: false, scrapShipIds: [],
+  pendingWork: { doctorShipIds: [], salvageAvailable: false, scrapShipIds: [], carriedPickups: [],
     damagedSystems: [{ shipId: 'aegis', systemIds: ['storage'] }],
     survivingThreatInstanceIds: ['3:wolf-fighter-wing'] },
 };
@@ -66,5 +66,67 @@ describe('GM aftermath receipt view', () => {
 
     expect(projected?.damage[0]?.damagedSystemIds).toEqual(['storage']);
     expect(projected?.pendingWork.damagedSystems).toEqual([]);
+  });
+  it('lists a destroyed threshold ship as pending Scrap only while a shuttle is retained from it', () => {
+    const state = {
+      status: 'resolved', attackId: 'attack-7', turn: 7, memberResults: [],
+      calculationReceipt: { fleetDamage: [
+        { target: 'aegis', amount: 3, populationBefore: 2_500, population: 2_000,
+          state: { damagedSystemIds: ['storage'], destroyed: true }, draws: [] },
+        { target: 'dione', amount: 4, populationBefore: 9_000, population: 8_000,
+          state: { damagedSystemIds: [], destroyed: true }, draws: [] },
+        { target: 'quellon', amount: 2, populationBefore: 4_000, population: 4_000,
+          state: { damagedSystemIds: [], destroyed: false }, draws: [] },
+      ], ranges: [], returningInstanceIds: [] },
+    } as unknown as WolfAttackDeclarationState;
+    const custody = {
+      shuttleDockings: [],
+      shuttleControl: { macaw: { shuttleId: 'macaw', ownerRoleId: 'capybara-captain',
+        ownerUid: 'captain', holderUid: 'captain', revision: 3 } },
+      retainedShuttles: { macaw: { status: 'retained', shuttleId: 'macaw', ownerRoleId: 'capybara-captain',
+        holderUid: 'captain', destroyedHostShipId: 'aegis', controlRevision: 3,
+        retainedAt: '2026-10-04T09:59:00.000Z' } },
+    } as never;
+
+    expect(projectWolfAttackGmAftermathView(state, undefined, custody)?.pendingWork.scrapShipIds).toEqual(['aegis']);
+    expect(projectWolfAttackGmAftermathView(state)?.pendingWork.scrapShipIds).toEqual([]);
+    expect(projectWolfAttackGmAftermathView({ ...state,
+      aftermath: { scrapClaims: { aegis: { shuttleId: 'macaw', scrap: 1 } } } } as never, undefined, custody)
+      ?.pendingWork.scrapShipIds).toEqual([]);
+  });
+  it('lists carried pickups from earlier attacks, keeping a destroyed ship pending only while a shuttle is retained from it', () => {
+    const state = {
+      status: 'resolved', attackId: 'attack-9', turn: 9, memberResults: [],
+      calculationReceipt: { fleetDamage: [], ranges: [], returningInstanceIds: [] },
+    } as unknown as WolfAttackDeclarationState;
+    const custody = {
+      shuttleDockings: [],
+      shuttleControl: { boa: { shuttleId: 'boa', ownerRoleId: 'capybara-recycler',
+        ownerUid: 'recycler', holderUid: 'recycler', revision: 4 } },
+      retainedShuttles: { boa: { status: 'retained', shuttleId: 'boa', ownerRoleId: 'capybara-recycler',
+        holderUid: 'recycler', destroyedHostShipId: 'dione', controlRevision: 4,
+        retainedAt: '2026-10-04T09:59:00.000Z' } },
+      attackScrapPickups: {
+        aegis: [{ attackId: 'attack-7', turn: 7, destroyed: false }],
+        dione: [{ attackId: 'attack-8', turn: 8, destroyed: true }],
+        quellon: [{ attackId: 'attack-8', turn: 8, destroyed: true }],
+      },
+    } as never;
+
+    const projected = projectWolfAttackGmAftermathView(state, undefined, custody);
+    expect(projected?.pendingWork.carriedPickups).toEqual([
+      { shipId: 'aegis', attackId: 'attack-7', turn: 7, destroyed: false },
+      { shipId: 'dione', attackId: 'attack-8', turn: 8, destroyed: true },
+    ]);
+    render(<WolfAttackGmAftermathView view={projected!} />);
+    const work = screen.getByRole('list', { name: 'Outstanding recovery work' });
+    expect(within(work).getByText('Collect carried Scrap // AEGIS // cycle 7 attack')).toBeVisible();
+    expect(within(work).getByText('Collect carried Scrap // DIONE // cycle 8 attack // retained shuttle only')).toBeVisible();
+    expect(within(work).queryByText(/QUELLON/)).not.toBeInTheDocument();
+
+    // The raw ledger can still say false after the ship was destroyed: custody then decides.
+    const lagging = { ...(custody as object), attackScrapPickups: { quellon: [{ attackId: 'attack-8', turn: 8, destroyed: false }] } };
+    expect(projectWolfAttackGmAftermathView(state, { quellon: { damagedSystemIds: [], destroyed: true } }, lagging as never)
+      ?.pendingWork.carriedPickups).toEqual([]);
   });
 });

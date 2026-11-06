@@ -1,0 +1,65 @@
+.pdf-news-relay {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pdf-news-relay > p {
+  margin: 0;
+}
+
+.pdf-news-relay textarea {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 5.5rem;
+  box-sizing: border-box;
+  background: var(--cic-void);
+  color: var(--cic-ink);
+  border: 1px solid var(--cic-amber);
+  border-radius: 0;
+  padding: 0.65rem 0.75rem;
+  font: 16px/1.35 var(--cic-mono);
+  resize: vertical;
+}
+
+.pdf-news-relay__press {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 44px;
+  font: 16px/1.35 var(--cic-mono);
+  cursor: pointer;
+}
+
+.pdf-news-relay__press input[type="checkbox"] {
+  appearance: auto;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--cic-cyan);
+}
+
+.pdf-news-relay__note {
+  color: var(--cic-muted);
+}
+
+.pdf-news-relay :is(textarea, input):focus-visible {
+  outline: 2px solid var(--cic-cyan);
+  outline-offset: 2px;
+}
+
+.pdf-news-relay__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+@media (max-width: 480px) {
+  .pdf-news-relay__actions .cic-action-button {
+    width: 100%;
+  }
+}

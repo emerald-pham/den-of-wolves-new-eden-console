@@ -50,3 +50,13 @@
 .away-mission-start-panel__receipt dd {
   overflow-wrap: anywhere;
 }
+
+/* Facilitator-only Boa flag: an amber label at the 0.75rem floor, never the chosen task. */
+.away-mission-start-panel__boa-pending {
+  margin: 0.35rem 0 0;
+  color: var(--cic-amber);
+  font: 0.75rem/1.5 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}

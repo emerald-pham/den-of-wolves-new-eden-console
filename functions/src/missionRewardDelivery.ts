@@ -1,6 +1,7 @@
 import { isSupportedShipPopulation } from './shipPopulation';
 import { RESOURCE_IDS, type ShipResourceInventory } from './resources';
 import type { MissionRewardResourceId } from './missionCards';
+import { isNonRewardMissionEffect } from './missionRewards';
 
 interface RewardAmounts { readonly resources: unknown }
 export interface MissionRewardDeliveryInput {
@@ -10,6 +11,20 @@ export interface MissionRewardDeliveryInput {
   readonly minerals: unknown;
   readonly rewards: readonly RewardAmounts[];
   readonly specialRewards: readonly RewardAmounts[];
+}
+
+export interface BoaMissionRewardDeliveryInput extends MissionRewardDeliveryInput {
+  readonly boaReclamationOpportunityId: string;
+  readonly boaScrapCargo: unknown;
+}
+
+export interface BoaMissionRewardDeliveryPlan {
+  readonly inventory: ShipResourceInventory;
+  readonly population: number;
+  readonly minerals: number;
+  readonly deltas: Readonly<Partial<Record<MissionRewardResourceId, number>>>;
+  readonly boaScrapAwarded: 0 | 1;
+  readonly boaScrapCargo: Readonly<{ scrap?: number }>;
 }
 
 /** Strict ledger arithmetic: printed minerals remain cargo, never invented ore. */
@@ -48,6 +63,56 @@ export function planMissionRewardDelivery(input: MissionRewardDeliveryInput): {
   const minerals = input.minerals + (deltas.minerals ?? 0);
   if (!isSupportedShipPopulation(input.shipId, population) || !amount(minerals)) return null;
   return { inventory: inventory as unknown as ShipResourceInventory, population, minerals, deltas };
+}
+
+/** Route the one selected Boa reclamation reward to the shuttle's Scrap-only cargo. */
+export function planBoaMissionRewardDelivery(
+  input: BoaMissionRewardDeliveryInput,
+): BoaMissionRewardDeliveryPlan | null {
+  if (!record(input) || typeof input.boaReclamationOpportunityId !== 'string' ||
+      input.boaReclamationOpportunityId.length === 0 || !Array.isArray(input.rewards)) return null;
+  const cargo = input.boaScrapCargo === undefined ? {} : input.boaScrapCargo;
+  if (!record(cargo) || Object.keys(cargo).some((key) => key !== 'scrap') ||
+      cargo.scrap !== undefined && !amount(cargo.scrap)) return null;
+  const matches = input.rewards.filter((reward) => record(reward) &&
+    reward.opportunityId === input.boaReclamationOpportunityId);
+  if (matches.length !== 1) return null;
+  const selected = matches[0] as unknown as Record<string, unknown>;
+  const selectedResources = selected.resources;
+  const effects = selected.effects;
+  // Only a kept non-reward consequence may accompany the Scrap; any reward effect means a broken replacement.
+  if (!record(selectedResources) || !Array.isArray(effects) || !effects.every(isNonRewardMissionEffect) ||
+      selected.bulkHaulageApplied !== false) return null;
+  let boaScrapAwarded: 0 | 1;
+  if (selected.branch === 'none') {
+    if (Object.keys(selectedResources).length !== 0) return null;
+    boaScrapAwarded = 0;
+  } else if (selected.branch === 'success' || selected.branch === 'critical') {
+    if (Object.keys(selectedResources).length !== 1 || selectedResources.scrap !== 1) return null;
+    boaScrapAwarded = 1;
+  } else return null;
+
+  const currentScrap = cargo.scrap ?? 0;
+  if (boaScrapAwarded === 1 && currentScrap >= Number.MAX_SAFE_INTEGER) return null;
+  const filteredRewards = input.rewards.map((reward) => {
+    if (!record(reward) || reward.opportunityId !== input.boaReclamationOpportunityId) return reward;
+    return { ...reward, resources: {} };
+  });
+  const delivery = planMissionRewardDelivery({
+    shipId: input.shipId,
+    inventory: input.inventory,
+    population: input.population,
+    minerals: input.minerals,
+    rewards: filteredRewards,
+    specialRewards: input.specialRewards,
+  });
+  if (!delivery) return null;
+  const nextScrap = currentScrap + boaScrapAwarded;
+  return {
+    ...delivery,
+    boaScrapAwarded,
+    boaScrapCargo: nextScrap === 0 ? {} : { scrap: nextScrap },
+  };
 }
 
 function record(value: unknown): value is Record<string, unknown> {

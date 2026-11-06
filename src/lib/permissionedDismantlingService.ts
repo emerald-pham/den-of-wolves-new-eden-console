@@ -4,29 +4,44 @@ import { db } from './firestore';
 import { functions } from './firebase';
 import { hasFreshSessionAuthority, requireFreshSessionAuthority } from './sessionMutationAuthority';
 import { useSessionStore } from '@/store/useSessionStore';
+import { dismantlingRewardFor, PERMISSIONED_DISMANTLING_CRAFT_IDS } from '@/data/shuttles';
 import type { GameSession, Player } from '@/types/game';
+import type { ShuttleId } from '@/types/identifiers';
 
 export type PermissionedDismantlingStatus = 'pending' | 'consented' | 'declined' | 'revoked' | 'applied';
 
-export interface PermissionedDismantlingInbox {
+interface DismantlingInboxBase {
   readonly type: 'permissioned-dismantling-inbox';
   readonly sessionId: string;
   readonly targetShipId: string;
   readonly proposalId: string;
   readonly proposerUid: string;
-  readonly craftId: 'philia' | 'blacksmith' | 'chacau' | 'ally';
   readonly targetConsoleId: string;
   readonly targetRevision: number;
-  readonly materialGain: 3;
   readonly status: PermissionedDismantlingStatus;
   readonly consentId: string | null;
-  readonly materialsAfter: number | null;
   readonly updatedAt: unknown;
 }
 
+/** A craft whose typed shuttle config grants materials to the dismantled ship. */
+export interface MaterialsDismantlingInbox extends DismantlingInboxBase {
+  readonly craftId: ShuttleId;
+  readonly materialGain: 3;
+  readonly materialsAfter: number | null;
+}
+
+/** A craft whose typed shuttle config grants Scrap to the Capybara ledger (PC10-C1). */
+export interface ScrapDismantlingInbox extends DismantlingInboxBase {
+  readonly craftId: ShuttleId;
+  readonly scrapGain: 1;
+  readonly scrapAfter: number | null;
+}
+
+export type PermissionedDismantlingInbox = MaterialsDismantlingInbox | ScrapDismantlingInbox;
+
 export interface DismantlingProposalCommand {
   readonly proposalId: string;
-  readonly craftId: PermissionedDismantlingInbox['craftId'];
+  readonly craftId: ShuttleId;
   readonly targetShipId: string;
   readonly targetConsoleId: string;
 }
@@ -40,7 +55,8 @@ export interface DismantlingProposalReply {
   readonly targetConsoleId: string;
   readonly targetRevision: number;
   readonly controlRevision: number;
-  readonly materialGain: 3;
+  readonly materialGain?: 3;
+  readonly scrapGain?: 1;
 }
 
 export interface DismantlingStaleProposalReply {
@@ -86,17 +102,28 @@ export interface DismantlingApplyReply {
   readonly targetShipId: string;
   readonly targetConsoleId: string;
   readonly targetRevision: number;
-  readonly materialGain: 3;
-  readonly materialsAfter: number;
+  readonly materialGain?: 3;
+  readonly materialsAfter?: number;
+  readonly scrapGain?: 1;
+  readonly scrapAfter?: number;
 }
 
-const INBOX_KEYS = [
+const INBOX_BASE_KEYS = [
   'type', 'sessionId', 'targetShipId', 'proposalId', 'proposerUid', 'craftId',
-  'targetConsoleId', 'targetRevision', 'materialGain', 'status', 'consentId',
-  'materialsAfter', 'updatedAt',
+  'targetConsoleId', 'targetRevision', 'status', 'consentId', 'updatedAt',
 ] as const;
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
-const CRAFT_IDS = ['philia', 'blacksmith', 'chacau', 'ally'] as const;
+
+type RewardKeys = Readonly<{ gain: 'materialGain' | 'scrapGain'; value: number; after: 'materialsAfter' | 'scrapAfter'; otherGain: 'materialGain' | 'scrapGain' }>;
+
+/** Each craft carries exactly one printed reward field, from its typed shuttle config. */
+function reward(craftId: unknown): RewardKeys | undefined {
+  const configured = dismantlingRewardFor(craftId);
+  if (!configured) return undefined;
+  return configured.resource === 'scrap'
+    ? { gain: 'scrapGain', value: configured.amount, after: 'scrapAfter', otherGain: 'materialGain' }
+    : { gain: 'materialGain', value: configured.amount, after: 'materialsAfter', otherGain: 'scrapGain' };
+}
 
 type RecordValue = Record<string, unknown>;
 interface ActorBinding {
@@ -133,7 +160,7 @@ function requireActor(sessionId?: string): ActorBinding {
 function currentProposalBinding(command: DismantlingProposalCommand): ProposalBinding {
   const { session, me } = requireActor();
   if (session.phase !== 'active' || me.replacementStatus != null ||
-      !ID_PATTERN.test(command.proposalId) || !CRAFT_IDS.includes(command.craftId) ||
+      !ID_PATTERN.test(command.proposalId) || !PERMISSIONED_DISMANTLING_CRAFT_IDS.includes(command.craftId) ||
       !ID_PATTERN.test(command.targetShipId) || !ID_PATTERN.test(command.targetConsoleId)) {
     throw new Error('The dismantling request is invalid or gameplay is not active.');
   }
@@ -184,18 +211,19 @@ function requireSameActor(binding: ActorBinding & { readonly uid: string }): voi
 }
 
 function parseInbox(value: unknown, sessionId: string, targetShipId: string): PermissionedDismantlingInbox {
-  if (!isRecord(value) || Object.keys(value).length !== INBOX_KEYS.length ||
-      Object.keys(value).some((key) => !INBOX_KEYS.includes(key as typeof INBOX_KEYS[number])) ||
+  const craftReward = reward(isRecord(value) ? value.craftId : undefined);
+  const keys: readonly string[] = craftReward ? [...INBOX_BASE_KEYS, craftReward.gain, craftReward.after] : [];
+  if (!craftReward || !isRecord(value) || Object.keys(value).length !== keys.length ||
+      Object.keys(value).some((key) => !keys.includes(key)) ||
       value.type !== 'permissioned-dismantling-inbox' || value.sessionId !== sessionId ||
       value.targetShipId !== targetShipId || typeof value.proposalId !== 'string' ||
       !ID_PATTERN.test(value.proposalId) || typeof value.proposerUid !== 'string' ||
       !value.proposerUid || value.proposerUid.length > 128 ||
-      !CRAFT_IDS.includes(value.craftId as typeof CRAFT_IDS[number]) ||
       typeof value.targetConsoleId !== 'string' || !ID_PATTERN.test(value.targetConsoleId) ||
-      !isCounter(value.targetRevision) || value.materialGain !== 3 ||
+      !isCounter(value.targetRevision) || value[craftReward.gain] !== craftReward.value ||
       !(['pending', 'consented', 'declined', 'revoked', 'applied'] as const).includes(value.status as PermissionedDismantlingStatus) ||
       (value.consentId !== null && (typeof value.consentId !== 'string' || !ID_PATTERN.test(value.consentId))) ||
-      (value.materialsAfter !== null && !isCounter(value.materialsAfter)) ||
+      (value[craftReward.after] !== null && !isCounter(value[craftReward.after])) ||
       value.updatedAt === undefined || value.updatedAt === null) {
     throw new Error('The target-ship dismantling inbox projection is malformed.');
   }
@@ -217,10 +245,12 @@ function requireProposalReply(value: unknown, binding: ProposalBinding, command:
     }
     return value as unknown as DismantlingStaleProposalReply;
   }
-  if ((value.status !== 'proposed' && value.status !== 'replayed') ||
+  const craftReward = reward(command.craftId);
+  if (!craftReward || (value.status !== 'proposed' && value.status !== 'replayed') ||
       value.craftId !== command.craftId || value.targetShipId !== command.targetShipId ||
       value.targetConsoleId !== command.targetConsoleId || !isCounter(value.targetRevision) ||
-      value.controlRevision !== binding.controlRevision || value.materialGain !== 3) {
+      value.controlRevision !== binding.controlRevision ||
+      value[craftReward.gain] !== craftReward.value || Object.hasOwn(value, craftReward.otherGain)) {
     throw new Error('The permissioned-dismantling proposal reply was malformed.');
   }
   return value as unknown as DismantlingProposalReply;
@@ -322,6 +352,8 @@ export async function applyPermissionedDismantling(input: Readonly<{
     throw new Error('Only the original engineering-craft holder can apply an exact current consent.');
   }
   const consentId = input.inbox.consentId;
+  const craftReward = reward(input.inbox.craftId);
+  if (!craftReward) throw new Error('This craft cannot perform permissioned dismantling.');
   const { data } = await callable<unknown>('applyPermissionedDismantling', {
     sessionId: session.id, requestId: input.requestId, proposalId: input.inbox.proposalId,
     consentId, expectedTargetRevision: input.inbox.targetRevision,
@@ -330,7 +362,8 @@ export async function applyPermissionedDismantling(input: Readonly<{
       data.sessionId !== session.id || data.requestId !== input.requestId ||
       data.proposalId !== input.inbox.proposalId || data.consentId !== consentId ||
       data.targetShipId !== input.inbox.targetShipId || data.targetConsoleId !== input.inbox.targetConsoleId ||
-      !isCounter(data.targetRevision) || data.materialGain !== 3 || !isCounter(data.materialsAfter)) {
+      !isCounter(data.targetRevision) ||
+      data[craftReward.gain] !== craftReward.value || !isCounter(data[craftReward.after])) {
     throw new Error('The permissioned-dismantling apply reply was malformed.');
   }
   requireSameProposalAuthority(proposalBinding);

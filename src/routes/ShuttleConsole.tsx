@@ -3,16 +3,11 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import ShuttleConsoleTemplate from '@/components/ShuttleConsoleTemplate';
 import { activeFleetShipIds, DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
 import { findShip } from '@/data/ships';
-import { SHUTTLECRAFT, dockingForShuttle, isShuttleEnabled } from '@/data/shuttles';
+import { PERMISSIONED_DISMANTLING_CRAFT_IDS, SHUTTLECRAFT, dockingForShuttle, isShuttleEnabled } from '@/data/shuttles';
 import { isJointEngineeringRoleId } from '@/data/rolePresets';
 import { consoleRoleRoute } from '@/lib/consoleRole';
 import { releaseConsoleRole, selectConsoleRole } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
-import type { DismantlingProposalCommand } from '@/lib/permissionedDismantlingService';
-
-const PERMISSIONED_DISMANTLING_CRAFTS: readonly DismantlingProposalCommand['craftId'][] = [
-  'philia', 'blacksmith', 'chacau', 'ally',
-];
 
 function dismantlingConnection(
   connection: 'idle' | 'connecting' | 'live' | 'offline',
@@ -43,7 +38,7 @@ export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shutt
     ? isPressShuttle ? session?.pressEnabled !== false : isShuttleEnabled(shuttle, activeRoles)
     : false;
   const control = session?.shuttleControl?.[shuttleId];
-  const permissionedDismantlingCraftId = PERMISSIONED_DISMANTLING_CRAFTS
+  const permissionedDismantlingCraftId = PERMISSIONED_DISMANTLING_CRAFT_IDS
     .find((craftId) => craftId === shuttleId);
   const permissionedDismantlingHost = docking?.shipId ? findShip(docking.shipId) : undefined;
   const permissionedDismantlingConnection = dismantlingConnection(connection, sessionSnapshotFreshness);
