@@ -1442,6 +1442,15 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // The P.D.F. Colonel news relay keeps its text in a facilitator-only
+      // record. The group copy lives in server-only fleetGroupMessages and any
+      // Press hand-off in pressLog; every write is the relay callable's.
+      match /pdfNewsRelayAudits/{auditId} {
+        allow get, list: if isGm(sessionId) && resource.data.type == 'pdf-news-relay-audit'
+          && resource.data.sessionId == sessionId;
+        allow write: if false;
+      }
+
       match /fleetGroupTransitPartitionAudits/{auditId} {
         allow get, list: if isGm(sessionId) && resource.data.type == 'fleet-group-transit-partition-audit'
           && resource.data.sessionId == sessionId;

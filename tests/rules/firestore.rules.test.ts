@@ -3317,6 +3317,44 @@ describe('VIP Host maintenance projection', () => {
   });
 });
 
+describe('P.D.F. news relay stores', () => {
+  it('keeps relay text facilitator-only and every relay store server-written', async () => {
+    const audit = `${SESSION}/pdfNewsRelayAudits/relay-1`;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, audit), {
+        type: 'pdf-news-relay-audit', sessionId: 's1', requestId: 'relay-1', actorUid: 'alice',
+        actorRoleId: 'refinery-124-pdf-colonel', groupId: 'fleet-1', cycle: 1, text: 'Outer marker clear.',
+        handedToPress: true, createdAt: Timestamp.now(),
+      });
+      await setDoc(doc(db, `${SESSION}/pdfNewsRelayAudits/foreign`), {
+        type: 'fleet-group-known-system-share', sessionId: 's1',
+      });
+    });
+
+    await assertSucceeds(getDoc(doc(as('gm1'), audit)));
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/pdfNewsRelayAudits/foreign`)));
+    for (const uid of ['alice', 'bob', 'press', 'observer']) {
+      await assertFails(getDoc(doc(as(uid), audit)));
+      await assertFails(getDocs(collection(as(uid), `${SESSION}/pdfNewsRelayAudits`)));
+    }
+    for (const uid of ['alice', 'press', 'gm1']) {
+      await assertFails(setDoc(doc(as(uid), `${SESSION}/pdfNewsRelayAudits/forged`), {
+        type: 'pdf-news-relay-audit', sessionId: 's1', text: 'Forged relay',
+      }));
+      await assertFails(updateDoc(doc(as(uid), audit), { text: 'Rewritten relay' }));
+      await assertFails(deleteDoc(doc(as(uid), audit)));
+      await assertFails(setDoc(doc(as(uid), `${SESSION}/pressLog/forged-relay`), {
+        type: 'pdf-news-relay', sourceId: 'pdf-news-relay:forged', text: 'Forged hand-off', cycle: 1,
+        recordedAt: '2026-11-05T00:00:00.000Z',
+      }));
+      await assertFails(setDoc(doc(as(uid), `${SESSION}/fleetGroupMessages/fleet-1`), {
+        groupId: 'fleet-1', messages: [{ id: 'forged', actorUid: uid, text: 'Forged relay', sentAt: '2026-11-05T00:00:00.000Z' }],
+      }));
+    }
+  });
+});
+
 describe('Press log audience', () => {
   it('allows only the connected Press Officer to read incoming Press entries', async () => {
     const pressEntry = `${SESSION}/pressLog/press-entry-1`;
