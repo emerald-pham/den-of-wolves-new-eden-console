@@ -4862,6 +4862,59 @@ export function subscribeGmWolfHackingAlerts(
   };
 }
 
+/** One facilitator-only P.D.F. Colonel news relay record (P2.2). */
+export interface PdfNewsRelayAudit {
+  readonly requestId: string;
+  readonly actorRoleId: string;
+  readonly groupId: string;
+  readonly cycle: number;
+  readonly text: string;
+  readonly handedToPress: boolean;
+  readonly createdAt: string;
+}
+
+function pdfNewsRelayAudit(value: unknown, sessionId: string, auditId: string): PdfNewsRelayAudit | null {
+  const raw = recordValue(value);
+  const createdAt = timestampString(raw?.createdAt);
+  if (!raw || raw.type !== 'pdf-news-relay-audit' || raw.sessionId !== sessionId || raw.requestId !== auditId ||
+      !isWireSafeEntityId(auditId) || typeof raw.actorRoleId !== 'string' || !raw.actorRoleId ||
+      typeof raw.groupId !== 'string' || !/^fleet-[1-9]\d*$/.test(raw.groupId) ||
+      !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 0 ||
+      typeof raw.text !== 'string' || !raw.text.trim() || raw.text.length > 240 ||
+      typeof raw.handedToPress !== 'boolean' || !createdAt) return null;
+  return { requestId: auditId, actorRoleId: raw.actorRoleId, groupId: raw.groupId, cycle: raw.cycle as number,
+    text: raw.text, handedToPress: raw.handedToPress, createdAt };
+}
+
+/** Subscribe to the facilitator-only P.D.F. news relay records, newest first; malformed records are dropped. */
+export function subscribeGmPdfNewsRelayAudits(
+  sessionId: string,
+  onAudits: (audits: readonly PdfNewsRelayAudit[] | null) => void,
+): Unsubscribe {
+  let subscribed = true;
+  const unsubscribe = onSnapshot(
+    collection(db(), `sessions/${sessionId}/pdfNewsRelayAudits`),
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      onAudits(snapshot.docs
+        .flatMap((entry) => {
+          const parsed = pdfNewsRelayAudit(entry.data(), sessionId, entry.id);
+          return parsed ? [parsed] : [];
+        })
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt) ||
+          left.requestId.localeCompare(right.requestId)));
+    },
+    () => {
+      if (subscribed) onAudits(null);
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+  };
+}
+
 /** Subscribe to actor-free notices available to every connected session member. */
 export function subscribePlayerHackingNotices(
   sessionId: string,
