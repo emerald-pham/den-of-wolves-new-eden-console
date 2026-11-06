@@ -228,7 +228,9 @@ function fighterWingExchangeBlocker({ hasServerSnapshot, connection, writable, c
 
 /** Describe the latest server reply to this console's build request without inventing state. */
 function fighterBuildResultNotice(wingName: string, result: FighterBuildResult | null): string {
-  if (!result) return 'Last build not confirmed // check live strength and materials before building again.';
+  if (!result) {
+    return 'Last build not confirmed // check live strength and materials before building again. Building this wing again resends the same request and cannot spend a second material.';
+  }
   if (result.status === 'stale') {
     return 'Last build not committed // AEGIS state changed before the build committed. No material was spent; review the live state and try again.';
   }
@@ -317,7 +319,7 @@ export function FighterWingCard({
         <div><dt>Effective capacity</dt><dd>{capacity}</dd></div>
         <div><dt>Launch eligibility</dt><dd>{launchEligibility}</dd></div>
         <div><dt>Live strength</dt><dd>{hasServerSnapshot && fighterWingCount
-          ? `${fighterWingCount.count} fighters // revision ${fighterWingCount.revision}`
+          ? `${fighterWingCount.count} fighter${fighterWingCount.count === 1 ? '' : 's'} // revision ${fighterWingCount.revision}`
           : hasServerSnapshot
             ? 'Unavailable // server has not published a fighter count'
             : 'Unavailable // awaiting fighter count from the server'}</dd></div>

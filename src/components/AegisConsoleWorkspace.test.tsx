@@ -226,6 +226,55 @@ it.each([
   expect(within(alpha).queryByText(/last build committed/i)).not.toBeInTheDocument();
 });
 
+it('rebuilds a wing after combat losses and recovers from an unconfirmed reply without inventing the result', async () => {
+  // Alpha came back from combat with one fighter; AEGIS holds three materials.
+  stageWingConstruction({
+    fighterWingCounts: {
+      'fighter-wing-alpha': { count: 1, revision: 4 },
+      'fighter-wing-bravo': { count: 4, revision: 0 },
+    },
+    shipResources: { aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 3, securityTeams: 9 } },
+  });
+  vi.mocked(buildFighter)
+    .mockResolvedValueOnce(null)
+    .mockResolvedValueOnce({
+      status: 'committed', wingId: 'fighter-wing-alpha', count: 2, fighterWingRevision: 5, materials: 2, capacity: 4,
+    });
+  const user = userEvent.setup();
+  const alpha = renderWingCard();
+
+  expect(alpha).toHaveTextContent(/live strength.*1 fighter \/\/ revision 4/i);
+  expect(within(alpha).getByText(/3 materials available\. next actor \/\/ wing commander builds one fighter for one material/i)).toBeVisible();
+  await user.click(within(alpha).getByRole('button', { name: /build 1 fighter/i }));
+  expect(await within(alpha).findByText(
+    /last build not confirmed \/\/ check live strength and materials before building again\. building this wing again resends the same request and cannot spend a second material/i,
+  )).toBeVisible();
+  // Nothing is claimed until the server confirms: strength and materials still show the live snapshot.
+  expect(alpha).toHaveTextContent(/live strength.*1 fighter \/\/ revision 4.*construction materials.*3 materials/i);
+
+  await user.click(within(alpha).getByRole('button', { name: /build 1 fighter/i }));
+  expect(await within(alpha).findByText(
+    /last build committed \/\/ fighter wing alpha now 2 fighters \(revision 5\) \/\/ 1 material spent \/\/ 2 materials remain/i,
+  )).toBeVisible();
+  expect(buildFighter).toHaveBeenCalledTimes(2);
+});
+
+it('shows the server wing state, not a lost pending build, after the console reloads', () => {
+  stageWingConstruction({
+    fighterWingCounts: {
+      'fighter-wing-alpha': { count: 2, revision: 5 },
+      'fighter-wing-bravo': { count: 4, revision: 0 },
+    },
+    shipResources: { aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 2, securityTeams: 9 } },
+  });
+  const alpha = renderWingCard();
+
+  expect(alpha).toHaveTextContent(/live strength.*2 fighters \/\/ revision 5.*construction materials.*2 materials/i);
+  expect(within(alpha).queryByText(/build pending/i)).not.toBeInTheDocument();
+  expect(within(alpha).queryByText(/last build/i)).not.toBeInTheDocument();
+  expect(within(alpha).getByRole('button', { name: /build 1 fighter/i })).toBeEnabled();
+});
+
 function stageWingExchange(overrides: Record<string, unknown> = {}) {
   stageWingConstruction({
     fighterWingCounts: {
