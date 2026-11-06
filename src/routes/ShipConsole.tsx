@@ -539,6 +539,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             mode="target"
             sessionId={session.id}
             targetShipId={ship.id}
+            currentPlayerUid={me?.uid ?? ''}
             connection={permissionedDismantlingConnection}
             canAct={canActOnPermissionedDismantling}
           />

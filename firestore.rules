@@ -355,16 +355,32 @@ service cloud.firestore {
         );
     }
 
+    // Engineering craft carry a 3-materials gain; Macaw carries a 1-Scrap gain
+    // credited to the Capybara Scrap ledger (PC10-C1). Each shape is exact.
+    function isSafePermissionedDismantlingReward(data) {
+      let engineeringFields = [
+        'type', 'sessionId', 'targetShipId', 'proposalId', 'proposerUid', 'craftId', 'targetConsoleId',
+        'targetRevision', 'materialGain', 'status', 'consentId', 'materialsAfter', 'updatedAt'
+      ];
+      let macawFields = [
+        'type', 'sessionId', 'targetShipId', 'proposalId', 'proposerUid', 'craftId', 'targetConsoleId',
+        'targetRevision', 'scrapGain', 'status', 'consentId', 'scrapAfter', 'updatedAt'
+      ];
+      return (data.craftId in ['philia', 'blacksmith', 'chacau', 'ally']
+          && data.keys().hasAll(engineeringFields)
+          && data.keys().hasOnly(engineeringFields)
+          && data.materialGain == 3
+          && (data.materialsAfter == null || (data.materialsAfter is int && data.materialsAfter >= 0)))
+        || (data.craftId == 'macaw'
+          && data.keys().hasAll(macawFields)
+          && data.keys().hasOnly(macawFields)
+          && data.scrapGain == 1
+          && (data.scrapAfter == null || (data.scrapAfter is int && data.scrapAfter >= 0)));
+    }
+
     function isSafePermissionedDismantlingInbox(sessionId, targetShipId) {
       return resource == null || (
-        resource.data.keys().hasAll([
-          'type', 'sessionId', 'targetShipId', 'proposalId', 'proposerUid', 'craftId', 'targetConsoleId',
-          'targetRevision', 'materialGain', 'status', 'consentId', 'materialsAfter', 'updatedAt'
-        ])
-        && resource.data.keys().hasOnly([
-          'type', 'sessionId', 'targetShipId', 'proposalId', 'proposerUid', 'craftId', 'targetConsoleId',
-          'targetRevision', 'materialGain', 'status', 'consentId', 'materialsAfter', 'updatedAt'
-        ])
+        isSafePermissionedDismantlingReward(resource.data)
         && resource.data.type == 'permissioned-dismantling-inbox'
         && resource.data.sessionId == sessionId
         && resource.data.targetShipId == targetShipId
@@ -373,18 +389,14 @@ service cloud.firestore {
         && resource.data.proposerUid is string
         && resource.data.proposerUid.size() > 0
         && resource.data.proposerUid.size() <= 128
-        && resource.data.craftId in ['philia', 'blacksmith', 'chacau', 'ally']
         && resource.data.targetConsoleId is string
         && resource.data.targetConsoleId.size() > 0
         && resource.data.targetConsoleId.size() <= 128
         && resource.data.targetRevision is int
         && resource.data.targetRevision >= 0
-        && resource.data.materialGain == 3
         && resource.data.status in ['pending', 'consented', 'declined', 'revoked', 'applied']
         && (resource.data.consentId == null || (resource.data.consentId is string
           && resource.data.consentId.matches('^[A-Za-z0-9_-]{1,128}$')))
-        && (resource.data.materialsAfter == null || (resource.data.materialsAfter is int
-          && resource.data.materialsAfter >= 0))
         && resource.data.updatedAt is timestamp
       );
     }
