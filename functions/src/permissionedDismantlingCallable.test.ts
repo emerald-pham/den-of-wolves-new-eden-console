@@ -604,6 +604,7 @@ describe('Macaw deliberate dismantling', () => {
   const NOW = Date.parse('2026-09-30T17:00:00.000Z');
   const capybaraInbox = 'sessions/' + SESSION_ID + '/permissionedDismantlingInboxes/capybara';
   const capybaraTargetState = 'sessions/' + SESSION_ID + '/permissionedDismantlingTargetStates/capybara';
+  const fleetGroup = 'sessions/' + SESSION_ID + '/fleetGroups/fleet-1';
   const macawPropose = (overrides: Fields = {}) => proposeRequest({
     craftId: 'macaw', expectedControlRevision: 9, ...overrides,
   });
@@ -636,8 +637,11 @@ describe('Macaw deliberate dismantling', () => {
       dione: { ore: 0, fuel: 3, food: 13, water: 14, materials: 5, securityTeams: 2 },
       capybara: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 3 },
     };
-    store.records.set(p.proposer, activePlayer('capybara-captain'));
+    store.records.set(p.proposer, { ...activePlayer('capybara-captain'),
+      activeConsoleRoleId: 'capybara-captain', fleetGroupId: 'fleet-1' });
     store.records.set('sessions/' + SESSION_ID + '/players/recycler', activePlayer('capybara-recycler'));
+    store.records.set(fleetGroup, { id: 'fleet-1', vesselIds: ['dione', 'icebreaker', 'capybara'],
+      memberUids: ['engineer', 'recycler', 'target-player', 'other-ship-player'] });
     return store;
   }
 
@@ -783,5 +787,65 @@ describe('Macaw deliberate dismantling', () => {
     expect(store.records.has(paths().applyReceipt)).toBe(false);
     expect(store.records.get(paths().consent)).toMatchObject({ status: 'granted' });
     expect(store.records.get(paths().session)).toMatchObject({ shipResources: { capybara: { scrap: 3 } } });
+  });
+
+  /** Matches repairConsolesFromMacaw: current group holds the target and the Capybara, no pursuit pause. */
+  it.each([
+    ['a target outside the holder’s fleet group', (store: FakeStore) => {
+      store.records.set(fleetGroup, { id: 'fleet-1', vesselIds: ['icebreaker', 'capybara'],
+        memberUids: ['engineer', 'recycler'] });
+    }, 'permission-denied'],
+    ['a fleet group without the Capybara', (store: FakeStore) => {
+      store.records.set(fleetGroup, { id: 'fleet-1', vesselIds: ['dione', 'icebreaker'],
+        memberUids: ['engineer', 'recycler', 'target-player'] });
+    }, 'permission-denied'],
+    ['a holder whose group pointer is stale', (store: FakeStore) => {
+      store.records.get(paths().proposer)!.fleetGroupId = 'fleet-2';
+    }, 'permission-denied'],
+    ['a holder not on the Capybara Captain console', (store: FakeStore) => {
+      store.records.get(paths().proposer)!.activeConsoleRoleId = 'dione-captain';
+    }, 'permission-denied'],
+    ['a pending pursuit emergency decision', (store: FakeStore) => {
+      store.records.get(paths().session)!.pursuitEmergencyWindow = { type: 'pursuit-emergency-window',
+        status: 'awaiting-gm-decision', cycle: 2, openedAt: '2026-09-30T16:59:00.000Z' };
+    }, 'failed-precondition'],
+  ] as const)('rejects a Macaw proposal for %s without writes', async (_label, change, code) => {
+    const store = macawStore();
+    change(store);
+    const callables = createPermissionedDismantlingCallables(dependencies(store));
+    await expect(callables.proposePermissionedDismantling(macawPropose())).rejects.toMatchObject({ code });
+    expect(store.committedWrites).toHaveLength(0);
+  });
+
+  it.each([
+    ['the target moved to another fleet group', (store: FakeStore) => {
+      store.records.set(fleetGroup, { id: 'fleet-1', vesselIds: ['icebreaker', 'capybara'],
+        memberUids: ['engineer', 'recycler'] });
+    }, 'permission-denied'],
+    ['a pending pursuit emergency decision', (store: FakeStore) => {
+      store.records.get(paths().session)!.pursuitEmergencyWindow = { type: 'pursuit-emergency-window',
+        status: 'offered', cycle: 2, openedAt: '2026-09-30T16:59:00.000Z' };
+    }, 'failed-precondition'],
+  ] as const)('rejects a consented Macaw apply when %s, keeping the consent unused', async (_label, change, code) => {
+    const store = macawStore();
+    const callables = await proposeAndConsent(store);
+    change(store);
+    const writes = store.committedWrites.length;
+    await expect(callables.applyPermissionedDismantling(applyRequest())).rejects.toMatchObject({ code });
+    expect(store.committedWrites).toHaveLength(writes);
+    expect(store.records.get(paths().consent)).toMatchObject({ status: 'granted' });
+    expect(store.records.get(paths().session)).toMatchObject({ shipResources: { capybara: { scrap: 3 } } });
+  });
+
+  it('rejects consent once the target has left the Macaw holder’s fleet group', async () => {
+    const store = macawStore();
+    const callables = createPermissionedDismantlingCallables(dependencies(store));
+    await callables.proposePermissionedDismantling(macawPropose());
+    store.records.set(fleetGroup, { id: 'fleet-1', vesselIds: ['icebreaker', 'capybara'],
+      memberUids: ['engineer', 'recycler'] });
+    const writes = store.committedWrites.length;
+    await expect(callables.consentToPermissionedDismantling(consentRequest()))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(store.committedWrites).toHaveLength(writes);
   });
 });
