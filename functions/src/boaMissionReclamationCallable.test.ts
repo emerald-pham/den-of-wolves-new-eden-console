@@ -196,6 +196,12 @@ describe('Boa mission reclamation callables', () => {
       .toMatchObject({ opportunities: [] });
   });
 
+  /** A choice lapses only inside the deal, which creates both mission-start records in that transaction. */
+  function seedDealtMissionStart(): void {
+    put(`sessions/s1/missionStartSnapshots/${ARRIVAL}`, { type: 'away-mission-start-snapshot' });
+    put(`sessions/s1/serverState/awayMissions/instances/mission-${ARRIVAL}`, { status: 'active' });
+  }
+
   it('shows the Recycler a choice that lapsed because the dealt location changed', async () => {
     put(`sessions/s1/boaMissionReclamationChoices/${ARRIVAL}`, {
       type: 'boa-mission-reclamation-choice', schemaVersion: 1, status: 'lapsed', sessionId: SESSION,
@@ -203,6 +209,7 @@ describe('Boa mission reclamation callables', () => {
       actorUid: ACTOR, actorRoleId: 'capybara-recycler', opportunityTaskId: 'L-1', controlRevision: 2, revision: 1,
       requestId: 'boa-choice-1', missionId: `mission-${ARRIVAL}`, lapseReason: 'location-changed', lapsedCycle: 2,
     });
+    seedDealtMissionStart();
     await expect(callables.readBoaMissionReclamationWorkspace(request({ sessionId: SESSION }))).resolves.toMatchObject({
       lapsedChoices: [{ missionOpportunityId: ARRIVAL, taskOpportunityId: 'L-1', reason: 'location-changed' }],
     });
@@ -215,6 +222,7 @@ describe('Boa mission reclamation callables', () => {
       actorUid: ACTOR, actorRoleId: 'capybara-recycler', opportunityTaskId: 'L-1', controlRevision: 2, revision: 1,
       requestId: 'boa-choice-1', missionId: `mission-${ARRIVAL}`, lapseReason: 'recycler-not-on-mission', lapsedCycle: 2,
     });
+    seedDealtMissionStart();
     await expect(callables.readBoaMissionReclamationWorkspace(request({ sessionId: SESSION }))).resolves.toMatchObject({
       opportunities: [],
       lapsedChoices: [{ missionOpportunityId: ARRIVAL, siteName: expect.any(String), coordinate: '5143',
