@@ -7,6 +7,7 @@ const mock = vi.hoisted(() => ({
   players: [] as Array<Record<string, unknown>>,
   session: {} as Record<string, unknown>,
   receipts: {} as Record<string, Record<string, unknown>>,
+  attack: undefined as Record<string, unknown> | undefined,
 }));
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -73,6 +74,7 @@ beforeEach(() => {
     vesselActionRevisions: { aegis: 7 },
   };
   mock.receipts = {};
+  mock.attack = undefined;
   mock.get.mockReset();
   mock.update.mockReset();
   mock.set.mockReset();
@@ -93,6 +95,12 @@ beforeEach(() => {
     }
     if (path.includes('/gmInstances/')) {
       return snapshot({ uid: mock.owner, connected: mock.connected, lastSeenAt: new Date() });
+    }
+    if (path.endsWith('/wolfAttackState/current')) {
+      const attack = mock.attack;
+      return attack
+        ? { exists: true, data: () => attack, get: (key: string) => attack[key] }
+        : { exists: false, data: () => undefined, get: () => undefined };
     }
     if (path.endsWith('/players')) return { exists: true, docs: mock.players.map((fields) => snapshot(fields)) };
     return snapshot(mock.session);
@@ -221,6 +229,39 @@ it('is available only during the running Team Phase of the current cycle', async
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('is blocked while a Wolf attack is active, because the wings are at the combat table', async () => {
+  const resolving = [
+    { status: 'declared', airspaceLocked: true, turn: 2, attackId: 'attack-1' },
+    { status: 'resolving', airspaceLocked: true, turn: 2, attackId: 'attack-1' },
+    // Resolved but the airspace is still locked: the attack has not released the fleet yet.
+    { status: 'resolved', airspaceLocked: true, turn: 2, attackId: 'attack-1' },
+  ];
+  for (const [index, attack] of resolving.entries()) {
+    mock.attack = attack;
+    await expect(exchangeAegisFighterWings.run(request({ ...base, requestId: `exchange-attack-${index}` })))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+  }
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  // Once the attack has fully resolved and released the airspace, the exchange is available again.
+  mock.attack = {
+    status: 'resolved', airspaceLocked: false, parkingReleaseCondition: 'normal-movement-reopened',
+    turn: 2, attackId: 'attack-1',
+  };
+  await expect(exchangeAegisFighterWings.run(request({ ...base, requestId: 'exchange-after-attack' })))
+    .resolves.toMatchObject({ status: 'committed' });
+});
+
+it('is not blocked by a damaged Construction Bay or uncharged Fighter Bays', async () => {
+  mock.session.shipDamage = { aegis: { damagedSystemIds: ['construction-bay'], destroyed: false } };
+  mock.session.maintenanceCycles = { aegis: { turn: 2, charges: [], revision: 1 } };
+  await expect(exchangeAegisFighterWings.run(request(base))).resolves.toMatchObject({
+    status: 'committed',
+    counts: { 'fighter-wing-alpha': { count: 2 }, 'fighter-wing-bravo': { count: 3 } },
+  });
 });
 
 it('keeps the destination wing within its 4-fighter capacity and the source within its fighters', async () => {

@@ -2879,6 +2879,24 @@ function admitCurrentAce(sourceId = 'pdf-escort-fighter-wing', range = 'medium-r
       permissionRequestId: `ace-permission-${sourceId}`, permissionRevision: 1 }) };
 }
 
+// Owner ruling 2026-11-05: the Wing Commander may grant Ace permission through the range steps until the Ace has acted.
+it.each(['long-range', 'medium-range', 'short-range'])('lets the Wing Commander grant Fighter Ace permission at %s', async range => {
+  const f = admitCurrentAce('fighter-wing-alpha', range);
+  await expect(grantPdfFighterAcePermission.run(request(f.permissionPayload(), f.officer))).resolves.toMatchObject({
+    status: 'committed', sourceId: 'fighter-wing-alpha', actorRoleId: 'wing-commander', fighterIndex: 0,
+  });
+});
+
+it('refuses a further Wing Commander Ace permission once the Ace has acted in this attack', async () => {
+  const f = admitCurrentAce('fighter-wing-alpha');
+  await grantPdfFighterAcePermission.run(request(f.permissionPayload(), f.officer));
+  await commitPdfFighterAceCombat.run(request(f.actionPayload(), 'ace-current'));
+  const saved = structuredClone([...testState.documents]);
+  await expect(grantPdfFighterAcePermission.run(request({ ...f.permissionPayload(), requestId: 'ace-permission-after-action',
+    fighterIndex: 1 }, f.officer))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/already acted/i) });
+  expect([...testState.documents]).toEqual(saved);
+});
+
 it('captures the earlier Commander adjustment in the actual Ace action and preserves the next range', async () => {
   const f = admitCurrentAce();
   await applyWolfCommanderRangeTargetAdjustment.run(request({ sessionId: 's1', requestId: 'commander-before-real-ace',

@@ -39174,6 +39174,7 @@ export const exchangeAegisFighterWings = onCall<unknown>(async request => {
   const uid = requireUid(request.auth);
   const change = requireFighterWingExchangeRequest(request.data);
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const attackStateRef = db.doc(`sessions/${change.sessionId}/wolfAttackState/current`);
   const receiptRef = commandReceiptRef(change.sessionId, change.requestId);
   const fingerprint = vesselActionFingerprint(
     'fighter-wing-exchange', change.sessionId, change.requestId, uid, change.instanceId ?? null, null, {
@@ -39184,9 +39185,10 @@ export const exchangeAegisFighterWings = onCall<unknown>(async request => {
     },
   );
   return db.runTransaction(async (tx): Promise<FighterWingExchangeResult> => {
-    const [player, session] = await Promise.all([
+    const [player, session, attackState] = await Promise.all([
       tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`)),
       tx.get(sessionRef),
+      tx.get(attackStateRef),
     ]);
     await requireConsoleAuthority(tx, change.sessionId, player, 'wing-commander', change.instanceId);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
@@ -39206,6 +39208,14 @@ export const exchangeAegisFighterWings = onCall<unknown>(async request => {
       throw commandError(
         'failed-precondition',
         'Fighter Wing exchange is available only while the current Team Phase is running.',
+        'invalid-phase',
+      );
+    }
+    // The wings are at the combat table until the attack resolves and releases the fleet.
+    if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
+      throw commandError(
+        'failed-precondition',
+        'Fighter Wing exchange is unavailable while a Wolf attack is active.',
         'invalid-phase',
       );
     }
