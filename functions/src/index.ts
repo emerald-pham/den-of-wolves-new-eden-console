@@ -526,6 +526,13 @@ import {
   type FighterWingId,
 } from './fighterWings';
 import {
+  isFighterWingExchangeResult,
+  otherFighterWing,
+  planFighterWingExchange,
+  requireFighterWingExchangeRequest,
+  type FighterWingExchangeResult,
+} from './fighterWingExchange';
+import {
   initialAegisFighterWingAttack,
   launchAegisFighterWing as launchAegisFighterWingState,
   parseAegisFighterWingCombatState,
@@ -38872,6 +38879,100 @@ export const buildFighter = onCall<{
     });
     txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
+  });
+});
+
+/**
+ * Team Phase Fighter Wing exchange: the Wing Commander moves fighters between
+ * Alpha and Bravo, keeping each wing within its 4-fighter capacity (6 after
+ * the Construction Bay upgrade). Only wing counts change; the result is kept
+ * in the server-only command receipt so a retry replays it exactly.
+ */
+export const exchangeAegisFighterWings = onCall<unknown>(async request => {
+  const uid = requireUid(request.auth);
+  const change = requireFighterWingExchangeRequest(request.data);
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const receiptRef = commandReceiptRef(change.sessionId, change.requestId);
+  const fingerprint = vesselActionFingerprint(
+    'fighter-wing-exchange', change.sessionId, change.requestId, uid, change.instanceId ?? null, null, {
+      sourceWingId: change.sourceWingId,
+      amount: change.amount,
+      expectedAlphaRevision: change.expectedAlphaRevision,
+      expectedBravoRevision: change.expectedBravoRevision,
+    },
+  );
+  return db.runTransaction(async (tx): Promise<FighterWingExchangeResult> => {
+    const [player, session] = await Promise.all([
+      tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`)),
+      tx.get(sessionRef),
+    ]);
+    await requireConsoleAuthority(tx, change.sessionId, player, 'wing-commander', change.instanceId);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (player.get('role') !== 'gm' &&
+        (!isActivePlayer(player) || player.get('activeConsoleRoleId') !== 'wing-commander')) {
+      throw new HttpsError('permission-denied', 'An active Wing Commander console is required.');
+    }
+    const replay = replayBoundCommand(
+      await tx.get(receiptRef), fingerprint, isFighterWingExchangeResult, 'Fighter Wing exchange',
+    );
+    if (replay) return replay;
+
+    requireActionPhase(session, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
+    const currentTurn = sessionTurn(session.get('currentTurn'));
+    const phase = turnPhaseState(session.get('turnPhase'));
+    if (!phase || phase.turn !== currentTurn || phase.timerPause !== undefined) {
+      throw commandError(
+        'failed-precondition',
+        'Fighter Wing exchange is available only while the current Team Phase is running.',
+        'invalid-phase',
+      );
+    }
+    const parsed = fighterWingCounts(session.get('fighterWingCounts'));
+    const alpha = parsed['fighter-wing-alpha'];
+    const bravo = parsed['fighter-wing-bravo'];
+    if (!alpha || !bravo) {
+      throw commandError(
+        'failed-precondition',
+        'Fighter-wing strength is unavailable; wait for a server snapshot before exchanging fighters.',
+        'conflict',
+      );
+    }
+    const counts = { 'fighter-wing-alpha': alpha, 'fighter-wing-bravo': bravo };
+    const capacity = fighterWingCapacity(session.get('shipUpgrades'));
+    const reply = (status: FighterWingExchangeResult['status'], resultCounts: typeof counts) => ({
+      status,
+      sessionId: change.sessionId,
+      requestId: change.requestId,
+      sourceWingId: change.sourceWingId,
+      targetWingId: otherFighterWing(change.sourceWingId),
+      amount: change.amount,
+      capacity,
+      turn: currentTurn,
+      counts: resultCounts,
+    });
+    if (alpha.revision !== change.expectedAlphaRevision || bravo.revision !== change.expectedBravoRevision) {
+      const stale = reply('stale', counts);
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    const plan = planFighterWingExchange(counts, change.sourceWingId, change.amount, capacity);
+    if (!plan.ok) {
+      throw commandError(
+        'failed-precondition',
+        plan.reason === 'source-short'
+          ? 'That wing does not have that many fighters to exchange.'
+          : `That exchange would put more than ${capacity} fighters in the receiving wing.`,
+        'conflict',
+      );
+    }
+    const committed = reply('committed', plan.counts);
+    tx.update(sessionRef, {
+      'fighterWingCounts.fighter-wing-alpha': plan.counts['fighter-wing-alpha'],
+      'fighterWingCounts.fighter-wing-bravo': plan.counts['fighter-wing-bravo'],
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    txSetIfSupported(tx, receiptRef, { fingerprint, result: committed, createdAt: FieldValue.serverTimestamp() });
+    return committed;
   });
 });
 
