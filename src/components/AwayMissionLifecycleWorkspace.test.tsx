@@ -234,4 +234,43 @@ describe('AwayMissionLifecycleWorkspace', () => {
     expect(screen.queryByLabelText('Opportunity for A♥')).not.toBeInTheDocument();
     expect(screen.queryByText('A♥')).not.toBeInTheDocument();
   });
+  it('shows the Wing Commander’s resolved private result only from a fresh server projection across reconnect', () => {
+    const sessionId = 'wing-mission-reconnect';
+    setAuthorizedActor(sessionId, 'alice', 'wing-commander');
+    const resolvedPublic = {
+      ...publicState, siteCode: 'A', revision: 4, phase: 'resolved' as const, status: 'resolved' as const,
+      requestCounts: [], legalDropOffShipIds: [],
+      opportunities: [{ id: 'A-1', label: 'Harvest proto-lichen' }],
+      outcomes: [{ opportunityId: 'A-1', contributorCount: 1, total: 17, bonusTotal: 3, difficulty: 17,
+        criticalThreshold: null, outcome: 'success' }],
+      rewards: [{ opportunityId: 'A-1', branch: 'success', resources: { food: 8 }, effects: [], bulkHaulageApplied: false }],
+    };
+    const wingResult = {
+      missionId: 'mission-1', participantUid: 'alice', revision: 4, phase: 'resolved' as const, assignmentCommitted: true,
+      cards: [{ id: '4♦', value: 4, status: 'assigned' as const, opportunityId: 'A-1' }], reclamatorSalvage: null,
+    };
+    let publish!: (state: unknown) => void;
+    mocks.subscribe.mockImplementation((_sessionId, _actorUid, onState) => {
+      publish = onState;
+      return vi.fn();
+    });
+    render(<AwayMissionLifecycleWorkspace sessionId={sessionId} actorUid="alice" actorRoleId="wing-commander" />);
+    expect(mocks.subscribe).toHaveBeenCalledWith(sessionId, 'alice', expect.any(Function));
+
+    act(() => publish({ status: 'stale', missions: [{ publicState: resolvedPublic, privateState: wingResult }], projectionMissing: false }));
+    expect(screen.getByRole('status')).toHaveTextContent(/reconnect.*current mission state/i);
+    expect(screen.queryByText('success // total 17')).not.toBeInTheDocument();
+    expect(screen.queryByText('4♦')).not.toBeInTheDocument();
+
+    act(() => publish({ status: 'ready', missions: [{ publicState: resolvedPublic, privateState: wingResult }], projectionMissing: false }));
+    const panel = screen.getByRole('region', { name: 'Away mission // mission-1' });
+    expect(within(panel).getByText('success // total 17')).toBeVisible();
+    expect(within(within(panel).getByRole('article', { name: 'Private card 4♦' })).getByText('Assigned face down')).toBeVisible();
+    expect(within(panel).queryByRole('button', { name: 'Submit mission assignments' })).not.toBeInTheDocument();
+
+    act(() => publish({ status: 'ready', missions: [{ publicState: resolvedPublic,
+      privateState: { ...wingResult, participantUid: 'bob' } }], projectionMissing: false }));
+    expect(screen.queryByText('4♦')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(/private mission choices are still syncing/i);
+  });
 });
