@@ -3,6 +3,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useSessionStore } from '@/store/useSessionStore';
 import PdfEscortWingReference, { PdfEscortWingLaunchPanelView } from './PdfEscortWingReference';
+import type { GameSession } from '@/types/game';
 
 const mocks = vi.hoisted(() => ({ read: vi.fn(), launch: vi.fn(), pass: vi.fn() }));
 
@@ -17,6 +18,153 @@ beforeEach(() => {
   mocks.read.mockReset();
   mocks.launch.mockReset();
   mocks.pass.mockReset();
+});
+
+describe('PDF launch reader gameplay readiness', () => {
+  const colonel = {
+    uid: 'original-pdf', sessionId: 's1', displayName: 'PDF Colonel', role: 'player' as const,
+    seatId: 'refinery-124-pdf-colonel', assignedRoleId: 'refinery-124-pdf-colonel',
+    activeConsoleRoleId: 'refinery-124-pdf-colonel', joinedAt: '2026-01-01T00:00:00.000Z',
+  };
+  const eligible = {
+    type: 'pdf-escort-wing-launch-view', sessionId: 's1', turn: 1,
+    revision: 5, wingRevision: 3, launched: false, eligible: true,
+  } as const;
+  function ready(phase: GameSession['phase'], currentTurn = 0): GameSession {
+    const session: GameSession = {
+      id: 's1', name: 'Table one', joinCode: '4821', phase, currentTurn,
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    };
+    useSessionStore.getState().setIdentity(session, colonel);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    return session;
+  }
+
+  it.each(['lobby', 'casting', 'briefing', 'active'] as const)(
+    'awaits the GM start during %s Cycle 0 without a launch read or false interception', async phase => {
+      const session = ready(phase);
+      mocks.read.mockRejectedValue(new Error('Launch is unavailable before active gameplay.'));
+      render(<PdfEscortWingReference writable />);
+      for (let update = 1; update <= 23; update += 1) {
+        await act(async () => useSessionStore.getState().setSession({ ...session, updatedAt: String(update) }));
+      }
+      expect(mocks.read).not.toHaveBeenCalled();
+      expect(screen.getByText(/Awaiting GM start.*Cycle 1/)).toBeVisible();
+      expect(screen.getByRole('button', { name: 'Launch PDF Escort Wing' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Launch PDF Escort Wing' })).toHaveAccessibleDescription(/Awaiting GM start.*Cycle 1/);
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    },
+  );
+
+  it.each(['success', 'failure', 'debrief', 'closed', 'retained-empty'] as const)(
+    'does not query or report a false server error during %s', async phase => {
+      ready(phase, 2);
+      mocks.read.mockRejectedValue(new Error('Gameplay has ended.'));
+      render(<PdfEscortWingReference writable />);
+      await act(async () => {});
+      expect(mocks.read).not.toHaveBeenCalled();
+      expect(screen.getByText(/Game ended.*launch unavailable/)).toBeVisible();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Launch PDF Escort Wing' })).toBeDisabled();
+    },
+  );
+
+  it('queries after the actual active Cycle 1 transition under the same original actor and commits pass normally', async () => {
+    const user = userEvent.setup();
+    const session = ready('casting');
+    mocks.read.mockResolvedValueOnce(eligible).mockResolvedValueOnce({ ...eligible, eligible: false, choiceStatus: 'passed', reason: 'passed' });
+    mocks.pass.mockResolvedValue({ status: 'committed' });
+    render(<PdfEscortWingReference writable />);
+    expect(mocks.read).not.toHaveBeenCalled();
+    await act(async () => useSessionStore.getState().setSession({ ...session, phase: 'active', currentTurn: 1 }));
+    const pass = await screen.findByRole('button', { name: 'Pass PDF Escort Wing' });
+    expect(useSessionStore.getState().me?.uid).toBe(colonel.uid);
+    expect(mocks.read).toHaveBeenCalledTimes(1);
+    await user.click(pass);
+    await waitFor(() => expect(mocks.pass).toHaveBeenCalledWith('pdf-escort-fighter-wing', 1, 5, 3));
+    expect(await screen.findByText('Launch choice passed for this attack.')).toBeVisible();
+    expect(mocks.read).toHaveBeenCalledTimes(2);
+    expect(mocks.launch).not.toHaveBeenCalled();
+  });
+
+  it.each(['casting', 'debrief', 'closed'] as const)(
+    'discards a deferred active launch view after phase changes to %s', async phase => {
+      const session = ready('active', 1);
+      let resolveRead!: (value: unknown) => void;
+      const deferred = new Promise(resolve => { resolveRead = resolve; });
+      mocks.read.mockReturnValue(deferred);
+      render(<PdfEscortWingReference writable />);
+      expect(mocks.read).toHaveBeenCalledTimes(1);
+      await act(async () => useSessionStore.getState().setSession({ ...session, phase, currentTurn: phase === 'casting' ? 0 : 1 }));
+      await act(async () => { resolveRead(eligible); await deferred; });
+      expect(mocks.read).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('button', { name: 'Launch PDF Escort Wing' })).toBeDisabled();
+      expect(screen.queryByRole('button', { name: 'Pass PDF Escort Wing' })).not.toBeInTheDocument();
+      expect(screen.queryByText(/Wolf Attack targeting.*charged and operational/)).not.toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    },
+  );
+
+  it('does not read cached launch authority, discards a pending view on freshness loss and recovers live under the original UID', async () => {
+    ready('active', 1);
+    useSessionStore.getState().setSessionSnapshotFreshness('cache');
+    let resolveRead!: (value: unknown) => void;
+    const deferred = new Promise(resolve => { resolveRead = resolve; });
+    mocks.read.mockReturnValueOnce(deferred).mockResolvedValueOnce(eligible);
+    render(<PdfEscortWingReference writable />);
+    expect(mocks.read).not.toHaveBeenCalled();
+    expect(screen.getByText(/Reconnect.*live session state/)).toBeVisible();
+    await act(async () => useSessionStore.getState().setSessionSnapshotFreshness('server'));
+    expect(mocks.read).toHaveBeenCalledTimes(1);
+    await act(async () => useSessionStore.getState().setSessionSnapshotFreshness('cache'));
+    await act(async () => { resolveRead(eligible); await deferred; });
+    expect(screen.getByRole('button', { name: 'Launch PDF Escort Wing' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Pass PDF Escort Wing' })).not.toBeInTheDocument();
+    expect(mocks.read).toHaveBeenCalledTimes(1);
+    await act(async () => useSessionStore.getState().setSessionSnapshotFreshness('server'));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Launch PDF Escort Wing' })).toBeEnabled());
+    expect(mocks.read).toHaveBeenCalledTimes(2);
+    expect(useSessionStore.getState().me?.uid).toBe(colonel.uid);
+  });
+
+  it('cannot apply a late receipt or start a permission read after the game ends', async () => {
+    const user = userEvent.setup();
+    const session = ready('active', 1);
+    mocks.read.mockResolvedValue(eligible);
+    let resolveLaunch!: (value: unknown) => void;
+    const deferred = new Promise(resolve => { resolveLaunch = resolve; });
+    mocks.launch.mockReturnValue(deferred);
+    render(<PdfEscortWingReference writable />);
+    const launch = screen.getByRole('button', { name: 'Launch PDF Escort Wing' });
+    await waitFor(() => expect(launch).toBeEnabled());
+    await user.click(launch);
+    await act(async () => useSessionStore.getState().setSession({ ...session, phase: 'debrief' }));
+    await act(async () => {
+      resolveLaunch({ ...eligible, status: 'committed', requestId: 'launch-1', launched: true, eligible: false, revision: 6, wingRevision: 4 });
+      await deferred;
+    });
+    expect(mocks.read).toHaveBeenCalledTimes(1);
+    expect(launch).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'PDF Escort Wing launched' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Fighter Ace source permission' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('cannot show a foreign same-station response after the original actor UID changes', async () => {
+    ready('active', 1);
+    let resolveRead!: (value: unknown) => void;
+    const deferred = new Promise(resolve => { resolveRead = resolve; });
+    mocks.read.mockReturnValueOnce(deferred).mockResolvedValueOnce({ ...eligible, eligible: false, reason: 'waiting' });
+    render(<PdfEscortWingReference writable />);
+    expect(mocks.read).toHaveBeenCalledTimes(1);
+    await act(async () => useSessionStore.setState({ me: { ...colonel, uid: 'another-pdf' } }));
+    await waitFor(() => expect(mocks.read).toHaveBeenCalledTimes(2));
+    await act(async () => { resolveRead(eligible); await deferred; });
+    expect(screen.getByRole('button', { name: 'Launch PDF Escort Wing' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Pass PDF Escort Wing' })).not.toBeInTheDocument();
+    expect(screen.getByText('Waiting for an active Wolf Attack targeting window.')).toBeVisible();
+  });
 });
 
 it('shows the PDF wing pass as a separate current launch choice', async () => {
