@@ -730,6 +730,55 @@ describe('App', () => {
     expect(transferShuttleCargo).not.toHaveBeenCalled();
   });
 
+  it('returns a released Colonel from the console to station selection and restores the unsent relay only after reselect', async () => {
+    const user = userEvent.setup();
+    let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+      handlers = nextHandlers;
+      return vi.fn();
+    });
+    const relayDraftKey = 'pc10:pdf-news-relay-draft:s1:u1:fleet-1';
+    const relayDraft = { version: 1, sessionId: 's1', uid: 'u1', scope: 'fleet-1', value: 'Outer marker clear.' };
+    sessionStorage.setItem(relayDraftKey, JSON.stringify(relayDraft));
+    window.location.hash = `#/ships/refinery-124/roles/${COLONEL}`;
+    useSessionStore.getState().setIdentity(colonelSession, colonel);
+    useSessionStore.getState().setMode('console');
+    render(<App />);
+    await waitFor(() => expect(handlers).toBeDefined());
+    act(() => {
+      useSessionStore.getState().setConnection('live');
+      useSessionStore.getState().setSessionSnapshotFreshness('server');
+    });
+    const relayText = () => within(screen.getByRole('region', { name: 'P.D.F. Colonel news relay' }))
+      .getByRole('textbox', { name: 'News for your current fleet group' });
+    await user.click(await screen.findByRole('button', { name: 'Ship systems' }, { timeout: 5_000 }));
+    expect(relayText()).toHaveValue('Outer marker clear.');
+
+    act(() => {
+      handlers?.onPlayer?.({ ...colonel, assignedRoleId: null, seatId: null, activeConsoleRoleId: null });
+      handlers?.onPlayerFreshness?.(true);
+      handlers?.onSessionFreshness?.(true);
+    });
+    expect(await screen.findByRole('heading', { name: 'Stations and consoles' })).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Your previous station is no longer available. Return to station select and reselect your role.',
+    );
+    expect(window.location.hash).toBe('#/console');
+    expect(screen.queryByRole('region', { name: 'P.D.F. Colonel news relay' })).not.toBeInTheDocument();
+    expect(JSON.parse(sessionStorage.getItem(relayDraftKey) ?? 'null')).toEqual(relayDraft);
+
+    act(() => {
+      handlers?.onPlayer?.(colonel);
+      handlers?.onPlayerFreshness?.(true);
+      useSessionStore.getState().setCommunicationError(null);
+    });
+    act(() => { window.location.hash = `#/ships/refinery-124/roles/${COLONEL}`; });
+    await user.click(await screen.findByRole('button', { name: 'Ship systems' }, { timeout: 5_000 }));
+    await waitFor(() => expect(relayText()).toHaveValue('Outer marker clear.'));
+    await user.click(screen.getByRole('link', { name: 'View ship consoles' }));
+    expect(window.location.hash).toBe('#/ships/refinery-124/roles');
+  });
+
   it('keeps the unsent Chepu cargo choice through Back to the Colonel console and Refinery 124 consoles', async () => {
     const user = userEvent.setup();
     window.location.hash = '#/shuttles/chepu';
