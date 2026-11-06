@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, expect, it, vi } from 'vitest';
@@ -13,10 +13,19 @@ vi.mock(import('@/lib/sessionService'), async (importOriginal) => ({
   exchangeFighterWings: vi.fn(),
 }));
 const { buildFighter, exchangeFighterWings } = await import('@/lib/sessionService');
+const attackFeed = vi.hoisted(() => ({ listeners: [] as Array<(view: unknown) => void> }));
+vi.mock('@/lib/firestore', () => ({
+  subscribeWolfAttackMemberView: vi.fn((_sessionId: string, onView: (view: unknown) => void) => {
+    attackFeed.listeners.push(onView);
+    onView(null);
+    return () => { attackFeed.listeners = attackFeed.listeners.filter((listener) => listener !== onView); };
+  }),
+}));
 type FighterBuildReply = Awaited<ReturnType<typeof buildFighter>>;
 type FighterWingExchangeReply = Awaited<ReturnType<typeof exchangeFighterWings>>;
 
 beforeEach(() => {
+  attackFeed.listeners = [];
   vi.mocked(buildFighter).mockReset();
   vi.mocked(exchangeFighterWings).mockReset();
   const now = Date.now();
@@ -350,6 +359,25 @@ it.each([
 
   expect(within(panel).getByText(guidance)).toBeVisible();
   expect(within(panel).getByRole('button', { name: /move \d fighters? from/i })).toBeDisabled();
+});
+
+it('explains that the exchange waits while a Wolf attack is in progress, and reopens once it resolves', async () => {
+  stageWingExchange();
+  const panel = renderExchange();
+  const exchange = within(panel).getByRole('button', { name: 'Move 1 fighter from Alpha to Bravo' });
+  expect(exchange).toBeEnabled();
+
+  const member = { type: 'wolf-attack-member-view', sessionId: 's1', attackId: 'attack-1', turn: 1, revision: 3,
+    status: 'declared', currentStep: 'medium-range', range: 'medium' };
+  act(() => attackFeed.listeners.forEach((listener) => listener(member)));
+  expect(within(panel).getByText(
+    /exchange unavailable \/\/ wolf attack active; the wings are at the combat table\. next actor \/\/ wing commander waits for the attack to resolve/i,
+  )).toBeVisible();
+  expect(exchange).toBeDisabled();
+
+  act(() => attackFeed.listeners.forEach((listener) => listener({ ...member, status: 'resolved', currentStep: 'resolved', range: null })));
+  expect(within(panel).queryByText(/wolf attack active/i)).not.toBeInTheDocument();
+  expect(exchange).toBeEnabled();
 });
 
 it('keeps the exchange unavailable while reconnecting from a cached session', () => {
