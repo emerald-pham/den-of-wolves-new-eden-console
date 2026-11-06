@@ -3432,6 +3432,79 @@ describe('permissioned dismantling target inbox', () => {
     await assertFails(getDoc(doc(as('targetDione'), inboxPath)));
   });
 
+  describe('Macaw Scrap dismantling', () => {
+    const capybaraInbox = `${SESSION}/permissionedDismantlingInboxes/capybara`;
+    const macawInbox = (targetShipId: string, overrides: Record<string, unknown> = {}) => ({
+      type: 'permissioned-dismantling-inbox', sessionId: 's1', targetShipId,
+      proposalId: 'proposal-macaw', proposerUid: 'macawHolder', craftId: 'macaw',
+      targetConsoleId: 'reactor', targetRevision: 0, scrapGain: 1, status: 'applied',
+      consentId: 'consent-macaw', scrapAfter: 4, updatedAt: new Date('2026-09-30T17:00:00.000Z'),
+      ...overrides,
+    });
+
+    beforeEach(async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        await updateDoc(doc(db, SESSION), {
+          activeRoleIds: ['dione-captain', 'icebreaker-captain', 'capybara-captain', 'capybara-recycler'],
+          activeVesselIds: ['dione', 'icebreaker', 'capybara'],
+        });
+        for (const [uid, assignedRoleId] of [['macawHolder', 'capybara-captain'], ['recycler', 'capybara-recycler']]) {
+          await setDoc(doc(db, `${SESSION}/players/${uid}`), {
+            uid, role: 'player', connected: true, assignedRoleId, replacementRoleId: null,
+            replacementStatus: null, escapeState: null,
+          });
+        }
+        await setDoc(doc(db, inboxPath), macawInbox('dione'));
+        await setDoc(doc(db, capybaraInbox), macawInbox('capybara', { targetConsoleId: 'advanced-hydroponics' }));
+      });
+    });
+
+    it('shows the one-Scrap result only to the target-ship players and the Macaw holder', async () => {
+      await assertSucceeds(getDoc(doc(as('targetDione'), inboxPath)));
+      await assertSucceeds(getDoc(doc(as('macawHolder'), inboxPath)));
+      await assertFails(getDoc(doc(as('recycler'), inboxPath)));
+      await assertSucceeds(getDoc(doc(as('recycler'), capybaraInbox)));
+      await assertSucceeds(getDoc(doc(as('macawHolder'), capybaraInbox)));
+      await assertFails(getDoc(doc(as('targetDione'), capybaraInbox)));
+      await assertFails(getDoc(doc(as('gm1'), capybaraInbox)));
+      await assertFails(getDoc(doc(as('observer'), capybaraInbox)));
+    });
+
+    it.each([
+      ['an engineering material gain', { materialGain: 3 }],
+      ['a materials balance', { materialsAfter: 5 }],
+      ['more than one Scrap', { scrapGain: 2 }],
+      ['a negative Scrap balance', { scrapAfter: -1 }],
+      ['a non-integer Scrap balance', { scrapAfter: 'four' }],
+    ])('fails closed for a Macaw inbox carrying %s', async (_label, overrides) => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), capybaraInbox), macawInbox('capybara', overrides));
+      });
+      await assertFails(getDoc(doc(as('recycler'), capybaraInbox)));
+    });
+
+    it('denies every client write to Macaw dismantling records and the Scrap ledger', async () => {
+      for (const uid of ['macawHolder', 'recycler', 'gm1']) {
+        const db = as(uid);
+        await assertFails(setDoc(doc(db, capybaraInbox), macawInbox('capybara', { scrapAfter: 99 })));
+        await assertFails(updateDoc(doc(db, capybaraInbox), { status: 'applied', scrapAfter: 99 }));
+        await assertFails(setDoc(doc(db, `${SESSION}/permissionedDismantlingProposals/forged`), {
+          craftId: 'macaw', targetShipId: 'capybara', scrapGain: 1, status: 'pending',
+        }));
+        await assertFails(setDoc(doc(db, `${SESSION}/permissionedDismantlingConsents/forged`), {
+          craftId: 'macaw', actorUid: uid, scrapGain: 1, status: 'granted',
+        }));
+        await assertFails(setDoc(doc(db, `${SESSION}/permissionedDismantlingReceipts/forged`), {
+          result: { status: 'applied', scrapGain: 1, scrapAfter: 99 },
+        }));
+        await assertFails(setDoc(doc(db, `${SESSION}/permissionedDismantlingTargetStates/capybara`), { revision: 0 }));
+        await assertFails(updateDoc(doc(db, SESSION), { 'shipResources.capybara.scrap': 99 }));
+        await assertFails(updateDoc(doc(db, SESSION), { 'shipDamage.capybara': { damagedSystemIds: [], destroyed: false } }));
+      }
+    });
+  });
+
   it('keeps the declined decision readable to the same authorized players', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       await updateDoc(doc(ctx.firestore(), inboxPath), { status: 'declined' });
