@@ -4953,7 +4953,8 @@ function aegisFighterWingLaunchViewReply(value: unknown): AegisFighterWingLaunch
       !Number.isSafeInteger(reply.fighters) || (reply.fighters as number) < 0 ||
       typeof reply.launched !== 'boolean' || typeof reply.eligible !== 'boolean' || !validReason || !validChoiceStatus ||
       (reply.eligible && (reply.launched || reply.reason !== undefined)) ||
-      (reply.launched && reply.reason !== 'already-launched') ||
+      (reply.launched && reply.reason !== 'already-launched' &&
+        !(reply.reason === 'waiting' && reply.choiceStatus === 'launched' && reply.eligible === false)) ||
       (!reply.eligible && !reply.reason)) return null;
   return {
     type: 'aegis-fighter-wing-launch-view', sessionId: reply.sessionId,
@@ -4970,7 +4971,7 @@ function aegisFighterWingLaunchResultReply(value: unknown): AegisFighterWingLaun
   const view = aegisFighterWingLaunchViewReply(value);
   if (!view || typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const reply = value as Record<string, unknown>;
-  return (reply.status === 'committed' || reply.status === 'replayed') &&
+  return reply.reason === 'already-launched' && (reply.status === 'committed' || reply.status === 'replayed') &&
     typeof reply.requestId === 'string' && reply.requestId.length > 0
     ? { ...view, status: reply.status, requestId: reply.requestId }
     : null;
@@ -7359,6 +7360,26 @@ export async function getWolfBoardingSpecialChoice(): Promise<WolfBoardingSpecia
   }
 }
 
+const UNCERTAIN_BOARDING_CHOICE_MESSAGE = 'The connection was lost before the server confirmed this boarding choice. ' +
+  'If it is still offered, choose the same option again; the server applies it only once.';
+
+/**
+ * The request identity of a boarding choice whose reply was lost. Retrying the
+ * identical choice for the same actor, attack revision and role reuses it, so
+ * the server replays its receipt instead of rejecting the retry as stale.
+ */
+let pendingBoardingSpecialChoiceAttempt: Readonly<{ key: string; requestId: string }> | null = null;
+
+function boardingSpecialChoiceAttemptKey(
+  store: ReturnType<typeof useSessionStore.getState>, sessionId: string, instanceId: string | undefined,
+  turn: number, revision: number, choice: WolfBoardingSpecialChoiceCommand,
+): string {
+  const me = store.me;
+  return JSON.stringify([sessionId, me?.uid ?? null, me?.role ?? null, me?.assignedRoleId ?? null,
+    me?.activeConsoleRoleId ?? null, me?.replacementRoleId ?? null, me?.fleetGroupId ?? null, instanceId ?? null,
+    turn, revision, choice]);
+}
+
 /** Commit one current boarding decision; GM instance authority is required for a ruling. */
 export async function commitWolfBoardingSpecialChoice(
   turn: number, revision: number, choice: WolfBoardingSpecialChoiceCommand,
@@ -7379,12 +7400,28 @@ export async function commitWolfBoardingSpecialChoice(
   requireFreshSessionAuthority('Reconnect before committing the boarding choice.');
   const checkpoint = sessionAuthorityCheckpoint(sessionId, uid);
   await ensureSignedIn();
-  const requestId = commandId();
+  const attemptKey = boardingSpecialChoiceAttemptKey(useSessionStore.getState(), sessionId, instance?.id,
+    turn, revision, choice);
+  const requestId = pendingBoardingSpecialChoiceAttempt?.key === attemptKey
+    ? pendingBoardingSpecialChoiceAttempt.requestId : commandId();
+  pendingBoardingSpecialChoiceAttempt = { key: attemptKey, requestId };
   const payload = { sessionId, requestId, expectedTurn: turn, expectedRevision: revision,
     ...(instance ? { instanceId: instance.id } : {}), choice };
   const call = httpsCallable<typeof payload, unknown>(functions(), 'commitWolfBoardingSpecialChoice');
+  let response: unknown;
   try {
-    const reply = wolfBoardingSpecialChoiceResultReply((await call(payload)).data);
+    response = (await call(payload)).data;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    if (isJumpShipOutcomeUncertain(cause)) {
+      throw Object.assign(new Error(UNCERTAIN_BOARDING_CHOICE_MESSAGE), { code: commandErrorCode(cause) });
+    }
+    if (pendingBoardingSpecialChoiceAttempt?.requestId === requestId) pendingBoardingSpecialChoiceAttempt = null;
+    throw cause;
+  }
+  if (pendingBoardingSpecialChoiceAttempt?.requestId === requestId) pendingBoardingSpecialChoiceAttempt = null;
+  try {
+    const reply = wolfBoardingSpecialChoiceResultReply(response);
     if (!reply || reply.sessionId !== sessionId || reply.requestId !== requestId || reply.turn !== turn ||
         reply.revision !== revision + 1 || reply.choiceKind !== choice.kind) {
       throw new Error('The server returned an invalid boarding choice receipt.');

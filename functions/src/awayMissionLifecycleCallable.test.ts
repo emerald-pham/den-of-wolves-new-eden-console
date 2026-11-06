@@ -665,3 +665,74 @@ it('binds exploration to the successful mission, current GM lease and one atomic
   expect(applications).toBe(1);
   expect(store.committedWrites).toHaveLength(writes);
 });
+
+it('resolves the Wing Commander’s Starlight exploration choice once and replays only that private result after a lost reply', async () => {
+  const store = seededStore({ siteCode: 'A' });
+  const callables = dependencies(store);
+  const commit = callables.commitAwayMissionLifecycleCommand;
+  const send = (uid: string, type: string, fields: Fields = {}) => commit(commandRequest(uid, {
+    type, requestId: `${type}-${currentRevision(store)}-${uid}`, expectedRevision: currentRevision(store), ...fields,
+    ...(uid === 'gm' ? { instanceId: 'gm-instance' } : {}),
+  }));
+  await send('alice', 'requestExtraCards', { count: 1 });
+  await send('alice', 'distributeExtraCard', { participantUid: 'alice', opportunityId: 'A-1' });
+  await send('gm', 'openDiscards');
+  await send('bob', 'discardCard', { cardId: BOB_CARD });
+  await send('alice', 'discardCard', { cardId: ALICE_CARD });
+  await send('bob', 'assignCards', { placements: [] });
+
+  // The Wing Commander's own choice is the final assignment, so it resolves the mission.
+  const wingChoice = commandRequest('alice', {
+    type: 'assignCards', requestId: 'wing-starlight-choice', expectedRevision: currentRevision(store),
+    placements: [{ cardId: EXTRA_CARD, opportunityId: 'A-1' }],
+  });
+  store.retryCallbacks = 1;
+  store.loseNextAcknowledgement = true;
+  await expect(commit(wingChoice)).rejects.toThrow('simulated lost acknowledgement');
+  const resolvedRevision = currentRevision(store);
+  const writesAfterResolution = store.committedWrites.length;
+  const record = store.records.get(paths().mission)?.lifecycleRecord as Fields;
+  expect(record).toMatchObject({ status: 'resolved' });
+  const outcome = (record.outcomes as Fields[]).find(({ opportunityId }) => opportunityId === 'A-1')!;
+  expect(outcome).toMatchObject({
+    contributorCount: 1,
+    bonusBreakdown: [{ participantUid: 'alice', source: { kind: 'craft', id: 'starlight' }, trait: 'exploration', amount: 3 }],
+    bonusTotal: 3,
+    difficulty: 17,
+  });
+  expect(outcome.total).toBe((outcome.cardTotal as number) + 3);
+  expect(callables.randomCalls).toBe(1);
+
+  const wingResult = {
+    status: 'replayed',
+    revision: resolvedRevision,
+    privateState: {
+      participantUid: 'alice', phase: 'resolved', assignmentCommitted: true,
+      cards: [
+        { id: ALICE_CARD, value: 10, status: 'discarded', opportunityId: null },
+        { id: EXTRA_CARD, value: 10, status: 'assigned', opportunityId: 'A-1' },
+      ],
+    },
+    publicState: {
+      status: 'resolved',
+      outcomes: expect.arrayContaining([expect.objectContaining({
+        opportunityId: 'A-1', bonusTotal: 3, total: outcome.total, difficulty: 17, outcome: outcome.outcome,
+      })]),
+    },
+  };
+  const firstReplay = await commit(wingChoice);
+  expect(firstReplay).toMatchObject(wingResult);
+  await expect(commit(wingChoice)).resolves.toEqual(firstReplay);
+  expect(JSON.stringify(firstReplay.publicState)).not.toMatch(/A♥|10♦|cardId|cardTotal|bonusBreakdown|starlight/);
+  expect(callables.randomCalls).toBe(1);
+  expect(store.committedWrites).toHaveLength(writesAfterResolution);
+
+  // Another participant cannot claim the Wing Commander's request or read its hand.
+  await expect(commit({ ...wingChoice, auth: { uid: 'bob' } })).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(store.committedWrites).toHaveLength(writesAfterResolution);
+  expect(store.records.get(paths().aliceHand)?.lifecyclePrivateState).toMatchObject(wingResult.privateState);
+  expect(store.records.get(paths().bobHand)?.lifecyclePrivateState).toMatchObject({ participantUid: 'bob', phase: 'resolved' });
+  for (const path of [paths().bobHand, paths().bobPointer, paths().alicePointer]) {
+    expect(JSON.stringify(store.records.get(path))).not.toMatch(/10♦|bonusBreakdown|starlight/);
+  }
+});

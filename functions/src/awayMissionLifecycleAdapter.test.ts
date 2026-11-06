@@ -305,6 +305,83 @@ describe('away-mission lifecycle adapter', () => {
     });
   });
 
+  it('commits the PDF Colonel assignment once and applies the printed Escort Wing bonus only where the Colonel contributed', () => {
+    const resolveColonelMission = (placements: readonly { cardId: string; opportunityId: string }[]) => {
+      const lifecycle = createMissionLifecycleState({
+        missionId: 'mission-pdf',
+        siteCode: 'L',
+        leaderUid: 'colonel',
+        participants: [{ uid: 'colonel', roleId: 'refinery-124-pdf-colonel' }],
+        availableCarrierCraftIds: ['pdf-escort-fighter-wing'],
+        deckState: fixture().lifecycle.deckState,
+        dealtCount: 1,
+        initialCards: [{ participantUid: 'colonel', cardId: '10♥' }],
+      });
+      if (!lifecycle) throw new Error('Expected valid PDF Colonel mission fixture.');
+      let record = createAwayMissionLifecycleRecord({
+        sessionId: 'session-1',
+        groupId: 'fleet-1',
+        sourceCycle: 3,
+        lifecycle,
+        participantCrafts: [{ participantUid: 'colonel', craftIds: ['pdf-escort-fighter-wing'] }],
+      });
+      const step = (type: string, command: Record<string, unknown>, actorUid: string, authority = {}) => {
+        const result = act(record, type, command, actorUid, authority);
+        expect(result.status).toBe('committed');
+        record = result.record!;
+      };
+      step('requestExtraCards', { count: 2 }, 'colonel');
+      step('distributeExtraCard', { participantUid: 'colonel', opportunityId: 'L-1' }, 'colonel');
+      step('distributeExtraCard', { participantUid: 'colonel', opportunityId: 'L-2' }, 'colonel');
+      step('openDiscards', {}, 'gm', { isActiveGm: true });
+      step('discardCard', { cardId: '10♥' }, 'colonel');
+
+      const assignment = {
+        type: 'assignCards', requestId: 'colonel-assignment', expectedRevision: record.revision, placements,
+      } as const;
+      const authority = {
+        actorUid: 'colonel', isActiveGm: false, teamPhase: false, currentCycle: 3, legalDropOffShipIds: ['aegis'],
+      };
+      const committed = applyAwayMissionLifecycleCommand(record, assignment as never, authority as never);
+      expect(committed.status).toBe('committed');
+      const retried = applyAwayMissionLifecycleCommand(committed.record!, assignment as never, authority as never);
+      expect(retried.status).toBe('replayed');
+      expect(retried.record).toEqual(committed.record);
+      expect(applyAwayMissionLifecycleCommand(committed.record!, {
+        ...assignment, requestId: 'colonel-second-assignment', expectedRevision: committed.record!.revision,
+      } as never, authority as never).status).toBe('denied');
+      record = committed.record!;
+      expect(projectAwayMissionPrivateState(record, 'colonel')?.assignmentCommitted).toBe(true);
+
+      step('addFacilitatorCards', {}, 'gm', { isActiveGm: true, randomIndex: () => 0 });
+      step('resolve', {}, 'gm', { isActiveGm: true, bonusSources: [], secretD6Rolls: {} });
+      return record.outcomes!;
+    };
+    const escortWing = { participantUid: 'colonel', source: { kind: 'craft', id: 'pdf-escort-fighter-wing' } };
+
+    const rescueAndSalvage = resolveColonelMission([
+      { cardId: '10♦', opportunityId: 'L-1' },
+      { cardId: 'A♥', opportunityId: 'L-2' },
+    ]);
+    expect(rescueAndSalvage.find(({ opportunityId }) => opportunityId === 'L-1')).toMatchObject({
+      bonusTotal: 1,
+      bonusBreakdown: [expect.objectContaining({ ...escortWing, trait: 'salvage', amount: 1 })],
+    });
+    expect(rescueAndSalvage.find(({ opportunityId }) => opportunityId === 'L-2')).toMatchObject({
+      bonusTotal: 2,
+      bonusBreakdown: [expect.objectContaining({ ...escortWing, trait: 'searchAndRescue', amount: 2 })],
+    });
+    expect(rescueAndSalvage.find(({ opportunityId }) => opportunityId === 'L-3')).toMatchObject({ bonusTotal: 0 });
+
+    const salvageAndScience = resolveColonelMission([
+      { cardId: '10♦', opportunityId: 'L-1' },
+      { cardId: 'A♥', opportunityId: 'L-3' },
+    ]);
+    expect(salvageAndScience.find(({ opportunityId }) => opportunityId === 'L-1')).toMatchObject({ bonusTotal: 1 });
+    expect(salvageAndScience.find(({ opportunityId }) => opportunityId === 'L-2')).toMatchObject({ bonusTotal: 0 });
+    expect(salvageAndScience.find(({ opportunityId }) => opportunityId === 'L-3')).toMatchObject({ bonusTotal: 0 });
+  });
+
   it('keeps committed participant craft movement-locked through a Team Phase overrun until resolution', () => {
     const record = fixture();
     const overrun = markAwayMissionOverrun(record, true);
