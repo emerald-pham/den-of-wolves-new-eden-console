@@ -615,6 +615,19 @@ it('hydrates pending attack Scrap pickups and drops malformed entries', () => {
   expect(sessionFrom('none', sessionData(8)).attackScrapPickups).toEqual({});
 });
 
+it('hydrates the facilitator-only Boa choice pending flags and drops anything but a true flag', () => {
+  const session = sessionFrom('boa-pending', {
+    ...sessionData(8),
+    boaReclamationPending: {
+      'arrival-fleet-1-A-5143': true,
+      'arrival-fleet-1-A-4000': 'L-1',
+      'bad id/with slash': true,
+    },
+  });
+  expect(session.boaReclamationPending).toEqual({ 'arrival-fleet-1-A-5143': true });
+  expect(sessionFrom('none', sessionData(8)).boaReclamationPending).toBeUndefined();
+});
+
 it('hydrates only canonical quarantine docking state with communications allowed', () => {
   const session = sessionFrom('quarantine', {
     ...sessionData(8),

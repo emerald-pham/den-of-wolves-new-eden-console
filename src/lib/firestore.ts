@@ -3012,6 +3012,21 @@ function shipUpgrades(value: unknown): NonNullable<GameSession['shipUpgrades']> 
     Array.isArray(stored[shipId]) ? [[shipId, stringArray(stored[shipId])]] : []));
 }
 
+/** Facilitator-only Boa pending flags; only an exact `true` for a wire-safe opportunity id is kept. */
+function boaReclamationPending(value: unknown): GameSession['boaReclamationPending'] {
+  const stored = recordValue(value);
+  if (!stored) return undefined;
+  const flags = Object.fromEntries(Object.entries(stored)
+    .filter(([opportunityId, flag]) => flag === true && isWireSafeEntityId(opportunityId))
+    .map(([opportunityId]) => [opportunityId, true as const]));
+  return Object.keys(flags).length ? flags : undefined;
+}
+
+function boaReclamationPendingField(value: unknown): Pick<GameSession, 'boaReclamationPending'> {
+  const flags = boaReclamationPending(value);
+  return flags ? { boaReclamationPending: flags } : {};
+}
+
 /** Server-carried attack Scrap pickups; a malformed entry is dropped rather than offered. */
 function attackScrapPickups(value: unknown): NonNullable<GameSession['attackScrapPickups']> {
   const stored = recordValue(value);
@@ -3589,6 +3604,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ...(currentHighwallMining ? { highwallMining: currentHighwallMining } : {}),
     retainedShuttles: retained,
     attackScrapPickups: attackScrapPickups(data.attackScrapPickups),
+    ...boaReclamationPendingField(data.boaReclamationPending),
     ...(quarantine ? { quarantineDocking: quarantine } : {}),
     shipUpgrades: shipUpgrades(data.shipUpgrades),
     shipResources: currentShipResources,

@@ -1659,6 +1659,12 @@ export interface GameSession {
   readonly maliadesState?: MaliadesStateRecord | MaliadesOperationalView;
   readonly highwallMining?: HighwallMiningState;
   readonly retainedShuttles?: Readonly<Record<string, RetainedShuttleEntry>>;
+  /**
+   * Facilitator-only deal-preview flag: mission opportunities with a pending
+   * Boa reclamation choice. It never names the chosen task, and member
+   * projections never carry it.
+   */
+  readonly boaReclamationPending?: Readonly<Record<string, true>>;
   /** Uncollected attack Scrap pickups carried past their attack, keyed by the damaged ship. */
   readonly attackScrapPickups?: Readonly<Record<string, readonly AttackScrapPickup[]>>;
   readonly quarantineDocking?: QuarantineDockingState;
