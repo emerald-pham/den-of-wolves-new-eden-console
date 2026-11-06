@@ -289,6 +289,7 @@ import {
 } from './arrivalPressure';
 import {
   firstArrivalMissionOpportunity,
+  laterCycleMissionOpportunityIds,
   legacyCycleRepeatableMissionOpportunity,
   missionOpportunityDocumentPath,
   parseStoredMissionOpportunity,
@@ -10470,17 +10471,11 @@ export const dealPrivateInitialCards = onCall<{
       boaChoiceSnapshot.exists ? boaChoiceSnapshot.data() : undefined,
       command.sessionId, opportunity, missionDefinition,
     );
-    if (missionDefinition.siteRules.repeatability === 'everyTurn' &&
-        opportunity.sourceCycle < currentCycle) {
-      const laterCycleOpportunitySnapshots = await Promise.all(
-        Array.from(
-          { length: currentCycle - opportunity.sourceCycle },
-          (_, index) => opportunity.sourceCycle + index + 1,
-        ).map((cycle) => tx.get(db.doc(missionOpportunityDocumentPath(
-          command.sessionId,
-          `arrival-${opportunity.groupId}-${opportunity.chart}-${opportunity.coordinate}-cycle-${cycle}`,
-        )))),
-      );
+    // Shared with the Boa pre-deal choice, so the Recycler is offered only what this deal accepts.
+    const laterCycleOpportunityIds = laterCycleMissionOpportunityIds(opportunity, currentCycle);
+    if (laterCycleOpportunityIds.length > 0) {
+      const laterCycleOpportunitySnapshots = await Promise.all(laterCycleOpportunityIds.map((id) =>
+        tx.get(db.doc(missionOpportunityDocumentPath(command.sessionId, id)))));
       for (const laterOpportunitySnapshot of laterCycleOpportunitySnapshots) {
         if (!laterOpportunitySnapshot.exists) continue;
         const later = laterOpportunitySnapshot.data();

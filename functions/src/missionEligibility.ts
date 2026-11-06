@@ -212,3 +212,26 @@ export function firstArrivalMissionOpportunity(
     sourceCycle: input.cycle,
   };
 }
+
+/**
+ * The ids of later cycle-scoped arrivals that would supersede this printed
+ * repeatable opportunity (its group left and returned). A deal refuses a
+ * superseded opportunity, so a pre-deal choice must refuse it too. Empty for
+ * ordinary systems and for an opportunity from the current cycle.
+ */
+export function laterCycleMissionOpportunityIds(
+  opportunity: Pick<MissionOpportunityEligibility, 'groupId' | 'chart' | 'coordinate' | 'siteCode' | 'sourceCycle'>,
+  currentCycle: number,
+): readonly string[] {
+  if (!isCycleRepeatableMission(opportunity.siteCode) || opportunity.sourceCycle >= currentCycle) return [];
+  return Array.from({ length: currentCycle - opportunity.sourceCycle }, (_, index) =>
+    `arrival-${opportunity.groupId}-${opportunity.chart}-${opportunity.coordinate}-cycle-${opportunity.sourceCycle + index + 1}`);
+}
+
+/** The documents a dealable opportunity must lack: its start receipt and its lifecycle instance. */
+export function missionStartDocumentPaths(sessionId: string, opportunityId: string): readonly [string, string] {
+  return [
+    `sessions/${sessionId}/missionStartSnapshots/${opportunityId}`,
+    `sessions/${sessionId}/serverState/awayMissions/instances/mission-${opportunityId}`,
+  ];
+}
