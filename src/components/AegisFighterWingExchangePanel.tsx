@@ -53,7 +53,7 @@ export default function AegisFighterWingExchangePanel({ counts, capacity, blocke
   return (
     <section className="aegis-wing-exchange cic-frame" aria-label="Fighter Wing exchange">
       <header className="aegis-wing-exchange__header">
-        <p>Team Phase // Wing Commander</p>
+        <p className="console-workspace__eyebrow">Team Phase // Wing Commander</p>
         <h3>Fighter Wing exchange</h3>
       </header>
       <p className="aegis-wing-exchange__strength">
