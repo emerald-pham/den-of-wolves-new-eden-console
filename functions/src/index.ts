@@ -18150,6 +18150,10 @@ function publicMemberSessionSource(sessionSnap: DocumentSnapshot, sessionId: str
     ...(fighterWingCounts === undefined ? {} : { fighterWingCounts }),
     shipDamage: activeVesselRecord(shipDamage(sessionSnap.get('shipDamage')), activeVesselIds),
     shipResources: activeVesselRecord(shipResources(sessionSnap.get('shipResources')), activeVesselIds),
+    // Carried pickups are scoped per damaged ship; the member filter keeps only the reader's group.
+    attackScrapPickups: activeVesselRecord(
+      parseAttackScrapPickups(sessionSnap.get('attackScrapPickups')) ?? {}, activeVesselIds,
+    ),
     shipUnrest: activeVesselRecord(shipUnrest(sessionSnap.get('shipUnrest')), activeVesselIds),
     shipMutinies: publicShipMutinies(sessionSnap.get('shipMutinies'), activeVesselIds),
     unrestAlerts: publicAlertMap(sessionSnap.get('unrestAlerts'), activeVesselIds, false),

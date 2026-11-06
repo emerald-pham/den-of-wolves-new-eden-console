@@ -1065,3 +1065,33 @@ it('retains only the current in-transit craft’s local history without inventin
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 });
+
+it('projects carried attack Scrap pickups to the damaged ship’s fleet group only', async () => {
+  const roles = [...recommendedRoleIds(18)];
+  const vessels = activeVesselIdsForRoles(roles);
+  const own = [{ attackId: 'wolf-attack-3', turn: 1, destroyed: false }];
+  const foreign = [{ attackId: 'wolf-attack-3', turn: 1, destroyed: true }];
+  const fields = { name: 'Table one', joinCode: '482109', phase: 'active', currentTurn: 2,
+    playerCount: 18, chartId: 'A', expansion: 'base', turnLimit: 8,
+    activeRoleIds: roles, activeVesselIds: vessels, shuttleDockings: [],
+    attackScrapPickups: { aegis: own, shepherd: foreign },
+  };
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'sessions/s1') return snapshot(fields);
+    if (path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'player',
+      fleetGroupId: 'fleet-2', assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral' });
+    if (path === 'sessions/s1/fleetGroups') return { docs: [
+      snapshot({ id: 'fleet-1', vesselIds: vessels.filter(id => id !== 'aegis'), memberUids: ['foreign'] }),
+      snapshot({ id: 'fleet-2', vesselIds: ['aegis'], memberUids: ['u1'] }),
+    ] };
+    if (path === 'sessions/s1/shuttleDepartures') return { docs: [] };
+    throw new Error(`Unexpected read: ${path}`);
+  });
+  const response = await getCurrentMemberSession.run({ auth: { uid: 'u1' }, data: { sessionId: 's1' } } as CallableRequest<{ sessionId: string }>) as { session: Record<string, unknown> };
+  expect(response.session.attackScrapPickups).toEqual({ aegis: own });
+
+  // A malformed stored ledger fails closed instead of leaking partial entries.
+  fields.attackScrapPickups = { aegis: [{ attackId: 'wolf-attack-3', turn: 1, destroyed: false, extra: 1 }] } as never;
+  const malformed = await getCurrentMemberSession.run({ auth: { uid: 'u1' }, data: { sessionId: 's1' } } as CallableRequest<{ sessionId: string }>) as { session: Record<string, unknown> };
+  expect(malformed.session.attackScrapPickups).toEqual({});
+});
