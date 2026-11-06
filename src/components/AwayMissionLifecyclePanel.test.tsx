@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import AwayMissionLifecyclePanel, { type AwayMissionLifecyclePanelProps } from './AwayMissionLifecyclePanel';
+import { createAwayMissionLifecycleActions } from '@/lib/awayMissionLifecycleService';
 
 const basePublicMission = {
   missionId: 'mission-1',
@@ -253,6 +254,69 @@ it('explains distinct face-down assignments and the next actor before submission
     /every remaining card.*different opportunity.*face down.*automatically/i,
   );
   expect(actions.assignCards).not.toHaveBeenCalled();
+});
+
+it('lets the Wing Commander retry an interrupted choice with the same request and then shows only the Wing’s resolved result', async () => {
+  const wingPublic = {
+    ...basePublicMission, siteCode: 'A', requestCounts: [],
+    opportunities: [{ id: 'A-1', label: 'Harvest proto-lichen' }, { id: 'A-2', label: 'Work the asteroid deposits' }],
+  };
+  const wingHand = {
+    missionId: 'mission-1', participantUid: 'alice', revision: 3, phase: 'assignment-ready', canUseReclamator: false,
+    cards: [
+      { id: 'A♥', value: 10, status: 'discarded', opportunityId: null },
+      { id: '4♦', value: 4, status: 'remaining', opportunityId: null },
+    ],
+    reclamatorSalvage: null,
+  };
+  const resolvedPublic = {
+    ...wingPublic, revision: 4, phase: 'resolved', status: 'resolved', legalDropOffShipIds: [],
+    outcomes: [
+      { opportunityId: 'A-1', contributorCount: 1, total: 17, bonusTotal: 3, difficulty: 17, criticalThreshold: null, outcome: 'success' },
+      { opportunityId: 'A-2', contributorCount: 0, total: 0, bonusTotal: 0, difficulty: null, criticalThreshold: null, outcome: 'automatic-failure' },
+    ],
+    rewards: [{ opportunityId: 'A-1', branch: 'success', resources: { food: 8 }, effects: [], bulkHaulageApplied: false }],
+    specialRewards: null,
+  };
+  const resolvedHand = {
+    ...wingHand, revision: 4, phase: 'resolved', assignmentCommitted: true,
+    cards: [wingHand.cards[0], { id: '4♦', value: 4, status: 'assigned', opportunityId: 'A-1' }],
+  };
+  const invoke = vi.fn()
+    .mockRejectedValueOnce(Object.assign(new Error('The connection was interrupted.'), { code: 'functions/unavailable' }))
+    .mockResolvedValueOnce({ status: 'replayed', sessionId: 's1', missionId: 'mission-1', requestId: 'wing-choice',
+      revision: 4, publicState: resolvedPublic, privateState: resolvedHand });
+  const actions = createAwayMissionLifecycleActions(() => ({
+    sessionId: 's1', actorUid: 'alice', authenticatedUid: 'alice', actorRole: 'player', missionId: 'mission-1',
+    missionLeaderUid: 'alice', revision: 3, sessionIsActive: true, hasFreshServerAuthority: true,
+  }), { invoke, createRequestId: () => 'wing-choice' });
+  const props = { actorUid: 'alice', isGm: false, isMissionLeader: true, actions };
+  const view = render(<AwayMissionLifecyclePanel {...props as unknown as AwayMissionLifecyclePanelProps}
+    publicState={wingPublic as unknown as AwayMissionLifecyclePanelProps['publicState']}
+    privateState={wingHand as unknown as AwayMissionLifecyclePanelProps['privateState']} />);
+  const panel = screen.getByRole('region', { name: 'Away mission // mission-1' });
+
+  fireEvent.change(within(panel).getByLabelText('Opportunity for 4♦'), { target: { value: 'A-1' } });
+  await act(async () => { fireEvent.click(within(panel).getByRole('button', { name: 'Submit mission assignments' })); });
+  expect(within(panel).getByRole('alert')).toHaveTextContent('The connection was interrupted.');
+  await act(async () => { fireEvent.click(within(panel).getByRole('button', { name: 'Submit mission assignments' })); });
+
+  expect(invoke).toHaveBeenCalledTimes(2);
+  expect(invoke.mock.calls[1]?.[0]).toEqual(invoke.mock.calls[0]?.[0]);
+  expect(invoke.mock.calls[0]?.[0]).toMatchObject({ requestId: 'wing-choice', expectedRevision: 3,
+    type: 'assignCards', placements: [{ cardId: '4♦', opportunityId: 'A-1' }] });
+  expect(within(panel).queryByRole('alert')).not.toBeInTheDocument();
+
+  view.rerender(<AwayMissionLifecyclePanel {...props as unknown as AwayMissionLifecyclePanelProps}
+    publicState={resolvedPublic as unknown as AwayMissionLifecyclePanelProps['publicState']}
+    privateState={resolvedHand as unknown as AwayMissionLifecyclePanelProps['privateState']} />);
+  const opportunity = within(panel).getByRole('heading', { name: 'A-1' }).closest('article')!;
+  expect(within(opportunity as HTMLElement).getByText('success // total 17')).toBeInTheDocument();
+  expect(within(opportunity as HTMLElement).getByText('Reward // food 8')).toBeInTheDocument();
+  const hand = within(panel).getByRole('region', { name: 'Your private mission cards' });
+  expect(within(within(hand).getByRole('article', { name: 'Private card 4♦' })).getByText('Assigned face down')).toBeInTheDocument();
+  expect(within(panel).queryByRole('button', { name: 'Submit mission assignments' })).not.toBeInTheDocument();
+  expect(invoke).toHaveBeenCalledTimes(2);
 });
 
 it('shows a resolved Boa reclamation task with its one-Scrap replacement reward and no printed bonus', () => {

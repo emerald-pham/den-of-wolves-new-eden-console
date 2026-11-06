@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { WolfAttackMemberView } from '@/types/game';
@@ -153,4 +153,50 @@ it('does not restore launched-wing controls from a read that completes after res
   act(() => mocks.receive?.(audience({ status: 'resolved', currentStep: 'resolved', revision: 5 })));
   await act(async () => { release?.(); await pending; });
   expect(screen.queryByTestId('ace-permission-fighter-wing-alpha')).not.toBeInTheDocument();
+});
+
+it('shows a committed Bravo launch after the attack leaves targeting while Alpha stays unlaunched', async () => {
+  mocks.getLaunch.mockImplementation(async (wingId: string) => wingId === 'fighter-wing-bravo'
+    ? { ...alpha, wingId, fighters: 3, launched: true, eligible: false, choiceStatus: 'launched', reason: 'waiting' }
+    : { ...alpha, wingId, eligible: false, reason: 'waiting' });
+
+  render(<AegisFighterWingLaunchPanel />);
+
+  const bravoWing = await screen.findByRole('article', { name: 'Fighter Wing Bravo' });
+  expect(await within(bravoWing).findByText('Fighter Wing Bravo is launched for this attack.')).toBeVisible();
+  expect(within(bravoWing).getByText('3 fighters remaining')).toBeVisible();
+  expect(within(bravoWing).getByRole('button', { name: /launch fighter wing bravo/i })).toBeDisabled();
+  const alphaWing = screen.getByRole('article', { name: 'Fighter Wing Alpha' });
+  expect(within(alphaWing).getByText('Waiting for the current Wolf attack targeting step.')).toBeVisible();
+  expect(screen.getByTestId('ace-permission-fighter-wing-bravo')).toBeInTheDocument();
+  expect(screen.queryByTestId('ace-permission-fighter-wing-alpha')).not.toBeInTheDocument();
+});
+
+it('keeps a passed Bravo choice explained after targeting without blocking Alpha', () => {
+  render(<AegisFighterWingLaunchPanelView views={{
+    'fighter-wing-alpha': { ...alpha, launched: true, eligible: false, choiceStatus: 'launched', reason: 'already-launched' },
+    'fighter-wing-bravo': { ...alpha, wingId: 'fighter-wing-bravo', eligible: false, choiceStatus: 'passed', reason: 'waiting' },
+  }} onLaunch={vi.fn()} />);
+
+  const alphaWing = screen.getByRole('article', { name: 'Fighter Wing Alpha' });
+  expect(within(alphaWing).getByText('Fighter Wing Alpha is launched for this attack.')).toBeVisible();
+  const bravoWing = screen.getByRole('article', { name: 'Fighter Wing Bravo' });
+  expect(within(bravoWing).getByText('Launch choice passed for this attack.')).toBeVisible();
+  expect(within(bravoWing).getByRole('button', { name: /launch fighter wing bravo/i })).toBeDisabled();
+});
+
+it.each([
+  ['damaged', 'Fighter Bay Bravo is damaged and cannot launch this wing.'],
+  ['no-fighters', 'No fighters remain in Bravo.'],
+  ['destroyed', 'A destroyed AEGIS cannot launch its fighter wings.'],
+] as const)('explains why Bravo cannot launch when its bay is %s while Alpha remains launchable', (reason, text) => {
+  render(<AegisFighterWingLaunchPanelView views={{
+    'fighter-wing-alpha': alpha,
+    'fighter-wing-bravo': { ...bravo, reason },
+  }} onLaunch={vi.fn()} onPass={vi.fn()} />);
+
+  const bravoWing = screen.getByRole('article', { name: 'Fighter Wing Bravo' });
+  expect(within(bravoWing).getByRole('status')).toHaveTextContent(text);
+  expect(within(bravoWing).getByRole('button', { name: /launch fighter wing bravo/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /launch fighter wing alpha/i })).toBeEnabled();
 });

@@ -25,8 +25,11 @@ function reasonText(view: AegisFighterWingLaunchView, bay: string): string | und
   if (view.eligible) return undefined;
   if (view.choiceStatus === 'passed' || view.reason === 'passed') return 'Launch choice passed for this attack.';
   if (view.choiceStatus === 'unavailable') return 'This wing could not launch for the current attack.';
+  // A launched wing stays launched once the attack leaves targeting, where the server reports it as waiting.
+  const launched = `${view.wingId === 'fighter-wing-alpha' ? 'Fighter Wing Alpha' : 'Fighter Wing Bravo'} is launched for this attack.`;
+  if (view.launched) return launched;
   switch (view.reason) {
-    case 'already-launched': return `${view.wingId === 'fighter-wing-alpha' ? 'Fighter Wing Alpha' : 'Fighter Wing Bravo'} is launched for this attack.`;
+    case 'already-launched': return launched;
     case 'no-fighters': return `No fighters remain in ${view.wingId === 'fighter-wing-alpha' ? 'Alpha' : 'Bravo'}.`;
     case 'uncharged': return `Charge ${bay} before launching this wing.`;
     case 'damaged': return `${bay} is damaged and cannot launch this wing.`;

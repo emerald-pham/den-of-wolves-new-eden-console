@@ -460,6 +460,45 @@ it('lets the current Wing Commander launch each charged, operational AEGIS bay i
   expect(state.revision).toBe(5);
 });
 
+it('keeps a committed Bravo launch readable as launched after targeting while a passed Alpha stays passed', async () => {
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, activeRoleIds: ['executive-officer', 'wing-commander'],
+    maintenanceCycles: { aegis: { ...(session.maintenanceCycles as Fields).aegis as Fields,
+      charges: ['fighter-bay-alpha', 'fighter-bay-bravo'] } },
+    fighterWingCounts: initialFighterWingCounts() });
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'targeting' });
+  put('sessions/s1/players/wc-1', { uid: 'wc-1', role: 'player', connected: true,
+    assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander', fleetGroupId: 'fleet-1' });
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1',
+    vesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'],
+    memberUids: ['xo-1', 'wc-1'], memberShipIds: { 'xo-1': 'aegis', 'wc-1': 'aegis' } });
+
+  await expect(passWolfFighterLaunchChoice.run(request({ sessionId: 's1', requestId: 'pass-alpha-1',
+    sourceId: 'fighter-wing-alpha', expectedTurn: 1, expectedRevision: 4, expectedWingRevision: 0 }, 'wc-1')))
+    .resolves.toMatchObject({ status: 'committed', sourceId: 'fighter-wing-alpha', choiceStatus: 'passed', revision: 5 });
+  const bravo = await getAegisFighterWingLaunch.run(request({ sessionId: 's1', wingId: 'fighter-wing-bravo' }, 'wc-1'));
+  expect(bravo).toMatchObject({ wingId: 'fighter-wing-bravo', eligible: true, launched: false, revision: 5 });
+  await expect(launchAegisFighterWing.run(request({ sessionId: 's1', requestId: 'launch-bravo-1',
+    expectedTurn: 1, expectedRevision: bravo.revision, expectedWingRevision: bravo.wingRevision,
+    wingId: 'fighter-wing-bravo' }, 'wc-1'))).resolves.toMatchObject({
+    status: 'committed', wingId: 'fighter-wing-bravo', launched: true, eligible: false, reason: 'already-launched',
+    revision: 6, wingRevision: bravo.wingRevision + 1,
+  });
+
+  const launchedState = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...launchedState, currentStep: 'long-range' });
+
+  const bravoAfterTargeting = await getAegisFighterWingLaunch.run(request({ sessionId: 's1', wingId: 'fighter-wing-bravo' }, 'wc-1'));
+  expect(bravoAfterTargeting).toEqual({
+    type: 'aegis-fighter-wing-launch-view', sessionId: 's1', wingId: 'fighter-wing-bravo', turn: 1,
+    attackId: 'wolf-attack-test-1', revision: launchedState.revision, wingRevision: bravo.wingRevision + 1, fighters: 4,
+    launched: true, eligible: false, choiceStatus: 'launched', reason: 'waiting',
+  });
+  await expect(getAegisFighterWingLaunch.run(request({ sessionId: 's1', wingId: 'fighter-wing-alpha' }, 'wc-1')))
+    .resolves.toMatchObject({ launched: false, eligible: false, choiceStatus: 'passed', reason: 'waiting' });
+});
+
 it('commits an explicit Short subset for a launched wing without drawing its rolls early', async () => {
   const session = testState.documents.get('sessions/s1')!;
   put('sessions/s1', { ...session,

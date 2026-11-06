@@ -338,4 +338,143 @@ describe('Wolf attack aftermath command contract', () => {
       .resolves.toMatchObject({ status: 'committed', action: 'collect-scrap', shuttleId: 'boa', scrapGained: 1 });
     expect(mock.documents.get('sessions/s-1')?.shuttleCargo).toEqual({ boa: { scrap: 1 } });
   });
+  describe('eligible attack Scrap pickups', () => {
+    const scrapFixture = (options: Readonly<{
+      fleetDamage: Fields[]; dockings?: Fields[]; retained?: Fields; activeVesselIds?: string[];
+      candidateVesselOutcomes?: Fields;
+    }>) => {
+      const session = mock.documents.get('sessions/s-1')!;
+      const vessels = options.activeVesselIds ?? ['aegis', 'capybara'];
+      session.activeVesselIds = vessels;
+      session.capybaraEnabled = true;
+      session.shuttleDockings = options.dockings ?? [];
+      if (options.retained) session.retainedShuttles = options.retained;
+      if (options.candidateVesselOutcomes) session.candidateVesselOutcomes = options.candidateVesselOutcomes;
+      session.shuttleControl = { macaw: { shuttleId: 'macaw', ownerRoleId: 'capybara-captain',
+        ownerUid: 'macaw-uid', holderUid: 'macaw-uid', revision: 2 } };
+      session.shuttleCargo = {};
+      const state = mock.documents.get('sessions/s-1/wolfAttackState/current')!;
+      (state.calculationReceipt as Fields).fleetDamage = options.fleetDamage;
+      put('sessions/s-1/players/macaw-uid', { role: 'player', connected: true, assignedRoleId: 'capybara-captain',
+        activeConsoleRoleId: 'capybara-captain', replacementRoleId: null, replacementStatus: null,
+        escapeState: null, fleetGroupId: 'fleet-1' });
+      put('sessions/s-1/players/intruder-uid', { role: 'player', connected: true, assignedRoleId: 'capybara-captain',
+        activeConsoleRoleId: 'capybara-captain', replacementRoleId: null, replacementStatus: null,
+        escapeState: null, fleetGroupId: 'fleet-1' });
+      put('sessions/s-1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: vessels,
+        memberUids: ['macaw-uid', 'intruder-uid'] });
+    };
+    const destroyedAt = (target: string, amount: number): Fields => ({ target, amount, populationBefore: 2_500,
+      population: 2_000, state: { damagedSystemIds: ['reactor'], destroyed: true },
+      draws: [{ casualty: false }, { casualty: true }, { casualty: false }] });
+    const liveAt = (target: string, amount: number): Fields => ({ target, amount, populationBefore: 2_500,
+      population: 2_000, state: { damagedSystemIds: [], destroyed: false },
+      draws: Array.from({ length: amount }, () => ({ casualty: false })) });
+    const retainedFrom = (hostShipId: string, controlRevision = 2): Fields => ({ macaw: { status: 'retained',
+      shuttleId: 'macaw', ownerRoleId: 'capybara-captain', holderUid: 'macaw-uid', destroyedHostShipId: hostShipId,
+      controlRevision, retainedAt: '2026-10-04T09:59:00.000Z' } });
+    const collect = (requestId: string, targetShipId = 'aegis') => ({ sessionId: 's-1', attackId: 'attack-7',
+      requestId, action: 'collect-scrap', shuttleId: 'macaw', targetShipId });
+    const expectNoWrites = () => {
+      expect(mock.set).not.toHaveBeenCalled();
+      expect(mock.update).not.toHaveBeenCalled();
+    };
+
+    it('lets the shuttle retained from a ship destroyed at the 3-damage threshold collect its one Scrap', async () => {
+      scrapFixture({ fleetDamage: [destroyedAt('aegis', 3)], retained: retainedFrom('aegis') });
+
+      await expect(resolveWolfAttackAftermath.run(request(collect('destroyed-scrap-7'), 'macaw-uid')))
+        .resolves.toMatchObject({ status: 'committed', action: 'collect-scrap', shuttleId: 'macaw',
+          targetShipId: 'aegis', scrapGained: 1 });
+      expect(mock.documents.get('sessions/s-1')?.shuttleCargo).toEqual({ macaw: { scrap: 1 } });
+      const state = mock.documents.get('sessions/s-1/wolfAttackState/current')!;
+      expect((state.aftermath as Fields).scrapClaims).toEqual({ aegis: expect.objectContaining({
+        shuttleId: 'macaw', actorUid: 'macaw-uid', requestId: 'destroyed-scrap-7', scrap: 1 }) });
+      const audience = mock.documents.get('sessions/s-1/wolfAttackAudience/current')!;
+      expect(JSON.stringify(audience)).not.toContain('macaw-uid');
+
+      const writes = mock.set.mock.calls.length + mock.update.mock.calls.length;
+      await expect(resolveWolfAttackAftermath.run(request(collect('destroyed-scrap-7'), 'macaw-uid')))
+        .resolves.toMatchObject({ status: 'replayed', scrapGained: 1 });
+      expect(mock.documents.get('sessions/s-1')?.shuttleCargo).toEqual({ macaw: { scrap: 1 } });
+      expect(mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writes);
+    });
+
+    it('denies the destroyed-host pickup to a player who does not hold the retained shuttle', async () => {
+      scrapFixture({ fleetDamage: [destroyedAt('aegis', 3)], retained: retainedFrom('aegis') });
+
+      await expect(resolveWolfAttackAftermath.run(request(collect('intruder-scrap-7'), 'intruder-uid')))
+        .rejects.toMatchObject({ code: 'permission-denied' });
+      expect(mock.documents.get('sessions/s-1')?.shuttleCargo).toEqual({});
+      expectNoWrites();
+    });
+
+    it('does not let a retained shuttle claim the Scrap of a different destroyed ship', async () => {
+      scrapFixture({ activeVesselIds: ['aegis', 'dione', 'capybara'], fleetDamage: [destroyedAt('aegis', 3)],
+        retained: retainedFrom('dione') });
+
+      await expect(resolveWolfAttackAftermath.run(request(collect('unbound-scrap-7'), 'macaw-uid')))
+        .rejects.toMatchObject({ code: 'failed-precondition' });
+      expect(mock.documents.get('sessions/s-1')?.shuttleCargo).toEqual({});
+      expectNoWrites();
+    });
+
+    it('does not honour retained custody recorded under an earlier shuttle control revision', async () => {
+      scrapFixture({ fleetDamage: [destroyedAt('aegis', 3)], retained: retainedFrom('aegis', 1) });
+
+      await expect(resolveWolfAttackAftermath.run(request(collect('stale-retained-scrap-7'), 'macaw-uid')))
+        .rejects.toMatchObject({ code: 'failed-precondition' });
+      expectNoWrites();
+    });
+
+    it('creates no pickup for a destroyed ship that took fewer than three attack damage', async () => {
+      scrapFixture({ fleetDamage: [destroyedAt('aegis', 2)], retained: retainedFrom('aegis') });
+
+      await expect(resolveWolfAttackAftermath.run(request(collect('below-threshold-scrap-7'), 'macaw-uid')))
+        .rejects.toMatchObject({ code: 'failed-precondition' });
+      expectNoWrites();
+    });
+
+    it('creates no pickup for a live ship that took fewer than three attack damage', async () => {
+      scrapFixture({ fleetDamage: [liveAt('aegis', 2)],
+        dockings: [{ shuttleId: 'macaw', shipId: 'aegis', dockedAt: 'fixture' }] });
+
+      await expect(resolveWolfAttackAftermath.run(request(collect('live-below-threshold-7'), 'macaw-uid')))
+        .rejects.toMatchObject({ code: 'failed-precondition' });
+      expectNoWrites();
+    });
+
+    it('does not let a retained shuttle collect from a live ship it is not docked at', async () => {
+      scrapFixture({ activeVesselIds: ['aegis', 'dione', 'capybara'],
+        fleetDamage: [liveAt('aegis', 3), destroyedAt('dione', 4)], retained: retainedFrom('dione') });
+
+      await expect(resolveWolfAttackAftermath.run(request(collect('retained-live-scrap-7'), 'macaw-uid')))
+        .rejects.toMatchObject({ code: 'failed-precondition' });
+      expectNoWrites();
+    });
+
+    it('blocks a fresh pickup when the Capybara has a committed candidate disposition', async () => {
+      scrapFixture({ fleetDamage: [liveAt('aegis', 3)],
+        dockings: [{ shuttleId: 'macaw', shipId: 'aegis', dockedAt: 'fixture' }],
+        candidateVesselOutcomes: { capybara: { code: 'N', groupId: 'fleet-1', shipId: 'capybara',
+          sourceId: 'source-1', cycle: 1, outcome: 'lost' } } });
+
+      await expect(resolveWolfAttackAftermath.run(request(collect('settled-capybara-scrap-7'), 'macaw-uid')))
+        .rejects.toMatchObject({ code: 'failed-precondition' });
+      expect(mock.documents.get('sessions/s-1')?.shuttleCargo).toEqual({});
+      expectNoWrites();
+    });
+
+    it('blocks a fresh pickup from a target with a committed candidate disposition', async () => {
+      scrapFixture({ fleetDamage: [liveAt('aegis', 3)],
+        dockings: [{ shuttleId: 'macaw', shipId: 'aegis', dockedAt: 'fixture' }],
+        candidateVesselOutcomes: { aegis: { code: 'N', groupId: 'fleet-1', shipId: 'aegis',
+          sourceId: 'source-1', cycle: 1, outcome: 'settled' } } });
+
+      await expect(resolveWolfAttackAftermath.run(request(collect('settled-target-scrap-7'), 'macaw-uid')))
+        .rejects.toMatchObject({ code: 'failed-precondition' });
+      expect(mock.documents.get('sessions/s-1')?.shuttleCargo).toEqual({});
+      expectNoWrites();
+    });
+  });
 });

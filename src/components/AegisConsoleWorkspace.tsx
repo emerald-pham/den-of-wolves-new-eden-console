@@ -19,7 +19,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
 import { useConsoleAccess } from '@/lib/consoleAccess';
 import { phaseForSession } from '@/lib/turnPhase';
-import { buildFighter as buildFighterAction } from '@/lib/sessionService';
+import { buildFighter as buildFighterAction, type FighterBuildResult } from '@/lib/sessionService';
 import AdmiralDirectiveWorkspace from './AdmiralDirectives';
 
 interface Props {
@@ -152,6 +152,50 @@ function liveStateLabel(
   return 'Awaiting live server state';
 }
 
+function fighterBuildGuidance({ hasServerSnapshot, connection, writable, constructionTurnAvailable,
+  teamPhaseAvailable, constructionBayDamaged, constructionBayCharged, maintenance,
+  fighterWingCount, capacity, materials }: {
+  readonly hasServerSnapshot: boolean;
+  readonly connection: 'idle' | 'connecting' | 'live' | 'offline';
+  readonly writable: boolean;
+  readonly constructionTurnAvailable: boolean;
+  readonly teamPhaseAvailable: boolean;
+  readonly constructionBayDamaged: boolean | null;
+  readonly constructionBayCharged: boolean;
+  readonly maintenance: MaintenanceCycle | undefined;
+  readonly fighterWingCount: { readonly count: number; readonly revision: number } | undefined;
+  readonly capacity: number;
+  readonly materials: number | undefined;
+}): string {
+  if (!hasServerSnapshot) return 'Build unavailable // awaiting live server state. Next actor // Wing Commander reconnects for the current build state.';
+  if (connection !== 'live') return 'Build unavailable // reconnect required. Next actor // Wing Commander restores the live connection.';
+  if (!writable) return 'Build unavailable // read-only view. Next actor // the current entitled console actor uses their own console; a GM observer needs explicit Write access.';
+  if (!constructionTurnAvailable) return 'Build unavailable // Cycle 1 required. Next actor // GM completes the normal start.';
+  if (!teamPhaseAvailable) return 'Build unavailable // Team Phase required. Next actor // Wing Commander waits for Team Phase; GM controls cycle advancement.';
+  if (constructionBayDamaged === null) return 'Build unavailable // awaiting Construction Bay state. Next actor // Wing Commander waits for the current server state.';
+  if (constructionBayDamaged) return 'Build unavailable // Construction Bay damaged. Next actor // an Engineering shuttle repairs it.';
+  if (!maintenance) return 'Build unavailable // Construction Bay charge state unavailable. Next actor // AEGIS Admiral or Executive Officer uses the current maintenance cycle.';
+  if (!constructionBayCharged) return 'Build unavailable // Construction Bay not charged. Next actor // AEGIS Admiral or Executive Officer charges it through maintenance.';
+  if (!fighterWingCount) return 'Build unavailable // fighter strength is not published. Next actor // Wing Commander waits for the current server strength.';
+  if (fighterWingCount.count >= capacity) return `Build unavailable // wing at capacity (${capacity} fighters). Next actor // Wing Commander waits for space in this wing.`;
+  if (materials === undefined) return 'Build unavailable // construction materials are not published. Next actor // Wing Commander waits for the current server resource state.';
+  if (materials < 1) return 'Build unavailable // 1 material required. Next actor // AEGIS crew obtains construction materials, then the Wing Commander builds.';
+  return `${materials} material${materials === 1 ? '' : 's'} available. Next actor // Wing Commander builds one fighter for one material.`;
+}
+
+/** Describe the latest server reply to this console's build request without inventing state. */
+function fighterBuildResultNotice(wingName: string, result: FighterBuildResult | null): string {
+  if (!result) return 'Last build not confirmed // check live strength and materials before building again.';
+  if (result.status === 'stale') {
+    return 'Last build not committed // AEGIS state changed before the build committed. No material was spent; review the live state and try again.';
+  }
+  const prefix = result.status === 'replayed' ? 'Last build already committed' : 'Last build committed';
+  if (result.count === undefined || result.fighterWingRevision === undefined || result.materials === undefined) {
+    return `${prefix} // ${wingName} strength and materials update from the server.`;
+  }
+  return `${prefix} // ${wingName} now ${result.count} fighters (revision ${result.fighterWingRevision}) // 1 material spent // ${result.materials} material${result.materials === 1 ? '' : 's'} remain${result.materials === 1 ? 's' : ''}.`;
+}
+
 export function FighterWingCard({
   craft,
   authoritativeDamage,
@@ -165,6 +209,8 @@ export function FighterWingCard({
   maintenance,
   snapshotLabel,
   fighterCapacity,
+  buildGuidance,
+  buildNotice,
 }: {
   readonly craft: AegisCraft;
   readonly authoritativeDamage: ShipDamageState | undefined;
@@ -178,6 +224,8 @@ export function FighterWingCard({
   readonly maintenance: MaintenanceCycle | undefined;
   readonly snapshotLabel: string;
   readonly fighterCapacity: { readonly standard: number; readonly upgraded: number };
+  readonly buildGuidance?: string;
+  readonly buildNotice?: string | undefined;
 }) {
   const baySystem = craft.launchSystemId
     ? AEGIS_FIGHTER_BAY_SYSTEMS[craft.launchSystemId]
@@ -235,12 +283,15 @@ export function FighterWingCard({
           : 'Unavailable // awaiting live resource state'}</dd></div>
       </dl>
       <div className="aegis-craft__construction-action">
-        <p>{buildLabel}</p>
+        <p>{buildGuidance ?? buildLabel}</p>
         <button className="cic-action-button" type="button" disabled={!canBuild || buildPending}
           aria-busy={buildPending}
           onClick={onBuild}>
           {buildPending ? 'Building fighter…' : 'Build 1 fighter // 1 material'}
         </button>
+        {(buildPending || buildNotice) && <p className="aegis-craft__build-result" role="status" aria-live="polite">
+          {buildPending ? 'Build pending // awaiting the server commit.' : buildNotice}
+        </p>}
       </div>
       {baySystem && <>
         <p className="aegis-craft__system-label">Assigned system // {baySystem.name}</p>
@@ -347,6 +398,7 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
   const connection = useSessionStore((state) => state.connection);
   const access = useConsoleAccess();
   const [buildingWing, setBuildingWing] = useState<string | null>(null);
+  const [buildNotices, setBuildNotices] = useState<Readonly<Record<string, string>>>({});
   const starlight = console.craft[0];
   if (!starlight) return null;
   const hasServerSnapshot = Boolean(session && sessionSnapshotFreshness === 'server');
@@ -424,13 +476,25 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
               buildPending={buildingWing === craft.fighterWing?.countId}
               onBuild={() => {
                 if (!craft.fighterWing || buildingWing !== null) return;
-                setBuildingWing(craft.fighterWing.countId);
-                void buildFighterAction(craft.fighterWing.countId).finally(() => setBuildingWing(null));
+                const wingId = craft.fighterWing.countId;
+                const recordNotice = (result: FighterBuildResult | null) =>
+                  setBuildNotices((notices) => ({ ...notices, [wingId]: fighterBuildResultNotice(craft.name, result) }));
+                setBuildingWing(wingId);
+                void buildFighterAction(wingId).then(recordNotice, () => recordNotice(null))
+                  .finally(() => setBuildingWing(null));
               }}
+              buildNotice={craft.fighterWing ? buildNotices[craft.fighterWing.countId] : undefined}
               hasServerSnapshot={hasServerSnapshot}
               maintenance={maintenance}
               snapshotLabel={snapshotLabel}
               fighterCapacity={craft.fighterWing?.capacity ?? console.fighterCapacity}
+              buildGuidance={fighterBuildGuidance({ hasServerSnapshot, connection, writable: access.writable,
+                constructionTurnAvailable, teamPhaseAvailable, constructionBayDamaged, constructionBayCharged,
+                maintenance, fighterWingCount: craft.fighterWing ? fighterWingCounts?.[craft.fighterWing.countId] : undefined,
+                capacity: constructionBayUpgraded
+                  ? (craft.fighterWing?.capacity ?? console.fighterCapacity).upgraded
+                  : (craft.fighterWing?.capacity ?? console.fighterCapacity).standard,
+                materials: resources?.materials })}
             />
           ))}
         </div>
