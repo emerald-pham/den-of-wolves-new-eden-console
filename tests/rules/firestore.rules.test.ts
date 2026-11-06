@@ -3230,7 +3230,7 @@ it('denies player and GM client writes to maintenance, charges, cargo and shuttl
     const db = env.authenticatedContext(uid).firestore();
     if (uid === 'gm1') await assertSucceeds(getDoc(doc(db, SESSION)));
     else await assertFails(getDoc(doc(db, SESSION)));
-    for (const field of ['currentTurn', 'maintenanceCycles', 'voyage33Movement', 'voyage33Maintenance', 'shuttleCargo', 'shuttleFuelled', 'highwallMining', 'blacksmithRepairs', 'philiaRepairs', 'macawRepairs', 'boaRecycling', 'chacauRepairs', 'allyRepairs', 'maliadesState', 'baseCapybaraCargo', 'shipUpgrades', 'pressDispatch', 'fleetTicker', 'admiralDirectives']) {
+    for (const field of ['currentTurn', 'maintenanceCycles', 'voyage33Movement', 'voyage33Maintenance', 'shuttleCargo', 'shuttleFuelled', 'highwallMining', 'blacksmithRepairs', 'philiaRepairs', 'macawRepairs', 'boaRecycling', 'chacauRepairs', 'allyRepairs', 'maliadesState', 'baseCapybaraCargo', 'shipUpgrades', 'pressDispatch', 'fleetTicker', 'admiralDirectives', 'attackScrapPickups']) {
       await assertFails(updateDoc(doc(db, SESSION), { [field]: { aegis: { step: 7 } } }));
     }
   }
