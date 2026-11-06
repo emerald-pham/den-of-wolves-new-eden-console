@@ -74,7 +74,7 @@ import { missionCraftIdsCarriedByShip, nextMissionCraftCommitments, parseMission
 import { planBoaMissionRewardDelivery, planMissionRewardDelivery } from './missionRewardDelivery';
 import { createBoaMissionReclamationCallables } from './boaMissionReclamationCallable';
 import type { BoaMissionReclamationLapseReason } from './boaMissionReclamationContract';
-import { halvedBoaReclamationDifficulty } from './boaMissionReclamation';
+import { halvedBoaReclamationDifficulty, parseStoredBoaReclamationChoice } from './boaMissionReclamation';
 import { createAwayMissionLifecycleCallables } from './awayMissionLifecycleCallable';
 import { deriveAwayMissionParticipantCraftSnapshots } from './awayMissionCraftSnapshot';
 import { createPermissionedDismantlingCallables } from './permissionedDismantlingCallable';
@@ -10240,33 +10240,35 @@ type BoaReclamationDealBinding = Readonly<{
   criticalThreshold: number | null; difficultyRule: unknown; rounding: 'up';
 }>;
 
-/** Validate the server-written pre-deal Boa choice bound to this exact mission location. */
+/**
+ * Validate the server-written pre-deal Boa choice for this mission location.
+ * Malformed data fails closed; a sound choice that is no longer selected or no
+ * longer bound to this exact location lapses at the deal instead of blocking it.
+ */
 function parseBoaReclamationSelection(
   rawChoice: unknown,
   sessionId: string,
   opportunity: MissionOpportunityEligibility,
   missionDefinition: NonNullable<ReturnType<typeof missionCardForCode>>,
-): Readonly<{ actorUid: string; taskOpportunityId: string; controlRevision: number; revision: number }> | undefined {
+): Readonly<{
+  actorUid: string; taskOpportunityId: string; controlRevision: number; revision: number; mismatched: boolean;
+}> | undefined {
   if (rawChoice === undefined) return undefined;
-  if (!isRecord(rawChoice) || rawChoice.type !== 'boa-mission-reclamation-choice' ||
-      rawChoice.schemaVersion !== 1 || rawChoice.status !== 'selected' ||
-      rawChoice.sessionId !== sessionId || rawChoice.opportunityId !== opportunity.id ||
-      rawChoice.groupId !== opportunity.groupId || rawChoice.chart !== opportunity.chart ||
-      rawChoice.coordinate !== opportunity.coordinate || rawChoice.siteCode !== opportunity.siteCode ||
-      rawChoice.sourceCycle !== opportunity.sourceCycle ||
-      typeof rawChoice.actorUid !== 'string' || rawChoice.actorRoleId !== 'capybara-recycler' ||
-      typeof rawChoice.opportunityTaskId !== 'string' ||
-      !missionDefinition.opportunities.some(({ id }) => id === rawChoice.opportunityTaskId) ||
-      !Number.isSafeInteger(rawChoice.controlRevision) || (rawChoice.controlRevision as number) < 0 ||
-      !Number.isSafeInteger(rawChoice.revision) || (rawChoice.revision as number) < 1 ||
-      typeof rawChoice.requestId !== 'string') {
+  const choice = parseStoredBoaReclamationChoice(rawChoice, sessionId);
+  if (!choice) {
     throw commandError('failed-precondition', 'The Boa mission selection is malformed; refresh before dealing.', 'conflict');
   }
+  const mismatched = choice.status !== 'selected' || choice.opportunityId !== opportunity.id ||
+    choice.groupId !== opportunity.groupId || choice.chart !== opportunity.chart ||
+    choice.coordinate !== opportunity.coordinate || choice.siteCode !== opportunity.siteCode ||
+    choice.sourceCycle !== opportunity.sourceCycle ||
+    !missionDefinition.opportunities.some(({ id }) => id === choice.taskOpportunityId);
   return {
-    actorUid: rawChoice.actorUid,
-    taskOpportunityId: rawChoice.opportunityTaskId,
-    controlRevision: rawChoice.controlRevision as number,
-    revision: rawChoice.revision as number,
+    actorUid: choice.actorUid,
+    taskOpportunityId: choice.taskOpportunityId,
+    controlRevision: choice.controlRevision,
+    revision: choice.revision,
+    mismatched,
   };
 }
 
@@ -10717,7 +10719,9 @@ export const dealPrivateInitialCards = onCall<{
         participantUid === boaReclamationSelection.actorUid);
       const participantCraftBinding = participantCrafts.find(({ participantUid }) =>
         participantUid === boaReclamationSelection.actorUid);
-      if (!boaControl || boaControl.holderUid !== boaReclamationSelection.actorUid ||
+      if (boaReclamationSelection.mismatched) {
+        boaReclamationLapse = 'location-changed';
+      } else if (!boaControl || boaControl.holderUid !== boaReclamationSelection.actorUid ||
           boaControl.ownerRoleId !== 'capybara-recycler' ||
           boaControl.revision !== boaReclamationSelection.controlRevision) {
         boaReclamationLapse = 'boa-control-changed';
@@ -17982,6 +17986,21 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
     } catch (error) {
       throw commandError('failed-precondition', error instanceof Error ? error.message : 'Pending mission authority is malformed.', 'conflict');
     }
+    // A pending Boa choice is keyed by its arrival, so it moves with that arrival
+    // (and lapses at the deal if its Recycler is not on that group's mission).
+    const boaChoiceSnapshots = await Promise.all(missionMigrations.map(({ fromId }) =>
+      tx.get(db.doc(`sessions/${data.sessionId}/boaMissionReclamationChoices/${fromId}`))));
+    const boaChoiceMigrations = missionMigrations.flatMap((migration, index) => {
+      const snapshot = boaChoiceSnapshots[index]!;
+      if (!snapshot.exists) return [];
+      const choice = parseStoredBoaReclamationChoice(snapshot.data(), data.sessionId);
+      if (!choice) throw commandError('failed-precondition', 'A pending Boa mission choice is malformed.', 'conflict');
+      if (choice.status !== 'selected') return [];
+      return [{ fromId: migration.fromId, toId: migration.opportunity.id, value: {
+        ...snapshot.data(), opportunityId: migration.opportunity.id, groupId: migration.opportunity.groupId,
+        migratedFromOpportunityId: migration.fromId, updatedAt: FieldValue.serverTimestamp(),
+      } }];
+    });
     const shuttleAudienceChanges: { readonly shuttleId: string; readonly fromGroupId: string; readonly toGroupId: string }[] = [];
     for (let index = 0; index < shuttleIds.length; index += 1) {
       const shuttleId = shuttleIds[index]!;
@@ -18040,6 +18059,10 @@ export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: str
       for (const migration of missionMigrations) {
         writeMissionOpportunity(tx, data.sessionId, migration.opportunity);
         tx.delete(db.doc(missionOpportunityDocumentPath(data.sessionId, migration.fromId)));
+      }
+      for (const choice of boaChoiceMigrations) {
+        tx.set(db.doc(`sessions/${data.sessionId}/boaMissionReclamationChoices/${choice.toId}`), choice.value);
+        tx.delete(db.doc(`sessions/${data.sessionId}/boaMissionReclamationChoices/${choice.fromId}`));
       }
       for (const change of shuttleAudienceChanges) {
         tx.update(db.doc(`sessions/${data.sessionId}/shuttleDepartures/${change.shuttleId}`), { fleetGroupId: change.toGroupId });
