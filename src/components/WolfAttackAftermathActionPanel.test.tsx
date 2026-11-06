@@ -180,3 +180,16 @@ it('does not offer a carried pickup at a ship the Macaw is not docked at', () =>
 
   expect(screen.queryByRole('region', { name: 'Macaw Scrap collection' })).not.toBeInTheDocument();
 });
+
+it('treats a carried pickup as destroyed-status when its ship is destroyed even if the ledger still says otherwise', () => {
+  installMacawHolder({ shuttleDockings: [], retainedShuttles: { macaw: { status: 'retained', shuttleId: 'macaw',
+    ownerRoleId: 'capybara-captain', holderUid: 'actor-1', destroyedHostShipId: 'aegis',
+    controlRevision: 1, retainedAt: '2026-10-04T09:59:00.000Z' } },
+  shipDamage: { aegis: { damagedSystemIds: [], destroyed: true } },
+  attackScrapPickups: { aegis: [{ attackId: 'attack-6', turn: 6, destroyed: false }] } });
+  render(<WolfAttackAftermathActionPanel operator={{ shuttleId: 'macaw' }} />);
+  act(() => publish?.(member));
+
+  const panel = screen.getByRole('region', { name: 'Macaw Scrap collection' });
+  expect(within(panel).getByRole('button', { name: 'Collect Scrap from AEGIS (cycle 6 attack)' })).toBeEnabled();
+});

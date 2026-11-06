@@ -1,0 +1,39 @@
+/* The relay record is read as message text: body copy at the 0.875rem floor, its time as a 0.75rem amber label. */
+.pdf-news-relay-log__list {
+  display: grid;
+  gap: 0;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  border-top: 1px solid var(--cic-rule);
+  list-style: none;
+}
+
+.pdf-news-relay-log__list li {
+  display: grid;
+  grid-template-columns: minmax(6.5rem, auto) 1fr;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--cic-rule);
+  color: var(--cic-ink);
+  font: 0.875rem/1.55 var(--cic-mono);
+  overflow-wrap: anywhere;
+}
+
+.pdf-news-relay-log__list time {
+  color: var(--cic-amber);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+}
+
+.pdf-news-relay-log__empty {
+  margin: 0.65rem 0 0;
+  color: var(--cic-ink);
+  font: 0.875rem/1.55 var(--cic-mono);
+}
+
+@media (max-width: 38rem) {
+  .pdf-news-relay-log__list li {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+}

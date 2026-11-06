@@ -1,8 +1,8 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
 import { missionCardForCode } from './missionCards';
-import { missionOpportunityDocumentPath, parseStoredMissionOpportunity,
-  type MissionOpportunityEligibility } from './missionEligibility';
+import { laterCycleMissionOpportunityIds, missionOpportunityDocumentPath, missionStartDocumentPaths,
+  parseStoredMissionOpportunity, type MissionOpportunityEligibility } from './missionEligibility';
 import { requireCandidateVesselsAvailable } from './candidateAvailability';
 import type {
   BoaMissionReclamationChoiceReply,
@@ -83,10 +83,9 @@ interface ChoiceCommand {
 const ROLE_ID = 'capybara-recycler';
 const ACTION = 'boa-mission-reclamation-choice';
 const ID = /^[\w-]{1,128}$/;
-const SESSION_ID = /^[\w-]{1,128}$/;
 const GROUP_ID = /^fleet-[1-9][0-9]*$/;
 const LAPSE_REASONS: readonly BoaMissionReclamationLapseReason[] = [
-  'boa-control-changed', 'recycler-unavailable', 'recycler-not-on-mission',
+  'boa-control-changed', 'recycler-unavailable', 'recycler-not-on-mission', 'location-changed',
 ];
 
 function isRecord(value: unknown): value is Data {
@@ -110,7 +109,7 @@ function requireActorUid(auth: BoaMissionReclamationCallableRequest['auth']): st
 
 function parseWorkspaceRequest(value: unknown): string {
   if (!isRecord(value) || Object.keys(value).length !== 1 ||
-      typeof value.sessionId !== 'string' || !SESSION_ID.test(value.sessionId)) {
+      typeof value.sessionId !== 'string' || !ID.test(value.sessionId)) {
     throw new HttpsError('invalid-argument', 'Refresh the Boa mission workspace.');
   }
   return value.sessionId;
@@ -122,7 +121,7 @@ function parseChoiceCommand(value: unknown): ChoiceCommand {
         'sessionId', 'requestId', 'missionOpportunityId', 'taskOpportunityId',
         'expectedControlRevision', 'expectedChoiceRevision', 'expectedCycle',
       ].includes(key)) ||
-      typeof value.sessionId !== 'string' || !SESSION_ID.test(value.sessionId) ||
+      typeof value.sessionId !== 'string' || !ID.test(value.sessionId) ||
       typeof value.requestId !== 'string' || !ID.test(value.requestId) ||
       typeof value.missionOpportunityId !== 'string' || !ID.test(value.missionOpportunityId) ||
       typeof value.taskOpportunityId !== 'string' || !ID.test(value.taskOpportunityId) ||
@@ -337,14 +336,25 @@ export function createBoaMissionReclamationCallables(dependencies: BoaMissionRec
         const opportunityDocs = requireQuery(opportunitiesRead).docs;
         const choiceDocs = requireQuery(choicesRead).docs;
         const choicesById = new Map(choiceDocs.map((choice) => [choice.id, choice]));
+        const recordedIds = new Set(opportunityDocs.filter(({ exists }) => exists).map(({ id }) => id));
         const lapsedChoices: BoaMissionReclamationLapsedChoice[] = [];
-        const opportunities = opportunityDocs.flatMap((opportunitySnapshot) => {
+        const local = opportunityDocs.flatMap((opportunitySnapshot) => {
           if (!opportunitySnapshot.exists) return [];
           const opportunity = parseOpportunity(opportunitySnapshot, sessionId);
           const definition = missionCardForCode(opportunity.siteCode);
           if (!definition || opportunity.groupId !== context.groupId ||
               coordinates[context.hostShipId] !== opportunity.coordinate ||
               !context.groupVesselIds.some((vesselId) => coordinates[vesselId] === opportunity.coordinate)) return [];
+          return [{ opportunity, definition }];
+        });
+        const started = await Promise.all(local.map(async ({ opportunity }) =>
+          (await Promise.all(missionStartDocumentPaths(sessionId, opportunity.id).map(async (path) =>
+            requireDocument(await transaction.get(dependencies.db.doc(path)), 'The mission-start record'))))
+            .some(({ exists }) => exists)));
+        const opportunities = local.flatMap(({ opportunity, definition }, index) => {
+          // Offer only what the deal would accept: unstarted and not superseded by a later visit.
+          if (started[index] || laterCycleMissionOpportunityIds(opportunity, context.cycle)
+            .some((id) => recordedIds.has(id))) return [];
           const currentChoice = choicesById.get(opportunity.id);
           const choice = currentChoice?.data();
           const choiceRevision = !choice ? 0 : isRecord(choice) &&
@@ -405,12 +415,9 @@ export function createBoaMissionReclamationCallables(dependencies: BoaMissionRec
         const choiceRef = dependencies.db.doc(
           `sessions/${command.sessionId}/boaMissionReclamationChoices/${command.missionOpportunityId}`,
         );
-        const startRef = dependencies.db.doc(
-          `sessions/${command.sessionId}/missionStartSnapshots/${command.missionOpportunityId}`,
-        );
-        const missionRef = dependencies.db.doc(
-          `sessions/${command.sessionId}/serverState/awayMissions/instances/mission-${command.missionOpportunityId}`,
-        );
+        const [startPath, missionPath] = missionStartDocumentPaths(command.sessionId, command.missionOpportunityId);
+        const startRef = dependencies.db.doc(startPath);
+        const missionRef = dependencies.db.doc(missionPath);
         const actorRef = dependencies.db.doc(`sessions/${command.sessionId}/players/${actorUid}`);
         const session = requireDocument(await transaction.get(sessionRef), 'The live session');
         const actor = requireDocument(await transaction.get(actorRef), 'The current player');
@@ -441,6 +448,13 @@ export function createBoaMissionReclamationCallables(dependencies: BoaMissionRec
         missionAlreadyStarted(
           requireDocument(startRead, 'The mission-start receipt'), requireDocument(missionRead, 'The mission lifecycle'),
         );
+        const later = await Promise.all(laterCycleMissionOpportunityIds(opportunity, context.cycle).map(async (id) =>
+          requireDocument(await transaction.get(
+            dependencies.db.doc(missionOpportunityDocumentPath(command.sessionId, id)),
+          ), 'A later mission opportunity')));
+        if (later.some(({ exists }) => exists)) {
+          fail('failed-precondition', 'A later visit to this location supersedes that opportunity. Refresh the Boa workspace.');
+        }
         const definition = missionCardForCode(opportunity.siteCode);
         const task = definition?.opportunities.find(({ id }) => id === command.taskOpportunityId);
         if (!task) fail('invalid-argument', 'Choose one printed mission-card task from this location.');
@@ -484,6 +498,10 @@ export function createBoaMissionReclamationCallables(dependencies: BoaMissionRec
           updatedAt: timestamp,
         };
         transaction.set(choiceRef, nextChoice);
+        // Facilitator-only deal-preview flag: which location has a pending choice, never which task.
+        transaction.update(sessionRef, {
+          [`boaReclamationPending.${opportunity.id}`]: true, updatedAt: timestamp,
+        });
         dependencies.commandMarkers.create(rawTransaction, expectedFingerprint, reply);
         return reply;
       });

@@ -14,6 +14,16 @@ function renderedParagraphs(renderedText) {
 }
 
 /**
+ * Whether one rendered paragraph is `phrase` or begins with it followed by a space or full stop,
+ * compared case-insensitively on both sides because the shipped alert styling uppercases text.
+ */
+export function renderedParagraphStartsWith(renderedText, phrase) {
+  const target = String(phrase ?? '').replace(/\s+/g, ' ').trim().toUpperCase();
+  return target.length > 0 && renderedParagraphs(renderedText).some(paragraph => paragraph === target ||
+    paragraph.startsWith(`${target} `) || paragraph.startsWith(`${target}.`));
+}
+
+/**
  * Returns the `[shipId, alert]` source rows that the rendered dialog text proves are visible to
  * `gmInstanceId`. A row binds only when a rendered paragraph begins with its exact sentence (ship
  * name and en-US population), compared case-insensitively because the shipped `.unrest-alert`

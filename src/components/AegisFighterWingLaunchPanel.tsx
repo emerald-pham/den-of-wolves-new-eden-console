@@ -10,13 +10,13 @@ import type {
 } from '@/types/game';
 import { useWolfAttackChoiceAuthority, useWolfAttackChoiceController } from '@/lib/wolfAttackChoiceController';
 import { useSessionStore } from '@/store/useSessionStore';
+import { fighterWingCallsign, type FighterWingId } from '@/data/aegisConsoles';
 import PdfFighterAcePermissionControl from './PdfFighterAcePermissionControl';
 import './AegisFighterWingLaunchPanel.css';
 
-export type AegisFighterWingId = 'fighter-wing-alpha' | 'fighter-wing-bravo';
-export type AegisFighterWingLaunchViews = Readonly<Partial<Record<AegisFighterWingId, AegisFighterWingLaunchView>>>;
+export type AegisFighterWingLaunchViews = Readonly<Partial<Record<FighterWingId, AegisFighterWingLaunchView>>>;
 
-const WINGS: readonly Readonly<{ id: AegisFighterWingId; label: string; bay: string }>[] = [
+const WINGS: readonly Readonly<{ id: FighterWingId; label: string; bay: string }>[] = [
   { id: 'fighter-wing-alpha', label: 'Fighter Wing Alpha', bay: 'Fighter Bay Alpha' },
   { id: 'fighter-wing-bravo', label: 'Fighter Wing Bravo', bay: 'Fighter Bay Bravo' },
 ];
@@ -26,11 +26,11 @@ function reasonText(view: AegisFighterWingLaunchView, bay: string): string | und
   if (view.choiceStatus === 'passed' || view.reason === 'passed') return 'Launch choice passed for this attack.';
   if (view.choiceStatus === 'unavailable') return 'This wing could not launch for the current attack.';
   // A launched wing stays launched once the attack leaves targeting, where the server reports it as waiting.
-  const launched = `${view.wingId === 'fighter-wing-alpha' ? 'Fighter Wing Alpha' : 'Fighter Wing Bravo'} is launched for this attack.`;
+  const launched = `Fighter Wing ${fighterWingCallsign(view.wingId)} is launched for this attack.`;
   if (view.launched) return launched;
   switch (view.reason) {
     case 'already-launched': return launched;
-    case 'no-fighters': return `No fighters remain in ${view.wingId === 'fighter-wing-alpha' ? 'Alpha' : 'Bravo'}.`;
+    case 'no-fighters': return `No fighters remain in ${fighterWingCallsign(view.wingId)}.`;
     case 'uncharged': return `Charge ${bay} before launching this wing.`;
     case 'damaged': return `${bay} is damaged and cannot launch this wing.`;
     case 'destroyed': return 'A destroyed AEGIS cannot launch its fighter wings.';
@@ -40,8 +40,8 @@ function reasonText(view: AegisFighterWingLaunchView, bay: string): string | und
 
 export interface AegisFighterWingLaunchPanelViewProps {
   readonly views: AegisFighterWingLaunchViews;
-  readonly onLaunch: (wingId: AegisFighterWingId, view: AegisFighterWingLaunchView) => void;
-  readonly onPass?: (wingId: AegisFighterWingId, view: AegisFighterWingLaunchView) => void;
+  readonly onLaunch: (wingId: FighterWingId, view: AegisFighterWingLaunchView) => void;
+  readonly onPass?: (wingId: FighterWingId, view: AegisFighterWingLaunchView) => void;
   readonly busy?: boolean;
   readonly message?: string;
 }
@@ -137,11 +137,11 @@ export default function AegisFighterWingLaunchPanel({
       {...(displayMessage ? { message: displayMessage } : {})}
       onLaunch={(wingId, wing) => runMutation(
         () => launchAegisFighterWing(wingId, wing.turn, wing.revision, wing.wingRevision),
-        `${wingId === 'fighter-wing-alpha' ? 'Alpha' : 'Bravo'} launched for this attack.`,
+        `${fighterWingCallsign(wingId)} launched for this attack.`,
       )}
       onPass={(wingId, wing) => runMutation(
         () => passWolfFighterLaunchChoice(wingId, wing.turn, wing.revision, wing.wingRevision),
-        `${wingId === 'fighter-wing-alpha' ? 'Alpha' : 'Bravo'} launch passed for this attack.`,
+        `${fighterWingCallsign(wingId)} launch passed for this attack.`,
       )} />
     {WINGS.flatMap(({ id }) => views[id]?.launched ? [
       <PdfFighterAcePermissionControl key={id} sourceId={id}

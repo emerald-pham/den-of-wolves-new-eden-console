@@ -93,6 +93,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeGmCrisisState: vi.fn(),
   subscribeGmApproachingVesselResponse: vi.fn(() => vi.fn()),
   subscribeGmMissionOpportunities: vi.fn(() => vi.fn()),
+  subscribeGmPdfNewsRelayAudits: vi.fn(() => vi.fn()),
   subscribeGmMissionStartSnapshots: vi.fn(() => vi.fn()),
   subscribeGmZealotryResponse: vi.fn(),
   subscribeGmCivilUnrestResolution: vi.fn(),
@@ -1270,6 +1271,25 @@ it('returns to role selection', async () => {
   await screen.findByText('Bridge laptop');
   await user.click(screen.getByRole('link', { name: /back to role selection/i }));
 
+  expect(screen.getByText('Role selection route')).toBeInTheDocument();
+});
+
+it('shows the facilitator the P.D.F. news relay record and still returns to role selection', async () => {
+  const user = userEvent.setup();
+  const { subscribeGmPdfNewsRelayAudits } = await import('@/lib/firestore');
+  vi.mocked(subscribeGmPdfNewsRelayAudits).mockImplementation((_sessionId, onAudits) => {
+    onAudits([{ requestId: 'relay-1', actorRoleId: 'refinery-124-pdf-colonel', groupId: 'fleet-1', cycle: 2,
+      text: 'Raiders sighted near the refinery.', handedToPress: false, createdAt: '2026-11-05T20:00:00.000Z' }]);
+    return vi.fn();
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  const record = await screen.findByRole('region', { name: 'P.D.F. news relay record' });
+  expect(await within(record).findByText(/cycle 2 \/\/ P\.D\.F\. Colonel \/\/ fleet-1 \/\/ Raiders sighted/i)).toBeVisible();
+  expect(record).toHaveTextContent(/not handed to the press/i);
+  await user.click(screen.getByRole('link', { name: /back to role selection/i }));
   expect(screen.getByText('Role selection route')).toBeInTheDocument();
 });
 

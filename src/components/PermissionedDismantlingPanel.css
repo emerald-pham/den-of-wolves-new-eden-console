@@ -22,7 +22,7 @@
 .permissioned-dismantling__eyebrow,
 .permissioned-dismantling__connection {
   color: var(--cic-muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }

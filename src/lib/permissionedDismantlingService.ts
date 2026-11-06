@@ -4,7 +4,9 @@ import { db } from './firestore';
 import { functions } from './firebase';
 import { hasFreshSessionAuthority, requireFreshSessionAuthority } from './sessionMutationAuthority';
 import { useSessionStore } from '@/store/useSessionStore';
+import { dismantlingRewardFor, PERMISSIONED_DISMANTLING_CRAFT_IDS } from '@/data/shuttles';
 import type { GameSession, Player } from '@/types/game';
+import type { ShuttleId } from '@/types/identifiers';
 
 export type PermissionedDismantlingStatus = 'pending' | 'consented' | 'declined' | 'revoked' | 'applied';
 
@@ -21,25 +23,25 @@ interface DismantlingInboxBase {
   readonly updatedAt: unknown;
 }
 
-/** Engineering craft gain 3 materials on the dismantled ship. */
-export interface EngineeringDismantlingInbox extends DismantlingInboxBase {
-  readonly craftId: 'philia' | 'blacksmith' | 'chacau' | 'ally';
+/** A craft whose typed shuttle config grants materials to the dismantled ship. */
+export interface MaterialsDismantlingInbox extends DismantlingInboxBase {
+  readonly craftId: ShuttleId;
   readonly materialGain: 3;
   readonly materialsAfter: number | null;
 }
 
-/** Macaw gains 1 Scrap on the Capybara Scrap ledger (PC10-C1). */
-export interface MacawDismantlingInbox extends DismantlingInboxBase {
-  readonly craftId: 'macaw';
+/** A craft whose typed shuttle config grants Scrap to the Capybara ledger (PC10-C1). */
+export interface ScrapDismantlingInbox extends DismantlingInboxBase {
+  readonly craftId: ShuttleId;
   readonly scrapGain: 1;
   readonly scrapAfter: number | null;
 }
 
-export type PermissionedDismantlingInbox = EngineeringDismantlingInbox | MacawDismantlingInbox;
+export type PermissionedDismantlingInbox = MaterialsDismantlingInbox | ScrapDismantlingInbox;
 
 export interface DismantlingProposalCommand {
   readonly proposalId: string;
-  readonly craftId: PermissionedDismantlingInbox['craftId'];
+  readonly craftId: ShuttleId;
   readonly targetShipId: string;
   readonly targetConsoleId: string;
 }
@@ -111,13 +113,16 @@ const INBOX_BASE_KEYS = [
   'targetConsoleId', 'targetRevision', 'status', 'consentId', 'updatedAt',
 ] as const;
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
-const CRAFT_IDS = ['philia', 'blacksmith', 'chacau', 'ally', 'macaw'] as const;
 
-/** Each craft carries exactly one printed reward field and its after-balance. */
-function reward(craftId: unknown): Readonly<{ gain: 'materialGain' | 'scrapGain'; value: number; after: 'materialsAfter' | 'scrapAfter' }> {
-  return craftId === 'macaw'
-    ? { gain: 'scrapGain', value: 1, after: 'scrapAfter' }
-    : { gain: 'materialGain', value: 3, after: 'materialsAfter' };
+type RewardKeys = Readonly<{ gain: 'materialGain' | 'scrapGain'; value: number; after: 'materialsAfter' | 'scrapAfter'; otherGain: 'materialGain' | 'scrapGain' }>;
+
+/** Each craft carries exactly one printed reward field, from its typed shuttle config. */
+function reward(craftId: unknown): RewardKeys | undefined {
+  const configured = dismantlingRewardFor(craftId);
+  if (!configured) return undefined;
+  return configured.resource === 'scrap'
+    ? { gain: 'scrapGain', value: configured.amount, after: 'scrapAfter', otherGain: 'materialGain' }
+    : { gain: 'materialGain', value: configured.amount, after: 'materialsAfter', otherGain: 'scrapGain' };
 }
 
 type RecordValue = Record<string, unknown>;
@@ -155,7 +160,7 @@ function requireActor(sessionId?: string): ActorBinding {
 function currentProposalBinding(command: DismantlingProposalCommand): ProposalBinding {
   const { session, me } = requireActor();
   if (session.phase !== 'active' || me.replacementStatus != null ||
-      !ID_PATTERN.test(command.proposalId) || !CRAFT_IDS.includes(command.craftId) ||
+      !ID_PATTERN.test(command.proposalId) || !PERMISSIONED_DISMANTLING_CRAFT_IDS.includes(command.craftId) ||
       !ID_PATTERN.test(command.targetShipId) || !ID_PATTERN.test(command.targetConsoleId)) {
     throw new Error('The dismantling request is invalid or gameplay is not active.');
   }
@@ -207,14 +212,13 @@ function requireSameActor(binding: ActorBinding & { readonly uid: string }): voi
 
 function parseInbox(value: unknown, sessionId: string, targetShipId: string): PermissionedDismantlingInbox {
   const craftReward = reward(isRecord(value) ? value.craftId : undefined);
-  const keys: readonly string[] = [...INBOX_BASE_KEYS, craftReward.gain, craftReward.after];
-  if (!isRecord(value) || Object.keys(value).length !== keys.length ||
+  const keys: readonly string[] = craftReward ? [...INBOX_BASE_KEYS, craftReward.gain, craftReward.after] : [];
+  if (!craftReward || !isRecord(value) || Object.keys(value).length !== keys.length ||
       Object.keys(value).some((key) => !keys.includes(key)) ||
       value.type !== 'permissioned-dismantling-inbox' || value.sessionId !== sessionId ||
       value.targetShipId !== targetShipId || typeof value.proposalId !== 'string' ||
       !ID_PATTERN.test(value.proposalId) || typeof value.proposerUid !== 'string' ||
       !value.proposerUid || value.proposerUid.length > 128 ||
-      !CRAFT_IDS.includes(value.craftId as typeof CRAFT_IDS[number]) ||
       typeof value.targetConsoleId !== 'string' || !ID_PATTERN.test(value.targetConsoleId) ||
       !isCounter(value.targetRevision) || value[craftReward.gain] !== craftReward.value ||
       !(['pending', 'consented', 'declined', 'revoked', 'applied'] as const).includes(value.status as PermissionedDismantlingStatus) ||
@@ -241,12 +245,12 @@ function requireProposalReply(value: unknown, binding: ProposalBinding, command:
     }
     return value as unknown as DismantlingStaleProposalReply;
   }
-  if ((value.status !== 'proposed' && value.status !== 'replayed') ||
+  const craftReward = reward(command.craftId);
+  if (!craftReward || (value.status !== 'proposed' && value.status !== 'replayed') ||
       value.craftId !== command.craftId || value.targetShipId !== command.targetShipId ||
       value.targetConsoleId !== command.targetConsoleId || !isCounter(value.targetRevision) ||
       value.controlRevision !== binding.controlRevision ||
-      value[reward(command.craftId).gain] !== reward(command.craftId).value ||
-      Object.hasOwn(value, reward(command.craftId === 'macaw' ? 'philia' : 'macaw').gain)) {
+      value[craftReward.gain] !== craftReward.value || Object.hasOwn(value, craftReward.otherGain)) {
     throw new Error('The permissioned-dismantling proposal reply was malformed.');
   }
   return value as unknown as DismantlingProposalReply;
@@ -348,6 +352,8 @@ export async function applyPermissionedDismantling(input: Readonly<{
     throw new Error('Only the original engineering-craft holder can apply an exact current consent.');
   }
   const consentId = input.inbox.consentId;
+  const craftReward = reward(input.inbox.craftId);
+  if (!craftReward) throw new Error('This craft cannot perform permissioned dismantling.');
   const { data } = await callable<unknown>('applyPermissionedDismantling', {
     sessionId: session.id, requestId: input.requestId, proposalId: input.inbox.proposalId,
     consentId, expectedTargetRevision: input.inbox.targetRevision,
@@ -357,8 +363,7 @@ export async function applyPermissionedDismantling(input: Readonly<{
       data.proposalId !== input.inbox.proposalId || data.consentId !== consentId ||
       data.targetShipId !== input.inbox.targetShipId || data.targetConsoleId !== input.inbox.targetConsoleId ||
       !isCounter(data.targetRevision) ||
-      data[reward(input.inbox.craftId).gain] !== reward(input.inbox.craftId).value ||
-      !isCounter(data[reward(input.inbox.craftId).after])) {
+      data[craftReward.gain] !== craftReward.value || !isCounter(data[craftReward.after])) {
     throw new Error('The permissioned-dismantling apply reply was malformed.');
   }
   requireSameProposalAuthority(proposalBinding);

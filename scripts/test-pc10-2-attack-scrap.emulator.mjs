@@ -158,6 +158,15 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
     assert.deepEqual((await carried.snapshot()).session.get('attackScrapPickups'),
       { aegis: [{ attackId: 'attack-7', turn: 7, destroyed: false }] });
 
+    // Shuttles do not move while attack-8 holds the fleet, so the carried pickup waits for its release.
+    const held = await Promise.allSettled([resolveWolfAttackAftermath.run(
+      request('macaw-uid', carried.collect('macaw-mid-attack', 'macaw')))]);
+    assert.equal(held[0].status, 'rejected');
+    assert.equal(held[0].reason.code, 'failed-precondition');
+    assert.equal(totalScrap((await carried.snapshot()).session), 0);
+    await db.doc(`${carried.path}/wolfAttackState/current`).update({ status: 'resolved', currentStep: 'resolved',
+      revision: 9, airspaceLocked: false, parkingReleaseCondition: 'normal-movement-reopened' });
+
     const macawRequest = request('macaw-uid', carried.collect('macaw-carried', 'macaw'));
     const boaRequest = request('boa-uid', carried.collect('boa-carried', 'boa'));
     const { outcomes, attempts } = await overlapping(macawRequest, boaRequest);
@@ -175,7 +184,6 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
     assert.equal(replayed.session.updateTime.toMillis(), committed.session.updateTime.toMillis());
     assert.equal(totalScrap(replayed.session), 1);
 
-    await db.doc(`${carried.path}/wolfAttackState/current`).update({ status: 'resolved', currentStep: 'resolved', revision: 9 });
     const later = await resolveWolfAttackAftermath.run(request('macaw-uid', carried.collect('macaw-later', 'macaw', 'attack-8')));
     assert.equal(later.status, 'committed');
     assert.equal(later.attackId, 'attack-8');

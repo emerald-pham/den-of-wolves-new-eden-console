@@ -68,6 +68,7 @@ vi.mock('@/lib/firestore', () => ({
   }),
   subscribeLoyaltyCensus: vi.fn(() => vi.fn()),
   subscribeGmWolfHackingAlerts: vi.fn(() => vi.fn()),
+  subscribeGmPdfNewsRelayAudits: vi.fn(() => vi.fn()),
   subscribePlayerHackingNotices: vi.fn(() => vi.fn()),
   subscribeGmInstances: vi.fn((
     _sessionId: string,

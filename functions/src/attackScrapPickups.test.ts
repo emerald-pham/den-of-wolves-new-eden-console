@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  withCurrentShipDestruction,
   carryForwardAttackScrapPickups,
   parseAttackScrapPickups,
   takeAttackScrapPickup,
@@ -80,5 +81,18 @@ describe('attack Scrap pickups that outlive their attack', () => {
       .toBeUndefined();
     expect(parseAttackScrapPickups({ aegis: [{ attackId: 'attack-7', turn: 7, destroyed: false },
       { attackId: 'attack-7', turn: 7, destroyed: false }] })).toBeUndefined();
+  });
+});
+
+describe('a pending pickup on a ship destroyed after its attack', () => {
+  it('becomes destroyed-status from the authoritative damage map and leaves other ships unchanged', () => {
+    const ledger = { aegis: [{ attackId: 'attack-1', turn: 1, destroyed: false }],
+      dione: [{ attackId: 'attack-1', turn: 1, destroyed: false }] };
+    expect(withCurrentShipDestruction(ledger, { aegis: { damagedSystemIds: [], destroyed: true },
+      dione: { damagedSystemIds: [], destroyed: false } })).toEqual({
+      aegis: [{ attackId: 'attack-1', turn: 1, destroyed: true }],
+      dione: [{ attackId: 'attack-1', turn: 1, destroyed: false }],
+    });
+    expect(withCurrentShipDestruction(ledger, undefined)).toBe(ledger);
   });
 });

@@ -133,3 +133,11 @@ describe('AEGIS role console reference', () => {
     ]);
   });
 });
+
+describe('AEGIS fighter wing identity', () => {
+  it('names each wing and its exchange partner from the wing registration', async () => {
+    const { FIGHTER_WING_IDS, fighterWingCallsign, otherFighterWing } = await import('./aegisConsoles');
+    expect(FIGHTER_WING_IDS.map(fighterWingCallsign)).toEqual(['Alpha', 'Bravo']);
+    expect(FIGHTER_WING_IDS.map(otherFighterWing)).toEqual(['fighter-wing-bravo', 'fighter-wing-alpha']);
+  });
+});

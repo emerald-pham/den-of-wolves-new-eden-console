@@ -88,6 +88,9 @@ it('carries the Recycler’s lapsed choice and rejects an unknown lapse reason',
     taskOpportunityId: 'D-1', reason: 'recycler-not-on-mission' };
   mocks.call.mockResolvedValueOnce({ data: { ...workspace, lapsedChoices: [lapsed] } });
   await expect(readBoaMissionReclamationWorkspace('s1')).resolves.toMatchObject({ lapsedChoices: [lapsed] });
+  const moved = { ...lapsed, reason: 'location-changed' };
+  mocks.call.mockResolvedValueOnce({ data: { ...workspace, lapsedChoices: [moved] } });
+  await expect(readBoaMissionReclamationWorkspace('s1')).resolves.toMatchObject({ lapsedChoices: [moved] });
   mocks.call.mockResolvedValueOnce({ data: { ...workspace, lapsedChoices: [{ ...lapsed, reason: 'invented' }] } });
   await expect(readBoaMissionReclamationWorkspace('s1')).rejects.toThrow(/lapsed/);
 });

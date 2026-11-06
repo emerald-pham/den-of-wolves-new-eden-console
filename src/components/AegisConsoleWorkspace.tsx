@@ -9,12 +9,17 @@ import { Link } from 'react-router-dom';
 import {
   AEGIS_FIGHTER_BAY_SYSTEMS,
   AEGIS_ROLE_CONSOLES,
+  fighterWingCallsign,
   isImplementedAegisRole,
+  otherFighterWing,
+  type FighterWingId,
   type AegisCraft,
   type AegisShipSystem,
 } from '@/data/aegisConsoles';
 import aegis from '@/data/vessels/aegis';
-import type { DamageDraw, MaintenanceCycle, ShipDamageState, ShipNavigationLogs, TurnPhase } from '@/types/game';
+import type {
+  DamageDraw, MaintenanceCycle, ShipDamageState, ShipNavigationLogs, TurnPhase, WolfAttackMemberView,
+} from '@/types/game';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
 import { useConsoleAccess } from '@/lib/consoleAccess';
@@ -22,7 +27,6 @@ import { phaseForSession } from '@/lib/turnPhase';
 import {
   buildFighter as buildFighterAction,
   exchangeFighterWings,
-  type AegisFighterWingId,
   type FighterBuildResult,
 } from '@/lib/sessionService';
 import { subscribeWolfAttackMemberView } from '@/lib/firestore';
@@ -160,9 +164,10 @@ function liveStateLabel(
 }
 
 function fighterBuildGuidance({ hasServerSnapshot, connection, writable, constructionTurnAvailable,
-  teamPhaseAvailable, constructionBayDamaged, constructionBayCharged, maintenance,
+  teamPhaseAvailable, wolfAttackActive, constructionBayDamaged, constructionBayCharged, maintenance,
   fighterWingCount, capacity, materials }: {
   readonly hasServerSnapshot: boolean;
+  readonly wolfAttackActive: boolean;
   readonly connection: 'idle' | 'connecting' | 'live' | 'offline';
   readonly writable: boolean;
   readonly constructionTurnAvailable: boolean;
@@ -179,6 +184,7 @@ function fighterBuildGuidance({ hasServerSnapshot, connection, writable, constru
   if (!writable) return 'Build unavailable // read-only view. Next actor // the current entitled console actor uses their own console; a GM observer needs explicit Write access.';
   if (!constructionTurnAvailable) return 'Build unavailable // Cycle 1 required. Next actor // GM completes the normal start.';
   if (!teamPhaseAvailable) return 'Build unavailable // Team Phase required. Next actor // Wing Commander waits for Team Phase; GM controls cycle advancement.';
+  if (wolfAttackActive) return 'Build unavailable // Wolf attack active; the wings are at the combat table. Next actor // Wing Commander waits for the attack to resolve.';
   if (constructionBayDamaged === null) return 'Build unavailable // awaiting Construction Bay state. Next actor // Wing Commander waits for the current server state.';
   if (constructionBayDamaged) return 'Build unavailable // Construction Bay damaged. Next actor // an Engineering shuttle repairs it.';
   if (!maintenance) return 'Build unavailable // Construction Bay charge state unavailable. Next actor // AEGIS Admiral or Executive Officer uses the current maintenance cycle.';
@@ -202,9 +208,9 @@ function fighterWingExchangeBlocker({ hasServerSnapshot, connection, writable, c
   readonly writable: boolean;
   readonly currentTurn: number | undefined;
   readonly phase: TurnPhase | undefined;
-  readonly counts: Readonly<Record<AegisFighterWingId, { readonly count: number; readonly revision: number } | undefined>>;
+  readonly counts: Readonly<Record<FighterWingId, { readonly count: number; readonly revision: number } | undefined>>;
   readonly capacity: 4 | 6;
-  readonly sourceWingId: AegisFighterWingId;
+  readonly sourceWingId: FighterWingId;
 }): string | null {
   if (!hasServerSnapshot) return 'Exchange unavailable // awaiting live server state. Next actor // Wing Commander reconnects for the current wing counts.';
   if (connection !== 'live') return 'Exchange unavailable // reconnect required. Next actor // Wing Commander restores the live connection.';
@@ -213,8 +219,8 @@ function fighterWingExchangeBlocker({ hasServerSnapshot, connection, writable, c
   if (!phase || phase.airspace.state !== 'restricted') return 'Exchange unavailable // Team Phase required. Next actor // Wing Commander waits for the next Team Phase; GM controls cycle advancement.';
   if (phase.timerPause) return 'Exchange unavailable // Team Phase clock paused. Next actor // GM resumes the clock.';
   if (wolfAttackActive) return 'Exchange unavailable // Wolf attack active; the wings are at the combat table. Next actor // Wing Commander waits for the attack to resolve.';
-  const targetWingId: AegisFighterWingId = sourceWingId === 'fighter-wing-alpha' ? 'fighter-wing-bravo' : 'fighter-wing-alpha';
-  const wingName = (wingId: AegisFighterWingId) => wingId === 'fighter-wing-alpha' ? 'Alpha' : 'Bravo';
+  const targetWingId = otherFighterWing(sourceWingId);
+  const wingName = fighterWingCallsign;
   const source = counts[sourceWingId];
   const target = counts[targetWingId];
   if (!source || !target) return 'Exchange unavailable // fighter strength is not published. Next actor // Wing Commander waits for the current server strength.';
@@ -361,19 +367,23 @@ export function FighterWingCard({
 }
 
 /**
- * Whether the member-visible Wolf attack for this cycle is still in progress.
- * The server remains the authority (it also holds the exchange until the fleet
- * is released); this only lets the console explain the block before a click.
+ * Whether the member-visible Wolf attack still holds the fleet. This mirrors
+ * the server's `wolfAttackBlocksNormalMovement`: any attack record blocks
+ * until it is resolved and normal movement reopens, whatever cycle declared
+ * it. Members only see the resolved/finished step, which the server writes in
+ * the same commit that unlocks airspace. The server remains the authority.
  */
-function useWolfAttackInProgress(sessionId: string | undefined, currentTurn: number | undefined, live: boolean): boolean {
-  const [view, setView] = useState<Readonly<{ sessionId: string; turn: number; declared: boolean }> | null>(null);
+function wolfAttackHoldsFleet(view: Pick<WolfAttackMemberView, 'status' | 'currentStep'> | null): boolean {
+  return view !== null && (view.status !== 'resolved' || view.currentStep !== 'resolved');
+}
+
+function useWolfAttackHoldsFleet(sessionId: string | undefined, live: boolean): boolean {
+  const [view, setView] = useState<Readonly<{ sessionId: string; holds: boolean }> | null>(null);
   useEffect(() => {
     if (!sessionId || !live) return undefined;
-    return subscribeWolfAttackMemberView(sessionId, (member) => setView(member
-      ? { sessionId, turn: member.turn, declared: member.status === 'declared' }
-      : null));
+    return subscribeWolfAttackMemberView(sessionId, (member) => setView({ sessionId, holds: wolfAttackHoldsFleet(member) }));
   }, [sessionId, live]);
-  return Boolean(live && view && view.sessionId === sessionId && view.turn === currentTurn && view.declared);
+  return Boolean(live && view && view.sessionId === sessionId && view.holds);
 }
 
 /** The Admiral and Executive Officer use the same server-backed maintenance lane. */
@@ -463,7 +473,7 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
   const access = useConsoleAccess();
   const [buildingWing, setBuildingWing] = useState<string | null>(null);
   const [buildNotices, setBuildNotices] = useState<Readonly<Record<string, string>>>({});
-  const wolfAttackActive = useWolfAttackInProgress(session?.id, session?.currentTurn,
+  const wolfAttackActive = useWolfAttackHoldsFleet(session?.id,
     Boolean(session && sessionSnapshotFreshness === 'server') && connection === 'live');
   const starlight = console.craft[0];
   if (!starlight) return null;
@@ -489,7 +499,9 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
     'fighter-wing-alpha': hasServerSnapshot ? fighterWingCounts?.['fighter-wing-alpha'] : undefined,
     'fighter-wing-bravo': hasServerSnapshot ? fighterWingCounts?.['fighter-wing-bravo'] : undefined,
   };
-  const exchangeCapacity = constructionBayUpgraded ? 6 : 4;
+  // Exchange uses the same printed wing capacity as build guidance.
+  const wingCapacity = fighterWings[0]?.fighterWing?.capacity ?? console.fighterCapacity;
+  const exchangeCapacity = constructionBayUpgraded ? wingCapacity.upgraded : wingCapacity.standard;
 
   return (
     <FleetRoleConsoleTemplate shipName="AEGIS" roleName="Wing Commander"
@@ -538,7 +550,7 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
               canBuild={Boolean(
                 access.writable && connection === 'live' && hasServerSnapshot &&
                 constructionBayCharged && constructionBayDamaged === false && teamPhaseAvailable &&
-                constructionTurnAvailable && craft.fighterWing &&
+                !wolfAttackActive && constructionTurnAvailable && craft.fighterWing &&
                 fighterWingCounts?.[craft.fighterWing.countId] &&
                 fighterWingCounts[craft.fighterWing.countId]!.count <
                   (constructionBayUpgraded ? craft.fighterWing.capacity.upgraded : craft.fighterWing.capacity.standard) &&
@@ -560,7 +572,7 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
               snapshotLabel={snapshotLabel}
               fighterCapacity={craft.fighterWing?.capacity ?? console.fighterCapacity}
               buildGuidance={fighterBuildGuidance({ hasServerSnapshot, connection, writable: access.writable,
-                constructionTurnAvailable, teamPhaseAvailable, constructionBayDamaged, constructionBayCharged,
+                constructionTurnAvailable, teamPhaseAvailable, wolfAttackActive, constructionBayDamaged, constructionBayCharged,
                 maintenance, fighterWingCount: craft.fighterWing ? fighterWingCounts?.[craft.fighterWing.countId] : undefined,
                 capacity: constructionBayUpgraded
                   ? (craft.fighterWing?.capacity ?? console.fighterCapacity).upgraded

@@ -21,6 +21,8 @@ import { serviceRechargeDamageState, serviceRechargeResourceState } from './serv
 import { SHIP_DAMAGE_DECKS, type ShipDamageState } from './shipDamage';
 import { parseMacawRepairLedger, recordMacawSalvageUse } from './macawRepair';
 import { turnPhaseState } from './turnZero';
+import { fleetGroupRecord } from './fleetGroups';
+import { requirePursuitEmergencyWindowAbsent } from './pursuitEmergencyWindow';
 import {
   MACAW_DISMANTLING_SCRAP_GAIN,
   MACAW_SCRAP_LEDGER_SHIP_ID,
@@ -791,6 +793,38 @@ function requireMacawCoordinationCycle(session: DocumentSnapshot, timestamp: Dat
   return cycle as number;
 }
 
+/**
+ * The guards repairConsolesFromMacaw applies to the same craft: the holder is
+ * on the Capybara Captain console, no pursuit emergency decision has paused
+ * play, and the holder's current fleet group holds both the target ship and
+ * the Capybara whose Scrap ledger receives the gain.
+ */
+async function requireMacawFleetAuthority(input: Readonly<{
+  tx: Transaction;
+  db: PermissionedDismantlingCallableDatabase;
+  sessionId: string;
+  session: DocumentSnapshot;
+  holder: DocumentSnapshot;
+  holderUid: string;
+  targetShipId: string;
+}>): Promise<void> {
+  const { tx, db, sessionId, session, holder, holderUid, targetShipId } = input;
+  requirePursuitEmergencyWindowAbsent(session);
+  if (holder.get('activeConsoleRoleId') !== 'capybara-captain' || holder.get('replacementStatus') != null) {
+    denied('Only a connected Macaw holder on the Capybara Captain console may dismantle.');
+  }
+  const groupId = holder.get('fleetGroupId');
+  if (typeof groupId !== 'string' || groupId.length === 0 || groupId.includes('/')) {
+    denied('The Macaw holder has no fleet-group authority.');
+  }
+  const groupSnapshot = await tx.get(doc(db, 'sessions/' + sessionId + '/fleetGroups/' + groupId));
+  const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+  if (!group || group.id !== groupId || !group.memberUids.includes(holderUid) ||
+      !group.vesselIds.includes(targetShipId) || !group.vesselIds.includes(MACAW_SCRAP_LEDGER_SHIP_ID)) {
+    denied('The target ship and the Capybara must both be in the Macaw holder’s current fleet group.');
+  }
+}
+
 function exactProposalRequestMatches(
   proposal: StoredProposal,
   command: ProposalCommand,
@@ -979,6 +1013,10 @@ export function createPermissionedDismantlingCallables(
         session, actor, actorUid, craftId: command.craftId,
         targetShipId: command.targetShipId, activeRoleIds, now: timestamp,
       });
+      if (isMacawDismantling(command)) {
+        await requireMacawFleetAuthority({ tx, db, sessionId: command.sessionId, session,
+          holder: actor, holderUid: actorUid, targetShipId: command.targetShipId });
+      }
       const target = readCurrentTargetState(
         session, targetStateSnapshot, command.sessionId, command.targetShipId,
       );
@@ -1128,6 +1166,10 @@ export function createPermissionedDismantlingCallables(
       });
       if (controlRevision !== proposal.controlRevision) {
         precondition('The engineering-craft control changed after the proposal.');
+      }
+      if (isMacawDismantling(proposal)) {
+        await requireMacawFleetAuthority({ tx, db, sessionId: command.sessionId, session,
+          holder: proposer, holderUid: proposal.proposerUid, targetShipId: proposal.targetShipId });
       }
       if (!targetStateSnapshot.exists) precondition('The private target revision record is unavailable.');
       const target = readCurrentTargetState(
@@ -1386,6 +1428,10 @@ export function createPermissionedDismantlingCallables(
           precondition('This dismantling replay receipt is not bound to the consumed proposal and consent.');
         }
         return { ...receipt.result, status: 'replayed' };
+      }
+      if (isMacawDismantling(proposal)) {
+        await requireMacawFleetAuthority({ tx, db, sessionId: command.sessionId, session,
+          holder: proposer, holderUid: actorUid, targetShipId: proposal.targetShipId });
       }
       if (proposal.status !== 'pending') {
         precondition('This dismantling proposal has already been consumed.');

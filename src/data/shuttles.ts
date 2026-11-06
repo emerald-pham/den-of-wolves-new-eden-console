@@ -19,8 +19,8 @@ import chacau from './vessels/chacau';
 import chepu from './vessels/chepu';
 import wobbly from './vessels/wobbly';
 import ally from './vessels/ally';
-import type { Shuttlecraft } from './vessels/templates';
-export type { Shuttlecraft } from './vessels/templates';
+import type { Shuttlecraft, ShuttleDismantlingReward } from './vessels/templates';
+export type { Shuttlecraft, ShuttleDismantlingReward } from './vessels/templates';
 
 export const SHUTTLECRAFT: readonly Shuttlecraft[] = [
   snnPressShuttle,
@@ -46,6 +46,16 @@ export const SHUTTLECRAFT: readonly Shuttlecraft[] = [
 export const BATTLE_TABLE_SHUTTLE_IDS: readonly string[] = SHUTTLECRAFT
   .filter((shuttle) => shuttle.wolfAttackRole === 'battle-table')
   .map((shuttle) => shuttle.id);
+
+/** Craft whose printed sheet allows permissioned dismantling, derived from typed config. */
+export const PERMISSIONED_DISMANTLING_CRAFT_IDS: readonly string[] = SHUTTLECRAFT
+  .filter((shuttle) => shuttle.dismantlingReward !== undefined)
+  .map((shuttle) => shuttle.id);
+
+/** The printed dismantling reward for one craft, or undefined when it cannot dismantle. */
+export function dismantlingRewardFor(shuttleId: unknown): ShuttleDismantlingReward | undefined {
+  return SHUTTLECRAFT.find((shuttle) => shuttle.id === shuttleId)?.dismantlingReward;
+}
 
 /** The standard core fleet; optional Union craft stay GM-controlled. */
 export const DEFAULT_ENABLED_SHUTTLECRAFT = SHUTTLECRAFT.filter((shuttle) =>

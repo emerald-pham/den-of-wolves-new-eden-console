@@ -3012,6 +3012,21 @@ function shipUpgrades(value: unknown): NonNullable<GameSession['shipUpgrades']> 
     Array.isArray(stored[shipId]) ? [[shipId, stringArray(stored[shipId])]] : []));
 }
 
+/** Facilitator-only Boa pending flags; only an exact `true` for a wire-safe opportunity id is kept. */
+function boaReclamationPending(value: unknown): GameSession['boaReclamationPending'] {
+  const stored = recordValue(value);
+  if (!stored) return undefined;
+  const flags = Object.fromEntries(Object.entries(stored)
+    .filter(([opportunityId, flag]) => flag === true && isWireSafeEntityId(opportunityId))
+    .map(([opportunityId]) => [opportunityId, true as const]));
+  return Object.keys(flags).length ? flags : undefined;
+}
+
+function boaReclamationPendingField(value: unknown): Pick<GameSession, 'boaReclamationPending'> {
+  const flags = boaReclamationPending(value);
+  return flags ? { boaReclamationPending: flags } : {};
+}
+
 /** Server-carried attack Scrap pickups; a malformed entry is dropped rather than offered. */
 function attackScrapPickups(value: unknown): NonNullable<GameSession['attackScrapPickups']> {
   const stored = recordValue(value);
@@ -3589,6 +3604,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ...(currentHighwallMining ? { highwallMining: currentHighwallMining } : {}),
     retainedShuttles: retained,
     attackScrapPickups: attackScrapPickups(data.attackScrapPickups),
+    ...boaReclamationPendingField(data.boaReclamationPending),
     ...(quarantine ? { quarantineDocking: quarantine } : {}),
     shipUpgrades: shipUpgrades(data.shipUpgrades),
     shipResources: currentShipResources,
@@ -4843,6 +4859,59 @@ export function subscribeGmWolfHackingAlerts(
     subscribed = false;
     unsubscribe();
     onAlerts(null);
+  };
+}
+
+/** One facilitator-only P.D.F. Colonel news relay record (P2.2). */
+export interface PdfNewsRelayAudit {
+  readonly requestId: string;
+  readonly actorRoleId: string;
+  readonly groupId: string;
+  readonly cycle: number;
+  readonly text: string;
+  readonly handedToPress: boolean;
+  readonly createdAt: string;
+}
+
+function pdfNewsRelayAudit(value: unknown, sessionId: string, auditId: string): PdfNewsRelayAudit | null {
+  const raw = recordValue(value);
+  const createdAt = timestampString(raw?.createdAt);
+  if (!raw || raw.type !== 'pdf-news-relay-audit' || raw.sessionId !== sessionId || raw.requestId !== auditId ||
+      !isWireSafeEntityId(auditId) || typeof raw.actorRoleId !== 'string' || !raw.actorRoleId ||
+      typeof raw.groupId !== 'string' || !/^fleet-[1-9]\d*$/.test(raw.groupId) ||
+      !Number.isSafeInteger(raw.cycle) || (raw.cycle as number) < 0 ||
+      typeof raw.text !== 'string' || !raw.text.trim() || raw.text.length > 240 ||
+      typeof raw.handedToPress !== 'boolean' || !createdAt) return null;
+  return { requestId: auditId, actorRoleId: raw.actorRoleId, groupId: raw.groupId, cycle: raw.cycle as number,
+    text: raw.text, handedToPress: raw.handedToPress, createdAt };
+}
+
+/** Subscribe to the facilitator-only P.D.F. news relay records, newest first; malformed records are dropped. */
+export function subscribeGmPdfNewsRelayAudits(
+  sessionId: string,
+  onAudits: (audits: readonly PdfNewsRelayAudit[] | null) => void,
+): Unsubscribe {
+  let subscribed = true;
+  const unsubscribe = onSnapshot(
+    collection(db(), `sessions/${sessionId}/pdfNewsRelayAudits`),
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      onAudits(snapshot.docs
+        .flatMap((entry) => {
+          const parsed = pdfNewsRelayAudit(entry.data(), sessionId, entry.id);
+          return parsed ? [parsed] : [];
+        })
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt) ||
+          left.requestId.localeCompare(right.requestId)));
+    },
+    () => {
+      if (subscribed) onAudits(null);
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
   };
 }
 

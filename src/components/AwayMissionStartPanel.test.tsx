@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 
 const mocks = vi.hoisted(() => ({
   startAwayMission: vi.fn(),
@@ -553,4 +553,22 @@ it('replays the saved exact request after remount in debrief and reports a serve
   expect(screen.getByRole('status', { name: 'Mission start result' }))
     .toHaveTextContent(/saved revisions are stale/i);
   expect(screen.queryByText(/already recorded/i)).not.toBeInTheDocument();
+});
+
+it('flags a pending Boa choice on the facilitator deal preview without revealing the chosen task', () => {
+  render(<AwayMissionStartPanel
+    session={{ ...session, boaReclamationPending: { [opportunity.id]: true } } as never}
+    players={players as never}
+    instanceId="bridge"
+    isGm
+    preparedOpportunities={[{ ...opportunity, type: 'mission-opportunity', status: 'available', sessionId: 's1' }] as never}
+    preparedReceipts={[]}
+  />);
+
+  const preview = screen.getByText(/Fleet group fleet-1 \/\/ Chart A/).closest('div');
+  if (!(preview instanceof HTMLElement)) throw new Error('Expected the opportunity preview.');
+  expect(within(preview).getByText(
+    'Boa choice pending // the Boa Recycler chose a task to reclaim; the deal settles or lapses it.',
+  )).toBeVisible();
+  expect(preview).not.toHaveTextContent(/L-\d/);
 });

@@ -1,16 +1,27 @@
 import { useState } from 'react';
-import type { AegisFighterWingId, FighterWingExchangeResult } from '@/lib/sessionService';
+import { FIGHTER_WING_IDS, fighterWingCallsign, otherFighterWing, type FighterWingId } from '@/data/aegisConsoles';
+import type { FighterWingExchangeResult } from '@/lib/sessionService';
+import {
+  clearSessionDraft, readSessionDraft, writeSessionDraft, type SessionDraftScope,
+} from '@/lib/sessionDraftStorage';
+import { useSessionStore } from '@/store/useSessionStore';
 import './AegisFighterWingExchangePanel.css';
 
 type WingCount = Readonly<{ count: number; revision: number }>;
 
-const WING_NAMES: Readonly<Record<AegisFighterWingId, 'Alpha' | 'Bravo'>> = {
-  'fighter-wing-alpha': 'Alpha',
-  'fighter-wing-bravo': 'Bravo',
-};
+type ExchangeDraft = Readonly<{ sourceWingId: FighterWingId; amount: number }>;
 
-function otherWing(wingId: AegisFighterWingId): AegisFighterWingId {
-  return wingId === 'fighter-wing-alpha' ? 'fighter-wing-bravo' : 'fighter-wing-alpha';
+function exchangeDraftScope(sessionId: string | undefined, uid: string | undefined): SessionDraftScope {
+  return { kind: 'aegis-fighter-exchange-draft', sessionId, uid, scope: 'aegis' };
+}
+
+/** Only the player's choice is kept: never a request identity, and it is never sent on restore. */
+function parseExchangeDraft(value: unknown): ExchangeDraft | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const draft = value as Record<string, unknown>;
+  if (Object.keys(draft).length !== 2 || !FIGHTER_WING_IDS.includes(draft.sourceWingId as FighterWingId) ||
+      !Number.isSafeInteger(draft.amount) || (draft.amount as number) < 1 || (draft.amount as number) > 6) return null;
+  return { sourceWingId: draft.sourceWingId as FighterWingId, amount: draft.amount as number };
 }
 
 function fighters(count: number): string {
@@ -24,35 +35,51 @@ function resultNotice(result: FighterWingExchangeResult | null): string {
   if (result.status === 'stale') {
     return 'Exchange not committed // the wing counts changed first. No fighters moved; review the live counts and try again.';
   }
-  return `Exchange committed // ${fighters(result.amount)} moved from ${WING_NAMES[result.sourceWingId]} to ${WING_NAMES[result.targetWingId]} // Alpha now ${fighters(result.counts['fighter-wing-alpha'].count)}, Bravo now ${fighters(result.counts['fighter-wing-bravo'].count)}.`;
+  const prefix = result.status === 'replayed' ? 'Exchange already committed' : 'Exchange committed';
+  return `${prefix} // ${fighters(result.amount)} moved from ${fighterWingCallsign(result.sourceWingId)} to ${fighterWingCallsign(result.targetWingId)} // Alpha now ${fighters(result.counts['fighter-wing-alpha'].count)}, Bravo now ${fighters(result.counts['fighter-wing-bravo'].count)}.`;
 }
 
 /** Team Phase transfer of fighters between the two AEGIS wings. */
 export default function AegisFighterWingExchangePanel({ counts, capacity, blockerFor, onExchange }: {
-  readonly counts: Readonly<Record<AegisFighterWingId, WingCount | undefined>>;
+  readonly counts: Readonly<Record<FighterWingId, WingCount | undefined>>;
   readonly capacity: 4 | 6;
-  readonly blockerFor: (sourceWingId: AegisFighterWingId) => string | null;
-  readonly onExchange: (sourceWingId: AegisFighterWingId, amount: number) => Promise<FighterWingExchangeResult | null>;
+  readonly blockerFor: (sourceWingId: FighterWingId) => string | null;
+  readonly onExchange: (sourceWingId: FighterWingId, amount: number) => Promise<FighterWingExchangeResult | null>;
 }) {
-  const [sourceWingId, setSourceWingId] = useState<AegisFighterWingId>('fighter-wing-alpha');
-  const [amount, setAmount] = useState(1);
+  const sessionId = useSessionStore((state) => state.session?.id);
+  const uid = useSessionStore((state) => state.me?.uid);
+  const draftScope = exchangeDraftScope(sessionId, uid);
+  const [restored] = useState(() => readSessionDraft(draftScope, parseExchangeDraft));
+  const [sourceWingId, setSourceWingIdState] = useState<FighterWingId>(restored?.sourceWingId ?? 'fighter-wing-alpha');
+  const [amount, setAmountState] = useState(restored?.amount ?? 1);
+  const saveDraft = (draft: ExchangeDraft) => writeSessionDraft(draftScope, draft);
+  // Choosing a direction restarts the amount at one fighter, as the form always has.
+  const setSourceWingId = (wingId: FighterWingId) => {
+    setSourceWingIdState(wingId);
+    setAmountState(1);
+    saveDraft({ sourceWingId: wingId, amount: 1 });
+  };
+  const setAmount = (value: number) => { setAmountState(value); saveDraft({ sourceWingId, amount: value }); };
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState<string>();
-  const targetWingId = otherWing(sourceWingId);
+  const targetWingId = otherFighterWing(sourceWingId);
   const source = counts[sourceWingId];
   const target = counts[targetWingId];
   const maximum = source && target ? Math.max(0, Math.min(source.count, capacity - target.count)) : 0;
   const chosen = Math.min(amount, Math.max(1, maximum));
   const blocker = blockerFor(sourceWingId);
-  const sourceName = WING_NAMES[sourceWingId];
-  const targetName = WING_NAMES[targetWingId];
+  const sourceName = fighterWingCallsign(sourceWingId);
+  const targetName = fighterWingCallsign(targetWingId);
 
   function submit() {
     if (blocker || pending || chosen > maximum) return;
     setPending(true);
     setNotice(undefined);
     void onExchange(sourceWingId, chosen).then(
-      (result) => setNotice(resultNotice(result)),
+      (result) => {
+        if (result && result.status !== 'stale') clearSessionDraft(draftScope);
+        setNotice(resultNotice(result));
+      },
       () => setNotice(resultNotice(null)),
     ).finally(() => setPending(false));
   }
@@ -60,7 +87,7 @@ export default function AegisFighterWingExchangePanel({ counts, capacity, blocke
   return (
     <section className="aegis-wing-exchange cic-frame" aria-label="Fighter Wing exchange">
       <header className="aegis-wing-exchange__header">
-        <p>Team Phase // Wing Commander</p>
+        <p className="console-workspace__eyebrow">Team Phase // Wing Commander</p>
         <h3>Fighter Wing exchange</h3>
       </header>
       <p className="aegis-wing-exchange__strength">
@@ -74,7 +101,7 @@ export default function AegisFighterWingExchangePanel({ counts, capacity, blocke
         <label>
           Move fighters from
           <select value={sourceWingId} disabled={pending}
-            onChange={(event) => { setSourceWingId(event.target.value as AegisFighterWingId); setAmount(1); setNotice(undefined); }}>
+            onChange={(event) => { setSourceWingId(event.target.value as FighterWingId); setNotice(undefined); }}>
             <option value="fighter-wing-alpha">Alpha to Bravo</option>
             <option value="fighter-wing-bravo">Bravo to Alpha</option>
           </select>

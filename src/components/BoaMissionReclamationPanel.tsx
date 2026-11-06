@@ -21,6 +21,7 @@ const LAPSE_EXPLANATIONS: Readonly<Record<BoaMissionReclamationLapseReason, stri
   'recycler-not-on-mission': 'the Boa Recycler was not on the mission',
   'boa-control-changed': 'Boa control changed after the choice',
   'recycler-unavailable': 'the Boa Recycler was not active at the deal',
+  'location-changed': 'the fleet location changed before the deal',
 };
 import type { ShuttleControlEntry, ShuttleDocking } from '@/types/game';
 
@@ -56,7 +57,7 @@ function isCurrentBoaStation(
 }
 
 function labelFor(opportunity: BoaMissionReclamationWorkspaceOpportunity): string {
-  return `Review ${opportunity.siteName} mission tasks`;
+  return `Review ${opportunity.siteName} mission tasks (cycle ${opportunity.sourceCycle})`;
 }
 
 export default function BoaMissionReclamationPanel({ control, docking }: Props) {
@@ -201,7 +202,7 @@ export default function BoaMissionReclamationPanel({ control, docking }: Props) 
       <section aria-label="Current fleet mission locations">
         <ul>
           {workspace.opportunities.map((opportunity) => <li key={opportunity.missionOpportunityId}>
-            <p>{opportunity.siteName} // {opportunity.coordinate} // Chart {opportunity.chart}</p>
+            <p>{opportunity.siteName} // {opportunity.coordinate} // Chart {opportunity.chart} // arrived cycle {opportunity.sourceCycle}</p>
             <button type="button" onClick={() => {
               setSelectedOpportunityId(opportunity.missionOpportunityId);
               setDraftTaskId(opportunity.selectedTaskOpportunityId ?? '');
@@ -213,7 +214,7 @@ export default function BoaMissionReclamationPanel({ control, docking }: Props) 
     )}
     {authorityReady && selectedOpportunity && (
       <section aria-label="Mission task selection">
-        <p>{selectedOpportunity.siteName} // {selectedOpportunity.coordinate} // Select the printed mission-card task to modify.</p>
+        <p>{selectedOpportunity.siteName} // {selectedOpportunity.coordinate} // arrived cycle {selectedOpportunity.sourceCycle} // Select the printed mission-card task to modify.</p>
         <fieldset>
           <legend>Select a mission-card task</legend>
           {selectedOpportunity.taskOpportunities.map((task) => <label key={task.id}>

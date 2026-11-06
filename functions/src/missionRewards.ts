@@ -23,6 +23,16 @@ export interface MissionRewardOptions {
   readonly boaReclamationOpportunityId?: string;
 }
 
+/**
+ * Coordinator ruling (K-1, source-backed, 2026-11-05): Boa reclamation
+ * replaces an opportunity's reward with one Scrap, but a success consequence
+ * that is not a reward, such as K-1's immediate Wolf attack unless critical,
+ * stays on the server record.
+ */
+export function isNonRewardMissionEffect(effect: unknown): boolean {
+  return isRecord(effect) && effect.kind === 'immediateWolfAttack';
+}
+
 const CARD_IDS = new Set<string>(missionDeck().map(({ id }) => id));
 const RESOURCE_IDS: readonly MissionRewardResourceId[] = [
   'ore', 'fuel', 'food', 'water', 'materials', 'securityTeams', 'scrap', 'minerals', 'survivors',
@@ -84,7 +94,9 @@ export function resolveMissionOpportunityRewards(
     if (branch !== 'none') {
       if (boaReclamation) resources.scrap = 1;
       else mergeResources(resources, opportunity.reward.success);
-      if (!boaReclamation) effects.push(...opportunity.reward.successEffects);
+      effects.push(...(boaReclamation
+        ? opportunity.reward.successEffects.filter(isNonRewardMissionEffect)
+        : opportunity.reward.successEffects));
       if (!boaReclamation && opportunity.reward.successRule) {
         const roll = rolls[opportunity.id];
         if (!isD6(roll)) return null;
@@ -97,7 +109,8 @@ export function resolveMissionOpportunityRewards(
         if (!boaReclamation && opportunity.reward.criticalBonus) {
           mergeResources(resources, opportunity.reward.criticalBonus);
         }
-        if (!boaReclamation) effects.push(...(opportunity.reward.criticalEffects ?? []));
+        const criticalEffects = opportunity.reward.criticalEffects ?? [];
+        effects.push(...(boaReclamation ? criticalEffects.filter(isNonRewardMissionEffect) : criticalEffects));
       }
     }
 

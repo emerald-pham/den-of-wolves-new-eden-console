@@ -7,9 +7,10 @@ import {
   type SessionDraftScope,
 } from '@/lib/sessionDraftStorage';
 import { useSessionStore } from '@/store/useSessionStore';
+import { PDF_ROLE_CONSOLE } from '@/data/pdfConsoles';
 import './PdfNewsRelayPanel.css';
 
-const PDF_COLONEL_ROLE_ID = 'refinery-124-pdf-colonel';
+const PDF_COLONEL_ROLE_ID = PDF_ROLE_CONSOLE.roleId;
 const MAX_RELAY_LENGTH = 240;
 
 /**

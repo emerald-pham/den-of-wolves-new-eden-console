@@ -26,6 +26,8 @@ export interface FighterWingCombat {
 export interface AegisFighterWingRegistration {
   /** The server-owned fighter count projection this wing uses. */
   readonly countId: FighterWingId;
+  /** The short wing name players use at the table. */
+  readonly callsign: 'Alpha' | 'Bravo';
   /** The printed standard and Construction Bay-upgraded wing capacities. */
   readonly capacity: { readonly standard: 4; readonly upgraded: 6 };
   /** Printed range actions; combat resolution belongs to later prompts. */
@@ -145,6 +147,7 @@ const WING_CRAFT: readonly AegisCraft[] = [
     launchSystemId: 'fighter-bay-alpha',
     fighterWing: {
       countId: 'fighter-wing-alpha',
+      callsign: 'Alpha',
       capacity: AEGIS_FIGHTER_WING_CAPACITY,
       combat: AEGIS_FIGHTER_WING_COMBAT,
     },
@@ -157,11 +160,24 @@ const WING_CRAFT: readonly AegisCraft[] = [
     launchSystemId: 'fighter-bay-bravo',
     fighterWing: {
       countId: 'fighter-wing-bravo',
+      callsign: 'Bravo',
       capacity: AEGIS_FIGHTER_WING_CAPACITY,
       combat: AEGIS_FIGHTER_WING_COMBAT,
     },
   },
 ];
+
+/** The other AEGIS wing: an exchange always moves fighters between Alpha and Bravo. */
+export function otherFighterWing(wingId: FighterWingId): FighterWingId {
+  return wingId === FIGHTER_WING_IDS[0] ? FIGHTER_WING_IDS[1] : FIGHTER_WING_IDS[0];
+}
+
+/** The short table name of one AEGIS wing, from its craft registration. */
+export function fighterWingCallsign(wingId: FighterWingId): 'Alpha' | 'Bravo' {
+  const wing = WING_CRAFT.find((craft) => craft.fighterWing?.countId === wingId)?.fighterWing;
+  if (!wing) throw new Error(`Unknown AEGIS fighter wing ${wingId}.`);
+  return wing.callsign;
+}
 
 /** Shared ship-system descriptions used by the Wing Commander flight cards. */
 const AEGIS_FIGHTER_BAY_SYSTEMS_SOURCE: Readonly<Record<string, AegisShipSystem>> = {

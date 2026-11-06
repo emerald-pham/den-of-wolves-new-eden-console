@@ -114,6 +114,16 @@ describe('authoritative away-mission rewards', () => {
     expect(rewards?.find(({ opportunityId }) => opportunityId === 'D-3')?.resources).toEqual({});
   });
 
+  it('keeps K-1’s immediate Wolf attack on a Boa reclamation while replacing only its reward with one Scrap', () => {
+    const rewards = resolveMissionOpportunityRewards('K', [
+      { ...result('K-1', 'success', 'success'), difficulty: 10, criticalThreshold: 20 },
+    ], { boaReclamationOpportunityId: 'K-1' });
+    expect(rewards).toEqual([{
+      opportunityId: 'K-1', branch: 'success', resources: { scrap: 1 },
+      effects: [{ kind: 'immediateWolfAttack', scope: 'group', unless: 'critical' }], bulkHaulageApplied: false,
+    }]);
+  });
+
   it('does not award Boa Scrap when the selected opportunity fails', () => {
     const rewards = resolveMissionOpportunityRewards('D', [
       result('D-1', 'failure', 'none'),

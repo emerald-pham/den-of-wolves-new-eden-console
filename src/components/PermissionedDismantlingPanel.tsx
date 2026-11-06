@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from 'react';
+import { dismantlingRewardFor, SHUTTLECRAFT, type ShuttleDismantlingReward } from '@/data/shuttles';
 import {
   applyPermissionedDismantling,
   consentToPermissionedDismantling,
@@ -8,6 +9,7 @@ import {
   subscribePermissionedDismantlingInbox,
   type DismantlingProposalCommand,
   type PermissionedDismantlingInbox,
+  type ScrapDismantlingInbox,
 } from '@/lib/permissionedDismantlingService';
 import './PermissionedDismantlingPanel.css';
 
@@ -87,13 +89,42 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'The dismantling request could not be completed.';
 }
 
-/** Printed reward copy: engineering craft add 3 materials to the ship; Macaw adds 1 Scrap to the Capybara. */
-function rewardLabel(craftId: CraftId): string {
-  return craftId === 'macaw' ? '1 Scrap to the Capybara' : '3 materials';
+/** Player-facing copy derived from the craft's typed dismantling reward. */
+interface DismantlingCopy {
+  readonly craftName: string;
+  readonly holderLabel: string;
+  readonly reward: ShuttleDismantlingReward | undefined;
+  readonly resourceLabel: string;
+  readonly gainLabel: string;
+  readonly destinationGainLabel: string;
+}
+
+function dismantlingCopy(craftId: CraftId): DismantlingCopy {
+  const craft = SHUTTLECRAFT.find((shuttle) => shuttle.id === craftId);
+  const reward = dismantlingRewardFor(craftId);
+  const scrap = reward?.resource === 'scrap';
+  const amount = reward?.amount ?? 0;
+  const resourceLabel = scrap ? 'Scrap' : 'materials';
+  const gainLabel = scrap ? `${amount} Scrap to the Capybara` : `${amount} materials`;
+  // Scrap-reward craft are named; engineering craft share one printed rule.
+  const craftName = scrap ? craft?.shortName ?? craftId : 'engineering craft';
+  return {
+    craftName,
+    holderLabel: `${craftName} holder`,
+    reward,
+    resourceLabel,
+    gainLabel,
+    destinationGainLabel: scrap ? `${amount} Scrap to the Capybara` : `${amount} materials to this ship`,
+  };
+}
+
+/** Narrow an inbox by the reward its craft's typed config grants. */
+function isScrapDismantlingInbox(inbox: PermissionedDismantlingInbox): inbox is ScrapDismantlingInbox {
+  return dismantlingRewardFor(inbox.craftId)?.resource === 'scrap';
 }
 
 function inboxRewardSummary(inbox: PermissionedDismantlingInbox): string {
-  return inbox.craftId === 'macaw'
+  return isScrapDismantlingInbox(inbox)
     ? `${inbox.scrapGain} Scrap // Capybara balance ${inbox.scrapAfter ?? 'pending'}`
     : `${inbox.materialGain} materials // target balance ${inbox.materialsAfter ?? 'pending'}`;
 }
@@ -149,6 +180,8 @@ function ProposerPanel(props: ProposerProps) {
   const damaged = new Set(props.damagedSystemIds);
   const eligibleSystems = props.targetSystems.filter((system) => !damaged.has(system.id));
   const disabled = !props.canAct || props.connection !== 'live' || !targetShipId || eligibleSystems.length === 0 || busy;
+  const copy = dismantlingCopy(props.craftId);
+  const scrapReward = copy.reward?.resource === 'scrap';
 
   async function submitProposal(): Promise<void> {
     if (disabled) return;
@@ -191,7 +224,7 @@ function ProposerPanel(props: ProposerProps) {
     try {
       const result = await applyPermissionedDismantling({ inbox, requestId });
       setReplyStatus('applied');
-      setFeedback(props.craftId === 'macaw'
+      setFeedback(scrapReward
         ? `Applied // ${result.targetConsoleId} damaged // ${result.scrapGain} Scrap // Capybara now has ${result.scrapAfter}.`
         : `Applied // ${result.targetConsoleId} damaged // ${result.materialGain} materials // target now has ${result.materialsAfter}.`);
     } catch (error) {
@@ -213,19 +246,19 @@ function ProposerPanel(props: ProposerProps) {
   return (
     <section className="permissioned-dismantling cic-frame" aria-label="Permissioned dismantling proposal">
       <p className="permissioned-dismantling__eyebrow">
-        {props.craftId === 'macaw' ? 'MACAW // EXACT TARGET CONSENT' : 'ENGINEERING CRAFT // EXACT TARGET CONSENT'}
+        {copy.craftName.toUpperCase()} // EXACT TARGET CONSENT
       </p>
       <h3>Permissioned dismantling</h3>
-      {props.craftId === 'macaw' ? <>
+      {scrapReward ? <>
         <p className="permissioned-dismantling__rule">
-          Instead of repairing, damage one undamaged console on this docked ship for 1 Scrap to the Capybara. It uses Macaw’s repair allowance for this Coordination window.
+          Instead of repairing, damage one undamaged console on this docked ship for {copy.gainLabel}. It uses {copy.craftName}’s repair allowance for this Coordination window.
         </p>
         <p className="permissioned-dismantling__rule">
-          Another player on that ship must approve this exact request, not you, even when Macaw is docked at the Capybara.
+          Another player on that ship must approve this exact request, not you, even when {copy.craftName} is docked at the Capybara.
         </p>
       </> : (
         <p className="permissioned-dismantling__rule">
-          Damage one undamaged console on this docked ship for 3 materials only after its player approves this exact request.
+          Damage one undamaged console on this docked ship for {copy.gainLabel} only after its player approves this exact request.
         </p>
       )}
       <p className="permissioned-dismantling__connection" role="status">{connectionMessage(props.connection)}</p>
@@ -243,7 +276,7 @@ function ProposerPanel(props: ProposerProps) {
             ))}
           </select>
         </label>
-        <p className="permissioned-dismantling__guidance" id={`${id}-proposal-help`}>The target-ship player acts next: they grant or decline permission. Sending a request does not damage the console or add {props.craftId === 'macaw' ? 'Scrap' : 'materials'}.</p>
+        <p className="permissioned-dismantling__guidance" id={`${id}-proposal-help`}>The target-ship player acts next: they grant or decline permission. Sending a request does not damage the console or add {copy.resourceLabel}.</p>
         <div className="permissioned-dismantling__actions">
           {(!inbox || inbox.status === 'pending') ? (
             <button className="cic-action-button" type="button" aria-describedby={`${id}-proposal-help`} onClick={() => void submitProposal()}
@@ -308,7 +341,8 @@ function TargetPanel(props: TargetProps) {
     setFeedback(null);
   }, [inbox?.proposalId]);
   const ownRequest = Boolean(inbox && props.currentPlayerUid && inbox.proposerUid === props.currentPlayerUid);
-  const holderLabel = inbox?.craftId === 'macaw' ? 'Macaw holder' : 'craft holder';
+  const copy = inbox ? dismantlingCopy(inbox.craftId) : undefined;
+  const holderLabel = copy?.reward?.resource === 'scrap' ? copy.holderLabel : 'craft holder';
 
   async function grantConsent(): Promise<void> {
     if (!inbox || inbox.status !== 'pending' || !canAct || busy) return;
@@ -358,12 +392,12 @@ function TargetPanel(props: TargetProps) {
     <section className="permissioned-dismantling permissioned-dismantling--target cic-frame"
       aria-label="Permissioned dismantling request">
       <p className="permissioned-dismantling__eyebrow">
-        {inbox?.craftId === 'macaw' ? 'TARGET SHIP // MACAW CONSENT' : 'TARGET SHIP // ENGINEERING CONSENT'}
+        TARGET SHIP // {copy?.reward?.resource === 'scrap' ? copy.craftName.toUpperCase() : 'ENGINEERING'} CONSENT
       </p>
       <h3>Permissioned dismantling request</h3>
       <p className="permissioned-dismantling__connection" role="status">{connectionMessage(connection)}</p>
       {inbox?.status === 'pending' && <p className="permissioned-dismantling__request">
-        {inbox.craftId} // {inbox.targetConsoleId} // +{rewardLabel(inbox.craftId)} // target revision {inbox.targetRevision}
+        {inbox.craftId} // {inbox.targetConsoleId} // +{copy?.gainLabel} // target revision {inbox.targetRevision}
       </p>}
       {inbox?.status === 'pending' && ownRequest ? (
         <p className="permissioned-dismantling__status" role="status">
@@ -372,7 +406,7 @@ function TargetPanel(props: TargetProps) {
       ) : null}
       {inbox?.status === 'pending' && !ownRequest ? <>
         <p>Only this target-ship player can approve or decline. The proposal applies only to the console and current state shown above.</p>
-        <p className="permissioned-dismantling__guidance" id={`${id}-consent-help`}>Granting permission does not damage the console yet. The {holderLabel} acts next: applying permission damages the selected console and adds {inbox.craftId === 'macaw' ? '1 Scrap to the Capybara' : '3 materials to this ship'}.</p>
+        <p className="permissioned-dismantling__guidance" id={`${id}-consent-help`}>Granting permission does not damage the console yet. The {holderLabel} acts next: applying permission damages the selected console and adds {copy?.destinationGainLabel}.</p>
         <p className="permissioned-dismantling__guidance" id={`${id}-decline-help`}>Declining ends this request. The craft holder must send a new proposal to ask again.</p>
         <button className="cic-action-button" type="button" aria-describedby={`${id}-consent-help`} onClick={() => void grantConsent()}
           disabled={!canAct || busy || Boolean(consentId && feedback?.startsWith('Consent recorded'))}>
@@ -384,7 +418,7 @@ function TargetPanel(props: TargetProps) {
         </button>
       </> : null}
       {inbox?.status === 'consented' && <>
-        <p className="permissioned-dismantling__status" role="status">Consent recorded // waiting for the {inbox.craftId === 'macaw' ? 'Macaw' : 'engineering-craft'} holder to apply.</p>
+        <p className="permissioned-dismantling__status" role="status">Consent recorded // waiting for the {copy?.reward?.resource === 'scrap' ? copy.craftName : 'engineering-craft'} holder to apply.</p>
         {!ownRequest && <button className="cic-text-button" type="button" onClick={() => void revokeConsent()} disabled={!canAct || busy}>
           {busy ? 'Revoking consent…' : 'Revoke consent'}
         </button>}
@@ -396,7 +430,7 @@ function TargetPanel(props: TargetProps) {
         Request declined // the craft holder must submit a new request.
       </p>}
       {inbox?.status === 'applied' && <p className="permissioned-dismantling__status" role="status">
-        Applied // {inbox.targetConsoleId} damaged // {inbox.craftId === 'macaw'
+        Applied // {inbox.targetConsoleId} damaged // {isScrapDismantlingInbox(inbox)
           ? `${inbox.scrapGain} Scrap added to the Capybara (balance ${inbox.scrapAfter ?? 'pending'})`
           : `${inbox.materialGain} materials added to the ship`}.
       </p>}

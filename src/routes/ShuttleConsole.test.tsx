@@ -939,6 +939,69 @@ it('shows cargo transfer pending and retries an uncertain result with the exact 
   expect(within(cargo).getByRole('status')).toHaveTextContent('Loaded 2 Food.');
 });
 
+it('lets an already-sent uncertain cargo transfer replay its receipt after the Coordination window closes', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', ...cargoPhase('lifted'), activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
+    shipResources: { quellon: { ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2 } },
+    shuttleCargo: { hummingbird: { food: 1, water: 2 } },
+    shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'SESSION START' }],
+    shuttleControl: { hummingbird: {
+      shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'u1',
+      holderUid: 'u1', revision: 3,
+    } },
+  });
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'quellon-explorer', fleetGroupId: 'fleet-1' });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+  const originalMe = useSessionStore.getState().me!;
+  const exactAttempt = {
+    command: {
+      sessionId: 's1', requestId: 'cargo-request-late', shuttleId: 'hummingbird',
+      resourceId: 'food', direction: 'load', amount: 1, expectedControlRevision: 3,
+    },
+    authority: {
+      sessionId: 's1', uid: 'u1', role: 'player',
+      assignedRoleId: originalMe.assignedRoleId,
+      activeConsoleRoleId: originalMe.activeConsoleRoleId,
+      replacementRoleId: originalMe.replacementRoleId,
+      seatId: originalMe.seatId,
+      fleetGroupId: 'fleet-1',
+      shuttleId: 'hummingbird', hostShipId: 'quellon', expectedControlRevision: 3,
+      ownerRoleId: 'quellon-explorer', ownerUid: 'u1', holderUid: 'u1',
+    },
+  };
+  vi.mocked(transferShuttleCargo).mockRejectedValueOnce(Object.assign(new Error('The callable timed out.'), {
+    name: 'ShuttleCargoTransferUncertainError', attempt: exactAttempt,
+  }));
+  vi.mocked(replayShuttleCargoTransfer).mockResolvedValueOnce({ status: 'replayed' } as never);
+  render(<MemoryRouter initialEntries={['/shuttles/hummingbird']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+    <Route path="/console" element={<p>Role selection</p>} />
+    <Route path="/ships/:shipId/roles/:roleId" element={<p>Owner console</p>} />
+  </Routes></MemoryRouter>);
+
+  const cargo = screen.getByRole('region', { name: 'Shuttle cargo transfer' });
+  await user.selectOptions(within(cargo).getByLabelText('Resource'), 'food');
+  await user.click(within(cargo).getByRole('button', { name: 'Load shuttle' }));
+  expect(await within(cargo).findByRole('button', { name: 'Retry exact cargo request' })).toBeEnabled();
+
+  // Team Phase begins: new transfers close, but the sent request may still read its receipt.
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!, ...cargoPhase('restricted'),
+  }));
+  expect(within(cargo).getByRole('button', { name: 'Load shuttle' })).toBeDisabled();
+  const retry = within(cargo).getByRole('button', { name: 'Retry exact cargo request' });
+  expect(retry).toBeEnabled();
+  await user.click(retry);
+  await waitFor(() => expect(replayShuttleCargoTransfer).toHaveBeenCalledWith(exactAttempt));
+  expect(transferShuttleCargo).toHaveBeenCalledTimes(1);
+  expect(within(cargo).getByRole('status')).toHaveTextContent('Loaded 1 Food.');
+  await user.click(screen.getByRole('link', { name: /back to/i }));
+  expect(screen.getByText(/owner console|role selection/i)).toBeVisible();
+});
+
 it('scopes uncertain cargo recovery to its holder and reconciles a fresh transfer for the next holder', async () => {
   const user = userEvent.setup();
   const state = useSessionStore.getState();

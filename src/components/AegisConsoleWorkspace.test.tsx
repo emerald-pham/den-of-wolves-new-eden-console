@@ -25,6 +25,7 @@ type FighterBuildReply = Awaited<ReturnType<typeof buildFighter>>;
 type FighterWingExchangeReply = Awaited<ReturnType<typeof exchangeFighterWings>>;
 
 beforeEach(() => {
+  window.sessionStorage.clear();
   attackFeed.listeners = [];
   vi.mocked(buildFighter).mockReset();
   vi.mocked(exchangeFighterWings).mockReset();
@@ -407,4 +408,54 @@ it.each([
   await user.click(within(panel).getByRole('button', { name: 'Move 1 fighter from Alpha to Bravo' }));
   expect(await within(panel).findByText(notice)).toBeVisible();
   expect(within(panel).queryByText(/exchange committed/i)).not.toBeInTheDocument();
+});
+
+it('tells the Wing Commander when a retry found the exchange already committed', async () => {
+  stageWingExchange();
+  vi.mocked(exchangeFighterWings).mockResolvedValue({
+    status: 'replayed', sourceWingId: 'fighter-wing-alpha', targetWingId: 'fighter-wing-bravo', amount: 1,
+    capacity: 4, turn: 1,
+    counts: { 'fighter-wing-alpha': { count: 3, revision: 3 }, 'fighter-wing-bravo': { count: 2, revision: 6 } },
+  });
+  const user = userEvent.setup();
+  const panel = renderExchange();
+
+  await user.click(within(panel).getByRole('button', { name: 'Move 1 fighter from Alpha to Bravo' }));
+  expect(await within(panel).findByText(
+    /exchange already committed \/\/ 1 fighter moved from alpha to bravo \/\/ alpha now 3 fighters, bravo now 2 fighters/i,
+  )).toBeVisible();
+});
+
+it('keeps the exchange blocked by an unresolved attack carried from an earlier cycle, as the server does', () => {
+  const now = Date.now();
+  stageWingExchange({ currentTurn: 2, turnPhase: {
+    turn: 2, teamPhaseEndsAt: new Date(now + 10 * 60_000).toISOString(),
+    openAirspaceEndsAt: new Date(now + 30 * 60_000).toISOString(),
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  } });
+  const panel = renderExchange();
+  const exchange = within(panel).getByRole('button', { name: 'Move 1 fighter from Alpha to Bravo' });
+
+  act(() => attackFeed.listeners.forEach((listener) => listener({
+    type: 'wolf-attack-member-view', sessionId: 's1', attackId: 'attack-1', turn: 1, revision: 9,
+    status: 'declared', currentStep: 'boarding', range: null,
+  })));
+  expect(within(panel).getByText(/exchange unavailable \/\/ wolf attack active/i)).toBeVisible();
+  expect(exchange).toBeDisabled();
+});
+
+it('explains that a replacement build waits while a Wolf attack holds the wings at the combat table', () => {
+  stageWingConstruction();
+  const alpha = renderWingCard();
+  const build = within(alpha).getByRole('button', { name: /build 1 fighter/i });
+  expect(build).toBeEnabled();
+
+  act(() => attackFeed.listeners.forEach((listener) => listener({
+    type: 'wolf-attack-member-view', sessionId: 's1', attackId: 'attack-1', turn: 1, revision: 3,
+    status: 'declared', currentStep: 'medium-range', range: 'medium',
+  })));
+  expect(within(alpha).getByText(
+    /build unavailable \/\/ wolf attack active; the wings are at the combat table\. next actor \/\/ wing commander waits for the attack to resolve/i,
+  )).toBeVisible();
+  expect(build).toBeDisabled();
 });
