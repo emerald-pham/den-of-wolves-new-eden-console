@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 1,
+  "baseline": "06f596cc8616bf571cb6b60e0184632ecdf2825b",
+  "candidate": "e7dedbd9a3a7313a02bb4a893aeb33637953638e",
+  "auditBoundary": "Exact PC10.2 source transition from main to the reviewed integration candidate. Consumers are the exported callables whose runtime code reaches a changed top-level declaration, traced through TypeScript symbol references across functions/src (type-only edits excluded): attack Scrap pickups and member-session projection, Aegis fighter-wing exchange, Boa mission reclamation and mission eligibility/rewards through the away-mission lifecycle adapter and legacy mission synchronization, permissioned Macaw dismantling, the Wolf attack aftermath Scrap custody, and the index wiring for P.D.F. news relay, boarding relocation, fleet group messages and fighter builds. macawRepair.ts and pressLogEvent.ts keep their module-level static lists, and refineryFighterBay.ts keeps its PC10.1 repair receipt.",
+  "modules": {
+    "functions/src/attackScrapPickups.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "47f49da0a0bb8376280aacd38479a1d88d0e0af199127eac803d479f98e29e10",
+      "consumers": [
+        "declareWolfAttack",
+        "getCurrentMemberSession",
+        "joinSession",
+        "resolveWolfAttackAftermath",
+        "resumeSession"
+      ]
+    },
+    "functions/src/awayMissionCards.ts": {
+      "before": "bf1e7003f5e416081bd8aa025ad88d5f981c52ca97deb71d02c5f828dc99c45c",
+      "after": "8d043ae986b248ecfae2a8dd6894fba630c13cf046da527aff8a3a7276c400b6",
+      "consumers": [
+        "commitAwayMissionLifecycleCommand",
+        "dealPrivateInitialCards",
+        "discardPrivateMissionCard",
+        "openPrivateMissionDiscards"
+      ]
+    },
+    "functions/src/awayMissionLifecycleAdapter.ts": {
+      "before": "f662c74e1024e2517452b9e5dd42c96dcc1e95157707128c8c4c764ba80ceed8",
+      "after": "a221e3fdcb9e14a085f62dea14959b2cecd64881ff86e36989c4c57c3b83a9a8",
+      "consumers": [
+        "commitAwayMissionLifecycleCommand",
+        "dealPrivateInitialCards",
+        "discardPrivateMissionCard",
+        "openPrivateMissionDiscards"
+      ]
+    },
+    "functions/src/boaMissionReclamation.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "1a9a60067d06f5eeb0a0fd8f7c515bf7d14bc9b912a24afc60efc16e1e3ed554",
+      "consumers": [
+        "commitAwayMissionLifecycleCommand",
+        "confirmFleetPartition",
+        "dealPrivateInitialCards",
+        "discardPrivateMissionCard",
+        "openPrivateMissionDiscards"
+      ]
+    },
+    "functions/src/boaMissionReclamationCallable.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "0b6ff216cf4b4c114b8b097fdd4d41420d1a54cc596af64a54a7503efcd8550c",
+      "consumers": [
+        "chooseBoaMissionReclamationOpportunity",
+        "readBoaMissionReclamationWorkspace"
+      ]
+    },
+    "functions/src/boaMissionReclamationContract.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "b3b82965dd43f47ae757ec17f895460b32b1fc4b97a565a559c28a18b5076268",
+      "consumers": [
+        "commitAwayMissionLifecycleCommand",
+        "dealPrivateInitialCards",
+        "discardPrivateMissionCard",
+        "openPrivateMissionDiscards"
+      ]
+    },
+    "functions/src/fighterWingExchange.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "cdfa3b9e7e7a5779450410c31a351c0ac5ce00cc60e16a83ee0395177bb9b086",
+      "consumers": [
+        "exchangeAegisFighterWings"
+      ]
+    },
+    "functions/src/memberSession.ts": {
+      "before": "c352549257c71339198cc55996deb5c529890103c2df397b9be1c3f260afd740",
+      "after": "20b815097f8c8f2ce82662b422555b9e27e19bcd766770741efca17ecffad5ae",
+      "consumers": [
+        "getCurrentMemberSession",
+        "joinSession",
+        "resumeSession"
+      ]
+    },
+    "functions/src/missionEligibility.ts": {
+      "before": "b53237569bd244fa53029ce6722b3f48f3008c2e40635079436f73221682eb13",
+      "after": "968e26fc9ac303854ebe0a7b9ed8d698bf767c335e42453fd0ec68210caa13d4",
+      "consumers": [
+        "chooseBoaMissionReclamationOpportunity",
+        "dealPrivateInitialCards",
+        "readBoaMissionReclamationWorkspace"
+      ]
+    },
+    "functions/src/missionRewardDelivery.ts": {
+      "before": "c5aca5e872e4156ad93ca5d611a5c45a80bac592e977149609e6500a40cfe3b6",
+      "after": "0e5295ad5fe45a8698f0b1ca02d5abd6e6a7800835bc20ffd9160b31e590dc7c",
+      "consumers": [
+        "commitAwayMissionLifecycleCommand"
+      ]
+    },
+    "functions/src/missionRewards.ts": {
+      "before": "61be51958fa248dda1d4268c149150f178d850b50b99a88d7d61cfbe52aabd76",
+      "after": "5eb9bc619721e1507726cadfce0b316cc05c021a262522355647d5e860326090",
+      "consumers": [
+        "commitAwayMissionLifecycleCommand",
+        "discardPrivateMissionCard",
+        "openPrivateMissionDiscards"
+      ]
+    },
+    "functions/src/permissionedDismantling.ts": {
+      "before": "3401a8293d7caabac54dd84eb04619627d3dd1b1137c48978738b70704c9fff2",
+      "after": "0b4e255349221e6e4eb272068280918304d5a85e17d1605f81555e4bacaf9d3d",
+      "consumers": [
+        "applyPermissionedDismantling",
+        "consentToPermissionedDismantling",
+        "declinePermissionedDismantling",
+        "proposePermissionedDismantling",
+        "revokePermissionedDismantlingConsent"
+      ]
+    },
+    "functions/src/permissionedDismantlingCallable.ts": {
+      "before": "037112600ac311dedcfe27977afed780e633364df1cd9f9cb12e3de2c3570ef8",
+      "after": "4a8ecf4caeec09c08da354f809114e973dbcf71122fb40037324a8e30d015392",
+      "consumers": [
+        "applyPermissionedDismantling",
+        "consentToPermissionedDismantling",
+        "declinePermissionedDismantling",
+        "proposePermissionedDismantling",
+        "revokePermissionedDismantlingConsent"
+      ]
+    },
+    "functions/src/wolfAttackAftermathCallable.ts": {
+      "before": "dc8a62aa2111627637d2dad2109fdc19f2ae23b8e0a15b3e1df0c78042807c42",
+      "after": "95f2293b9507937b9acb4811954d0f76bcad3552a8a5e7965b4a01c916086875",
+      "consumers": [
+        "resolveWolfAttackAftermath"
+      ]
+    }
+  },
+  "index": {
+    "before": "36090cd19330161cce583f21bb51e8e05fae24dd2fc21d50fdf153ea2eb3cb22",
+    "after": "763cc4ac9d49e985739dd3c11a8c823abb6565d8f0767890793141a1c65dc044",
+    "consumers": [
+      "buildFighter",
+      "chooseBoaMissionReclamationOpportunity",
+      "commitAwayMissionLifecycleCommand",
+      "confirmFleetPartition",
+      "dealPrivateInitialCards",
+      "declareWolfAttack",
+      "exchangeAegisFighterWings",
+      "getCurrentMemberSession",
+      "getWolfBoardingSpecialChoice",
+      "joinSession",
+      "readBoaMissionReclamationWorkspace",
+      "relayPdfColonelNews",
+      "resumeSession",
+      "sendFleetGroupMessage"
+    ]
+  }
+}
