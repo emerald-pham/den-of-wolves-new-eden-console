@@ -110,5 +110,6 @@ test('the real PopulationAlert, styled as shipped, binds to exactly the original
     await alert.getByRole('button', { name: 'Dismiss population alert', exact: true }).click();
     await page.waitForFunction(() => window.__proofCalls.length === 1);
     assert.deepEqual(await page.evaluate(() => window.__proofCalls), ['icebreaker']);
-  }, { stopBuild: stop });
+  // Bounded but tolerant of a contended host; the assertions above are the proof.
+  }, { stopBuild: stop, timeoutMs: 10_000 });
 });
