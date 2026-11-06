@@ -1732,6 +1732,39 @@ it('fails closed when no PDF Escort Wing fighters remain to launch', async () =>
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it('keeps the P.D.F. launch readable and committable after an ordinary paid Refinery jump', async () => {
+  await declareThenSeatPdfColonel();
+  const cycles = mock.documents.get('sessions/s1')!.maintenanceCycles as Fields;
+  const refineryCycle = cycles['refinery-124'] as Fields;
+  mock.documents.get('sessions/s1')!.maintenanceCycles = {
+    'refinery-124': { ...refineryCycle, results: {
+      ...(refineryCycle.results as Fields),
+      ftl: 'FTL jump complete // 0000 → 1964 // LONG // 8 fuel.',
+    } },
+  };
+
+  const view = await getPdfEscortWingLaunch.run(request({ sessionId: 's1' }));
+  expect(view).toMatchObject({ eligible: true, launched: false, turn: 1, revision: 1, wingRevision: 0 });
+  expect(JSON.stringify(view)).not.toContain('FTL jump complete');
+  const launchRequest = {
+    sessionId: 's1', requestId: 'launch-pdf-after-jump', expectedTurn: 1,
+    expectedRevision: view.revision, expectedWingRevision: view.wingRevision,
+  };
+  await expect(launchPdfEscortWing.run(request(launchRequest))).resolves.toMatchObject({
+    status: 'committed', launched: true, eligible: false, reason: 'already-launched',
+  });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    launchedCraftIds: ['pdf-escort-fighter-wing'],
+  });
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(launchPdfEscortWing.run(request(launchRequest))).resolves.toMatchObject({
+    status: 'replayed', launched: true,
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('lets only the active Dione Engineer launch Maliades from a charged operational 10♦ bay', async () => {
   await declareThenSeatDioneEngineer();
   await expect(getDioneMaliadesLaunch.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
