@@ -365,10 +365,13 @@ function chepuVisits(): string[][] {
 
 it('offers the Chepu boarding relocation only to the Colonel holder and commits it exactly once', async () => {
   await colonelChepuRelocationFixture();
-  for (const uid of ['xo-1', 'engineer-1']) {
-    await expect(getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, uid)))
-      .resolves.toEqual({ type: 'wolf-boarding-special-choice-unavailable', sessionId: 's1', reason: 'not-your-choice' });
-  }
+  await expect(getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'engineer-1')))
+    .resolves.toEqual({ type: 'wolf-boarding-special-choice-unavailable', sessionId: 's1', reason: 'not-your-choice' });
+  // The Pallas holder sees only its own committed stay, never the Chepu choice.
+  await expect(getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'xo-1'))).resolves.toEqual({
+    type: 'wolf-boarding-special-choice-unavailable', sessionId: 's1', reason: 'not-your-choice',
+    committedRelocation: { turn: 1, craftId: 'pallas', selectedHostId: null, hostShipId: 'aegis' },
+  });
   const view = await getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'colonel-1'));
   expect(view).toMatchObject({ type: 'wolf-boarding-special-choice-view', choice: { kind: 'relocation', craftId: 'chepu',
     currentHostId: 'refinery-124', fuelled: true, controlRevision: 0 } });
@@ -401,6 +404,36 @@ it('offers the Chepu boarding relocation only to the Colonel holder and commits 
   await expect(commitWolfBoardingSpecialChoice.run(request({ ...committed.payload, requestId: 'colonel-chepu-second' }, 'colonel-1')))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect([...testState.documents.values()]).toEqual(afterCommit);
+});
+
+it('shows only the committing Colonel the committed Chepu relocation and its host for the current attack', async () => {
+  await colonelChepuRelocationFixture();
+  const committed = await special('colonel-1', { kind: 'relocation', craftId: 'chepu', targetShipId: 'dione',
+    expectedControlRevision: 0 }, 'colonel-chepu-committed-view');
+  const before = structuredClone([...testState.documents.values()]);
+  await expect(getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'colonel-1'))).resolves.toEqual({
+    type: 'wolf-boarding-special-choice-unavailable', sessionId: 's1', reason: 'not-your-choice',
+    committedRelocation: { turn: committed.result.turn, craftId: 'chepu', selectedHostId: 'dione', hostShipId: 'dione' },
+  });
+  // Another crew member on the same ship never receives the Colonel's private result.
+  await expect(getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'engineer-1')))
+    .resolves.toEqual({ type: 'wolf-boarding-special-choice-unavailable', sessionId: 's1', reason: 'not-your-choice' });
+  expect([...testState.documents.values()]).toEqual(before);
+
+  // A ledger from a different attack is never presented as the current result.
+  patch(attackPath, { attackId: 'wolf-different-current-attack' });
+  await expect(getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'colonel-1')))
+    .resolves.not.toHaveProperty('committedRelocation');
+});
+
+it('shows the Colonel a committed Chepu stay at its unchanged host', async () => {
+  await colonelChepuRelocationFixture();
+  const committed = await special('colonel-1', { kind: 'relocation', craftId: 'chepu', targetShipId: null,
+    expectedControlRevision: 0 }, 'colonel-chepu-committed-stay');
+  await expect(getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'colonel-1'))).resolves.toMatchObject({
+    type: 'wolf-boarding-special-choice-unavailable',
+    committedRelocation: { turn: committed.result.turn, craftId: 'chepu', selectedHostId: null, hostShipId: 'refinery-124' },
+  });
 });
 
 it('denies the Colonel Chepu receipt replay after Chepu custody changes', async () => {

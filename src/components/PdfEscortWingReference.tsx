@@ -100,6 +100,10 @@ export default function PdfEscortWingReference({ state, writable = false }: {
   ]);
   const currentLaunchView = canReadLaunchAuthority && launchView?.authorityKey === authorityKey ? launchView.view : null;
   const currentError = canReadLaunchAuthority && error?.authorityKey === authorityKey ? error.message : null;
+  // After targeting the launch read reports only 'waiting'; the member projection
+  // keeps the committed launch so Ace permission stays reachable in the range steps.
+  const wingLaunched = !!currentLaunchView?.launched ||
+    launchedOutsideTargeting(currentLaunchView, current.launched ? current.cycle : null);
   const awaitingStart = session?.phase === 'lobby' || session?.phase === 'casting' || session?.phase === 'briefing' ||
     (session?.phase === 'active' && session.currentTurn === 0);
   const launchAuthorityBlocker = !session ? null : awaitingStart
@@ -206,7 +210,7 @@ export default function PdfEscortWingReference({ state, writable = false }: {
             busy={pending} error={currentError} blocker={launchAuthorityBlocker}
             launchedCycle={current.launched ? current.cycle : null}
             onLaunch={() => void launch()} onPass={() => void pass()} />
-          {currentLaunchView?.launched && <PdfFighterAcePermissionControl sourceId="pdf-escort-fighter-wing"
+          {currentLaunchView && wingLaunched && <PdfFighterAcePermissionControl sourceId="pdf-escort-fighter-wing"
             enabled={canReadLaunchAuthority} refreshKey={currentLaunchView.revision} />}
         </article>
       </div>

@@ -16,6 +16,7 @@ const launchService = vi.hoisted(() => ({ read: vi.fn(), launch: vi.fn(), pass: 
 const aceService = vi.hoisted(() => ({ read: vi.fn(), grant: vi.fn() }));
 const rangeService = vi.hoisted(() => ({ read: vi.fn(), commit: vi.fn() }));
 const relayService = vi.hoisted(() => ({ relay: vi.fn() }));
+const boardingService = vi.hoisted(() => ({ readSpecial: vi.fn(), commitSpecial: vi.fn(), readDefence: vi.fn() }));
 // Mimics the member Wolf attack listener: each subscription starts from the latest published view.
 const attackFeed = vi.hoisted(() => ({
   latest: null as unknown,
@@ -39,6 +40,9 @@ vi.mock('@/lib/sessionService', async (importOriginal) => ({
   getPdfEscortWingLaunch: launchService.read,
   launchPdfEscortWing: launchService.launch,
   passWolfFighterLaunchChoice: launchService.pass,
+  getWolfBoardingSpecialChoice: boardingService.readSpecial,
+  commitWolfBoardingSpecialChoice: boardingService.commitSpecial,
+  getWolfBoardingDefenceChoice: boardingService.readDefence,
 }));
 vi.mock('@/lib/pdfFighterAceService', () => ({
   getPdfFighterAcePermissionView: aceService.read,
@@ -122,6 +126,10 @@ beforeEach(() => {
   rangeService.read.mockReset();
   rangeService.commit.mockReset();
   relayService.relay.mockReset();
+  boardingService.readSpecial.mockReset().mockResolvedValue({
+    type: 'wolf-boarding-special-choice-unavailable', sessionId: 's1', reason: 'no-special-choice' });
+  boardingService.commitSpecial.mockReset();
+  boardingService.readDefence.mockReset().mockResolvedValue(null);
   sessionStorage.clear();
   attackFeed.latest = null;
   attackFeed.listeners.clear();
@@ -189,11 +197,11 @@ it('shows the uncharged Fighter Bay denial on the Colonel route without offering
   expect(launchService.launch).not.toHaveBeenCalled();
 });
 
-function memberView(step: 'targeting' | 'medium-range' | 'short-range', revision: number): WolfAttackMemberView {
+function memberView(step: 'targeting' | 'medium-range' | 'short-range' | 'boarding', revision: number): WolfAttackMemberView {
   return {
     type: 'wolf-attack-member-view', schemaVersion: 1, sessionId: 's1', attackId: 'attack-1',
     turn: 1, revision, status: 'declared', phase: 'active', currentStep: step,
-    range: step === 'medium-range' ? 'medium' : step === 'short-range' ? 'short' : 'long',
+    range: step === 'medium-range' ? 'medium' : step === 'short-range' ? 'short' : step === 'boarding' ? null : 'long',
     deadlineAt: '2099-01-01T12:00:00Z', serverTime: '2099-01-01T12:00:00Z', visibility: 'members',
     redaction: ['composition', 'unresolved-dice', 'facilitator-notes', 'intervention-state'], results: [],
   } as WolfAttackMemberView;
@@ -279,6 +287,74 @@ it('carries the launched P.D.F. Escort Wing through committed Medium and Short r
   expect(within(wing).getByText('Fighters remaining').nextElementSibling).toHaveTextContent('3 of 4');
   expect(within(wing).getByText('Wing losses').nextElementSibling).toHaveTextContent('1');
   expect(launchService.launch).toHaveBeenCalledTimes(1);
+
+  await user.click(screen.getByRole('link', { name: 'View ship consoles' }));
+  expect(await screen.findByRole('heading', { name: /refinery 124 \/\/ station overview/i })).toBeInTheDocument();
+});
+
+it('keeps Fighter Ace permission grantable through the range steps after targeting until the Ace acts', async () => {
+  const user = userEvent.setup();
+  publishWing({ revision: 1, launched: true });
+  // Outside targeting the launch read reports only 'waiting'; the member projection keeps the launch.
+  launchService.read.mockResolvedValue({ ...eligible, revision: 3, wingRevision: 1, eligible: false, reason: 'waiting' });
+  rangeService.read.mockResolvedValue(null);
+  const aceView = (status: 'ready' | 'granted' | 'closed', reason: string | null = null) => ({
+    type: 'pdf-fighter-ace-permission-view', sessionId: 's1', attackId: 'attack-1', turn: 1, revision: 3,
+    range: 'medium', sourceId: 'pdf-escort-fighter-wing', sourceLabel: 'P.D.F. Escort Fighter Wing',
+    status, reason, fighters: 4, availableFighterIndexes: status === 'ready' ? [0, 1, 2, 3] : [],
+  });
+  let granted = false;
+  aceService.read.mockImplementation(async () => granted ? aceView('granted') : aceView('ready'));
+  aceService.grant.mockImplementation(async () => { granted = true; return { status: 'committed' }; });
+  act(() => attackFeed.publish(memberView('medium-range', 3)));
+  render(<ColonelRoutes initial="/console" />);
+
+  await user.click(screen.getByRole('link', { name: /refinery 124 \/\/ p\.d\.f\. colonel/i }));
+  await user.click(await screen.findByRole('button', { name: 'Ship systems' }));
+  const wing = await screen.findByRole('region', { name: 'PDF Escort Fighter Wing' });
+  expect(await within(wing).findByText('Launched // Cycle 1')).toBeVisible();
+  const ace = await within(wing).findByRole('region', { name: 'Fighter Ace source permission' });
+  const authorize = await within(ace).findByRole('button', { name: 'Authorize Fighter Ace' });
+  expect(authorize).toBeEnabled();
+  await user.click(authorize);
+  expect(aceService.grant).toHaveBeenCalledWith({
+    attackId: 'attack-1', expectedRevision: 3, sourceId: 'pdf-escort-fighter-wing', fighterIndex: 0,
+  });
+  expect(await within(ace).findByText('A fighter slot is already authorized for this attack.')).toBeVisible();
+
+  // Once the Ace has acted the server closes the grant and the Colonel sees why.
+  aceService.read.mockResolvedValue(aceView('closed', 'ace-already-acted'));
+  act(() => attackFeed.publish(memberView('short-range', 4)));
+  publishWing({ revision: 2, mediumResolved: true, mediumActionCount: 1 });
+  expect(await within(wing).findByText('The Fighter Ace has already acted in this attack.')).toBeVisible();
+  const closed = within(wing).getByRole('region', { name: 'Fighter Ace source permission' });
+  expect(within(closed).getByRole('button', { name: 'Authorize Fighter Ace' })).toBeDisabled();
+
+  await user.click(screen.getByRole('link', { name: 'View ship consoles' }));
+  expect(await screen.findByRole('heading', { name: /refinery 124 \/\/ station overview/i })).toBeInTheDocument();
+});
+
+it('shows the Colonel the committed Chepu boarding relocation and its host on the Colonel route', async () => {
+  const user = userEvent.setup();
+  launchService.read.mockResolvedValue({ ...eligible, eligible: false, reason: 'waiting' });
+  boardingService.readSpecial.mockResolvedValueOnce({ type: 'wolf-boarding-special-choice-view', sessionId: 's1',
+    turn: 1, revision: 12, choice: { kind: 'relocation', craftId: 'chepu', currentHostId: 'refinery-124',
+      fuelled: true, controlRevision: 0, legalHostIds: ['dione', 'refinery-124'] } })
+    .mockResolvedValue({ type: 'wolf-boarding-special-choice-unavailable', sessionId: 's1', reason: 'not-your-choice',
+      committedRelocation: { turn: 1, craftId: 'chepu', selectedHostId: 'dione', hostShipId: 'dione' } });
+  boardingService.commitSpecial.mockResolvedValue({ status: 'committed' });
+  act(() => attackFeed.publish(memberView('boarding', 12)));
+  render(<ColonelRoutes initial="/console" />);
+
+  await user.click(screen.getByRole('link', { name: /refinery 124 \/\/ p\.d\.f\. colonel/i }));
+  await user.click(await screen.findByRole('button', { name: 'Move Chepu to Dione' }));
+  expect(boardingService.commitSpecial).toHaveBeenCalledExactlyOnceWith(1, 12,
+    { kind: 'relocation', craftId: 'chepu', targetShipId: 'dione', expectedControlRevision: 0 });
+  act(() => attackFeed.publish(memberView('boarding', 13)));
+  const result = await screen.findByRole('region', { name: 'Chepu boarding relocation' });
+  expect(await within(result).findByText('Chepu is now docked at Dione.')).toBeVisible();
+  expect(within(result).getByText('Chepu host // Dione')).toBeVisible();
+  expect(screen.queryByRole('button', { name: /Move Chepu/ })).not.toBeInTheDocument();
 
   await user.click(screen.getByRole('link', { name: 'View ship consoles' }));
   expect(await screen.findByRole('heading', { name: /refinery 124 \/\/ station overview/i })).toBeInTheDocument();

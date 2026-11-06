@@ -31748,10 +31748,42 @@ type WolfBoardingSpecialChoiceView = Readonly<{
       condition: 'All Commander-led Wolf Boarding Parties were destroyed.' }>;
 }>;
 
+/** The reader's own committed shuttle relocation in the current attack, never another actor's. */
+type WolfBoardingCommittedRelocation = Readonly<{
+  turn: number; craftId: 'pallas' | 'chepu';
+  selectedHostId: WolfFleetTargetId | null; hostShipId: WolfFleetTargetId;
+}>;
+
 type WolfBoardingSpecialChoiceReadResult = WolfBoardingSpecialChoiceView | Readonly<{
   type: 'wolf-boarding-special-choice-unavailable'; sessionId: string;
   reason: 'not-your-choice' | 'automatic-progress-pending' | 'no-special-choice';
+  committedRelocation?: WolfBoardingCommittedRelocation;
 }>;
+
+function wolfBoardingCommittedRelocationFor(
+  state: DocumentSnapshot,
+  uid: string,
+  turn: number,
+): WolfBoardingCommittedRelocation | undefined {
+  const ledger = state.get('boardingRelocationChoices');
+  const attackId = state.get('attackId');
+  if (!isRecord(ledger) || typeof attackId !== 'string' || !attackId) return undefined;
+  const isTarget = (value: unknown): value is WolfFleetTargetId =>
+    typeof value === 'string' && (EXPANDED_WOLF_TARGET_RING as readonly string[]).includes(value);
+  let latest: (WolfBoardingCommittedRelocation & { revision: number }) | undefined;
+  for (const craftId of ['pallas', 'chepu'] as const) {
+    const entry = ledger[craftId];
+    if (!isRecord(entry) || entry.actorUid !== uid || entry.attackId !== attackId || entry.turn !== turn ||
+        !Number.isSafeInteger(entry.revision) || !isTarget(entry.hostAfter) ||
+        (entry.target !== null && !isTarget(entry.target))) continue;
+    if (!latest || (entry.revision as number) > latest.revision) {
+      latest = { turn, craftId, selectedHostId: entry.target as WolfFleetTargetId | null,
+        hostShipId: entry.hostAfter, revision: entry.revision as number };
+    }
+  }
+  return latest && { turn: latest.turn, craftId: latest.craftId,
+    selectedHostId: latest.selectedHostId, hostShipId: latest.hostShipId };
+}
 
 type WolfBoardingSpecialChoiceResult = Readonly<{
   status: 'committed'; type: 'wolf-boarding-special-choice'; sessionId: string;
@@ -31810,8 +31842,11 @@ export const getWolfBoardingSpecialChoice = onCall<{
     if (!player.exists) throw new HttpsError('permission-denied', 'Join the session first.');
     const snapshot = wolfBoardingProtocolSnapshot(session, state, players.docs, groups.docs);
     const stage = snapshot.stage;
+    const committedRelocation = player.get('role') === 'player' && isActivePlayer(player)
+      ? wolfBoardingCommittedRelocationFor(state, uid, snapshot.inputs.turn) : undefined;
     const noChoice = (reason: 'not-your-choice' | 'automatic-progress-pending' | 'no-special-choice') =>
-      ({ type: 'wolf-boarding-special-choice-unavailable', sessionId, reason } as const);
+      ({ type: 'wolf-boarding-special-choice-unavailable', sessionId, reason,
+        ...(committedRelocation ? { committedRelocation } : {}) } as const);
     if (stage.kind === 'complete') return noChoice('no-special-choice');
     if (stage.kind === 'lock-rolls') return noChoice('automatic-progress-pending');
     if (stage.kind === 'defence') return noChoice('not-your-choice');
