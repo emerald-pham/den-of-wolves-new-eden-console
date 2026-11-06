@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { renderedParagraphStartsWith } from './pc10-source-population-alert-consumer.mjs';
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import { CORE_CRAFT_PROCEDURES, GM_RULING_COUNTER_PROCEDURES,
   createGmSourceAlertWitness, gmSourceAlertWitnessMatches,
@@ -1233,7 +1234,8 @@ async function waitForSourceAlertControl({ page, type, shipName, timeoutMs = 15_
     if (count > 1) return { offered: false, reason: 'multiple source alert dialogs are mounted; the exact row is ambiguous' };
     if (count === 1 && await dialog.isVisible()) {
       const text = await dialog.innerText().catch(() => '');
-      if (!text.includes(shipName) || !text.includes(title)) {
+      // The dialog renders uppercase (`.unrest-alert` text-transform), so match case-insensitively by paragraph.
+      if (!renderedParagraphStartsWith(text, title) || !renderedParagraphStartsWith(text, shipName)) {
         return { offered: false, reason: 'the mounted alert dialog does not match the exact source vessel and alert type' };
       }
       const action = await one(dialog.getByRole('button', { name, exact: true }));
