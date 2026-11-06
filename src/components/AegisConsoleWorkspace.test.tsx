@@ -281,7 +281,10 @@ it('moves fighters the other way within the upgraded six-fighter capacity', asyn
 it.each([
   ['the receiving wing is full', { fighterWingCounts: {
     'fighter-wing-alpha': { count: 4, revision: 2 }, 'fighter-wing-bravo': { count: 4, revision: 5 },
-  } }, /exchange unavailable \/\/ bravo already holds 4 fighters, its capacity/i],
+  } }, /exchange unavailable \/\/ bravo already holds 4 fighters, its capacity\. both wings are full\.$/i],
+  ['only the other direction can move fighters', { fighterWingCounts: {
+    'fighter-wing-alpha': { count: 3, revision: 2 }, 'fighter-wing-bravo': { count: 4, revision: 5 },
+  } }, /exchange unavailable \/\/ bravo already holds 4 fighters, its capacity\. choose bravo to alpha instead\./i],
   ['Team Phase has ended', { turnPhase: {
     turn: 1, teamPhaseEndsAt: '2026-01-01T00:10:00.000Z', openAirspaceEndsAt: '2099-01-01T00:30:00.000Z',
     airspace: { state: 'lifted', tickerActive: true, pressAccess: true },

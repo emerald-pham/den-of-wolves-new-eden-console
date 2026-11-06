@@ -215,9 +215,13 @@ function fighterWingExchangeBlocker({ hasServerSnapshot, connection, writable, c
   const source = counts[sourceWingId];
   const target = counts[targetWingId];
   if (!source || !target) return 'Exchange unavailable // fighter strength is not published. Next actor // Wing Commander waits for the current server strength.';
-  if (source.count < 1) return `Exchange unavailable // ${wingName(sourceWingId)} has no fighters to move. Choose the other wing.`;
+  const reverseOpen = target.count >= 1 && source.count < capacity;
+  const alternative = reverseOpen
+    ? ` Choose ${wingName(targetWingId)} to ${wingName(sourceWingId)} instead.`
+    : source.count < 1 ? ' Neither wing can give a fighter.' : ' Both wings are full.';
+  if (source.count < 1) return `Exchange unavailable // ${wingName(sourceWingId)} has no fighters to move.${alternative}`;
   if (target.count >= capacity) {
-    return `Exchange unavailable // ${wingName(targetWingId)} already holds ${capacity} fighters, its capacity. Choose the other wing.`;
+    return `Exchange unavailable // ${wingName(targetWingId)} already holds ${capacity} fighters, its capacity.${alternative}`;
   }
   return null;
 }
