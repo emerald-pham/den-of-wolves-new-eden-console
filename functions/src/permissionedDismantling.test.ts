@@ -81,23 +81,26 @@ describe('permissioned dismantling', () => {
       });
     });
 
+    const materialProposal = {
+      craftId: 'macaw', targetShipId: 'dione', targetConsoleId: 'reactor', targetRevision: 7, materialGain: 3,
+    };
+    const withoutLedger = {
+      proposal: macawProposal,
+      consent: macawConsent,
+      activeTargetShipPlayerUids: ['target-player'],
+      currentTargetRevision: 7,
+      targetDamage: macawBase.targetDamage,
+      targetResources: macawBase.targetResources,
+    };
+
     it.each([
-      ['a material gain instead of Scrap', { proposal: { ...macawProposal, scrapGain: undefined, materialGain: 3 } }],
-      ['more than one Scrap', { proposal: { ...macawProposal, scrapGain: 2 } }],
-      ['a consent for a different Scrap amount', { consent: { ...macawConsent, scrapGain: 2 } }],
-      ['a consenter not assigned to the target ship', { activeTargetShipPlayerUids: ['someone-else'] }],
-      ['an unavailable Capybara Scrap ledger', { capybaraScrap: undefined }],
-      ['an unsafe Capybara Scrap overflow', { capybaraScrap: Number.MAX_SAFE_INTEGER }],
-    ])('rejects %s', (_label, change) => {
-      const input = { ...macawBase, ...change } as Record<string, unknown>;
-      for (const key of ['proposal', 'consent'] as const) {
-        const value = input[key] as Record<string, unknown>;
-        if (value.scrapGain === undefined) {
-          const { scrapGain: _omit, ...rest } = value;
-          input[key] = rest;
-        }
-      }
-      if (input.capybaraScrap === undefined) delete input.capybaraScrap;
+      ['a material gain instead of Scrap', { ...macawBase, proposal: materialProposal }],
+      ['more than one Scrap', { ...macawBase, proposal: { ...macawProposal, scrapGain: 2 } }],
+      ['a consent for a different Scrap amount', { ...macawBase, consent: { ...macawConsent, scrapGain: 2 } }],
+      ['a consenter not assigned to the target ship', { ...macawBase, activeTargetShipPlayerUids: ['someone-else'] }],
+      ['an unavailable Capybara Scrap ledger', withoutLedger],
+      ['an unsafe Capybara Scrap overflow', { ...macawBase, capybaraScrap: Number.MAX_SAFE_INTEGER }],
+    ])('rejects %s', (_label, input) => {
       expect(() => resolvePermissionedDismantling(input as never)).toThrow();
     });
   });

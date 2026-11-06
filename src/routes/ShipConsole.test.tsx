@@ -195,6 +195,7 @@ it('shows the permissioned dismantling inbox only to the current target-ship pla
     mode: 'target',
     sessionId: 's1',
     targetShipId: 'dione',
+    currentPlayerUid: player.uid,
     connection: 'live',
     canAct: true,
   }));
