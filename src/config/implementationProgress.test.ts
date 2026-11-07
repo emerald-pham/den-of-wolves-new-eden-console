@@ -71,8 +71,8 @@ describe('catalog-backed implementation progress', () => {
       done: 703, partial: 6, active: 0, missing: 42, blocked: 0,
     });
     expect(catalog.prompts.filter(row => row.status === 'done')).toHaveLength(703);
-    expect(catalog.prompts.filter(row => row.status === 'partial')).toHaveLength(6);
-    expect(catalog.prompts.filter(row => row.status === 'missing')).toHaveLength(42);
+    expect(catalog.prompts.filter(row => row.status === 'partial')).toHaveLength(11);
+    expect(catalog.prompts.filter(row => row.status === 'missing')).toHaveLength(37);
     expect(catalog.prompts.find(row => row.id === '605a')?.evidenceIds.split(';'))
       .toContain('E-PC09-P605A-ACTIVATION-20261004');
   });

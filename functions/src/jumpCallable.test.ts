@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 import * as jumpCallables from './index';
 import { jumpFuelCost, jumpLengthBetween } from './jumpDrive';
@@ -3092,4 +3092,97 @@ it('publishes remaining pursuit-emergency authority after a host jump and clears
   await jumpShip.run(request({ ...data, requestId: 'resolved-window-projection', destination: '5143' }));
   const resolved = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/gmDiscovery/current')?.[1];
   expect(resolved).toHaveProperty('pursuitEmergencyWindow', 'delete-field');
+});
+
+describe('Quellon Explorer jump authority', () => {
+  type Snapshot = { exists: boolean; get: (key: string) => unknown; data?: () => unknown };
+  const explorerCommand = {
+    sessionId: 's1', shipId: 'quellon', destination: '5143',
+    requestId: '30400000-0000-4000-8000-000000000223', expectedRevision: 0,
+  };
+
+  function seatExplorer(options: { readonly memberUid?: string } = {}): void {
+    mock.role = 'player';
+    mock.activeRoleIds = ['quellon-explorer', 'admiral'];
+    mock.activeConsoleRoleId = 'quellon-explorer';
+    mock.players = [{ id: 'u1', fields: {
+      role: 'player', connected: true, fleetGroupId: 'fleet-1', seatId: 'quellon-explorer',
+      assignedRoleId: 'quellon-explorer', activeConsoleRoleId: 'quellon-explorer',
+    } }];
+    const base = mock.get.getMockImplementation()!;
+    mock.get.mockImplementation(async (ref: unknown) => {
+      const snapshot = await base(ref) as Snapshot;
+      const path = typeof ref === 'string' ? ref : String((ref as { path?: unknown }).path ?? '');
+      if (options.memberUid && path.startsWith('sessions/s1/players/') && !path.endsWith(`/${options.memberUid}`)) {
+        return { exists: false, get: () => undefined, data: () => undefined };
+      }
+      if (path !== 'sessions/s1' && path !== 'sessions/s1/serverState/navigation') return snapshot;
+      const fields = (snapshot.data?.() ?? {}) as Record<string, unknown>;
+      const augmented: Record<string, unknown> = {
+        ...fields,
+        shipResources: {
+          ...(fields.shipResources as Record<string, unknown>),
+          quellon: { ore: 0, fuel: 6, food: 8, water: 6, materials: 0, securityTeams: 1 },
+        },
+        maintenanceCycles: {
+          ...(fields.maintenanceCycles as Record<string, unknown>),
+          quellon: { turn: mock.currentTurn, charges: ['jump-drive'], results: {} },
+        },
+      };
+      return { ...snapshot, data: () => augmented, get: (key: string) => augmented[key] };
+    });
+  }
+
+  it('lets the seated Quellon Explorer commit one Quellon jump and replays a retry without a second jump', async () => {
+    seatExplorer();
+
+    const committed = await jumpShip.run(request(explorerCommand));
+    expect(committed).toMatchObject({
+      status: 'jumped', shipId: 'quellon', origin: '0000', destination: '5143',
+      length: 'short', fuelCost: 2, remainingFuel: 4,
+      actorUid: 'u1', actorRoleId: 'quellon-explorer', vesselId: 'quellon',
+    });
+    const sessionWrites = mock.update.mock.calls.filter(([path]) => path === 'sessions/s1');
+    expect(sessionWrites).toHaveLength(1);
+    expect(sessionWrites[0]?.[1]).toMatchObject({
+      'shipResources.quellon.fuel': 4,
+      'shipJumpStates.quellon': { lastJumpTurn: 1 },
+    });
+    const navigation = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/serverState/navigation')?.[1] as
+      { shipGalacticCoordinates?: Record<string, string> } | undefined;
+    expect(navigation?.shipGalacticCoordinates?.quellon).toBe('5143');
+
+    const receipt = mock.set.mock.calls.find(([path]) =>
+      path === `sessions/s1/commandReceipts/${explorerCommand.requestId}`)?.[1];
+    expect(receipt).toBeDefined();
+    mock.commandReceiptRecord = { fingerprint: receipt?.fingerprint, result: receipt?.result };
+    mock.update.mockClear();
+    mock.set.mockClear();
+    mock.randomInt.mockClear();
+
+    await expect(jumpShip.run(request(explorerCommand))).resolves.toEqual(committed);
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.randomInt).not.toHaveBeenCalled();
+  });
+
+  it('rejects the Quellon Explorer jumping another ship without any write', async () => {
+    seatExplorer();
+
+    await expect(jumpShip.run(request({ ...explorerCommand, shipId: 'aegis' }))).rejects.toMatchObject({
+      code: 'permission-denied',
+    });
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+  });
+
+  it('rejects a caller who is not a session member without any write', async () => {
+    seatExplorer({ memberUid: 'u1' });
+
+    await expect(jumpShip.run(request(explorerCommand, 'outsider'))).rejects.toMatchObject({
+      code: 'permission-denied',
+    });
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+  });
 });

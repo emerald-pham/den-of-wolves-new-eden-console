@@ -24,6 +24,17 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     implementationProgress: {
       completed: 703, total: 751, percentage: '93.61%',
+      done: 703, partial: 11, active: 0, missing: 37, blocked: 0,
+    },
+    changes: [
+      'The Explorer route planner reads the Quellon\'s live fuel, Jump Drive charge and jump eligibility, estimates the fuel a planned jump may need, and shows the last committed jump and arrival.',
+      '703 of 751 planned items are complete in the catalog snapshot used to build this release (93.61%).',
+    ],
+  },
+  {
+    version: '0.5.75',
+    implementationProgress: {
+      completed: 703, total: 751, percentage: '93.61%',
       done: 703, partial: 6, active: 0, missing: 42, blocked: 0,
     },
     changes: [

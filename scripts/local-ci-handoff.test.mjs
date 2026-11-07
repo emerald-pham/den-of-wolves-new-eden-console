@@ -107,6 +107,8 @@ function successfulCommand(command) {
     'test:prompt-tracker',
     'security:threat-model',
     'test:proof-redalert-browser',
+    'test:pc10-base-proofs',
+    'test:pc10-base-proofs:browser',
   ]);
   if ((command.program === process.execPath && command.args[0] === '--test') || nodeTestScripts.has(npmScript)) {
     return {
@@ -216,6 +218,7 @@ test('a complete local cohort hands off the exact tested SHA through the ordinar
     { label: 'Install locked root dependencies for release contracts', program: 'npm', args: ['ci', '--prefer-offline', '--no-audit'], env: {} },
     { label: 'Typography release-gate contract', program: 'npm', args: ['run', 'test:typography:release-gate'], env: {} },
     { label: 'Bounded proof-tool contract preflight', program: 'npm', args: ['run', 'test:proof-preflight'], env: {} },
+    { label: 'PT2A Base consumer contracts', program: 'npm', args: ['run', 'test:pc10-base-proofs'], env: {} },
     { label: 'Branch cleanup safeguards', program: 'npm', args: ['run', 'test:branch-cleanup'], env: {} },
     { label: 'Firebase deployment batching contract', program: process.execPath, args: ['--test', 'scripts/deploy-firebase-surfaces.test.mjs'], env: {} },
     { label: 'Local CI handoff contract', program: process.execPath, args: ['--test', 'scripts/local-ci-handoff.test.mjs'], env: {} },
@@ -224,6 +227,7 @@ test('a complete local cohort hands off the exact tested SHA through the ordinar
     { label: 'Unit tests', program: 'npm', args: ['run', 'test:unit'], env: {} },
     { label: 'Install Playwright Chromium for proof-tool browser smoke', program: 'npx', args: chromiumInstallArgs, env: {} },
     { label: 'Fleetwide Red Alert selector browser smoke', program: 'npm', args: ['run', 'test:proof-redalert-browser'], env: {} },
+    { label: 'PT2A Base consumer browser checks', program: 'npm', args: ['run', 'test:pc10-base-proofs:browser'], env: {} },
   ]);
 });
 
@@ -233,6 +237,7 @@ test('the local plan keeps DoW path-scope selection aligned with the workflow', 
     'Install locked root dependencies for release contracts',
     'Typography release-gate contract',
     'Bounded proof-tool contract preflight',
+    'PT2A Base consumer contracts',
     'Branch cleanup safeguards',
     'Firebase deployment batching contract',
     'Local CI handoff contract',
@@ -276,6 +281,7 @@ test('the local plan keeps DoW path-scope selection aligned with the workflow', 
       'Console font consistency',
       'Install rendered typography browser',
       'Fleetwide Red Alert selector browser smoke',
+      'PT2A Base consumer browser checks',
       'Computed-style typography gate',
       'Production-built cycle briefing typography',
       'Browser ticker smoke',
@@ -878,7 +884,7 @@ test('a final-stage hook mode change hidden by core.filemode cannot bypass publi
     await runFixtureHandoff(fixture, {
       runCommand: successfulAdapter(calls, (command) => {
         const result = successfulCommand(command);
-        if (command.label === 'Fleetwide Red Alert selector browser smoke') {
+        if (command.label === 'PT2A Base consumer browser checks') {
           chmodSync(hookPath, 0o644);
           git(fixture.repo, 'config', 'core.filemode', 'false');
         }
@@ -889,7 +895,7 @@ test('a final-stage hook mode change hidden by core.filemode cannot bypass publi
     error = caught;
   }
 
-  assert.equal(calls.at(-1)?.label, 'Fleetwide Red Alert selector browser smoke');
+  assert.equal(calls.at(-1)?.label, 'PT2A Base consumer browser checks');
   assert.equal(git(fixture.repo, 'ls-remote', 'origin', 'refs/heads/topic/ci-handoff'), '', 'the candidate must not publish after the hook becomes non-executable');
   assert.equal(statSync(hookPath).mode & 0o111, 0, 'handoff validation must not repair permissions');
   assert.equal(git(fixture.repo, 'config', '--get', 'core.hooksPath'), '.githooks');

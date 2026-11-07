@@ -82,7 +82,7 @@ const CHROMIUM_INSTALL_ARGS = Object.freeze({
 });
 
 // Updated only alongside a reviewed workflow/scope/command contract change.
-const SUPPORTED_CI_FINGERPRINT = 'c74db7fef3fe50b70c2e43a1376961fb0d8d88db5f011a22b26aa7d290cc6cb0';
+const SUPPORTED_CI_FINGERPRINT = '6357673468cf8db02b6bb922e449bb1aa426685038619045d53b2aa0e39919d8';
 
 function fail(message) {
   throw new Error(message);
@@ -372,6 +372,7 @@ function buildCohort(profile, platform = process.platform) {
     step('Install locked root dependencies for release contracts', 'npm', ['ci', '--prefer-offline', '--no-audit']),
     step('Typography release-gate contract', 'npm', ['run', 'test:typography:release-gate']),
     step('Bounded proof-tool contract preflight', 'npm', ['run', 'test:proof-preflight']),
+    step('PT2A Base consumer contracts', 'npm', ['run', 'test:pc10-base-proofs']),
     step('Branch cleanup safeguards', 'npm', ['run', 'test:branch-cleanup']),
     step('Firebase deployment batching contract', process.execPath, ['--test', 'scripts/deploy-firebase-surfaces.test.mjs']),
     step('Local CI handoff contract', process.execPath, ['--test', 'scripts/local-ci-handoff.test.mjs']),
@@ -399,6 +400,7 @@ function buildCohort(profile, platform = process.platform) {
     steps.push(step('Install rendered typography browser', 'npx', chromiumInstallArgs(platform)));
   }
   if (profile.unit) steps.push(step('Fleetwide Red Alert selector browser smoke', 'npm', ['run', 'test:proof-redalert-browser']));
+  if (profile.unit) steps.push(step('PT2A Base consumer browser checks', 'npm', ['run', 'test:pc10-base-proofs:browser']));
   if (profile.typography) {
     steps.push(step('Computed-style typography gate', 'npm', ['run', 'test:typography:browser']));
     steps.push(step('Production-built cycle briefing typography', 'npm', ['run', 'test:cycle-briefing:browser'], {
@@ -425,6 +427,8 @@ const TAP_NPM_SCRIPTS = new Set([
   'test:prompt-tracker',
   'security:threat-model',
   'test:proof-redalert-browser',
+  'test:pc10-base-proofs',
+  'test:pc10-base-proofs:browser',
 ]);
 const VITEST_NPM_SCRIPTS = new Set([
   'test:unit',

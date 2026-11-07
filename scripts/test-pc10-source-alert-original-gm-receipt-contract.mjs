@@ -310,6 +310,15 @@ test('an alert aimed at another GM cannot use that actor’s mounted control or 
   assert.equal(fixture.sourceState.populationAlerts.aegis.shipId, 'aegis');
 });
 
+test('a source alert targeted to another GM instance cannot be consumed by the original GM or release governance', async () => {
+  const fixture = makeFixture({ targetInstanceId: 'gm-instance-other' });
+  const result = await invokeActualSourceInterruption(callbacksFor(fixture).onEligibleAlert, fixture.context);
+  assert.equal(result.alertResult.sourceInterruptionsReady, false);
+  assert.equal(result.events.includes('governance'), false);
+  assert.equal(result.error?.message, 'eligible source alert was not acknowledged by the original GM');
+  assert.deepEqual(fixture.sourceState.populationAlerts.aegis.targetGmInstanceIds, ['gm-instance-other']);
+});
+
 test('a mounted control for a different vessel cannot consume the source alert or release governance', async () => {
   const fixture = makeFixture({ renderWrongVessel: true });
   const result = await invokeActualSourceInterruption(callbacksFor(fixture).onEligibleAlert, fixture.context);

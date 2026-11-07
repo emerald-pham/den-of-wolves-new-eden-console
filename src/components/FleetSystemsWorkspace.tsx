@@ -79,6 +79,9 @@ export default function FleetSystemsWorkspace({
   const maintenanceCycle = shipState ? shipState.maintenanceCycle : session?.maintenanceCycles?.[ship.id];
   const upgrades = shipState ? shipState.upgrades : session?.shipUpgrades?.[ship.id] ?? [];
   const jumpState = shipState ? shipState.jumpState : session?.shipJumpStates?.[ship.id];
+  const currentTurn = shipState ? shipState.currentTurn : session?.currentTurn;
+  const snapshotCurrent = useSessionStore((state) =>
+    state.connection === 'live' && state.sessionSnapshotFreshness === 'server');
   const renderSystem = (system: (typeof systems)[number]) => {
     const { baseline, rules } = systemEffectRows(system.effect);
     const damaged = damage?.damagedSystemIds.includes(system.id) ?? false;
@@ -150,8 +153,21 @@ export default function FleetSystemsWorkspace({
       {ship.id === 'quellon' && role.id === 'quellon-explorer' && (
         <ExplorerRoutePlanner
           currentCoordinate={galacticCoordinate}
-          knownCoordinates={knownCoordinates ?? []}
-          knownSystems={knownSystems ?? {}}
+          knownCoordinates={knownCoordinates}
+          knownSystems={knownSystems}
+          navigationEntries={navigationLogs?.[ship.id]}
+          planKey={session ? `${session.id}:${ship.id}` : undefined}
+          readiness={{
+            shipName: ship.name,
+            fuel,
+            jumpCosts: [commandMetrics.jumpCosts.short, commandMetrics.jumpCosts.medium, commandMetrics.jumpCosts.long],
+            upgraded: upgrades.includes('jump-drive'),
+            charged: (maintenanceCycle?.charges.includes('jump-drive') ?? false) &&
+              (currentTurn === undefined || maintenanceCycle?.turn === undefined || maintenanceCycle.turn === currentTurn),
+            damaged: damage?.damagedSystemIds.includes('jump-drive') ?? false,
+            jumpedThisCycle: currentTurn !== undefined && jumpState?.lastJumpTurn === currentTurn,
+            current: snapshotCurrent,
+          }}
         />
       )}
     </> : page === 'maintenance' && executiveMaintenance

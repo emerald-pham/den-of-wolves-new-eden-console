@@ -1,7 +1,7 @@
 {
   "name": "den-of-wolves-new-eden-console",
   "private": true,
-  "version": "0.5.75",
+  "version": "0.5.76",
   "type": "module",
   "description": "Den of Wolves: New Eden Unofficial Companion Console",
   "engines": {
@@ -22,6 +22,8 @@
     "test:pc10-2:boa-reclamation": "node scripts/test-pc10-2-boa-reclamation.emulator.mjs",
     "test:proof-preflight": "node scripts/proof-test-invocation.mjs -- node --test scripts/qualification/pc11-contract-preflight.test.mjs scripts/proof-tooling-ci.test.mjs scripts/pc10-role-entry-typecheck.test.mjs scripts/proof-tooling-browser-lifecycle.test.mjs scripts/proof-test-invocation.test.mjs",
     "test:proof-redalert-browser": "node --test scripts/proof-tooling-redalert.browser.test.mjs",
+    "test:pc10-base-proofs": "node --test scripts/test-pc10-election-role-entry-contract.mjs scripts/test-pc10-base-post-combat-runner-contract.mjs scripts/test-pc10-source-alert-original-gm-receipt-contract.mjs",
+    "test:pc10-base-proofs:browser": "node --test --test-concurrency=1 scripts/pc10-election-gm-navigation.browser.test.mjs scripts/pc10-base-maintenance-readiness.browser.test.mjs scripts/pc10-base-research-readiness.browser.test.mjs",
     "test:proof-population-alert": "node --test scripts/pc10-source-population-alert-consumer.test.mjs scripts/pc10-source-population-alert-consumer.browser.test.mjs",
     "test:font-consistency": "vitest run --project unit src/styles/aesthetic.test.ts",
     "test:typography:browser": "node scripts/test-typography-browser.mjs",
