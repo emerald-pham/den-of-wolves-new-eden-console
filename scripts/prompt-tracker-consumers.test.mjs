@@ -32,7 +32,7 @@ test('generated views use one tracker-resolved catalog snapshot', async () => {
     const progress = await readFile(resolve(cwd, 'docs/IMPLEMENTATION_PROGRESS.md'), 'utf8');
     const plan = await readFile(resolve(cwd, 'docs/IMPLEMENTATION_PLAN.md'), 'utf8');
     const dependencies = await readFile(resolve(cwd, 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md'), 'utf8');
-    assert.match(progress, /703 done · 7 partial · 41 missing/);
+    assert.match(progress, /703 done · 12 partial · 36 missing/);
     assert.match(progress, /^\| 181 \| partial \|/m);
     assert.match(plan, /^- \[ \] Prompt 181$/m);
     assert.match(dependencies, /^\| 181 \|[^\n]*\| partial \|/m);

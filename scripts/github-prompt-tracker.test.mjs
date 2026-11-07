@@ -1270,7 +1270,7 @@ test('normal refresh check accepts BP1 history with complete read-only GitHub tr
     const result = runCheck();
     const calls = (await readFile(fetchLogPath, 'utf8')).split(/\r?\n/).filter(Boolean);
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    assert.match(result.stdout, /Tracker snapshot is current \(148 issues; source ac941864eaea\)/);
+    assert.match(result.stdout, /Tracker snapshot is current \(148 issues; source 6b12e82a03c4\)/);
     assert.ok(calls.some((call) => call.includes('/issues?state=all&per_page=100&page=1')));
     assert.ok(calls.some((call) => call.includes('/issues/26/comments?per_page=100&page=1')));
     assert.ok(calls.every((call) => call.startsWith('GET /')));
