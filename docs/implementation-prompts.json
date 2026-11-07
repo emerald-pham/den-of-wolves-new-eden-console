@@ -6860,48 +6860,6 @@
       "language": "Owner-approved October 17 BP1 repair of the confirmed pre-existing static damage-deck exposure in executable browser assets and source maps. Isolate the four browser parser dependencies for Gorgoneion and Warrior repair drones, Macaw repairs and Voyage movement; exclude diagnostic maps from Hosting and the public deployment artifact while retaining useful diagnostics privately. Preserve current parser/projection validation, legacy/reconnect behavior, audiences and server draw rules. BP1 adds one bounded execution brief to PC10.1, not a prompt or completion credit; the canonical 751-ID endpoint and P629/P651 statuses stay unchanged. No additional billing, credential, security-setting or unrelated work is authorized.",
       "source": "docs/pc10-tickets/62-bp1.md; docs/PRODUCT_MILESTONE_FEEDBACK.md; docs/PRODUCT_MILESTONES.md",
       "type": "planning / owner-approved bounded repair / no closure credit"
-    },
-    {
-      "direction": "215b -> PC10.1 close-out native proof",
-      "id": "E-PC10-1-CLOSEOUT-215B",
-      "language": "PC10.1 close-out proves Scientist research, ECM build and activation, field upgrade, private Wolf Agent Detector use, shuttle-origin scouting, mission participation with the Endeavour science bonus, and lost-station return to the chooser with the draft kept: entitled actor commits once, duplicates replay, wrong actors are refused and results stay with their audience. Evidence class: local native Firestore-emulator callable runs with seeded fixture auth, real firestore.rules reads, and route-level UI tests, each shown to fail against a temporary mutation; CI on the release commit and the 0.5.76 deployment. Not yet proved: the normal authenticated Functions + Auth emulator path (#451) and an ordinary authorized production play, so completion is not claimed.",
-      "source": "scripts/test-pc10-scientist-fieldwork.emulator.mjs; scripts/test-pc10-1-scientist-proof.emulator.mjs; src/routes/ScientistFieldwork.route.test.tsx; src/routes/ScientistStationRecovery.route.test.tsx",
-      "type": "local native emulator / route-level tests / partial"
-    },
-    {
-      "direction": "223b -> PC10.1 close-out native proof",
-      "id": "E-PC10-1-CLOSEOUT-223B",
-      "language": "PC10.1 close-out proves Hummingbird scouting through the Explorer workspace with automatic private resolution, harvest allocation once with replay, Explorer route planning against live fuel, charge and cycle state with the committed Quellon jump and arrival shown after reload, the Explorer jump authority boundary, and mission participation after reload. Route commitment stays with the ship Jump Drive; the planner is advisory by rule. Evidence class: local native Firestore-emulator callable runs with seeded fixture auth, real firestore.rules reads, and route-level UI tests, each shown to fail against a temporary mutation; CI on the release commit and the 0.5.76 deployment. Not yet proved: the normal authenticated Functions + Auth emulator path (#451) and an ordinary authorized production play, so completion is not claimed.",
-      "source": "scripts/test-pc10-1-fieldwork-reload-reconnect.emulator.mjs; scripts/test-pc10-1-explorer-discovery.emulator.mjs; functions/src/jumpCallable.test.ts; src/routes/ExplorerFieldwork.route.test.tsx; src/routes/ExplorerRouteCommit.route.test.tsx; src/components/ExplorerRoutePlanner.test.tsx",
-      "type": "local native emulator / route-level tests / partial"
-    },
-    {
-      "direction": "541 -> PC10.1 close-out native proof",
-      "id": "E-PC10-1-CLOSEOUT-541",
-      "language": "PC10.1 close-out proves the remaining producers natively: scout-derived reveal through automatic and facilitator resolution, ordinary jump arrival, GM chart move arrival and shuttle-origin scouting each reveal only code and title to the entitled group, with nothing for the other group. Evidence class: local native Firestore-emulator callable runs with seeded fixture auth, real firestore.rules reads, and route-level UI tests, each shown to fail against a temporary mutation; CI on the release commit and the 0.5.76 deployment. Not yet proved: the normal authenticated Functions + Auth emulator path (#451) and an ordinary authorized production play, so completion is not claimed.",
-      "source": "scripts/test-pc10-1-candidate-discovery.emulator.mjs; scripts/test-pc10-1-explorer-discovery.emulator.mjs; scripts/test-pc10-1-scientist-proof.emulator.mjs; tests/rules/firestore.rules.test.ts",
-      "type": "local native emulator / route-level tests / partial"
-    },
-    {
-      "direction": "542 -> PC10.1 close-out native proof",
-      "id": "E-PC10-1-CLOSEOUT-542",
-      "language": "PC10.1 close-out proves concurrent and sequential duplicate jump arrivals, duplicate and redelivered automatic scout resolution, and a player jump racing a GM chart move into one candidate: one record, one group reveal, one event, no mission opportunity and no repeated pursuit effect; replays leave the session byte-identical. Evidence class: local native Firestore-emulator callable runs with seeded fixture auth, real firestore.rules reads, and route-level UI tests, each shown to fail against a temporary mutation; CI on the release commit and the 0.5.76 deployment. Not yet proved: the normal authenticated Functions + Auth emulator path (#451) and an ordinary authorized production play, so completion is not claimed.",
-      "source": "scripts/test-pc10-1-candidate-discovery.emulator.mjs; scripts/test-pc10-1-explorer-discovery.emulator.mjs; scripts/test-pc10-1-scientist-proof.emulator.mjs; tests/rules/firestore.rules.test.ts",
-      "type": "local native emulator / route-level tests / partial"
-    },
-    {
-      "direction": "543 -> PC10.1 close-out native proof",
-      "id": "E-PC10-1-CLOSEOUT-543",
-      "language": "PC10.1 close-out: the Cycle 6 plan checkpoint is readable only by the GM under the rules, kept out of member projections, and the GM console and member reveal panel tables show plan status and player summary to their audiences. Evidence class: local native Firestore-emulator callable runs with seeded fixture auth, real firestore.rules reads, and route-level UI tests, each shown to fail against a temporary mutation; CI on the release commit and the 0.5.76 deployment. Not yet proved: the normal authenticated Functions + Auth emulator path (#451) and an ordinary authorized production play, so completion is not claimed.",
-      "source": "tests/rules/firestore.rules.test.ts; src/components/CandidateRevealPanel.test.tsx; src/routes/SessionMode.test.tsx; src/routes/GmConsole.test.tsx",
-      "type": "local native emulator / route-level tests / partial"
-    },
-    {
-      "direction": "593 -> PC10.1 close-out native proof",
-      "id": "E-PC10-1-CLOSEOUT-593",
-      "language": "PC10.1 close-out: Ring, Nebula and Station preparation help keeps the N, O and P requirements distinct and shows no hidden coordinates, bonuses or Wolf facts to members. Evidence class: local native Firestore-emulator callable runs with seeded fixture auth, real firestore.rules reads, and route-level UI tests, each shown to fail against a temporary mutation; CI on the release commit and the 0.5.76 deployment. Not yet proved: the normal authenticated Functions + Auth emulator path (#451) and an ordinary authorized production play, so completion is not claimed.",
-      "source": "tests/rules/firestore.rules.test.ts; src/components/CandidateRevealPanel.test.tsx; src/routes/SessionMode.test.tsx; src/routes/GmConsole.test.tsx",
-      "type": "local native emulator / route-level tests / partial"
     }
   ],
   "plan": {
@@ -12552,8 +12510,8 @@
         "acceptance": "research tracks/devices, Endeavour, scouting, upgrades, and mission participation remain private and authoritative. Use the existing ordinary-player station/console chooser, role-bound actions and truthful pending/committed results. Back and lost-station recovery return to the correct chooser with a reselect instruction, preserving safe local input. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Complete the Scientist workspace."
       },
-      "description": "Scientist research, devices, ECM activation, private detector use, field upgrades, shuttle-origin scouting and mission participation are natively proven on the Firestore emulator with route-level chooser recovery (PC10.1 close-out, 0.5.76); the normal authenticated Auth-emulator path and ordinary production play remain outstanding.",
-      "evidenceIds": "E-AUDIT-215B;E-PC10-TICKETS-215B;E-PC10-1-CLOSEOUT-215B",
+      "description": "Planned [NEW] prompt. The existing role-bound Shepherd Scientist shell exposes the registered Endeavour route, while research persistence and controls, device activation, transactional private scouting, field upgrades, contribution-linked mission bonuses, complete away-mission participation, and private Wolf Agent Detector use remain owned by unfinished downstream prompts. Workspace completion waits for those server-authoritative actions and projections; no gameplay completion is claimed yet.",
+      "evidenceIds": "E-AUDIT-215B;E-PC10-TICKETS-215B",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;204;211;212;213;214;267;321;325;328;391;401;410;422;508",
@@ -12561,9 +12519,7 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [
-        "0.5.76"
-      ],
+      "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
       "status": "partial",
@@ -12790,8 +12746,8 @@
         "acceptance": "Hummingbird scouting, harvesting allocation, route planning, and mission participation are authoritative. Use the existing ordinary-player station/console chooser, role-bound actions and truthful pending/committed results. Back and lost-station recovery return to the correct chooser with a reselect instruction, preserving safe local input. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Complete the Explorer workspace."
       },
-      "description": "Hummingbird scouting, harvesting allocation, route planning against live ship state with the committed jump and arrival result, and mission participation are proven natively and at route level (PC10.1 close-out, 0.5.76); the normal authenticated Auth-emulator path and ordinary production play remain outstanding.",
-      "evidenceIds": "E-AUDIT-223B;E-PC10-TICKETS-223B;E-PC10-1-CLOSEOUT-223B",
+      "description": "Planned [NEW] prompt. The existing role-bound Quellon Explorer shell exposes the registered Hummingbird route and its released private harvesting allocation, while transactional private scouting, complete shuttle arrival and route state, contribution-linked Hummingbird mission bonuses, and complete away-mission participation remain owned by unfinished downstream prompts. Workspace completion waits for those server-authoritative actions and projections; no gameplay completion is claimed yet.",
+      "evidenceIds": "E-AUDIT-223B;E-PC10-TICKETS-223B",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;216;269;321;324;328;365;366;367;390;393;401;410;422",
@@ -12799,9 +12755,7 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [
-        "0.5.76"
-      ],
+      "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
       "status": "partial",
@@ -21563,8 +21517,8 @@
         "acceptance": "an entitled discovery exposes N, O, or P to the correct group without leaking organiser-chart facts. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Reveal a New Eden candidate."
       },
-      "description": "Arrival-, GM-move- and scout-derived candidate reveals project only code and title to the entitled fleet group, proven natively on the Firestore emulator with real rules reads (PC10.1 close-out, 0.5.76); the normal authenticated Auth-emulator path and ordinary production play remain outstanding.",
-      "evidenceIds": "E-AUDIT-541;E-541-ARRIVAL-GROUP-REVEAL;E-PC10-TICKETS-541;E-PC10-1-CLOSEOUT-541",
+      "description": "Arrival-derived candidate codes and names are projected to the current fleet group with chart details withheld; scout-derived reveal and normal authenticated local/emulator gameplay proof remain outstanding.",
+      "evidenceIds": "E-AUDIT-541;E-541-ARRIVAL-GROUP-REVEAL;E-PC10-TICKETS-541",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "318;525",
@@ -21573,8 +21527,7 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.5.23",
-        "0.5.76"
+        "0.5.23"
       ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
@@ -21589,8 +21542,8 @@
         "acceptance": "repeated submissions return one record without duplicate pursuit, mission, or event effects. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Make candidate discovery retry-safe."
       },
-      "description": "Repeated and competing candidate discovery returns one record without duplicate pursuit, mission or event effects, proven natively including concurrent races (PC10.1 close-out, 0.5.76); the normal authenticated Auth-emulator path and ordinary production play remain outstanding.",
-      "evidenceIds": "E-AUDIT-542;E-PC10-TICKETS-542;E-PC10-1-CLOSEOUT-542",
+      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
+      "evidenceIds": "E-AUDIT-542;E-PC10-TICKETS-542",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "541",
@@ -21598,9 +21551,7 @@
       "milestoneHints": "M3;M11;M13",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [
-        "0.5.76"
-      ],
+      "releases": [],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
       "status": "partial",
@@ -21614,8 +21565,8 @@
         "acceptance": "facilitators see plan status and players receive only the agreed summary or encouragement. Use Cycle 6 in visible preparation/status copy and preserve current CIC typography; internal turn fields and printed-source citations need no rename. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Track candidate plans by Cycle 6."
       },
-      "description": "Cycle 6 plan status is GM-only under the rules and players see only their entitled summary, proven by rules, projection and component tests (PC10.1 close-out, 0.5.76); an authenticated GM/member run and ordinary production play remain outstanding.",
-      "evidenceIds": "E-AUDIT-543;E-PC10-TICKETS-543;E-PC10-1-CLOSEOUT-543",
+      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
+      "evidenceIds": "E-AUDIT-543;E-PC10-TICKETS-543",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "541;319",
@@ -21623,9 +21574,7 @@
       "milestoneHints": "M3;M11;M13",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [
-        "0.5.76"
-      ],
+      "releases": [],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
       "status": "partial",
@@ -22844,8 +22793,8 @@
         "acceptance": "N, O, and P requirements remain distinct and no hidden location, bonus, or Wolf state leaks. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Show candidate preparation help."
       },
-      "description": "N, O and P preparation help stays distinct without hidden location, bonus or Wolf leakage, proven by component tests (PC10.1 close-out, 0.5.76); an authenticated member run and ordinary production play remain outstanding.",
-      "evidenceIds": "E-AUDIT-593;E-PC10-TICKETS-593;E-PC10-1-CLOSEOUT-593",
+      "description": "Planned [EXTEND] prompt; no accepted gameplay proof has been recorded yet.",
+      "evidenceIds": "E-AUDIT-593;E-PC10-TICKETS-593",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "541",
@@ -22853,9 +22802,7 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [
-        "0.5.76"
-      ],
+      "releases": [],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
       "status": "partial",
