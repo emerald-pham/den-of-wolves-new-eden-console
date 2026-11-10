@@ -90,10 +90,11 @@ it('stops retrying once a resume is accepted although the listener flickers as t
     const listener = handlers;
     if (!listener) throw Object.assign(new Error('backend unreachable'), { code: 'functions/unavailable' });
     listener.onSessionFreshness?.(false);
+    // The accepted identity resubscribes the listeners; the current ones report fresh.
     setTimeout(() => {
-      listener.onSessionFreshness?.(true);
-      listener.onPlayer?.(returningScientist);
-      listener.onPlayerFreshness?.(true);
+      handlers?.onSessionFreshness?.(true);
+      handlers?.onPlayer?.(returningScientist);
+      handlers?.onPlayerFreshness?.(true);
     }, 50);
     acceptedAt ??= stationLossServer.callsTo('resumeSession').length;
     return accept(data);
