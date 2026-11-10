@@ -625,27 +625,20 @@ function isCleanupCommand(command: PendingCommand): boolean {
   return command.kind === 'disconnectFromSession' || command.kind === 'logoutGmAccess';
 }
 
-/** The member's role assignment; GM/player device mode is deliberately excluded. */
-function sameRoleAssignment(previous: Player, next: Player): boolean {
-  return (previous.assignedRoleId ?? null) === (next.assignedRoleId ?? null) &&
-    (previous.replacementRoleId ?? null) === (next.replacementRoleId ?? null) &&
-    (previous.replacementStatus ?? null) === (next.replacementStatus ?? null);
-}
-
 /**
  * Queued commands carry the previous account's private payloads (census note
  * bodies, Wolf Cult intelligence). A different account on the same browser
- * inherits only the cleanup commands a disconnect would also keep. A command
- * queued under a role assignment that has since changed is recovery for a
- * stale authority, so it is cancelled the same way rather than replayed.
+ * inherits only the cleanup commands a disconnect would also keep. A role
+ * reassignment for the same account keeps the queue: each command is replayed
+ * with its original request ID and the server re-authorizes it against the
+ * current roster, so a refusal writes nothing and is shown to the player.
  */
 function pendingCommandsForIdentity(
   previous: Player | null,
   next: Player | null,
   pendingCommands: readonly PendingCommand[],
 ): readonly PendingCommand[] {
-  return previous && next &&
-    (previous.uid !== next.uid || (previous.sessionId === next.sessionId && !sameRoleAssignment(previous, next)))
+  return previous && next && previous.uid !== next.uid
     ? pendingCommands.filter(isCleanupCommand)
     : pendingCommands;
 }
