@@ -67,3 +67,23 @@ it('renders explicit public and private audience labels for a team grievance', (
   expect(screen.getByText('Public — all session members')).toBeVisible();
   expect(screen.getByLabelText("Your team's grievance")).toBeVisible();
 });
+
+// PC10.3 L3.2 (#248): while every member was away the server expired this
+// member, so the rules denied the report listener (mapped to no report) and
+// ended it. The browser all-player-disconnect proof showed the delivered
+// crisis, and the member's resolved grievance inside it, never returned after
+// the reconnect. A resume issues a new connection generation; the listener
+// must reopen then, without remounting a report that is still shown.
+it('reopens the report listener after a reconnect that follows a membership denial', () => {
+  render(<CrisisReportPanel />);
+  act(() => subscribers.callbacks[0]!(report));
+  expect(screen.getByRole('region', { name: 'Fleet crisis report' })).toBeVisible();
+  // Expired while away: the rules denial ends the listener and clears the report.
+  act(() => subscribers.callbacks[0]!(null));
+  expect(screen.queryByRole('region')).not.toBeInTheDocument();
+  const me = useSessionStore.getState().me!;
+  act(() => useSessionStore.getState().setMe({ ...me, connectionGeneration: 3 }));
+  expect(subscribers.callbacks).toHaveLength(2);
+  act(() => subscribers.callbacks[1]!(report));
+  expect(screen.getByRole('region', { name: 'Fleet crisis report' })).toHaveTextContent(report.body);
+});
