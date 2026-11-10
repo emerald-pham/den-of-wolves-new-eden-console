@@ -16,82 +16,24 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import App from '@/App';
 import { useSessionStore } from '@/store/useSessionStore';
-import { acknowledgeSessionWaiver } from '@/lib/sessionWaiver';
-import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
 import {
-  explorerSession, reloadTab, returningExplorer, returningScientist, SCIENTIST_SCOUT_DRAFT_KEY, scientistSession,
-  stationLossServer,
+  explorerSession, prepareReturningScientist, reloadTab, returningExplorer, returningScientist, SCIENTIST_SCOUT_DRAFT_KEY,
+  scientistSession, stationLossServer,
 } from '@/test/stationLossReconnect';
-import type { GameSession, Player, WolfAttackMemberView } from '@/types/game';
-import type * as FirebaseModule from '@/lib/firebase';
-import type * as FirestoreModule from '@/lib/firestore';
-import type * as SessionServiceModule from '@/lib/sessionService';
+import type { GameSession, Player } from '@/types/game';
 
-vi.mock('firebase/functions', async () => {
-  const { stationLossServer: server } = await import('@/test/stationLossReconnect');
-  return {
-    httpsCallable: vi.fn((_functions: unknown, name: string) =>
-      (data: Record<string, unknown>) => server.call(name, data)),
-  };
-});
-vi.mock('@/lib/firebase', async (importOriginal) => ({
-  ...(await importOriginal<typeof FirebaseModule>()),
-  auth: () => ({ currentUser: { uid: 'u1' } }),
-  functions: vi.fn(() => ({ kind: 'functions' })),
-}));
-// The reconnect, resume, outbox and station-selection code is real. Only the
-// periodic heartbeat and unrelated GM/Wolf reads are stubbed.
-vi.mock('@/lib/sessionService', async (importOriginal) => ({
-  ...(await importOriginal<typeof SessionServiceModule>()),
-  refreshPresence: vi.fn().mockResolvedValue(undefined),
-  reconcileGmAuthority: vi.fn().mockResolvedValue(undefined),
-  refreshCommissarPurgeAuthority: vi.fn().mockResolvedValue(null),
-  listGmInstances: vi.fn().mockResolvedValue([]),
-  releaseConsoleRole: vi.fn().mockResolvedValue(undefined),
-  getWolfBoardingDefenceChoice: vi.fn(async () => null),
-  getWolfRangeActionChoice: vi.fn(async () => null),
-  getWolfForceFieldChoice: vi.fn(async () => null),
-  popShipConfetti: vi.fn(),
-}));
-vi.mock('@/lib/firestore', async (importOriginal) => ({
-  ...(await importOriginal<typeof FirestoreModule>()),
-  sessionSnapshotAuthorityFor: vi.fn(() => ({ hasServerSessionAuthority: false })),
-  subscribeSessionState: vi.fn(() => vi.fn()),
-  subscribeCrisisReport: vi.fn(() => vi.fn()),
-  subscribeConnectedPlayers: vi.fn(() => vi.fn()),
-  subscribeLoyaltyCensus: vi.fn(() => vi.fn()),
-  subscribeGmWolfHackingAlerts: vi.fn(() => vi.fn()),
-  subscribePlayerHackingNotices: vi.fn(() => vi.fn()),
-  subscribeGmInstances: vi.fn(() => vi.fn()),
-  subscribeShipConfetti: vi.fn(() => vi.fn()),
-  subscribeSessionEvents: vi.fn((_sessionId: string, onEvents: (events: never[]) => void) => {
-    onEvents([]);
-    return vi.fn();
-  }),
-  subscribeDamageDraws: vi.fn((_sessionId: string, onDraws: (draws: never[]) => void) => {
-    onDraws([]);
-    return vi.fn();
-  }),
-  subscribeVipCards: vi.fn(() => vi.fn()),
-  subscribeWolfAttackMemberView: vi.fn((_sessionId: string, onView: (view: WolfAttackMemberView | null) => void) => {
-    onView(null);
-    return vi.fn();
-  }),
-  subscribeShuttleDeparture: vi.fn((_sessionId, _shuttleId, onDeparture: (departure: null) => void) => {
-    onDeparture(null);
-    return vi.fn();
-  }),
-}));
-vi.mock('@/lib/versionUpgrade', () => ({ startVersionUpgradeMonitor: vi.fn(() => vi.fn()) }));
-vi.mock('@/lib/endeavourEcmDeviceService', () => ({
-  readEndeavourEcmDeviceWorkspace: vi.fn(async () => ({
-    status: 'ready', sessionId: 's1', cycle: 3, controlRevision: 4,
-    researchComplete: false, device: { status: 'ready', revision: 0 }, pursuit: { groupId: 'fleet-1', current: 8 },
-  })),
-  createEndeavourEcmDeviceAttempt: vi.fn(),
-  activateEndeavourEcmDevice: vi.fn(),
-  retryEndeavourEcmDeviceAttempt: vi.fn(),
-}));
+vi.mock('firebase/functions', async () =>
+  (await import('@/test/stationLossReconnect')).stationLossMocks.callableBoundary());
+vi.mock('@/lib/firebase', async (importOriginal) =>
+  (await import('@/test/stationLossReconnect')).stationLossMocks.firebase(await importOriginal()));
+vi.mock('@/lib/sessionService', async (importOriginal) =>
+  (await import('@/test/stationLossReconnect')).stationLossMocks.sessionService(await importOriginal()));
+vi.mock('@/lib/firestore', async (importOriginal) =>
+  (await import('@/test/stationLossReconnect')).stationLossMocks.firestore(await importOriginal()));
+vi.mock('@/lib/versionUpgrade', async () =>
+  (await import('@/test/stationLossReconnect')).stationLossMocks.versionUpgrade());
+vi.mock('@/lib/endeavourEcmDeviceService', async () =>
+  (await import('@/test/stationLossReconnect')).stationLossMocks.endeavourEcmDevice());
 
 const slow = { timeout: 10_000 };
 const COMMS_SCOUT_DRAFT_KEY = 'pc10:scout-draft:s1:u1:comms-officer';
@@ -105,19 +47,7 @@ const reassignedScientist: Player = {
   ...returningScientist, seatId: null, activeConsoleRoleId: null, replacementRoleId: 'comms-officer',
 };
 
-beforeEach(() => {
-  window.location.hash = '#/';
-  sessionStorage.clear();
-  localStorage.clear();
-  localStorage.setItem(MOTION_SAFETY_STORAGE_KEY, JSON.stringify({ acknowledgedAt: Date.now(), choice: 'reduce' }));
-  acknowledgeSessionWaiver(localStorage, Date.now());
-  stationLossServer.reset();
-  stationLossServer.resumeReply = { session: scientistSession, player: returningScientist };
-  const state = useSessionStore.getState();
-  state.reset();
-  state.setIdentity(scientistSession, returningScientist);
-  state.setMode('console');
-});
+beforeEach(prepareReturningScientist);
 
 it('drops a command queued under the former role when the member returns reassigned, and shows the current role', async () => {
   const user = userEvent.setup();
