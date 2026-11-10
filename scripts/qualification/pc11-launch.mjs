@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {createConnection} from 'node:net';
 import {spawn,execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {readFile,writeFile,mkdir,open} from 'node:fs/promises';
+import {readFile,writeFile,mkdir,open,unlink} from 'node:fs/promises';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
@@ -32,14 +32,27 @@ export function checkServedEnvironment(source,plan){
  return {localGmEnabled:true,projectId:plan.projectId,ports:plan.ports};
 }
 // The launch's configured row: `runConfigure` performs the configure step
-// (a configure-emulator-slot.mjs child in a real launch); the return releases
-// it after the launcher's process and port checks.
+// (a configure-emulator-slot.mjs child in a real launch). The launch records
+// the row and local files it displaced so its return, after the launcher's
+// process and port checks, gives back only what this launch took.
+async function readOptionalText(path){try{return await readFile(path,'utf8');}catch(error){if(error?.code==='ENOENT')return undefined;throw error;}}
 export async function configureLaunchSlot({slot,worktree=root,coordinationPath=coordinationFilePath(),runConfigure}){
+ const before=(await readCoordinationState(coordinationPath)).configurations.find(c=>c.worktree===worktree);
+ const previous=await Promise.all(['firebase.local.json','.env.emulators.local'].map(async name=>{const path=resolve(worktree,name);return {path,previous:await readOptionalText(path)};}));
  await runConfigure();
- return {slot,worktree,coordinationPath};
+ const created=(await readCoordinationState(coordinationPath)).configurations.find(c=>c.worktree===worktree&&c.slot===slot);
+ const files=await Promise.all(previous.map(async file=>({...file,written:await readOptionalText(file.path)})));
+ return {slot,worktree,coordinationPath,files,configuration:created&&(before&&before.id!==created.id?{...created,replaces:before}:created)};
 }
 export async function returnLaunchSlot(launch){
- await releaseConfiguredEmulatorSlot({slot:launch.slot,worktree:launch.worktree},launch.coordinationPath);
+ for(const {path,previous,written} of launch.files??[]){
+  // Restore only a file this launch rewrote and nobody has changed since.
+  if(written===undefined||written===previous||(await readOptionalText(path))!==written)continue;
+  if(previous===undefined)await unlink(path).catch(error=>{if(error?.code!=='ENOENT')throw error;});
+  else await writeFile(path,previous);
+ }
+ // Release by id only; the registry restores the displaced row when its slot is still free.
+ if(launch.configuration)await releaseConfiguredEmulatorSlot(launch.configuration,launch.coordinationPath);
 }
 async function sourceChecks(){
  const presets=await readFile(`${root}/src/data/rolePresets.ts`,'utf8');const row=presets.match(/12:\s*\[([^\]]+)\]/)?.[1];assert.ok(row?.includes("'dione-engineer'")&&row.includes("'dione-president'"));
