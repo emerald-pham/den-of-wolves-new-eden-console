@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "baseline": "396f2941a5ba213c725acf05516799274c164b7b",
+  "candidate": "330b5c61e6de827599e5e395fcc0ef5baa84bba0",
+  "auditBoundary": "Exact PC10.3 source transition from main (396f2941) to the reviewed integration candidate 330b5c61. Consumers are the exported callables whose runtime code reaches a changed top-level declaration, traced through TypeScript symbol references across functions/src (type-only edits excluded): the redacted away-mission public projection and its legacy secret-threshold pointer check (projectAwayMissionPublicState, projectLegacySecretThresholdPublicState, hasSecretD6Difficulty) reach the lifecycle command, private initial deal and private mission discards; the stored-record pointer validation reaches only commitAwayMissionLifecycleCommand. missionSecretDifficulty.ts is imported only by the browser, so no deployed callable consumes it. In functions/src/index.ts only reconcileReturningSeat changed (a released seat another player took is a lost station); its callers are joinSession and resumeSession, so the rest of the file selects nothing.",
+  "modules": {
+    "functions/src/awayMissionLifecycleAdapter.ts": {
+      "before": "a221e3fdcb9e14a085f62dea14959b2cecd64881ff86e36989c4c57c3b83a9a8",
+      "after": "879841f9e0c9a051fa6ee3f52b76b794a522874d3700092e836bfbde9a61930b",
+      "consumers": [
+        "commitAwayMissionLifecycleCommand",
+        "dealPrivateInitialCards",
+        "discardPrivateMissionCard",
+        "openPrivateMissionDiscards"
+      ]
+    },
+    "functions/src/awayMissionLifecycleCallable.ts": {
+      "before": "f61c1512fb992210937dc603d56269140ccd1902fdc0a3094460af72916c78de",
+      "after": "815ad85963caa0c3fec24a3aabc6b7983b992715ac014bdb1715dba1e444927a",
+      "consumers": [
+        "commitAwayMissionLifecycleCommand"
+      ]
+    },
+    "functions/src/missionCards.ts": {
+      "before": "2c9c5939008c0e345434f2942e823ab34904df6942248bc3446df944aa6d096e",
+      "after": "ad86943cff95ec551276d0f68f87b5358ff80b5bd889fdce924ca03ddb72c9c8",
+      "consumers": [
+        "commitAwayMissionLifecycleCommand",
+        "dealPrivateInitialCards",
+        "discardPrivateMissionCard",
+        "openPrivateMissionDiscards"
+      ]
+    },
+    "functions/src/missionSecretDifficulty.ts": {
+      "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after": "2b2d6f22fb0cc2de2a8cf3bad41f8d87baa55aef1b4b87fa82f5aa81bab57766",
+      "consumers": []
+    }
+  },
+  "index": {
+    "before": "763cc4ac9d49e985739dd3c11a8c823abb6565d8f0767890793141a1c65dc044",
+    "after": "9abcdbc7717917b2f392a2cdcd8357997722d7166f7adddfd3e0de5ddce6d57b",
+    "consumers": [
+      "joinSession",
+      "resumeSession"
+    ]
+  }
+}
