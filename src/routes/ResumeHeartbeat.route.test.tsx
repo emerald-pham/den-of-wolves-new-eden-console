@@ -84,7 +84,7 @@ it('stops retrying once a resume is accepted although the listener flickers as t
   });
   stationLossServer.reset();
   stationLossServer.resumeReply = { session: scientistSession, player: returningScientist };
-  const accept = stationLossServer.handlers.resumeSession;
+  const accept = stationLossServer.handlers.resumeSession!;
   let acceptedAt: number | undefined;
   stationLossServer.handlers.resumeSession = (data) => {
     const listener = handlers;
