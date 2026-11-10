@@ -171,6 +171,26 @@ describe('useSessionStore', () => {
     },
   );
 
+  it.each(['setIdentity', 'setMe'] as const)(
+    'keeps the same account\'s queued commands for server re-authorization when its role assignment changes (%s)',
+    (entryPoint) => {
+      const scientist: Player = { ...player, assignedRoleId: 'shepherd-scientist', activeConsoleRoleId: 'shepherd-scientist' };
+      const store = useSessionStore.getState();
+      store.setIdentity(session, scientist);
+      store.enqueueCommand({ id: 'grievance', kind: 'submitCivilUnrestGrievance', createdAt: new Date().toISOString(),
+        queuedWithServerAuthority: true, payload: { sessionId: 's1', requestId: 'grievance-request', crisisId: 'unrest-1',
+          expectedCrisisRevision: 2, expectedGrievanceRevision: 0, affectedShipId: 'shepherd',
+          visibility: 'private', text: 'Rations are short.' } });
+
+      // The facilitator reassigns the same member; the replay is the server's to authorize or refuse.
+      const reassigned: Player = { ...scientist, activeConsoleRoleId: null, replacementRoleId: 'rosal-militia-leader' };
+      if (entryPoint === 'setIdentity') useSessionStore.getState().setIdentity(session, reassigned);
+      else useSessionStore.getState().setMe(reassigned);
+
+      expect(useSessionStore.getState().pendingCommands.map((command) => command.id)).toEqual(['grievance']);
+    },
+  );
+
   it('accepts Voyage movement only through the fresh GM projection setter and clears it on claim loss', () => {
     const movement = {
       id: 'voyage-33-0' as const, coordinate: '1413', revision: 4,

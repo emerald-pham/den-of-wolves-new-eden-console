@@ -3,7 +3,7 @@ import { commissarPurgeAuthorityIsCurrent } from './commissarPurgeAuthority';
 import { signInAnonymously } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { auth, functions } from './firebase';
-import { selectGmAccessAuthenticated, useSessionStore } from '@/store/useSessionStore';
+import { isCleanupCommand, selectGmAccessAuthenticated, useSessionStore } from '@/store/useSessionStore';
 import type { PendingCommand } from '@/store/useSessionStore';
 import type {
   FacilitatorRuleCall,
@@ -606,10 +606,6 @@ function facilitatorRuleCallAuthorityCheckpointIsCurrent(
     store.gmInstance.uid === store.me.uid &&
     store.gmInstance.id === instanceId &&
     authorityCheckpointIsCurrent(checkpoint, allowConnecting);
-}
-
-function isCleanupCommand(command: PendingCommand): boolean {
-  return command.kind === 'disconnectFromSession' || command.kind === 'logoutGmAccess';
 }
 
 /**
@@ -1224,25 +1220,14 @@ async function sendOrQueue(
   }
 }
 
-const QUEUED_COMMAND_NOT_COMPLETED =
-  'A queued action from before the change was not completed. Review the live state before retrying.';
-
 /**
  * Report a queued command that was not sent or was refused. The reselect
  * instruction drives the station chooser redirect and guards a stale route
  * from reclaiming the old station, so it is never replaced; the problem is
- * added to it instead.
+ * marked on it instead.
  */
 function reportQueuedCommandProblem(report: () => void): void {
-  const notice = useSessionStore.getState().communicationError;
-  if (notice?.kind !== 'station-selection-required') {
-    report();
-    return;
-  }
-  if (notice.message.endsWith(QUEUED_COMMAND_NOT_COMPLETED)) return;
-  useSessionStore.getState().setCommunicationError({
-    ...notice, message: `${notice.message} ${QUEUED_COMMAND_NOT_COMPLETED}`,
-  });
+  if (!useSessionStore.getState().markQueuedCommandNotCompleted()) report();
 }
 
 async function flushPendingCommands(): Promise<boolean> {
@@ -3047,7 +3032,20 @@ export async function getSessionPresence(): Promise<{ connectedPlayers: number }
   return (await call({ sessionId: session.id })).data;
 }
 
-export async function refreshPresence(activeConsoleRoleId?: string | null): Promise<void> {
+export interface PresenceHeartbeatOptions {
+  /**
+   * The App's last connect attempt did not end with an accepted resume. The
+   * snapshot is not fresh, but the server authorizes a heartbeat from its own
+   * member record, and skipping it would let the 45 s presence lease expire
+   * and release the seat the resume is trying to keep.
+   */
+  readonly resumeOutstanding?: boolean;
+}
+
+export async function refreshPresence(
+  activeConsoleRoleId?: string | null,
+  { resumeOutstanding = false }: PresenceHeartbeatOptions = {},
+): Promise<void> {
   const store = useSessionStore.getState();
   const session = store.session;
   if (!session || !store.me) return;
@@ -3055,11 +3053,12 @@ export async function refreshPresence(activeConsoleRoleId?: string | null): Prom
   const instanceId = store.gmInstance?.sessionId === session.id
     ? store.gmInstance.id
     : undefined;
-  // A periodic heartbeat may safely stop while authority is stale. Explicit
-  // console-role claims/releases must fail so callers cannot update local role
-  // state as though the server accepted a cache-authorized mutation.
+  // A periodic heartbeat may safely stop while authority is stale, unless a
+  // resume is outstanding. Explicit console-role claims/releases must fail so
+  // callers cannot update local role state as though the server accepted a
+  // cache-authorized mutation.
   if (activeConsoleRoleId === undefined) {
-    if (!hasFreshSessionAuthority()) return;
+    if (resumeOutstanding ? !window.navigator.onLine : !hasFreshSessionAuthority()) return;
   } else {
     requireFreshSessionAuthority();
   }

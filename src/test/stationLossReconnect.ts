@@ -10,18 +10,17 @@
  * membership kept, seat pointer and active console cleared,
  * `stationSelectionRequired: true`.
  *
- * Usage from a route test (vi.mock factories must stay in the test file):
+ * Usage from a route test: `vi.mock` calls are hoisted and must stay in the
+ * test file, but their factories live here (`stationLossMocks`), each loaded
+ * with a dynamic import so the fixture never imports a module it mocks:
  *
- *   vi.mock('firebase/functions', async () => {
- *     const { stationLossServer } = await import('@/test/stationLossReconnect');
- *     return { httpsCallable: vi.fn((_f: unknown, name: string) =>
- *       (data: Record<string, unknown>) => stationLossServer.call(name, data)) };
- *   });
+ *   vi.mock('firebase/functions', async () =>
+ *     (await import('@/test/stationLossReconnect')).stationLossMocks.callableBoundary());
  *
- * then `stationLossServer.reset()` in `beforeEach`, seed the store with
- * `returningScientist` / `scientistSession`, and call `reloadTab()` to model a
- * same-tab reload: the persisted localStorage snapshot is rehydrated and
- * per-tab sessionStorage drafts survive, exactly as in a browser.
+ * then `await prepareReturningScientist()` in `beforeEach`, and call
+ * `reloadTab()` to model a same-tab reload: the persisted localStorage
+ * snapshot is rehydrated and per-tab sessionStorage drafts survive, exactly
+ * as in a browser.
  *
  * Scenarios: Shepherd Scientist (Endeavour scout draft), Quellon Explorer
  * (route plan) and Wing Commander (Fighter Wing exchange draft, own session id).
@@ -43,8 +42,16 @@
  * gameplay evidence; `tests/reconnect/stationLossReconnect.emulator.test.ts`
  * proves the same server reply through real callables.
  */
+import { vi } from 'vitest';
 import { SESSION_STORAGE_KEY, useSessionStore } from '@/store/useSessionStore';
-import type { GameSession, Player } from '@/types/game';
+import { acknowledgeSessionWaiver } from '@/lib/sessionWaiver';
+import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
+import { findConsoleRole } from '@/data/roles';
+import { replacementRoleFor } from '@/data/replacementRoles';
+import type { GameSession, Player, WolfAttackMemberView } from '@/types/game';
+import type * as FirebaseModule from '@/lib/firebase';
+import type * as FirestoreModule from '@/lib/firestore';
+import type * as SessionServiceModule from '@/lib/sessionService';
 
 export const STATION_LOSS_NOTICE =
   'Your previous station is no longer available. Return to station select and reselect your role.';
@@ -160,6 +167,33 @@ function stationSelectionRequired(): never {
   });
 }
 
+function unauthorized(): never {
+  throw Object.assign(new Error('not your team'), {
+    code: 'functions/permission-denied',
+    details: { commandError: 'unauthorized' },
+  });
+}
+
+/** The five team pairs printed on the Civil Unrest card (functions/src/civilUnrest.ts). */
+const CIVIL_UNREST_SHIP_IDS: readonly string[] = ['dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'];
+
+/**
+ * As the server's submitCivilUnrestGrievance: the member's current role on the
+ * server record (a replacement role, else the active console, else the
+ * assigned team role; none while awaiting a re-role) must belong to the
+ * affected Civil Unrest team. The scripted server record is the player in the
+ * current resume reply. Joint engineering roles are not modelled.
+ */
+function grievanceTeamShip(): string | undefined {
+  const reply = stationLossServer.resumeReply as { player?: Player } | undefined;
+  const player = reply?.player;
+  if (!player || player.replacementStatus != null) return undefined;
+  const roleId = player.replacementRoleId ?? player.activeConsoleRoleId ?? player.assignedRoleId ?? undefined;
+  if (!roleId) return undefined;
+  const shipId = findConsoleRole(roleId)?.shipId ?? replacementRoleFor(roleId)?.vesselId;
+  return shipId && CIVIL_UNREST_SHIP_IDS.includes(shipId) ? shipId : undefined;
+}
+
 const endeavourWorkspace = {
   status: 'ready', sessionId: 's1', cycle: 3, researchRevision: 0,
   cadence: { cycle: 3, revision: 0, choices: [] }, progress: { reactor: 1 },
@@ -190,9 +224,14 @@ function defaultHandlers(): Record<string, Handler> {
     refreshPresence: (data) => ({ sessionId: data.sessionId }),
     // A craft scouting request needs the station selected on the server; a former holder is refused.
     requestScout: () => stationSelectionRequired(),
-    // As on the server: a grievance is authorized by the team role (assignedRoleId),
-    // which a lost station keeps, so a replayed grievance commits.
-    submitCivilUnrestGrievance: (data) => ({ status: 'committed', requestId: data.requestId }),
+    // As on the server: a grievance is authorized by the member's current team.
+    // A lost station keeps the assigned team role, so a replayed grievance
+    // commits; a role on another ship is refused without a write.
+    submitCivilUnrestGrievance: (data) => {
+      const shipId = grievanceTeamShip();
+      if (!shipId || data.affectedShipId !== shipId) unauthorized();
+      return { status: 'committed', requestId: data.requestId };
+    },
     listMyScoutReports: () => [],
     readEndeavourResearchWorkspace: () => endeavourWorkspace,
   };
@@ -230,4 +269,96 @@ export async function reloadTab(): Promise<void> {
   if (persisted === null) localStorage.removeItem(SESSION_STORAGE_KEY);
   else localStorage.setItem(SESSION_STORAGE_KEY, persisted);
   await useSessionStore.persist.rehydrate();
+}
+
+/**
+ * `vi.mock` factories shared by the station-loss and roster-change route
+ * tests. The reconnect, resume, outbox and station-selection code is real;
+ * only the callable boundary, Auth, Firestore listeners, the periodic
+ * heartbeat and unrelated GM/Wolf reads are replaced.
+ */
+export const stationLossMocks = {
+  callableBoundary: () => ({
+    httpsCallable: vi.fn((_functions: unknown, name: string) =>
+      (data: Record<string, unknown>) => stationLossServer.call(name, data)),
+  }),
+  firebase: (original: typeof FirebaseModule) => ({
+    ...original,
+    auth: () => ({ currentUser: { uid: 'u1' } }),
+    functions: vi.fn(() => ({ kind: 'functions' })),
+  }),
+  /** `realPresence` keeps the real heartbeat so a test can count it at the callable boundary. */
+  sessionService: (original: typeof SessionServiceModule, { realPresence = false } = {}) => ({
+    ...original,
+    ...(realPresence ? {} : { refreshPresence: vi.fn().mockResolvedValue(undefined) }),
+    reconcileGmAuthority: vi.fn().mockResolvedValue(undefined),
+    refreshCommissarPurgeAuthority: vi.fn().mockResolvedValue(null),
+    listGmInstances: vi.fn().mockResolvedValue([]),
+    releaseConsoleRole: vi.fn().mockResolvedValue(undefined),
+    getWolfBoardingDefenceChoice: vi.fn(async () => null),
+    getWolfRangeActionChoice: vi.fn(async () => null),
+    getWolfForceFieldChoice: vi.fn(async () => null),
+    popShipConfetti: vi.fn(),
+  }),
+  firestore: (original: typeof FirestoreModule) => ({
+    ...original,
+    sessionSnapshotAuthorityFor: vi.fn(() => ({ hasServerSessionAuthority: false })),
+    subscribeSessionState: vi.fn(() => vi.fn()),
+    subscribeCrisisReport: vi.fn(() => vi.fn()),
+    subscribeConnectedPlayers: vi.fn(() => vi.fn()),
+    subscribeLoyaltyCensus: vi.fn(() => vi.fn()),
+    subscribeGmWolfHackingAlerts: vi.fn(() => vi.fn()),
+    subscribePlayerHackingNotices: vi.fn(() => vi.fn()),
+    subscribeGmInstances: vi.fn(() => vi.fn()),
+    subscribeShipConfetti: vi.fn(() => vi.fn()),
+    subscribeSessionEvents: vi.fn((_sessionId: string, onEvents: (events: never[]) => void) => {
+      onEvents([]);
+      return vi.fn();
+    }),
+    subscribeDamageDraws: vi.fn((_sessionId: string, onDraws: (draws: never[]) => void) => {
+      onDraws([]);
+      return vi.fn();
+    }),
+    subscribeVipCards: vi.fn(() => vi.fn()),
+    subscribeWolfAttackMemberView: vi.fn((_sessionId: string, onView: (view: WolfAttackMemberView | null) => void) => {
+      onView(null);
+      return vi.fn();
+    }),
+    subscribeShuttleDeparture: vi.fn((_sessionId: string, _shuttleId: string, onDeparture: (departure: null) => void) => {
+      onDeparture(null);
+      return vi.fn();
+    }),
+  }),
+  versionUpgrade: () => ({ startVersionUpgradeMonitor: vi.fn(() => vi.fn()) }),
+  endeavourEcmDevice: () => ({
+    readEndeavourEcmDeviceWorkspace: vi.fn(async () => ({
+      status: 'ready', sessionId: 's1', cycle: 3, controlRevision: 4,
+      researchComplete: false, device: { status: 'ready', revision: 0 }, pursuit: { groupId: 'fleet-1', current: 8 },
+    })),
+    createEndeavourEcmDeviceAttempt: vi.fn(),
+    activateEndeavourEcmDevice: vi.fn(),
+    retryEndeavourEcmDeviceAttempt: vi.fn(),
+  }),
+};
+
+/**
+ * Shared `beforeEach`: clean browser storage with the motion and waiver gates
+ * acknowledged, a reset scripted server that still confirms the Scientist's
+ * station, and the Scientist seated in console mode.
+ */
+export async function prepareReturningScientist(): Promise<void> {
+  const { subscribeSessionState } = await import('@/lib/firestore');
+  vi.mocked(subscribeSessionState).mockImplementation(() => vi.fn());
+  window.location.hash = '#/';
+  sessionStorage.clear();
+  localStorage.clear();
+  localStorage.setItem(MOTION_SAFETY_STORAGE_KEY, JSON.stringify({ acknowledgedAt: Date.now(), choice: 'reduce' }));
+  acknowledgeSessionWaiver(localStorage, Date.now());
+  stationLossServer.reset();
+  // Before the member goes away the server still confirms their station.
+  stationLossServer.resumeReply = { session: scientistSession, player: returningScientist };
+  const state = useSessionStore.getState();
+  state.reset();
+  state.setIdentity(scientistSession, returningScientist);
+  state.setMode('console');
 }

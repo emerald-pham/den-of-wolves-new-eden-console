@@ -280,15 +280,8 @@ describe('simplified coordination registry', () => {
     const worktree = resolve(directory, 'configured-worktree');
     const localConfigPath = resolve(worktree, 'firebase.local.json');
     const localEnvironmentPath = resolve(worktree, '.env.emulators.local');
-    const configure = await import('../../scripts/configure-emulator-slot.mjs') as unknown as {
-      configureEmulatorSlot: (options: {
-        slot?: number;
-        repositoryDirectory: string;
-        coordinationPath: string;
-        portCheck: (port: number) => Promise<boolean>;
-        write: (path: string, content: string) => Promise<void>;
-      }) => Promise<unknown>;
-    };
+    // Typed by scripts/configure-emulator-slot.d.mts.
+    const configure = await import('../../scripts/configure-emulator-slot.mjs');
     try {
       await mkdir(worktree);
       await writeFile(resolve(worktree, 'firebase.json'), `${JSON.stringify({ emulators: {} })}\n`);

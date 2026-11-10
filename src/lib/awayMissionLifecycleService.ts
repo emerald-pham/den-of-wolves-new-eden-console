@@ -11,6 +11,7 @@ import {
 import { httpsCallable } from 'firebase/functions';
 import { app, auth, functions } from './firebase';
 import { useSessionStore } from '@/store/useSessionStore';
+import { hasSecretD6DifficultySite } from '../../functions/src/missionSecretDifficulty';
 import {
   captureSessionAuthority,
   hasFreshSessionAuthority,
@@ -351,7 +352,7 @@ export function parseAwayMissionLifecyclePublicState(
 
   const projection = value as unknown as AwayMissionPublicState;
   // An older K pointer or reply may still carry 5X; never surface the secret d6.
-  if (projection.siteCode === 'K' && projection.outcomes) {
+  if (hasSecretD6DifficultySite(projection.siteCode) && projection.outcomes) {
     return { ...projection, outcomes: projection.outcomes.map((outcome) => ({
       ...outcome, difficulty: null, criticalThreshold: null,
     })) };

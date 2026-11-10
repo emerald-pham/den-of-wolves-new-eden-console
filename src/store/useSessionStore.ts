@@ -439,6 +439,8 @@ export interface CommunicationError {
   readonly code: string;
   readonly message: string;
   readonly retryAfterSeconds?: number;
+  /** A queued action was not completed while the reselect instruction was up. */
+  readonly queuedCommandNotCompleted?: true;
 }
 
 /**
@@ -524,6 +526,12 @@ interface SessionState {
   enqueueCommand: (command: PendingCommand) => void;
   removeCommand: (id: string) => void;
   setCommunicationError: (error: CommunicationError | null) => void;
+  /**
+   * Record that a queued action was not completed on the reselect instruction
+   * without replacing it. Returns false when no reselect instruction is up, so
+   * the caller reports the problem on its own.
+   */
+  markQueuedCommandNotCompleted: () => boolean;
   setMode: (mode: ConsoleMode | null) => void;
   setLastRoute: (lastRoute: string | null) => void;
   setConnection: (connection: SessionState['connection']) => void;
@@ -613,31 +621,25 @@ function samePrivateAssignment(previous: Player | null, next: Player | null): bo
     (previous.replacementStatus ?? null) === (next.replacementStatus ?? null);
 }
 
-function isCleanupCommand(command: PendingCommand): boolean {
+/** Disconnect and logout: the user's explicit cleanup decision, kept through local teardown and account changes. */
+export function isCleanupCommand(command: PendingCommand): boolean {
   return command.kind === 'disconnectFromSession' || command.kind === 'logoutGmAccess';
-}
-
-/** The member's role assignment; GM/player device mode is deliberately excluded. */
-function sameRoleAssignment(previous: Player, next: Player): boolean {
-  return (previous.assignedRoleId ?? null) === (next.assignedRoleId ?? null) &&
-    (previous.replacementRoleId ?? null) === (next.replacementRoleId ?? null) &&
-    (previous.replacementStatus ?? null) === (next.replacementStatus ?? null);
 }
 
 /**
  * Queued commands carry the previous account's private payloads (census note
  * bodies, Wolf Cult intelligence). A different account on the same browser
- * inherits only the cleanup commands a disconnect would also keep. A command
- * queued under a role assignment that has since changed is recovery for a
- * stale authority, so it is cancelled the same way rather than replayed.
+ * inherits only the cleanup commands a disconnect would also keep. A role
+ * reassignment for the same account keeps the queue: each command is replayed
+ * with its original request ID and the server re-authorizes it against the
+ * current roster, so a refusal writes nothing and is shown to the player.
  */
 function pendingCommandsForIdentity(
   previous: Player | null,
   next: Player | null,
   pendingCommands: readonly PendingCommand[],
 ): readonly PendingCommand[] {
-  return previous && next &&
-    (previous.uid !== next.uid || (previous.sessionId === next.sessionId && !sameRoleAssignment(previous, next)))
+  return previous && next && previous.uid !== next.uid
     ? pendingCommands.filter(isCleanupCommand)
     : pendingCommands;
 }
@@ -748,6 +750,14 @@ export const useSessionStore = create<SessionState>()(
           pendingCommands: state.pendingCommands.filter((command) => command.id !== id),
         })),
       setCommunicationError: (communicationError) => set({ communicationError }),
+      markQueuedCommandNotCompleted: () => {
+        const notice = get().communicationError;
+        if (notice?.kind !== 'station-selection-required') return false;
+        if (!notice.queuedCommandNotCompleted) {
+          set({ communicationError: { ...notice, queuedCommandNotCompleted: true } });
+        }
+        return true;
+      },
       setMode: (mode) => set({ mode }),
       setLastRoute: (lastRoute) => { if (get().lastRoute !== lastRoute) set({ lastRoute }); },
       setConnection: (connection) => {
@@ -828,9 +838,7 @@ export const useSessionStore = create<SessionState>()(
           identityHydrationRevision: state.identityHydrationRevision + 1,
           // Queued disconnect and logout commands must survive local teardown
           // so the server can receive the user's explicit cleanup decision.
-          pendingCommands: state.pendingCommands.filter(
-            (command) => command.kind === 'disconnectFromSession' || command.kind === 'logoutGmAccess',
-          ),
+          pendingCommands: state.pendingCommands.filter(isCleanupCommand),
         })),
       reset: () => set({ ...initial }),
     }),
@@ -878,6 +886,11 @@ export const useSessionStore = create<SessionState>()(
     },
   ),
 );
+
+/** The connection is live and the session snapshot came from the server: current authority. */
+export const selectHasLiveServerSnapshot = (
+  state: Pick<SessionState, 'connection' | 'sessionSnapshotFreshness'>,
+): boolean => state.connection === 'live' && state.sessionSnapshotFreshness === 'server';
 
 export const selectIsGm = (state: SessionState): boolean =>
   state.me?.role === 'gm' && state.gmInstance !== null &&

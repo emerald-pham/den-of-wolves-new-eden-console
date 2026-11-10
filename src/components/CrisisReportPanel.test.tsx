@@ -8,10 +8,15 @@ const subscribers = vi.hoisted(() => ({
   publicCallbacks: [] as ((projection: unknown) => void)[],
   teamCallbacks: [] as ((grievance: unknown) => void)[],
   stop: vi.fn(),
+  /** One unsubscribe per report listener, so a reopen can prove the previous one ended. */
+  reportStops: [] as (() => void)[],
 }));
 vi.mock('@/lib/firestore', () => ({
   subscribeCrisisReport: vi.fn((_id: string, callback: (report: CrisisReport | null) => void) => {
-    subscribers.callbacks.push(callback); return subscribers.stop;
+    subscribers.callbacks.push(callback);
+    const stopReport = vi.fn(() => subscribers.stop());
+    subscribers.reportStops.push(stopReport);
+    return stopReport;
   }),
   subscribeCivilUnrestPublic: vi.fn((_id: string, callback: (projection: unknown) => void) => {
     subscribers.publicCallbacks.push(callback); return subscribers.stop;
@@ -26,7 +31,7 @@ function identity(id: string, uid = 'u1') {
   useSessionStore.getState().setIdentity({ id, name: 'Table', joinCode: '1234', phase: 'active', ownerUid: 'gm', createdAt: '', updatedAt: '' },
     { uid, sessionId: id, displayName: 'Crew', role: 'player', seatId: null, joinedAt: '' });
 }
-beforeEach(() => { subscribers.callbacks = []; subscribers.publicCallbacks = []; subscribers.teamCallbacks = []; subscribers.stop.mockClear(); identity('s1'); });
+beforeEach(() => { subscribers.callbacks = []; subscribers.reportStops = []; subscribers.publicCallbacks = []; subscribers.teamCallbacks = []; subscribers.stop.mockClear(); identity('s1'); });
 it('shows the delivered report with accessible persistent read and hide controls', () => {
   render(<CrisisReportPanel />);
   expect(screen.queryByRole('region')).not.toBeInTheDocument();
@@ -84,6 +89,9 @@ it('reopens the report listener after a reconnect that follows a membership deni
   const me = useSessionStore.getState().me!;
   act(() => useSessionStore.getState().setMe({ ...me, connectionGeneration: 3 }));
   expect(subscribers.callbacks).toHaveLength(2);
+  // The previous listener is ended before the new one opens; only the new one stays live.
+  expect(subscribers.reportStops[0]).toHaveBeenCalledOnce();
+  expect(subscribers.reportStops[1]).not.toHaveBeenCalled();
   act(() => subscribers.callbacks[1]!(report));
   expect(screen.getByRole('region', { name: 'Fleet crisis report' })).toHaveTextContent(report.body);
 });

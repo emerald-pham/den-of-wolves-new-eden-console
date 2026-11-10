@@ -37,9 +37,9 @@ const SESSION_STORAGE_KEY = 'dow-new-eden-session';
  * Outer call: build Functions and run `script` inside a reserved emulator row,
  * then return false. Inner call (inside emulators:exec): return true.
  */
-export async function enterReconnectRow({ script, kind, project = RECONNECT_PROJECT_ID }) {
+export async function enterReconnectRow({ script, kind }) {
   if (process.env.FIRESTORE_EMULATOR_HOST) {
-    process.env.VITE_FIREBASE_PROJECT_ID ??= process.env.GCLOUD_PROJECT ?? project;
+    process.env.VITE_FIREBASE_PROJECT_ID ??= process.env.GCLOUD_PROJECT ?? RECONNECT_PROJECT_ID;
     process.chdir(repository);
     return true;
   }
@@ -50,7 +50,7 @@ export async function enterReconnectRow({ script, kind, project = RECONNECT_PROJ
   await runWithReservation({ slot, kind, command: script,
     ports: [...Object.values(emulatorPortsForSlot(slot)), vitePortForSlot(slot)],
     args: ['--yes', 'firebase-tools@15.29.0', 'emulators:exec', '--config', configPath,
-      '--project', project, '--only', 'auth,functions,firestore', script] });
+      '--project', RECONNECT_PROJECT_ID, '--only', 'auth,functions,firestore', script] });
   return false;
 }
 
@@ -95,11 +95,11 @@ export async function startEmulatorApp() {
  * One real browser member: its own context (storage, Auth, Firestore), the
  * ordinary UI join, and network controls for genuine disconnect/reconnect.
  */
-export async function openReconnectMember(browser, { uiUrl, label, viewport = { width: 390, height: 844 } }) {
+export async function openReconnectMember(browser, { uiUrl, label }) {
   const env = await emulatorEnvironment();
   const backendPorts = new Set([env.VITE_FIREBASE_AUTH_EMULATOR_PORT, env.VITE_FIREBASE_FUNCTIONS_EMULATOR_PORT,
     env.VITE_FIREBASE_FIRESTORE_EMULATOR_PORT]);
-  const context = await browser.newContext({ viewport, reducedMotion: 'reduce', serviceWorkers: 'block' });
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce', serviceWorkers: 'block' });
   const page = await context.newPage();
   const errors = [];
   const callableRequests = [];
@@ -248,5 +248,5 @@ export async function openReconnectMember(browser, { uiUrl, label, viewport = { 
   async function reload() { await page.reload({ waitUntil: 'domcontentloaded' }); }
 
   return { label, page, context, errors, callableRequests, callableResponses, observe, persisted, until, join, token, callable,
-    partition, heal, reload, isPartitioned: () => partitioned, close: () => context.close() };
+    partition, heal, reload, close: () => context.close() };
 }

@@ -1,4 +1,4 @@
-import { useSessionStore } from '@/store/useSessionStore';
+import { selectHasLiveServerSnapshot, useSessionStore } from '@/store/useSessionStore';
 import {
   sessionSnapshotAuthorityFor,
   sessionSnapshotAuthorityVersion,
@@ -10,10 +10,7 @@ export const FRESH_SERVER_AUTHORITY_MESSAGE =
 
 /** Client mutations may only begin from the latest accepted server snapshot. */
 export function hasFreshSessionAuthority(): boolean {
-  const { connection, sessionSnapshotFreshness } = useSessionStore.getState();
-  return window.navigator.onLine &&
-    connection === 'live' &&
-    sessionSnapshotFreshness === 'server';
+  return window.navigator.onLine && selectHasLiveServerSnapshot(useSessionStore.getState());
 }
 
 export function requireFreshSessionAuthority(
