@@ -82,6 +82,58 @@ it('renders the audience contract and shows pending, success, and error states w
   await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('The grievance changed. Refresh before revising it.'));
 });
 
+// Rules deny a member's read of the team grievance before any teammate has
+// written it; `subscribeCivilUnrestGrievance` then reports null and Firestore
+// ends that listener. These callbacks model the app's observable contract.
+const staleRevisionRejection = () => Object.assign(new Error('Your team grievance changed.'), {
+  code: 'functions/failed-precondition', details: { commandError: 'stale-revision' },
+});
+
+it('keeps a stale grievance draft and retries it against the refreshed team revision', async () => {
+  render(<CivilUnrestGrievancePanel crisisId="civil-unrest" crisisRevision={4} crisisState="debated" />);
+  act(() => mocks.teamCallbacks[0]!(null));
+  const textarea = screen.getByLabelText("Your team's grievance");
+  fireEvent.change(textarea, { target: { value: 'Our own account of the night shifts.' } });
+  mocks.submit.mockRejectedValueOnce(staleRevisionRejection());
+  fireEvent.click(screen.getByRole('button', { name: 'Submit grievance' }));
+
+  await waitFor(() => expect(screen.getByRole('status'))
+    .toHaveTextContent('The live session changed before this command committed. Refresh the live state and retry.'));
+  expect(textarea).toHaveValue('Our own account of the night shifts.');
+  expect(mocks.submit).toHaveBeenCalledTimes(1);
+
+  // The rejected attempt re-opens the live team listener, which now carries
+  // the teammate's committed revision.
+  await waitFor(() => expect(mocks.teamCallbacks).toHaveLength(2));
+  act(() => mocks.teamCallbacks[1]!({ ...privateGrievance, text: 'A teammate account.', revision: 1 }));
+  expect(screen.getByText('A teammate account.')).toBeVisible();
+
+  mocks.submit.mockResolvedValueOnce('applied');
+  fireEvent.click(screen.getByRole('button', { name: 'Revise grievance' }));
+  await waitFor(() => expect(mocks.submit).toHaveBeenCalledTimes(2));
+  expect(mocks.submit).toHaveBeenLastCalledWith({
+    crisisId: 'civil-unrest', affectedShipId: 'icebreaker', visibility: 'private',
+    text: 'Our own account of the night shifts.', expectedCrisisRevision: 4, expectedGrievanceRevision: 1,
+  });
+});
+
+it('drops the stale grievance retry when the member leaves the affected team', async () => {
+  render(<CivilUnrestGrievancePanel crisisId="civil-unrest" crisisRevision={4} crisisState="debated" />);
+  act(() => mocks.teamCallbacks[0]!(null));
+  fireEvent.change(screen.getByLabelText("Your team's grievance"), { target: { value: 'An unsent account.' } });
+  mocks.submit.mockRejectedValueOnce(staleRevisionRejection());
+  fireEvent.click(screen.getByRole('button', { name: 'Submit grievance' }));
+  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Refresh the live state and retry.'));
+
+  // The facilitator moves this player to a replacement role on another team.
+  act(() => useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, replacementRoleId: 'rosal-militia-leader',
+  }));
+  expect(screen.queryByLabelText("Your team's grievance")).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /grievance/i })).not.toBeInTheDocument();
+  expect(mocks.submit).toHaveBeenCalledTimes(1);
+});
+
 it('resolves every eligible replacement role to its affected team editor', () => {
   const replacements = [
     ['vip-host', 'dione'],
