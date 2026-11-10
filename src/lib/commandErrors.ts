@@ -54,6 +54,10 @@ const GUIDANCE: Readonly<Record<CommandErrorKind, string>> = {
   unknown: 'The command could not be completed. Refresh the live state and try again.',
 };
 
+/** Added to the reselect instruction when a queued action was not completed. */
+export const QUEUED_COMMAND_NOT_COMPLETED =
+  'A queued action from before the change was not completed. Review the live state before retrying.';
+
 const FIREBASE_CODES = new Set([
   'ok',
   'cancelled',

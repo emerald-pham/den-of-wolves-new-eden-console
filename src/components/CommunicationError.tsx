@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useSessionStore } from '@/store/useSessionStore';
-import { normalizeCommandError } from '@/lib/commandErrors';
+import { normalizeCommandError, QUEUED_COMMAND_NOT_COMPLETED } from '@/lib/commandErrors';
 
 const NOTICE_MS = 6_000;
 
@@ -29,6 +29,7 @@ export default function CommunicationError() {
         Error — {timeout ? display.code : `Wolf Communications Interception Code: ${display.code}`}
       </strong>
       <span>{display.message}</span>
+      {error.queuedCommandNotCompleted && <span>{QUEUED_COMMAND_NOT_COMPLETED}</span>}
       {display.retryAfterSeconds !== undefined && (
         <span>Try again in about {display.retryAfterSeconds} seconds.</span>
       )}

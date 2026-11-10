@@ -439,6 +439,8 @@ export interface CommunicationError {
   readonly code: string;
   readonly message: string;
   readonly retryAfterSeconds?: number;
+  /** A queued action was not completed while the reselect instruction was up. */
+  readonly queuedCommandNotCompleted?: true;
 }
 
 /**
@@ -524,6 +526,12 @@ interface SessionState {
   enqueueCommand: (command: PendingCommand) => void;
   removeCommand: (id: string) => void;
   setCommunicationError: (error: CommunicationError | null) => void;
+  /**
+   * Record that a queued action was not completed on the reselect instruction
+   * without replacing it. Returns false when no reselect instruction is up, so
+   * the caller reports the problem on its own.
+   */
+  markQueuedCommandNotCompleted: () => boolean;
   setMode: (mode: ConsoleMode | null) => void;
   setLastRoute: (lastRoute: string | null) => void;
   setConnection: (connection: SessionState['connection']) => void;
@@ -748,6 +756,14 @@ export const useSessionStore = create<SessionState>()(
           pendingCommands: state.pendingCommands.filter((command) => command.id !== id),
         })),
       setCommunicationError: (communicationError) => set({ communicationError }),
+      markQueuedCommandNotCompleted: () => {
+        const notice = get().communicationError;
+        if (notice?.kind !== 'station-selection-required') return false;
+        if (!notice.queuedCommandNotCompleted) {
+          set({ communicationError: { ...notice, queuedCommandNotCompleted: true } });
+        }
+        return true;
+      },
       setMode: (mode) => set({ mode }),
       setLastRoute: (lastRoute) => { if (get().lastRoute !== lastRoute) set({ lastRoute }); },
       setConnection: (connection) => {

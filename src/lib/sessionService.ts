@@ -1224,25 +1224,14 @@ async function sendOrQueue(
   }
 }
 
-const QUEUED_COMMAND_NOT_COMPLETED =
-  'A queued action from before the change was not completed. Review the live state before retrying.';
-
 /**
  * Report a queued command that was not sent or was refused. The reselect
  * instruction drives the station chooser redirect and guards a stale route
  * from reclaiming the old station, so it is never replaced; the problem is
- * added to it instead.
+ * marked on it instead.
  */
 function reportQueuedCommandProblem(report: () => void): void {
-  const notice = useSessionStore.getState().communicationError;
-  if (notice?.kind !== 'station-selection-required') {
-    report();
-    return;
-  }
-  if (notice.message.endsWith(QUEUED_COMMAND_NOT_COMPLETED)) return;
-  useSessionStore.getState().setCommunicationError({
-    ...notice, message: `${notice.message} ${QUEUED_COMMAND_NOT_COMPLETED}`,
-  });
+  if (!useSessionStore.getState().markQueuedCommandNotCompleted()) report();
 }
 
 async function flushPendingCommands(): Promise<boolean> {
