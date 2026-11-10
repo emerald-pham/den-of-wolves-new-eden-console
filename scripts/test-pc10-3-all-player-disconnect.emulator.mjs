@@ -111,7 +111,7 @@ if (await enterReconnectRow({ script, kind: 'pc10-3-all-player-disconnect' })) {
         evidence.resumeRateLimited = [explorer, miner].flatMap(member => (member?.callableResponses ?? [])
           .filter(r => r.name === 'resumeSession' && (r.httpStatus === 429 || r.error?.status === 'RESOURCE_EXHAUSTED'))
           .map(r => ({ member: member.label, at: r.at })));
-        // Reconnect traffic per browser (known open defect: no heartbeat while a resume is outstanding).
+        // Reconnect traffic per browser: resume attempts and the heartbeats that keep presence alive while one is outstanding.
         evidence.reconnectTraffic = Object.fromEntries([explorer, miner].filter(Boolean).map(member => [member.label,
           ['resumeSession', 'refreshPresence'].map(name => ({ name,
             sent: member.callableRequests.filter(r => r.name === name && !r.partitioned).map(r => r.at),
