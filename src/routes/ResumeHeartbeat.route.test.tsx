@@ -9,7 +9,8 @@
 import { act, render } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import App from '@/App';
-import { prepareReturningScientist, returningScientist, stationLossServer } from '@/test/stationLossReconnect';
+import { prepareReturningScientist, returningScientist, scientistSession, stationLossServer } from '@/test/stationLossReconnect';
+import { useSessionStore } from '@/store/useSessionStore';
 
 vi.mock('firebase/functions', async () =>
   (await import('@/test/stationLossReconnect')).stationLossMocks.callableBoundary());
@@ -68,4 +69,44 @@ it.each(['quiet', 'busy'] as const)(
   expect(heartbeats().length).toBeGreaterThanOrEqual(5);
   // One attempt on mount, then at most one per 6 s outstanding-resume interval.
   expect(stationLossServer.callsTo('resumeSession').length).toBeLessThanOrEqual(11);
+}, 30_000);
+
+// PC10.3 replay repair: the accepted resume reply is what ends the retry, not
+// the instant the connect attempt returns. The listeners can report a cached
+// snapshot for a moment as that reply lands; treating the flicker as an
+// outstanding resume kept a resume going every 6 s, and each one reset the
+// member's station state under a deliberate reselect.
+it('stops retrying once a resume is accepted although the listener flickers as the reply lands', async () => {
+  let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+  vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, next) => {
+    handlers = next;
+    return vi.fn();
+  });
+  stationLossServer.reset();
+  stationLossServer.resumeReply = { session: scientistSession, player: returningScientist };
+  const accept = stationLossServer.handlers.resumeSession!;
+  let acceptedAt: number | undefined;
+  stationLossServer.handlers.resumeSession = (data) => {
+    const listener = handlers;
+    if (!listener) throw Object.assign(new Error('backend unreachable'), { code: 'functions/unavailable' });
+    listener.onSessionFreshness?.(false);
+    // The accepted identity resubscribes the listeners; the current ones report fresh.
+    setTimeout(() => {
+      handlers?.onSessionFreshness?.(true);
+      handlers?.onPlayer?.(returningScientist);
+      handlers?.onPlayerFreshness?.(true);
+    }, 50);
+    acceptedAt ??= stationLossServer.callsTo('resumeSession').length;
+    return accept(data);
+  };
+  vi.useFakeTimers();
+  render(<App />);
+
+  for (let second = 1; second <= 30; second += 1) {
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+  }
+
+  expect(acceptedAt).toBeDefined();
+  expect(stationLossServer.callsTo('resumeSession')).toHaveLength(acceptedAt!);
+  expect(useSessionStore.getState()).toMatchObject({ connection: 'live', sessionSnapshotFreshness: 'server' });
 }, 30_000);

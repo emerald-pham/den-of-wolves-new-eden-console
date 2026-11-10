@@ -4047,12 +4047,20 @@ async function reconcileReturningSeat(
   }
   if (storedSeatId === null || storedSeatId === undefined) {
     const activeRoleId = player.get('activeConsoleRoleId');
-    const clearActiveConsoleRole = typeof activeRoleId === 'string' &&
+    let clearActiveConsoleRole = typeof activeRoleId === 'string' &&
       activeRoleId !== 'press-officer' && (
         player.get('role') !== 'player' ||
         typeof player.get('replacementRoleId') === 'string' ||
         boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) !== activeRoleId
       );
+    if (!clearActiveConsoleRole && typeof activeRoleId === 'string' && activeRoleId !== 'press-officer') {
+      // As in refreshPresence: a cast role binds its console only while that
+      // station's seat, once materialized, is claimed by this player. A seat the
+      // facilitator released and another player took is a lost station.
+      const seat = await tx.get(db.doc(`sessions/${sessionId}/seats/${activeRoleId}`));
+      clearActiveConsoleRole = seat.exists &&
+        !(seat.get('status') === 'claimed' && seat.get('holderUid') === uid);
+    }
     return {
       seatId: null, clearPointer: false, claimSeat: false,
       clearActiveConsoleRole,

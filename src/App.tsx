@@ -1298,9 +1298,13 @@ function AppRuntime() {
       .catch(markAuthorityOffline);
     const reconnect = async () => {
       lastReconnectAt = Date.now();
-      await connectAutomatically();
+      let resumeAccepted = false;
+      await connectAutomatically({ onResumeAccepted: () => { resumeAccepted = true; } });
       const state = useSessionStore.getState();
-      resumeOutstanding = state.session !== null && !selectHasLiveServerSnapshot(state);
+      // An accepted resume ends the retry even if a listener reports a cached
+      // snapshot for a moment as its reply lands.
+      resumeOutstanding = state.session !== null && !resumeAccepted &&
+        !selectHasLiveServerSnapshot(state);
     };
     const stopVersionMonitor = startVersionUpgradeMonitor({
       reconnect: () => run(reconnect),

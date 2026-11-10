@@ -91,6 +91,14 @@ if (await enterReconnectRow({ script, kind: 'pc10-3-station-loss' })) {
     page.on('request', request => {
       if (new URL(request.url()).pathname.endsWith('/releaseSeat')) releaseRequestIds.push(request.postDataJSON()?.data?.requestId ?? null);
     });
+    // The member's own seat-claim replies during the deliberate reselect (a stale reply is a 200 with status 'stale').
+    const claimReplies = [];
+    page.on('response', async response => {
+      if (!new URL(response.url()).pathname.endsWith('/claimSeat') || response.request().method() !== 'POST') return;
+      const body = await response.json().catch(() => null);
+      claimReplies.push({ requestId: response.request().postDataJSON()?.data?.requestId ?? null,
+        status: body?.result?.status ?? body?.error?.status ?? null, result: body?.result ?? null });
+    });
     try {
       await page.goto(`${app.url}/#/${shuttleId ? `shuttles/${shuttleId}` : consoleRoute}`);
       const before = await member.until('live member at its held station', s => live(s) && s.sessionId === f.sessionId &&
@@ -262,8 +270,32 @@ if (await enterReconnectRow({ script, kind: 'pc10-3-station-loss' })) {
       const scoutRequestsBefore = member.callableRequests.filter(r => r.name === 'requestScout').length;
       ev.reselectAt = Date.now();
       await page.getByRole('link', { name: linkName }).click();
-      await member.until('the member deliberately reselected the station', s => live(s) &&
-        s.seatId === seatId && s.activeConsoleRoleId === seatId, 30_000);
+      const reselected = s => live(s) && s.seatId === seatId && s.activeConsoleRoleId === seatId;
+      await pollUntil('the deliberate reselect is answered', async () => claimReplies.length > 0 || reselected(await member.observe()), 30_000);
+      if (claimReplies[0]?.status === 'stale') {
+        // The member's live session had not yet shown the release's setup revision, so the server refused the
+        // claim as stale (T1) and wrote nothing. The player is sent back to the chooser with the reselect notice.
+        const revisionNow = await f.setupRevision();
+        ev.staleReselect = { reply: claimReplies[0].result, setupRevision: revisionNow };
+        await page.waitForURL(url => new URL(url).hash === '#/console');
+        await page.getByRole('alert').filter({ hasText: STATION_LOSS_NOTICE }).waitFor();
+        assert.deepEqual({ status: (await seatDoc()).status, holderUid: (await seatDoc()).holderUid ?? null },
+          { status: 'open', holderUid: null }, 'The stale claim wrote nothing to the seat.');
+        assert.equal(claimReplies[0].result?.currentRevision, revisionNow, 'The stale claim did not advance the setup revision.');
+        const staleReceipt = await f.db.doc(`sessions/${f.sessionId}/seatMutationRequests/${claimReplies[0].requestId}`).get();
+        assert.equal(staleReceipt.exists ? staleReceipt.get('reply')?.status : 'stale', 'stale',
+          'The stale claim records at most its own stale receipt for an exact retry.');
+        ev.checks.staleClaimShownAndWroteNothing = true;
+        // As a player would: wait until the live state shows the current revision, dismiss the notice and choose again.
+        await pollUntil('the live session shows the current setup revision', async () => page.evaluate(async ({ moduleUrl, revision }) => {
+          const { useSessionStore } = await import(moduleUrl);
+          const state = useSessionStore.getState();
+          return state.connection === 'live' && state.sessionSnapshotFreshness === 'server' && state.session?.setupRevision === revision;
+        }, { moduleUrl: appModule(member, '/src/store/useSessionStore.ts'), revision: revisionNow }), 30_000);
+        await page.getByRole('button', { name: 'Dismiss error' }).click();
+        await page.getByRole('link', { name: linkName }).click();
+      }
+      await member.until('the member deliberately reselected the station', reselected, 30_000);
       await page.getByRole('link', { name: new RegExp(`open ${shuttleLabel} shuttle console`, 'i') }).click();
       await coordinate.waitFor();
       assert.equal(await coordinate.inputValue(), '4888', 'The draft refills after the deliberate reselect.');
