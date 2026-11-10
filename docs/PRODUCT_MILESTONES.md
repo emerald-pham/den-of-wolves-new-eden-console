@@ -731,8 +731,9 @@ Each catalog row links its own briefs through planning evidence.
 
 Triage is `ready-for-agent` for the approved specification. Dependency readiness
 and runtime authorization remain separate. The owner approved **PC10.1**
-runtime execution on 2026-11-04 and **PC10.2** on 2026-11-05, after PC10.1
-went live; PC10.3 through PC10.9 remain paused until PC10.2 is live. PC10 was paused because no player-facing release had shipped
+runtime execution on 2026-11-04, **PC10.2** on 2026-11-05, after PC10.1
+went live, and **PC10.3** on 2026-11-10, after PC10.2 went live; PC10.4
+through PC10.9 remain paused until PC10.3 is live. PC10 was paused because no player-facing release had shipped
 since 0.5.73 and the finished work sat unmerged on a long-lived integration
 branch that could not be merged whole. It resumes one small slice at a time:
 each slice is planned only after the previous release is verified on the
@@ -1157,5 +1158,80 @@ Evidence so far is local: unit, Functions and component tests, Firestore rules
 on the emulator, and the `test-pc10-2-*` emulator proofs for wing missions, Boa
 reclamation and attack Scrap. The named-callable deployment audit
 (`scripts/pc10-2-deployment-consumers.json`) selects every changed callable
+without a broad Functions fallback. Exact-commit CI, deployment, and gameplay
+on the live site with real accounts are not yet verified.
+
+## PC10.3 execution activated — 2026-11-10
+
+PC10.2 shipped as 0.5.75 (#456; Deploy run 42164907901), and the PC10.1
+close-out shipped as 0.5.76 (#457). On 2026-11-10 the owner asked to
+“complete the next checkpoint” and, told that PC10.2 had already shipped,
+chose “PC10.3”. This activates execution for **PC10.3 — Resilient private
+sessions** only: briefs L1, L2, L3, T1, T2, Q1, Q2 and Q3 (#99, #100, #101,
+#102, #103, #107, #108, #109; PT4 #137 is already an approved repair) and
+their refinement children (#239–#254, #264–#271, #301, #302). PC10.4–PC10.9
+keep their paused execution, and every held future brief stays held. No new
+ticket is created: activation is a change to the existing brief issues' own
+execution fields through the existing tracker writer. GitHub Issues remain the
+mutable authority.
+
+As with PC10.2, the slice is built ticket by ticket on current main, with its
+own helpers and focused tests; nothing is imported wholesale from the
+published candidate refs. A candidate commit is imported only where it applies
+cleanly to the PC10.3 family, and whole-candidate merging stays excluded. L3
+consumes L1 and L2, and T2 consumes T1; each recovery follows its own current
+source contract. Activation does not settle open source questions: any
+unresolved rule or audience question is surfaced rather than invented. This
+activation changes no completion status, acceptance, checkpoint membership or
+the 751-prompt endpoint, and grants no 0.9.x/1.0.0 version authorization.
+PC10.3 release gates are unchanged.
+
+### PC10.3 release candidate — 2026-11-10
+
+Version 0.5.77 is the PC10.3 release candidate, reconciled with main and the
+review repairs (integration `330b5c61`). It ships L1 membership, seat, ship,
+group and shuttle recovery on reconnect, a station lost while away (including
+one the facilitator released and another player took) that returns the player
+to station select with safe drafts kept, and presence that keeps the seat alive
+while a resume is outstanding; L2 mission, attack, candidate and debrief
+projections that refresh on reconnect; L3 all-player disconnect recovery in
+which the cycle clock resumes its paused window and an open crisis report
+reopens; T1 a stale Civil Unrest grievance that reopens the team listener and
+retries the kept draft, with committed or unauthorized retries held locked; T2
+a queued command that is kept until the session is server-fresh again and
+replayed once for the server to re-authorize after a station or roster change,
+with the player told when it was not completed or expired; Q1/Q2 loyalty, Wolf,
+private-note, organiser-chart and navigation audiences, with a different
+account on the same browser dropping the previous account's queued private
+commands; Q3 private mission hands and hidden bonuses, and the Abandoned Wolf
+Supply Outpost's secret d6 difficulty withheld from member projections; and the
+PT4 emulator-row ownership repair (tooling only). The catalog still reads
+703/751 (93.61%); no prompt status changed.
+
+Evidence so far is local. L1.1–L1.3, L3.2, T2.3 and L3.3 are proven with two
+real browsers on the emulator. Real-browser emulator proofs now also exist as
+`scripts/test-pc10-3-*.emulator.mjs` for station loss (L1.4, T2.1), role
+reassignment (T2.2), mission reconnect (L2.1) and a staggered all-player
+disconnect with a queued command (L3.2). The mission reconnect and all-player
+disconnect proofs pass. The station-loss and role-reassignment proofs pass most
+runs (3 of 5 and 4 of 5 at the last count); their remaining failures trace to
+two defects that also exist on main and are not fixed in this release: the app
+can sign in anonymously twice, so a member is occasionally dropped right after
+joining, and station entry gives up without a message when session freshness
+flickers during a reconnect, so a reselect can silently fail. L2.2 (#244)
+attack recovery remains at fixture-level evidence. These proofs found three
+session defects that this release fixes: a queued command dropped on a
+freshness flicker, a cast member whose released seat was taken not being sent
+to station select, and a resume retry that never stopped. The independent
+review of that last repair is in progress.
+
+L2.3 (#245) and L2.4 (#246) are only partly met, because candidate
+contribution actions and closed-session debrief reads belong to PC10.5–PC10.6,
+and L3.1 (#247) inherits that limit. Q3.2's redaction rests on the provisional
+PC10.3-Q3.2 ruling in `PRODUCT_MILESTONE_ASSUMPTIONS.md`; no entitled reader of
+the secret roll exists yet, and missions resolved before this release keep the
+old thresholds in a stored member pointer until it is rewritten (the browser
+hides them on read). The named-callable deployment audit
+(`scripts/pc10-3-deployment-consumers.json`) selects every changed callable
 without a broad Functions fallback. Exact-commit CI, deployment, and gameplay
 on the live site with real accounts are not yet verified.

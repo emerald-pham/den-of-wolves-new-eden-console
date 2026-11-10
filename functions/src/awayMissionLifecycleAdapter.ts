@@ -15,7 +15,7 @@ import {
   type MissionLifecycleState,
   type MissionOpportunityResolution,
 } from './missionLifecycle';
-import { missionCardForCode } from './missionCards';
+import { hasSecretD6Difficulty, missionCardForCode } from './missionCards';
 import { applyBoaReclamationDifficulty } from './boaMissionReclamation';
 import { missionBonusSourcesForShuttleParticipants } from './awayMissionBonuses';
 import {
@@ -489,13 +489,43 @@ export function projectAwayMissionPublicState(
   record: AwayMissionLifecycleRecord,
   viewerUid?: string,
 ): AwayMissionPublicState | null {
+  return projectPublicState(record, viewerUid, false);
+}
+
+/**
+ * Older member pointers for a secret d6 card carried its thresholds. This is
+ * that exact canonical representation, accepted only when validating a stored
+ * pointer; replies always use the redacted projector. Null when the card has
+ * no secret thresholds or no outcomes yet.
+ */
+export function projectLegacySecretThresholdPublicState(
+  record: AwayMissionLifecycleRecord,
+  viewerUid?: string,
+): AwayMissionPublicState | null {
+  if (!isValidRecord(record) || record.status === 'active' || !record.outcomes) return null;
+  const definition = missionCardForCode(record.lifecycle.siteCode);
+  if (!definition || !hasSecretD6Difficulty(definition)) return null;
+  return projectPublicState(record, viewerUid, true);
+}
+
+function projectPublicState(
+  record: AwayMissionLifecycleRecord,
+  viewerUid: string | undefined,
+  revealSecretThresholds: boolean,
+): AwayMissionPublicState | null {
   if (!isValidRecord(record)) return null;
   const definition = missionCardForCode(record.lifecycle.siteCode);
   if (!definition) return null;
+  // K's thresholds are 5X and 5X + 10 for the facilitator's secret d6, so
+  // members never receive them (provisional ruling, Q3.2 #270).
+  const secretThresholds = !revealSecretThresholds && hasSecretD6Difficulty(definition);
   const outcomes = record.status === 'active' || !record.outcomes
     ? null
     : record.outcomes.map(({ opportunityId, contributorCount, total, bonusTotal, difficulty, criticalThreshold, outcome }) => ({
-      opportunityId, contributorCount, total, bonusTotal, difficulty, criticalThreshold, outcome,
+      opportunityId, contributorCount, total, bonusTotal,
+      difficulty: secretThresholds ? null : difficulty,
+      criticalThreshold: secretThresholds ? null : criticalThreshold,
+      outcome,
     }));
   const rewards = record.status === 'active' ? null : record.rewards;
   return {

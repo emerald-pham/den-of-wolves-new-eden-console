@@ -136,6 +136,61 @@ describe('useSessionStore', () => {
     assertNoPrivateNavigation(useSessionStore.getState().session!);
   });
 
+  it.each(['setIdentity', 'setMe'] as const)(
+    'does not hand a facilitator\'s queued private notes to a different account (%s)',
+    async (entryPoint) => {
+      const facilitator: Player = { ...player, uid: 'facilitator-uid', role: 'gm' };
+      const createdAt = new Date().toISOString();
+      const store = useSessionStore.getState();
+      store.setIdentity(session, facilitator);
+      // Offline facilitator commands are persisted for replay after a reload.
+      store.enqueueCommand({ id: 'note', kind: 'setFacilitatorCensusNote', createdAt, payload: {
+        sessionId: 's1', instanceId: 'instance-1', requestId: 'note-request', expectedRevision: 3,
+        targetUid: 'suspect-uid', note: 'PRIVATE CENSUS NOTE BODY' } });
+      store.enqueueCommand({ id: 'cult', kind: 'deliverWolfCultIntelligence', createdAt, payload: {
+        sessionId: 's1', instanceId: 'instance-1', requestId: 'cult-request', expectedRevision: 1,
+        fortressCoordinate: '8378', suppliesCoordinate: '1413', agentUid: 'WOLF-AGENT-UID', codeWord: 'PRIVATE-CODE-WORD' } });
+      await useSessionStore.persist.rehydrate();
+
+      // The same account reconnecting keeps its own queue for replay.
+      useSessionStore.getState().setIdentity(session, facilitator);
+      expect(useSessionStore.getState().pendingCommands.map((command) => command.id)).toEqual(['note', 'cult']);
+
+      // A different Firebase account on this browser, without a disconnect.
+      const other: Player = { ...player, uid: 'other-account', role: 'player' };
+      if (entryPoint === 'setIdentity') useSessionStore.getState().setIdentity(session, other);
+      else useSessionStore.getState().setMe(other);
+
+      const leaked = ['PRIVATE CENSUS NOTE BODY', 'WOLF-AGENT-UID', 'PRIVATE-CODE-WORD'];
+      const memory = JSON.stringify(useSessionStore.getState().pendingCommands);
+      const stored = localStorage.getItem(SESSION_STORAGE_KEY) ?? '';
+      for (const value of leaked) {
+        expect(memory).not.toContain(value);
+        expect(stored).not.toContain(value);
+      }
+    },
+  );
+
+  it.each(['setIdentity', 'setMe'] as const)(
+    'keeps the same account\'s queued commands for server re-authorization when its role assignment changes (%s)',
+    (entryPoint) => {
+      const scientist: Player = { ...player, assignedRoleId: 'shepherd-scientist', activeConsoleRoleId: 'shepherd-scientist' };
+      const store = useSessionStore.getState();
+      store.setIdentity(session, scientist);
+      store.enqueueCommand({ id: 'grievance', kind: 'submitCivilUnrestGrievance', createdAt: new Date().toISOString(),
+        queuedWithServerAuthority: true, payload: { sessionId: 's1', requestId: 'grievance-request', crisisId: 'unrest-1',
+          expectedCrisisRevision: 2, expectedGrievanceRevision: 0, affectedShipId: 'shepherd',
+          visibility: 'private', text: 'Rations are short.' } });
+
+      // The facilitator reassigns the same member; the replay is the server's to authorize or refuse.
+      const reassigned: Player = { ...scientist, activeConsoleRoleId: null, replacementRoleId: 'rosal-militia-leader' };
+      if (entryPoint === 'setIdentity') useSessionStore.getState().setIdentity(session, reassigned);
+      else useSessionStore.getState().setMe(reassigned);
+
+      expect(useSessionStore.getState().pendingCommands.map((command) => command.id)).toEqual(['grievance']);
+    },
+  );
+
   it('accepts Voyage movement only through the fresh GM projection setter and clears it on claim loss', () => {
     const movement = {
       id: 'voyage-33-0' as const, coordinate: '1413', revision: 4,

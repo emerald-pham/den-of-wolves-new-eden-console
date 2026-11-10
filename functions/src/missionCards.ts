@@ -865,6 +865,11 @@ export const CANONICAL_MISSION_CARDS: readonly MissionCardDefinition[] = [
   ACTIVE_WOLF_FORTRESS_M,
 ];
 
+/** The card's thresholds come from the facilitator's secret d6; members never receive them. */
+export function hasSecretD6Difficulty(definition: MissionCardDefinition): boolean {
+  return definition.opportunities.some(({ difficultyRule }) => difficultyRule?.kind === 'secretD6Difficulty');
+}
+
 export function missionCardForCode(
   code: string,
 ): MissionCardDefinition | undefined {

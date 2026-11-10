@@ -8,10 +8,15 @@ const subscribers = vi.hoisted(() => ({
   publicCallbacks: [] as ((projection: unknown) => void)[],
   teamCallbacks: [] as ((grievance: unknown) => void)[],
   stop: vi.fn(),
+  /** One unsubscribe per report listener, so a reopen can prove the previous one ended. */
+  reportStops: [] as (() => void)[],
 }));
 vi.mock('@/lib/firestore', () => ({
   subscribeCrisisReport: vi.fn((_id: string, callback: (report: CrisisReport | null) => void) => {
-    subscribers.callbacks.push(callback); return subscribers.stop;
+    subscribers.callbacks.push(callback);
+    const stopReport = vi.fn(() => subscribers.stop());
+    subscribers.reportStops.push(stopReport);
+    return stopReport;
   }),
   subscribeCivilUnrestPublic: vi.fn((_id: string, callback: (projection: unknown) => void) => {
     subscribers.publicCallbacks.push(callback); return subscribers.stop;
@@ -26,7 +31,7 @@ function identity(id: string, uid = 'u1') {
   useSessionStore.getState().setIdentity({ id, name: 'Table', joinCode: '1234', phase: 'active', ownerUid: 'gm', createdAt: '', updatedAt: '' },
     { uid, sessionId: id, displayName: 'Crew', role: 'player', seatId: null, joinedAt: '' });
 }
-beforeEach(() => { subscribers.callbacks = []; subscribers.publicCallbacks = []; subscribers.teamCallbacks = []; subscribers.stop.mockClear(); identity('s1'); });
+beforeEach(() => { subscribers.callbacks = []; subscribers.reportStops = []; subscribers.publicCallbacks = []; subscribers.teamCallbacks = []; subscribers.stop.mockClear(); identity('s1'); });
 it('shows the delivered report with accessible persistent read and hide controls', () => {
   render(<CrisisReportPanel />);
   expect(screen.queryByRole('region')).not.toBeInTheDocument();
@@ -66,4 +71,27 @@ it('renders explicit public and private audience labels for a team grievance', (
   expect(screen.getByText('Private — your current team and facilitators')).toBeVisible();
   expect(screen.getByText('Public — all session members')).toBeVisible();
   expect(screen.getByLabelText("Your team's grievance")).toBeVisible();
+});
+
+// PC10.3 L3.2 (#248): while every member was away the server expired this
+// member, so the rules denied the report listener (mapped to no report) and
+// ended it. The browser all-player-disconnect proof showed the delivered
+// crisis, and the member's resolved grievance inside it, never returned after
+// the reconnect. A resume issues a new connection generation; the listener
+// must reopen then, without remounting a report that is still shown.
+it('reopens the report listener after a reconnect that follows a membership denial', () => {
+  render(<CrisisReportPanel />);
+  act(() => subscribers.callbacks[0]!(report));
+  expect(screen.getByRole('region', { name: 'Fleet crisis report' })).toBeVisible();
+  // Expired while away: the rules denial ends the listener and clears the report.
+  act(() => subscribers.callbacks[0]!(null));
+  expect(screen.queryByRole('region')).not.toBeInTheDocument();
+  const me = useSessionStore.getState().me!;
+  act(() => useSessionStore.getState().setMe({ ...me, connectionGeneration: 3 }));
+  expect(subscribers.callbacks).toHaveLength(2);
+  // The previous listener is ended before the new one opens; only the new one stays live.
+  expect(subscribers.reportStops[0]).toHaveBeenCalledOnce();
+  expect(subscribers.reportStops[1]).not.toHaveBeenCalled();
+  act(() => subscribers.callbacks[1]!(report));
+  expect(screen.getByRole('region', { name: 'Fleet crisis report' })).toHaveTextContent(report.body);
 });

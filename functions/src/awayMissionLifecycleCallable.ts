@@ -15,6 +15,7 @@ import {
   markAwayMissionOverrun,
   projectAwayMissionPrivateState,
   projectAwayMissionPublicState,
+  projectLegacySecretThresholdPublicState,
   type AwayMissionLifecycleCommand,
   type AwayMissionLifecycleRecord,
   type AwayMissionParticipantCrafts,
@@ -907,9 +908,15 @@ function requireStoredLifecycleRecord(
     if (!expectedPrivate || !expectedPublic) {
       fail('failed-precondition', 'A stored participant projection could not be derived safely.');
     }
+    // Older secret d6 (K) pointers included the protected thresholds. Accept
+    // only that exact canonical representation; replies still use the
+    // redacted projector.
+    const legacyPublic = safeLegacySecretThresholdProjection(record, participant.uid);
+    const publicProjectionMatches = sameJson(pointer.lifecyclePublicState, expectedPublic) ||
+      (legacyPublic !== null && sameJson(pointer.lifecyclePublicState, legacyPublic));
     const initialCard = expectedPrivate.cards.find(({ id }) => id === p403.cardIds[index]);
     if (!sameJson(hand.lifecyclePrivateState, expectedPrivate) ||
-        !sameJson(pointer.lifecyclePublicState, expectedPublic) ||
+        !publicProjectionMatches ||
         hand.revision !== record.revision || hand.phase !== expectedPrivate.phase ||
         hand.discarded !== (initialCard?.status === 'discarded') ||
         pointer.phase !== expectedPublic.phase || pointer.revision !== record.revision ||
@@ -1082,6 +1089,17 @@ function projectPrivateProjections(
 function safePublicProjection(record: AwayMissionLifecycleRecord, viewerUid?: string): AwayMissionPublicState | null {
   try {
     return projectAwayMissionPublicState(record, viewerUid);
+  } catch {
+    return null;
+  }
+}
+
+function safeLegacySecretThresholdProjection(
+  record: AwayMissionLifecycleRecord,
+  viewerUid: string,
+): AwayMissionPublicState | null {
+  try {
+    return projectLegacySecretThresholdPublicState(record, viewerUid);
   } catch {
     return null;
   }

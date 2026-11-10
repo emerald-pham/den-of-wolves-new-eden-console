@@ -3,7 +3,9 @@ import { commissarPurgeAuthorityIsCurrent } from './commissarPurgeAuthority';
 import { signInAnonymously } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { auth, functions } from './firebase';
-import { selectGmAccessAuthenticated, useSessionStore } from '@/store/useSessionStore';
+import {
+  isCleanupCommand, selectGmAccessAuthenticated, selectHasLiveServerSnapshot, useSessionStore,
+} from '@/store/useSessionStore';
 import type { PendingCommand } from '@/store/useSessionStore';
 import type {
   FacilitatorRuleCall,
@@ -606,10 +608,6 @@ function facilitatorRuleCallAuthorityCheckpointIsCurrent(
     store.gmInstance.uid === store.me.uid &&
     store.gmInstance.id === instanceId &&
     authorityCheckpointIsCurrent(checkpoint, allowConnecting);
-}
-
-function isCleanupCommand(command: PendingCommand): boolean {
-  return command.kind === 'disconnectFromSession' || command.kind === 'logoutGmAccess';
 }
 
 /**
@@ -1224,8 +1222,66 @@ async function sendOrQueue(
   }
 }
 
-async function flushPendingCommands(): Promise<boolean> {
+/**
+ * Report a queued command that was not sent or was refused. The reselect
+ * instruction drives the station chooser redirect and guards a stale route
+ * from reclaiming the old station, so it is never replaced; the problem is
+ * marked on it instead.
+ */
+function reportQueuedCommandProblem(report: () => void): void {
+  if (!useSessionStore.getState().markQueuedCommandNotCompleted()) report();
+}
+
+/**
+ * A queued command may be replayed only from current server freshness. The
+ * session listeners can briefly report a cached snapshot after a reconnect,
+ * which marks the connection offline; that is a reason to wait, never to drop
+ * the command.
+ */
+function outboxMayReplay(): boolean {
+  const state = useSessionStore.getState();
+  return window.navigator.onLine && state.connection !== 'offline' &&
+    state.sessionSnapshotFreshness === 'server';
+}
+
+let outboxFlushInFlight: Promise<boolean> | null = null;
+let stopDeferredOutboxFlush: (() => void) | null = null;
+
+/**
+ * Resume the outbox once the same member's session is live and server-fresh
+ * again. Only a connect attempt that received a resume reply defers a flush.
+ */
+function flushOutboxWhenFresh(sessionId: string, uid: string): void {
+  if (stopDeferredOutboxFlush) return;
+  const stop = () => {
+    unsubscribe();
+    if (stopDeferredOutboxFlush === stop) stopDeferredOutboxFlush = null;
+  };
+  const unsubscribe = useSessionStore.subscribe((state) => {
+    if (state.session?.id !== sessionId || state.me?.uid !== uid || state.pendingCommands.length === 0) {
+      stop();
+      return;
+    }
+    if (!window.navigator.onLine || !selectHasLiveServerSnapshot(state)) return;
+    stop();
+    queueMicrotask(() => {
+      void flushPendingCommands().then((flushed) => {
+        if (!flushed) useSessionStore.getState().setConnection('offline');
+      }, () => undefined);
+    });
+  });
+  stopDeferredOutboxFlush = stop;
+}
+
+/** One flush at a time: an overlapping reconnect must not send or drop an in-flight command again. */
+function flushPendingCommands(): Promise<boolean> {
+  outboxFlushInFlight ??= flushPendingCommandsOnce().finally(() => { outboxFlushInFlight = null; });
+  return outboxFlushInFlight;
+}
+
+async function flushPendingCommandsOnce(): Promise<boolean> {
   const store = useSessionStore.getState();
+  let deferred = false;
   for (const command of [...store.pendingCommands]) {
     const createdAt = Date.parse(command.createdAt);
     const now = Date.now();
@@ -1234,44 +1290,62 @@ async function flushPendingCommands(): Promise<boolean> {
       (!Number.isFinite(createdAt) || createdAt > now || now - createdAt > COMMAND_RECONNECT_WINDOW_MS)
     ) {
       store.removeCommand(command.id);
-      store.setCommunicationError({
+      reportQueuedCommandProblem(() => store.setCommunicationError({
         code: 'Wolf Intercepted Request Timeout',
         message: 'The queued command expired before the connection returned.',
-      });
+      }));
       continue;
     }
-    if (
-      !isCleanupCommand(command) &&
-      (command.queuedWithServerAuthority !== true || store.sessionSnapshotFreshness !== 'server')
-    ) {
+    if (!isCleanupCommand(command) && command.queuedWithServerAuthority !== true) {
       store.removeCommand(command.id);
-      recordStaleAuthorityReply();
+      reportQueuedCommandProblem(recordStaleAuthorityReply);
       continue;
     }
     if (!isCleanupCommand(command) && !isReplaySafeCommand(command)) {
       store.removeCommand(command.id);
-      recordAmbiguousCommand();
+      reportQueuedCommandProblem(recordAmbiguousCommand);
       continue;
     }
+    if (!isCleanupCommand(command) && !outboxMayReplay()) {
+      // Kept queued and unsent; replayed when the live server snapshot returns.
+      deferred = true;
+      continue;
+    }
+    // A receipt-backed command is replayed even after a station loss: the
+    // server re-authorizes it against the current roster, and a refused
+    // replay writes nothing.
     try {
       const checkpoint = isCleanupCommand(command)
         ? undefined
         : commandAuthorityCheckpoint(command, store);
       const claimContext = gmClaimApplyContext(command, useSessionStore.getState());
       const result = await executeCommand(command);
-      if (isStaleAuthorityReply(command, result)) recordStaleAuthorityReply();
+      if (isStaleAuthorityReply(command, result)) reportQueuedCommandProblem(recordStaleAuthorityReply);
       else applyCommandResult(command, result, checkpoint, true, claimContext);
       store.removeCommand(command.id);
     } catch (cause) {
       if (isTransientCommandError(cause)) return false;
       store.removeCommand(command.id);
-      store.setCommunicationError(interception(cause));
+      reportQueuedCommandProblem(() => store.setCommunicationError(interception(cause)));
     }
+  }
+  if (deferred) {
+    const { session, me } = useSessionStore.getState();
+    if (session && me) flushOutboxWhenFresh(session.id, me.uid);
   }
   return true;
 }
 
-function applySession(reply: SessionReply, expectedDisplayedSessionId: string | null): boolean {
+/**
+ * Apply a join/resume reply. Returns false when it is for another identity,
+ * 'accepted' when the shared authority cursor accepted it as current server
+ * state, and 'stale' when it matched but an equal or newer snapshot was already
+ * held.
+ */
+function applySession(
+  reply: SessionReply,
+  expectedDisplayedSessionId: string | null,
+): 'accepted' | 'stale' | false {
   const store = useSessionStore.getState();
   const displayedSessionId = store.session?.id ?? null;
   if (
@@ -1314,7 +1388,7 @@ function applySession(reply: SessionReply, expectedDisplayedSessionId: string | 
       useSessionStore.getState().setCommunicationError(stationSelectionNotice());
     }
   }
-  return true;
+  return acceptedByAuthority ? 'accepted' : 'stale';
 }
 
 /**
@@ -1334,18 +1408,29 @@ async function ensureSignedIn(): Promise<void> {
  * again if it throws.
  */
 export async function connect(): Promise<void> {
-  return connectWithRetryPolicy(false);
+  await connectWithRetryPolicy(false);
+}
+
+export interface ConnectAttemptOptions {
+  /**
+   * Called when this attempt's resume reply for the remembered session was
+   * accepted as current server state and its outbox flush did not stop on a
+   * transport failure. The listeners may still report a cached snapshot for a
+   * moment, but the resume itself is no longer outstanding.
+   */
+  readonly onResumeAccepted?: () => void;
 }
 
 /** App-driven retry triggers honor a server retryAfterSeconds for the same session and Firebase UID. */
-export async function connectAutomatically(): Promise<void> {
-  return connectWithRetryPolicy(true);
+export async function connectAutomatically({ onResumeAccepted }: ConnectAttemptOptions = {}): Promise<void> {
+  if (await connectWithRetryPolicy(true)) onResumeAccepted?.();
 }
 
-async function connectWithRetryPolicy(respectRateLimitWait: boolean): Promise<void> {
+async function connectWithRetryPolicy(respectRateLimitWait: boolean): Promise<boolean> {
   const requestGeneration = ++latestConnectAttemptGeneration;
   let attemptedSessionId: string | undefined;
   let attemptedUid: string | undefined;
+  let resumeAccepted = false;
   try {
     if (!window.navigator.onLine) {
       throw new Error('Browser is offline.');
@@ -1362,7 +1447,7 @@ async function connectWithRetryPolicy(respectRateLimitWait: boolean): Promise<vo
       const remainingSeconds = Math.max(1, Math.ceil((hold.retryAtMs - Date.now()) / 1_000));
       store.setConnection('offline');
       setConnectRateLimitWait(remainingSeconds);
-      return;
+      return false;
     }
     if (store.gmInstance && store.gmInstance.uid === attemptedUid &&
         store.gmInstance.sessionId === store.session?.id) {
@@ -1377,10 +1462,11 @@ async function connectWithRetryPolicy(respectRateLimitWait: boolean): Promise<vo
       // from inheriting authority from an earlier connection.
       store.setSessionSnapshotFreshness('cache');
       try {
-        const resumed = await resumeSession(rememberedSession.id);
+        const resumed = await resumeRememberedSession(rememberedSession.id);
         if (!resumed && useSessionStore.getState().session?.id === rememberedSession.id) {
           throw new Error('The server returned a mismatched session identity.');
         }
+        resumeAccepted = resumed === 'accepted';
         if (resumed && attemptedUid) {
           clearConnectRateLimitAfterAuthority(rememberedSession.id, attemptedUid, requestGeneration);
         }
@@ -1395,7 +1481,7 @@ async function connectWithRetryPolicy(respectRateLimitWait: boolean): Promise<vo
     }
     if (!await flushPendingCommands()) {
       store.setConnection('offline');
-      return;
+      return false;
     }
     if (useSessionStore.getState().gmInstance) {
       try {
@@ -1419,14 +1505,16 @@ async function connectWithRetryPolicy(respectRateLimitWait: boolean): Promise<vo
         latest.setConnection('live');
       }
     }
+    return resumeAccepted;
   } catch (cause) {
-    if (requestGeneration !== latestConnectAttemptGeneration) return;
+    if (requestGeneration !== latestConnectAttemptGeneration) return false;
     const store = useSessionStore.getState();
     store.setConnection('offline');
     if (
       isRateLimitedCommandError(cause) &&
       rememberConnectRateLimit(attemptedSessionId, attemptedUid, requestGeneration, cause)
     ) store.setCommunicationError(interception(cause));
+    return false;
   }
 }
 
@@ -2292,6 +2380,10 @@ export async function joinSession(joinCode: string): Promise<void> {
 }
 
 export async function resumeSession(sessionId: string): Promise<boolean> {
+  return await resumeRememberedSession(sessionId) !== false;
+}
+
+async function resumeRememberedSession(sessionId: string): Promise<'accepted' | 'stale' | false> {
   const call = httpsCallable<{ sessionId: string }, SessionReply>(
     functions(),
     'resumeSession',
@@ -3023,7 +3115,20 @@ export async function getSessionPresence(): Promise<{ connectedPlayers: number }
   return (await call({ sessionId: session.id })).data;
 }
 
-export async function refreshPresence(activeConsoleRoleId?: string | null): Promise<void> {
+export interface PresenceHeartbeatOptions {
+  /**
+   * The App's last connect attempt did not end with an accepted resume. The
+   * snapshot is not fresh, but the server authorizes a heartbeat from its own
+   * member record, and skipping it would let the 45 s presence lease expire
+   * and release the seat the resume is trying to keep.
+   */
+  readonly resumeOutstanding?: boolean;
+}
+
+export async function refreshPresence(
+  activeConsoleRoleId?: string | null,
+  { resumeOutstanding = false }: PresenceHeartbeatOptions = {},
+): Promise<void> {
   const store = useSessionStore.getState();
   const session = store.session;
   if (!session || !store.me) return;
@@ -3031,11 +3136,12 @@ export async function refreshPresence(activeConsoleRoleId?: string | null): Prom
   const instanceId = store.gmInstance?.sessionId === session.id
     ? store.gmInstance.id
     : undefined;
-  // A periodic heartbeat may safely stop while authority is stale. Explicit
-  // console-role claims/releases must fail so callers cannot update local role
-  // state as though the server accepted a cache-authorized mutation.
+  // A periodic heartbeat may safely stop while authority is stale, unless a
+  // resume is outstanding. Explicit console-role claims/releases must fail so
+  // callers cannot update local role state as though the server accepted a
+  // cache-authorized mutation.
   if (activeConsoleRoleId === undefined) {
-    if (!hasFreshSessionAuthority()) return;
+    if (resumeOutstanding ? !window.navigator.onLine : !hasFreshSessionAuthority()) return;
   } else {
     requireFreshSessionAuthority();
   }

@@ -612,3 +612,14 @@ authority and receipt replay remain. See [owner feedback](PRODUCT_MILESTONE_FEED
 | Chosen reading | Owner decision, 2026-11-05: a halved odd difficulty **rounds up** (17 → 9). The server stores and displays the integer and records `rounding: 'up'` on the private mission-start receipt. The printed critical threshold is unchanged; a critical result still pays only the one Scrap. |
 | Effect and limits | Affects only the one task chosen with Boa reclamation before the deal: its success comparison, its reward (one Scrap to Boa cargo instead of the printed reward, effects and Bulk Haulage), and the Boa choice panel's displayed difficulty. A single helper (`halvedBoaReclamationDifficulty`) owns the rounding. No other mission arithmetic changes. A choice never blocks the location's mission (coordinator ruling, 2026-11-05): if, at the deal, Boa control changed, the Recycler is not active, or the Recycler is not on the mission with the Boa, the choice lapses, the mission is dealt without halving or Scrap replacement, and the GM receipt and the Recycler's Boa view record the lapse and its reason. |
 | Review state | **Accepted — owner decision, 2026-11-05** (the product owner approved the PC10.2 coordinator's proposal that Boa's halved difficulty rounds up). |
+
+### PC10.3-Q3.2 — Secret K difficulty stays hidden from players after resolution (provisional)
+
+| Field | Record |
+|---|---|
+| ID and checkpoint | PC10.3-Q3.2, refinement Q3.2 (issue #270, parent Q3 #109, Prompt 629); recorded 2026-11-10. |
+| Source | Base game v1.1, away-mission card K (Abandoned Wolf Supply Outpost) and its reward row, through the authorized private library. Paraphrase: the player-facing card shows the difficulty as unknown; the facilitator secretly rolls a d6 (X); success needs 5X and a critical needs 5X + 10; success pays 2X food, water and fuel and X materials, and triggers a Wolf attack unless critical. No source wording is reproduced here. |
+| Ambiguity and alternatives | The source does not say whether the facilitator tells players X, the difficulty or the critical threshold after the cards resolve. Readings: (a) reveal the numeric difficulty and threshold after resolution; (b) keep them hidden and let only the outcome, total and delivered rewards reach players. |
+| Chosen reading | Reading (b), fail closed. Member projections (participant replies, exact replays and hand pointers) carry `difficulty: null` and `criticalThreshold: null` for K. The server record keeps 5X for resolution and rewards. Other sites keep their printed thresholds. |
+| Effect and limits | The printed reward still reaches the fleet, so a success or critical reveals X through the reward amounts; a failure does not. That follows from the reward rule and is not redacted. The outcome and total also bound X, as at the table. No app surface currently shows X to the facilitator. |
+| Review state | **Provisional; awaiting owner confirmation.** |

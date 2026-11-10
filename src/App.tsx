@@ -28,7 +28,7 @@ import DebriefMode from '@/components/DebriefMode';
 import TurnPhaseCoordinator from '@/components/TurnPhaseCoordinator';
 import SessionWaiverGate from '@/components/SessionWaiverGate';
 import MotionSafetyGate from '@/components/MotionSafetyGate';
-import { GM_ACCESS_TIMEOUT_MS, useSessionStore } from '@/store/useSessionStore';
+import { GM_ACCESS_TIMEOUT_MS, selectHasLiveServerSnapshot, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference, useMotionSafetyGatePending } from '@/lib/motionPreference';
 import { startVersionUpgradeMonitor } from '@/lib/versionUpgrade';
 import { markServiceWorkerUpdateAvailable } from '@/pwa';
@@ -59,6 +59,12 @@ import { parseVoyage33MovementState } from '../functions/src/voyage33Movement';
 
 const GM_RECONCILE_INTERVAL_MS = 5_000;
 const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
+/**
+ * While the listeners are live but a resume is still outstanding, retry it at
+ * this slower pace: ten attempts a minute stays within the server's resume
+ * rate limit, unlike the 2 s offline retry.
+ */
+const OUTSTANDING_RESUME_RETRY_MS = 6_000;
 const GmConsole = lazy(() => import('@/routes/GmConsole'));
 const RoleBrief = lazy(() => import('@/routes/RoleBrief'));
 const SessionMode = lazy(() => import('@/routes/SessionMode'));
@@ -342,7 +348,7 @@ function AppRoutes() {
       store.me.sessionId === sessionId && store.me.role === 'gm' &&
       store.gmInstance?.id === gmInstanceId &&
       store.gmInstance?.sessionId === sessionId && store.gmInstance.uid === playerUid &&
-      store.connection === 'live' && store.sessionSnapshotFreshness === 'server';
+      selectHasLiveServerSnapshot(store);
     const applyPendingGmDiscovery = () => {
       if (!callbackCurrent() || pendingGmDiscovery === undefined) return;
       const store = useSessionStore.getState();
@@ -486,9 +492,8 @@ function AppRoutes() {
       });
     };
     const unsubscribeAuthorityFreshness = useSessionStore.subscribe((state, previousState) => {
-      const wasFresh = previousState.connection === 'live' &&
-        previousState.sessionSnapshotFreshness === 'server';
-      const isFresh = state.connection === 'live' && state.sessionSnapshotFreshness === 'server';
+      const wasFresh = selectHasLiveServerSnapshot(previousState);
+      const isFresh = selectHasLiveServerSnapshot(state);
       if (wasFresh && !isFresh) {
         pendingGmDiscovery = undefined;
         state.setVoyage33MovementProjection(undefined, false);
@@ -616,7 +621,7 @@ function AppRoutes() {
               store.me.role !== 'player' || store.me.fleetGroupId !== currentCandidateProjection.groupId)) {
             retainedGroupCandidateProjection = undefined;
           }
-          const candidateProjection = store.connection === 'live' && store.sessionSnapshotFreshness === 'server' && playerProjectionFresh &&
+          const candidateProjection = selectHasLiveServerSnapshot(store) && playerProjectionFresh &&
             next.phase === 'active' && store.me?.uid === playerUid && store.me.role === 'player' &&
             currentCandidateProjection && store.me.fleetGroupId === currentCandidateProjection.groupId
             ? currentCandidateProjection : undefined;
@@ -1279,9 +1284,30 @@ function AppRuntime() {
       store.setSessionSnapshotFreshness('cache');
       store.setConnection('offline');
     };
-    const renewPresence = () => refreshPresence().catch(markAuthorityOffline);
+    // Live listeners can report a fresh server snapshot before a failed
+    // reconnect is retried. Listener freshness is not a resume: only an
+    // accepted resumeSession reply reclaims the seat, reports a lost station
+    // and reconciles the outbox. A connect attempt for a remembered session
+    // that did not end live and server-fresh keeps the retry going, whether or
+    // not the listeners turn the light green, at the slower
+    // OUTSTANDING_RESUME_RETRY_MS pace so a rate-limited resume is not
+    // hammered; listener flicker alone does not schedule another resume.
+    let resumeOutstanding = false;
+    let lastReconnectAt = 0;
+    const renewPresence = () => refreshPresence(undefined, { resumeOutstanding })
+      .catch(markAuthorityOffline);
+    const reconnect = async () => {
+      lastReconnectAt = Date.now();
+      let resumeAccepted = false;
+      await connectAutomatically({ onResumeAccepted: () => { resumeAccepted = true; } });
+      const state = useSessionStore.getState();
+      // An accepted resume ends the retry even if a listener reports a cached
+      // snapshot for a moment as its reply lands.
+      resumeOutstanding = state.session !== null && !resumeAccepted &&
+        !selectHasLiveServerSnapshot(state);
+    };
     const stopVersionMonitor = startVersionUpgradeMonitor({
-      reconnect: () => run(connectAutomatically),
+      reconnect: () => run(reconnect),
       onUpdateAvailable: markServiceWorkerUpdateAvailable,
     });
     // Some session-service failures mark the connection offline without going
@@ -1292,10 +1318,23 @@ function AppRuntime() {
         state.setSessionSnapshotFreshness('cache');
       }
     });
-    run(connectAutomatically);
+    run(reconnect);
 
+    // Registered before the retry so a heartbeat tick that coincides with a
+    // retry tick runs first, before a reconnect attempt changes the connection.
+    // An outstanding resume must not stop presence renewal: without it the
+    // server expires this device after 45 s and releases its seat.
+    const heartbeat = window.setInterval(() => {
+      const state = useSessionStore.getState();
+      if ((state.connection === 'live' || resumeOutstanding) && state.session && state.me) {
+        run(renewPresence);
+      }
+    }, PRESENCE_HEARTBEAT_INTERVAL_MS);
     const retry = window.setInterval(() => {
-      if (useSessionStore.getState().connection !== 'live') run(connectAutomatically);
+      const state = useSessionStore.getState();
+      if (resumeOutstanding && state.session) {
+        if (Date.now() - lastReconnectAt >= OUTSTANDING_RESUME_RETRY_MS) run(reconnect);
+      } else if (state.connection !== 'live') run(reconnect);
     }, CONNECT_RETRY_INTERVAL_MS);
     const reconcileGm = window.setInterval(() => {
       const state = useSessionStore.getState();
@@ -1303,19 +1342,13 @@ function AppRuntime() {
         run(reconcileGmAuthority);
       }
     }, GM_RECONCILE_INTERVAL_MS);
-    const heartbeat = window.setInterval(() => {
-      const state = useSessionStore.getState();
-      if (state.connection === 'live' && state.session && state.me) {
-        run(renewPresence);
-      }
-    }, PRESENCE_HEARTBEAT_INTERVAL_MS);
 
     const markOffline = markAuthorityOffline;
     const reconnectNow = () => {
-      run(connectAutomatically);
+      run(reconnect);
     };
     const reconnectWhenVisible = () => {
-      if (document.visibilityState === 'visible') run(connectAutomatically);
+      if (document.visibilityState === 'visible') run(reconnect);
     };
 
     window.addEventListener('offline', markOffline);

@@ -1193,6 +1193,66 @@ describe('App', () => {
     expect(reconcileGmAuthority).toHaveBeenCalled();
   });
 
+  // PC10.3 L1.4 (#242) review repair. A resume stays outstanding while connect
+  // attempts fail (or are rate-limited) even though the live listeners keep the
+  // light green. Presence must keep renewing, or the server expires the device
+  // and releases its seat, and the outstanding resume is retried at most every 6 s.
+  async function runListenerLiveMinute() {
+    for (let second = 0; second < 60; second += 1) {
+      await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+      act(() => {
+        useSessionStore.getState().setConnection('live');
+        useSessionStore.getState().setSessionSnapshotFreshness('server');
+      });
+    }
+  }
+
+  it('keeps renewing presence and paces resume retries while the listeners are live but resume keeps failing', async () => {
+    vi.useFakeTimers();
+    useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    useSessionStore.getState().setConnection('live');
+    vi.mocked(refreshPresence).mockClear();
+    vi.mocked(connectAutomatically).mockClear().mockImplementation(async () => {
+      await Promise.resolve();
+      useSessionStore.getState().setConnection('offline');
+    });
+    try {
+      render(<App />);
+      await runListenerLiveMinute();
+      // One attempt on mount, then at most one per 6 s outstanding-resume interval.
+      expect(vi.mocked(connectAutomatically).mock.calls.length).toBeGreaterThanOrEqual(2);
+      expect(vi.mocked(connectAutomatically).mock.calls.length).toBeLessThanOrEqual(11);
+      // A 10 s heartbeat every interval: well inside the 45 s presence lease.
+      expect(vi.mocked(refreshPresence).mock.calls.length).toBeGreaterThanOrEqual(5);
+    } finally {
+      vi.mocked(connectAutomatically).mockReset().mockResolvedValue(undefined);
+    }
+  });
+
+  it('stops retrying resume once an attempt ends live and keeps renewing presence', async () => {
+    vi.useFakeTimers();
+    useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    useSessionStore.getState().setConnection('live');
+    vi.mocked(refreshPresence).mockClear();
+    let attempts = 0;
+    vi.mocked(connectAutomatically).mockClear().mockImplementation(async () => {
+      attempts += 1;
+      await Promise.resolve();
+      // The first attempt fails; the retry's resume is accepted and ends live.
+      useSessionStore.getState().setConnection(attempts === 1 ? 'offline' : 'live');
+    });
+    try {
+      render(<App />);
+      await runListenerLiveMinute();
+      expect(connectAutomatically).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(refreshPresence).mock.calls.length).toBeGreaterThanOrEqual(5);
+    } finally {
+      vi.mocked(connectAutomatically).mockReset().mockResolvedValue(undefined);
+    }
+  });
+
   it('renews live presence every ten seconds', async () => {
     vi.useFakeTimers();
     useSessionStore.getState().setIdentity(session, player);
