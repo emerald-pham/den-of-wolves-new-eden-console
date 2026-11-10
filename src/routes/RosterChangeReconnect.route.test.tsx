@@ -5,6 +5,11 @@
 // that role only. The server half (a former actor's retry is refused without a
 // write after a replacement assignment) is retained T1.2 evidence in
 // scripts/pc10-3-stale-action-proof.mjs (`proveGrievanceStaleRace`, t1_2).
+// T2.3 (#254): a member reloads after the all-player hold with a cached cycle
+// clock whose deadline already passed; the server-resumed remaining time
+// replaces it without opening airspace early or restarting the window. The
+// browser half with natural presence expiry is
+// scripts/test-pc10-3-all-player-disconnect.emulator.mjs.
 // Fixture and evidence class: src/test/stationLossReconnect.ts.
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -14,9 +19,10 @@ import { useSessionStore } from '@/store/useSessionStore';
 import { acknowledgeSessionWaiver } from '@/lib/sessionWaiver';
 import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
 import {
-  reloadTab, returningScientist, SCIENTIST_SCOUT_DRAFT_KEY, scientistSession, stationLossServer,
+  explorerSession, reloadTab, returningExplorer, returningScientist, SCIENTIST_SCOUT_DRAFT_KEY, scientistSession,
+  stationLossServer,
 } from '@/test/stationLossReconnect';
-import type { Player, WolfAttackMemberView } from '@/types/game';
+import type { GameSession, Player, WolfAttackMemberView } from '@/types/game';
 import type * as FirebaseModule from '@/lib/firebase';
 import type * as FirestoreModule from '@/lib/firestore';
 import type * as SessionServiceModule from '@/lib/sessionService';
@@ -180,4 +186,59 @@ it('keeps the Comms Officer scouting draft to that role across a reassignment re
   expect(JSON.parse(sessionStorage.getItem(SCIENTIST_SCOUT_DRAFT_KEY) ?? 'null'))
     .toMatchObject({ entitlementId: 'endeavour', targetCoordinate: '4888' });
   expect(stationLossServer.callsTo('requestScout')).toEqual([]);
+}, 60_000);
+
+it('replaces a cached clock whose deadline passed during the hold with the server-resumed remaining time', async () => {
+  // The cache was written before every member disconnected: Team Phase, airspace closed.
+  const cachedAt = Date.now();
+  const clockSession = {
+    ...explorerSession, id: 's-clock', currentTurn: 1,
+    turnPhase: {
+      turn: 1, teamPhaseEndsAt: new Date(cachedAt - 20_000).toISOString(),
+      openAirspaceEndsAt: new Date(cachedAt - 20_000 + 1_200_000).toISOString(),
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  } as unknown as GameSession;
+  const explorer: Player = { ...returningExplorer, sessionId: 's-clock' };
+  // Meanwhile the server held the clock with 40 s left, then this member's
+  // resume released the hold by shifting both deadlines forward.
+  const resumedPhase = {
+    turn: 1, teamPhaseEndsAt: new Date(cachedAt + 40_000).toISOString(),
+    openAirspaceEndsAt: new Date(cachedAt + 40_000 + 1_200_000).toISOString(),
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+  let answerResume: (() => void) | undefined;
+  const resumeAnswered = new Promise<void>((resolve) => { answerResume = resolve; });
+  stationLossServer.resumeReply = { session: { ...clockSession, turnPhase: resumedPhase }, player: explorer };
+  const resume = stationLossServer.handlers.resumeSession!;
+  stationLossServer.handlers.resumeSession = async (data) => { await resumeAnswered; return resume(data); };
+  const state = useSessionStore.getState();
+  state.reset();
+  state.setIdentity(clockSession, explorer);
+  state.setMode('console');
+  await reloadTab();
+  window.location.hash = '#/ships/quellon/roles/quellon-explorer';
+  render(<App />);
+
+  // The cached render cannot act on its passed deadline while the resume is outstanding.
+  await waitFor(() => expect(stationLossServer.callsTo('resumeSession')).toHaveLength(1));
+  expect(useSessionStore.getState().sessionSnapshotFreshness).not.toBe('server');
+  expect(screen.queryByRole('status', { name: /^Airspace closed/ })).not.toBeInTheDocument();
+  answerResume?.();
+
+  const timer = await screen.findByRole('status', { name: /^Airspace closed \/\/ \d\d:\d\d remaining$/ }, slow);
+  const [, minutes, seconds] = /(\d\d):(\d\d) remaining/.exec(timer.getAttribute('aria-label') ?? '') ?? [];
+  const remaining = Number(minutes) * 60 + Number(seconds);
+  // The server's remaining window, neither restarted (10:00) nor expired.
+  expect(remaining).toBeGreaterThan(30);
+  expect(remaining).toBeLessThanOrEqual(40);
+  expect(useSessionStore.getState()).toMatchObject({
+    connection: 'live', sessionSnapshotFreshness: 'server',
+    session: { id: 's-clock', turnPhase: { teamPhaseEndsAt: resumedPhase.teamPhaseEndsAt } },
+  });
+  const persisted = JSON.parse(localStorage.getItem('dow-new-eden-session') ?? '{}') as {
+    state?: { session?: { turnPhase?: { teamPhaseEndsAt?: string } } };
+  };
+  expect(persisted.state?.session?.turnPhase?.teamPhaseEndsAt).toBe(resumedPhase.teamPhaseEndsAt);
+  expect(stationLossServer.callsTo('beginOpenAirspacePhase')).toEqual([]);
 }, 60_000);
