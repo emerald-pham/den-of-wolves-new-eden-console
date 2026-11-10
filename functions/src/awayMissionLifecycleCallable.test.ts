@@ -496,10 +496,16 @@ it('executes every lifecycle command, keeps the deck cursor and projections atom
     paths().mission, paths().deck, paths().aliceHand, paths().bobHand,
     paths().alicePointer, paths().bobPointer,
   ]));
+  // The secret d6 (X = 6) stays authoritative in the server-only record.
+  expect(store.records.get(paths().mission)?.lifecycleRecord.outcomes).toEqual([
+    expect.objectContaining({ opportunityId: 'K-1', difficulty: 30, criticalThreshold: 40 }),
+  ]);
   for (let retry = 0; retry < 3; retry += 1) {
     const reply = await commit(finalAssignment);
+    // Q3.2 (#270): 5X would reveal the facilitator's secret d6, so the exact
+    // replay carries no K threshold (provisional fail-closed ruling).
     expect(reply).toMatchObject({ status: 'replayed', publicState: {
-      status: 'resolved', outcomes: [expect.objectContaining({ opportunityId: 'K-1', difficulty: 30 })],
+      status: 'resolved', outcomes: [expect.objectContaining({ opportunityId: 'K-1', difficulty: null, criticalThreshold: null })],
     } });
     expect(JSON.stringify(reply.publicState)).not.toMatch(/A♥|4♥|10♦|cardId|cardTotal|bonusBreakdown|secretD6Rolls/);
   }
@@ -518,6 +524,75 @@ it('executes every lifecycle command, keeps the deck cursor and projections atom
     status: 'committed', publicState: { status: 'complete', custody: { shipId: 'aegis' } },
   });
   expect(store.records.get(paths().session)?.missionCraftCommitments).toEqual({});
+});
+
+async function resolveSecretK(d6: number) {
+  const store = seededStore();
+  store.records.set(`sessions/${SESSION_ID}/players/eve`, { role: 'player', connected: true });
+  const callables = dependencies(store, { d6 });
+  const commit = callables.commitAwayMissionLifecycleCommand;
+  const send = (uid: string, type: string, fields: Fields = {}) => commit(commandRequest(uid, {
+    type, requestId: `${type}-${currentRevision(store)}-${uid}`, expectedRevision: currentRevision(store), ...fields,
+    ...(uid === 'gm' ? { instanceId: 'gm-instance' } : {}),
+  }));
+  await send('bob', 'requestExtraCards', { count: 1 });
+  await send('alice', 'distributeExtraCard', { participantUid: 'bob', opportunityId: 'K-1' });
+  await send('gm', 'openDiscards');
+  await send('alice', 'discardCard', { cardId: ALICE_CARD });
+  await send('bob', 'discardCard', { cardId: BOB_CARD });
+  await send('alice', 'assignCards', { placements: [] });
+  const resolution = commandRequest('bob', {
+    type: 'assignCards', requestId: 'secret-k-resolution', expectedRevision: currentRevision(store),
+    placements: [{ cardId: EXTRA_CARD, opportunityId: 'K-1' }],
+  });
+  const resolved = await commit(resolution);
+  expect(store.records.get(paths().mission)?.status).toBe('resolved');
+  return { store, commit, send, resolution, resolved };
+}
+
+it.each([
+  // Worked from the printed K card: difficulty 5X, critical 5X + 10; success gives 2X food, water, fuel
+  // and X materials, plus 1 of each from the contributing Capybara's Bulk Haulage.
+  [1, 5, 15, { food: 3, water: 3, fuel: 3, materials: 2 }],
+  [6, 30, 40, {}],
+] as const)('keeps a secret K d6 of %i out of every participant reply, pointer, replay and error', async (d6, difficulty, criticalThreshold, resources) => {
+  const { store, commit, send, resolution, resolved } = await resolveSecretK(d6);
+  const record = store.records.get(paths().mission)!.lifecycleRecord as Fields;
+  expect(record.outcomes).toEqual([expect.objectContaining({ opportunityId: 'K-1', difficulty, criticalThreshold })]);
+  expect(record.rewards).toEqual([expect.objectContaining({ opportunityId: 'K-1', resources })]);
+
+  const redacted = [expect.objectContaining({ opportunityId: 'K-1', difficulty: null, criticalThreshold: null })];
+  expect(resolved.publicState.outcomes).toEqual(redacted);
+  // The fleet receives the printed reward, so its quantities stay on the member projection.
+  expect(resolved.publicState.rewards).toEqual(record.rewards);
+  for (const path of [paths().alicePointer, paths().bobPointer]) {
+    const pointerState = store.records.get(path)!.lifecyclePublicState as Fields;
+    expect(pointerState.outcomes).toEqual(redacted);
+    expect(JSON.stringify(pointerState)).not.toMatch(/secretD6|bonusBreakdown|cardTotal/);
+  }
+  for (const path of [paths().aliceHand, paths().bobHand]) {
+    expect(JSON.stringify(store.records.get(path))).not.toMatch(/secretD6|difficulty|criticalThreshold/);
+  }
+  const event = store.records.get(`sessions/${SESSION_ID}/events/away-mission-lifecycle-${resolution.data.requestId}`);
+  expect(JSON.stringify(event)).not.toMatch(/difficulty|criticalThreshold|secretD6|outcomes/);
+
+  const writes = store.committedWrites.length;
+  const replay = await commit(resolution);
+  expect(replay).toEqual({ ...resolved, status: 'replayed' });
+  expect(store.committedWrites).toHaveLength(writes);
+
+  for (const wrongActor of ['alice', 'eve', 'gm']) {
+    const denied = await commit({ ...resolution, auth: { uid: wrongActor } }).catch((error: unknown) => error);
+    expect(denied).toMatchObject({ code: 'permission-denied' });
+    expect(JSON.stringify(denied) + String((denied as Error).message)).not.toMatch(new RegExp(`\\b(${difficulty}|${criticalThreshold})\\b|secretD6`));
+  }
+  expect(store.committedWrites).toHaveLength(writes);
+
+  const delivered = await send('alice', 'dropOff', { shipId: 'aegis' });
+  expect(delivered.publicState).toMatchObject({ status: 'complete', outcomes: redacted });
+  for (const path of [paths().alicePointer, paths().bobPointer]) {
+    expect((store.records.get(path)!.lifecyclePublicState as Fields).outcomes).toEqual(redacted);
+  }
 });
 
 it('keeps Warrior Reclamator choices and each participant’s cards private from every other command reply', async () => {
