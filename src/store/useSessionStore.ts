@@ -621,7 +621,8 @@ function samePrivateAssignment(previous: Player | null, next: Player | null): bo
     (previous.replacementStatus ?? null) === (next.replacementStatus ?? null);
 }
 
-function isCleanupCommand(command: PendingCommand): boolean {
+/** Disconnect and logout: the user's explicit cleanup decision, kept through local teardown and account changes. */
+export function isCleanupCommand(command: PendingCommand): boolean {
   return command.kind === 'disconnectFromSession' || command.kind === 'logoutGmAccess';
 }
 
@@ -837,9 +838,7 @@ export const useSessionStore = create<SessionState>()(
           identityHydrationRevision: state.identityHydrationRevision + 1,
           // Queued disconnect and logout commands must survive local teardown
           // so the server can receive the user's explicit cleanup decision.
-          pendingCommands: state.pendingCommands.filter(
-            (command) => command.kind === 'disconnectFromSession' || command.kind === 'logoutGmAccess',
-          ),
+          pendingCommands: state.pendingCommands.filter(isCleanupCommand),
         })),
       reset: () => set({ ...initial }),
     }),
@@ -887,6 +886,11 @@ export const useSessionStore = create<SessionState>()(
     },
   ),
 );
+
+/** The connection is live and the session snapshot came from the server: current authority. */
+export const selectHasLiveServerSnapshot = (
+  state: Pick<SessionState, 'connection' | 'sessionSnapshotFreshness'>,
+): boolean => state.connection === 'live' && state.sessionSnapshotFreshness === 'server';
 
 export const selectIsGm = (state: SessionState): boolean =>
   state.me?.role === 'gm' && state.gmInstance !== null &&

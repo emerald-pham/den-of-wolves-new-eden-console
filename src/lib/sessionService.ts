@@ -3,7 +3,7 @@ import { commissarPurgeAuthorityIsCurrent } from './commissarPurgeAuthority';
 import { signInAnonymously } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { auth, functions } from './firebase';
-import { selectGmAccessAuthenticated, useSessionStore } from '@/store/useSessionStore';
+import { isCleanupCommand, selectGmAccessAuthenticated, useSessionStore } from '@/store/useSessionStore';
 import type { PendingCommand } from '@/store/useSessionStore';
 import type {
   FacilitatorRuleCall,
@@ -606,10 +606,6 @@ function facilitatorRuleCallAuthorityCheckpointIsCurrent(
     store.gmInstance.uid === store.me.uid &&
     store.gmInstance.id === instanceId &&
     authorityCheckpointIsCurrent(checkpoint, allowConnecting);
-}
-
-function isCleanupCommand(command: PendingCommand): boolean {
-  return command.kind === 'disconnectFromSession' || command.kind === 'logoutGmAccess';
 }
 
 /**
