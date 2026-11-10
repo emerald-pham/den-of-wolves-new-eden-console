@@ -21,6 +21,7 @@ import {
   releaseConfiguredEmulatorSlot,
   reserveAvailableConfiguredEmulatorSlot,
   reserveConfiguredEmulatorSlot,
+  reserveEmulatorSlot,
   validationPlanForFiles,
   validationCommandArguments,
   validationCommandSpec,
@@ -219,6 +220,100 @@ describe('simplified coordination registry', () => {
       await amendCoordinationEntry(filePath, { id: foreign.id, resources: 'pt4-fixture-resource' });
       const afterRemoval = parseCoordinationState(await readFile(filePath, 'utf8'));
       expect(afterRemoval.configurations.map((configuration) => configuration.id)).toEqual([second.id]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('returns only a failed starter\'s row and restores the row it displaced', async () => {
+    const { directory, filePath } = await fixture();
+    const owner = resolve(directory, 'owner-worktree');
+    const foreign = resolve(directory, 'foreign-worktree');
+    const free = async () => true;
+    try {
+      await mkdir(owner);
+      await mkdir(foreign);
+      const preexisting = await reserveConfiguredEmulatorSlot({ filePath, slot: 2, worktree: owner, ports: [59_002], portCheck: free });
+      const foreignRow = await reserveConfiguredEmulatorSlot({ filePath, slot: 5, worktree: foreign, ports: [59_005], portCheck: free });
+      const foreignChild = await reserveEmulatorSlot({
+        filePath, slot: 5, worktree: foreign, kind: 'rules', command: 'pt4 fixture', ports: [59_105], portCheck: free,
+      });
+
+      const started = await reserveAvailableConfiguredEmulatorSlot({
+        filePath, worktree: owner, availableSlots: [3], portsForSlot: (slot: number) => [59_000 + slot], portCheck: free,
+      });
+      expect(started.slot).toBe(3);
+      // Startup fails before anything launches: return what this run created.
+      await releaseConfiguredEmulatorSlot(started, filePath);
+
+      const state = parseCoordinationState(await readFile(filePath, 'utf8'));
+      expect([...state.configurations].sort((left, right) => left.slot - right.slot)).toEqual([preexisting, foreignRow]);
+      expect(state.reservations).toEqual([foreignChild]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('does not restore a displaced row over a slot another worktree has since claimed', async () => {
+    const { directory, filePath } = await fixture();
+    const owner = resolve(directory, 'owner-worktree');
+    const other = resolve(directory, 'other-worktree');
+    const free = async () => true;
+    const portsForSlot = (slot: number) => [59_000 + slot];
+    try {
+      await mkdir(owner);
+      await mkdir(other);
+      await reserveConfiguredEmulatorSlot({ filePath, slot: 2, worktree: owner, ports: [59_002], portCheck: free });
+      const started = await reserveAvailableConfiguredEmulatorSlot({ filePath, worktree: owner, availableSlots: [3], portsForSlot, portCheck: free });
+      const claimant = await reserveAvailableConfiguredEmulatorSlot({ filePath, worktree: other, availableSlots: [2], portsForSlot, portCheck: free });
+      await releaseConfiguredEmulatorSlot(started, filePath);
+
+      const state = parseCoordinationState(await readFile(filePath, 'utf8'));
+      expect(state.configurations).toEqual([claimant]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('restores pre-existing local configuration and its row when the configure step fails', async () => {
+    const { directory, filePath } = await fixture();
+    const worktree = resolve(directory, 'configured-worktree');
+    const localConfigPath = resolve(worktree, 'firebase.local.json');
+    const localEnvironmentPath = resolve(worktree, '.env.emulators.local');
+    const configure = await import('../../scripts/configure-emulator-slot.mjs') as unknown as {
+      configureEmulatorSlot: (options: {
+        slot?: number;
+        repositoryDirectory: string;
+        coordinationPath: string;
+        portCheck: (port: number) => Promise<boolean>;
+        write: (path: string, content: string) => Promise<void>;
+      }) => Promise<unknown>;
+    };
+    try {
+      await mkdir(worktree);
+      await writeFile(resolve(worktree, 'firebase.json'), `${JSON.stringify({ emulators: {} })}\n`);
+      await writeFile(localConfigPath, 'pre-existing firebase.local.json\n');
+      await writeFile(localEnvironmentPath, 'pre-existing .env.emulators.local\n');
+      const preexisting = await reserveConfiguredEmulatorSlot({ filePath, slot: 2, worktree, ports: [59_002], portCheck: async () => true });
+
+      await expect(configure.configureEmulatorSlot({
+        slot: 3,
+        repositoryDirectory: worktree,
+        coordinationPath: filePath,
+        // Never probe real listeners from this fixture.
+        portCheck: async () => true,
+        // The Firebase file is replaced before the environment write fails.
+        write: async (path, content) => {
+          if (path !== localEnvironmentPath) return writeFile(path, content);
+          await new Promise((resolvePromise) => setTimeout(resolvePromise, 20));
+          throw new Error('fixture write failure');
+        },
+      })).rejects.toThrow('fixture write failure');
+
+      expect(await readFile(localConfigPath, 'utf8')).toBe('pre-existing firebase.local.json\n');
+      expect(await readFile(localEnvironmentPath, 'utf8')).toBe('pre-existing .env.emulators.local\n');
+      const state = parseCoordinationState(await readFile(filePath, 'utf8'));
+      expect(state.configurations).toEqual([preexisting]);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
