@@ -7,6 +7,7 @@ import {
   ACTIVE_WOLF_OUTPOST_L,
   CANONICAL_MISSION_CARDS,
   DERELICT_RESEARCH_VESSEL_H,
+  hasSecretD6Difficulty,
   ICSS_ATHENA_SURVIVORS_E,
   ICE_ASTEROIDS_B,
   ION_NEBULA_I,
@@ -16,6 +17,7 @@ import {
   RARE_ELEMENT_MOON_C,
   UNSTABLE_STAR_J,
 } from './missionCards';
+import { hasSecretD6DifficultySite, SECRET_D6_DIFFICULTY_SITE_CODES } from './missionSecretDifficulty';
 
 describe('server-owned canonical away mission cards', () => {
   it('keeps the complete A/B/C catalog in the Functions project', () => {
@@ -594,5 +596,20 @@ describe('server-owned canonical away mission cards', () => {
     expect(missionCardForCode('L')).toBe(ACTIVE_WOLF_OUTPOST_L);
     expect(missionCardForCode('M')).toBe(ACTIVE_WOLF_FORTRESS_M);
     expect(missionCardForCode('unknown')).toBeUndefined();
+  });
+});
+
+describe('secret d6 difficulty cards', () => {
+  it('marks only the cards whose printed rule hides the thresholds behind a secret d6', () => {
+    expect(CANONICAL_MISSION_CARDS.filter(hasSecretD6Difficulty).map(({ code }) => code)).toEqual(['K']);
+  });
+
+  it('keeps the browser-safe site list equal to the typed catalog', () => {
+    // The browser cannot import the catalog, which carries hidden rewards.
+    expect([...SECRET_D6_DIFFICULTY_SITE_CODES])
+      .toEqual(CANONICAL_MISSION_CARDS.filter(hasSecretD6Difficulty).map(({ code }) => code));
+    for (const { code } of CANONICAL_MISSION_CARDS) {
+      expect(hasSecretD6DifficultySite(code)).toBe(hasSecretD6Difficulty(missionCardForCode(code)!));
+    }
   });
 });
