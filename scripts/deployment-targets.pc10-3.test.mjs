@@ -6,7 +6,7 @@ import test from 'node:test';
 import { deploymentSelector } from './deployment-targets.mjs';
 
 const BASELINE = '396f2941a5ba213c725acf05516799274c164b7b';
-const CANDIDATE = 'f62bd9cd3ad50beb48159edd228731dbca5f8e16';
+const CANDIDATE = '330b5c61e6de827599e5e395fcc0ef5baa84bba0';
 const CANDIDATE_ALIAS = 'pc10-3-candidate';
 const EMPTY_SOURCE_HASH = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
@@ -22,6 +22,8 @@ const EXPECTED_CONSUMERS = {
   'functions/src/missionCards.ts': MISSION_PUBLIC_PROJECTION_CONSUMERS,
   // Shared with the browser only; no deployed callable reaches it.
   'functions/src/missionSecretDifficulty.ts': [],
+  // Only reconcileReturningSeat changed; joinSession and resumeSession call it.
+  'functions/src/index.ts': ['joinSession', 'resumeSession'],
 };
 
 function gitSource(revision, file) {
@@ -88,7 +90,7 @@ test('the exact PC10.3 source audit hashes every audited runtime file and the fu
   assert.equal(inventory.candidate, CANDIDATE);
   const hash = source => createHash('sha256').update(source).digest('hex');
   for (const file of Object.keys(EXPECTED_CONSUMERS)) {
-    const audit = inventory.modules[file];
+    const audit = file === 'functions/src/index.ts' ? inventory.index : inventory.modules[file];
     assert.ok(audit && Array.isArray(audit.consumers), `${file}: exact consumer audit required`);
     assert.deepEqual(audit.consumers, EXPECTED_CONSUMERS[file], `${file}: source-traced consumer list`);
     const previous = gitSource(BASELINE, file);
@@ -96,6 +98,6 @@ test('the exact PC10.3 source audit hashes every audited runtime file and the fu
     if (!previous) assert.equal(audit.before, EMPTY_SOURCE_HASH, `${file}: newly added PC10.3 module baseline`);
     assert.equal(audit.after, hash(gitSource(CANDIDATE, file)), `${file}: candidate digest`);
   }
-  assert.deepEqual(Object.keys(inventory.modules).sort(), Object.keys(EXPECTED_CONSUMERS).sort());
-  assert.equal(inventory.index, undefined, 'PC10.3 does not change functions/src/index.ts.');
+  assert.deepEqual(Object.keys(inventory.modules).sort(),
+    Object.keys(EXPECTED_CONSUMERS).filter(file => file !== 'functions/src/index.ts').sort());
 });
