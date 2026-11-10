@@ -13,8 +13,13 @@
 //      handoff all fit in one run (as in the PC07 split proof);
 //   2. the HTTP actors' fixture keep-alive is stopped (they simply go silent);
 //   3. the Functions emulator never fires Cloud Scheduler, so the compiled
-//      `expireStalePlayers` handler is invoked once by
-//      scripts/pc10-3-expire-stale-players.mjs after the real 45 s lease.
+//      `expireStalePlayers` handler is invoked by
+//      scripts/pc10-3-expire-stale-players.mjs twice: once after the miner's
+//      real 45 s lease only (the rest are still live, so the clock must keep
+//      running) and once after everyone else's;
+//   4. the miner's grievance request reaches the server and commits, but its
+//      reply is dropped by the test network as the miner loses the backend, so
+//      the app holds it as a queued command across the whole outage.
 // Browsers go silent by losing the backend (no disconnect call is sent). No
 // presence, seat, clock or event document is written by the fixture.
 // This is not deployed or production gameplay, and Chrome here is a headless
@@ -40,13 +45,16 @@ if (await enterReconnectRow({ script, kind: 'pc10-3-all-player-disconnect' })) {
   const { openCivilUnrestCrisis, documentState, assertNoWrite } = await import('./pc10-3-stale-action-proof.mjs');
   const PRESENCE_LEASE_MS = 45_000;
   const TEAM_WINDOW_AFTER_FIXTURE_MS = 100_000;
+  // The miner goes silent this long before everyone else, so its lease ends in an earlier handler run.
+  const STAGGER_MS = 15_000;
   const evidenceDirectory = process.env.PC10_3_DISCONNECT_EVIDENCE_DIR ?? join(tmpdir(), 'dow-pc10-3-all-player-disconnect');
   const evidence = { kind: 'normal-authenticated-local-emulator-browser-all-player-disconnect',
     sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repository, encoding: 'utf8' }).trim(),
     worktreeClean: execFileSync('git', ['status', '--porcelain'], { cwd: repository, encoding: 'utf8' }).trim() === '',
     nodeVersion: process.version, preparedScene: false, productionGameplay: false,
     fixtureChanges: ['Team Phase deadline moved to 100 s ahead (one privileged write)',
-      'HTTP fixture keep-alive stopped', 'compiled expireStalePlayers handler invoked once after the real lease'],
+      'HTTP fixture keep-alive stopped', 'compiled expireStalePlayers handler invoked twice after the real leases (miner first, then the rest)',
+      'grievance reply dropped by the test network as the miner goes silent'],
     checks: {}, steps: [] };
   let app, browser, f, explorer, miner;
   const record = (step, details = {}) => { evidence.steps.push({ step, at: new Date().toISOString(), ...details }); };
@@ -127,25 +135,7 @@ if (await enterReconnectRow({ script, kind: 'pc10-3-all-player-disconnect' })) {
     });
 
     it('L3.2 #248 + T2.3 #254: natural expiry holds the clock; returning browsers get the server remaining time and their resolved choice', async () => {
-      // A resolved choice: the miner submits its team's grievance through the ordinary UI.
       const crisis = await openCivilUnrestCrisis(f);
-      const grievance = miner.page.getByRole('region', { name: 'Civil Unrest team grievances' });
-      await grievance.getByLabel("Your team's grievance", { exact: true }).fill('Icebreaker night crews need relief.');
-      let submitted;
-      miner.page.on('request', request => {
-        if (new URL(request.url()).pathname.endsWith('/submitCivilUnrestGrievance')) submitted ??= request.postDataJSON().data;
-      });
-      await grievance.getByRole('button', { name: 'Submit grievance', exact: true }).click();
-      await grievance.getByText('Grievance submitted.', { exact: true }).waitFor();
-      const ownGrievance = grievance.getByRole('article', { name: 'Your current team grievance' })
-        .getByText('Icebreaker night crews need relief.', { exact: true });
-      evidence.grievanceShownBeforeDisconnect = await ownGrievance.waitFor({ timeout: 5_000 }).then(() => true, () => false);
-      const grievancePath = `sessions/${f.sessionId}/civilUnrestGrievances/icebreaker`;
-      const committedGrievance = (await f.db.doc(grievancePath).get()).data();
-      assert.equal(committedGrievance.revision, 1);
-      assert.equal(submitted?.requestId !== undefined, true);
-      record('grievance-committed', { crisisId: crisis.crisisId, revision: committedGrievance.revision });
-
       // Disclosed fixture step 1: Team Phase ends 100 s from now.
       const clock = (await sessionData()).turnPhase;
       const teamPhaseEndsAt = new Date(Date.now() + TEAM_WINDOW_AFTER_FIXTURE_MS).toISOString();
@@ -160,26 +150,75 @@ if (await enterReconnectRow({ script, kind: 'pc10-3-all-player-disconnect' })) {
       evidence.loyaltyBeforeDisconnect = await documentState(f.db, wolfPaths);
       assert.deepEqual(await pauseEvents(), [], 'No presence hold exists before the disconnect.');
 
-      // Every member goes silent: HTTP actors stop, both browsers lose the backend.
+      // A resolved choice that the miner's app still holds as queued: the grievance commits on the
+      // server, then the reply is lost as the miner loses the backend (the miner is the first to go silent).
+      const grievance = miner.page.getByRole('region', { name: 'Civil Unrest team grievances' });
+      await grievance.getByLabel("Your team's grievance", { exact: true }).fill('Icebreaker night crews need relief.');
+      let submitted, receipt;
+      const grievanceRequestIds = [];
+      miner.page.on('request', request => {
+        if (new URL(request.url()).pathname.endsWith('/submitCivilUnrestGrievance')) grievanceRequestIds.push(request.postDataJSON()?.data?.requestId ?? null);
+      });
+      await miner.page.route(url => url.pathname.endsWith('/submitCivilUnrestGrievance'), async route => {
+        submitted = route.request().postDataJSON().data;
+        receipt = await (await route.fetch()).json();
+        await miner.partition();
+        await route.abort('connectionreset');
+      }, { times: 1 });
+      await grievance.getByRole('button', { name: 'Submit grievance', exact: true }).click();
+      await grievance.getByText('Saved to send when the connection returns.', { exact: true }).waitFor();
+      const minerSilentAt = Date.now();
+      const queued = JSON.parse(await miner.page.evaluate(() => window.localStorage.getItem('dow-new-eden-session'))).state.pendingCommands;
+      assert.deepEqual(queued.map(command => ({ kind: command.kind, requestId: command.payload.requestId })),
+        [{ kind: 'submitCivilUnrestGrievance', requestId: submitted.requestId }], 'The app holds the committed grievance as queued.');
+      assert.equal(receipt?.result?.revision, 1, 'The server committed the grievance before the reply was lost.');
+      const grievancePath = `sessions/${f.sessionId}/civilUnrestGrievances/icebreaker`;
+      const committedGrievance = (await f.db.doc(grievancePath).get()).data();
+      assert.equal(committedGrievance.revision, 1);
+      record('grievance-committed-reply-lost', { crisisId: crisis.crisisId, revision: committedGrievance.revision, queued: true });
+
+      // Everyone else stays live a while longer, then goes silent: HTTP actors stop, the explorer loses the backend.
+      await delay(STAGGER_MS);
       const disconnectedAt = Date.now();
       await f.stopHeartbeats();
-      await miner.partition();
       await explorer.partition();
       const requestsAtDisconnect = { explorer: explorer.callableRequests.length, miner: miner.callableRequests.length };
-      record('all-members-silent', { teamPhaseEndsAt });
+      record('all-members-silent', { teamPhaseEndsAt, minerSilentForMs: disconnectedAt - minerSilentAt });
 
-      // Wait out the real lease; no member was explicitly disconnected.
+      // Wait out the real leases; no member was explicitly disconnected.
       const connected = async () => (await f.db.collection(`sessions/${f.sessionId}/players`).where('connected', '==', true).get()).docs;
+      const expire = () => {
+        const output = execFileSync('node', ['scripts/pc10-3-expire-stale-players.mjs', f.sessionId],
+          { cwd: repository, encoding: 'utf8', env: process.env });
+        return JSON.parse(output.trim().split('\n').at(-1));
+      };
       const beforeExpiry = await connected();
-      assert.equal(beforeExpiry.length, 9, 'GM and all eight crew are still connected before the lease ends.');
-      const lastSeen = Math.max(...beforeExpiry.map(doc => doc.get('lastSeenAt').toMillis()));
-      const waitMs = lastSeen + PRESENCE_LEASE_MS + 2_000 - Date.now();
-      if (waitMs > 0) await delay(waitMs);
-      assert.equal((await connected()).length, 9, 'Silence alone has not changed presence.');
+      assert.equal(beforeExpiry.length, 9, 'GM and all eight crew are still connected before the first lease ends.');
+      const minerUid = (await miner.observe()).uid;
+      const minerLastSeen = beforeExpiry.find(doc => doc.id === minerUid).get('lastSeenAt').toMillis();
+      const othersLastSeen = Math.max(...beforeExpiry.filter(doc => doc.id !== minerUid).map(doc => doc.get('lastSeenAt').toMillis()));
+      assert.ok(othersLastSeen - minerLastSeen > 10_000, 'The rest of the roster was seen well after the miner went silent.');
+
+      // First handler run: only the miner's lease has ended. The clock keeps running for the live members.
+      await delay(Math.max(0, minerLastSeen + PRESENCE_LEASE_MS + 2_000 - Date.now()));
+      assert.ok(Date.now() < othersLastSeen + PRESENCE_LEASE_MS - 3_000, 'The first run happens while the others are still within their lease.');
+      const firstRun = expire();
+      const afterFirst = await connected();
+      assert.deepEqual(afterFirst.map(doc => doc.id).includes(minerUid), false, 'The first run expired the silent miner.');
+      assert.equal(afterFirst.length, 8, 'Everyone else is still connected after the first run.');
+      assert.equal((await seat('icebreaker-miner')).holderUid, null, 'The miner\'s seat is released by its own expiry.');
+      assert.equal((await sessionData()).turnPhase.timerPause, undefined, 'The clock runs until the last member expires.');
+      assert.deepEqual(await pauseEvents(), [], 'No hold while members remain.');
+      evidence.staggeredExpiry = { firstRun: { ...firstRun, expired: ['icebreaker-miner'], stillConnected: afterFirst.length, clockHeld: false } };
+      evidence.checks.clockRunsUntilLastMemberExpires = true;
+
+      // Second handler run: everyone else's lease has ended.
+      const lastSeen = othersLastSeen;
+      await delay(Math.max(0, lastSeen + PRESENCE_LEASE_MS + 2_000 - Date.now()));
+      assert.equal((await connected()).length, 8, 'Silence alone has not changed presence.');
       assert.equal((await sessionData()).turnPhase.timerPause, undefined, 'The clock runs until the server expires the last member.');
-      const output = execFileSync('node', ['scripts/pc10-3-expire-stale-players.mjs', f.sessionId],
-        { cwd: repository, encoding: 'utf8', env: process.env });
-      const run = JSON.parse(output.trim().split('\n').at(-1));
+      const run = expire();
+      evidence.staggeredExpiry.secondRun = { ...run, msAfterFirst: run.startedAt - firstRun.startedAt };
       evidence.naturalExpiry = { leaseMs: PRESENCE_LEASE_MS, silentForMs: run.startedAt - disconnectedAt,
         sinceLastSeenMs: run.startedAt - lastSeen, ...run };
 
@@ -271,8 +310,16 @@ if (await enterReconnectRow({ script, kind: 'pc10-3-all-player-disconnect' })) {
         evidence.crisisReportShownAfterReconnect = await miner.page.getByRole('region', { name: 'Fleet crisis report' }).count() > 0;
       }
       const reviseControls = await panel.getByRole('button', { name: 'Revise grievance', exact: true }).count();
-      assert.equal(miner.callableRequests.slice(requestsAtDisconnect.miner)
-        .filter(r => r.name === 'submitCivilUnrestGrievance').length, 0, 'Reconnect never re-sends the grievance.');
+      // The grievance was still queued when the miner returned: the app may replay it once with its
+      // original request ID (a receipt replay) or drop it as expired, but never send it twice or as new.
+      const outbox = JSON.parse(await miner.page.evaluate(() => window.localStorage.getItem('dow-new-eden-session'))).state.pendingCommands;
+      evidence.queuedGrievanceAfterReconnect = { resent: grievanceRequestIds.slice(1), outboxLeft: outbox.map(command => command.kind),
+        notice: await miner.page.getByRole('alert').allInnerTexts().catch(() => []) };
+      assert.deepEqual(outbox, [], 'The queued grievance left the outbox.');
+      assert.ok(grievanceRequestIds.length <= 2 && grievanceRequestIds.every(id => id === submitted.requestId),
+        `The queued grievance is sent at most once more, with its original request ID (${JSON.stringify(grievanceRequestIds)}).`);
+      assert.equal((await f.db.doc(grievancePath).get()).get('revision'), 1, 'The queued grievance never wrote a second revision.');
+      evidence.checks.queuedChoiceNeverResentTwiceOrAsNew = true;
       const beforeReplay = await documentState(f.db, [grievancePath]);
       const replay = await miner.callable('submitCivilUnrestGrievance', submitted);
       assert.equal(replay.ok, true, replay.message);
