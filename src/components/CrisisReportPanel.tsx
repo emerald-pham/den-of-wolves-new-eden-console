@@ -42,6 +42,9 @@ export function CrisisReportContent({ report }: { report: CrisisReport }) {
 export default function CrisisReportPanel() {
   const sessionId = useSessionStore((state) => state.session?.id);
   const uid = useSessionStore((state) => state.me?.uid);
+  // A resume issues a new connection generation. Rules deny this listener
+  // while the member is expired, which ends it, so each reconnect reopens it.
+  const connectionGeneration = useSessionStore((state) => state.me?.connectionGeneration);
   const identity = JSON.stringify([sessionId, uid]);
   const [projection, setProjection] = useState<{ identity: string; report: CrisisReport | null } | null>(null);
   useEffect(() => {
@@ -51,7 +54,7 @@ export default function CrisisReportPanel() {
       if (current) setProjection({ identity, report });
     });
     return () => { current = false; unsubscribe(); };
-  }, [sessionId, uid, identity]);
+  }, [sessionId, uid, identity, connectionGeneration]);
   const report = projection?.identity === identity ? projection.report : null;
   return report ? <CrisisReportContent key={`${identity}:${report.crisisId}`} report={report} /> : null;
 }
