@@ -4,7 +4,7 @@
 // them to the existing station chooser with the reselect instruction, keep the
 // unsent draft for an explicit later submit, and never replay a former-station
 // command. Fixture and evidence class: src/test/stationLossReconnect.ts.
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import App from '@/App';
@@ -88,12 +88,14 @@ vi.mock('@/lib/endeavourEcmDeviceService', () => ({
 
 // Lazy route chunks can load slowly when the whole suite runs in parallel.
 const slow = { timeout: 10_000 };
+const { subscribeSessionState } = await import('@/lib/firestore');
 const scoutForm = () => screen.findByRole('region', { name: 'Endeavour scouting request' }, slow);
 const coordinate = async () => within(await scoutForm()).getByLabelText('Printed system coordinate');
 const planner = () => screen.getByRole('region', { name: 'Explorer route planner' });
 const storedDraft = () => JSON.parse(sessionStorage.getItem(SCIENTIST_SCOUT_DRAFT_KEY) ?? 'null') as unknown;
 
 beforeEach(() => {
+  vi.mocked(subscribeSessionState).mockImplementation(() => vi.fn());
   window.location.hash = '#/';
   sessionStorage.clear();
   localStorage.clear();
@@ -258,4 +260,50 @@ it('keeps the Wing Commander fighter exchange draft through a station loss reloa
   expect(within(exchange).getByRole('combobox', { name: 'Move fighters from' })).toHaveValue('fighter-wing-bravo');
   expect(within(exchange).getByRole('combobox', { name: 'Fighters to move' })).toHaveValue('2');
   expect(stationLossServer.callsTo('exchangeAegisFighterWings')).toEqual([]);
+}, 60_000);
+
+// L1.4 (#242), reported by the L1.1-L1.3 browser proof: after a reload while
+// the backend is unreachable, the live listeners can report a fresh server
+// snapshot before the 2 s retry. The retry must still run resumeSession, whose
+// reply carries the station-loss signal; listener freshness is not a resume.
+it('still resumes after the listeners reconnect first, so a member who lost the station reaches the chooser', async () => {
+  const user = userEvent.setup();
+  await typeDraftThenLeave(user);
+
+  let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+  vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, next) => {
+    handlers = next;
+    return vi.fn();
+  });
+  // The first resume after the reload cannot reach the backend; later ones answer that the station was lost.
+  let resumeAttempts = 0;
+  stationLossServer.resumeReply = stationLostResumeReply();
+  const answerResume = stationLossServer.handlers.resumeSession!;
+  stationLossServer.handlers.resumeSession = (data) => {
+    resumeAttempts += 1;
+    if (resumeAttempts === 1) {
+      throw Object.assign(new Error('backend unreachable'), { code: 'functions/unavailable' });
+    }
+    return answerResume(data);
+  };
+  await reloadTab();
+  window.location.hash = '#/';
+  render(<App />);
+  await waitFor(() => expect(resumeAttempts).toBe(1));
+  await waitFor(() => expect(useSessionStore.getState().connection).toBe('offline'));
+  await waitFor(() => expect(handlers).toBeDefined());
+
+  // The listeners recover before the retry tick, with the player's cached station still on the server record.
+  act(() => {
+    handlers?.onSessionFreshness?.(true);
+    handlers?.onPlayer?.({ ...returningScientist, seatId: null });
+    handlers?.onPlayerFreshness?.(true);
+  });
+  expect(useSessionStore.getState().connection).toBe('live');
+
+  await waitFor(() => expect(resumeAttempts).toBe(2), { timeout: 5_000 });
+  expect(await screen.findByRole('heading', { name: 'Stations and consoles' }, slow)).toBeInTheDocument();
+  expect(await screen.findByRole('alert')).toHaveTextContent(STATION_LOSS_NOTICE);
+  expect(useSessionStore.getState().me).toMatchObject({ uid: 'u1', seatId: null, activeConsoleRoleId: null });
+  expect(storedDraft()).toMatchObject({ targetCoordinate: '4888' });
 }, 60_000);
