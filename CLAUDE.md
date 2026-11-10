@@ -439,8 +439,10 @@ Map skill roles to existing records without new completion states: [triage mappi
 ### Domain docs
 Single-context glossary and ADRs, created lazily: [domain documentation rules](docs/agents/domain.md).
 
-### Retrospectives
+### Test-first briefs
+For a functional change, use the `tdd` skill at the brief's agreed seams and read its `tests.md` and `mocking.md` before the first test, even when the brief omits it: [subagent briefs](docs/AGENT_EXECUTION_POLICY.md#subagent-briefs-for-functional-changes).
 
+### Retrospectives
 When invoking a retrospective, include the target session ID or checkpoint.
 Without one, inspect the current session. If it contains no coding work, state
 that limitation and keep findings tied to the inspected environment; do not
