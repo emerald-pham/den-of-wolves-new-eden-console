@@ -262,6 +262,18 @@ validates a guard retrospectively but does not establish test-first chronology.
 Report missing contemporaneous evidence honestly and hold unvalidated
 functionality from release. This correction supersedes contrary earlier rules.
 
+### Subagent briefs for functional changes
+
+Every brief that asks a subagent for a functional change names the `tdd` skill
+and the agreed seams, and the subagent reads `tests.md` and `mocking.md` before
+its first test. This applies to review-fix, follow-up and integration briefs as
+much as to first implementation; a shared brief file counts only when the
+subagent's own brief points at it. The orchestrator takes the seams from the
+ticket or agrees them before dispatch, because a background subagent cannot
+confirm them with the owner. Loading a skill returns only its `SKILL.md`; the
+two companion files sit beside it in the skill's base directory. Name skills,
+never a versioned or tool-specific install path.
+
 ## Routine responsive UI acceptance
 
 For every UI change, map each affected risk to a concrete consumer test or
