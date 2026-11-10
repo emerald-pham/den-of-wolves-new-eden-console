@@ -25,6 +25,8 @@ export interface ConfiguredEmulatorSlot {
   readonly worktree: string;
   readonly configuredAt: string;
   readonly ports?: readonly number[];
+  /** Starter handle only: the worktree's row this allocation displaced. */
+  readonly replaces?: ConfiguredEmulatorSlot;
 }
 
 export interface CoordinationLeaseStatus {

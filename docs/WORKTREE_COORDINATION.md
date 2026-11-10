@@ -119,7 +119,11 @@ npm run test:rules
 The configure command checks all Firebase ports plus Vite while holding the
 coordination lock. Do not scan first and select later, mix rows, or release a
 reservation owned by another worktree. A configured row stays unavailable while
-its owner is active even if no process is listening. For a specific free row,
+its owner is active even if no process is listening: unrelated coordination
+updates retire a configured row only after its worktree directory is gone. A
+failed configure step returns only the row it created, restores the worktree's
+displaced row when that slot is still free, and restores only the local files
+it replaced. For a specific free row,
 use `npm run emulators:configure -- <slot 0-14>` only after checking the whole
 row. The wrapper that creates a process reservation owns its teardown and must
 forward signals only to its own child process group.
