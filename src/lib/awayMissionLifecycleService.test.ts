@@ -293,3 +293,33 @@ it('retries the Wing Commander’s interrupted final choice exactly and accepts 
   }));
   expect(parseAwayMissionLifecyclePublicState(resolvedPublic, 'mission-1')).toEqual(resolvedPublic);
 });
+
+describe('secret K thresholds in the member projection parser (Q3.2 #270)', () => {
+  const resolvedK = {
+    ...publicState, siteCode: 'K', revision: 4, phase: 'resolved', status: 'resolved',
+    opportunities: [{ id: 'K-1', label: 'Unknown outpost' }],
+    outcomes: [{ opportunityId: 'K-1', contributorCount: 1, total: 20, bonusTotal: 0,
+      difficulty: 30, criticalThreshold: 40, outcome: 'failure' }],
+    rewards: [{ opportunityId: 'K-1', branch: 'none', resources: {}, effects: [], bulkHaulageApplied: false }],
+  };
+
+  it('drops numeric K thresholds from an older pointer or reply without altering the downloaded value', () => {
+    const raw = structuredClone(resolvedK);
+    expect(parseAwayMissionLifecyclePublicState(raw, 'mission-1')).toEqual({
+      ...resolvedK,
+      outcomes: [{ ...resolvedK.outcomes[0], difficulty: null, criticalThreshold: null }],
+    });
+    expect(raw).toEqual(resolvedK);
+  });
+
+  it('keeps printed thresholds for other sites and still rejects malformed K outcomes', () => {
+    const ordinary = { ...resolvedK, siteCode: 'D', opportunities: publicState.opportunities,
+      outcomes: [{ ...resolvedK.outcomes[0], opportunityId: 'D-1', difficulty: 14, criticalThreshold: 24 }],
+      rewards: [{ ...resolvedK.rewards[0], opportunityId: 'D-1' }] };
+    expect(parseAwayMissionLifecyclePublicState(ordinary, 'mission-1')).toEqual(ordinary);
+    for (const altered of [
+      { ...resolvedK, outcomes: [{ ...resolvedK.outcomes[0], difficulty: '30' }] },
+      { ...resolvedK, outcomes: [{ ...resolvedK.outcomes[0], secretD6: 6 }] },
+    ]) expect(parseAwayMissionLifecyclePublicState(altered, 'mission-1')).toBeNull();
+  });
+});

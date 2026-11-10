@@ -79,6 +79,9 @@ export default function CivilUnrestGrievancePanel({
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // Rules end a member's listener on a team grievance nobody has written yet,
+  // so a stale rejection re-opens it to receive the teammate's revision.
+  const [listenerGeneration, setListenerGeneration] = useState(0);
 
   useEffect(() => {
     if (!sessionId || !me?.uid) return;
@@ -95,7 +98,8 @@ export default function CivilUnrestGrievancePanel({
     }
     setTeamGrievances({});
     return () => { current = false; unsubscribers.forEach((unsubscribe) => unsubscribe()); };
-  }, [sessionId, me?.uid, identity, crisisId, crisisAcceptingGrievances, readShipIds, readShipKey]);
+  }, [sessionId, me?.uid, identity, crisisId, crisisAcceptingGrievances, readShipIds, readShipKey,
+    listenerGeneration]);
 
   useEffect(() => {
     if (!ships.includes(shipId)) setShipId(ships[0] ?? '');
@@ -124,6 +128,9 @@ export default function CivilUnrestGrievancePanel({
       setMessage(disposition === 'queued' ? 'Saved to send when the connection returns.' : 'Grievance submitted.');
     } catch (error) {
       setMessage(grievanceErrorMessage(error));
+      if (normalizeCommandError(error).kind === 'stale-revision') {
+        setListenerGeneration((generation) => generation + 1);
+      }
     } finally { setBusy(false); }
   };
 

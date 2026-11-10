@@ -907,9 +907,19 @@ function requireStoredLifecycleRecord(
     if (!expectedPrivate || !expectedPublic) {
       fail('failed-precondition', 'A stored participant projection could not be derived safely.');
     }
+    // Older K pointers included the protected thresholds. Accept only that
+    // exact canonical representation; replies still use the redacted projector.
+    const legacyKPublic = record.lifecycle.siteCode === 'K' && record.status !== 'active' && record.outcomes
+      ? { ...expectedPublic, outcomes: record.outcomes.map(({ opportunityId, contributorCount,
+        total, bonusTotal, difficulty, criticalThreshold, outcome }) => ({
+        opportunityId, contributorCount, total, bonusTotal, difficulty, criticalThreshold, outcome,
+      })) }
+      : null;
+    const publicProjectionMatches = sameJson(pointer.lifecyclePublicState, expectedPublic) ||
+      (legacyKPublic !== null && sameJson(pointer.lifecyclePublicState, legacyKPublic));
     const initialCard = expectedPrivate.cards.find(({ id }) => id === p403.cardIds[index]);
     if (!sameJson(hand.lifecyclePrivateState, expectedPrivate) ||
-        !sameJson(pointer.lifecyclePublicState, expectedPublic) ||
+        !publicProjectionMatches ||
         hand.revision !== record.revision || hand.phase !== expectedPrivate.phase ||
         hand.discarded !== (initialCard?.status === 'discarded') ||
         pointer.phase !== expectedPublic.phase || pointer.revision !== record.revision ||

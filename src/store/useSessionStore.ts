@@ -613,6 +613,25 @@ function samePrivateAssignment(previous: Player | null, next: Player | null): bo
     (previous.replacementStatus ?? null) === (next.replacementStatus ?? null);
 }
 
+function isCleanupCommand(command: PendingCommand): boolean {
+  return command.kind === 'disconnectFromSession' || command.kind === 'logoutGmAccess';
+}
+
+/**
+ * Queued commands carry the previous account's private payloads (census note
+ * bodies, Wolf Cult intelligence). A different account on the same browser
+ * inherits only the cleanup commands a disconnect would also keep.
+ */
+function pendingCommandsForIdentity(
+  previous: Player | null,
+  next: Player | null,
+  pendingCommands: readonly PendingCommand[],
+): readonly PendingCommand[] {
+  return previous && next && previous.uid !== next.uid
+    ? pendingCommands.filter(isCleanupCommand)
+    : pendingCommands;
+}
+
 export const useSessionStore = create<SessionState>()(
   persist(
     (set, get) => ({
@@ -636,6 +655,7 @@ export const useSessionStore = create<SessionState>()(
       }),
       setIdentity: (session, me) => set((state) => ({
         ...(state.session?.id !== session.id || state.me?.uid !== me.uid ? { gmRecoveryPending: false } : {}),
+        pendingCommands: pendingCommandsForIdentity(state.me, me, state.pendingCommands),
         session: clearVoyageMovement(session), me, roleBrief: null, awayMissionHandPointer: null, awayMissionHand: null,
         roleBriefLoading: me.role === 'player',
         privateLoyalty: samePrivateAssignment(state.me, me) ? state.privateLoyalty : null,
@@ -654,8 +674,10 @@ export const useSessionStore = create<SessionState>()(
         if (!shallow(previous, me) || get().gmRecoveryPending) set((state) => {
           const losesGmAuthority = me?.role !== 'gm' || me.sessionId !== state.session?.id ||
             me.uid !== state.gmInstance?.uid || state.gmInstance?.sessionId !== state.session?.id;
+          const pendingCommands = pendingCommandsForIdentity(previous, me, state.pendingCommands);
           return {
             me,
+            ...(pendingCommands !== state.pendingCommands ? { pendingCommands } : {}),
             ...(state.gmRecoveryPending ? { gmRecoveryMemberRevision: state.gmRecoveryMemberRevision + 1 } : {}),
             ...(!samePrivateAssignment(previous, me) ? { privateLoyalty: null } : {}),
             ...(losesGmAuthority ? {
