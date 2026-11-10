@@ -1,10 +1,12 @@
 // PC10.3 T2.2 (#253): a member whose role was reassigned while they were away
 // reloads the same tab. The real reconnect path (connectAutomatically ->
-// resumeSession -> outbox) must show the current entitled role, never replay a
-// command queued under the former role, and keep each role's safe draft with
-// that role only. The server half (a former actor's retry is refused without a
-// write after a replacement assignment) is retained T1.2 evidence in
-// scripts/pc10-3-stale-action-proof.mjs (`proveGrievanceStaleRace`, t1_2).
+// resumeSession -> outbox) must show the current entitled role, replay a
+// command queued under the former role with its original request ID for the
+// server to re-authorize (a refusal writes nothing and is shown to the
+// player), and keep each role's safe draft with that role only. The server
+// half (a former actor's retry is refused without a write after a replacement
+// assignment) is retained T1.2 evidence in scripts/pc10-3-stale-action-proof.mjs
+// (`proveGrievanceStaleRace`, t1_2).
 // T2.3 (#254): a member reloads after the all-player hold with a cached cycle
 // clock whose deadline already passed; the server-resumed remaining time
 // replaces it without opening airspace early or restarting the window. The
@@ -49,7 +51,15 @@ const reassignedScientist: Player = {
 
 beforeEach(prepareReturningScientist);
 
-it('drops a command queued under the former role when the member returns reassigned, and shows the current role', async () => {
+const queuedGrievance = () => useSessionStore.getState().enqueueCommand({
+  id: 'queued-grievance', kind: 'submitCivilUnrestGrievance',
+  payload: { sessionId: 's1', requestId: 'grievance-before-reassignment', crisisId: 'unrest-1',
+    expectedCrisisRevision: 2, expectedGrievanceRevision: 0, affectedShipId: 'shepherd',
+    visibility: 'private', text: 'Rations are short on the Shepherd.' },
+  createdAt: new Date().toISOString(), queuedWithServerAuthority: true,
+});
+
+it('replays a command queued under the former role for the server to refuse visibly, and shows the current role', async () => {
   const user = userEvent.setup();
   // The Scientist types an Endeavour scouting draft, then the tab goes away.
   window.location.hash = '#/shuttles/endeavour';
@@ -58,13 +68,7 @@ it('drops a command queued under the former role when the member returns reassig
   await user.type(await endeavourCoordinate(), '4888');
   first.unmount();
   // A Team Phase grievance was queued after a transient failure while the Scientist role was held.
-  useSessionStore.getState().enqueueCommand({
-    id: 'queued-grievance', kind: 'submitCivilUnrestGrievance',
-    payload: { sessionId: 's1', requestId: 'grievance-before-reassignment', crisisId: 'unrest-1',
-      expectedCrisisRevision: 2, expectedGrievanceRevision: 0, affectedShipId: 'shepherd',
-      visibility: 'private', text: 'Rations are short on the Shepherd.' },
-    createdAt: new Date().toISOString(), queuedWithServerAuthority: true,
-  });
+  queuedGrievance();
 
   // While away, the facilitator assigned the Comms Officer replacement role.
   // The server's resume reply carries no station-selection signal for this case.
@@ -79,9 +83,33 @@ it('drops a command queued under the former role when the member returns reassig
   }));
   expect(await screen.findByRole('heading', { name: 'Stations and consoles' }, slow)).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Comms Officer' })).toHaveTextContent(/assigned to you/i);
-  expect(stationLossServer.callsTo('submitCivilUnrestGrievance')).toEqual([]);
+  // Replayed once with its original request ID; the Comms Officer (AEGIS) is not on the Shepherd team.
+  expect(stationLossServer.callsTo('submitCivilUnrestGrievance')).toEqual([
+    expect.objectContaining({ data: expect.objectContaining({ requestId: 'grievance-before-reassignment' }) }),
+  ]);
+  expect(await screen.findByRole('alert')).toHaveTextContent('This command is not available to the current station.');
   expect(useSessionStore.getState().pendingCommands).toEqual([]);
   expect(stationLossServer.callsTo('resumeSession').length).toBeGreaterThan(0);
+}, 60_000);
+
+it('replays a command queued under the former role that the new role on the same team may still send', async () => {
+  queuedGrievance();
+  // While away, the facilitator assigned the Rosal Militia Leader, also on the Shepherd.
+  stationLossServer.resumeReply = { session: scientistSession, player: {
+    ...returningScientist, seatId: null, activeConsoleRoleId: null, replacementRoleId: 'rosal-militia-leader',
+  } };
+  await reloadTab();
+  window.location.hash = '#/console';
+  render(<App />);
+
+  await waitFor(() => expect(useSessionStore.getState()).toMatchObject({
+    connection: 'live', sessionSnapshotFreshness: 'server', me: { replacementRoleId: 'rosal-militia-leader' },
+  }));
+  expect(stationLossServer.callsTo('submitCivilUnrestGrievance')).toEqual([
+    expect.objectContaining({ data: expect.objectContaining({ requestId: 'grievance-before-reassignment' }) }),
+  ]);
+  expect(useSessionStore.getState().pendingCommands).toEqual([]);
+  expect(useSessionStore.getState().communicationError).toBeNull();
 }, 60_000);
 
 it('keeps the Comms Officer scouting draft to that role across a reassignment reload and never sends it', async () => {

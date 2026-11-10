@@ -46,6 +46,8 @@ import { vi } from 'vitest';
 import { SESSION_STORAGE_KEY, useSessionStore } from '@/store/useSessionStore';
 import { acknowledgeSessionWaiver } from '@/lib/sessionWaiver';
 import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
+import { findConsoleRole } from '@/data/roles';
+import { replacementRoleFor } from '@/data/replacementRoles';
 import type { GameSession, Player, WolfAttackMemberView } from '@/types/game';
 import type * as FirebaseModule from '@/lib/firebase';
 import type * as FirestoreModule from '@/lib/firestore';
@@ -165,6 +167,33 @@ function stationSelectionRequired(): never {
   });
 }
 
+function unauthorized(): never {
+  throw Object.assign(new Error('not your team'), {
+    code: 'functions/permission-denied',
+    details: { commandError: 'unauthorized' },
+  });
+}
+
+/** The five team pairs printed on the Civil Unrest card (functions/src/civilUnrest.ts). */
+const CIVIL_UNREST_SHIP_IDS: readonly string[] = ['dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'];
+
+/**
+ * As the server's submitCivilUnrestGrievance: the member's current role on the
+ * server record (a replacement role, else the active console, else the
+ * assigned team role; none while awaiting a re-role) must belong to the
+ * affected Civil Unrest team. The scripted server record is the player in the
+ * current resume reply. Joint engineering roles are not modelled.
+ */
+function grievanceTeamShip(): string | undefined {
+  const reply = stationLossServer.resumeReply as { player?: Player } | undefined;
+  const player = reply?.player;
+  if (!player || player.replacementStatus != null) return undefined;
+  const roleId = player.replacementRoleId ?? player.activeConsoleRoleId ?? player.assignedRoleId ?? undefined;
+  if (!roleId) return undefined;
+  const shipId = findConsoleRole(roleId)?.shipId ?? replacementRoleFor(roleId)?.vesselId;
+  return shipId && CIVIL_UNREST_SHIP_IDS.includes(shipId) ? shipId : undefined;
+}
+
 const endeavourWorkspace = {
   status: 'ready', sessionId: 's1', cycle: 3, researchRevision: 0,
   cadence: { cycle: 3, revision: 0, choices: [] }, progress: { reactor: 1 },
@@ -195,9 +224,14 @@ function defaultHandlers(): Record<string, Handler> {
     refreshPresence: (data) => ({ sessionId: data.sessionId }),
     // A craft scouting request needs the station selected on the server; a former holder is refused.
     requestScout: () => stationSelectionRequired(),
-    // As on the server: a grievance is authorized by the team role (assignedRoleId),
-    // which a lost station keeps, so a replayed grievance commits.
-    submitCivilUnrestGrievance: (data) => ({ status: 'committed', requestId: data.requestId }),
+    // As on the server: a grievance is authorized by the member's current team.
+    // A lost station keeps the assigned team role, so a replayed grievance
+    // commits; a role on another ship is refused without a write.
+    submitCivilUnrestGrievance: (data) => {
+      const shipId = grievanceTeamShip();
+      if (!shipId || data.affectedShipId !== shipId) unauthorized();
+      return { status: 'committed', requestId: data.requestId };
+    },
     listMyScoutReports: () => [],
     readEndeavourResearchWorkspace: () => endeavourWorkspace,
   };
