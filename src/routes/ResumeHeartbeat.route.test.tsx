@@ -41,10 +41,10 @@ afterEach(() => {
 const heartbeats = () => stationLossServer.callsTo('refreshPresence')
   .filter(({ data }) => !('activeConsoleRoleId' in data));
 
-it.each([
-  ['quiet', 'reports a fresh server snapshot once and then stays quiet'],
-  ['busy', 'reports a fresh server snapshot every second'],
-] as const)('keeps renewing presence for a minute of failing resumes when the listener %s', async (listener) => {
+// quiet: the listener reports a fresh server snapshot once and then stays
+// quiet; busy: it reports one every second.
+it.each(['quiet', 'busy'] as const)(
+  'keeps renewing presence for a minute of failing resumes behind a %s listener', async (listener) => {
   let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
   vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, next) => {
     handlers = next;
