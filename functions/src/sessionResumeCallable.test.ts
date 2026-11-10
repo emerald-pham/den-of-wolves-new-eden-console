@@ -1030,13 +1030,14 @@ it('returns a cast member whose released station another player took to station 
     expect.objectContaining({ path: 'sessions/s1/players/u1' }),
     expect.objectContaining({ activeConsoleRoleId: null }),
   );
-  // Reconnect never overwrites a seat another player took.
-  expect(mock.update).not.toHaveBeenCalledWith(
-    expect.objectContaining({ path: 'sessions/s1/seats/quellon-explorer' }), expect.anything(),
-  );
-  expect(mock.set).not.toHaveBeenCalledWith(
-    expect.objectContaining({ path: 'sessions/s1/seats/quellon-explorer' }), expect.anything(),
-  );
+  // Reconnect never overwrites a seat another player took. Canonical setup
+  // hydration may refresh the seat's printed label; its claim is untouched.
+  const seatWrites = [...mock.update.mock.calls, ...mock.set.mock.calls]
+    .filter(([reference]) => (reference as { path: string }).path === 'sessions/s1/seats/quellon-explorer')
+    .map(([, fields]) => Object.keys(fields as Record<string, unknown>));
+  expect(seatWrites.flat()).not.toEqual(expect.arrayContaining(['holderUid']));
+  expect(seatWrites.flat()).not.toEqual(expect.arrayContaining(['status']));
+  expect(seatWrites.flat()).not.toEqual(expect.arrayContaining(['claimedAt']));
 });
 
 it('keeps a cast console bound when its seat was never materialized', async () => {
