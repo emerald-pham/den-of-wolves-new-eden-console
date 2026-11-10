@@ -27,7 +27,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 703, partial: 11, active: 0, missing: 37, blocked: 0,
     },
     changes: [
-      'If your station was taken while you were away, reconnecting returns you to station select with your unsent entries kept; an action queued before you left is sent once for the server to check, and you are told if it was not completed.',
+      'If your station was taken while you were away, reconnecting returns you to station select with your unsent entries kept, including when the facilitator released it and someone else took it, instead of leaving you on the old console.',
+      'An action queued before you lost connection is kept until the app is back in sync, sent once for the server to check, and you are told if it was not completed or expired.',
       'Your device keeps its seat while the app is reconnecting.',
       'After everyone reconnects, the cycle clock resumes where it paused and an open crisis report reappears.',
       'A teammate\'s first Civil Unrest grievance now reaches the rest of the team, and a stale grievance can be retried without retyping it.',
