@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { realpathSync } from 'node:fs';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,9 +16,7 @@ import {
   reserveAvailableConfiguredEmulatorSlot,
 } from './emulator-resource-registry.mjs';
 
-const repositoryDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const localFirebaseConfigPath = resolve(repositoryDirectory, 'firebase.local.json');
-const localEnvironmentPath = resolve(repositoryDirectory, '.env.emulators.local');
+const defaultRepositoryDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 function usage() {
   return `usage: npm run emulators:configure -- <slot 0-${EMULATOR_SLOT_COUNT - 1}|auto>`;
@@ -42,9 +41,20 @@ async function writeAtomically(path, content) {
   await rename(temporaryPath, path);
 }
 
-async function main() {
-  const slot = parseSlot(process.argv.slice(2));
-  const coordinationPath = coordinationFilePath();
+/**
+ * Reserve a complete row for this worktree and write its ignored local
+ * configuration. `coordinationPath`, `portCheck` and `write` are seams for
+ * isolated fixtures; the CLI uses the shared registry and real port checks.
+ */
+export async function configureEmulatorSlot({
+  slot,
+  repositoryDirectory = defaultRepositoryDirectory,
+  coordinationPath = coordinationFilePath(),
+  portCheck,
+  write = writeAtomically,
+} = {}) {
+  const localFirebaseConfigPath = resolve(repositoryDirectory, 'firebase.local.json');
+  const localEnvironmentPath = resolve(repositoryDirectory, '.env.emulators.local');
   const configuration = await reserveAvailableConfiguredEmulatorSlot({
     filePath: coordinationPath,
     preferredSlot: slot,
@@ -56,6 +66,7 @@ async function main() {
       ...Object.values(emulatorPortsForSlot(candidate)),
       vitePortForSlot(candidate),
     ],
+    ...(portCheck ? { portCheck } : {}),
   });
   const selectedSlot = configuration.slot;
 
@@ -70,15 +81,23 @@ async function main() {
       .join('\n')}\n`;
 
     await Promise.all([
-      writeAtomically(localFirebaseConfigPath, `${JSON.stringify(localConfig, null, 2)}\n`),
-      writeAtomically(localEnvironmentPath, environmentText),
+      write(localFirebaseConfigPath, `${JSON.stringify(localConfig, null, 2)}\n`),
+      write(localEnvironmentPath, environmentText),
     ]);
   } catch (error) {
     await releaseConfiguredEmulatorSlot(configuration, coordinationPath);
     throw error;
   }
 
-  console.log(`Configured emulator slot ${selectedSlot}.`);
+  return { configuration, localFirebaseConfigPath, localEnvironmentPath, coordinationPath };
+}
+
+async function main() {
+  const slot = parseSlot(process.argv.slice(2));
+  const { configuration, localFirebaseConfigPath, localEnvironmentPath, coordinationPath } =
+    await configureEmulatorSlot({ slot });
+
+  console.log(`Configured emulator slot ${configuration.slot}.`);
   console.log(`  Firebase: ${localFirebaseConfigPath}`);
   console.log(`  Vite:     ${localEnvironmentPath}`);
   console.log(`  Shared coordination: ${coordinationPath}`);
@@ -86,7 +105,17 @@ async function main() {
   console.log('Run npm run emulators, npm run dev:emulators, or npm run test:rules.');
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
-});
+function invokedDirectly() {
+  try {
+    return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (invokedDirectly()) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  });
+}
