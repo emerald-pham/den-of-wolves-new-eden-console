@@ -38,3 +38,29 @@ test('proof cancellation reserves terminal service teardown within allocation',a
  assert.ok(source.includes('deadline-Date.now()-25000'),'Keep25s terminal cleanup reserve');
  assert.ok(source.includes('allocationWithinCap'),'Persist exact cap outcome');
 });
+
+test('a failed launch returns only its configured row and local files and restores what it displaced',async()=>{
+ const {mkdtemp,mkdir,readFile,rm,writeFile}=await import('node:fs/promises');const {tmpdir}=await import('node:os');const {resolve}=await import('node:path');
+ const {configureLaunchSlot,returnLaunchSlot}=await import('./pc11-launch.mjs');
+ const {configureEmulatorSlot}=await import('../configure-emulator-slot.mjs');
+ const {parseCoordinationState,reserveConfiguredEmulatorSlot}=await import('../emulator-resource-registry.mjs');
+ const directory=await mkdtemp(resolve(tmpdir(),'pc11-launch-return-'));
+ // Temporary registry, fake worktrees and stubbed port checks only.
+ const coordinationPath=resolve(directory,'coordination.json'),worktree=resolve(directory,'launch-worktree'),foreign=resolve(directory,'foreign-worktree');
+ const free=async()=>true,localConfig=resolve(worktree,'firebase.local.json'),localEnvironment=resolve(worktree,'.env.emulators.local');
+ try{
+  await mkdir(worktree);await mkdir(foreign);
+  await writeFile(resolve(worktree,'firebase.json'),'{"emulators":{}}\n');
+  await writeFile(localConfig,'pre-existing firebase.local.json\n');await writeFile(localEnvironment,'pre-existing .env.emulators.local\n');
+  const preexisting=await reserveConfiguredEmulatorSlot({filePath:coordinationPath,slot:2,worktree,ports:[59002],portCheck:free});
+  const foreignRow=await reserveConfiguredEmulatorSlot({filePath:coordinationPath,slot:6,worktree:foreign,ports:[59006],portCheck:free});
+  const launch=await configureLaunchSlot({slot:5,worktree,coordinationPath,runConfigure:()=>configureEmulatorSlot({slot:5,repositoryDirectory:worktree,coordinationPath,portCheck:free})});
+  assert.notEqual(await readFile(localConfig,'utf8'),'pre-existing firebase.local.json\n');
+  // A later start step fails; the launcher returns what it took.
+  await returnLaunchSlot(launch);
+  const state=parseCoordinationState(await readFile(coordinationPath,'utf8'));
+  assert.deepEqual([...state.configurations].sort((left,right)=>left.slot-right.slot),[preexisting,foreignRow]);
+  assert.equal(await readFile(localConfig,'utf8'),'pre-existing firebase.local.json\n');
+  assert.equal(await readFile(localEnvironment,'utf8'),'pre-existing .env.emulators.local\n');
+ }finally{await rm(directory,{recursive:true,force:true});}
+});
