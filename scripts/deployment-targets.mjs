@@ -7,6 +7,7 @@ import pc08DeploymentConsumers from './pc08-deployment-consumers.json' with { ty
 import pc09DeploymentConsumers from './pc09-deployment-consumers.json' with { type: 'json' };
 import pc10_1DeploymentConsumers from './pc10-1-deployment-consumers.json' with { type: 'json' };
 import pc10_2DeploymentConsumers from './pc10-2-deployment-consumers.json' with { type: 'json' };
+import pc10_3DeploymentConsumers from './pc10-3-deployment-consumers.json' with { type: 'json' };
 import mobileGmHotfixDeploymentConsumers from './mobile-gm-hotfix-deployment-consumers.json' with { type: 'json' };
 import {
   classifyRiskGates,
@@ -173,6 +174,21 @@ function pc10_1TransitionConsumers(file, previous, current) {
   if (digest(previous) !== audit.before) return null;
   if (digest(current) !== audit.after) {
     throw new Error(`Cannot safely map PC10.1 ${file} outside its exact source consumer audit.`);
+  }
+  return [...audit.consumers];
+}
+
+// PC10.3 owns a closed source transition from main to its reviewed candidate.
+// It changes no index.ts source; a module audited with no consumers is shared
+// only with the browser. Any later edit to one of these files needs a fresh
+// callable-consumer review.
+function pc10_3TransitionConsumers(file, previous, current) {
+  const audit = pc10_3DeploymentConsumers.modules[file];
+  if (!audit) return null;
+  const digest = source => createHash('sha256').update(source).digest('hex');
+  if (digest(previous) !== audit.before) return null;
+  if (digest(current) !== audit.after) {
+    throw new Error(`Cannot safely map PC10.3 ${file} outside its exact source consumer audit.`);
   }
   return [...audit.consumers];
 }
@@ -1520,6 +1536,24 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
       if (!callableIsExportedAtRevision('castingCompanionCommand', after, cwd, sourceAtRevision)) throw new Error('Casting companion callable export is absent; refusing core-only deployment.');
       selected.add('castingCompanionCommand');
       continue;
+    }
+    if (file !== 'functions/src/index.ts' && pc10_3DeploymentConsumers.modules[file]) {
+      const readAt = revision => {
+        if (sourceAtRevision) return sourceAtRevision(revision, file);
+        try {
+          return execFileSync('git', ['show', `${revision}:${file}`], {
+            encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 32 * 1024 * 1024,
+          });
+        } catch {
+          if (revision === before) return '';
+          throw new Error(`Cannot safely determine PC10.3 source ${file}.`);
+        }
+      };
+      const consumers = pc10_3TransitionConsumers(file, readAt(before), readAt(after));
+      if (consumers) {
+        for (const name of consumers) selected.add(name);
+        continue;
+      }
     }
     if (file !== 'functions/src/index.ts' && pc10_2DeploymentConsumers.modules[file]) {
       const readAt = revision => {
