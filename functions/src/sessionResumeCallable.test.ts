@@ -1005,3 +1005,70 @@ it('never takes a foreign holder from an inconsistent open seat', async () => {
     expect.objectContaining({ holderUid: 'u1' }),
   );
 });
+
+it('returns a cast member whose released station another player took to station selection without touching that seat', async () => {
+  // The facilitator released the member's seat (clearing only its pointer) and
+  // an uncast rival claimed it; the cast role and active console remain.
+  prepareResume({}, {
+    assignedRoleId: 'quellon-explorer', seatId: null, activeConsoleRoleId: 'quellon-explorer',
+  });
+  const fixtureGet = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation((reference: { path: string }) => reference.path === 'sessions/s1/seats/quellon-explorer'
+    ? snapshot({ roleId: 'quellon-explorer', status: 'claimed', holderUid: 'u2' })
+    : fixtureGet(reference));
+
+  const response = await resumeSession.run(request('s1')) as {
+    stationSelectionRequired?: boolean;
+    player: { assignedRoleId?: string | null; seatId: string | null; activeConsoleRoleId: string | null };
+  };
+
+  expect(response).toMatchObject({
+    stationSelectionRequired: true,
+    player: { assignedRoleId: 'quellon-explorer', seatId: null, activeConsoleRoleId: null },
+  });
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/players/u1' }),
+    expect.objectContaining({ activeConsoleRoleId: null }),
+  );
+  // Reconnect never overwrites a seat another player took.
+  expect(mock.update).not.toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/seats/quellon-explorer' }), expect.anything(),
+  );
+  expect(mock.set).not.toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/seats/quellon-explorer' }), expect.anything(),
+  );
+});
+
+it('keeps a cast console bound when its seat was never materialized', async () => {
+  prepareResume({}, {
+    assignedRoleId: 'quellon-explorer', seatId: null, activeConsoleRoleId: 'quellon-explorer',
+  });
+
+  const response = await resumeSession.run(request('s1')) as {
+    stationSelectionRequired?: boolean;
+    player: { activeConsoleRoleId: string | null };
+  };
+
+  expect(response.stationSelectionRequired).toBeUndefined();
+  expect(response.player.activeConsoleRoleId).toBe('quellon-explorer');
+});
+
+it('refuses a resume by a non-member for the taken seat and writes nothing', async () => {
+  prepareResume({}, {
+    assignedRoleId: 'quellon-explorer', seatId: null, activeConsoleRoleId: 'quellon-explorer',
+  });
+  const fixtureGet = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation((reference: { path: string }) => {
+    if (reference.path === 'sessions/s1/players/u3') return snapshot({}, false);
+    if (reference.path === 'activeMemberships/u3') return snapshot({}, false);
+    if (reference.path === 'sessions/s1/seats/quellon-explorer') {
+      return snapshot({ roleId: 'quellon-explorer', status: 'claimed', holderUid: 'u2' });
+    }
+    return fixtureGet(reference);
+  });
+
+  await expect(resumeSession.run({ data: { sessionId: 's1' }, auth: { uid: 'u3' } } as CallableRequest<{ sessionId: string }>))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(nonRateLimitSetCalls()).toEqual([]);
+});
