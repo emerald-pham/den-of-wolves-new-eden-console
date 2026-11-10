@@ -15,6 +15,7 @@ import {
   markAwayMissionOverrun,
   projectAwayMissionPrivateState,
   projectAwayMissionPublicState,
+  projectLegacySecretThresholdPublicState,
   type AwayMissionLifecycleCommand,
   type AwayMissionLifecycleRecord,
   type AwayMissionParticipantCrafts,
@@ -907,16 +908,12 @@ function requireStoredLifecycleRecord(
     if (!expectedPrivate || !expectedPublic) {
       fail('failed-precondition', 'A stored participant projection could not be derived safely.');
     }
-    // Older K pointers included the protected thresholds. Accept only that
-    // exact canonical representation; replies still use the redacted projector.
-    const legacyKPublic = record.lifecycle.siteCode === 'K' && record.status !== 'active' && record.outcomes
-      ? { ...expectedPublic, outcomes: record.outcomes.map(({ opportunityId, contributorCount,
-        total, bonusTotal, difficulty, criticalThreshold, outcome }) => ({
-        opportunityId, contributorCount, total, bonusTotal, difficulty, criticalThreshold, outcome,
-      })) }
-      : null;
+    // Older secret d6 (K) pointers included the protected thresholds. Accept
+    // only that exact canonical representation; replies still use the
+    // redacted projector.
+    const legacyPublic = safeLegacySecretThresholdProjection(record, participant.uid);
     const publicProjectionMatches = sameJson(pointer.lifecyclePublicState, expectedPublic) ||
-      (legacyKPublic !== null && sameJson(pointer.lifecyclePublicState, legacyKPublic));
+      (legacyPublic !== null && sameJson(pointer.lifecyclePublicState, legacyPublic));
     const initialCard = expectedPrivate.cards.find(({ id }) => id === p403.cardIds[index]);
     if (!sameJson(hand.lifecyclePrivateState, expectedPrivate) ||
         !publicProjectionMatches ||
@@ -1092,6 +1089,17 @@ function projectPrivateProjections(
 function safePublicProjection(record: AwayMissionLifecycleRecord, viewerUid?: string): AwayMissionPublicState | null {
   try {
     return projectAwayMissionPublicState(record, viewerUid);
+  } catch {
+    return null;
+  }
+}
+
+function safeLegacySecretThresholdProjection(
+  record: AwayMissionLifecycleRecord,
+  viewerUid: string,
+): AwayMissionPublicState | null {
+  try {
+    return projectLegacySecretThresholdPublicState(record, viewerUid);
   } catch {
     return null;
   }
