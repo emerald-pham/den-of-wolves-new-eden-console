@@ -27,6 +27,22 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 703, partial: 11, active: 0, missing: 37, blocked: 0,
     },
     changes: [
+      'If your station was taken while you were away, reconnecting returns you to station select with your unsent entries kept; an action queued before you left is sent once for the server to check, and you are told if it was not completed.',
+      'Your device keeps its seat while the app is reconnecting.',
+      'After everyone reconnects, the cycle clock resumes where it paused and an open crisis report reappears.',
+      'A teammate\'s first Civil Unrest grievance now reaches the rest of the team, and a stale grievance can be retried without retyping it.',
+      'A different account signing in on the same browser no longer inherits the previous account\'s unsent private notes.',
+      'The secret difficulty of the Abandoned Wolf Supply Outpost mission stays hidden after the mission resolves.',
+      '703 of 751 planned items are complete in the catalog snapshot used to build this release (93.61%).',
+    ],
+  },
+  {
+    version: '0.5.76',
+    implementationProgress: {
+      completed: 703, total: 751, percentage: '93.61%',
+      done: 703, partial: 11, active: 0, missing: 37, blocked: 0,
+    },
+    changes: [
       'The Explorer route planner reads the Quellon\'s live fuel, Jump Drive charge and jump eligibility, estimates the fuel a planned jump may need, and shows the last committed jump and arrival.',
       '703 of 751 planned items are complete in the catalog snapshot used to build this release (93.61%).',
     ],
