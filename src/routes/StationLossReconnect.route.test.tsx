@@ -12,8 +12,8 @@ import { useSessionStore } from '@/store/useSessionStore';
 import { acknowledgeSessionWaiver } from '@/lib/sessionWaiver';
 import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
 import {
-  reloadTab, returningScientist, SCIENTIST_SCOUT_DRAFT_KEY, scientistSession, STATION_LOSS_NOTICE,
-  stationLossServer, stationLostResumeReply,
+  EXPLORER_ROUTE_PLAN_KEY, explorerSession, reloadTab, returningExplorer, returningScientist, SCIENTIST_SCOUT_DRAFT_KEY, scientistSession, STATION_LOSS_NOTICE,
+  stationLossServer, stationLostResumeReply, returningWingCommander, WING_EXCHANGE_DRAFT_KEY, wingCommanderSession,
 } from '@/test/stationLossReconnect';
 import type { WolfAttackMemberView } from '@/types/game';
 import type * as FirebaseModule from '@/lib/firebase';
@@ -90,6 +90,7 @@ vi.mock('@/lib/endeavourEcmDeviceService', () => ({
 const slow = { timeout: 10_000 };
 const scoutForm = () => screen.findByRole('region', { name: 'Endeavour scouting request' }, slow);
 const coordinate = async () => within(await scoutForm()).getByLabelText('Printed system coordinate');
+const planner = () => screen.getByRole('region', { name: 'Explorer route planner' });
 const storedDraft = () => JSON.parse(sessionStorage.getItem(SCIENTIST_SCOUT_DRAFT_KEY) ?? 'null') as unknown;
 
 beforeEach(() => {
@@ -166,8 +167,9 @@ it('drops a former-station command queued before the station was lost instead of
   // A Team Phase grievance was queued after a transient failure while the station was still held.
   useSessionStore.getState().enqueueCommand({
     id: 'queued-grievance', kind: 'submitCivilUnrestGrievance',
-    payload: { sessionId: 's1', requestId: 'grievance-before-loss', crisisId: 'unrest-1', expectedRevision: 2,
-      shipId: 'shepherd', grievance: 'rations' },
+    payload: { sessionId: 's1', requestId: 'grievance-before-loss', crisisId: 'unrest-1',
+      expectedCrisisRevision: 2, expectedGrievanceRevision: 0, affectedShipId: 'shepherd',
+      visibility: 'private', text: 'Rations are short on the Shepherd.' },
     createdAt: new Date().toISOString(), queuedWithServerAuthority: true,
   });
   stationLossServer.resumeReply = stationLostResumeReply();
@@ -188,4 +190,72 @@ it('drops a former-station command queued before the station was lost instead of
   expect(await coordinate()).toHaveValue('4888');
   expect(stationLossServer.callsTo('submitCivilUnrestGrievance')).toEqual([]);
   expect(stationLossServer.callsTo('requestScout')).toEqual([]);
+}, 60_000);
+
+// L3.1 (#247) targeted gap: the Quellon Explorer's per-tab route plan had no
+// station-loss proof. The same reload path keeps it until a deliberate reselect.
+it('keeps the Quellon Explorer route plan through a station loss reload and restores it after reselect', async () => {
+  const user = userEvent.setup();
+  stationLossServer.resumeReply = { session: explorerSession, player: returningExplorer };
+  useSessionStore.getState().setIdentity(explorerSession, returningExplorer);
+  window.location.hash = '#/ships/quellon/roles/quellon-explorer';
+  const first = render(<App />);
+  await waitFor(() => expect(useSessionStore.getState().connection).toBe('live'));
+  await user.click(await screen.findByRole('button', { name: 'Navigation' }, slow));
+  await user.selectOptions(within(planner()).getByLabelText('Known route destination'), '9997');
+  expect(sessionStorage.getItem(EXPLORER_ROUTE_PLAN_KEY)).toBe('9997');
+  first.unmount();
+
+  stationLossServer.resumeReply = stationLostResumeReply(explorerSession, returningExplorer);
+  await reloadTab();
+  window.location.hash = '#/';
+  render(<App />);
+
+  expect(await screen.findByRole('heading', { name: 'Stations and consoles' }, slow)).toBeInTheDocument();
+  expect(await screen.findByRole('alert')).toHaveTextContent(STATION_LOSS_NOTICE);
+  expect(useSessionStore.getState().me).toMatchObject({ uid: 'u1', seatId: null, activeConsoleRoleId: null });
+  expect(screen.queryByRole('region', { name: 'Explorer route planner' })).not.toBeInTheDocument();
+  expect(sessionStorage.getItem(EXPLORER_ROUTE_PLAN_KEY)).toBe('9997');
+
+  await user.click(screen.getByRole('button', { name: 'Dismiss error' }));
+  await user.click(screen.getByRole('link', { name: /quellon \/\/ explorer/i }));
+  await waitFor(() => expect(useSessionStore.getState().me?.activeConsoleRoleId).toBe('quellon-explorer'));
+  await user.click(await screen.findByRole('button', { name: 'Navigation' }, slow));
+  expect(within(planner()).getByLabelText('Known route destination')).toHaveValue('9997');
+  expect(stationLossServer.callsTo('jumpShip')).toEqual([]);
+}, 60_000);
+
+// L3.1 (#247) targeted gap: the Wing Commander's Fighter Wing exchange draft
+// (sessionDraftStorage) had Back coverage only, not a station-loss reload.
+it('keeps the Wing Commander fighter exchange draft through a station loss reload and restores it after reselect', async () => {
+  const user = userEvent.setup();
+  stationLossServer.resumeReply = { session: wingCommanderSession, player: returningWingCommander };
+  useSessionStore.getState().setIdentity(wingCommanderSession, returningWingCommander);
+  window.location.hash = '#/ships/aegis/roles/wing-commander';
+  const first = render(<App />);
+  await waitFor(() => expect(useSessionStore.getState().connection).toBe('live'));
+  let exchange = await screen.findByRole('region', { name: 'Fighter Wing exchange' }, slow);
+  await user.selectOptions(within(exchange).getByRole('combobox', { name: 'Move fighters from' }), 'fighter-wing-bravo');
+  await user.selectOptions(within(exchange).getByRole('combobox', { name: 'Fighters to move' }), '2');
+  expect(JSON.parse(sessionStorage.getItem(WING_EXCHANGE_DRAFT_KEY) ?? 'null'))
+    .toMatchObject({ value: { sourceWingId: 'fighter-wing-bravo', amount: 2 } });
+  first.unmount();
+
+  stationLossServer.resumeReply = stationLostResumeReply(wingCommanderSession, returningWingCommander);
+  await reloadTab();
+  window.location.hash = '#/';
+  render(<App />);
+
+  expect(await screen.findByRole('heading', { name: 'Stations and consoles' }, slow)).toBeInTheDocument();
+  expect(await screen.findByRole('alert')).toHaveTextContent(STATION_LOSS_NOTICE);
+  expect(useSessionStore.getState().me).toMatchObject({ uid: 'u1', seatId: null, activeConsoleRoleId: null });
+  expect(screen.queryByRole('region', { name: 'Fighter Wing exchange' })).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole('button', { name: 'Dismiss error' }));
+  await user.click(screen.getByRole('link', { name: /aegis \/\/ wing commander/i }));
+  await waitFor(() => expect(useSessionStore.getState().me?.activeConsoleRoleId).toBe('wing-commander'));
+  exchange = await screen.findByRole('region', { name: 'Fighter Wing exchange' }, slow);
+  expect(within(exchange).getByRole('combobox', { name: 'Move fighters from' })).toHaveValue('fighter-wing-bravo');
+  expect(within(exchange).getByRole('combobox', { name: 'Fighters to move' })).toHaveValue('2');
+  expect(stationLossServer.callsTo('exchangeAegisFighterWings')).toEqual([]);
 }, 60_000);

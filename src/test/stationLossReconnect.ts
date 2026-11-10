@@ -23,9 +23,20 @@
  * same-tab reload: the persisted localStorage snapshot is rehydrated and
  * per-tab sessionStorage drafts survive, exactly as in a browser.
  *
+ * Scenarios: Shepherd Scientist (Endeavour scout draft), Quellon Explorer
+ * (route plan) and Wing Commander (Fighter Wing exchange draft, own session id).
+ * `stationLostResumeReply(session, player)` builds the lost-station answer for
+ * any of them.
+ *
  * Later slices (L3.2 clocks, T2.2 roster change, T2.3 stale clock, L3.3 sparse
  * roster) can set `stationLossServer.resumeReply` to another server answer and
- * add callable handlers with `stationLossServer.handlers[name] = ...`.
+ * add callable handlers with `stationLossServer.handlers[name] = ...`. Two
+ * caveats: (1) the client's session-authority cursor is module state keyed by
+ * session and UID, so within one test file a later scenario for the same
+ * session must not move backwards in cycle, phase revision or airspace (use a
+ * new session id instead), and resume replies are stamped with a strictly newer
+ * `updatedAt` for the same reason; (2) unhandled callables throw, which the app
+ * shows as a communication error, so add handlers for whatever the route reads.
  *
  * Evidence class: local jsdom route test with the real client reconnect path
  * and a scripted callable boundary. It is not emulator, browser or deployed
@@ -72,6 +83,70 @@ export function stationLostResumeReply(session = scientistSession, player = retu
     stationSelectionRequired: true,
   };
 }
+
+export const explorerSession = {
+  id: 's1', name: 'Table one', joinCode: '4821', phase: 'active', ownerUid: 'gm1',
+  currentTurn: 3, activeRoleIds: ['quellon-explorer'], activeVesselIds: ['quellon'],
+  shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'SESSION START' }],
+  shipResources: { quellon: { food: 10, water: 10, ore: 0, fuel: 6, materials: 0, securityTeams: 0 } },
+  maintenanceCycles: { quellon: { step: 3, revision: 3, turn: 3, charges: ['jump-drive'], refuelled: [], results: {} } },
+  vesselActionRevisions: { quellon: 4 },
+  playerDiscovery: {
+    groupId: 'fleet-1', shipId: 'quellon', currentCoordinate: '0000', knownCoordinates: ['0000', '5143', '9997'],
+    knownSystems: { 'system-01': '0000', 'system-02': '5143', 'system-04': '9997' },
+    pursuitDistance: 0, navigationLogs: [], revision: 1,
+  },
+  shipGalacticCoordinates: { quellon: '0000' },
+  shipNavigationLogs: { quellon: [] },
+  turnPhase: {
+    turn: 3, teamPhaseEndsAt: '2099-01-01T00:00:00.000Z', openAirspaceEndsAt: '2099-01-01T00:15:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  },
+  createdAt: '2026-11-05T00:00:00.000Z', updatedAt: '2026-11-05T00:00:00.000Z',
+} as unknown as GameSession;
+
+// Same session id and cycle as `scientistSession`: the client's authority cursor
+// refuses a lifecycle regression (an older cycle) for one session and UID.
+
+/** The Quellon Explorer holding the station when they went away. */
+export const returningExplorer: Player = {
+  uid: 'u1', sessionId: 's1', displayName: 'Explorer', role: 'player', seatId: 'quellon-explorer',
+  assignedRoleId: 'quellon-explorer', activeConsoleRoleId: 'quellon-explorer', fleetGroupId: 'fleet-1',
+  joinedAt: '2026-11-05T00:00:00.000Z',
+};
+
+/** The Explorer's per-tab route plan key (ExplorerRoutePlanner, scoped to session and ship). */
+export const EXPLORER_ROUTE_PLAN_KEY = 'dow.explorerRoutePlan.s1:quellon';
+
+// A separate session id gives this scenario its own client authority cursor,
+// so its lifecycle never has to be ordered against the scenarios above.
+export const wingCommanderSession = {
+  id: 's-wing', name: 'Table one', joinCode: '4821', phase: 'active', ownerUid: 'gm1',
+  currentTurn: 3, activeRoleIds: ['wing-commander'], activeVesselIds: ['aegis'],
+  shipUpgrades: { aegis: [] },
+  shipDamage: { aegis: { damagedSystemIds: [], destroyed: false } },
+  fighterWingCounts: {
+    'fighter-wing-alpha': { count: 1, revision: 2 },
+    'fighter-wing-bravo': { count: 4, revision: 5 },
+  },
+  // Lifted, like the other scenarios: restricted airspace would make the turn
+  // coordinator ask the server to open airspace, which is outside this proof.
+  turnPhase: {
+    turn: 3, teamPhaseEndsAt: '2026-09-12T00:00:00.000Z', openAirspaceEndsAt: '2099-01-01T00:30:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+  },
+  createdAt: '2026-11-05T00:00:00.000Z', updatedAt: '2026-11-05T00:00:00.000Z',
+} as unknown as GameSession;
+
+/** The Wing Commander holding the station when they went away. */
+export const returningWingCommander: Player = {
+  uid: 'u1', sessionId: 's-wing', displayName: 'Wing Commander', role: 'player', seatId: 'wing-commander',
+  assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander', fleetGroupId: 'fleet-1',
+  joinedAt: '2026-11-05T00:00:00.000Z',
+};
+
+/** The Wing Commander's fighter exchange draft key (sessionDraftStorage, kind aegis-fighter-exchange-draft). */
+export const WING_EXCHANGE_DRAFT_KEY = 'pc10:aegis-fighter-exchange-draft:s-wing:u1:aegis';
 
 /** The Scientist's per-tab Endeavour scouting draft key (ScoutRequestControls). */
 export const SCIENTIST_SCOUT_DRAFT_KEY = 'pc10:scout-draft:s1:u1:endeavour';
