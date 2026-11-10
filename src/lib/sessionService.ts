@@ -1336,7 +1336,16 @@ async function flushPendingCommandsOnce(): Promise<boolean> {
   return true;
 }
 
-function applySession(reply: SessionReply, expectedDisplayedSessionId: string | null): boolean {
+/**
+ * Apply a join/resume reply. Returns false when it is for another identity,
+ * 'accepted' when the shared authority cursor accepted it as current server
+ * state, and 'stale' when it matched but an equal or newer snapshot was already
+ * held.
+ */
+function applySession(
+  reply: SessionReply,
+  expectedDisplayedSessionId: string | null,
+): 'accepted' | 'stale' | false {
   const store = useSessionStore.getState();
   const displayedSessionId = store.session?.id ?? null;
   if (
@@ -1379,7 +1388,7 @@ function applySession(reply: SessionReply, expectedDisplayedSessionId: string | 
       useSessionStore.getState().setCommunicationError(stationSelectionNotice());
     }
   }
-  return true;
+  return acceptedByAuthority ? 'accepted' : 'stale';
 }
 
 /**
@@ -1399,18 +1408,29 @@ async function ensureSignedIn(): Promise<void> {
  * again if it throws.
  */
 export async function connect(): Promise<void> {
-  return connectWithRetryPolicy(false);
+  await connectWithRetryPolicy(false);
+}
+
+export interface ConnectAttemptOptions {
+  /**
+   * Called when this attempt's resume reply for the remembered session was
+   * accepted as current server state and its outbox flush did not stop on a
+   * transport failure. The listeners may still report a cached snapshot for a
+   * moment, but the resume itself is no longer outstanding.
+   */
+  readonly onResumeAccepted?: () => void;
 }
 
 /** App-driven retry triggers honor a server retryAfterSeconds for the same session and Firebase UID. */
-export async function connectAutomatically(): Promise<void> {
-  return connectWithRetryPolicy(true);
+export async function connectAutomatically({ onResumeAccepted }: ConnectAttemptOptions = {}): Promise<void> {
+  if (await connectWithRetryPolicy(true)) onResumeAccepted?.();
 }
 
-async function connectWithRetryPolicy(respectRateLimitWait: boolean): Promise<void> {
+async function connectWithRetryPolicy(respectRateLimitWait: boolean): Promise<boolean> {
   const requestGeneration = ++latestConnectAttemptGeneration;
   let attemptedSessionId: string | undefined;
   let attemptedUid: string | undefined;
+  let resumeAccepted = false;
   try {
     if (!window.navigator.onLine) {
       throw new Error('Browser is offline.');
@@ -1427,7 +1447,7 @@ async function connectWithRetryPolicy(respectRateLimitWait: boolean): Promise<vo
       const remainingSeconds = Math.max(1, Math.ceil((hold.retryAtMs - Date.now()) / 1_000));
       store.setConnection('offline');
       setConnectRateLimitWait(remainingSeconds);
-      return;
+      return false;
     }
     if (store.gmInstance && store.gmInstance.uid === attemptedUid &&
         store.gmInstance.sessionId === store.session?.id) {
@@ -1442,10 +1462,11 @@ async function connectWithRetryPolicy(respectRateLimitWait: boolean): Promise<vo
       // from inheriting authority from an earlier connection.
       store.setSessionSnapshotFreshness('cache');
       try {
-        const resumed = await resumeSession(rememberedSession.id);
+        const resumed = await resumeRememberedSession(rememberedSession.id);
         if (!resumed && useSessionStore.getState().session?.id === rememberedSession.id) {
           throw new Error('The server returned a mismatched session identity.');
         }
+        resumeAccepted = resumed === 'accepted';
         if (resumed && attemptedUid) {
           clearConnectRateLimitAfterAuthority(rememberedSession.id, attemptedUid, requestGeneration);
         }
@@ -1460,7 +1481,7 @@ async function connectWithRetryPolicy(respectRateLimitWait: boolean): Promise<vo
     }
     if (!await flushPendingCommands()) {
       store.setConnection('offline');
-      return;
+      return false;
     }
     if (useSessionStore.getState().gmInstance) {
       try {
@@ -1484,14 +1505,16 @@ async function connectWithRetryPolicy(respectRateLimitWait: boolean): Promise<vo
         latest.setConnection('live');
       }
     }
+    return resumeAccepted;
   } catch (cause) {
-    if (requestGeneration !== latestConnectAttemptGeneration) return;
+    if (requestGeneration !== latestConnectAttemptGeneration) return false;
     const store = useSessionStore.getState();
     store.setConnection('offline');
     if (
       isRateLimitedCommandError(cause) &&
       rememberConnectRateLimit(attemptedSessionId, attemptedUid, requestGeneration, cause)
     ) store.setCommunicationError(interception(cause));
+    return false;
   }
 }
 
@@ -2357,6 +2380,10 @@ export async function joinSession(joinCode: string): Promise<void> {
 }
 
 export async function resumeSession(sessionId: string): Promise<boolean> {
+  return await resumeRememberedSession(sessionId) !== false;
+}
+
+async function resumeRememberedSession(sessionId: string): Promise<'accepted' | 'stale' | false> {
   const call = httpsCallable<{ sessionId: string }, SessionReply>(
     functions(),
     'resumeSession',
