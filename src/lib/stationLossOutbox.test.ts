@@ -3,8 +3,11 @@
 // the server re-authorizes them (a refused replay writes nothing), and nothing
 // in the outbox flush may replace the reselect instruction: a command that is
 // not sent or is refused is reported inside that notice instead.
+import { render, screen } from '@testing-library/react';
+import { createElement } from 'react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
+import CommunicationError from '@/components/CommunicationError';
 import {
   returningScientist, scientistSession, STATION_LOSS_NOTICE, stationLostResumeReply,
 } from '@/test/stationLossReconnect';
@@ -48,6 +51,14 @@ function grievance(id: string, ageMs: number) {
 }
 const grievanceCalls = () => server.calls.filter(({ name }) => name === 'submitCivilUnrestGrievance');
 
+/** The notice the player sees: the reselect instruction, plus the not-completed sentence exactly once when reported. */
+function expectRenderedNotice({ notCompleted }: { notCompleted: boolean }) {
+  render(createElement(CommunicationError));
+  const alert = screen.getByRole('alert');
+  expect(alert).toHaveTextContent(STATION_LOSS_NOTICE);
+  expect((alert.textContent ?? '').split(NOT_SENT).length - 1).toBe(notCompleted ? 1 : 0);
+}
+
 beforeEach(() => {
   server.calls.length = 0;
   server.handlers = {
@@ -68,6 +79,7 @@ it('replays a receipt-backed command queued before the loss for the server to re
   expect(grievanceCalls()).toEqual([expect.objectContaining({ data: expect.objectContaining({ requestId: 'req-fresh' }) })]);
   expect(state.pendingCommands).toEqual([]);
   expect(state.communicationError).toMatchObject({ kind: 'station-selection-required', message: STATION_LOSS_NOTICE });
+  expectRenderedNotice({ notCompleted: false });
 });
 
 it('keeps the reselect instruction when a queued command expired while the member was away, and says it was not sent', async () => {
@@ -76,9 +88,8 @@ it('keeps the reselect instruction when a queued command expired while the membe
   const state = useSessionStore.getState();
   expect(grievanceCalls()).toEqual([]);
   expect(state.pendingCommands).toEqual([]);
-  expect(state.communicationError).toMatchObject({
-    kind: 'station-selection-required', message: `${STATION_LOSS_NOTICE} ${NOT_SENT}`,
-  });
+  expect(state.communicationError).toMatchObject({ kind: 'station-selection-required' });
+  expectRenderedNotice({ notCompleted: true });
 });
 
 it('keeps the reselect instruction when an expired command precedes a fresh one the server refuses', async () => {
@@ -93,9 +104,8 @@ it('keeps the reselect instruction when an expired command precedes a fresh one 
   const state = useSessionStore.getState();
   expect(grievanceCalls().map(({ data }) => data.requestId)).toEqual(['req-fresh']);
   expect(state.pendingCommands).toEqual([]);
-  expect(state.communicationError).toMatchObject({
-    kind: 'station-selection-required', message: `${STATION_LOSS_NOTICE} ${NOT_SENT}`,
-  });
+  expect(state.communicationError).toMatchObject({ kind: 'station-selection-required' });
+  expectRenderedNotice({ notCompleted: true });
   expect(state.me).toMatchObject({ seatId: null, activeConsoleRoleId: null });
 });
 
@@ -111,4 +121,5 @@ it('sends a command queued after an earlier loss on a later reconnect that repor
   expect(grievanceCalls().map(({ data }) => data.requestId)).toEqual(['req-after-loss']);
   expect(state.pendingCommands).toEqual([]);
   expect(state.communicationError).toMatchObject({ kind: 'station-selection-required', message: STATION_LOSS_NOTICE });
+  expectRenderedNotice({ notCompleted: false });
 });
