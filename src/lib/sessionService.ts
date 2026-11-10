@@ -1224,6 +1224,27 @@ async function sendOrQueue(
   }
 }
 
+const QUEUED_COMMAND_NOT_COMPLETED =
+  'A queued action from before the change was not completed. Review the live state before retrying.';
+
+/**
+ * Report a queued command that was not sent or was refused. The reselect
+ * instruction drives the station chooser redirect and guards a stale route
+ * from reclaiming the old station, so it is never replaced; the problem is
+ * added to it instead.
+ */
+function reportQueuedCommandProblem(report: () => void): void {
+  const notice = useSessionStore.getState().communicationError;
+  if (notice?.kind !== 'station-selection-required') {
+    report();
+    return;
+  }
+  if (notice.message.endsWith(QUEUED_COMMAND_NOT_COMPLETED)) return;
+  useSessionStore.getState().setCommunicationError({
+    ...notice, message: `${notice.message} ${QUEUED_COMMAND_NOT_COMPLETED}`,
+  });
+}
+
 async function flushPendingCommands(): Promise<boolean> {
   const store = useSessionStore.getState();
   for (const command of [...store.pendingCommands]) {
@@ -1234,18 +1255,10 @@ async function flushPendingCommands(): Promise<boolean> {
       (!Number.isFinite(createdAt) || createdAt > now || now - createdAt > COMMAND_RECONNECT_WINDOW_MS)
     ) {
       store.removeCommand(command.id);
-      store.setCommunicationError({
+      reportQueuedCommandProblem(() => store.setCommunicationError({
         code: 'Wolf Intercepted Request Timeout',
         message: 'The queued command expired before the connection returned.',
-      });
-      continue;
-    }
-    if (!isCleanupCommand(command) &&
-        useSessionStore.getState().communicationError?.kind === 'station-selection-required') {
-      // The resume reply said this browser lost its station. A command queued
-      // under that former station must not be replayed, and its refusal must
-      // not replace the reselect instruction. Drafts stay in their own storage.
-      store.removeCommand(command.id);
+      }));
       continue;
     }
     if (
@@ -1253,27 +1266,30 @@ async function flushPendingCommands(): Promise<boolean> {
       (command.queuedWithServerAuthority !== true || store.sessionSnapshotFreshness !== 'server')
     ) {
       store.removeCommand(command.id);
-      recordStaleAuthorityReply();
+      reportQueuedCommandProblem(recordStaleAuthorityReply);
       continue;
     }
     if (!isCleanupCommand(command) && !isReplaySafeCommand(command)) {
       store.removeCommand(command.id);
-      recordAmbiguousCommand();
+      reportQueuedCommandProblem(recordAmbiguousCommand);
       continue;
     }
+    // A receipt-backed command is replayed even after a station loss: the
+    // server re-authorizes it against the current roster, and a refused
+    // replay writes nothing.
     try {
       const checkpoint = isCleanupCommand(command)
         ? undefined
         : commandAuthorityCheckpoint(command, store);
       const claimContext = gmClaimApplyContext(command, useSessionStore.getState());
       const result = await executeCommand(command);
-      if (isStaleAuthorityReply(command, result)) recordStaleAuthorityReply();
+      if (isStaleAuthorityReply(command, result)) reportQueuedCommandProblem(recordStaleAuthorityReply);
       else applyCommandResult(command, result, checkpoint, true, claimContext);
       store.removeCommand(command.id);
     } catch (cause) {
       if (isTransientCommandError(cause)) return false;
       store.removeCommand(command.id);
-      store.setCommunicationError(interception(cause));
+      reportQueuedCommandProblem(() => store.setCommunicationError(interception(cause)));
     }
   }
   return true;

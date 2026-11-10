@@ -190,12 +190,9 @@ function defaultHandlers(): Record<string, Handler> {
     refreshPresence: (data) => ({ sessionId: data.sessionId }),
     // A craft scouting request needs the station selected on the server; a former holder is refused.
     requestScout: () => stationSelectionRequired(),
-    // The server would refuse a former-station team action; a replay must not even be attempted.
-    submitCivilUnrestGrievance: () => {
-      throw Object.assign(new Error('not available'), {
-        code: 'functions/permission-denied', details: { commandError: 'unauthorized' },
-      });
-    },
+    // As on the server: a grievance is authorized by the team role (assignedRoleId),
+    // which a lost station keeps, so a replayed grievance commits.
+    submitCivilUnrestGrievance: (data) => ({ status: 'committed', requestId: data.requestId }),
     listMyScoutReports: () => [],
     readEndeavourResearchWorkspace: () => endeavourWorkspace,
   };

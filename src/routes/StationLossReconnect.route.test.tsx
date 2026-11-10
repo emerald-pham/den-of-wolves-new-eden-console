@@ -2,8 +2,10 @@
 // released and claimed while they were away reloads the same tab. The real
 // reconnect path (connectAutomatically -> resumeSession -> outbox) must route
 // them to the existing station chooser with the reselect instruction, keep the
-// unsent draft for an explicit later submit, and never replay a former-station
-// command. Fixture and evidence class: src/test/stationLossReconnect.ts.
+// unsent draft for an explicit later submit, replay a queued command only by
+// its original receipt for the server to re-authorize, and never let the
+// outbox replace the reselect instruction (src/lib/stationLossOutbox.test.ts).
+// Fixture and evidence class: src/test/stationLossReconnect.ts.
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
@@ -162,7 +164,7 @@ it('reloads a member who lost the station while away into the chooser and restor
   expect(stationLossServer.callsTo('requestScout')).toEqual([]);
 }, 60_000);
 
-it('drops a former-station command queued before the station was lost instead of replaying it on reconnect', async () => {
+it('replays a receipt-backed command queued before the station loss for the server to re-authorize, keeping the reselect instruction', async () => {
   const user = userEvent.setup();
   await typeDraftThenLeave(user);
 
@@ -183,14 +185,19 @@ it('drops a former-station command queued before the station was lost instead of
   expect(await screen.findByRole('heading', { name: 'Stations and consoles' }, slow)).toBeInTheDocument();
   await waitFor(() => expect(useSessionStore.getState().connection).toBe('live'));
   expect(screen.getByRole('alert')).toHaveTextContent(STATION_LOSS_NOTICE);
-  expect(useSessionStore.getState().communicationError?.kind).toBe('station-selection-required');
-  expect(stationLossServer.callsTo('submitCivilUnrestGrievance')).toEqual([]);
+  expect(useSessionStore.getState().communicationError).toMatchObject({
+    kind: 'station-selection-required', message: STATION_LOSS_NOTICE,
+  });
+  // Exactly one replay with the original request ID; the server re-authorized it through the team role.
+  expect(stationLossServer.callsTo('submitCivilUnrestGrievance')).toEqual([
+    expect.objectContaining({ data: expect.objectContaining({ requestId: 'grievance-before-loss' }) }),
+  ]);
   expect(useSessionStore.getState().pendingCommands).toEqual([]);
   expect(storedDraft()).toMatchObject({ targetCoordinate: '4888' });
 
   await reselectAndReopenEndeavour(user);
   expect(await coordinate()).toHaveValue('4888');
-  expect(stationLossServer.callsTo('submitCivilUnrestGrievance')).toEqual([]);
+  expect(stationLossServer.callsTo('submitCivilUnrestGrievance')).toHaveLength(1);
   expect(stationLossServer.callsTo('requestScout')).toEqual([]);
 }, 60_000);
 
@@ -301,9 +308,14 @@ it('still resumes after the listeners reconnect first, so a member who lost the 
   });
   expect(useSessionStore.getState().connection).toBe('live');
 
-  await waitFor(() => expect(resumeAttempts).toBe(2), { timeout: 5_000 });
+  // The outstanding resume is retried at the slower 6 s pace while the listeners are live.
+  await waitFor(() => expect(resumeAttempts).toBe(2), { timeout: 10_000 });
   expect(await screen.findByRole('heading', { name: 'Stations and consoles' }, slow)).toBeInTheDocument();
   expect(await screen.findByRole('alert')).toHaveTextContent(STATION_LOSS_NOTICE);
   expect(useSessionStore.getState().me).toMatchObject({ uid: 'u1', seatId: null, activeConsoleRoleId: null });
   expect(storedDraft()).toMatchObject({ targetCoordinate: '4888' });
+
+  // The accepted resume ends the retry: no further resume over more than one retry interval.
+  await new Promise((resolve) => setTimeout(resolve, 7_000));
+  expect(resumeAttempts).toBe(2);
 }, 60_000);
