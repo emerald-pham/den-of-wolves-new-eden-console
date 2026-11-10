@@ -1,0 +1,183 @@
+// PC10.3 T2.2 (#253): a member whose role was reassigned while they were away
+// reloads the same tab. The real reconnect path (connectAutomatically ->
+// resumeSession -> outbox) must show the current entitled role, never replay a
+// command queued under the former role, and keep each role's safe draft with
+// that role only. The server half (a former actor's retry is refused without a
+// write after a replacement assignment) is retained T1.2 evidence in
+// scripts/pc10-3-stale-action-proof.mjs (`proveGrievanceStaleRace`, t1_2).
+// Fixture and evidence class: src/test/stationLossReconnect.ts.
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, expect, it, vi } from 'vitest';
+import App from '@/App';
+import { useSessionStore } from '@/store/useSessionStore';
+import { acknowledgeSessionWaiver } from '@/lib/sessionWaiver';
+import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
+import {
+  reloadTab, returningScientist, SCIENTIST_SCOUT_DRAFT_KEY, scientistSession, stationLossServer,
+} from '@/test/stationLossReconnect';
+import type { Player, WolfAttackMemberView } from '@/types/game';
+import type * as FirebaseModule from '@/lib/firebase';
+import type * as FirestoreModule from '@/lib/firestore';
+import type * as SessionServiceModule from '@/lib/sessionService';
+
+vi.mock('firebase/functions', async () => {
+  const { stationLossServer: server } = await import('@/test/stationLossReconnect');
+  return {
+    httpsCallable: vi.fn((_functions: unknown, name: string) =>
+      (data: Record<string, unknown>) => server.call(name, data)),
+  };
+});
+vi.mock('@/lib/firebase', async (importOriginal) => ({
+  ...(await importOriginal<typeof FirebaseModule>()),
+  auth: () => ({ currentUser: { uid: 'u1' } }),
+  functions: vi.fn(() => ({ kind: 'functions' })),
+}));
+// The reconnect, resume, outbox and station-selection code is real. Only the
+// periodic heartbeat and unrelated GM/Wolf reads are stubbed.
+vi.mock('@/lib/sessionService', async (importOriginal) => ({
+  ...(await importOriginal<typeof SessionServiceModule>()),
+  refreshPresence: vi.fn().mockResolvedValue(undefined),
+  reconcileGmAuthority: vi.fn().mockResolvedValue(undefined),
+  refreshCommissarPurgeAuthority: vi.fn().mockResolvedValue(null),
+  listGmInstances: vi.fn().mockResolvedValue([]),
+  releaseConsoleRole: vi.fn().mockResolvedValue(undefined),
+  getWolfBoardingDefenceChoice: vi.fn(async () => null),
+  getWolfRangeActionChoice: vi.fn(async () => null),
+  getWolfForceFieldChoice: vi.fn(async () => null),
+  popShipConfetti: vi.fn(),
+}));
+vi.mock('@/lib/firestore', async (importOriginal) => ({
+  ...(await importOriginal<typeof FirestoreModule>()),
+  sessionSnapshotAuthorityFor: vi.fn(() => ({ hasServerSessionAuthority: false })),
+  subscribeSessionState: vi.fn(() => vi.fn()),
+  subscribeCrisisReport: vi.fn(() => vi.fn()),
+  subscribeConnectedPlayers: vi.fn(() => vi.fn()),
+  subscribeLoyaltyCensus: vi.fn(() => vi.fn()),
+  subscribeGmWolfHackingAlerts: vi.fn(() => vi.fn()),
+  subscribePlayerHackingNotices: vi.fn(() => vi.fn()),
+  subscribeGmInstances: vi.fn(() => vi.fn()),
+  subscribeShipConfetti: vi.fn(() => vi.fn()),
+  subscribeSessionEvents: vi.fn((_sessionId: string, onEvents: (events: never[]) => void) => {
+    onEvents([]);
+    return vi.fn();
+  }),
+  subscribeDamageDraws: vi.fn((_sessionId: string, onDraws: (draws: never[]) => void) => {
+    onDraws([]);
+    return vi.fn();
+  }),
+  subscribeVipCards: vi.fn(() => vi.fn()),
+  subscribeWolfAttackMemberView: vi.fn((_sessionId: string, onView: (view: WolfAttackMemberView | null) => void) => {
+    onView(null);
+    return vi.fn();
+  }),
+  subscribeShuttleDeparture: vi.fn((_sessionId, _shuttleId, onDeparture: (departure: null) => void) => {
+    onDeparture(null);
+    return vi.fn();
+  }),
+}));
+vi.mock('@/lib/versionUpgrade', () => ({ startVersionUpgradeMonitor: vi.fn(() => vi.fn()) }));
+vi.mock('@/lib/endeavourEcmDeviceService', () => ({
+  readEndeavourEcmDeviceWorkspace: vi.fn(async () => ({
+    status: 'ready', sessionId: 's1', cycle: 3, controlRevision: 4,
+    researchComplete: false, device: { status: 'ready', revision: 0 }, pursuit: { groupId: 'fleet-1', current: 8 },
+  })),
+  createEndeavourEcmDeviceAttempt: vi.fn(),
+  activateEndeavourEcmDevice: vi.fn(),
+  retryEndeavourEcmDeviceAttempt: vi.fn(),
+}));
+
+const slow = { timeout: 10_000 };
+const COMMS_SCOUT_DRAFT_KEY = 'pc10:scout-draft:s1:u1:comms-officer';
+const endeavourCoordinate = async () => within(
+  await screen.findByRole('region', { name: 'Endeavour scouting request' }, slow),
+).getByLabelText('Printed system coordinate');
+const commsForm = () => screen.findByRole('region', { name: 'Comms Officer scouting request' }, slow);
+
+/** The server's resume reply after the facilitator moved the Scientist to Comms Officer while away. */
+const reassignedScientist: Player = {
+  ...returningScientist, seatId: null, activeConsoleRoleId: null, replacementRoleId: 'comms-officer',
+};
+
+beforeEach(() => {
+  window.location.hash = '#/';
+  sessionStorage.clear();
+  localStorage.clear();
+  localStorage.setItem(MOTION_SAFETY_STORAGE_KEY, JSON.stringify({ acknowledgedAt: Date.now(), choice: 'reduce' }));
+  acknowledgeSessionWaiver(localStorage, Date.now());
+  stationLossServer.reset();
+  stationLossServer.resumeReply = { session: scientistSession, player: returningScientist };
+  const state = useSessionStore.getState();
+  state.reset();
+  state.setIdentity(scientistSession, returningScientist);
+  state.setMode('console');
+});
+
+it('drops a command queued under the former role when the member returns reassigned, and shows the current role', async () => {
+  const user = userEvent.setup();
+  // The Scientist types an Endeavour scouting draft, then the tab goes away.
+  window.location.hash = '#/shuttles/endeavour';
+  const first = render(<App />);
+  await waitFor(() => expect(useSessionStore.getState().connection).toBe('live'));
+  await user.type(await endeavourCoordinate(), '4888');
+  first.unmount();
+  // A Team Phase grievance was queued after a transient failure while the Scientist role was held.
+  useSessionStore.getState().enqueueCommand({
+    id: 'queued-grievance', kind: 'submitCivilUnrestGrievance',
+    payload: { sessionId: 's1', requestId: 'grievance-before-reassignment', crisisId: 'unrest-1',
+      expectedCrisisRevision: 2, expectedGrievanceRevision: 0, affectedShipId: 'shepherd',
+      visibility: 'private', text: 'Rations are short on the Shepherd.' },
+    createdAt: new Date().toISOString(), queuedWithServerAuthority: true,
+  });
+
+  // While away, the facilitator assigned the Comms Officer replacement role.
+  // The server's resume reply carries no station-selection signal for this case.
+  stationLossServer.resumeReply = { session: scientistSession, player: reassignedScientist };
+  await reloadTab();
+  window.location.hash = '#/console';
+  render(<App />);
+
+  await waitFor(() => expect(useSessionStore.getState()).toMatchObject({
+    connection: 'live', sessionSnapshotFreshness: 'server',
+    me: { uid: 'u1', seatId: null, activeConsoleRoleId: null, replacementRoleId: 'comms-officer' },
+  }));
+  expect(await screen.findByRole('heading', { name: 'Stations and consoles' }, slow)).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Comms Officer' })).toHaveTextContent(/assigned to you/i);
+  expect(stationLossServer.callsTo('submitCivilUnrestGrievance')).toEqual([]);
+  expect(useSessionStore.getState().pendingCommands).toEqual([]);
+  expect(stationLossServer.callsTo('resumeSession').length).toBeGreaterThan(0);
+}, 60_000);
+
+it('keeps the Comms Officer scouting draft to that role across a reassignment reload and never sends it', async () => {
+  const user = userEvent.setup();
+  // The Scientist leaves an unsent Endeavour draft before being reassigned.
+  sessionStorage.setItem(SCIENTIST_SCOUT_DRAFT_KEY, JSON.stringify({
+    version: 1, sessionId: 's1', uid: 'u1', entitlementId: 'endeavour', targetCoordinate: '4888',
+  }));
+  stationLossServer.resumeReply = { session: scientistSession, player: reassignedScientist };
+  await reloadTab();
+  window.location.hash = '#/console';
+  const first = render(<App />);
+  await waitFor(() => expect(useSessionStore.getState().me?.replacementRoleId).toBe('comms-officer'));
+
+  // The new role opens through the visible chooser link with an empty form: no cross-role draft.
+  await user.click(await screen.findByRole('link', { name: 'Comms Officer' }, slow));
+  let coordinate = within(await commsForm()).getByLabelText('Printed system coordinate');
+  expect(coordinate).toHaveValue('');
+  expect(screen.queryByRole('region', { name: 'Endeavour scouting request' })).not.toBeInTheDocument();
+  await user.type(coordinate, '5143');
+  expect(JSON.parse(sessionStorage.getItem(COMMS_SCOUT_DRAFT_KEY) ?? 'null'))
+    .toMatchObject({ entitlementId: 'comms-officer', targetCoordinate: '5143' });
+  first.unmount();
+
+  // A later reload of the same replacement role restores its own draft without sending it.
+  await reloadTab();
+  window.location.hash = '#/replacement/comms-officer';
+  render(<App />);
+  coordinate = within(await commsForm()).getByLabelText('Printed system coordinate');
+  expect(coordinate).toHaveValue('5143');
+  // The former role's draft stays in its own per-tab key, untouched and unsent.
+  expect(JSON.parse(sessionStorage.getItem(SCIENTIST_SCOUT_DRAFT_KEY) ?? 'null'))
+    .toMatchObject({ entitlementId: 'endeavour', targetCoordinate: '4888' });
+  expect(stationLossServer.callsTo('requestScout')).toEqual([]);
+}, 60_000);
