@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-07T01:59:46.386Z",
+  "generatedAt": "2026-11-10T12:01:37.340Z",
   "originSourceSha256": "8536b573f44cde0e480b12cf427c3bb5668f33d6564f393572964f1679086f3f",
   "catalogSha256": "6b12e82a03c4f8f6fbb76439e207fdd677bf55a57e27af32b4e6645e8238f9fb",
   "issueStates": [
@@ -1320,7 +1320,7 @@
       "stateReason": null,
       "promptStatus": null,
       "readiness": "ready-for-agent",
-      "execution": "paused",
+      "execution": "active",
       "hold": null,
       "nativeParentMigrationIds": [
         "DOW-PROMPT-618"
@@ -1337,7 +1337,7 @@
       "stateReason": null,
       "promptStatus": null,
       "readiness": "ready-for-agent",
-      "execution": "paused",
+      "execution": "active",
       "hold": null,
       "nativeParentMigrationIds": [
         "DOW-PROMPT-618"
@@ -1354,7 +1354,7 @@
       "stateReason": null,
       "promptStatus": null,
       "readiness": "ready-for-agent",
-      "execution": "paused",
+      "execution": "active",
       "hold": null,
       "nativeParentMigrationIds": [
         "DOW-PROMPT-618"
@@ -1377,7 +1377,7 @@
       "stateReason": null,
       "promptStatus": null,
       "readiness": "ready-for-agent",
-      "execution": "paused",
+      "execution": "active",
       "hold": null,
       "nativeParentMigrationIds": [
         "DOW-PROMPT-620"
@@ -1394,7 +1394,7 @@
       "stateReason": null,
       "promptStatus": null,
       "readiness": "ready-for-agent",
-      "execution": "paused",
+      "execution": "active",
       "hold": null,
       "nativeParentMigrationIds": [
         "DOW-PROMPT-620"
@@ -1484,7 +1484,7 @@
       "stateReason": null,
       "promptStatus": null,
       "readiness": "ready-for-agent",
-      "execution": "paused",
+      "execution": "active",
       "hold": null,
       "nativeParentMigrationIds": [
         "DOW-PROMPT-629"
@@ -1501,7 +1501,7 @@
       "stateReason": null,
       "promptStatus": null,
       "readiness": "ready-for-agent",
-      "execution": "paused",
+      "execution": "active",
       "hold": null,
       "nativeParentMigrationIds": [
         "DOW-PROMPT-629"
@@ -1518,7 +1518,7 @@
       "stateReason": null,
       "promptStatus": null,
       "readiness": "ready-for-agent",
-      "execution": "paused",
+      "execution": "active",
       "hold": null,
       "nativeParentMigrationIds": [
         "DOW-PROMPT-629"
