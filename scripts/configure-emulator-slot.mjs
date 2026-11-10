@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { realpathSync } from 'node:fs';
-import { readFile, rename, writeFile } from 'node:fs/promises';
+import { readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -41,6 +41,24 @@ async function writeAtomically(path, content) {
   await rename(temporaryPath, path);
 }
 
+async function readOptional(path) {
+  try {
+    return await readFile(path, 'utf8');
+  } catch (error) {
+    if (error?.code === 'ENOENT') return undefined;
+    throw error;
+  }
+}
+
+/** Undo only the local files this run replaced and nobody has changed since. */
+async function restoreLocalFiles(writes) {
+  for (const { path, content, previous } of writes) {
+    if ((await readOptional(path)) !== content) continue;
+    if (previous === undefined) await unlink(path).catch((error) => { if (error?.code !== 'ENOENT') throw error; });
+    else await writeAtomically(path, previous);
+  }
+}
+
 /**
  * Reserve a complete row for this worktree and write its ignored local
  * configuration. `coordinationPath`, `portCheck` and `write` are seams for
@@ -69,8 +87,12 @@ export async function configureEmulatorSlot({
     ...(portCheck ? { portCheck } : {}),
   });
   const selectedSlot = configuration.slot;
+  const writes = [];
 
   try {
+    const previous = new Map(await Promise.all(
+      [localFirebaseConfigPath, localEnvironmentPath].map(async (path) => [path, await readOptional(path)]),
+    ));
     const baseConfig = JSON.parse(
       await readFile(resolve(repositoryDirectory, 'firebase.json'), 'utf8'),
     );
@@ -80,12 +102,20 @@ export async function configureEmulatorSlot({
       .map(([name, value]) => `${name}=${value}`)
       .join('\n')}\n`;
 
-    await Promise.all([
-      write(localFirebaseConfigPath, `${JSON.stringify(localConfig, null, 2)}\n`),
-      write(localEnvironmentPath, environmentText),
-    ]);
+    writes.push(
+      { path: localFirebaseConfigPath, content: `${JSON.stringify(localConfig, null, 2)}\n`, previous: previous.get(localFirebaseConfigPath) },
+      { path: localEnvironmentPath, content: environmentText, previous: previous.get(localEnvironmentPath) },
+    );
+    // Settle every write before any restore so none lands after it.
+    const results = await Promise.allSettled(writes.map(({ path, content }) => write(path, content)));
+    const failure = results.find((result) => result.status === 'rejected');
+    if (failure) throw failure.reason;
   } catch (error) {
-    await releaseConfiguredEmulatorSlot(configuration, coordinationPath);
+    try {
+      await restoreLocalFiles(writes);
+    } finally {
+      await releaseConfiguredEmulatorSlot(configuration, coordinationPath);
+    }
     throw error;
   }
 

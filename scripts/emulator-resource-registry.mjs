@@ -762,11 +762,22 @@ export async function reserveConfiguredEmulatorSlot({ filePath = coordinationFil
     const occupied = await occupiedPorts(ports, portCheck);
     if (occupied.length) throw new Error(`Cannot claim emulator slot ${slot}: port(s) ${occupied.join(', ')} are already listening.`);
     const configuration = { id: `configuration-${randomUUID()}`, slot, worktree, configuredAt: isoNow(), ports: [...ports] };
-    state.configurations = (state.configurations ?? []).filter((candidate) => candidate.worktree !== worktree);
-    state.configurations.push(configuration);
+    const owned = replaceWorktreeConfiguration(state, configuration);
     await writeStateUnlocked(filePath, state);
-    return configuration;
+    return owned;
   });
+}
+
+/**
+ * Record `configuration` as the worktree's only row. The returned starter
+ * handle (not the persisted record) carries any displaced row in `replaces`,
+ * so a failed starter's release can return to the pre-existing state.
+ */
+function replaceWorktreeConfiguration(state, configuration) {
+  const displaced = (state.configurations ?? []).find((candidate) => candidate.worktree === configuration.worktree);
+  state.configurations = (state.configurations ?? []).filter((candidate) => candidate.worktree !== configuration.worktree);
+  state.configurations.push(configuration);
+  return displaced ? { ...configuration, replaces: displaced } : configuration;
 }
 
 export async function reserveAvailableConfiguredEmulatorSlot({ filePath = coordinationFilePath(), preferredSlot, worktree = process.cwd(), availableSlots = Array.from({ length: EMULATOR_SLOT_COUNT }, (_, slot) => slot), portsForSlot = (slot) => [...Object.values(emulatorPortsForSlot(slot)), vitePortForSlot(slot)], portCheck = isPortFree }) {
@@ -777,10 +788,9 @@ export async function reserveAvailableConfiguredEmulatorSlot({ filePath = coordi
       const ports = portsForSlot(slot);
       if ((await occupiedPorts(ports, portCheck)).length) continue;
       const configuration = { id: `configuration-${randomUUID()}`, slot, worktree, configuredAt: isoNow(), ports: [...ports] };
-      state.configurations = (state.configurations ?? []).filter((candidate) => candidate.worktree !== worktree);
-      state.configurations.push(configuration);
+      const owned = replaceWorktreeConfiguration(state, configuration);
       await writeStateUnlocked(filePath, state);
-      return configuration;
+      return owned;
     }
     throw new Error(`No free emulator slot is available for configuration. See ${filePath}.`);
   });
@@ -791,6 +801,14 @@ export async function releaseConfiguredEmulatorSlot(configuration, filePath = co
   await withCoordinationLock(filePath, async () => {
     const state = await readStateUnlocked(filePath);
     state.configurations = (state.configurations ?? []).filter((candidate) => configuration.id ? candidate.id !== configuration.id : !(candidate.worktree === configuration.worktree && candidate.slot === configuration.slot));
+    // Return the worktree's displaced pre-existing row unless the worktree has
+    // a row again or another worktree has since registered that slot.
+    const displaced = configuration.id ? configuration.replaces : undefined;
+    if (
+      displaced?.worktree === configuration.worktree && Number.isInteger(displaced.slot)
+      && !state.configurations.some((candidate) => candidate.worktree === displaced.worktree)
+      && !coordinationReservations(state).some((candidate) => candidate.slot === displaced.slot && candidate.worktree !== displaced.worktree)
+    ) state.configurations.push(displaced);
     await writeStateUnlocked(filePath, state);
   });
 }
