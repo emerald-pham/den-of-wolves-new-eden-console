@@ -1185,3 +1185,38 @@ unresolved rule or audience question is surfaced rather than invented. This
 activation changes no completion status, acceptance, checkpoint membership or
 the 751-prompt endpoint, and grants no 0.9.x/1.0.0 version authorization.
 PC10.3 release gates are unchanged.
+
+### PC10.3 release candidate — 2026-11-10
+
+Version 0.5.77 is the PC10.3 release candidate, reconciled with main and the
+review repairs (integration `f62bd9cd`). It ships L1 membership, seat, ship,
+group and shuttle recovery on reconnect, a station lost while away that returns
+the player to station select with safe drafts kept, and presence that keeps the
+seat alive while a resume is outstanding; L2 mission, attack, candidate and
+debrief projections that refresh on reconnect; L3 all-player disconnect
+recovery in which the cycle clock resumes its paused window and an open crisis
+report reopens; T1 a stale Civil Unrest grievance that reopens the team
+listener and retries the kept draft, with committed or unauthorized retries
+held locked; T2 a queued command that is replayed once for the server to
+re-authorize after a station or roster change, with the player told when it was
+not completed; Q1/Q2 loyalty, Wolf, private-note, organiser-chart and
+navigation audiences, with a different account on the same browser dropping
+the previous account's queued private commands; Q3 private mission hands and
+hidden bonuses, and the Abandoned Wolf Supply Outpost's secret d6 difficulty
+withheld from member projections; and the PT4 emulator-row ownership repair
+(tooling only). The catalog still reads 703/751 (93.61%); no prompt status
+changed.
+
+Evidence so far is local. L1.1–L1.3, L3.2, T2.3 and L3.3 are proven with two
+real browsers on the emulator. L1.4, T2.1, T2.2, L2.1 and L2.2 rest on local
+jsdom and emulator-SDK tests; their real-browser proofs are still pending. L2.3
+(#245) and L2.4 (#246) are only partly met, because candidate contribution
+actions and closed-session debrief reads belong to PC10.5–PC10.6, and L3.1
+(#247) inherits that limit. Q3.2's redaction rests on the provisional
+PC10.3-Q3.2 ruling in `PRODUCT_MILESTONE_ASSUMPTIONS.md`; no entitled reader of
+the secret roll exists yet, and missions resolved before this release keep the
+old thresholds in a stored member pointer until it is rewritten (the browser
+hides them on read). The named-callable deployment audit
+(`scripts/pc10-3-deployment-consumers.json`) selects every changed callable
+without a broad Functions fallback. Exact-commit CI, deployment, and gameplay
+on the live site with real accounts are not yet verified.
