@@ -3,7 +3,9 @@ import { commissarPurgeAuthorityIsCurrent } from './commissarPurgeAuthority';
 import { signInAnonymously } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { auth, functions } from './firebase';
-import { isCleanupCommand, selectGmAccessAuthenticated, useSessionStore } from '@/store/useSessionStore';
+import {
+  isCleanupCommand, selectGmAccessAuthenticated, selectHasLiveServerSnapshot, useSessionStore,
+} from '@/store/useSessionStore';
 import type { PendingCommand } from '@/store/useSessionStore';
 import type {
   FacilitatorRuleCall,
@@ -1230,8 +1232,56 @@ function reportQueuedCommandProblem(report: () => void): void {
   if (!useSessionStore.getState().markQueuedCommandNotCompleted()) report();
 }
 
-async function flushPendingCommands(): Promise<boolean> {
+/**
+ * A queued command may be replayed only from current server freshness. The
+ * session listeners can briefly report a cached snapshot after a reconnect,
+ * which marks the connection offline; that is a reason to wait, never to drop
+ * the command.
+ */
+function outboxMayReplay(): boolean {
+  const state = useSessionStore.getState();
+  return window.navigator.onLine && state.connection !== 'offline' &&
+    state.sessionSnapshotFreshness === 'server';
+}
+
+let outboxFlushInFlight: Promise<boolean> | null = null;
+let stopDeferredOutboxFlush: (() => void) | null = null;
+
+/**
+ * Resume the outbox once the same member's session is live and server-fresh
+ * again. Only a connect attempt that received a resume reply defers a flush.
+ */
+function flushOutboxWhenFresh(sessionId: string, uid: string): void {
+  if (stopDeferredOutboxFlush) return;
+  const stop = () => {
+    unsubscribe();
+    if (stopDeferredOutboxFlush === stop) stopDeferredOutboxFlush = null;
+  };
+  const unsubscribe = useSessionStore.subscribe((state) => {
+    if (state.session?.id !== sessionId || state.me?.uid !== uid || state.pendingCommands.length === 0) {
+      stop();
+      return;
+    }
+    if (!window.navigator.onLine || !selectHasLiveServerSnapshot(state)) return;
+    stop();
+    queueMicrotask(() => {
+      void flushPendingCommands().then((flushed) => {
+        if (!flushed) useSessionStore.getState().setConnection('offline');
+      }, () => undefined);
+    });
+  });
+  stopDeferredOutboxFlush = stop;
+}
+
+/** One flush at a time: an overlapping reconnect must not send or drop an in-flight command again. */
+function flushPendingCommands(): Promise<boolean> {
+  outboxFlushInFlight ??= flushPendingCommandsOnce().finally(() => { outboxFlushInFlight = null; });
+  return outboxFlushInFlight;
+}
+
+async function flushPendingCommandsOnce(): Promise<boolean> {
   const store = useSessionStore.getState();
+  let deferred = false;
   for (const command of [...store.pendingCommands]) {
     const createdAt = Date.parse(command.createdAt);
     const now = Date.now();
@@ -1246,10 +1296,7 @@ async function flushPendingCommands(): Promise<boolean> {
       }));
       continue;
     }
-    if (
-      !isCleanupCommand(command) &&
-      (command.queuedWithServerAuthority !== true || store.sessionSnapshotFreshness !== 'server')
-    ) {
+    if (!isCleanupCommand(command) && command.queuedWithServerAuthority !== true) {
       store.removeCommand(command.id);
       reportQueuedCommandProblem(recordStaleAuthorityReply);
       continue;
@@ -1257,6 +1304,11 @@ async function flushPendingCommands(): Promise<boolean> {
     if (!isCleanupCommand(command) && !isReplaySafeCommand(command)) {
       store.removeCommand(command.id);
       reportQueuedCommandProblem(recordAmbiguousCommand);
+      continue;
+    }
+    if (!isCleanupCommand(command) && !outboxMayReplay()) {
+      // Kept queued and unsent; replayed when the live server snapshot returns.
+      deferred = true;
       continue;
     }
     // A receipt-backed command is replayed even after a station loss: the
@@ -1276,6 +1328,10 @@ async function flushPendingCommands(): Promise<boolean> {
       store.removeCommand(command.id);
       reportQueuedCommandProblem(() => store.setCommunicationError(interception(cause)));
     }
+  }
+  if (deferred) {
+    const { session, me } = useSessionStore.getState();
+    if (session && me) flushOutboxWhenFresh(session.id, me.uid);
   }
   return true;
 }
