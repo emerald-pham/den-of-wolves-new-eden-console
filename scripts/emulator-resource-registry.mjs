@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash, randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import {
   link,
   mkdir,
@@ -614,10 +615,14 @@ export function pruneDeadReservations(state, isAlive = processIsAlive) {
   return { ...state, reservations: (state.reservations ?? []).filter((reservation) => isAlive(reservation.pid) || (validPid(reservation.childPid) && isAlive(reservation.childPid))) };
 }
 
-export function pruneOrphanedConfigurations(state, worktreeExists = () => true) {
-  const active = new Set((state.entries ?? []).filter((entry) => entry.status === 'active' && worktreeExists(entry.worktree)).map((entry) => entry.worktree));
+/**
+ * A configured row is owned by its worktree, not by a coordination entry or a
+ * live process: a starter may hold it before either exists. Unrelated registry
+ * writes retire a row only once its worktree is gone and nothing reserves it.
+ */
+export function pruneOrphanedConfigurations(state, worktreeExists = existsSync) {
   const reserved = new Set((state.reservations ?? []).map((reservation) => reservation.worktree));
-  return { ...state, configurations: (state.configurations ?? []).filter((configuration) => active.has(configuration.worktree) || reserved.has(configuration.worktree)) };
+  return { ...state, configurations: (state.configurations ?? []).filter((configuration) => reserved.has(configuration.worktree) || worktreeExists(configuration.worktree)) };
 }
 
 export async function readCoordinationState(filePath = coordinationFilePath()) {
