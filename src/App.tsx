@@ -1280,8 +1280,21 @@ function AppRuntime() {
       store.setConnection('offline');
     };
     const renewPresence = () => refreshPresence().catch(markAuthorityOffline);
+    // Live listeners can report a fresh server snapshot before a failed
+    // reconnect is retried. Listener freshness is not a resume: only an
+    // accepted resumeSession reply reclaims the seat, reports a lost station
+    // and reconciles the outbox. A connect attempt that did not end live keeps
+    // the retry going even after the listeners turn the light green; listener
+    // flicker alone does not schedule another resume.
+    let resumeOutstanding = false;
+    const reconnect = async () => {
+      await connectAutomatically();
+      const state = useSessionStore.getState();
+      resumeOutstanding = state.connection !== 'live' ||
+        (state.session !== null && state.sessionSnapshotFreshness !== 'server');
+    };
     const stopVersionMonitor = startVersionUpgradeMonitor({
-      reconnect: () => run(connectAutomatically),
+      reconnect: () => run(reconnect),
       onUpdateAvailable: markServiceWorkerUpdateAvailable,
     });
     // Some session-service failures mark the connection offline without going
@@ -1292,10 +1305,10 @@ function AppRuntime() {
         state.setSessionSnapshotFreshness('cache');
       }
     });
-    run(connectAutomatically);
+    run(reconnect);
 
     const retry = window.setInterval(() => {
-      if (useSessionStore.getState().connection !== 'live') run(connectAutomatically);
+      if (useSessionStore.getState().connection !== 'live' || resumeOutstanding) run(reconnect);
     }, CONNECT_RETRY_INTERVAL_MS);
     const reconcileGm = window.setInterval(() => {
       const state = useSessionStore.getState();
@@ -1312,10 +1325,10 @@ function AppRuntime() {
 
     const markOffline = markAuthorityOffline;
     const reconnectNow = () => {
-      run(connectAutomatically);
+      run(reconnect);
     };
     const reconnectWhenVisible = () => {
-      if (document.visibilityState === 'visible') run(connectAutomatically);
+      if (document.visibilityState === 'visible') run(reconnect);
     };
 
     window.addEventListener('offline', markOffline);

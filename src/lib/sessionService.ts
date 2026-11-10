@@ -1240,6 +1240,14 @@ async function flushPendingCommands(): Promise<boolean> {
       });
       continue;
     }
+    if (!isCleanupCommand(command) &&
+        useSessionStore.getState().communicationError?.kind === 'station-selection-required') {
+      // The resume reply said this browser lost its station. A command queued
+      // under that former station must not be replayed, and its refusal must
+      // not replace the reselect instruction. Drafts stay in their own storage.
+      store.removeCommand(command.id);
+      continue;
+    }
     if (
       !isCleanupCommand(command) &&
       (command.queuedWithServerAuthority !== true || store.sessionSnapshotFreshness !== 'server')
