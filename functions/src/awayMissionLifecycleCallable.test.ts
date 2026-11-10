@@ -595,6 +595,51 @@ it.each([
   }
 });
 
+/** Restore the numeric K thresholds that pointers carried before the redaction deployed. */
+function seedPreRedactionKPointers(store: FakeStore, override: Fields = {}): void {
+  const record = store.records.get(paths().mission)!.lifecycleRecord as { outcomes: Fields[] };
+  for (const path of [paths().alicePointer, paths().bobPointer]) {
+    const pointer = store.records.get(path)!;
+    const state = pointer.lifecyclePublicState as { outcomes: Fields[] };
+    store.records.set(path, { ...pointer, lifecyclePublicState: { ...state, outcomes: state.outcomes.map((outcome) => {
+      const stored = record.outcomes.find(({ opportunityId }) => opportunityId === outcome.opportunityId)!;
+      return { ...outcome, difficulty: stored.difficulty, criticalThreshold: stored.criticalThreshold, ...override };
+    }) } });
+  }
+}
+
+it('lets a K mission resolved before the redaction finish drop-off and replay without re-exposing its thresholds', async () => {
+  const { store, commit, send, resolution, resolved } = await resolveSecretK(6);
+  seedPreRedactionKPointers(store);
+  const leak = /"difficulty":30|"criticalThreshold":40|secretD6/;
+  const writes = store.committedWrites.length;
+
+  const replay = await commit(resolution);
+  expect(replay).toEqual({ ...resolved, status: 'replayed' });
+  expect(store.committedWrites).toHaveLength(writes);
+
+  const delivered = await send('alice', 'dropOff', { shipId: 'aegis' });
+  expect(delivered.status).toBe('committed');
+  expect(JSON.stringify(delivered)).not.toMatch(leak);
+  for (const path of [paths().alicePointer, paths().bobPointer]) {
+    expect(store.records.get(path)!.lifecyclePublicState).toMatchObject({ status: 'complete',
+      outcomes: [expect.objectContaining({ difficulty: null, criticalThreshold: null })] });
+  }
+  for (const write of store.committedWrites.slice(writes)) expect(JSON.stringify(write.data)).not.toMatch(leak);
+  expect((store.records.get(paths().mission)!.lifecycleRecord as { outcomes: Fields[] }).outcomes)
+    .toEqual([expect.objectContaining({ difficulty: 30, criticalThreshold: 40 })]);
+});
+
+it('still rejects a pre-redaction K pointer whose thresholds disagree with the server record, without echoing them', async () => {
+  const { store, send } = await resolveSecretK(6);
+  seedPreRedactionKPointers(store, { difficulty: 25 });
+  const writes = store.committedWrites.length;
+  const denied = await send('alice', 'dropOff', { shipId: 'aegis' }).catch((error: unknown) => error);
+  expect(denied).toMatchObject({ code: 'failed-precondition' });
+  expect(JSON.stringify(denied) + String((denied as Error).message)).not.toMatch(/\b(25|30|40)\b/);
+  expect(store.committedWrites).toHaveLength(writes);
+});
+
 it('keeps Warrior Reclamator choices and each participant’s cards private from every other command reply', async () => {
   const store = seededStore({ warrior: true, siteCode: 'D' });
   const { commitAwayMissionLifecycleCommand } = dependencies(store);
