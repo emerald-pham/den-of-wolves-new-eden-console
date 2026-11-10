@@ -492,10 +492,16 @@ export function projectAwayMissionPublicState(
   if (!isValidRecord(record)) return null;
   const definition = missionCardForCode(record.lifecycle.siteCode);
   if (!definition) return null;
+  // K's thresholds are 5X and 5X + 10 for the facilitator's secret d6, so
+  // members never receive them (provisional ruling, Q3.2 #270).
+  const secretThresholds = record.lifecycle.siteCode === 'K';
   const outcomes = record.status === 'active' || !record.outcomes
     ? null
     : record.outcomes.map(({ opportunityId, contributorCount, total, bonusTotal, difficulty, criticalThreshold, outcome }) => ({
-      opportunityId, contributorCount, total, bonusTotal, difficulty, criticalThreshold, outcome,
+      opportunityId, contributorCount, total, bonusTotal,
+      difficulty: secretThresholds ? null : difficulty,
+      criticalThreshold: secretThresholds ? null : criticalThreshold,
+      outcome,
     }));
   const rewards = record.status === 'active' ? null : record.rewards;
   return {
