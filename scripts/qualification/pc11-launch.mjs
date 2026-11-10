@@ -84,7 +84,7 @@ async function main(){
  }
  async function command(name,cmd,args){const c=await start(name,cmd,args);const result=await interruptible(within(c.result,Math.min(60000,Math.max(1,deadline-Date.now()-30000)),`${name} exceeded setup budget`));if(result.code!==0||result.signal){const error=new Error(`${name} failed; full log: ${c.logPath}`);error.exitCode=proofProcessExitCode(result);error.processResult={...result,logPath:c.logPath};throw error;}}
  try{
-  launchSlot=await configureLaunchSlot({slot:plan.slot,runConfigure:()=>command('configure',process.execPath,['scripts/configure-emulator-slot.mjs',String(plan.slot)])});
+  launchSlot=await configureLaunchSlot({slot:plan.slot,runConfigure:async()=>await command('configure',process.execPath,['scripts/configure-emulator-slot.mjs',String(plan.slot)])});
   await command('functions-build','npm',['run','build','--prefix','functions']);
   const builtFunctionsSha256=sha(await readFile(`${root}/functions/lib/index.js`));
   const vite=await start('vite',process.execPath,['scripts/run-emulator-command.mjs','vite','--host','127.0.0.1'],plan.env);
