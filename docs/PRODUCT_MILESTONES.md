@@ -731,8 +731,9 @@ Each catalog row links its own briefs through planning evidence.
 
 Triage is `ready-for-agent` for the approved specification. Dependency readiness
 and runtime authorization remain separate. The owner approved **PC10.1**
-runtime execution on 2026-11-04 and **PC10.2** on 2026-11-05, after PC10.1
-went live; PC10.3 through PC10.9 remain paused until PC10.2 is live. PC10 was paused because no player-facing release had shipped
+runtime execution on 2026-11-04, **PC10.2** on 2026-11-05, after PC10.1
+went live, and **PC10.3** on 2026-11-10, after PC10.2 went live; PC10.4
+through PC10.9 remain paused until PC10.3 is live. PC10 was paused because no player-facing release had shipped
 since 0.5.73 and the finished work sat unmerged on a long-lived integration
 branch that could not be merged whole. It resumes one small slice at a time:
 each slice is planned only after the previous release is verified on the
@@ -1159,3 +1160,28 @@ reclamation and attack Scrap. The named-callable deployment audit
 (`scripts/pc10-2-deployment-consumers.json`) selects every changed callable
 without a broad Functions fallback. Exact-commit CI, deployment, and gameplay
 on the live site with real accounts are not yet verified.
+
+## PC10.3 execution activated — 2026-11-10
+
+PC10.2 shipped as 0.5.75 (#456; Deploy run 42164907901), and the PC10.1
+close-out shipped as 0.5.76 (#457). On 2026-11-10 the owner asked to
+“complete the next checkpoint” and, told that PC10.2 had already shipped,
+chose “PC10.3”. This activates execution for **PC10.3 — Resilient private
+sessions** only: briefs L1, L2, L3, T1, T2, Q1, Q2 and Q3 (#99, #100, #101,
+#102, #103, #107, #108, #109; PT4 #137 is already an approved repair) and
+their refinement children (#239–#254, #264–#271, #301, #302). PC10.4–PC10.9
+keep their paused execution, and every held future brief stays held. No new
+ticket is created: activation is a change to the existing brief issues' own
+execution fields through the existing tracker writer. GitHub Issues remain the
+mutable authority.
+
+As with PC10.2, the slice is built ticket by ticket on current main, with its
+own helpers and focused tests; nothing is imported wholesale from the
+published candidate refs. A candidate commit is imported only where it applies
+cleanly to the PC10.3 family, and whole-candidate merging stays excluded. L3
+consumes L1 and L2, and T2 consumes T1; each recovery follows its own current
+source contract. Activation does not settle open source questions: any
+unresolved rule or audience question is surfaced rather than invented. This
+activation changes no completion status, acceptance, checkpoint membership or
+the 751-prompt endpoint, and grants no 0.9.x/1.0.0 version authorization.
+PC10.3 release gates are unchanged.
