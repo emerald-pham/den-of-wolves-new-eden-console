@@ -1285,22 +1285,25 @@ function AppRuntime() {
       store.setSessionSnapshotFreshness('cache');
       store.setConnection('offline');
     };
-    const renewPresence = () => refreshPresence().catch(markAuthorityOffline);
     // Live listeners can report a fresh server snapshot before a failed
     // reconnect is retried. Listener freshness is not a resume: only an
     // accepted resumeSession reply reclaims the seat, reports a lost station
-    // and reconciles the outbox. A connect attempt that did not end live keeps
-    // the retry going even after the listeners turn the light green (at the
-    // slower OUTSTANDING_RESUME_RETRY_MS pace); listener flicker alone does not
-    // schedule another resume.
+    // and reconciles the outbox. A connect attempt for a remembered session
+    // that did not end live and server-fresh keeps the retry going, whether or
+    // not the listeners turn the light green, at the slower
+    // OUTSTANDING_RESUME_RETRY_MS pace so a rate-limited resume is not
+    // hammered; listener flicker alone does not schedule another resume.
     let resumeOutstanding = false;
     let lastReconnectAt = 0;
+    const renewPresence = () => refreshPresence(undefined, { resumeOutstanding })
+      .catch(markAuthorityOffline);
     const reconnect = async () => {
       lastReconnectAt = Date.now();
       await connectAutomatically();
       const state = useSessionStore.getState();
-      resumeOutstanding = state.connection !== 'live' ||
-        (state.session !== null && state.sessionSnapshotFreshness !== 'server');
+      resumeOutstanding = state.session !== null && !(
+        state.connection === 'live' && state.sessionSnapshotFreshness === 'server'
+      );
     };
     const stopVersionMonitor = startVersionUpgradeMonitor({
       reconnect: () => run(reconnect),
@@ -1327,8 +1330,10 @@ function AppRuntime() {
       }
     }, PRESENCE_HEARTBEAT_INTERVAL_MS);
     const retry = window.setInterval(() => {
-      if (useSessionStore.getState().connection !== 'live') run(reconnect);
-      else if (resumeOutstanding && Date.now() - lastReconnectAt >= OUTSTANDING_RESUME_RETRY_MS) run(reconnect);
+      const state = useSessionStore.getState();
+      if (resumeOutstanding && state.session) {
+        if (Date.now() - lastReconnectAt >= OUTSTANDING_RESUME_RETRY_MS) run(reconnect);
+      } else if (state.connection !== 'live') run(reconnect);
     }, CONNECT_RETRY_INTERVAL_MS);
     const reconcileGm = window.setInterval(() => {
       const state = useSessionStore.getState();

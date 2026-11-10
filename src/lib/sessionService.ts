@@ -3047,7 +3047,20 @@ export async function getSessionPresence(): Promise<{ connectedPlayers: number }
   return (await call({ sessionId: session.id })).data;
 }
 
-export async function refreshPresence(activeConsoleRoleId?: string | null): Promise<void> {
+export interface PresenceHeartbeatOptions {
+  /**
+   * The App's last connect attempt did not end with an accepted resume. The
+   * snapshot is not fresh, but the server authorizes a heartbeat from its own
+   * member record, and skipping it would let the 45 s presence lease expire
+   * and release the seat the resume is trying to keep.
+   */
+  readonly resumeOutstanding?: boolean;
+}
+
+export async function refreshPresence(
+  activeConsoleRoleId?: string | null,
+  { resumeOutstanding = false }: PresenceHeartbeatOptions = {},
+): Promise<void> {
   const store = useSessionStore.getState();
   const session = store.session;
   if (!session || !store.me) return;
@@ -3055,11 +3068,12 @@ export async function refreshPresence(activeConsoleRoleId?: string | null): Prom
   const instanceId = store.gmInstance?.sessionId === session.id
     ? store.gmInstance.id
     : undefined;
-  // A periodic heartbeat may safely stop while authority is stale. Explicit
-  // console-role claims/releases must fail so callers cannot update local role
-  // state as though the server accepted a cache-authorized mutation.
+  // A periodic heartbeat may safely stop while authority is stale, unless a
+  // resume is outstanding. Explicit console-role claims/releases must fail so
+  // callers cannot update local role state as though the server accepted a
+  // cache-authorized mutation.
   if (activeConsoleRoleId === undefined) {
-    if (!hasFreshSessionAuthority()) return;
+    if (resumeOutstanding ? !window.navigator.onLine : !hasFreshSessionAuthority()) return;
   } else {
     requireFreshSessionAuthority();
   }
