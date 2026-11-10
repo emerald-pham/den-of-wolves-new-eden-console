@@ -10,7 +10,7 @@ import {emulatorEnvironmentForSlot,emulatorPortsForSlot,vitePortForSlot} from '.
 import {localGmAccessConfiguration} from '../local-gm-access.mjs';
 import {proofProcessExitCode,readProofLogExcerpt} from '../proof-test-invocation.mjs';
 import {proofRuntimeFromViteSource,validateProofRuntime} from '../pc10-full-game-demo-proof-helpers.mjs';
-import {releaseConfiguredEmulatorSlot,readCoordinationState} from '../emulator-resource-registry.mjs';
+import {coordinationFilePath,releaseConfiguredEmulatorSlot,readCoordinationState} from '../emulator-resource-registry.mjs';
 import {runPc11ContractPreflight} from './pc11-contract-preflight.mjs';
 const root=resolve(fileURLToPath(new URL('../..',import.meta.url)));
 async function within(promise,ms,label){let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>{const error=new Error(label);error.exitCode=124;reject(error);},ms);})]);}finally{clearTimeout(timer);}}
@@ -31,6 +31,16 @@ export function checkServedEnvironment(source,plan){
  assert.deepEqual(localGmAccessConfiguration('serve',env),{projectId:plan.projectId,authPort:plan.ports.auth,firestorePort:plan.ports.firestore});
  return {localGmEnabled:true,projectId:plan.projectId,ports:plan.ports};
 }
+// The launch's configured row: `runConfigure` performs the configure step
+// (a configure-emulator-slot.mjs child in a real launch); the return releases
+// it after the launcher's process and port checks.
+export async function configureLaunchSlot({slot,worktree=root,coordinationPath=coordinationFilePath(),runConfigure}){
+ await runConfigure();
+ return {slot,worktree,coordinationPath};
+}
+export async function returnLaunchSlot(launch){
+ await releaseConfiguredEmulatorSlot({slot:launch.slot,worktree:launch.worktree},launch.coordinationPath);
+}
 async function sourceChecks(){
  const presets=await readFile(`${root}/src/data/rolePresets.ts`,'utf8');const row=presets.match(/12:\s*\[([^\]]+)\]/)?.[1];assert.ok(row?.includes("'dione-engineer'")&&row.includes("'dione-president'"));
  const runner=await readFile(`${root}/scripts/qualification/pc11-three-actor-trade-philia.mjs`,'utf8');assert.ok(runner.includes("selectOption('12')")&&runner.includes("Recipient:'dione-president'"));
@@ -47,7 +57,7 @@ async function main(){
  assert.ok(args.includes('--allocated'),'Fresh owner runtime allocation is required');
  const sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
  assert.equal(execFileSync('git',['status','--porcelain','--untracked-files=no'],{cwd:root,encoding:'utf8'}).trim(),'');
- const allocationStartedAt=Date.now(),deadline=allocationStartedAt+plan.allocationMilliseconds,children=[],cleanup={errors:[]};let configured=false,cancelled=false,notifyCancellation,primaryError;
+ const allocationStartedAt=Date.now(),deadline=allocationStartedAt+plan.allocationMilliseconds,children=[],cleanup={errors:[]};let launchSlot,cancelled=false,notifyCancellation,primaryError;
  const cancellation=new Promise(resolve=>{notifyCancellation=resolve;});
  const onCancel=signal=>{cancelled=true;const error=new Error(`Owner cancelled ${signal}; cleanup required`);error.exitCode=proofProcessExitCode({signal});notifyCancellation(error);};
  const onInt=()=>onCancel('SIGINT'),onTerm=()=>onCancel('SIGTERM');process.once('SIGINT',onInt);process.once('SIGTERM',onTerm);
@@ -61,7 +71,7 @@ async function main(){
  }
  async function command(name,cmd,args){const c=await start(name,cmd,args);const result=await interruptible(within(c.result,Math.min(60000,Math.max(1,deadline-Date.now()-30000)),`${name} exceeded setup budget`));if(result.code!==0||result.signal){const error=new Error(`${name} failed; full log: ${c.logPath}`);error.exitCode=proofProcessExitCode(result);error.processResult={...result,logPath:c.logPath};throw error;}}
  try{
-  await command('configure',process.execPath,['scripts/configure-emulator-slot.mjs',String(plan.slot)]);configured=true;
+  launchSlot=await configureLaunchSlot({slot:plan.slot,runConfigure:()=>command('configure',process.execPath,['scripts/configure-emulator-slot.mjs',String(plan.slot)])});
   await command('functions-build','npm',['run','build','--prefix','functions']);
   const builtFunctionsSha256=sha(await readFile(`${root}/functions/lib/index.js`));
   const vite=await start('vite',process.execPath,['scripts/run-emulator-command.mjs','vite','--host','127.0.0.1'],plan.env);
@@ -104,7 +114,7 @@ async function main(){
   process.removeListener('SIGINT',onInt);process.removeListener('SIGTERM',onTerm);
   const openPorts=[];for(const port of [new URL(plan.baseUrl).port,...Object.values(plan.ports)]){const listening=await new Promise(resolve=>{const socket=createConnection({host:'127.0.0.1',port:Number(port)});socket.setTimeout(Math.min(1000,Math.max(1,deadline-Date.now()-2000)));socket.once('connect',()=>{socket.destroy();resolve(true);});socket.once('error',()=>resolve(false));socket.once('timeout',()=>{socket.destroy();resolve(true);});});if(listening)openPorts.push(Number(port));}
   cleanup.openPorts=openPorts;if(openPorts.length)cleanup.errors.push('Owned row still has listeners; retain configuration and inspect exact processes');
-  if(configured&&!openPorts.length){try{await releaseConfiguredEmulatorSlot({slot:plan.slot,worktree:root});}catch(error){cleanup.errors.push(`Could not release configured emulator slot: ${error.message}`);}}
+  if(launchSlot&&!openPorts.length){try{await returnLaunchSlot(launchSlot);}catch(error){cleanup.errors.push(`Could not release configured emulator slot: ${error.message}`);}}
   cleanup.elapsedMilliseconds=Date.now()-allocationStartedAt;cleanup.allocationWithinCap=cleanup.elapsedMilliseconds<=plan.allocationMilliseconds;if(!cleanup.allocationWithinCap)cleanup.errors.push('Owner allocation cap exceeded');cleanup.closedAt=new Date().toISOString();try{await writeFile(`${plan.evidenceDirectory}/launcher-cleanup.json`,JSON.stringify(cleanup,null,2)+'\n');}catch(error){cleanup.errors.push(`Could not write launcher cleanup evidence: ${error.message}`);}
   if(cleanup.errors.length){if(primaryError)primaryError.cleanupErrors=cleanup.errors;else{primaryError=new Error('Launcher cleanup incomplete; inspect launcher-cleanup.json');primaryError.exitCode=1;primaryError.cleanupErrors=cleanup.errors;}}
  }
