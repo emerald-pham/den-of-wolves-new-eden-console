@@ -179,11 +179,13 @@ function pc10_1TransitionConsumers(file, previous, current) {
 }
 
 // PC10.3 owns a closed source transition from main to its reviewed candidate.
-// It changes no index.ts source; a module audited with no consumers is shared
-// only with the browser. Any later edit to one of these files needs a fresh
+// Its index.ts change is attributed only to the callables that reach the
+// changed helper; a module audited with no consumers is shared only with the
+// browser. Any later edit to one of these files needs a fresh
 // callable-consumer review.
 function pc10_3TransitionConsumers(file, previous, current) {
-  const audit = pc10_3DeploymentConsumers.modules[file];
+  const audit = file === 'functions/src/index.ts'
+    ? pc10_3DeploymentConsumers.index : pc10_3DeploymentConsumers.modules[file];
   if (!audit) return null;
   const digest = source => createHash('sha256').update(source).digest('hex');
   if (digest(previous) !== audit.before) return null;
@@ -786,6 +788,8 @@ function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
   };
   const previousSource = readAt(before);
   const currentSource = readAt(after);
+  const pc10_3Consumers = pc10_3TransitionConsumers('functions/src/index.ts', previousSource, currentSource);
+  if (pc10_3Consumers) return pc10_3Consumers;
   const pc10_2Consumers = pc10_2TransitionConsumers('functions/src/index.ts', previousSource, currentSource);
   if (pc10_2Consumers) return pc10_2Consumers;
   const pc10_1Consumers = pc10_1TransitionConsumers('functions/src/index.ts', previousSource, currentSource);

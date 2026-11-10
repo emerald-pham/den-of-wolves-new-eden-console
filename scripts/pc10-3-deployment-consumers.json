@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "baseline": "396f2941a5ba213c725acf05516799274c164b7b",
-  "candidate": "f62bd9cd3ad50beb48159edd228731dbca5f8e16",
-  "auditBoundary": "Exact PC10.3 source transition from main (396f2941) to the reviewed integration candidate f62bd9cd. Consumers are the exported callables whose runtime code reaches a changed top-level declaration, traced through TypeScript symbol references across functions/src (type-only edits excluded): the redacted away-mission public projection and its legacy secret-threshold pointer check (projectAwayMissionPublicState, projectLegacySecretThresholdPublicState, hasSecretD6Difficulty) reach the lifecycle command, private initial deal and private mission discards; the stored-record pointer validation reaches only commitAwayMissionLifecycleCommand. missionSecretDifficulty.ts is imported only by the browser, so no deployed callable consumes it. functions/src/index.ts is unchanged.",
+  "candidate": "330b5c61e6de827599e5e395fcc0ef5baa84bba0",
+  "auditBoundary": "Exact PC10.3 source transition from main (396f2941) to the reviewed integration candidate 330b5c61. Consumers are the exported callables whose runtime code reaches a changed top-level declaration, traced through TypeScript symbol references across functions/src (type-only edits excluded): the redacted away-mission public projection and its legacy secret-threshold pointer check (projectAwayMissionPublicState, projectLegacySecretThresholdPublicState, hasSecretD6Difficulty) reach the lifecycle command, private initial deal and private mission discards; the stored-record pointer validation reaches only commitAwayMissionLifecycleCommand. missionSecretDifficulty.ts is imported only by the browser, so no deployed callable consumes it. In functions/src/index.ts only reconcileReturningSeat changed (a released seat another player took is a lost station); its callers are joinSession and resumeSession, so the rest of the file selects nothing.",
   "modules": {
     "functions/src/awayMissionLifecycleAdapter.ts": {
       "before": "a221e3fdcb9e14a085f62dea14959b2cecd64881ff86e36989c4c57c3b83a9a8",
@@ -36,5 +36,13 @@
       "after": "2b2d6f22fb0cc2de2a8cf3bad41f8d87baa55aef1b4b87fa82f5aa81bab57766",
       "consumers": []
     }
+  },
+  "index": {
+    "before": "763cc4ac9d49e985739dd3c11a8c823abb6565d8f0767890793141a1c65dc044",
+    "after": "9abcdbc7717917b2f392a2cdcd8357997722d7166f7adddfd3e0de5ddce6d57b",
+    "consumers": [
+      "joinSession",
+      "resumeSession"
+    ]
   }
 }
