@@ -625,7 +625,10 @@ it('lets a K mission resolved before the redaction finish drop-off and replay wi
     expect(store.records.get(path)!.lifecyclePublicState).toMatchObject({ status: 'complete',
       outcomes: [expect.objectContaining({ difficulty: null, criticalThreshold: null })] });
   }
-  for (const write of store.committedWrites.slice(writes)) expect(JSON.stringify(write.data)).not.toMatch(leak);
+  // Only the server-only mission record may keep 5X; every other write (pointers, hands, event, receipt) is redacted.
+  for (const write of store.committedWrites.slice(writes).filter(({ path }) => path !== paths().mission)) {
+    expect(JSON.stringify(write.data)).not.toMatch(leak);
+  }
   expect((store.records.get(paths().mission)!.lifecycleRecord as { outcomes: Fields[] }).outcomes)
     .toEqual([expect.objectContaining({ difficulty: 30, criticalThreshold: 40 })]);
 });
