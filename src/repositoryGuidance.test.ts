@@ -294,17 +294,29 @@ describe('repository guidance', () => {
 
   it('carries the tdd skill, agreed seams, and companion files into functional subagent briefs', () => {
     const policy = readGuidance('docs/AGENT_EXECUTION_POLICY.md').replace(/\s+/g, ' ');
-    expect(policy).toMatch(/Every brief that asks a subagent for a functional change names the `tdd` skill and the agreed seams/);
+    expect(policy).toContain('### Subagent briefs for functional changes');
+    expect(policy).toMatch(/Every brief that asks a subagent for a functional change names the `tdd` skill[^.]*and the agreed seams/);
     expect(policy).toMatch(/reads `tests\.md` and `mocking\.md` before its first test/);
     expect(policy).toMatch(/review-fix, follow-up and integration briefs/);
 
+    // A follow-up subagent reads CLAUDE.md, not the policy, so the entry file
+    // must reach it even when its brief never names the skill.
     const entry = readGuidance('CLAUDE.md').replace(/\s+/g, ' ');
     expect(entry).toContain('docs/AGENT_EXECUTION_POLICY.md#subagent-briefs-for-functional-changes');
-    expect(entry).toMatch(/`tests\.md` and `mocking\.md` before the first test/);
+    expect(entry).toMatch(/use the `tdd` skill.{0,160}even when the brief omits it/);
+  });
 
-    for (const [surface, source] of readSources()) {
-      expect(source, `${surface} must name skills, not a versioned install path`)
-        .not.toMatch(/mattpocock-skills\/\d+\.\d+/);
+  it('names skills instead of recording a versioned or tool-specific install path', () => {
+    const installPath = /plugins\/cache\/|\.(?:claude|codex|agents)\/(?:plugins|skills)\/|mattpocock-skills\/\d/;
+    expect('~/.claude/plugins/cache/claude-plugins-official/mattpocock-skills/1.3.1/skills').toMatch(installPath);
+    expect('.agents/skills/tdd/SKILL.md').toMatch(installPath);
+
+    const sources = readSources();
+    for (const surface of ['domain', 'error-recovery', 'issue-tracker', 'proof-tooling', 'triage-labels']) {
+      sources.set(`docs/agents/${surface}.md`, readGuidance(`docs/agents/${surface}.md`));
+    }
+    for (const [surface, source] of sources) {
+      expect(source, `${surface} must name the skill, not where one tool installed it`).not.toMatch(installPath);
     }
   });
 
