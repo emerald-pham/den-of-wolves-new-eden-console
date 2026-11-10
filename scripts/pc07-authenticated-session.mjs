@@ -178,7 +178,13 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
   }:undefined;
   return{db,config,project,gm,players,press,roles,unionCraftSetupProof,explicitLoyaltySetupProof,
    loyaltyActors,heartbeatFailures,sessionId,session,instanceId,call,ok,
-   byRole:role=>players[roles.indexOf(role)],byLoyalty:kind=>loyaltyActors?.[kind],cleanup:async()=>{
+   byRole:role=>players[roles.indexOf(role)],byLoyalty:kind=>loyaltyActors?.[kind],
+   // Stop the fixture actors' keep-alive so their presence lease can expire
+   // naturally; the session and its data stay intact for the rest of the proof.
+   stopHeartbeats:async()=>{
+    clearInterval(gmHeartbeat);clearInterval(playerHeartbeat);
+    await Promise.all([gmHeartbeatPending,playerHeartbeatPending]);
+   },cleanup:async()=>{
     clearInterval(gmHeartbeat);clearInterval(playerHeartbeat);
     await Promise.all([gmHeartbeatPending,playerHeartbeatPending]);
     await db.recursiveDelete(session);
