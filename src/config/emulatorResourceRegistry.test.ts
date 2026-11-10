@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { promisify } from 'node:util';
 import {
+  amendCoordinationEntry,
   beginCoordinationEntry,
   chooseAvailableEmulatorSlot,
   changedFilesBaseRef,
@@ -18,6 +19,7 @@ import {
   readReleaseState,
   cleanupValidationEmulator,
   releaseConfiguredEmulatorSlot,
+  reserveAvailableConfiguredEmulatorSlot,
   reserveConfiguredEmulatorSlot,
   validationPlanForFiles,
   validationCommandArguments,
@@ -176,6 +178,50 @@ describe('simplified coordination registry', () => {
         await rm(directory, { recursive: true, force: true });
       }
     });
+  });
+
+  it('keeps an allocated row owned through foreign coordination updates until its worktree is gone', async () => {
+    const { directory, filePath } = await fixture();
+    const starter = resolve(directory, 'starter-worktree');
+    const secondRun = resolve(directory, 'second-run-worktree');
+    // Fake ports: the stubbed port check never probes a real listener.
+    const allocation = {
+      filePath,
+      availableSlots: [3, 4],
+      portsForSlot: (slot: number) => [59_000 + slot],
+      portCheck: async () => true,
+    };
+    try {
+      await mkdir(starter);
+      await mkdir(secondRun);
+      const allocated = await reserveAvailableConfiguredEmulatorSlot({ ...allocation, worktree: starter });
+      expect(allocated.slot).toBe(3);
+
+      // An unrelated worker registers before the starter launches anything:
+      // the starter has no coordination entry and no process reservation yet.
+      const foreign = await beginCoordinationEntry(filePath, {
+        intent: 'unrelated foreign registration',
+        'work-type': 'tooling',
+      });
+      const second = await reserveAvailableConfiguredEmulatorSlot({
+        ...allocation,
+        preferredSlot: allocated.slot,
+        worktree: secondRun,
+      });
+      expect(second.slot).toBe(4);
+      const afterBegin = parseCoordinationState(await readFile(filePath, 'utf8'));
+      expect(afterBegin.configurations.find((configuration) => configuration.slot === 3))
+        .toMatchObject({ id: allocated.id, worktree: starter });
+
+      // Once the starter's worktree no longer exists, the next unrelated
+      // update may still retire its abandoned row.
+      await rm(starter, { recursive: true, force: true });
+      await amendCoordinationEntry(filePath, { id: foreign.id, resources: 'pt4-fixture-resource' });
+      const afterRemoval = parseCoordinationState(await readFile(filePath, 'utf8'));
+      expect(afterRemoval.configurations.map((configuration) => configuration.id)).toEqual([second.id]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it('serializes stale-lock recovery and preserves concurrent configuration writes', async () => {
