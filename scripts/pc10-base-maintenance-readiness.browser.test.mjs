@@ -35,7 +35,7 @@ test('eligible Base maintenance waits for the actual workspace before deciding i
     builder.onResolve({filter:/^@\/(store\/useSessionStore|lib\/(maintenanceService|shipDamageService|consoleAccess))$/},args=>
       ({path:args.path,namespace:'maintenance-port'}));
     builder.onLoad({filter:/.*/,namespace:'maintenance-port'},args=>({contents:
-      args.path.includes('useSessionStore')?`export const useSessionStore=selector=>selector({session:{id:'fixture-session',currentTurn:1,phase:'active'},me:{uid:'original-eo',role:'player'},connection:'live'});`:
+      args.path.includes('useSessionStore')?`export const useSessionStore=selector=>selector({session:{id:'fixture-session',currentTurn:1,phase:'active'},me:{uid:'original-eo',role:'player'},connection:'live',sessionSnapshotFreshness:'server'});export const selectHasLiveServerSnapshot=state=>state.connection==='live'&&state.sessionSnapshotFreshness==='server';`:
       args.path.includes('consoleAccess')?`export const useConsoleAccess=()=>({writable:true,roleId:'executive-officer'});`:
       args.path.includes('maintenanceService')?`export const runMaintenance=async()=>{},rollbackMaintenance=async()=>{};`:
         `export const assignShipDamage=async()=>{},repairAllShipDamage=async()=>{};`}));
