@@ -292,6 +292,22 @@ describe('repository guidance', () => {
     ]));
   });
 
+  it('carries the tdd skill, agreed seams, and companion files into functional subagent briefs', () => {
+    const policy = readGuidance('docs/AGENT_EXECUTION_POLICY.md').replace(/\s+/g, ' ');
+    expect(policy).toMatch(/Every brief that asks a subagent for a functional change names the `tdd` skill and the agreed seams/);
+    expect(policy).toMatch(/reads `tests\.md` and `mocking\.md` before its first test/);
+    expect(policy).toMatch(/review-fix, follow-up and integration briefs/);
+
+    const entry = readGuidance('CLAUDE.md').replace(/\s+/g, ' ');
+    expect(entry).toContain('docs/AGENT_EXECUTION_POLICY.md#subagent-briefs-for-functional-changes');
+    expect(entry).toMatch(/`tests\.md` and `mocking\.md` before the first test/);
+
+    for (const [surface, source] of readSources()) {
+      expect(source, `${surface} must name skills, not a versioned install path`)
+        .not.toMatch(/mattpocock-skills\/\d+\.\d+/);
+    }
+  });
+
   it('preserves truthful product metadata and deployment distinctions', () => {
     const guidance = readGuidance('CLAUDE.md');
     const normalized = guidance.replace(/\s+/g, ' ');
