@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { constants as osConstants, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { inspectOwnedRuntime, readProcessStartTime, runProofTestCommand } from './proof-test-invocation.mjs';
 
@@ -288,4 +289,50 @@ test('an allocated port still occupied after the owned command returned blocks a
   assert.deepEqual(result.runtime.remaining.processes, []);
   assert.deepEqual(result.runtime.remaining.listeners.map(({ port: listenerPort, pid, owner }) => ({ port: listenerPort, pid, owner })),
     [{ port, pid: Number(ready), owner: 'foreign' }]);
+});
+
+const invocationScript = fileURLToPath(new URL('./proof-test-invocation.mjs', import.meta.url));
+
+function inspectRecordCli(recordPath, evidenceDirectory) {
+  return new Promise(resolveRun => {
+    execFile(process.execPath, [invocationScript, '--inspect-runtime', recordPath, '--evidence', evidenceDirectory],
+      { encoding: 'utf8' }, (error, stdout, stderr) => resolveRun({ code: error ? error.code : 0, stdout, stderr }));
+  });
+}
+
+test('an owner can inspect a returned emulator reservation record from the command line', async t => {
+  const directory = await makeDirectory(t);
+  const { child: wrapper } = await spawnFixture(t, 'process.exit(0)');
+  await new Promise(resolveExit => wrapper.once('exit', resolveExit));
+  const port = await freePort();
+  const recordPath = join(directory, 'reservation.json');
+  await writeFile(recordPath, JSON.stringify({ id: 'fixture', slot: 99, kind: 'emulators', pid: wrapper.pid, ports: [port] }));
+
+  const result = await inspectRecordCli(recordPath, directory);
+
+  assert.equal(result.code, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /Runtime return: clean/);
+  assert.match(result.stdout, new RegExp(`allocated port\\(s\\) ${port} have returned`));
+});
+
+test('a live recorded reservation group is reported as ambiguous and is left running', async t => {
+  const directory = await makeDirectory(t);
+  const readyPath = join(directory, 'group.ready');
+  const leaderSource = `
+    const member = require('node:child_process').spawn(process.execPath, ['-e', ${JSON.stringify(idleProcessSource())}], { stdio: 'ignore' });
+    require('node:fs').writeFileSync(${JSON.stringify(readyPath)}, String(member.pid));
+    setTimeout(() => process.exit(0), ${SELF_EXIT_MS});`;
+  const { child: leader, ready } = await spawnFixture(t, leaderSource, { detached: true, readyPath });
+  const memberPid = Number(ready);
+  const recordPath = join(directory, 'reservation.json');
+  await writeFile(recordPath, JSON.stringify({ id: 'fixture', slot: 99, kind: 'emulators', pid: 2 ** 22 + 7, childPid: leader.pid, ports: [] }));
+
+  const result = await inspectRecordCli(recordPath, directory);
+
+  assert.equal(result.code, 1);
+  assert.match(result.stdout, /Runtime return: NOT CLEAN \(resources-remaining\)/);
+  assert.match(result.stdout, new RegExp(`no stop or release authority\\): .*\\b${leader.pid}\\b`));
+  assert.match(result.stdout, new RegExp(`\\b${memberPid}\\b`));
+  assert.doesNotThrow(() => process.kill(leader.pid, 0), 'inspection never stops a process');
+  assert.doesNotThrow(() => process.kill(memberPid, 0), 'inspection never stops a process');
 });
