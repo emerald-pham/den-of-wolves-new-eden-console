@@ -174,3 +174,12 @@ it('builds the exact security denial record with its game hash domain', () => {
     vi.unstubAllEnvs();
   }
 });
+
+it('examines only the first 256 request keys when naming a malformed request', () => {
+  const data: Record<string, unknown> = {};
+  for (let index = 0; index < 256; index += 1) data[`_unsafe${index}`] = index;
+  data.sessionId = 'late-session-field';
+  const record = securityDenialRecord({ auth: undefined, app: undefined, data },
+    new HttpsError('invalid-argument', 'malformed'));
+  expect(record?.requestFields).toEqual([]);
+});
