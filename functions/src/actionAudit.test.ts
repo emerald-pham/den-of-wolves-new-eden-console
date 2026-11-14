@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildActionAuditDetailRecord, buildActionAuditRecord } from './actionAudit';
+import { actionAuditActorRoleId, buildActionAuditDetailRecord, buildActionAuditRecord } from './actionAudit';
 
 describe('buildActionAuditRecord', () => {
   it('creates a queryable metadata-only record for a server-random action', () => {
@@ -205,5 +205,20 @@ describe('buildActionAuditDetailRecord', () => {
     )).toThrow(/registered/);
     expect(() => buildActionAuditDetailRecord(binding, { choice: {}, result: {} }, undefined))
       .toThrow(/createdAt/);
+  });
+});
+
+describe('actionAuditActorRoleId', () => {
+  const player = (fields: Record<string, unknown>) => ({ get: (field: string) => fields[field] });
+  it('attributes a replacement player to the replacement role before the original assignment', () => {
+    expect(actionAuditActorRoleId(player({
+      replacementRoleId: 'comms-officer', assignedRoleId: 'quellon-explorer', activeConsoleRoleId: 'quellon-explorer',
+    }))).toBe('comms-officer');
+  });
+  it('falls back to the assigned and then the active console role, and records null rather than guessing', () => {
+    expect(actionAuditActorRoleId(player({ assignedRoleId: 'quellon-explorer', activeConsoleRoleId: 'admiral' })))
+      .toBe('quellon-explorer');
+    expect(actionAuditActorRoleId(player({ activeConsoleRoleId: 'admiral' }))).toBe('admiral');
+    expect(actionAuditActorRoleId(player({ replacementRoleId: '  ', assignedRoleId: 7 }))).toBeNull();
   });
 });

@@ -307,6 +307,15 @@ it('records one attributable cargo audit with its original actor, request, phase
   expect(mock.documents.get(auditPath)).toBe(audit);
 });
 
+it('attributes a replacement holder\'s cargo audit to the replacement role it now plays', async () => {
+  put('sessions/s1/players/holder', {
+    role: 'player', connected: true, assignedRoleId: 'quellon-explorer', replacementRoleId: 'comms-officer',
+    activeConsoleRoleId: 'quellon-explorer', fleetGroupId: 'fleet-1',
+  });
+  await transferShuttleCargoCommand.run(request(command));
+  expect(mock.documents.get(auditPath)).toMatchObject({ actorUid: 'holder', actorRoleId: 'comms-officer' });
+});
+
 it('writes no cargo audit for a denied actor or a stale control revision', async () => {
   await expect(transferShuttleCargoCommand.run(request(command, 'owner'))).rejects.toMatchObject({
     code: expect.any(String),
