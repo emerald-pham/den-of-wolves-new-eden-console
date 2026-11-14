@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -8,6 +8,15 @@ import { describe, expect, it } from 'vitest';
 
 const execFileAsync = promisify(execFile);
 const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
+const prWorkflow = readFileSync('.github/workflows/pr-body.yml', 'utf8');
+
+/** One job's block, from its `  id:` line to the next job or the end of the file. */
+function workflowJob(workflow: string, id: string) {
+  const start = workflow.indexOf(`\n  ${id}:\n`);
+  expect(start, `workflow job "${id}"`).toBeGreaterThan(-1);
+  const next = workflow.slice(start + 1).search(/\n  [\w-]+:\n/);
+  return workflow.slice(start + 1, next === -1 ? undefined : start + 1 + next + 1);
+}
 
 function workflowStep(workflow: string, name: string) {
   const start = workflow.indexOf(`- name: ${name}\n`);
@@ -29,6 +38,7 @@ function runBlock(step: string) {
 
 describe('pull request deployment target dry run', () => {
   const stepName = 'Dry-run deployment target selection for this pull request';
+  const jobId = 'deploy-targets';
 
   async function writeFiles(repository: string, files: Record<string, string>) {
     for (const [file, contents] of Object.entries(files)) {
@@ -72,7 +82,7 @@ describe('pull request deployment target dry run', () => {
       await git(['merge', '--quiet', '--no-ff', '-m', 'test merge', 'feature']);
       await symlink(resolve(process.cwd(), 'scripts'), resolve(repository, 'scripts'));
       const script = resolve(repository, '.pr-target-step.sh');
-      await writeFile(script, runBlock(workflowStep(ci, stepName)));
+      await writeFile(script, runBlock(workflowStep(workflowJob(prWorkflow, jobId), stepName)));
       return await execFileAsync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', script], {
         cwd: repository,
         encoding: 'utf8',
@@ -91,13 +101,28 @@ describe('pull request deployment target dry run', () => {
     }
   }
 
-  it('runs only for pull requests, before dependency installation', () => {
-    const step = workflowStep(ci, stepName);
-    expect(step).toContain("if: github.event_name == 'pull_request'");
+  it('runs as its own required-check job in the pull request workflow, which re-runs on base retargets', () => {
+    // A separate job reports its own check, so a selector failure never hides
+    // verify's lint and test results, and an `edited` base retarget re-runs it.
+    expect(ci).not.toContain(stepName);
+    expect(ci).not.toContain('scripts/deployment-targets.mjs');
+    expect(prWorkflow).toMatch(/^on:\n {2}pull_request:\n {4}types: \[[^\]]*\bedited\b[^\]]*\]\n\n/m);
+    const job = workflowJob(prWorkflow, jobId);
+    expect(job).not.toMatch(/^ {4}name:/m);
+    expect(job).toMatch(/uses: actions\/checkout@v7\n\s+with:\n\s+fetch-depth: 0/);
+    const step = workflowStep(job, stepName);
     expect(step).toContain('PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}');
     expect(step).not.toContain('merge-base');
-    expect(ci.indexOf(`- name: ${stepName}`))
-      .toBeLessThan(ci.indexOf('- name: Install locked root dependencies for release contracts'));
+    const otherJobIds = readdirSync('.github/workflows')
+      .filter((file) => file !== 'pr-body.yml')
+      .flatMap((file) => [...readFileSync(`.github/workflows/${file}`, 'utf8').matchAll(/^ {2}([\w-]+):$/gm)].map(([, id]) => id));
+    expect(otherJobIds).not.toContain(jobId);
+  });
+
+  it('reads only repository contents and uses no secrets', () => {
+    expect(prWorkflow).toMatch(/^permissions:\n {2}contents: read\n\n/m);
+    expect(prWorkflow.match(/permissions:/g)).toHaveLength(1);
+    expect(prWorkflow).not.toMatch(/secrets\.|github\.token|GITHUB_TOKEN/);
   });
 
   it('fails with the selector error for a range the deploy selector cannot resolve', async () => {
