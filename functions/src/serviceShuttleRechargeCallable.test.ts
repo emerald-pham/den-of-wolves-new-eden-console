@@ -333,3 +333,56 @@ it.each([
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
 });
+
+const auditPath = 'sessions/s1/actionAudits/recharge-1';
+
+it('pairs one committed recharge result with one private audit that replay never rewrites', async () => {
+  await rechargeHostConsoleFromShuttle.run(request(command));
+  expect(mock.documents.get(auditPath)).toEqual({
+    schemaVersion: 1, sessionId: 's1', actorUid: 'holder', actorRoleId: 'quellon-engineer',
+    action: 'service-shuttle-recharge', phase: 'active', requestId: 'recharge-1', revision: 1,
+    outcome: 'committed', resolutionSource: 'server-rules',
+    redactionPolicy: 'action-audit-metadata-only-v1', createdAt: 'server-time',
+  });
+  const audit = mock.documents.get(auditPath);
+  const resources = (mock.documents.get('sessions/s1')!.shipResources as Fields).quellon;
+  mock.set.mockClear(); mock.update.mockClear();
+  await expect(rechargeHostConsoleFromShuttle.run(request(command))).resolves.toMatchObject({
+    status: 'replayed', rechargeRevision: 1, message: 'Hydroponics: spent 1 water, generated 3 food.',
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.documents.get(auditPath)).toBe(audit);
+  expect((mock.documents.get('sessions/s1')!.shipResources as Fields).quellon).toBe(resources);
+});
+
+it('writes no recharge audit for a denied actor, a stale envelope, or a rejected second recharge', async () => {
+  await expect(rechargeHostConsoleFromShuttle.run(request(command, 'owner'))).rejects.toMatchObject({
+    code: expect.stringMatching(/permission-denied|failed-precondition/),
+  });
+  const session = mock.documents.get('sessions/s1')!;
+  session.shuttleControl = { ...(session.shuttleControl as Fields), condor: {
+    ...((session.shuttleControl as Fields).condor as Fields), revision: 3,
+  } };
+  await expect(rechargeHostConsoleFromShuttle.run(request({ ...command, requestId: 'stale-1' })))
+    .resolves.toMatchObject({ status: 'stale' });
+  expect([...mock.documents.keys()].some((path) => path.includes('/actionAudits/'))).toBe(false);
+
+  await rechargeHostConsoleFromShuttle.run(request({ ...command, expectedControlRevision: 3 }));
+  await expect(rechargeHostConsoleFromShuttle.run(request({
+    ...command, requestId: 'recharge-2', consoleId: 'water-production', expectedControlRevision: 3,
+    expectedMaintenanceRevision: 9,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect([...mock.documents.keys()].filter((path) => path.includes('/actionAudits/'))).toEqual([auditPath]);
+});
+
+it('fails closed on an orphaned recharge audit or a mismatched audit on replay', async () => {
+  put(auditPath, { action: 'service-shuttle-recharge' });
+  await expect(rechargeHostConsoleFromShuttle.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+
+  mock.documents.delete(auditPath);
+  await rechargeHostConsoleFromShuttle.run(request(command));
+  mock.documents.get(auditPath)!.revision = 2;
+  await expect(rechargeHostConsoleFromShuttle.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
+});

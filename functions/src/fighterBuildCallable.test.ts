@@ -7,6 +7,7 @@ const mock = vi.hoisted(() => ({
   players: [] as Array<Record<string, unknown>>,
   session: {} as Record<string, unknown>,
   receipts: {} as Record<string, Record<string, unknown>>,
+  audits: {} as Record<string, Record<string, unknown>>,
   attack: undefined as Record<string, unknown> | undefined,
 }));
 
@@ -56,11 +57,21 @@ beforeEach(() => {
     vesselActionRevisions: { aegis: 0 },
   };
   mock.receipts = {};
+  mock.audits = {};
   mock.attack = undefined;
   mock.get.mockReset();
   mock.update.mockReset();
   mock.set.mockReset();
+  mock.set.mockImplementation((path: string, fields: Record<string, unknown>) => {
+    if (path.includes('/actionAudits/')) mock.audits[path] = { ...fields };
+  });
   mock.get.mockImplementation(async (path: string) => {
+    if (path.includes('/actionAudits/')) {
+      const fields = mock.audits[path];
+      return fields
+        ? { exists: true, data: () => fields, get: (key: string) => fields[key] }
+        : { exists: false, data: () => undefined, get: () => undefined };
+    }
     if (path.includes('/commandReceipts/')) {
       const fields = mock.receipts[path];
       return fields ? snapshot(fields) : { exists: false, get: () => undefined };
@@ -207,4 +218,70 @@ it('still replays a build committed before the attack was declared', async () =>
   mock.attack = { status: 'declared', airspaceLocked: true, turn: 1, attackId: 'attack-1' };
   await expect(buildFighter.run(request(base))).resolves.toMatchObject({ status: 'committed', count: 4 });
   expect(mock.update).not.toHaveBeenCalled();
+});
+
+const auditPath = 'sessions/s1/actionAudits/build-1';
+const receiptPath = 'sessions/s1/commandReceipts/build-1';
+function storedReceipt() {
+  const call = mock.set.mock.calls.find(([path]) => path === receiptPath);
+  return call?.[1] as Record<string, unknown>;
+}
+
+it('records one attributable server-rules audit for a player build and never duplicates it on replay', async () => {
+  await buildFighter.run(request(base));
+  expect(mock.audits[auditPath]).toEqual({
+    schemaVersion: 1, sessionId: 's1', actorUid: 'u1', actorRoleId: 'wing-commander',
+    action: 'fighter-construction', phase: 'active', requestId: 'build-1', revision: 1,
+    outcome: 'committed', resolutionSource: 'server-rules',
+    redactionPolicy: 'action-audit-metadata-only-v1', createdAt: 'server-time',
+  });
+  mock.receipts[receiptPath] = storedReceipt();
+  mock.set.mockClear();
+  mock.update.mockClear();
+  await expect(buildFighter.run(request(base))).resolves.toMatchObject({ status: 'committed', count: 4 });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('attributes a GM-instance build to the GM without changing the rules source', async () => {
+  mock.role = 'gm';
+  mock.activeRole = undefined;
+  await buildFighter.run(request({ ...base, instanceId: 'gm-1' }));
+  expect(mock.audits[auditPath]).toMatchObject({
+    actorUid: 'u1', actorRoleId: null, action: 'fighter-construction', revision: 1,
+    resolutionSource: 'server-rules',
+  });
+});
+
+it('writes no audit for a denied actor or a stale build', async () => {
+  mock.activeRole = 'quellon-explorer';
+  await expect(buildFighter.run(request(base))).rejects.toMatchObject({ code: 'permission-denied' });
+  mock.activeRole = 'wing-commander';
+  await expect(buildFighter.run(request({ ...base, expectedRevision: 2 }))).resolves.toMatchObject({ status: 'stale' });
+  mock.receipts[receiptPath] = storedReceipt();
+  await expect(buildFighter.run(request({ ...base, expectedRevision: 2 }))).resolves.toMatchObject({ status: 'stale' });
+  expect(mock.audits).toEqual({});
+});
+
+it('backfills a missing audit once from a committed receipt that predates standardized audits', async () => {
+  await buildFighter.run(request(base));
+  mock.receipts[receiptPath] = storedReceipt();
+  delete mock.audits[auditPath];
+  mock.set.mockClear();
+  await expect(buildFighter.run(request(base))).resolves.toMatchObject({ status: 'committed', revision: 1 });
+  expect(mock.audits[auditPath]).toMatchObject({ action: 'fighter-construction', revision: 1, phase: 'active' });
+  expect(mock.set).toHaveBeenCalledTimes(1);
+});
+
+it('fails closed on an orphaned or mismatched fighter-construction audit', async () => {
+  mock.audits[auditPath] = { action: 'fighter-construction' };
+  await expect(buildFighter.run(request(base))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+
+  mock.audits = {};
+  await buildFighter.run(request(base));
+  mock.receipts[receiptPath] = storedReceipt();
+  mock.audits[auditPath] = { ...mock.audits[auditPath], revision: 7 };
+  mock.update.mockClear();
+  await expect(buildFighter.run(request(base))).rejects.toMatchObject({ code: 'failed-precondition' });
 });
