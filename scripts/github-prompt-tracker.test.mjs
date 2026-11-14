@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile, mkdir } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm, writeFile, mkdir } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -1348,4 +1348,149 @@ test('BP1 compatibility rejects a missing evidence row or either required histor
     await assert.rejects(readBeforeTrackerTransport(withoutLink, crosswalk),
       /Catalog changes outside source-reviewed definitions/);
   }
+});
+
+/** A stateful GitHub REST double for CLI runs: writes persist to the fixture file between processes. */
+const writableTrackerPreload = String.raw`
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+const logPath = process.env.TRACKER_FETCH_LOG;
+const fixturePath = process.env.TRACKER_FIXTURE_DATA;
+if (!logPath || !fixturePath) throw new Error('Tracker fetch log and fixture data are required');
+const fixture = JSON.parse(readFileSync(fixturePath, 'utf8'));
+fixture.comments ??= {};
+const byNumber = new Map(fixture.issues.map((issue) => [issue.number, issue]));
+const byId = new Map(fixture.issues.map((issue) => [issue.id, issue]));
+const save = () => writeFileSync(fixturePath, JSON.stringify(fixture));
+const reply = (value, status = 200) => new Response(JSON.stringify(value), {
+  status,
+  headers: { 'content-type': 'application/json' },
+});
+globalThis.fetch = async (input, init = {}) => {
+  const url = new URL(String(input));
+  const method = init.method ?? 'GET';
+  appendFileSync(logPath, method + ' ' + url.pathname + url.search + '\n');
+  if (url.origin !== 'https://api.github.com') throw new Error('Blocked unexpected network origin');
+  const page = Number(url.searchParams.get('page') ?? '1');
+  if (url.pathname.endsWith('/issues') && method === 'GET') {
+    return reply(fixture.issues.slice((page - 1) * 100, page * 100));
+  }
+  const issueMatch = url.pathname.match(/\/issues\/(\d+)$/);
+  if (issueMatch) {
+    const issue = byNumber.get(Number(issueMatch[1]));
+    if (!issue) return reply({}, 404);
+    if (method === 'PATCH') {
+      const patch = JSON.parse(init.body);
+      issue.state = patch.state;
+      issue.state_reason = patch.state_reason;
+      save();
+    } else if (method !== 'GET') throw new Error('Blocked unexpected issue write');
+    return reply(issue);
+  }
+  const parentMatch = url.pathname.match(/\/issues\/(\d+)\/parent$/);
+  if (parentMatch) {
+    const issue = byNumber.get(Number(parentMatch[1]));
+    const parentId = issue && fixture.relations[String(issue.number)]?.parentIssueIds?.[0];
+    return parentId ? reply(byId.get(parentId)) : reply({}, 404);
+  }
+  const blockedMatch = url.pathname.match(/\/issues\/(\d+)\/dependencies\/blocked_by$/);
+  if (blockedMatch) {
+    const blockedIds = fixture.relations[blockedMatch[1]]?.blockedByIssueIds ?? [];
+    return reply(blockedIds.map((id) => byId.get(id)));
+  }
+  const commentsMatch = url.pathname.match(/\/issues\/(\d+)\/comments$/);
+  if (commentsMatch) {
+    const rows = fixture.comments[commentsMatch[1]] ?? [];
+    if (method === 'POST') {
+      const comment = {
+        id: 9_000_000 + Object.values(fixture.comments).flat().length,
+        body: JSON.parse(init.body).body,
+        created_at: new Date().toISOString(),
+        user: { login: 'emerald-pham' },
+      };
+      fixture.comments[commentsMatch[1]] = [...rows, comment];
+      save();
+      return reply(comment, 201);
+    }
+    return reply(rows.slice((page - 1) * 100, page * 100));
+  }
+  throw new Error('Blocked unrecognized GitHub path: ' + method + ' ' + url.pathname + url.search);
+};
+`;
+
+/** Run the real tracker CLI in a disposable copy of docs/ against the stateful GitHub double. */
+async function withTrackerCli(run) {
+  const crosswalk = JSON.parse(await readFile(resolve(process.cwd(), 'docs/tracker/github-crosswalk.json'), 'utf8'));
+  const savedTrackerSnapshot = JSON.parse(await readFile(resolve(process.cwd(), 'docs/tracker/github-snapshot.json'), 'utf8'));
+  const fixture = makeBp1TrackerFixture(crosswalk, savedTrackerSnapshot);
+  const refinements = await savedRefinementIssues();
+  const cwd = await mkdtemp(resolve(tmpdir(), 'prompt-tracker-update-cli-'));
+  try {
+    await cp(resolve(process.cwd(), 'docs'), resolve(cwd, 'docs'), { recursive: true });
+    const bin = resolve(cwd, 'bin');
+    await mkdir(bin, { recursive: true });
+    const fixturePath = resolve(cwd, 'transport.json');
+    const preloadPath = resolve(cwd, 'preload.mjs');
+    const fetchLogPath = resolve(cwd, 'fetch.log');
+    await writeFile(fixturePath, JSON.stringify({ issues: [...fixture.issues, ...refinements], relations: fixture.relations, comments: {} }));
+    await writeFile(preloadPath, writableTrackerPreload);
+    await writeFile(resolve(bin, 'gh'), '#!/bin/sh\n[ "$1" = "auth" ] && [ "$2" = "token" ] && printf "fixture-token\\n"\n', { mode: 0o755 });
+    const scriptPath = resolve(process.cwd(), 'scripts/github-prompt-tracker.mjs');
+    const cli = async (...args) => {
+      await writeFile(fetchLogPath, '');
+      const result = spawnSync(process.execPath, [scriptPath, ...args], {
+        cwd,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          PATH: bin + ':' + (process.env.PATH ?? ''),
+          NODE_OPTIONS: [process.env.NODE_OPTIONS, '--import=' + preloadPath].filter(Boolean).join(' '),
+          TRACKER_FIXTURE_DATA: fixturePath,
+          TRACKER_FETCH_LOG: fetchLogPath,
+        },
+      });
+      const calls = (await readFile(fetchLogPath, 'utf8')).split(/\r?\n/).filter(Boolean);
+      return { ...result, output: result.stdout + result.stderr, calls };
+    };
+    const github = async () => JSON.parse(await readFile(fixturePath, 'utf8'));
+    await run({ cli, github, cwd });
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+}
+
+const FULL_TRACKER_READ_REQUESTS = 448;
+
+test('one update closes several briefs with their own evidence and refreshes the snapshot once', async () => {
+  await withTrackerCli(async ({ cli, github }) => {
+    const evidence = {
+      91: 'docs/PC10_4_EXECUTION_RECORD.md#acceptance-matrix',
+      92: 'docs/README.md#tracker',
+      93: 'docs/agents/issue-tracker.md#normal-commands',
+      94: 'docs/PC10_4_EXECUTION_RECORD.md#residual-notes-not-gaps',
+    };
+    const result = await cli('update', '--issue', '91,92,93,94', '--close-as', 'completed', '--reviewed', '--accepted',
+      ...Object.entries(evidence).flatMap(([number, reference]) => ['--evidence', `${number}=${reference}`]));
+    assert.equal(result.status, 0, result.output);
+    assert.match(result.stdout, /Updated 4 issues \(#91, #92, #93, #94\) with verified GitHub readback/);
+
+    const after = await github();
+    for (const [number, reference] of Object.entries(evidence)) {
+      const issue = after.issues.find((row) => row.number === Number(number));
+      assert.deepEqual([issue.state, issue.state_reason], ['closed', 'completed'], `#${number} is closed as completed`);
+      const comments = after.comments[number] ?? [];
+      assert.equal(comments.length, 1, `#${number} has one tracker-state comment`);
+      assert.match(comments[0].body, new RegExp(`Evidence references: ${reference}\\n`));
+      assert.match(comments[0].body, /Completion: reviewed-accepted/);
+    }
+
+    assert.equal(result.calls.filter((call) => call.startsWith('GET /') && call.includes('/issues?state=all&per_page=100&page=1')).length, 2,
+      'the full issue list is read once before and once after the batch');
+    assert.equal(result.calls.filter((call) => /\/issues\/\d+\/comments\?/.test(call) && call.startsWith('GET')).length, 148 * 2 + 4 * 3);
+    assert.ok(result.calls.length <= 2 * FULL_TRACKER_READ_REQUESTS + 15 * 4,
+      `four issues cost ${result.calls.length} requests, within two full reads plus a small per-issue budget`);
+
+    const check = await cli('refresh', '--check');
+    assert.equal(check.status, 0, check.output);
+    assert.match(check.stdout, /Tracker snapshot is current \(148 issues;/);
+  });
 });
