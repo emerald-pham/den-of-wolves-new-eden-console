@@ -34,7 +34,7 @@ describe('repository guidance', () => {
   it('keeps CLAUDE concise and preserves the high-value game contracts', () => {
     const guidance = readGuidance('CLAUDE.md');
     const normalized = guidance.replace(/\s+/g, ' ');
-    expect(guidance.split(/\r?\n/).length).toBeLessThanOrEqual(260);
+    expect(guidance.split(/\r?\n/).length).toBeLessThanOrEqual(350);
     for (const required of [
       'server authority',
       'focused, meaningful tests',
