@@ -24,16 +24,19 @@ export function findClosingReferences(body) {
 
 /** Each commit in base..head whose message holds a closing reference. */
 export function findClosingCommits({ base, head, cwd = process.cwd() }) {
-  const log = execFileSync('git', ['log', '--format=%H%x1f%B%x1e', `${base}..${head}`], {
+  // -z ends each commit with NUL, the one byte a commit message cannot hold,
+  // so a message with any other control byte still arrives whole.
+  const log = execFileSync('git', ['log', '-z', '--format=%H%n%B', `${base}..${head}`], {
     cwd,
     encoding: 'utf8',
   });
-  return log.split('\x1e')
-    .map((entry) => entry.trim())
+  return log.split('\0')
     .filter(Boolean)
     .map((entry) => {
-      const [sha, message] = entry.split('\x1f');
-      return { sha, references: findClosingReferences(message) };
+      const newline = entry.indexOf('\n');
+      const sha = newline === -1 ? entry : entry.slice(0, newline);
+      const message = newline === -1 ? '' : entry.slice(newline + 1);
+      return { sha: sha.trim(), references: findClosingReferences(message) };
     })
     .filter(({ references }) => references.length > 0);
 }
