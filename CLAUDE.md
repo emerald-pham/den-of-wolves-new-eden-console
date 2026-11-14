@@ -8,12 +8,11 @@ system. Keep the workflow proportionate to the risk of the change.
 
 ### Before editing
 
-Create or select an atomic GitHub ticket before starting the work it describes.
-Use the smallest possible scope: one independently verifiable outcome with clear
-acceptance criteria. Refine broad tickets into linked atomic subtickets and work
-from those subtickets. Create missing tickets before proceeding with their work.
-This is workflow guidance, not an approval, commit, merge, push, CI, or deployment
-gate; it adds no enforcement machinery.
+Create or select a GitHub ticket before starting the work it describes. Each
+ticket delivers one outcome that can be checked on its own. Prefer a few
+vertical slices to many tiny tickets. Create missing tickets before proceeding
+with their work. This is workflow guidance, not an approval, commit, merge,
+push, CI, or deployment gate; it adds no enforcement machinery.
 
 1. Work in the assigned checkout on a short-lived branch. Confirm the identity
    before setup or edits:
@@ -36,92 +35,47 @@ gate; it adds no enforcement machinery.
    dependency directories or local Firebase configuration.
 3. For prompt-driven work, start from the matching GitHub issue (found
    through `docs/tracker/github-crosswalk.json` or the refinement publication
-   table). GitHub issues are the mutable authority for every open prompt, brief and
-   refinement: the issue's Definition block owns its title, acceptance and
-   brief text, and the issue owns status/readiness/execution. The saved catalog
-   snapshot at `docs/implementation-prompts.json`, the brief Markdown under
-   `docs/pc10-tickets/` and `docs/future-tickets/`, and the generated Markdown
-   are offline snapshots regenerated from those issues; completed-prompt
-   history stays in the catalog. Edit open definitions on GitHub, never in a
-   snapshot file. Use `npm run prompt-tracker -- refresh` to read all tracked
-   issues and export the catalog, brief and brief-state snapshots. The generated
-   `docs/tracker/github-snapshot.json` preserves current prompt and brief
-   tracking fields for offline consumers. Use
-   `npm run prompt-tracker -- update --issue NUMBER ...`
-   for an owned-field change, and `npm run prompt-tracker -- export` to rebuild
-   saved Markdown views offline. `npm run prompt-tracker -- refresh --check`
-   verifies that every snapshot matches live tracker state. Ordinary checks and
-   CI do not access GitHub. See `docs/agents/issue-tracker.md` for completion,
-   hold-release, and recovery details. `NEXT` is a useful ready-work hint, not
-   a serial lock.
-   A dependency check such as
-   `npm run coordination:dependencies -- --prompt NNN` is read-only: it reports
-   the catalog row and hard prerequisites and does not create a nonce, receipt,
-   or other local proof artifact. Hard prerequisites and explicit product-only
-   deferrals hold that prompt; source-backed rules ambiguity follows
-   `docs/PRODUCT_MILESTONES.md`. Continue independent work. Readiness is not a
-   commit, merge, push, or deployment gate.
-   When an open title, acceptance or brief text changes, edit its issue
-   Definition and refresh; dependency and other catalog-structure changes
-   remain reviewed catalog edits with regenerated views; when tracking state
-   changes, use the tracker refresh/export path above. `node scripts/generate-prompt-views.mjs
-   --check` verifies generated views against the saved snapshot.
-
-   Include each newly queued item in the generated dependency chart and record
-   useful related-work links and explicit hard prerequisites where one item
-   genuinely needs another's functionality. These prerequisites describe
-   implementation order and realistic readiness, not Git or CI enforcement.
-   Do not add commit, merge, push, or deployment gates for them. Reuse existing
-   cheap catalog checks without new enforcement machinery or release delays.
-   If a queue update would disrupt an in-flight final release,
-   prepare it separately and land it after that release settles.
+   table). GitHub issues are the mutable authority for every open prompt, brief
+   and refinement. The catalog snapshot at `docs/implementation-prompts.json`,
+   the brief Markdown and the generated Markdown views are offline snapshots of
+   those issues, so edit open definitions on GitHub, never in a snapshot file.
+   `npm run coordination:dependencies -- --prompt NNN` is a read-only readiness
+   check that creates no local receipt; `NEXT` is a ready-work hint, not a
+   serial lock. [Tracker operations](docs/agents/issue-tracker.md) own refresh,
+   update, `npm run prompt-tracker -- export`,
+   `node scripts/generate-prompt-views.mjs`, queueing and recovery.
 4. Freeze accepted scope. Repair defects in its checks; route additional
    behavior to a new GitHub issue as described in
    `docs/PRODUCT_MILESTONE_CANDIDATES.md` rather than enlarging it.
 
-For numbered-prompt work, follow the one-sitting playtest checkpoints and
-shaping, assumptions, test-first commits, feedback, and cooldown process in
-[`docs/PRODUCT_MILESTONES.md`](docs/PRODUCT_MILESTONES.md). M1–M13 are internal
-gates. Explicit owner authorization accepts a checkpoint; review-scene play
-and written UI feedback are optional. Agents own gameplay proof. Build without
-prebuild approval or routine owner questions: resolve choices from evidence,
-log assumptions and report proof gaps. Do not pause for owner feedback or a rules ruling; ask only when higher authority requires it or no useful work remains.
-Before each checkpoint transition, reconcile owner decisions into all affected future prompts and checkpoint plans under that guide.
+For numbered-prompt and checkpoint work, follow
+[product checkpoints](docs/PRODUCT_MILESTONES.md): build without routine owner
+questions, resolve choices from evidence, log assumptions and report proof
+gaps; ask only when higher authority requires it or no useful work remains.
 
-Keep unrelated agent-policy and workflow edits out of an in-flight feature
-release. Queue them for the next safe checkpoint unless the user explicitly
-requests them now or they directly unblock that release.
+Coordination is lightweight and optional. Before touching a shared hotspot
+(shared session state, callable/rules files, deploy/auth infrastructure,
+release metadata, or an emulator row), check `npm run coordination:status` for
+the current owner and reservations, and follow
+[worktree coordination](docs/WORKTREE_COORDINATION.md#optional-coordination).
+Never infer that another task is stale or safe to interrupt from age alone.
+Optional goals may stay in the chat or ordinary session record; there is no
+immutable goal file, digest comparison, one-shot provenance or repair chain,
+or cleanup gate.
 
-Coordination is lightweight and optional. Use `npm run coordination:begin` and `npm run coordination:status` when a
-task needs an owner record, its branch and worktree, a prompt reference, or a shared resource reservation. Coordinate
-the actual hotspots (shared session state, callable/rules files, deploy/auth infrastructure, release metadata, or an
-emulator row); do not claim every leaf file or a whole directory by default. `coordination:status` is the current
-source for ownership and reservations. Never infer that another task is stale or safe to interrupt from age alone.
-Preserve other tasks' claims and port reservations. A parked task needs only a clear parked status and next action;
-there is no status/heartbeat polling loop. Optional goals may stay in the chat or ordinary session record; there is
-no immutable goal file, digest comparison, one-shot provenance or repair chain, or cleanup gate.
-
-New top-level coordinators default to `gpt-6-astra` with medium reasoning.
-Delegated workers default to `gpt-6-luna`.
-Claude Code sessions use the [Claude Code runtime models](docs/AGENT_EXECUTION_POLICY.md#claude-code-runtime-models)
-table instead; Fable is never authorized.
 Before delegating, shaping a checkpoint or preparing a release, follow the
-[Agent execution policy](docs/AGENT_EXECUTION_POLICY.md) for allowed models,
-checkpoint ownership, worker groups and handbacks, parent-only dependencies,
-waits and batched CI.
+[Agent execution policy](docs/AGENT_EXECUTION_POLICY.md) for checkpoint
+ownership, worker groups and handbacks, parent-only dependencies, waits and
+batched CI.
+Choose every agent's model and effort from [model and effort routing](docs/AGENT_EXECUTION_POLICY.md#model-and-effort-routing), in the subsection for your agent tool.
 
-Use `gpt-6.1-sol` for independent review of shared session state, callable behavior
-(including authorization and rules), Firestore rules, deployment/auth
-infrastructure, or release and capacity evidence. Use `medium` or `high` for a
-narrow, well-tested review and `xhigh` for complex authority or privacy risk. Exact threat-model receipts still require `xhigh`.
-Editing comments or copy and routinely deploying an ordinary feature do not by
-themselves trigger review. Keep meaningful security and authority tests and final validation.
-Independent risk review returns all findings together; the owner repairs them
-in a bounded follow-up limited to unresolved findings or materially changed risk.
-Do not run a compulsory Luna → Sol → Luna ownership cycle.
-
-Escalate only after actual lack of progress or a material failure, following
-[delegation and repair handoff](docs/AGENT_EXECUTION_POLICY.md#delegation).
+Behavior changes to shared session state, callable behavior (including
+authorization and rules), Firestore rules, deployment/auth infrastructure, or
+release and capacity evidence need one independent risk review by an agent
+other than the implementer. Editing comments or copy and routinely deploying
+an ordinary feature do not by themselves trigger review. Independent risk
+review returns all findings together; the owner repairs them in a bounded
+follow-up limited to unresolved findings or materially changed risk.
 
 ## Error recovery
 
@@ -190,25 +144,23 @@ Verify the actual font and navigation contract, not only a source-string test.
 Every non-landing screen and device mode has a visible, keyboard-accessible
 route back to its logical parent, normally Roles; do not rely on browser Back,
 Settings, disconnecting, or a route guard as the only exit.
+Apply the [routine responsive UI acceptance checklist](docs/AGENT_EXECUTION_POLICY.md#routine-responsive-ui-acceptance) to every UI change, including enlarged text and relevant content/state risks.
 For browser UI work, follow the
 [browser tooling policy](docs/AGENT_EXECUTION_POLICY.md#browser-tooling-for-ui-proof).
 
-The shared FleetBroadcast ticker is release-critical because it is the only
-common live-news surface. Run `npm run test:ticker:browser` when a change can
-affect application chrome, joined routes, session projection, global styling,
-runtime dependencies, or the ticker harness. The deployment range carries this
-risk into exact-SHA CI, so unrelated Functions, rules, documentation, and
-tooling releases do not pay for the browser lifecycle gate.
-Any change to ticker selection, source priority, queue projection, animation, responsive geometry, or broadcast session state must prove the live Press-to-Red-Alert handoff: every painted Press copy remains on the physical track, unentered repetitions are removed, and Red Alert appends behind the retained tail without overlap or a blank reset. The smoke must prove an authoritative current message is painted with non-zero
-viewport geometry and visible text in normal and reduced motion at phone and
-desktop sizes, including a browser whose document font promise remains
-pending, after navigation and reload, without horizontal overflow. Keep its
-session projection fixture isolated to the smoke and save a viewport screenshot
-when a case fails; do not replace the real ticker with a mock or an offscreen
-DOM assertion.
-
 Typography is a mandatory exact-SHA CI/deployment gate for every player-facing candidate. `npm run test:font-consistency` checks the stylesheet contract; `npm run test:typography:browser` verifies rendered computed styles and representative geometry. Both checks are required for a player-facing deployment.
 Local green tests, changed-file selection, workflow choice, or urgency cannot bypass it; accepted fixtures change only with reviewed contract updates and fresh rendered evidence. PC01 is a comparison point, not authority over the documented tokens: repair any proven outlier, then ratchet the corrected result.
+A final checkpoint release also needs an
+[independent typography review](docs/AGENT_EXECUTION_POLICY.md#independent-typography-review-for-final-releases)
+of the built candidate.
+
+The shared FleetBroadcast ticker is release-critical. [Ticker Behavior](docs/TICKER_BEHAVIOR.md)
+is the canonical pool, priority, ATC copy and physical handoff contract for
+every broadcast change: priority changes future entries, never visible text,
+and Stand Down plays twice before Press resumes. When a change can affect
+application chrome, joined routes, session projection, global styling, runtime
+dependencies or the ticker harness, run `npm run test:ticker:browser` and meet
+its [browser smoke gate](docs/TICKER_BEHAVIOR.md#browser-smoke-gate).
 
 Automate every source-deterministic facilitator procedure so one facilitator makes only genuinely required choices, rulings, and interventions. Server-owned automation logs source, inputs, modifiers, outcome, state delta, revision/replay identity, and recovery; never ask a person to calculate, transcribe, relay, approve, or confirm a deterministic result the console can safely own.
 
@@ -217,78 +169,39 @@ announcements, accessible names, errors, and release notes. Never label it a
 turn. Existing wire fields, callable names, document IDs, and internal symbols
 such as `currentTurn` remain compatible; this is a product-copy convention.
 
-The canonical pool, priority, and physical handoff contract is
-[Ticker Behavior](docs/TICKER_BEHAVIOR.md). Priority changes future entries,
-never visible text; Stand Down plays twice before Press resumes.
-
-Ticker source priority, ATC copy, visibility, initial projection and browser
-coverage belong in [Ticker Behavior](docs/TICKER_BEHAVIOR.md#initial-projection-and-release-verification).
-Use that contract for every broadcast change; keep the exact-SHA browser gate above.
-
 ## Worktrees and emulator rows
 
-Each task uses its own branch and checkout. For rules or emulator-backed checks,
-claim a complete free row atomically:
+Each task uses its own branch and checkout. For rules or emulator-backed
+checks, claim one complete free row with `npm run emulators:configure -- auto`,
+use its generated worktree-local configuration and never mix its ports with
+another row. [Emulator rows](docs/WORKTREE_COORDINATION.md#emulator-rows) owns
+the port matrix, reservations and teardown.
 
-```bash
-npm run emulators:configure -- auto
-npm run emulators
-npm run dev:emulators
-```
-
-Use the generated worktree-local configuration consistently and never mix its ports with another row. The command owns the reservation it creates; do not
-release another worktree's row. A configured row remains unavailable while its
-owner is active even if no process is currently listening. Check current
-coordination before acting, and do not stop a live process based on age or an
-empty reservation. The complete port matrix and wrapper signal behavior live in
-[`docs/WORKTREE_COORDINATION.md`](docs/WORKTREE_COORDINATION.md).
-
-## Merge, deploy, and cleanup
+## Landing and release
 
 Before landing, inspect the final diff and run the focused checks appropriate to
 the changed files. Reconcile the owner branch with current `main`, commit the
-reviewed candidate, and resolve conflicts before final validation. Git history
-records provenance; no extra ancestry-only commits are required. The owner then
-merges to `main`, pushes
+reviewed candidate, and resolve conflicts before final validation. Rerun
+validation only after a meaningful input changed, a check failed, or an
+unresolved concern remains. The owner then merges to `main`, pushes
 `origin/main`, verifies the resulting deployment when the change is deployable,
 and reports the exact result. A pushed workflow is not proof that production
 finished; check the deployed behavior or workflow result separately. Do not
-claim capacity, CI, or live Firebase health from a local green test.
-Rerun validation only after a meaningful input changed, a check failed, or an
-unresolved concern remains.
+claim capacity, CI, or live Firebase health from a local green test. The
+[README deployment section](README.md#deployment) and
+[deployment setup](docs/ci-deploy-setup.md) own the deploy procedure.
 
 Player-facing work increments the application version, keeps `package.json` and
 the root lockfile synchronized, and adds a concise player-facing changelog entry
 to `src/changelog.ts`. Tooling, tests, and documentation-only changes do not bump
-the version or add a player note. Never append one task's note to another
-version entry. Derive the visible build reference from package metadata rather
-than hardcoding a version in source, tests, or docs. Deployment changes must
-preserve the short-lived Workload Identity Federation path and must not add a
-service-account key.
+the version or add a player note. Before preparing a release, read
+[release versioning](docs/AGENT_EXECUTION_POLICY.md#release-versioning) for the
+patch limit, restricted versions and release-note contents.
 
-Patch versions stop at `99`: after `0.x.99`, increment the minor version and
-reset the patch to zero (`0.3.99` → `0.4.0`). Never issue `0.x.100` or higher.
-If an existing release has already exceeded that limit, use the next minor
-version with patch zero for the next release; preserve published release history.
-
-Only the product owner authorizes `0.9.x` and `1.0.0`. A `1.0.0` release
-requires the complete 20-player set, an end-to-end gameplay loop, and a clear
-implemented game end; role count or placeholder screens alone do not qualify.
-Release notes should include the completed/total prompt percentage from the
-catalog snapshot used for that release, without turning the percentage into a
-second roadmap authority.
-
-After a landed branch is pushed, its worktree is eligible for cleanup once the
-task is terminal and you have confirmed no live process uses it, no uncommitted
-or untracked files remain, and no unique unmerged work would be lost. A fixed
-48-hour retention period is not required. Worktree removal is a separate deliberate
-action; this policy does not authorize removing another active task or its
-branch. Preserved work needs a clear destination, and discarded work needs a
-reason. At closeout, remove eligible worktrees deliberately or record their retention owner and reason; follow [the storage procedure](docs/LOCAL_STORAGE.md), including ignored-file and live-process review.
-
-At verified task closeout, perform
-[automatic branch cleanup](docs/LOCAL_STORAGE.md#automatic-branch-closeout)
-without another owner request. Report retained branches and their reasons.
+At verified closeout, clean up the finished branch without another owner
+request through [automatic branch closeout](docs/LOCAL_STORAGE.md#automatic-branch-closeout),
+and remove eligible worktrees or record their retention owner and reason under
+[the storage procedure](docs/LOCAL_STORAGE.md). Report anything retained and why.
 
 ## Private source boundary
 
@@ -313,7 +226,12 @@ do not touch it in routine repository work.
 
 ## Stack
 
-The [project README](README.md#stack) owns the stack and setup reference.
+Vite 6, strict TypeScript, React 18 with Zustand, the Firestore Web SDK v12
+modular API and 2nd-gen Cloud Functions on Node 22; the
+[project README](README.md#stack) owns the full stack and setup reference.
+Keep TypeScript strict and never hide errors with `any` or `@ts-expect-error`.
+`HashRouter` is deliberate: deep links must work on a static host without
+rewrite rules.
 
 ## Security model
 
@@ -328,7 +246,9 @@ and never let a client set `role`.
 The Firebase web config contains public identifiers, not credentials. Never
 commit a service-account key, secret, or App Check debug token. App Check is
 complementary to authorization; it never replaces callable authorization or
-Firestore rules. CI uses short-lived Workload Identity Federation credentials.
+Firestore rules. CI uses short-lived Workload Identity Federation credentials;
+deployment changes must preserve that path and must not add a service-account
+key.
 
 ## State and session lifecycle
 
@@ -392,7 +312,7 @@ server-only.
 - [ ] Focused meaningful checks cover changed behavior; behavior changes to
   shared session state, callable behavior (including authorization and rules),
   Firestore rules, or deployment/authentication infrastructure received one
-  independent Sol 6.1 review.
+  independent risk review.
 - [ ] Rendered UI, fonts, responsive states, and visible navigation were
   inspected when applicable.
 - [ ] The final appropriate validation ran after reconciliation; any rerun had
@@ -403,30 +323,6 @@ server-only.
   applicable, or recorded a clear preserve/discard outcome.
 - [ ] No privileged client write, secret, key, or private-source material was
   introduced.
-
-## Independent typography review for final releases
-
-Owner instruction, 2026-10-08: every final product checkpoint release and
-equivalent release requires a typography reviewer independent of the
-implementer. Review the actual final built candidate, identify its commit and
-build artifact, and compare it with the intended typography contract and
-previous released build. Automated typography checks do not substitute for this
-review. Recheck affected evidence if the reviewed candidate materially changes.
-
-Inspect the actual resolved/rendered font (including platform fallback or font
-load failure), computed family, size, weight and line height, readability,
-wrapping and overflow. Use representative relevant viewports and states,
-including changed controls, dialogs/portals and recovery screens when affected.
-Choose the smallest useful configuration set; do not expand into a full actor
-or account matrix. For a global font report, sample shared chrome plus distinct
-font/inheritance paths across the app, and compare base/candidate CSS and assets.
-Record the baseline, exact artifact, platform, states, viewport/window sizes,
-findings, evidence and what was not checked. An inaccessible runtime is an
-unresolved review gap, not a pass inferred from unit, inference or source tests.
-Fix actionable typography findings and obtain the affected independent review
-before publication.
-
-Apply the [routine responsive UI acceptance checklist](docs/AGENT_EXECUTION_POLICY.md#routine-responsive-ui-acceptance) to every UI change, including enlarged text and relevant content/state risks.
 
 ## Agent skills
 

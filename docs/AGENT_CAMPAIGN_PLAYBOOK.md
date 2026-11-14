@@ -50,7 +50,7 @@ and integration handoff; one owner reconciles the release.
 
 ## Model and review choices
 
-Use the [canonical model allowance](AGENT_EXECUTION_POLICY.md#delegation)
+Use the [canonical model allowance](AGENT_EXECUTION_POLICY.md#model-and-effort-routing)
 for permitted subagents, supported model/effort checks and failure escalation.
 Existing agents may finish current assignments without interruption; apply
 current policy to new agents and subsequent assignments. The default delegated

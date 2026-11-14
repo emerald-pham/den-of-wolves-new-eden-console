@@ -648,6 +648,11 @@ export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswal
   };
 }
 
+/** Completion and hold release record evidence; every other update leaves `--evidence` unused. */
+function changesNeedEvidence(changes) {
+  return changes.status === 'done' || changes.closeAs === 'completed' || changes.releaseHold === true;
+}
+
 /** Update only tracker-owned fields, preserving user prose and relationships, then verify readback. */
 export async function updateGitHubIssueState({ transport, issueNumber, changes, expectedRecord, validateProjection, cwd = process.cwd() } = {}) {
   if (!Number.isInteger(issueNumber) || !changes || typeof changes !== 'object') throw new Error('An issue number and owned-field changes are required');
@@ -683,6 +688,9 @@ export async function updateGitHubIssueState({ transport, issueNumber, changes, 
   if (expectedRecord?.recordKind === 'held-future-brief' && changes.closeAs === 'completed') {
     if (fields.Hold !== 'released') throw new Error('Held future briefs cannot be completed while held');
   }
+  const evidenceReferences = changes.evidenceReferences ?? [];
+  const evidenceAccepted = changesNeedEvidence(changes) && changes.reviewed === true && changes.accepted === true
+    && validateEvidenceReferences(evidenceReferences, cwd);
   let state = current.state;
   let stateReason = current.stateReason;
   const next = { ...fields };
@@ -690,8 +698,7 @@ export async function updateGitHubIssueState({ transport, issueNumber, changes, 
     if (!promptIssue || !PROMPT_STATUSES.has(changes.status)) throw new Error('Prompt status update is invalid for this issue');
     const oldStatus = fields['Prompt status'];
     if (changes.status === 'done') {
-      const evidenceReferences = changes.evidenceReferences ?? [];
-      if (changes.reviewed !== true || changes.accepted !== true || !validateEvidenceReferences(evidenceReferences, cwd)) {
+      if (!evidenceAccepted) {
         throw new Error('Completing a prompt requires reviewed, accepted local evidence references');
       }
       if (INCOMPLETE_STATUSES.has(oldStatus)) next['Previous incomplete status'] = oldStatus;
@@ -729,8 +736,7 @@ export async function updateGitHubIssueState({ transport, issueNumber, changes, 
         || fields.Readiness !== 'held' || fields.Execution !== 'inactive') {
       throw new Error('Only an inactive held future brief can be released');
     }
-    const evidenceReferences = changes.evidenceReferences ?? [];
-    if (changes.reviewed !== true || changes.accepted !== true || !validateEvidenceReferences(evidenceReferences, cwd)) {
+    if (!evidenceAccepted) {
       throw new Error('Hold release requires reviewed, accepted local trigger/authorization evidence');
     }
     next.Hold = 'released';
@@ -740,8 +746,7 @@ export async function updateGitHubIssueState({ transport, issueNumber, changes, 
   }
   if (changes.closeAs === 'completed') {
     if (promptIssue) throw new Error('Prompt completion requires a reviewed status update');
-    const evidenceReferences = changes.evidenceReferences ?? [];
-    if (changes.reviewed !== true || changes.accepted !== true || !validateEvidenceReferences(evidenceReferences, cwd)) {
+    if (!evidenceAccepted) {
       throw new Error('Completing a brief requires reviewed, accepted local evidence references');
     }
     next.Completion = 'reviewed-accepted';
@@ -942,10 +947,49 @@ function parseCommand(args) {
     }
     const value = rest[index + 1];
     if (!value || value.startsWith('--')) throw new Error(`${arg} requires a value`);
-    options[name] = value;
+    if (REPEATABLE_OPTIONS.has(name)) options[name] = [...(options[name] ?? []), value];
+    else options[name] = value;
     index += 1;
   }
   return { command, options };
+}
+
+const REPEATABLE_OPTIONS = new Set(['issue', 'evidence']);
+
+/** Parse `--issue` values (repeated or comma-separated) into distinct issue numbers in the given order. */
+function parseIssueNumbers(values = []) {
+  const numbers = values.flatMap((value) => value.split(',')).map((item) => item.trim().replace(/^#/, ''));
+  if (numbers.length === 0 || numbers.some((item) => !/^[1-9][0-9]*$/.test(item) || !Number.isSafeInteger(Number(item)))) {
+    throw new Error('update requires a valid --issue number');
+  }
+  const issueNumbers = numbers.map(Number);
+  if (new Set(issueNumbers).size !== issueNumbers.length) throw new Error('update lists an issue more than once');
+  return issueNumbers;
+}
+
+/**
+ * Map each issue to its evidence references. A plain `--evidence <path#anchor>[,...]` is shared by every
+ * listed issue; `--evidence <issue>=<path#anchor>[,...]`, repeated, gives each issue its own references.
+ */
+function parseEvidenceByIssue(values = [], issueNumbers) {
+  const split = (value) => value.split(',').map((item) => item.trim()).filter(Boolean);
+  const keyed = values.map((value) => value.match(/^#?([1-9][0-9]*)=(.*)$/));
+  if (values.length === 0) return new Map();
+  if (keyed.every((match) => match === null)) {
+    if (values.length > 1) throw new Error('Give shared --evidence once, or give every issue its own --evidence <issue>=<path#anchor>');
+    return new Map(issueNumbers.map((number) => [number, split(values[0])]));
+  }
+  if (keyed.some((match) => match === null)) throw new Error('Do not mix shared --evidence with per-issue --evidence <issue>=<path#anchor>');
+  const byIssue = new Map();
+  for (const [, number, references] of keyed) {
+    const issueNumber = Number(number);
+    if (!issueNumbers.includes(issueNumber)) throw new Error(`--evidence names #${issueNumber}, which is not a listed --issue`);
+    if (byIssue.has(issueNumber)) throw new Error(`--evidence is given more than once for #${issueNumber}`);
+    byIssue.set(issueNumber, split(references));
+  }
+  const missing = issueNumbers.filter((number) => !byIssue.has(number));
+  if (missing.length) throw new Error(`Per-issue --evidence is missing for ${missing.map((number) => `#${number}`).join(', ')}`);
+  return byIssue;
 }
 
 function validateCutoverCrosswalk(crosswalk) {
@@ -1013,42 +1057,94 @@ async function runCommand({ command, options, cwd = process.cwd() }) {
     return { message: `Refreshed ${result.issueCount} GitHub issues, ${result.definitionSnapshots.length} definition snapshots and generated catalog views.`, result };
   }
 
-  const issueNumber = Number(options.issue);
-  if (!Number.isSafeInteger(issueNumber) || issueNumber < 1) throw new Error('update requires a valid --issue number');
-  const baseline = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, refinementPublication, cwd, allowInvalidCatalog: true });
-  const record = crosswalk.records.find(({ issueNumber: number }) => number === issueNumber);
-  if (!record) throw new Error(`Issue #${issueNumber} is not in the verified public crosswalk`);
-  const changes = {};
-  if (options.status) changes.status = options.status;
-  if (options.reviewed) changes.reviewed = true;
-  if (options.accepted) changes.accepted = true;
-  if (options.evidence) changes.evidenceReferences = options.evidence.split(',').map((item) => item.trim()).filter(Boolean);
-  if (options.reopen) changes.reopen = true;
-  if (options['release-hold']) changes.releaseHold = true;
-  if (options['close-as']) changes.closeAs = options['close-as'];
+  const issueNumbers = parseIssueNumbers(options.issue);
+  const evidenceByIssue = parseEvidenceByIssue(options.evidence, issueNumbers);
+  const records = issueNumbers.map((issueNumber) => {
+    const record = crosswalk.records.find(({ issueNumber: number }) => number === issueNumber);
+    if (!record) throw new Error(`Issue #${issueNumber} is not in the verified public crosswalk`);
+    return record;
+  });
+  const sharedChanges = {};
+  if (options.status) sharedChanges.status = options.status;
+  if (options.reviewed) sharedChanges.reviewed = true;
+  if (options.accepted) sharedChanges.accepted = true;
+  if (options.reopen) sharedChanges.reopen = true;
+  if (options['release-hold']) sharedChanges.releaseHold = true;
+  if (options['close-as']) sharedChanges.closeAs = options['close-as'];
   const brief = {};
   for (const [option, field] of [['readiness', 'Readiness'], ['execution', 'Execution'], ['hold', 'Hold'], ['original-hold-status', 'Original hold status']]) {
     if (options[option] !== undefined) brief[field] = options[option];
   }
-  if (Object.keys(brief).length) changes.brief = brief;
-  const validateProjection = record.recordKind === 'prompt-acceptance'
-    ? ({ fields }) => {
-      const projected = structuredClone(baseline.catalog);
-      const prompt = projected.prompts.find(({ id }) => id.toUpperCase() === record.legacyId.toUpperCase());
-      if (!prompt) throw new Error(`Prompt ${record.legacyId} is missing from the saved catalog`);
-      prompt.status = fields['Prompt status'];
-      const errors = validatePromptCatalog(projected);
-      if (errors.length) throw new Error(`Prompt update would violate catalog prerequisites: ${errors.join('; ')}`);
+  if (Object.keys(brief).length) sharedChanges.brief = brief;
+  const changesFor = (issueNumber) => ({
+    ...structuredClone(sharedChanges),
+    ...(evidenceByIssue.has(issueNumber) ? { evidenceReferences: evidenceByIssue.get(issueNumber) } : {}),
+  });
+  // When the update records evidence, reject a malformed or missing reference for any listed issue
+  // before the first GitHub write. Other updates leave --evidence unused, as a single update always has.
+  if (changesNeedEvidence(sharedChanges)) {
+    for (const issueNumber of issueNumbers) {
+      if (!validateEvidenceReferences(evidenceByIssue.get(issueNumber) ?? [], cwd)) {
+        throw new Error(`Evidence for #${issueNumber} must be reviewed, accepted local references (path#anchor to an existing file)`);
+      }
     }
-    : undefined;
-  const updated = await updateGitHubIssueState({ transport, issueNumber, changes, expectedRecord: record, validateProjection, cwd });
+  }
+
+  // One full read before the batch. Its issue listing also resolves relationship markers for every
+  // issue in the batch, so a per-issue update does not list the whole repository again.
+  let listedIssues;
+  const listingTransport = { ...transport, async listIssues() { listedIssues = await transport.listIssues(); return listedIssues; } };
+  const baseline = await readGitHubPromptCatalog({ sourceBytes, transport: listingTransport, crosswalk, refinementPublication, cwd, allowInvalidCatalog: true });
+  const batchTransport = { ...transport, async listIssues() { return listedIssues; } };
+  const projected = structuredClone(baseline.catalog);
+  const updated = [];
+  let failure = null;
+  for (const [index, issueNumber] of issueNumbers.entries()) {
+    const record = records[index];
+    const promptRecord = record.recordKind === 'prompt-acceptance';
+    const prompt = promptRecord
+      ? projected.prompts.find(({ id }) => id.toUpperCase() === record.legacyId.toUpperCase())
+      : null;
+    if (promptRecord && !prompt) {
+      failure = new Error(`Prompt ${record.legacyId} is missing from the saved catalog`);
+      break;
+    }
+    // Earlier issues in the batch are already projected, so prerequisites see the batch's own changes.
+    const validateProjection = prompt
+      ? ({ fields }) => {
+        const candidate = structuredClone(projected);
+        candidate.prompts.find(({ id }) => id === prompt.id).status = fields['Prompt status'];
+        const errors = validatePromptCatalog(candidate);
+        if (errors.length) throw new Error(`Prompt update would violate catalog prerequisites: ${errors.join('; ')}`);
+      }
+      : undefined;
+    try {
+      const result = await updateGitHubIssueState({ transport: batchTransport, issueNumber, changes: changesFor(issueNumber), expectedRecord: record, validateProjection, cwd });
+      if (prompt) prompt.status = result.fields['Prompt status'];
+      updated.push({ record, issue: result.issue });
+    } catch (error) {
+      failure = error;
+      break;
+    }
+  }
+  if (failure && updated.length === 0) throw failure;
+
+  // One full re-read after the batch refreshes every saved snapshot and generated view.
   const refreshedIssues = await readGitHubPromptCatalog({ sourceBytes, transport, crosswalk, refinementPublication, cwd });
   atomicWrite(resolve(cwd, trackerSnapshotPath), `${JSON.stringify(refreshedIssues.trackerSnapshot, null, 2)}\n`);
   atomicWrite(resolve(cwd, catalogPath), refreshedIssues.catalogSource);
   writeDefinitionSnapshots({ cwd, snapshots: refreshedIssues.definitionSnapshots });
   const { generatePromptViews } = await import('./generate-prompt-views.mjs');
   await generatePromptViews({ cwd, catalog: refreshedIssues.catalog });
-  return { message: `Updated ${record.migrationId} with verified GitHub readback.`, issue: updated.issue, catalog: baseline.catalog };
+  const landed = updated.map(({ record }) => `#${record.issueNumber}`).join(', ');
+  if (failure) {
+    const stopped = issueNumbers[updated.length];
+    throw new Error(`Updated ${landed} and refreshed the snapshot, then stopped at #${stopped} (later issues were not attempted): ${failure instanceof Error ? failure.message : String(failure)}`);
+  }
+  const message = updated.length === 1
+    ? `Updated ${updated[0].record.migrationId} with verified GitHub readback.`
+    : `Updated ${updated.length} issues (${landed}) with verified GitHub readback.`;
+  return { message, issue: updated[0].issue, issues: updated.map(({ issue }) => issue), catalog: baseline.catalog };
 }
 
 async function main() {
@@ -1063,8 +1159,10 @@ async function main() {
         '  npm run prompt-tracker -- update --issue <number> --close-as completed --reviewed --accepted --evidence <path#anchor>',
         '  npm run prompt-tracker -- update --issue <number> --release-hold --reviewed --accepted --evidence <path#anchor>',
         '  npm run prompt-tracker -- update --issue <number> --readiness <value> --execution <value>',
+        '  npm run prompt-tracker -- update --issue <n>,<n> --close-as completed --reviewed --accepted --evidence <n>=<path#anchor> --evidence <n>=<path#anchor>',
         '  npm run prompt-tracker -- export [--source <catalog.json>]',
         'Updates preserve issue prose, verify native state and relationships, and require local evidence for completion or future hold release.',
+        'Several issues share one full read before and after the batch; give per-issue --evidence <n>=<path#anchor> or one shared --evidence.',
       ].join('\n'));
       return;
     }
