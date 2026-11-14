@@ -195,7 +195,7 @@ describe('pull request closing-keyword gate', () => {
   it('fails a pull request whose commit messages would close issues when they land', async () => {
     const range = await pullRequestRange(['feat: add the thing', 'fix: repair the selector\n\nFixes #12', 'docs: notes\n\nresolves org/repo#7']);
     try {
-      const result = await checkBody('Refs #463', range);
+      const result = await checkBody('Refs #463', { cwd: range.repository, env: range.env });
       expect(result.code).toBe(1);
       expect(result.output).toContain(`commit ${range.shas[1]!.slice(0, 12)}: Fixes #12`);
       expect(result.output).toContain(`commit ${range.shas[2]!.slice(0, 12)}: resolves org/repo#7`);
@@ -208,7 +208,7 @@ describe('pull request closing-keyword gate', () => {
   it('passes a pull request whose range commits close nothing, even when its base did', async () => {
     const range = await pullRequestRange(['feat: add the thing', 'fix: the selector crash']);
     try {
-      const result = await checkBody('Refs #463', range);
+      const result = await checkBody('Refs #463', { cwd: range.repository, env: range.env });
       expect(result.output).toBe('No GitHub closing keywords found in the pull request body or commit messages.\n');
       expect(result.code).toBe(0);
     } finally {
