@@ -1078,9 +1078,12 @@ test('fails closed on a post-receipt Philia/helper mix even with a verified old 
     targets: ['hosting', 'functions'],
     isAncestor,
     sourceAtRevision: (revision, file) => {
-      assert.equal(file, 'functions/src/index.ts');
-      if (revision === after) return currentIndex;
-      return execFileSync('git', ['show', `${revision}:${file}`], { encoding: 'utf8' });
+      if (file === 'functions/src/index.ts' && revision === after) return currentIndex;
+      // Later pinned audits read the real module sources; the candidate's
+      // other runtime files are unchanged from the receipt.
+      return execFileSync('git', ['show', `${revision === after ? receipt : revision}:${file}`], {
+        encoding: 'utf8', maxBuffer: 32 * 1024 * 1024,
+      });
     },
   }), /Cannot safely map a Philia repair index change mixed with another callable or untracked source edit/);
 });
