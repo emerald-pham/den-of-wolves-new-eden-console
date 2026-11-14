@@ -100,6 +100,26 @@ does not set prompt status to `done`:
 npm run prompt-tracker -- update --issue NUMBER --status done --reviewed --accepted --evidence docs/REPORT.md#verified-result
 ```
 
+Update several issues in one invocation by listing them, comma-separated or
+with a repeated `--issue`. Every listed issue gets the same change and the same
+field and evidence rules as a single-issue update, and each issue's returned
+GitHub state is verified. Give each issue its own evidence with a repeated
+`--evidence <issue>=<path#anchor>`, or give one plain `--evidence` that every
+listed issue shares; the two forms cannot be mixed:
+
+```sh
+npm run prompt-tracker -- update --issue 91,92 --close-as completed --reviewed --accepted --evidence 91=docs/REPORT.md#first-result --evidence 92=docs/REPORT.md#second-result
+```
+
+Evidence for every listed issue is checked before the first GitHub write. The
+full issue set is read once before the batch and once after it to refresh the
+saved snapshots, so a batch costs about two full reads plus roughly a dozen
+requests per issue rather than two full reads per issue. Issues are updated in
+the listed order. If one fails, the batch stops there: earlier updates stay,
+the snapshot is still refreshed, and the error names where it stopped and that
+later issues were not attempted. Only crosswalked issues are accepted; a
+refinement child outside the crosswalk is rejected as before.
+
 Reopen by explicitly choosing an incomplete status. Completion export retains
 that prior status so native issue reopening restores it:
 
