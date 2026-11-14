@@ -11,7 +11,7 @@
 // commit range; the commits are read with git from a full-history checkout.
 
 import { execFileSync } from 'node:child_process';
-import { resolve } from 'node:path';
+import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const KEYWORD = String.raw`\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b`;
@@ -54,7 +54,18 @@ export function closingFindings({ title, body, base, head, cwd } = {}) {
   return findings;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Compare real paths: Node resolves a symlinked entry point to its target, so
+// a plain path comparison would skip the check, and pass, through a symlink.
+function isDirectRun() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectRun()) {
   const findings = closingFindings({
     title: process.env.PR_TITLE,
     body: process.env.PR_BODY,
