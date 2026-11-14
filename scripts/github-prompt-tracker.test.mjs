@@ -1543,3 +1543,15 @@ test('a batch that fails part-way keeps the landed updates, refreshes the snapsh
     assert.equal(check.status, 0, check.output);
   });
 });
+
+test('a single-issue readiness update ignores a stray --evidence, as before multi-issue updates', async () => {
+  await withTrackerCli(async ({ cli, github }) => {
+    const result = await cli('update', '--issue', '91', '--readiness', 'blocked', '--evidence', 'docs/no-such-report.md#result');
+    assert.equal(result.status, 0, result.output);
+    assert.match(result.stdout, /Updated DOW-BRIEF-16-R1 with verified GitHub readback/);
+    const after = await github();
+    assert.equal(after.issues.find(({ number }) => number === 91).state, 'open');
+    const state = JSON.parse(after.comments['91'][0].body.split('\n')[1]);
+    assert.deepEqual(state.set, { Readiness: 'blocked' });
+  });
+});
