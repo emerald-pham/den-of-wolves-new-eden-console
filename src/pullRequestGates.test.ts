@@ -135,10 +135,13 @@ describe('pull request deployment target dry run', () => {
 describe('pull request closing-keyword gate', () => {
   const workflowPath = '.github/workflows/pr-body.yml';
 
-  async function checkBody(body: string) {
-    return execFileAsync(process.execPath, ['scripts/pr-closing-keywords.mjs'], {
+  const gateScript = resolve(process.cwd(), 'scripts/pr-closing-keywords.mjs');
+
+  async function checkBody(body: string, { cwd = process.cwd(), env = {} }: { cwd?: string; env?: Record<string, string> } = {}) {
+    return execFileAsync(process.execPath, [gateScript], {
+      cwd,
       encoding: 'utf8',
-      env: { ...process.env, PR_BODY: body },
+      env: { ...process.env, PR_BODY: body, ...env },
     }).then(
       ({ stdout, stderr }) => ({ code: 0, output: `${stdout}${stderr}` }),
       (error: { code: number; stdout: string; stderr: string }) => ({
@@ -170,6 +173,67 @@ describe('pull request closing-keyword gate', () => {
   ])('passes a body that closes no issue: %j', async (body) => {
     const result = await checkBody(body);
     expect(result.code).toBe(0);
+  });
+
+  /** A repository whose base commit closes #1 and whose PR range holds `messages`. */
+  async function pullRequestRange(messages: string[]) {
+    const repository = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-pr-commits-'));
+    const git = async (args: string[]) => (await execFileAsync('git', args, { cwd: repository, encoding: 'utf8' })).stdout.trim();
+    await git(['init', '--quiet', '--initial-branch=main']);
+    await git(['config', 'user.email', 'ci@example.test']);
+    await git(['config', 'user.name', 'CI']);
+    await git(['commit', '--quiet', '--allow-empty', '-m', 'chore: earlier work\n\nCloses #1']);
+    const base = await git(['rev-parse', 'HEAD']);
+    const shas: string[] = [];
+    for (const message of messages) {
+      await git(['commit', '--quiet', '--allow-empty', '-m', message]);
+      shas.push(await git(['rev-parse', 'HEAD']));
+    }
+    return { repository, env: { PR_BASE_SHA: base, PR_HEAD_SHA: await git(['rev-parse', 'HEAD']) }, shas };
+  }
+
+  it('fails a pull request whose commit messages would close issues when they land', async () => {
+    const range = await pullRequestRange(['feat: add the thing', 'fix: repair the selector\n\nFixes #12', 'docs: notes\n\nresolves org/repo#7']);
+    try {
+      const result = await checkBody('Refs #463', range);
+      expect(result.code).toBe(1);
+      expect(result.output).toContain(`commit ${range.shas[1]!.slice(0, 12)}: Fixes #12`);
+      expect(result.output).toContain(`commit ${range.shas[2]!.slice(0, 12)}: resolves org/repo#7`);
+      expect(result.output).not.toMatch(/Closes #1\b/);
+    } finally {
+      await rm(range.repository, { recursive: true, force: true });
+    }
+  });
+
+  it('passes a pull request whose range commits close nothing, even when its base did', async () => {
+    const range = await pullRequestRange(['feat: add the thing', 'fix: the selector crash']);
+    try {
+      const result = await checkBody('Refs #463', range);
+      expect(result.output).toBe('No GitHub closing keywords found in the pull request body or commit messages.\n');
+      expect(result.code).toBe(0);
+    } finally {
+      await rm(range.repository, { recursive: true, force: true });
+    }
+  });
+
+  it('points each kind of ticket to its own closing route', async () => {
+    const result = await checkBody('Closes #460');
+    expect(result.output).toContain(
+      'Tracked briefs: npm run prompt-tracker -- update --issue NUMBER --close-as completed --reviewed --accepted --evidence PATH#ANCHOR',
+    );
+    expect(result.output).toContain(
+      'Tracked prompts: npm run prompt-tracker -- update --issue NUMBER --status done --reviewed --accepted --evidence PATH#ANCHOR',
+    );
+    expect(result.output).toContain(
+      'Refinement children (not in docs/tracker/github-crosswalk.json): gh issue close NUMBER --reason completed --comment "Evidence: PATH#ANCHOR"',
+    );
+  });
+
+  it('checks the commits between the event base and head SHAs from a full-history checkout', () => {
+    const workflow = readFileSync(workflowPath, 'utf8');
+    expect(workflow).toContain('PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}');
+    expect(workflow).toContain('PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}');
+    expect(workflow).toMatch(/uses: actions\/checkout@v7\n\s+with:\n\s+fetch-depth: 0/);
   });
 
   it('re-runs on every pull request body edit without interpolating the body into a shell', () => {
