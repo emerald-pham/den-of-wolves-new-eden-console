@@ -306,3 +306,40 @@ it.each([
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
 });
+
+const blacksmithAuditPath = 'sessions/s1/actionAudits/repair-1';
+const blacksmithAuditPaths = () => [...mock.documents.keys()].filter((path) => path.includes('/actionAudits/'));
+
+it('records one attributable Blacksmith repair audit that replay never rewrites', async () => {
+  await expect(repairConsolesFromBlacksmith.run(request(command))).resolves.toMatchObject({ status: 'committed', repairRevision: 1 });
+  expect(mock.documents.get(blacksmithAuditPath)).toEqual({
+    schemaVersion: 1, sessionId: 's1', actorUid: 'holder', actorRoleId: 'icebreaker-engineer',
+    action: 'blacksmith-repair', phase: 'active', requestId: 'repair-1', revision: 1,
+    outcome: 'committed', resolutionSource: 'server-rules',
+    redactionPolicy: 'action-audit-metadata-only-v1', createdAt: 'server-time',
+  });
+  const audit = mock.documents.get(blacksmithAuditPath);
+  mock.set.mockClear(); mock.update.mockClear();
+  await expect(repairConsolesFromBlacksmith.run(request(command))).resolves.toMatchObject({ status: 'replayed', repairRevision: 1 });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.documents.get(blacksmithAuditPath)).toBe(audit);
+});
+
+it('writes no Blacksmith repair audit for a denied actor', async () => {
+  await expect(repairConsolesFromBlacksmith.run(request(command, 'stranger'))).rejects.toMatchObject({
+    code: expect.stringMatching(/permission-denied|failed-precondition/),
+  });
+  expect(blacksmithAuditPaths()).toEqual([]);
+});
+
+it('fails closed on an orphaned Blacksmith repair audit or a mismatched audit on replay', async () => {
+  put(blacksmithAuditPath, { action: 'blacksmith-repair' });
+  await expect(repairConsolesFromBlacksmith.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+
+  mock.documents.delete(blacksmithAuditPath);
+  await repairConsolesFromBlacksmith.run(request(command));
+  mock.documents.get(blacksmithAuditPath)!.actorRoleId = 'admiral';
+  await expect(repairConsolesFromBlacksmith.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
+});

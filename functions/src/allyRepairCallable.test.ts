@@ -275,3 +275,40 @@ it('rejects an unbound Ally repair event without revealing it through a replay',
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
 });
+
+const allyAuditPath = 'sessions/s1/actionAudits/ally-repair-1';
+const allyAuditPaths = () => [...mock.documents.keys()].filter((path) => path.includes('/actionAudits/'));
+
+it('records one attributable Ally repair audit that replay never rewrites', async () => {
+  await expect(repairConsolesFromAlly.run(request(command))).resolves.toMatchObject({ status: 'committed', repairRevision: 1 });
+  expect(mock.documents.get(allyAuditPath)).toEqual({
+    schemaVersion: 1, sessionId: 's1', actorUid: 'holder', actorRoleId: 'joint-engineering-shepherd-icebreaker',
+    action: 'ally-repair', phase: 'active', requestId: 'ally-repair-1', revision: 1,
+    outcome: 'committed', resolutionSource: 'server-rules',
+    redactionPolicy: 'action-audit-metadata-only-v1', createdAt: 'server-time',
+  });
+  const audit = mock.documents.get(allyAuditPath);
+  mock.set.mockClear(); mock.update.mockClear();
+  await expect(repairConsolesFromAlly.run(request(command))).resolves.toMatchObject({ status: 'replayed', repairRevision: 1 });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.documents.get(allyAuditPath)).toBe(audit);
+});
+
+it('writes no Ally repair audit for a denied actor', async () => {
+  await expect(repairConsolesFromAlly.run(request(command, 'stranger'))).rejects.toMatchObject({
+    code: expect.stringMatching(/permission-denied|failed-precondition/),
+  });
+  expect(allyAuditPaths()).toEqual([]);
+});
+
+it('fails closed on an orphaned Ally repair audit or a mismatched audit on replay', async () => {
+  put(allyAuditPath, { action: 'ally-repair' });
+  await expect(repairConsolesFromAlly.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+
+  mock.documents.delete(allyAuditPath);
+  await repairConsolesFromAlly.run(request(command));
+  mock.documents.get(allyAuditPath)!.actorRoleId = 'admiral';
+  await expect(repairConsolesFromAlly.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
+});
