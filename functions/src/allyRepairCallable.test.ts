@@ -309,6 +309,6 @@ it('fails closed on an orphaned Ally repair audit or a mismatched audit on repla
 
   mock.documents.delete(allyAuditPath);
   await repairConsolesFromAlly.run(request(command));
-  mock.documents.get(allyAuditPath)!.actorRoleId = 'admiral';
+  mock.documents.get(allyAuditPath)!.revision = 2;
   await expect(repairConsolesFromAlly.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
 });

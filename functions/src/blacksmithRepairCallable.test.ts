@@ -340,6 +340,6 @@ it('fails closed on an orphaned Blacksmith repair audit or a mismatched audit on
 
   mock.documents.delete(blacksmithAuditPath);
   await repairConsolesFromBlacksmith.run(request(command));
-  mock.documents.get(blacksmithAuditPath)!.actorRoleId = 'admiral';
+  mock.documents.get(blacksmithAuditPath)!.revision = 2;
   await expect(repairConsolesFromBlacksmith.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
 });

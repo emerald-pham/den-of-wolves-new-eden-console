@@ -20,6 +20,11 @@ export const ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION = {
   'fighter-construction': 'server-rules',
   'shuttle-cargo-transfer': 'server-rules',
   'service-shuttle-recharge': 'server-rules',
+  'blacksmith-repair': 'server-rules',
+  'philia-repair': 'server-rules',
+  'macaw-repair': 'server-rules',
+  'chacau-repair': 'server-rules',
+  'ally-repair': 'server-rules',
 } as const satisfies Readonly<Record<string, ActionAuditResolutionSource>>;
 
 export type ActionAuditAction = keyof typeof ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION;

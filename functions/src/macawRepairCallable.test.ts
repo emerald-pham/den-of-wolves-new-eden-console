@@ -268,6 +268,6 @@ it('fails closed on an orphaned Macaw repair audit or a mismatched audit on repl
 
   mock.documents.delete(macawAuditPath);
   await repairConsolesFromMacaw.run(request(command));
-  mock.documents.get(macawAuditPath)!.actorRoleId = 'admiral';
+  mock.documents.get(macawAuditPath)!.revision = 2;
   await expect(repairConsolesFromMacaw.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
 });

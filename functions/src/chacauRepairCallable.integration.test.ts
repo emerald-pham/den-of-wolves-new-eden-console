@@ -286,6 +286,6 @@ it('fails closed on an orphaned Chacau repair audit or a mismatched audit on rep
 
   mock.documents.delete(chacauAuditPath);
   await repairConsolesFromChacau.run(request(command));
-  mock.documents.get(chacauAuditPath)!.actorRoleId = 'admiral';
+  mock.documents.get(chacauAuditPath)!.revision = 2;
   await expect(repairConsolesFromChacau.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
 });

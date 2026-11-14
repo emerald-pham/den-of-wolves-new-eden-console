@@ -397,6 +397,6 @@ it('fails closed on an orphaned Philia repair audit or a mismatched audit on rep
 
   mock.documents.delete(philiaAuditPath);
   await repairConsolesFromPhilia.run(request(command));
-  mock.documents.get(philiaAuditPath)!.actorRoleId = 'admiral';
+  mock.documents.get(philiaAuditPath)!.revision = 2;
   await expect(repairConsolesFromPhilia.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
 });
