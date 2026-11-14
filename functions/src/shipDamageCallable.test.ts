@@ -104,6 +104,12 @@ beforeEach(() => {
 
 const data = { sessionId: 's1', shipId: 'aegis', instanceId: 'bridge' };
 
+/** A new damage command carries the console's current vessel revision, as the client sends it. */
+function damageRequest(fields: Record<string, unknown>, uid?: string) {
+  const revision = (mock.vesselActionRevisions as Record<string, number>)[String(fields.shipId)] ?? 0;
+  return request({ expectedRevision: revision, ...fields }, uid);
+}
+
 function snapshot(fields: Record<string, unknown> = {}, exists = true) {
   return { exists, get: (key: string) => fields[key], data: () => fields };
 }
@@ -112,7 +118,7 @@ it('draws the printed Capybara Scrap Refinery card through the GM transaction', 
   mock.grantShip = 'capybara';
   mock.randomInt.mockReturnValue(0xffff_ffff);
 
-  await expect(addShipDamage.run(request({ ...data, shipId: 'capybara' })))
+  await expect(addShipDamage.run(damageRequest({ ...data, shipId: 'capybara' })))
     .resolves.toMatchObject({
       card: { card: '7♠', systemId: 'scrap-refinery' },
       destroyed: false,
@@ -133,7 +139,7 @@ it('does not write a Capybara result when its damage deck is exhausted', async (
     },
   };
 
-  await expect(addShipDamage.run(request({ ...data, shipId: 'capybara' })))
+  await expect(addShipDamage.run(damageRequest({ ...data, shipId: 'capybara' })))
     .rejects.toMatchObject({
       code: 'failed-precondition',
       message: expect.stringContaining('facilitator ruling required'),
@@ -176,7 +182,7 @@ it.each(aegisHullCases)('production path $name without survivor loss', async ({ 
   mock.damage = { aegis: { damagedSystemIds, destroyed: false } };
   mock.randomInt.mockReturnValue(0);
 
-  await expect(addShipDamage.run(request(data))).resolves.toMatchObject({
+  await expect(addShipDamage.run(damageRequest(data))).resolves.toMatchObject({
     card: { card, systemId, systemName },
     recycled,
     destroyed: false,
@@ -208,7 +214,7 @@ it('does not reroll or fork the audit when a recycled hull transaction retries',
   mock.retry = true;
   mock.randomInt.mockReturnValueOnce(0).mockReturnValue(12);
 
-  await expect(addShipDamage.run(request(data))).resolves.toMatchObject({
+  await expect(addShipDamage.run(damageRequest(data))).resolves.toMatchObject({
     card: { card: '6♥', systemId: 'armoured-hull-i', systemName: 'Armoured Hull I' },
     recycled: true, destroyed: false,
   });
@@ -231,7 +237,7 @@ it('does not reroll or fork the audit when a recycled hull transaction retries',
 });
 
 it('draws and persists one AEGIS damage card atomically in the shared draw log', async () => {
-  await expect(addShipDamage.run(request(data))).resolves.toMatchObject({
+  await expect(addShipDamage.run(damageRequest(data))).resolves.toMatchObject({
     card: { card: '10♥', systemId: 'reactor', systemName: 'Reactor' },
     destroyed: false,
   });
@@ -248,7 +254,7 @@ it('writes a metadata-only server-random audit with a committed damage draw', as
   const requestId = 'damage-audit-1';
   mock.players = [{ id: 'u1', fields: { role: 'gm', connected: true, activeConsoleRoleId: 'admiral' } }];
 
-  await addShipDamage.run(request({ ...data, requestId, expectedRevision: 0 }));
+  await addShipDamage.run(damageRequest({ ...data, requestId, expectedRevision: 0 }));
 
   expect(mock.set).toHaveBeenCalledWith(`sessions/s1/actionAudits/${requestId}`, {
     schemaVersion: 1,
@@ -296,7 +302,7 @@ it('backfills a committed card receipt without rerolling or reapplying damage', 
     return previous(path);
   });
 
-  await expect(addShipDamage.run(request({ ...data, requestId, expectedRevision: 0 }))).resolves.toEqual(result);
+  await expect(addShipDamage.run(damageRequest({ ...data, requestId, expectedRevision: 0 }))).resolves.toEqual(result);
 
   expect(mock.randomInt).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
@@ -333,7 +339,7 @@ it('replays an exact committed audit and original damage reply after a phase cha
     return previous(path);
   });
 
-  await expect(addShipDamage.run(request({ ...data, requestId, expectedRevision: 0 }))).resolves.toEqual(result);
+  await expect(addShipDamage.run(damageRequest({ ...data, requestId, expectedRevision: 0 }))).resolves.toEqual(result);
 
   expect(mock.randomInt).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
@@ -365,7 +371,7 @@ it('fails closed when the bound damage receipt has a mismatched standardized aud
     return previous(path);
   });
 
-  await expect(addShipDamage.run(request({ ...data, requestId, expectedRevision: 0 })))
+  await expect(addShipDamage.run(damageRequest({ ...data, requestId, expectedRevision: 0 })))
     .rejects.toMatchObject({ code: 'failed-precondition', details: { commandError: 'conflict' } });
   expect(mock.randomInt).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
@@ -380,8 +386,48 @@ it('fails closed on an orphaned ship damage audit before randomness or mutation'
     return previous(path);
   });
 
-  await expect(addShipDamage.run(request({ ...data, requestId })))
+  await expect(addShipDamage.run(damageRequest({ ...data, requestId })))
     .rejects.toMatchObject({ code: 'failed-precondition', details: { commandError: 'conflict' } });
+
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects a new ship damage command without the console revision before randomness or mutation', async () => {
+  await expect(addShipDamage.run(request({ ...data, requestId: 'damage-no-revision' })))
+    .rejects.toMatchObject({ code: 'invalid-argument', details: { commandError: 'malformed-input' } });
+
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('still replays an exact committed damage receipt that was bound without a revision', async () => {
+  const requestId = 'damage-legacy-unrevisioned';
+  const fingerprint = {
+    action: 'add-damage', sessionId: 's1', requestId, actorUid: 'u1',
+    instanceId: 'bridge', expectedRevision: null, payload: { shipId: 'aegis' },
+  };
+  const result = {
+    card: { card: '10♥', systemId: 'reactor', systemName: 'Reactor' }, recycled: false,
+    destroyed: false, actorUid: 'u1', actorRoleId: null, vesselId: 'aegis', turn: 1,
+    phase: 'active', revision: 0, idempotencyKey: requestId, auditId: `add-damage-${requestId}`,
+  };
+  const audit = {
+    schemaVersion: 1, sessionId: 's1', actorUid: 'u1', actorRoleId: null,
+    action: 'ship-damage', phase: 'active', requestId, revision: 1,
+    outcome: 'committed', resolutionSource: 'server-random',
+    redactionPolicy: 'action-audit-metadata-only-v1', createdAt: 'original-server-time',
+  };
+  const previous = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation(async (path: string) => {
+    if (path === `sessions/s1/commandReceipts/${requestId}`) return snapshot({ fingerprint, result });
+    if (path === `sessions/s1/actionAudits/${requestId}`) return snapshot(audit);
+    return previous(path);
+  });
+
+  await expect(addShipDamage.run(request({ ...data, requestId }))).resolves.toEqual(result);
 
   expect(mock.randomInt).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
@@ -391,7 +437,7 @@ it('fails closed on an orphaned ship damage audit before randomness or mutation'
 it('does not write an audit for a stale ship damage receipt', async () => {
   mock.vesselActionRevisions = { aegis: 4 };
 
-  await expect(addShipDamage.run(request({ ...data, requestId: 'damage-stale', expectedRevision: 3 })))
+  await expect(addShipDamage.run(damageRequest({ ...data, requestId: 'damage-stale', expectedRevision: 3 })))
     .resolves.toMatchObject({ status: 'stale', currentRevision: 4 });
 
   expect(mock.randomInt).not.toHaveBeenCalled();
@@ -410,7 +456,7 @@ it('ignores a forged damage card and replays the server-drawn card through a for
     systemId: 'fighter-bay-alpha', cardIndex: 0, drawEntropy: 0, entropy: 0,
     recycled: true, destroyed: true,
   };
-  const committed = await addShipDamage.run(request({ ...data, requestId, expectedRevision: 0, ...forged }));
+  const committed = await addShipDamage.run(damageRequest({ ...data, requestId, expectedRevision: 0, ...forged }));
   expect(committed).toMatchObject({
     card: { card: '10♥', systemId: 'reactor', systemName: 'Reactor' }, recycled: false, destroyed: false,
   });
@@ -434,7 +480,7 @@ it('ignores a forged damage card and replays the server-drawn card through a for
   mock.update.mockClear(); mock.set.mockClear(); mock.delete.mockClear(); mock.randomInt.mockClear();
   mock.randomInt.mockReturnValue(0);
 
-  await expect(addShipDamage.run(request({
+  await expect(addShipDamage.run(damageRequest({
     ...data, requestId, expectedRevision: 0, ...forged,
     card: { card: '3♥', systemId: 'command-and-control', systemName: 'Command and Control' },
   }))).resolves.toEqual(committed);
@@ -448,7 +494,7 @@ it('does not reroll the card or event identity when Firestore retries the transa
   mock.retry = true;
   mock.randomInt.mockReturnValueOnce(3_100_000_000).mockReturnValue(0);
 
-  await addShipDamage.run(request(data));
+  await addShipDamage.run(damageRequest(data));
 
   expect(mock.randomInt).toHaveBeenCalledTimes(1);
   expect(mock.randomUUID).not.toHaveBeenCalled();
@@ -469,23 +515,23 @@ it('does not reroll the card or event identity when Firestore retries the transa
 
 it.each(['player', 'observer'])('denies %s even with a forged GM instance', async (role) => {
   mock.role = role;
-  await expect(addShipDamage.run(request(data))).rejects.toMatchObject({ code: 'permission-denied' });
+  await expect(addShipDamage.run(damageRequest(data))).rejects.toMatchObject({ code: 'permission-denied' });
   expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('denies another GM instance and ships without a damage deck', async () => {
   mock.owner = 'someone-else';
-  await expect(addShipDamage.run(request(data))).rejects.toMatchObject({ code: 'permission-denied' });
+  await expect(addShipDamage.run(damageRequest(data))).rejects.toMatchObject({ code: 'permission-denied' });
 
   mock.owner = 'u1';
-  await expect(addShipDamage.run(request({ ...data, shipId: 'unknown' })))
+  await expect(addShipDamage.run(damageRequest({ ...data, shipId: 'unknown' })))
     .rejects.toMatchObject({ code: 'invalid-argument' });
 });
 
 it.each(ROLE_OWNED_CRAFT_CATALOG.filter((craft) => craft.kind === 'shuttle').map((craft) => craft.id))(
   'rejects the registered shuttle %s before randomness or a transaction write',
   async (shuttleId) => {
-    await expect(addShipDamage.run(request({ ...data, shipId: shuttleId })))
+    await expect(addShipDamage.run(damageRequest({ ...data, shipId: shuttleId })))
       .rejects.toMatchObject({ code: 'invalid-argument' });
     expect(mock.randomInt).not.toHaveBeenCalled();
     expect(mock.update).not.toHaveBeenCalled();
@@ -503,7 +549,7 @@ it.each([
   mock.damage = {
     [shipId]: { damagedSystemIds: SHIP_DAMAGE_DECKS[shipId].map(card => card.systemId), destroyed: false },
   };
-  await expect(addShipDamage.run(request({ ...data, shipId }))).resolves.toMatchObject({
+  await expect(addShipDamage.run(damageRequest({ ...data, shipId }))).resolves.toMatchObject({
     destroyed: true, actorUid: 'u1', vesselId: shipId, idempotencyKey: 'test-damage', revision: 1,
   });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
@@ -556,7 +602,7 @@ it('retains holder-owned shuttles and removes their destroyed AEGIS dock atomica
     { id: 'engineer', fields: { role: 'player', connected: true, assignedRoleId: 'dione-engineer' } },
   ];
 
-  await expect(addShipDamage.run(request(data))).resolves.toMatchObject({ destroyed: true });
+  await expect(addShipDamage.run(damageRequest(data))).resolves.toMatchObject({ destroyed: true });
 
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     shuttleDockings: [
@@ -606,7 +652,7 @@ it.each([
     { id: 'xo', fields: { role: 'player', connected: true, assignedRoleId: 'executive-officer' } },
   ];
 
-  await expect(addShipDamage.run(request(data))).rejects.toMatchObject({
+  await expect(addShipDamage.run(damageRequest(data))).rejects.toMatchObject({
     code: 'failed-precondition', details: { commandError: 'conflict' },
   });
   expect(mock.update).not.toHaveBeenCalled();
@@ -649,7 +695,7 @@ it('does not advance or emit another catastrophe when a destroyed ship is drawn 
     return { exists: true, get: (key: string) => fields[key] };
   });
 
-  await expect(addShipDamage.run(request(data))).resolves.toMatchObject({ destroyed: true, revision: 0 });
+  await expect(addShipDamage.run(damageRequest(data))).resolves.toMatchObject({ destroyed: true, revision: 0 });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).toHaveBeenCalledTimes(1);
   expect(mock.set).toHaveBeenCalledWith('sessions/s1/commandReceipts/test-damage', expect.objectContaining({
@@ -669,7 +715,7 @@ it('records a missing catastrophe event without advancing an already-destroyed s
     return previous(path);
   });
 
-  await expect(addShipDamage.run(request({ ...data, requestId: 'repair-missing-catastrophe', expectedRevision: 4 })))
+  await expect(addShipDamage.run(damageRequest({ ...data, requestId: 'repair-missing-catastrophe', expectedRevision: 4 })))
     .resolves.toMatchObject({ destroyed: true, revision: 4 });
 
   expect(mock.update).not.toHaveBeenCalled();
@@ -699,7 +745,7 @@ it('does not backfill an audit for an ambiguous terminal no-op receipt', async (
     return previous(path);
   });
 
-  await expect(addShipDamage.run(request({ ...data, requestId, expectedRevision: 4 }))).resolves.toEqual(result);
+  await expect(addShipDamage.run(damageRequest({ ...data, requestId, expectedRevision: 4 }))).resolves.toEqual(result);
 
   expect(mock.randomInt).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
@@ -716,7 +762,7 @@ it('commits total fleet loss atomically when the final active full ship is destr
     },
   };
 
-  await expect(addShipDamage.run(request({ ...data, requestId: 'final-ship' })))
+  await expect(addShipDamage.run(damageRequest({ ...data, requestId: 'final-ship' })))
     .resolves.toMatchObject({ destroyed: true });
 
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
@@ -745,7 +791,7 @@ it.each([['aegis', 2000], ['dione', 95000], ['icebreaker', 37000], ['shepherd', 
   'moves %s survivors down its printed track on ordinary damage', async (shipId, population) => {
     mock.grantShip = shipId;
     mock.randomInt.mockReturnValue(0);
-    await addShipDamage.run(request({ ...data, shipId }));
+    await addShipDamage.run(damageRequest({ ...data, shipId }));
     expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({ [`shipSurvivors.${shipId}`]: population }));
     const pressWrites = mock.set.mock.calls.filter(([path]) => String(path).includes('/pressLog/'));
     expect(pressWrites).toHaveLength(1);
@@ -939,13 +985,13 @@ it('denies repairs from a disconnected GM or another GM instance', async () => {
 it('rejects random damage draws after the session closes', async () => {
   const previous = mock.get.getMockImplementation()!;
   mock.get.mockImplementation(async (path: string) => path === 'sessions/s1' ? { exists: true, get: (key: string) => key === 'phase' ? 'closed' : undefined } : previous(path));
-  await expect(addShipDamage.run(request(data))).rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(addShipDamage.run(damageRequest(data))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.update).not.toHaveBeenCalled();
 });
 it('rejects damage and repair mutations after pursuit failure without writing', async () => {
   const { repairAllShipDamage } = await import('./index');
   mock.phase = 'failure';
-  await expect(addShipDamage.run(request({ ...data, requestId: 'terminal-damage' })))
+  await expect(addShipDamage.run(damageRequest({ ...data, requestId: 'terminal-damage' })))
     .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/endgame evaluation/i) });
   await expect(repairAllShipDamage.run(request({ ...data, requestId: 'terminal-repair' })))
     .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/endgame evaluation/i) });
@@ -957,7 +1003,7 @@ it('keeps the GM ship choice and the committed card draw in one facilitator-only
   const requestId = 'damage-detail-1';
   mock.players = [{ id: 'u1', fields: { role: 'gm', connected: true, activeConsoleRoleId: 'admiral' } }];
 
-  const committed = await addShipDamage.run(request({ ...data, requestId, expectedRevision: 0 }));
+  const committed = await addShipDamage.run(damageRequest({ ...data, requestId, expectedRevision: 0 }));
 
   expect(committed).toMatchObject({ card: { card: '10♥', systemId: 'reactor' }, destroyed: false });
   expect(mock.set).toHaveBeenCalledWith(`sessions/s1/actionAuditDetails/${requestId}`, {
@@ -989,12 +1035,12 @@ it('commits one card, audit and facilitator receipt when two GM consoles compete
     return baseGet(path);
   });
 
-  const first = await addShipDamage.run(request({ ...data, requestId: 'gm-a-damage', expectedRevision: 0 }));
+  const first = await addShipDamage.run(damageRequest({ ...data, requestId: 'gm-a-damage', expectedRevision: 0 }));
   mock.owner = 'u2';
-  const second = await addShipDamage.run(request(
+  const second = await addShipDamage.run(damageRequest(
     { ...data, instanceId: 'bridge-2', requestId: 'gm-b-damage', expectedRevision: 0 }, 'u2',
   ));
-  const hijack = addShipDamage.run(request(
+  const hijack = addShipDamage.run(damageRequest(
     { ...data, instanceId: 'bridge-2', requestId: 'gm-a-damage', expectedRevision: 0 }, 'u2',
   ));
 
