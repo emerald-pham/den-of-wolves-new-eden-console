@@ -1,15 +1,17 @@
-// Fails a pull request whose body or commit messages would make GitHub close
-// an issue on merge. Ticket completion goes through the prompt tracker, which
+// Fails a pull request whose title, body or commit messages would make GitHub
+// close an issue on merge. Ticket completion goes through the prompt tracker, which
 // records evidence; a native closing keyword bypasses it. Commit messages
 // matter too: with merge commits, each PR commit lands on the default branch
-// and its closing keywords take effect there.
+// and its closing keywords take effect there. So does the title, which the
+// repository's merge commit message setting (PR_TITLE) copies into the merge
+// commit.
 //
-// The body arrives through the PR_BODY environment variable so it is never
-// interpolated into a shell command. PR_BASE_SHA and PR_HEAD_SHA bound the
+// The title and body arrive through the PR_TITLE and PR_BODY environment
+// variables so they are never interpolated into a shell command. PR_BASE_SHA and PR_HEAD_SHA bound the
 // commit range; the commits are read with git from a full-history checkout.
 
 import { execFileSync } from 'node:child_process';
-import { resolve } from 'node:path';
+import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const KEYWORD = String.raw`\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b`;
@@ -22,22 +24,28 @@ export function findClosingReferences(body) {
 
 /** Each commit in base..head whose message holds a closing reference. */
 export function findClosingCommits({ base, head, cwd = process.cwd() }) {
-  const log = execFileSync('git', ['log', '--format=%H%x1f%B%x1e', `${base}..${head}`], {
+  // -z ends each commit with NUL, the one byte a commit message cannot hold,
+  // so a message with any other control byte still arrives whole.
+  const log = execFileSync('git', ['log', '-z', '--format=%H%n%B', `${base}..${head}`], {
     cwd,
     encoding: 'utf8',
   });
-  return log.split('\x1e')
-    .map((entry) => entry.trim())
+  return log.split('\0')
     .filter(Boolean)
     .map((entry) => {
-      const [sha, message] = entry.split('\x1f');
-      return { sha, references: findClosingReferences(message) };
+      const newline = entry.indexOf('\n');
+      const sha = newline === -1 ? entry : entry.slice(0, newline);
+      const message = newline === -1 ? '' : entry.slice(newline + 1);
+      return { sha: sha.trim(), references: findClosingReferences(message) };
     })
     .filter(({ references }) => references.length > 0);
 }
 
-export function closingFindings({ body, base, head, cwd } = {}) {
-  const findings = findClosingReferences(body).map((reference) => `PR body: ${reference}`);
+export function closingFindings({ title, body, base, head, cwd } = {}) {
+  const findings = [
+    ...findClosingReferences(title).map((reference) => `PR title: ${reference}`),
+    ...findClosingReferences(body).map((reference) => `PR body: ${reference}`),
+  ];
   if (base && head) {
     for (const { sha, references } of findClosingCommits({ base, head, cwd })) {
       for (const reference of references) findings.push(`commit ${sha.slice(0, 12)}: ${reference}`);
@@ -46,8 +54,20 @@ export function closingFindings({ body, base, head, cwd } = {}) {
   return findings;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Compare real paths: Node resolves a symlinked entry point to its target, so
+// a plain path comparison would skip the check, and pass, through a symlink.
+function isDirectRun() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectRun()) {
   const findings = closingFindings({
+    title: process.env.PR_TITLE,
     body: process.env.PR_BODY,
     base: process.env.PR_BASE_SHA,
     head: process.env.PR_HEAD_SHA,

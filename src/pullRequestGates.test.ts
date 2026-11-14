@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -8,6 +8,15 @@ import { describe, expect, it } from 'vitest';
 
 const execFileAsync = promisify(execFile);
 const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
+const prWorkflow = readFileSync('.github/workflows/pr-body.yml', 'utf8');
+
+/** One job's block, from its `  id:` line to the next job or the end of the file. */
+function workflowJob(workflow: string, id: string) {
+  const start = workflow.indexOf(`\n  ${id}:\n`);
+  expect(start, `workflow job "${id}"`).toBeGreaterThan(-1);
+  const next = workflow.slice(start + 1).search(/\n {2}[\w-]+:\n/);
+  return workflow.slice(start + 1, next === -1 ? undefined : start + 1 + next + 1);
+}
 
 function workflowStep(workflow: string, name: string) {
   const start = workflow.indexOf(`- name: ${name}\n`);
@@ -29,6 +38,7 @@ function runBlock(step: string) {
 
 describe('pull request deployment target dry run', () => {
   const stepName = 'Dry-run deployment target selection for this pull request';
+  const jobId = 'deploy-targets';
 
   async function writeFiles(repository: string, files: Record<string, string>) {
     for (const [file, contents] of Object.entries(files)) {
@@ -72,7 +82,7 @@ describe('pull request deployment target dry run', () => {
       await git(['merge', '--quiet', '--no-ff', '-m', 'test merge', 'feature']);
       await symlink(resolve(process.cwd(), 'scripts'), resolve(repository, 'scripts'));
       const script = resolve(repository, '.pr-target-step.sh');
-      await writeFile(script, runBlock(workflowStep(ci, stepName)));
+      await writeFile(script, runBlock(workflowStep(workflowJob(prWorkflow, jobId), stepName)));
       return await execFileAsync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', script], {
         cwd: repository,
         encoding: 'utf8',
@@ -91,13 +101,28 @@ describe('pull request deployment target dry run', () => {
     }
   }
 
-  it('runs only for pull requests, before dependency installation', () => {
-    const step = workflowStep(ci, stepName);
-    expect(step).toContain("if: github.event_name == 'pull_request'");
+  it('runs as its own required-check job in the pull request workflow, which re-runs on base retargets', () => {
+    // A separate job reports its own check, so a selector failure never hides
+    // verify's lint and test results, and an `edited` base retarget re-runs it.
+    expect(ci).not.toContain(stepName);
+    expect(ci).not.toContain('scripts/deployment-targets.mjs');
+    expect(prWorkflow).toMatch(/^on:\n {2}pull_request:\n {4}types: \[[^\]]*\bedited\b[^\]]*\]\n\n/m);
+    const job = workflowJob(prWorkflow, jobId);
+    expect(job).not.toMatch(/^ {4}name:/m);
+    expect(job).toMatch(/uses: actions\/checkout@v7\n\s+with:\n\s+fetch-depth: 0/);
+    const step = workflowStep(job, stepName);
     expect(step).toContain('PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}');
     expect(step).not.toContain('merge-base');
-    expect(ci.indexOf(`- name: ${stepName}`))
-      .toBeLessThan(ci.indexOf('- name: Install locked root dependencies for release contracts'));
+    const otherJobIds = readdirSync('.github/workflows')
+      .filter((file) => file !== 'pr-body.yml')
+      .flatMap((file) => [...readFileSync(`.github/workflows/${file}`, 'utf8').matchAll(/^ {2}([\w-]+):$/gm)].map(([, id]) => id));
+    expect(otherJobIds).not.toContain(jobId);
+  });
+
+  it('reads only repository contents and uses no secrets', () => {
+    expect(prWorkflow).toMatch(/^permissions:\n {2}contents: read\n\n/m);
+    expect(prWorkflow.match(/permissions:/g)).toHaveLength(1);
+    expect(prWorkflow).not.toMatch(/secrets\.|github\.token|GITHUB_TOKEN/);
   });
 
   it('fails with the selector error for a range the deploy selector cannot resolve', async () => {
@@ -137,8 +162,11 @@ describe('pull request closing-keyword gate', () => {
 
   const gateScript = resolve(process.cwd(), 'scripts/pr-closing-keywords.mjs');
 
-  async function checkBody(body: string, { cwd = process.cwd(), env = {} }: { cwd?: string; env?: Record<string, string> } = {}) {
-    return execFileAsync(process.execPath, [gateScript], {
+  async function checkBody(
+    body: string,
+    { cwd = process.cwd(), env = {}, script = gateScript }: { cwd?: string; env?: Record<string, string>; script?: string } = {},
+  ) {
+    return execFileAsync(process.execPath, [script], {
       cwd,
       encoding: 'utf8',
       env: { ...process.env, PR_BODY: body, ...env },
@@ -175,6 +203,14 @@ describe('pull request closing-keyword gate', () => {
     expect(result.code).toBe(0);
   });
 
+  it('fails a pull request whose title would close an issue, because the merge commit carries the title', async () => {
+    const result = await checkBody('Refs #463', { env: { PR_TITLE: 'Retro tooling fixes (refs #463)' } });
+    expect(result.code).toBe(0);
+    const closing = await checkBody('Refs #463', { env: { PR_TITLE: 'Retro tooling, closes #463' } });
+    expect(closing.code).toBe(1);
+    expect(closing.output).toContain('PR title: closes #463');
+  });
+
   /** A repository whose base commit closes #1 and whose PR range holds `messages`. */
   async function pullRequestRange(messages: string[]) {
     const repository = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-pr-commits-'));
@@ -205,6 +241,21 @@ describe('pull request closing-keyword gate', () => {
     }
   });
 
+  it('reads every commit message whole, even one holding ASCII separator bytes', async () => {
+    const range = await pullRequestRange([
+      'feat: unit separator \x1f\n\nFixes #21',
+      'feat: record separator \x1e\n\nCloses #22',
+    ]);
+    try {
+      const result = await checkBody('Refs #463', { cwd: range.repository, env: range.env });
+      expect(result.code).toBe(1);
+      expect(result.output).toContain(`commit ${range.shas[0]!.slice(0, 12)}: Fixes #21`);
+      expect(result.output).toContain(`commit ${range.shas[1]!.slice(0, 12)}: Closes #22`);
+    } finally {
+      await rm(range.repository, { recursive: true, force: true });
+    }
+  });
+
   it('passes a pull request whose range commits close nothing, even when its base did', async () => {
     const range = await pullRequestRange(['feat: add the thing', 'fix: the selector crash']);
     try {
@@ -213,6 +264,19 @@ describe('pull request closing-keyword gate', () => {
       expect(result.code).toBe(0);
     } finally {
       await rm(range.repository, { recursive: true, force: true });
+    }
+  });
+
+  it('still runs the check when invoked through a symlink', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-pr-gate-link-'));
+    try {
+      const link = resolve(directory, 'pr-closing-keywords.mjs');
+      await symlink(gateScript, link);
+      const result = await checkBody('Closes #460', { script: link });
+      expect(result.code).toBe(1);
+      expect(result.output).toContain('PR body: Closes #460');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
     }
   });
 
@@ -236,7 +300,7 @@ describe('pull request closing-keyword gate', () => {
     expect(workflow).toMatch(/uses: actions\/checkout@v7\n\s+with:\n\s+fetch-depth: 0/);
   });
 
-  it('re-runs on every pull request body edit without interpolating the body into a shell', () => {
+  it('re-runs on every pull request title or body edit without interpolating either into a shell', () => {
     const workflow = readFileSync(workflowPath, 'utf8');
     expect(workflow).toMatch(/pull_request:\n\s+types: \[[^\]]*\bedited\b[^\]]*\]/);
     for (const type of ['opened', 'reopened', 'synchronize']) expect(workflow).toContain(type);
@@ -244,5 +308,7 @@ describe('pull request closing-keyword gate', () => {
     expect(workflow).toContain('PR_BODY: ${{ github.event.pull_request.body }}');
     expect(workflow).toContain('run: node scripts/pr-closing-keywords.mjs');
     expect(workflow.match(/\$\{\{[^}]*body[^}]*\}\}/g)).toHaveLength(1);
+    expect(workflow).toContain('PR_TITLE: ${{ github.event.pull_request.title }}');
+    expect(workflow.match(/\$\{\{[^}]*title[^}]*\}\}/g)).toHaveLength(1);
   });
 });
