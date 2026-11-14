@@ -22,9 +22,20 @@ function valueText(value: ActionAuditDetailValue): string {
   return String(value);
 }
 
-function DetailList({ label, values }: {
+/**
+ * Facilitator copy for recorded field names: the game's round is a cycle, and a
+ * reply's revision is not the audit's committed revision shown in the heading.
+ */
+function fieldLabel(key: string, reply: boolean): string {
+  if (key === 'turn') return 'cycle';
+  if (reply && key === 'revision') return 'reply revision';
+  return key;
+}
+
+function DetailList({ label, values, reply = false }: {
   readonly label: string;
   readonly values: Readonly<Record<string, ActionAuditDetailValue>>;
+  readonly reply?: boolean;
 }) {
   const id = useId();
   const entries = Object.entries(values);
@@ -37,7 +48,7 @@ function DetailList({ label, values }: {
           <dl>
             {entries.map(([key, value]) => (
               <div key={key}>
-                <dt>{key}</dt>
+                <dt>{fieldLabel(key, reply)}</dt>
                 <dd>{valueText(value)}</dd>
               </div>
             ))}
@@ -56,11 +67,11 @@ function Receipt({ detail }: { readonly detail: GmActionAuditDetail }) {
           {actionLabel(detail.action)} // {detail.requestId}
         </h4>
         <p className="gm-console__hint">
-          {detail.resolutionSource.replace(/-/g, ' ')} // revision {detail.revision} // actor {detail.actorUid}
+          {detail.resolutionSource.replace(/-/g, ' ')} // committed revision {detail.revision} // actor {detail.actorUid}
           {detail.createdAt ? ` // ${detail.createdAt}` : ''}
         </p>
         <DetailList label="Choice" values={detail.choice} />
-        <DetailList label="Committed result" values={detail.result} />
+        <DetailList label="Committed result" values={detail.result} reply />
       </article>
     </li>
   );
