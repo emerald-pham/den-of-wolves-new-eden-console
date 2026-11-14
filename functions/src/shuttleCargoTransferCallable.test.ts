@@ -110,7 +110,10 @@ it('moves Macaw Scrap between the current host and Macaw atomically', async () =
     shuttleCargo: { macaw: expect.objectContaining({ scrap: 3 }) },
   });
   expect(mock.update).toHaveBeenCalledTimes(1);
-  expect(mock.set).toHaveBeenCalledTimes(1);
+  expect(mock.set.mock.calls.map(([target]) => (target as { path: string }).path).sort()).toEqual([
+    'sessions/s1/actionAuditDetails/macaw-scrap', 'sessions/s1/actionAudits/macaw-scrap',
+    'sessions/s1/commandReceipts/macaw-scrap',
+  ]);
 });
 
 it('moves Boa Scrap, and only Scrap, between the Capybara and the Boa atomically', async () => {
@@ -285,4 +288,87 @@ it('lets the Colonel holding Chepu move only security teams with its Refinery ho
   expect(mock.documents.get('sessions/s1')).toMatchObject({
     shuttleCargo: { chepu: { securityTeams: 3 } },
   });
+});
+
+const auditPath = 'sessions/s1/actionAudits/cargo-1';
+
+it('records one attributable cargo audit with its original actor, request, phase and revision', async () => {
+  await transferShuttleCargoCommand.run(request(command));
+  expect(mock.documents.get(auditPath)).toEqual({
+    schemaVersion: 1, sessionId: 's1', actorUid: 'holder', actorRoleId: 'quellon-explorer',
+    action: 'shuttle-cargo-transfer', phase: 'active', requestId: 'cargo-1', revision: 0,
+    outcome: 'committed', resolutionSource: 'server-rules',
+    redactionPolicy: 'action-audit-metadata-only-v1', createdAt: 'server-time',
+  });
+  const audit = mock.documents.get(auditPath);
+  mock.set.mockClear(); mock.update.mockClear();
+  await expect(transferShuttleCargoCommand.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.documents.get(auditPath)).toBe(audit);
+});
+
+it('attributes a replacement holder\'s cargo audit to the replacement role it now plays', async () => {
+  put('sessions/s1/players/holder', {
+    role: 'player', connected: true, assignedRoleId: 'quellon-explorer', replacementRoleId: 'comms-officer',
+    activeConsoleRoleId: 'quellon-explorer', fleetGroupId: 'fleet-1',
+  });
+  await transferShuttleCargoCommand.run(request(command));
+  expect(mock.documents.get(auditPath)).toMatchObject({ actorUid: 'holder', actorRoleId: 'comms-officer' });
+});
+
+it('writes no cargo audit for a denied actor or a stale control revision', async () => {
+  await expect(transferShuttleCargoCommand.run(request(command, 'owner'))).rejects.toMatchObject({
+    code: expect.any(String),
+  });
+  mock.documents.get('sessions/s1')!.shuttleControl = { hummingbird: {
+    shuttleId: 'hummingbird', ownerRoleId: 'quellon-explorer', ownerUid: 'owner',
+    holderUid: 'holder', revision: 1,
+  } };
+  await expect(transferShuttleCargoCommand.run(request(command))).resolves.toMatchObject({ status: 'stale' });
+  expect([...mock.documents.keys()].some((path) => path.includes('/actionAudits/'))).toBe(false);
+});
+
+it('fails closed on an orphaned cargo audit or a mismatched audit on replay', async () => {
+  put(auditPath, { action: 'shuttle-cargo-transfer' });
+  await expect(transferShuttleCargoCommand.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+
+  mock.documents.delete(auditPath);
+  await transferShuttleCargoCommand.run(request(command));
+  mock.documents.get(auditPath)!.actorUid = 'owner';
+  await expect(transferShuttleCargoCommand.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
+it('replays a receipt that predates standardized audits without inventing its metadata', async () => {
+  await transferShuttleCargoCommand.run(request(command));
+  mock.documents.delete(auditPath);
+  mock.set.mockClear();
+  await expect(transferShuttleCargoCommand.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.documents.has(auditPath)).toBe(false);
+});
+
+it('keeps the explicit choice and committed result in one facilitator-only receipt that replay never rewrites', async () => {
+  const detailPath = 'sessions/s1/actionAuditDetails/cargo-1';
+  const committed = await transferShuttleCargoCommand.run(request(command));
+  expect(committed).toMatchObject({ status: 'committed' });
+  expect(mock.documents.get(detailPath)).toEqual({
+    schemaVersion: 1, sessionId: 's1', actorUid: 'holder', action: 'shuttle-cargo-transfer', requestId: 'cargo-1',
+    revision: expect.any(Number), resolutionSource: 'server-rules', audience: 'facilitator',
+    choice: expect.objectContaining({ shuttleId: 'hummingbird', resourceId: 'food', direction: 'load', amount: 2 }),
+    result: committed,
+    redactionPolicy: 'action-audit-gm-detail-v1', createdAt: 'server-time',
+  });
+  expect(mock.documents.get(detailPath)!.revision)
+    .toBe(mock.documents.get('sessions/s1/actionAudits/cargo-1')!.revision);
+  const detail = mock.documents.get(detailPath);
+  mock.set.mockClear(); mock.update.mockClear();
+  await expect(transferShuttleCargoCommand.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.documents.get(detailPath)).toBe(detail);
+});
+
+it('writes no facilitator receipt detail for a denied actor', async () => {
+  await expect(transferShuttleCargoCommand.run(request(command, 'owner'))).rejects.toMatchObject({ code: expect.any(String) });
+  expect([...mock.documents.keys()].some((path) => path.includes('/actionAuditDetails/'))).toBe(false);
 });

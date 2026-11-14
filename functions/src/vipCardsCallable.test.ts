@@ -242,6 +242,31 @@ describe('drawVipCard', () => {
     expect(mock.set).not.toHaveBeenCalled();
   });
 
+  it('rejects a client-selected card and keeps the committed server card through a forged retry', async () => {
+    mock.randomInt.mockReturnValue(0);
+    await expect(drawVipCard.run(request({ ...drawCommand, requestId: 'forged-first', cardId: 'theme-park-deck' })))
+      .rejects.toMatchObject({ code: 'invalid-argument' });
+    expect(mock.randomInt).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+
+    await expect(drawVipCard.run(request(drawCommand))).resolves.toMatchObject({ status: 'committed' });
+    const committedHand = structuredClone(mock.documents.get('sessions/s1/vipHands/gm1'));
+    expect(committedHand).toMatchObject({ cards: [{ id: 'party-deck' }] });
+    mock.set.mockClear();
+    mock.update.mockClear();
+
+    for (const forged of [{ cardId: 'theme-park-deck' }, { card: { id: 'theme-park-deck' } }, { randomIndex: 8 }]) {
+      await expect(drawVipCard.run(request({ ...drawCommand, ...forged })))
+        .rejects.toMatchObject({ code: 'invalid-argument' });
+    }
+    await expect(drawVipCard.run(request(drawCommand))).resolves.toMatchObject({ status: 'replayed' });
+    expect(mock.randomInt).toHaveBeenCalledTimes(1);
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.documents.get('sessions/s1/vipHands/gm1')).toEqual(committedHand);
+  });
+
   it('rejects an actor without the active GM lease before private deck access', async () => {
     await expect(drawVipCard.run(request({ ...drawCommand, requestId: 'wrong-actor' }, 'eve'))).rejects.toMatchObject({
       code: 'permission-denied',

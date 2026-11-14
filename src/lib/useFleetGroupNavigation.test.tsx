@@ -44,3 +44,83 @@ it('does not replay a previously committed sample after reconnect while the fres
  await act(async()=>finish(fresh));
  await waitFor(()=>expect(result.current).toEqual(fresh));
 });
+const touchSession=(updatedAt:string)=>act(()=>{
+ const current=useSessionStore.getState().session!;useSessionStore.getState().setSession({...current,updatedAt});
+});
+it('keeps the last good plot while the member budget is exhausted and replaces it on the next permitted sample',async()=>{
+ vi.useFakeTimers();
+ try{
+  const exhausted=Object.assign(new Error('Too many requests for this session. Please try again shortly.'),
+   {code:'functions/resource-exhausted',details:{commandError:'rate-limited',retryAfterSeconds:4}});
+  read.mockResolvedValueOnce(projection).mockRejectedValueOnce(exhausted);
+  const {result}=renderHook(()=>useFleetGroupNavigation(true));
+  await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
+  expect(result.current).toEqual(projection);
+  await act(async()=>{await vi.advanceTimersByTimeAsync(5_000);});
+  expect(read).toHaveBeenCalledTimes(2);
+  expect(result.current).toEqual(projection);
+  const next={...projection,sampledAt:'2026-10-03T01:00:10.000Z'};
+  read.mockResolvedValueOnce(next);
+  await act(async()=>{await vi.advanceTimersByTimeAsync(5_000);});
+  expect(result.current).toEqual(next);
+  expect(read).toHaveBeenCalledTimes(3);
+ }finally{vi.useRealTimers();}
+});
+it('clears the plot when a sample fails for a reason other than the rate limit',async()=>{
+ vi.useFakeTimers();
+ try{
+  read.mockResolvedValueOnce(projection).mockRejectedValueOnce(Object.assign(new Error('denied'),{code:'functions/permission-denied'}));
+  const {result}=renderHook(()=>useFleetGroupNavigation(true));
+  await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
+  expect(result.current).toEqual(projection);
+  await act(async()=>{await vi.advanceTimersByTimeAsync(5_000);});
+  expect(result.current).toBeUndefined();
+ }finally{vi.useRealTimers();}
+});
+it('keeps the current plot while a session update refresh is pending',async()=>{
+ vi.useFakeTimers();
+ try{
+  const {result}=renderHook(()=>useFleetGroupNavigation(true));
+  await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
+  expect(result.current).toEqual(projection);
+  let finish!:(value:unknown)=>void;read.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
+  touchSession('2026-10-03T01:00:01.000Z');
+  expect(result.current).toEqual(projection);
+  await act(async()=>{await vi.advanceTimersByTimeAsync(5_000);});
+  const moved={...projection,navigationRevision:2};
+  await act(async()=>finish(moved));
+  expect(result.current).toEqual(moved);
+ }finally{vi.useRealTimers();}
+});
+it('spaces session-update refreshes so three devices stay well under the 180 per minute budget',async()=>{
+ vi.useFakeTimers();
+ try{
+  renderHook(()=>useFleetGroupNavigation(true));
+  await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
+  // A busy minute: the shared session document changes ten times a second.
+  for(let tick=1;tick<=600;tick++){
+   touchSession(new Date(Date.UTC(2026,9,3,1,0,0,tick*100)).toISOString());
+   await act(async()=>{await vi.advanceTimersByTimeAsync(100);});
+  }
+  const perDevice=read.mock.calls.length;
+  expect(perDevice).toBeLessThanOrEqual(21);
+  expect(3*perDevice).toBeLessThan(180/2);
+  // Updates are still sampled promptly rather than starved by the cadence.
+  expect(perDevice).toBeGreaterThanOrEqual(13);
+ }finally{vi.useRealTimers();}
+});
+it('refreshes at once and drops the old plot when the audience changes',async()=>{
+ vi.useFakeTimers();
+ try{
+  const {result}=renderHook(()=>useFleetGroupNavigation(true));
+  await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
+  expect(result.current).toEqual(projection);
+  let finish!:(value:unknown)=>void;read.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
+  act(()=>{const current=useSessionStore.getState().session!;useSessionStore.getState().setSession({...current,fleetPartitionRevision:2});});
+  expect(result.current).toBeUndefined();
+  await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
+  expect(read).toHaveBeenCalledTimes(2);
+  await act(async()=>finish(projection));
+  expect(result.current).toEqual(projection);
+ }finally{vi.useRealTimers();}
+});

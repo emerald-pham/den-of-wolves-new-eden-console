@@ -252,3 +252,65 @@ it.each([
     expect(mock.documents.has('sessions/s1/events/chacau-repair-chacau-1')).toBe(false);
   },
 );
+
+const chacauAuditPath = 'sessions/s1/actionAudits/chacau-1';
+const chacauAuditPaths = () => [...mock.documents.keys()].filter((path) => path.includes('/actionAudits/'));
+
+it('records one attributable Chacau repair audit that replay never rewrites', async () => {
+  await expect(repairConsolesFromChacau.run(request(command))).resolves.toMatchObject({ status: 'committed', repairRevision: 1 });
+  expect(mock.documents.get(chacauAuditPath)).toEqual({
+    schemaVersion: 1, sessionId: 's1', actorUid: 'holder', actorRoleId: 'refinery-124-engineer',
+    action: 'chacau-repair', phase: 'active', requestId: 'chacau-1', revision: 1,
+    outcome: 'committed', resolutionSource: 'server-rules',
+    redactionPolicy: 'action-audit-metadata-only-v1', createdAt: 'server-time',
+  });
+  const audit = mock.documents.get(chacauAuditPath);
+  mock.set.mockClear(); mock.update.mockClear();
+  await expect(repairConsolesFromChacau.run(request(command))).resolves.toMatchObject({ status: 'replayed', repairRevision: 1 });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.documents.get(chacauAuditPath)).toBe(audit);
+});
+
+it('writes no Chacau repair audit for a denied actor', async () => {
+  await expect(repairConsolesFromChacau.run(request(command, 'stranger'))).rejects.toMatchObject({
+    code: expect.stringMatching(/permission-denied|failed-precondition/),
+  });
+  expect(chacauAuditPaths()).toEqual([]);
+});
+
+it('fails closed on an orphaned Chacau repair audit or a mismatched audit on replay', async () => {
+  put(chacauAuditPath, { action: 'chacau-repair' });
+  await expect(repairConsolesFromChacau.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+
+  mock.documents.delete(chacauAuditPath);
+  await repairConsolesFromChacau.run(request(command));
+  mock.documents.get(chacauAuditPath)!.revision = 2;
+  await expect(repairConsolesFromChacau.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
+it('keeps the explicit choice and committed result in one facilitator-only receipt that replay never rewrites', async () => {
+  const detailPath = 'sessions/s1/actionAuditDetails/chacau-1';
+  const committed = await repairConsolesFromChacau.run(request(command));
+  expect(committed).toMatchObject({ status: 'committed' });
+  expect(mock.documents.get(detailPath)).toEqual({
+    schemaVersion: 1, sessionId: 's1', actorUid: 'holder', action: 'chacau-repair', requestId: 'chacau-1',
+    revision: expect.any(Number), resolutionSource: 'server-rules', audience: 'facilitator',
+    choice: expect.objectContaining({ hostShipId: 'refinery-124', systemIds: ['reactor', 'storage'] }),
+    result: committed,
+    redactionPolicy: 'action-audit-gm-detail-v1', createdAt: 'server-time',
+  });
+  expect(mock.documents.get(detailPath)!.revision)
+    .toBe(mock.documents.get('sessions/s1/actionAudits/chacau-1')!.revision);
+  const detail = mock.documents.get(detailPath);
+  mock.set.mockClear(); mock.update.mockClear();
+  await expect(repairConsolesFromChacau.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.documents.get(detailPath)).toBe(detail);
+});
+
+it('writes no facilitator receipt detail for a denied actor', async () => {
+  await expect(repairConsolesFromChacau.run(request(command, 'stranger'))).rejects.toMatchObject({ code: expect.any(String) });
+  expect([...mock.documents.keys()].some((path) => path.includes('/actionAuditDetails/'))).toBe(false);
+});

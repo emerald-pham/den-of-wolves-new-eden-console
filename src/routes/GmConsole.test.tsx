@@ -76,6 +76,7 @@ vi.mock('@/lib/sessionService', () => ({
 
 vi.mock('@/lib/firestore', () => ({
   subscribeConnectedPlayers: vi.fn(),
+  subscribeGmActionAuditDetails: vi.fn(() => vi.fn()),
   subscribeSessionPlayers: vi.fn(),
   subscribeReplacementEligibility: vi.fn(),
   subscribeGmInstances: vi.fn(),

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { buildActionAuditRecord } from './actionAudit';
+import {
+  actionAuditActorRoleId, actionAuditMatchesReceipt, buildActionAuditDetailRecord, buildActionAuditRecord,
+} from './actionAudit';
 
 describe('buildActionAuditRecord', () => {
   it('creates a queryable metadata-only record for a server-random action', () => {
@@ -154,5 +156,97 @@ describe('buildActionAuditRecord', () => {
     expect(record).not.toHaveProperty('shipId');
     expect(record).not.toHaveProperty('card');
     expect(record).not.toHaveProperty('systemId');
+  });
+});
+
+describe('buildActionAuditDetailRecord', () => {
+  const binding = {
+    sessionId: 'session-1', actorUid: 'holder-1', action: 'blacksmith-repair',
+    requestId: 'repair-1', revision: 2,
+  } as const;
+
+  it('keeps the explicit choice and the committed calculation in a facilitator-only receipt', () => {
+    expect(buildActionAuditDetailRecord(binding, {
+      choice: { hostShipId: 'aegis', systemIds: ['reactor'], expectedCycle: 3 },
+      result: {
+        status: 'committed', requestId: 'repair-1', systemIds: ['reactor'],
+        materialsRemaining: 1, repairRevision: 2,
+      },
+    }, 'server-time')).toEqual({
+      schemaVersion: 1,
+      sessionId: 'session-1',
+      actorUid: 'holder-1',
+      action: 'blacksmith-repair',
+      requestId: 'repair-1',
+      revision: 2,
+      resolutionSource: 'server-rules',
+      audience: 'facilitator',
+      choice: { hostShipId: 'aegis', systemIds: ['reactor'], expectedCycle: 3 },
+      result: {
+        status: 'committed', requestId: 'repair-1', systemIds: ['reactor'],
+        materialsRemaining: 1, repairRevision: 2,
+      },
+      redactionPolicy: 'action-audit-gm-detail-v1',
+      createdAt: 'server-time',
+    });
+  });
+
+  it('fails closed on values a durable receipt cannot faithfully store', () => {
+    expect(() => buildActionAuditDetailRecord(binding, {
+      choice: { systemIds: ['reactor'] }, result: { materialsRemaining: undefined },
+    }, 'server-time')).toThrow(/result/);
+    expect(() => buildActionAuditDetailRecord(binding, {
+      choice: { amount: Number.NaN }, result: {},
+    }, 'server-time')).toThrow(/choice/);
+    expect(() => buildActionAuditDetailRecord(binding, {
+      choice: ['reactor'], result: {},
+    }, 'server-time')).toThrow(/choice/);
+    expect(() => buildActionAuditDetailRecord(
+      { ...binding, action: 'unregistered' as 'blacksmith-repair' },
+      { choice: {}, result: {} }, 'server-time',
+    )).toThrow(/registered/);
+    expect(() => buildActionAuditDetailRecord(binding, { choice: {}, result: {} }, undefined))
+      .toThrow(/createdAt/);
+  });
+});
+
+describe('actionAuditActorRoleId', () => {
+  const player = (fields: Record<string, unknown>) => ({ get: (field: string) => fields[field] });
+  it('attributes a replacement player to the replacement role before the original assignment', () => {
+    expect(actionAuditActorRoleId(player({
+      replacementRoleId: 'comms-officer', assignedRoleId: 'quellon-explorer', activeConsoleRoleId: 'quellon-explorer',
+    }))).toBe('comms-officer');
+  });
+  it('falls back to the assigned and then the active console role, and records null rather than guessing', () => {
+    expect(actionAuditActorRoleId(player({ assignedRoleId: 'quellon-explorer', activeConsoleRoleId: 'admiral' })))
+      .toBe('quellon-explorer');
+    expect(actionAuditActorRoleId(player({ activeConsoleRoleId: 'admiral' }))).toBe('admiral');
+    expect(actionAuditActorRoleId(player({ replacementRoleId: '  ', assignedRoleId: 7 }))).toBeNull();
+  });
+});
+
+describe('actionAuditMatchesReceipt', () => {
+  const binding = {
+    sessionId: 's1', actorUid: 'holder', action: 'shuttle-cargo-transfer', requestId: 'cargo-1', revision: 0,
+  } as const;
+  const stored = {
+    schemaVersion: 1, sessionId: 's1', actorUid: 'holder', actorRoleId: 'quellon-explorer',
+    action: 'shuttle-cargo-transfer', phase: 'active', requestId: 'cargo-1', revision: 0,
+    outcome: 'committed', resolutionSource: 'server-rules',
+    redactionPolicy: 'action-audit-metadata-only-v1', createdAt: { seconds: 1 },
+  };
+  it('accepts the exact stored audit for its receipt with any server-supplied creation time', () => {
+    expect(actionAuditMatchesReceipt(stored, binding)).toBe(true);
+    expect(actionAuditMatchesReceipt({ ...stored, createdAt: 'server-time' }, binding)).toBe(true);
+  });
+  it('rejects a missing creation time, an extra or missing field, or a different bound fact', () => {
+    expect(actionAuditMatchesReceipt({ ...stored, createdAt: null }, binding)).toBe(false);
+    expect(actionAuditMatchesReceipt({ ...stored, shipId: 'quellon' }, binding)).toBe(false);
+    const missing: Record<string, unknown> = { ...stored };
+    delete missing.redactionPolicy;
+    expect(actionAuditMatchesReceipt(missing, binding)).toBe(false);
+    expect(actionAuditMatchesReceipt({ ...stored, revision: 1 }, binding)).toBe(false);
+    expect(actionAuditMatchesReceipt({ ...stored, resolutionSource: 'facilitator' }, binding)).toBe(false);
+    expect(actionAuditMatchesReceipt([stored], binding)).toBe(false);
   });
 });

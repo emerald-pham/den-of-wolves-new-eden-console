@@ -1078,9 +1078,12 @@ test('fails closed on a post-receipt Philia/helper mix even with a verified old 
     targets: ['hosting', 'functions'],
     isAncestor,
     sourceAtRevision: (revision, file) => {
-      assert.equal(file, 'functions/src/index.ts');
-      if (revision === after) return currentIndex;
-      return execFileSync('git', ['show', `${revision}:${file}`], { encoding: 'utf8' });
+      if (file === 'functions/src/index.ts' && revision === after) return currentIndex;
+      // Later pinned audits read the real module sources; the candidate's
+      // other runtime files are unchanged from the receipt.
+      return execFileSync('git', ['show', `${revision === after ? receipt : revision}:${file}`], {
+        encoding: 'utf8', maxBuffer: 32 * 1024 * 1024,
+      });
     },
   }), /Cannot safely map a Philia repair index change mixed with another callable or untracked source edit/);
 });
@@ -1385,21 +1388,182 @@ test('maps the exact additive Command and Control console metadata delta to its 
   assert.deepEqual(selectedFunctions(selected), functionTargets(CONSOLE_METADATA_CALLABLES));
 });
 
+// PC10.4 integration tip: every game callable imports the telemetry onCall,
+// and the entrypoint exports every current action-audit and scout callable.
+const SECURITY_DENIAL_WIRED_REVISION = '35c5366f0cdf74ef36ab74918cb3d7eefd5969fe';
+const selectModuleAtPc10_4Tip = file => deploymentSelector({
+  before: 'base', after: 'candidate', files: [file], targets: ['hosting', 'functions'],
+  isAncestor: () => false,
+  sourceAtRevision: (revision, path) => path === 'functions/src/index.ts'
+    ? execFileSync('git', ['show', `${SECURITY_DENIAL_WIRED_REVISION}:${path}`], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 32 * 1024 * 1024,
+    })
+    : `// ${revision} ${path}\n`,
+});
+
 test('maps standardized action audit helper changes to every production consumer', () => {
-  const selected = selectorFor(['functions/src/actionAudit.ts']);
-  assert.deepEqual(selected.split(','), [
-    'hosting',
-    'functions:scavengeDestroyedShipStores',
-    'functions:adjustShipResource',
-    'functions:adjustShipUnrest',
-    'functions:adjustShipPopulation',
-    'functions:applyShipCounterSteps',
-    'functions:runHighwallMining',
-    'functions:authorFacilitatorRuleCall',
-    'functions:setFighterWingCount',
-    'functions:repairAllShipDamage',
-    'functions:addShipDamage',
-  ]);
+  const selected = selectModuleAtPc10_4Tip('functions/src/actionAudit.ts');
+  // Traced through TypeScript symbol references at the PC10.4 candidate: the
+  // receipt-bound audit helpers reach the vessel, fighter, shuttle and every
+  // console-repair writer, including the Ally module callable.
+  assert.deepEqual(selectedFunctions(selected), functionTargets([
+    'scavengeDestroyedShipStores', 'adjustShipResource', 'adjustShipUnrest',
+    'adjustShipPopulation', 'applyShipCounterSteps', 'runHighwallMining',
+    'authorFacilitatorRuleCall', 'setFighterWingCount', 'repairAllShipDamage',
+    'addShipDamage', 'buildFighter', 'transferShuttleCargoCommand',
+    'rechargeHostConsoleFromShuttle', 'repairConsolesFromBlacksmith', 'repairConsolesFromPhilia',
+    'repairConsolesFromMacaw', 'repairConsolesFromChacau', 'repairConsolesFromAlly',
+  ]));
+});
+
+test('maps scout result module changes to every callable it defines, including the GM resolution log', () => {
+  const selected = selectModuleAtPc10_4Tip('functions/src/scoutResultCallable.ts');
+  assert.deepEqual(selectedFunctions(selected), functionTargets([
+    'resolvePendingScoutRequest', 'readPrivateScoutResult', 'listPendingScoutRequests',
+    'listGmScoutResolutionLog', 'listMyScoutReports', 'readMyScoutDiscoveryNote',
+  ]));
+});
+
+test('a security-denial telemetry change redeploys every wrapped callable and nothing else', () => {
+  const file = 'functions/src/securityDenialTelemetry.ts';
+  const atWired = path => execFileSync('git', ['show', `${SECURITY_DENIAL_WIRED_REVISION}:${path}`], {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 32 * 1024 * 1024,
+  });
+  const selected = selectedFunctions(deploymentSelector({
+    before: 'base', after: 'candidate', files: [file], targets: ['hosting', 'functions'],
+    isAncestor: () => false,
+    sourceAtRevision: (revision, path) => path === file && revision === 'candidate'
+      ? `${atWired(path)}\n// later telemetry change\n` : atWired(path),
+    filesAtRevision: () => execFileSync('git', ['ls-tree', '-r', '--name-only', SECURITY_DENIAL_WIRED_REVISION, '--', 'functions/src'], {
+      encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
+    }).split('\n').filter(Boolean),
+  }));
+  // 207 index onCall exports, 19 module onCall exports and 2 factory-built
+  // callables (TypeScript symbol trace of the wired revision).
+  assert.equal(selected.length, 228);
+  for (const name of ['rollDice', 'joinSession', 'addShipDamage', 'repairConsolesFromAlly',
+    'listGmScoutResolutionLog', 'resolvePendingScoutRequest', 'completeShuttleArrival',
+    'repairMaliades', 'runWolfAgentDetectorTest', 'buildEndeavourScienceDevice']) {
+    assert.ok(selected.includes(`functions:${name}`), `${name} runs through the telemetry wrapper`);
+  }
+  for (const name of ['castingCompanionCommand', 'expireStalePlayers', 'deleteInactiveSessions',
+    'automaticallyResolveScoutRequest', 'parkShuttlesAtAirspaceClosure', 'scheduleAirspaceClosureParking',
+    'advanceWolfAttackLifecycle']) {
+    assert.ok(!selected.includes(`functions:${name}`), `${name} does not use the telemetry wrapper`);
+  }
+});
+
+// PC10.4 fix branch: casting and the game wrapper share callableDenialReporting.ts.
+const SHARED_DENIAL_REPORTING_REVISION = '086c545ac';
+test('a shared denial-reporting change redeploys every wrapped callable and the casting command', () => {
+  const file = 'functions/src/callableDenialReporting.ts';
+  const atRevision = path => execFileSync('git', ['show', `${SHARED_DENIAL_REPORTING_REVISION}:${path}`], {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 32 * 1024 * 1024,
+  });
+  const selected = selectedFunctions(deploymentSelector({
+    before: 'base', after: 'candidate', files: [file], targets: ['hosting', 'functions'],
+    isAncestor: () => false,
+    sourceAtRevision: (revision, path) => path === file && revision === 'base'
+      ? `${atRevision(path)}\n// earlier shared reporting\n` : atRevision(path),
+    filesAtRevision: () => execFileSync('git', ['ls-tree', '-r', '--name-only', SHARED_DENIAL_REPORTING_REVISION, '--', 'functions/src'], {
+      encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
+    }).split('\n').filter(Boolean),
+  }));
+  assert.equal(selected.length, 229);
+  for (const name of ['castingCompanionCommand', 'rollDice', 'repairConsolesFromAlly', 'completeShuttleArrival']) {
+    assert.ok(selected.includes(`functions:${name}`), `${name} reports denials through the shared helper`);
+  }
+  assert.ok(!selected.includes('functions:expireStalePlayers'));
+});
+
+test('a security-denial telemetry change fails closed when a wrapped onCall cannot be attributed', () => {
+  const file = 'functions/src/securityDenialTelemetry.ts';
+  const atWired = path => execFileSync('git', ['show', `${SECURITY_DENIAL_WIRED_REVISION}:${path}`], {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 32 * 1024 * 1024,
+  });
+  assert.throws(() => deploymentSelector({
+    before: 'base', after: 'candidate', files: [file], targets: ['hosting', 'functions'],
+    isAncestor: () => false,
+    sourceAtRevision: (revision, path) => {
+      if (path === file && revision === 'candidate') return `${atWired(path)}\n// later telemetry change\n`;
+      if (path === 'functions/src/maliadesCallable.ts' && revision === 'candidate') {
+        return `${atWired(path)}\nconst hiddenCallable = onCall(CALLABLE_RUNTIME_OPTIONS, async () => null);\n`;
+      }
+      return atWired(path);
+    },
+    filesAtRevision: () => execFileSync('git', ['ls-tree', '-r', '--name-only', SECURITY_DENIAL_WIRED_REVISION, '--', 'functions/src'], {
+      encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
+    }).split('\n').filter(Boolean),
+  }), /security-denial telemetry: functions\/src\/maliadesCallable\.ts/i);
+});
+
+// PC10.4 fix tip: every wrapped callable is built with the telemetry onCall,
+// which shares callableDenialReporting.ts with the casting transport.
+const PC10_4_FIX_TIP = '36d62736f7ea7fa32d8c8dad5ba3c32ffc4f5545';
+const atFixTip = path => execFileSync('git', ['show', `${PC10_4_FIX_TIP}:${path}`], {
+  encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 32 * 1024 * 1024,
+});
+const fixTipFiles = () => execFileSync('git', ['ls-tree', '-r', '--name-only', PC10_4_FIX_TIP, '--', 'functions/src'], {
+  encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
+}).split('\n').filter(Boolean);
+const INDEX = 'functions/src/index.ts';
+const TELEMETRY_FILE = 'functions/src/securityDenialTelemetry.ts';
+const DETECTOR = 'functions/src/wolfAgentDetectorWriter.ts';
+const DETECTOR_REEXPORT = "export { runWolfAgentDetectorTest } from './wolfAgentDetectorWriter';";
+function selectChangedHelperAtFixTip(file, overrides = {}, extraFiles = []) {
+  return deploymentSelector({
+    before: 'base', after: 'candidate', files: [file], targets: ['hosting', 'functions'],
+    isAncestor: () => false,
+    sourceAtRevision: (revision, path) => {
+      if (revision === 'base') return path === file ? `${atFixTip(path)}\n// earlier helper\n` : atFixTip(path);
+      return Object.hasOwn(overrides, path) ? overrides[path] : atFixTip(path);
+    },
+    filesAtRevision: revision => revision === 'candidate' ? [...fixTipFiles(), ...extraFiles] : fixTipFiles(),
+  });
+}
+const replaceOnce = (source, from, to) => {
+  assert.equal(source.split(from).length, 2, `fixture anchor ${from}`);
+  return source.replace(from, to);
+};
+
+test('the telemetry resolver lists every wrapped callable at the fix tip', () => {
+  const selected = selectedFunctions(selectChangedHelperAtFixTip(TELEMETRY_FILE));
+  assert.equal(selected.length, 228);
+  assert.ok(selected.includes('functions:runWolfAgentDetectorTest'));
+});
+
+for (const [shape, overrides, extraFiles] of [
+  ['a local export * barrel in the entrypoint', {
+    [INDEX]: replaceOnce(atFixTip(INDEX), DETECTOR_REEXPORT, "export * from './wolfAgentDetectorWriter';"),
+  }],
+  ['an imported callable re-exported under another name', {
+    [INDEX]: replaceOnce(atFixTip(INDEX), DETECTOR_REEXPORT,
+      "import { runWolfAgentDetectorTest } from './wolfAgentDetectorWriter';\nexport const wolfAgentDetector = runWolfAgentDetectorTest;"),
+  }],
+  ['an aliased wrapper import', {
+    [DETECTOR]: replaceOnce(replaceOnce(atFixTip(DETECTOR), "import { onCall } from './securityDenialTelemetry';",
+      "import { onCall as audited } from './securityDenialTelemetry';"), '= onCall<', '= audited<'),
+  }],
+  ['a double-quoted re-export', {
+    [INDEX]: replaceOnce(atFixTip(INDEX), DETECTOR_REEXPORT,
+      'export { runWolfAgentDetectorTest } from "./wolfAgentDetectorWriter";'),
+  }],
+  ['a nested barrel', {
+    [INDEX]: replaceOnce(atFixTip(INDEX), DETECTOR_REEXPORT, "export { runWolfAgentDetectorTest } from './wolfBarrel';"),
+    'functions/src/wolfBarrel.ts': "export { runWolfAgentDetectorTest } from './wolfAgentDetectorWriter';\n",
+  }, ['functions/src/wolfBarrel.ts']],
+]) {
+  test(`a security-denial telemetry change fails closed on ${shape}`, () => {
+    assert.throws(() => selectChangedHelperAtFixTip(TELEMETRY_FILE, overrides, extraFiles ?? []),
+      /security-denial telemetry/i);
+  });
+}
+
+test('a shared denial-reporting change fails closed on an importer outside the two audited ones', () => {
+  const extra = 'functions/src/otherDenialReporter.ts';
+  assert.throws(() => selectChangedHelperAtFixTip('functions/src/callableDenialReporting.ts', {
+    [extra]: "import { hashDenialIdentifier } from './callableDenialReporting';\nexport const h = hashDenialIdentifier;\n",
+  }, [extra]), /shared denial-reporting/i);
 });
 
 test('maps Press event builder changes to every authoritative writer', () => {
@@ -1690,9 +1854,15 @@ test('includes unchanged callable bodies affected by PC05 index-local authority 
   }
 });
 
+// PC10.3 release on main (8c25a9a6): the last entrypoint this drift check was proved against.
+const PC05_DRIFT_AFTER_REVISION = '8c25a9a6889475ecb139cfef72551b2688c891aa';
+
 test('fails closed when PC05 shared index code changes beyond the audited candidate', () => {
   const beforeSource = execFileSync('git', ['show', '7782840d:functions/src/index.ts'], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
-  const afterSource = readFileSync('functions/src/index.ts', 'utf8') + '\n// unaudited shared helper change\n';
+  // Pin the drifted entrypoint to a fixed released revision so later
+  // checkpoints' own index guards cannot mask the PC05 refusal under test.
+  const afterSource = execFileSync('git', ['show', `${PC05_DRIFT_AFTER_REVISION}:functions/src/index.ts`],
+    { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }) + '\n// unaudited shared helper change\n';
   assert.throws(() => deploymentSelector({ before: 'base', after: 'candidate',
     files: ['functions/src/index.ts'], targets: ['functions'], isAncestor: () => false,
     sourceAtRevision: (revision) => revision === 'base' ? beforeSource : afterSource,

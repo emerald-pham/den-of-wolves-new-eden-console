@@ -1728,6 +1728,45 @@ it('accepts a pursuit-10 emergency jump without a charge or fuel and damages the
   );
 });
 
+it('ignores forged emergency-jump damage cards and replays the server-drawn cards', async () => {
+  mock.charges = [];
+  mock.fuel = 0;
+  mock.pursuitGroups = { 'fleet-1': 10 };
+  mock.pursuitEmergencyWindow = {
+    type: 'pursuit-emergency-window', status: 'offered', cycle: 1,
+    navigationRevision: 0, groupIds: ['fleet-1'], openedAt: '2026-09-06T12:10:07.000Z',
+  };
+  mock.randomInt.mockReturnValue(0);
+  const command = {
+    ...data, requestId: 'emergency-forged-cards', destination: '5143', emergency: true,
+    damage: { damagedSystemIds: [], destroyed: false }, damageDraws: [{ card: 'K♥', systemId: 'shuttle-bay-omega' }],
+    cards: ['K♥'], damagedSystemIds: ['shuttle-bay-omega'], emergencyDamageEntropy: [0xffff_ffff], systemsToDamage: 0,
+  };
+
+  const committed = await jumpShip.run(request(command));
+  // Ten eligible AEGIS consoles: the drive plus half (five) are damaged, each server draw taking index 0.
+  expect(committed).toMatchObject({
+    status: 'jumped', emergency: true,
+    damage: { destroyed: false, damagedSystemIds: [
+      'jump-drive', 'fighter-bay-alpha', 'fighter-bay-bravo', 'command-and-control',
+      'missile-launchers', 'point-defence-lasers',
+    ] },
+  });
+  expect(mock.randomInt).toHaveBeenCalledTimes(5);
+  const receipt = mock.set.mock.calls.find(([path]) =>
+    path === 'sessions/s1/commandReceipts/emergency-forged-cards')?.[1];
+  mock.commandReceiptRecord = { fingerprint: receipt?.fingerprint, result: receipt?.result };
+  mock.update.mockClear();
+  mock.set.mockClear();
+  mock.randomInt.mockClear();
+  mock.randomInt.mockReturnValue(0xffff_ffff);
+
+  await expect(jumpShip.run(request({ ...command, damageDraws: [{ card: 'Q♥', systemId: 'shuttle-bay-zeta' }] })))
+    .resolves.toEqual(committed);
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
 it('applies a charged intact Icebreaker Ram Scoop to a successful emergency FTL jump', async () => {
   mock.grantedShipId = 'icebreaker';
   mock.icebreakerFuel = 4;
@@ -2802,6 +2841,63 @@ it('replays an adjudication with its exact consequence without a second mutation
   expect(mock.set).not.toHaveBeenCalled();
   expect(String(receiptPath)).toContain('/commandReceipts/');
   expect(receipt).toMatchObject({ fingerprint: expect.objectContaining({ payload: expect.objectContaining({ consequence: command.consequence }) }) });
+});
+
+it('ignores a client-supplied Jump Drive integrity result and replays the server failure', async () => {
+  mock.damage = { aegis: { damagedSystemIds: ['jump-drive'], destroyed: false } };
+  mock.randomInt.mockReturnValue(1);
+  const command = {
+    ...data, requestId: 'forged-integrity', expectedRevision: 0, destination: '5143',
+    integrityRoll: 6, status: 'jumped', result: 'jumped',
+  };
+
+  const committed = await jumpShip.run(request(command));
+  expect(committed).toMatchObject({ status: 'drive-failure', shipId: 'aegis', failureRequestId: 'forged-integrity' });
+  expect(mock.randomInt).toHaveBeenCalledOnce();
+  const receipt = mock.set.mock.calls.find(([path]) =>
+    path === 'sessions/s1/commandReceipts/forged-integrity')?.[1];
+  mock.commandReceiptRecord = { fingerprint: receipt?.fingerprint, result: receipt?.result };
+  mock.update.mockClear();
+  mock.set.mockClear();
+  mock.randomInt.mockClear();
+
+  await expect(jumpShip.run(request({ ...command, integrityRoll: 5 }))).resolves.toEqual(committed);
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('ignores a client-supplied failed-jump damage roll and replays the server roll', async () => {
+  mock.fuel = 1;
+  mock.jumpStates = { aegis: { lastFailureRequestId: 'forged-roll-failure' } };
+  mock.jumpFailures = {
+    'forged-roll-failure': {
+      type: 'ship-jump-failure', status: 'unresolved', adjudicable: true,
+      requestId: 'forged-roll-failure', shipId: 'aegis', origin: '0000', destination: '9997',
+      failureStatus: 'fuel-shortage', failureRevision: 0, currentTurn: 1, fuelAtFailure: 1,
+      requiredFuel: 3,
+    },
+  };
+  mock.randomInt.mockReturnValue(5);
+  const command = {
+    sessionId: 's1', instanceId: 'bridge', requestId: 'forged-roll-resolution',
+    expectedRevision: 0, failureRequestId: 'forged-roll-failure', destination: '5143',
+    consequence: 'half-d6-damage', failureRoll: 1, damageRoll: 1, damageCount: 0,
+  };
+
+  const first = await adjudicateFailedJump.run(request(command));
+  expect(first).toMatchObject({ status: 'jumped', failureRoll: 5, damageCount: 2 });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1/jumpFailures/forged-roll-failure',
+    expect.objectContaining({ damageRoll: 5, appliedDamageCount: 2 }));
+  const [, receipt] = mock.set.mock.calls.find(([path]) => String(path).includes('/commandReceipts/'))!;
+  mock.commandReceiptRecord = receipt;
+  mock.update.mockClear();
+  mock.set.mockClear();
+  mock.randomInt.mockClear();
+
+  await expect(adjudicateFailedJump.run(request({ ...command, failureRoll: 6, damageRoll: 6 })))
+    .resolves.toEqual(first);
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('requires an explicit documented consequence before any adjudication work', async () => {

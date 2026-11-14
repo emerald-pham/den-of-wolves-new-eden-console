@@ -164,7 +164,7 @@ it('selects every current and future callable consumer when shared limiter behav
   expect(selected).toBe([
     'hosting', 'functions:resumeSession', 'functions:getSessionPresence', 'functions:listGmInstances',
     'functions:rollDice', 'functions:confirmSetup', 'functions:startGame',
-    'functions:declareWolfAttack', 'functions:runMaintenance',
+    'functions:declareWolfAttack', 'functions:runMaintenance', 'functions:readFleetGroupNavigation',
   ].join(','));
 });
 
@@ -178,6 +178,7 @@ it('maps Firestore adapter changes to every callable that imports its authority 
   expect(selected).toContain('functions:rollDice');
   expect(selected).toContain('functions:runMaintenance');
   expect(selected).toContain('functions:startGame');
+  expect(selected).toContain('functions:readFleetGroupNavigation');
 });
 
 it('deploys only the private closure worker when its task handler changes', () => {

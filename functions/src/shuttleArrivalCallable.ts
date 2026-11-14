@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError } from 'firebase-functions/v2/https';
+import { onCall } from './securityDenialTelemetry';
 import { commandError } from './commandErrors';
 import {
   shuttleMovementConflictDetails,

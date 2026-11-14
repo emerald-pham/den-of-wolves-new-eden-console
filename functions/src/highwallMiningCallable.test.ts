@@ -433,3 +433,21 @@ it.each([
   expect(cryptoMock.randomInt).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
 });
+
+it('keeps the resource choice and the committed server roll in one facilitator-only receipt', async () => {
+  const detailPath = 'sessions/s1/actionAuditDetails/mine-1';
+  const committed = await runHighwallMining.run(request(command));
+  expect(mock.documents.get(detailPath)).toEqual({
+    schemaVersion: 1, sessionId: 's1', actorUid: 'holder', action: 'highwall-mining', requestId: 'mine-1',
+    revision: 1, resolutionSource: 'server-random', audience: 'facilitator',
+    choice: { resource: 'materials', hostShipId: 'icebreaker', cycle: 2 },
+    result: committed,
+    redactionPolicy: 'action-audit-gm-detail-v1', createdAt: 'server-time',
+  });
+  expect(committed).toMatchObject({ operation: { rolls: [4], amount: 4 }, cargo: { ore: 3, materials: 6 } });
+  const detail = mock.documents.get(detailPath);
+  mock.set.mockClear();
+  await expect(runHighwallMining.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.documents.get(detailPath)).toBe(detail);
+});

@@ -59,6 +59,7 @@ vi.mock('@/lib/sessionService', () => ({
 
 vi.mock('@/lib/firestore', () => ({
   subscribeCrisisReport: vi.fn(() => vi.fn()),
+  subscribeGmActionAuditDetails: vi.fn(() => vi.fn()),
   sessionSnapshotAuthorityFor: vi.fn(() => ({ hasServerSessionAuthority: false })),
   subscribeConnectedPlayers: vi.fn(() => vi.fn()),
   subscribeSessionState: vi.fn(() => vi.fn()),

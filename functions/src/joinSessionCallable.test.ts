@@ -29,6 +29,11 @@ const mock = vi.hoisted(() => {
   };
 });
 
+// The Functions logger is the private telemetry sink (Cloud Logging in production).
+const telemetry = vi.hoisted(() => ({ warn: vi.fn() }));
+vi.mock('firebase-functions/logger', () => ({
+  warn: telemetry.warn, info: vi.fn(), error: vi.fn(), debug: vi.fn(), log: vi.fn(), write: vi.fn(),
+}));
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({
@@ -610,6 +615,36 @@ it('does not reveal another code after the identity bucket is exhausted', async 
 
   expect(mock.get).toHaveBeenCalledTimes(1);
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('records an exhausted join-code bucket as private rate-limit telemetry without the attempted code', async () => {
+  vi.stubEnv('FUNCTION_TARGET', 'joinSession');
+  telemetry.warn.mockClear();
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'joinAttemptLimits/u1') {
+      return snapshot({ windowStartedAt: mock.Timestamp.fromDate(new Date()), attempts: 6 });
+    }
+    throw new Error(`The code lookup must not run while blocked: ${path}`);
+  });
+
+  try {
+    await expect(joinSession.run(request('4821'))).rejects.toMatchObject({ code: 'resource-exhausted' });
+
+    const denials = telemetry.warn.mock.calls.map(([, record]) => record as Record<string, unknown>);
+    expect(denials).toEqual([{
+      type: 'security-denial', schemaVersion: 1, callableName: 'joinSession',
+      code: 'resource-exhausted', category: 'rate-limit', commandError: 'unavailable-service',
+      retryAfterSeconds: expect.any(Number), authState: 'present', appCheck: 'absent',
+      actorHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+    }]);
+    const retryAfterSeconds = denials[0]?.retryAfterSeconds as number;
+    expect(Number.isInteger(retryAfterSeconds) && retryAfterSeconds >= 1 && retryAfterSeconds <= 600).toBe(true);
+    // The attempted code is a join credential; neither it nor the raw identity is recorded.
+    expect(JSON.stringify(denials)).not.toMatch(/4821|u1|joinCode/);
+    expect(mock.set).not.toHaveBeenCalled();
+  } finally {
+    vi.unstubAllEnvs();
+  }
 });
 
 it('rejects an unsupported code shape without spending a limiter attempt', async () => {
