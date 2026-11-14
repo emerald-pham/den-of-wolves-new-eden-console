@@ -321,14 +321,27 @@ transition, emitted build or pixel contract.
 
 ## Browser tooling for UI proof
 
-For browser UI work, first inspect the built-in browser APIs and documentation
-actually available in the current environment. Prefer ChatGPT/Codex's supported
-built-in browser for localhost interaction and rendered or screenshot review
-where it supports the needed evidence. For ChatGPT browser specifics, consult
-the [official browser guide](https://learn.chatgpt.com/docs/browser). Use
-another browser only for a concrete unmet capability, required engine or
-authentication-context isolation, or verified built-in unavailability, and
-record the specific reason in the handback.
+For browser UI work, first inspect the browser tools and documentation actually
+available in the current environment, then choose the browser from the
+subsection for the agent tool you are running in, the same way
+[model and effort routing](#model-and-effort-routing) is split. Use another
+browser only for a concrete unmet capability, required engine or
+authentication-context isolation, or verified unavailability of the preferred
+one, and record the specific reason in the handback.
+
+### Browser for Claude Code
+
+Use the owner's real Chrome through Claude in Chrome, where the owner's
+sign-ins are.
+
+### Browser for Codex and GPT runtimes
+
+Prefer ChatGPT/Codex's supported built-in browser for localhost interaction and
+rendered or screenshot review where it supports the needed evidence. For
+ChatGPT browser specifics, consult the
+[official browser guide](https://learn.chatgpt.com/docs/browser).
+
+### Browser rules for every agent tool
 
 Keep the task's applicable skills, acceptance semantics and authentication
 actors intact, along with final-build evidence for fonts and overflow. Preserve
