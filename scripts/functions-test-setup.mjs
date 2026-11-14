@@ -20,11 +20,23 @@ export function functionsTestPrerequisiteError(root = ROOT) {
     'Run `npm ci --prefix functions`, then rerun the Functions tests.';
 }
 
-export default function setup() {
-  const error = functionsTestPrerequisiteError();
-  if (error) throw new Error(error);
-  execFileSync(process.execPath, [resolve(ROOT, 'scripts', 'build-casting-companion-core.mjs')], {
-    cwd: ROOT,
+/**
+ * Build the generated casting core under `root`, or stop the process with only
+ * the install instruction. Exiting here, rather than throwing, keeps Vitest
+ * from adding a stack trace and a "No test files found" report.
+ */
+export function prepareFunctionsTests(root = ROOT) {
+  const error = functionsTestPrerequisiteError(root);
+  if (error) {
+    process.stderr.write(`${error}\n`);
+    process.exit(1);
+  }
+  execFileSync(process.execPath, [resolve(root, 'scripts', 'build-casting-companion-core.mjs')], {
+    cwd: root,
     stdio: 'inherit',
   });
+}
+
+export default function setup() {
+  prepareFunctionsTests();
 }
