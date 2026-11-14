@@ -336,3 +336,72 @@ test('a live recorded reservation group is reported as ambiguous and is left run
   assert.doesNotThrow(() => process.kill(leader.pid, 0), 'inspection never stops a process');
   assert.doesNotThrow(() => process.kill(memberPid, 0), 'inspection never stops a process');
 });
+
+test('an invalid allocated port fails inspection instead of reporting a clean return', async t => {
+  const directory = await makeDirectory(t);
+  for (const port of [0, 65_536, 1.5, '5061', -1]) {
+    const result = await runProofTestCommand(process.execPath, ['-e', 'process.exit(0)'], {
+      logPath: join(directory, `invalid-port-${String(port)}.log`),
+      writeOutput: () => {},
+      runtime: { ports: [port] },
+    });
+    assert.equal(result.code, 0, 'the original command result is retained');
+    assert.equal(result.runtime.status, 'inspection-failed', `port ${String(port)} cannot be inspected`);
+    assert.equal(result.runtime.cleanReturn, false);
+    assert.equal(result.exitCode, 1);
+    assert.match(result.runtime.summary, /allocated ports/);
+  }
+});
+
+const PROOF_MODULE_URL = new URL('./proof-test-invocation.mjs', import.meta.url).href;
+function alive(pid) {
+  try { process.kill(pid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; }
+}
+async function waitFor(predicate, label, timeoutMs = 10_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (!(await predicate())) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${label}`);
+    await new Promise(resolveWait => setTimeout(resolveWait, 25));
+  }
+}
+// A parent proof run whose detached child group writes its PID and ignores SIGINT.
+async function startInterruptibleProofRun(t, directory) {
+  const pidPath = join(directory, 'group-leader.pid');
+  const childSource = `process.on('SIGINT', () => {}); require('node:fs').writeFileSync(${JSON.stringify(pidPath)}, String(process.pid)); ${idleProcessSource()}`;
+  const harness = join(directory, 'harness.mjs');
+  await writeFile(harness, `import { runProofTestCommand } from ${JSON.stringify(PROOF_MODULE_URL)};
+const result = await runProofTestCommand(process.execPath, ['-e', ${JSON.stringify(childSource)}], {
+  logPath: ${JSON.stringify(join(directory, 'interrupted.log'))}, writeOutput: () => {}, runtime: { ports: [] } });
+process.exitCode = result.exitCode;
+`);
+  const parent = spawn(process.execPath, [harness], { stdio: 'ignore' });
+  stopFixtureProcess(t, parent.pid);
+  const exited = new Promise(resolveExit => parent.once('exit', (code, signal) => resolveExit({ code, signal })));
+  let leader;
+  await waitFor(async () => {
+    try { leader = Number(await readFile(pidPath, 'utf8')); return leader > 0; } catch { return false; }
+  }, 'the proof group leader');
+  stopFixtureProcess(t, leader);
+  t.after(() => { try { process.kill(-leader, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; } });
+  return { parent, leader, exited };
+}
+
+test('a repeated SIGINT stops the detached proof group before the runner exits', async t => {
+  const directory = await makeDirectory(t);
+  const { parent, leader, exited } = await startInterruptibleProofRun(t, directory);
+  parent.kill('SIGINT');
+  await new Promise(resolveWait => setTimeout(resolveWait, 100));
+  parent.kill('SIGINT');
+  const exit = await exited;
+  assert.equal(alive(leader), false, 'no orphaned proof group survives the runner');
+  assert.equal(exit.code, 128 + osConstants.signals.SIGINT);
+});
+
+test('a hangup is forwarded to the detached proof group', async t => {
+  const directory = await makeDirectory(t);
+  const { parent, leader, exited } = await startInterruptibleProofRun(t, directory);
+  parent.kill('SIGHUP');
+  const exit = await exited;
+  assert.equal(alive(leader), false, 'no orphaned proof group survives a hangup');
+  assert.equal(exit.code, 128 + osConstants.signals.SIGHUP);
+});
