@@ -1607,6 +1607,37 @@ export function securityDenialWrappedCallables(after, cwd, sourceAtRevision = nu
   return [...selected];
 }
 
+// The game wrapper and the casting transport share the denial categories,
+// hashing and reporting wrapper; a change there reaches both kinds of callable.
+function sharedDenialReportingConsumers(after, cwd, sourceAtRevision = null) {
+  const readAt = (file) => {
+    let source;
+    if (sourceAtRevision) source = sourceAtRevision(after, file);
+    else {
+      try {
+        source = execFileSync('git', ['show', `${after}:${file}`], {
+          encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 16 * 1024 * 1024,
+        });
+      } catch {
+        throw new Error(`Cannot safely read ${after}:${file} for shared denial-reporting consumers.`);
+      }
+    }
+    if (typeof source !== 'string') {
+      throw new Error(`Cannot safely read ${after}:${file} for shared denial-reporting consumers.`);
+    }
+    return source;
+  };
+  const importsShared = /\bfrom\s*'\.\/callableDenialReporting';/;
+  if (!importsShared.test(readAt('functions/src/securityDenialTelemetry.ts')) ||
+      !importsShared.test(readAt('functions/src/castingCallableTransport.ts'))) {
+    throw new Error('Cannot safely map shared denial-reporting changes outside its two audited importers.');
+  }
+  if (!callableIsExportedAtRevision('castingCompanionCommand', after, cwd, sourceAtRevision)) {
+    throw new Error('Casting companion callable export is absent; refusing shared denial-reporting deployment.');
+  }
+  return [...securityDenialWrappedCallables(after, cwd, sourceAtRevision), 'castingCompanionCommand'];
+}
+
 const PC10_4_LATE_MAP_CONSUMERS = Object.freeze({
   'functions/src/actionAudit.ts': [
     'buildFighter', 'transferShuttleCargoCommand', 'rechargeHostConsoleFromShuttle',
@@ -1822,6 +1853,10 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
     }
     if (file === 'functions/src/securityDenialTelemetry.ts') {
       for (const name of securityDenialWrappedCallables(after, cwd, sourceAtRevision)) selected.add(name);
+      continue;
+    }
+    if (file === 'functions/src/callableDenialReporting.ts') {
+      for (const name of sharedDenialReportingConsumers(after, cwd, sourceAtRevision)) selected.add(name);
       continue;
     }
     let consumers = file === 'functions/src/pursuitEmergencyWindow.ts'
