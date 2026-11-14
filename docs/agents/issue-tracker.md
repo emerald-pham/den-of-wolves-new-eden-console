@@ -24,7 +24,28 @@ of project modules and CI checks do not contact GitHub.
 Read the relevant prompt definition, prerequisite links, evidence and release
 boundaries before changing work. Check the active checkpoint plan and owner
 feedback for scope and authorization. Use
-`npm run coordination:dependencies -- --prompt NNN` for read-only readiness.
+`npm run coordination:dependencies -- --prompt NNN` for read-only readiness: it
+reports the catalog row and hard prerequisites and creates no nonce, receipt,
+or other local proof artifact. `NEXT` is a useful ready-work hint, not a serial
+lock. Hard prerequisites and explicit product-only deferrals hold that prompt;
+source-backed rules ambiguity follows
+[`PRODUCT_MILESTONES.md`](../PRODUCT_MILESTONES.md). Continue independent work.
+Readiness is not a commit, merge, push, or deployment gate.
+
+### Queueing new work
+
+Include each newly queued item in the generated dependency chart and record
+useful related-work links and explicit hard prerequisites where one item
+genuinely needs another's functionality. These prerequisites describe
+implementation order and realistic readiness, not Git or CI enforcement. Do not
+add commit, merge, push, or deployment gates for them. Reuse existing cheap
+catalog checks without new enforcement machinery or release delays. If a queue
+update would disrupt an in-flight final release, prepare it separately and land
+it after that release settles.
+
+Dependency and other catalog-structure changes remain reviewed catalog edits
+with regenerated views; `node scripts/generate-prompt-views.mjs --check`
+verifies generated views against the saved snapshot.
 
 ### Issue-owned definitions
 
@@ -99,6 +120,26 @@ does not set prompt status to `done`:
 ```sh
 npm run prompt-tracker -- update --issue NUMBER --status done --reviewed --accepted --evidence docs/REPORT.md#verified-result
 ```
+
+Update several issues in one invocation by listing them, comma-separated or
+with a repeated `--issue`. Every listed issue gets the same change and the same
+field and evidence rules as a single-issue update, and each issue's returned
+GitHub state is verified. Give each issue its own evidence with a repeated
+`--evidence <issue>=<path#anchor>`, or give one plain `--evidence` that every
+listed issue shares; the two forms cannot be mixed:
+
+```sh
+npm run prompt-tracker -- update --issue 91,92 --close-as completed --reviewed --accepted --evidence 91=docs/REPORT.md#first-result --evidence 92=docs/REPORT.md#second-result
+```
+
+Evidence for every listed issue is checked before the first GitHub write. The
+full issue set is read once before the batch and once after it to refresh the
+saved snapshots, so a batch costs about two full reads plus roughly a dozen
+requests per issue rather than two full reads per issue. Issues are updated in
+the listed order. If one fails, the batch stops there: earlier updates stay,
+the snapshot is still refreshed, and the error names where it stopped and that
+later issues were not attempted. Only crosswalked issues are accepted; a
+refinement child outside the crosswalk is rejected as before.
 
 Reopen by explicitly choosing an incomplete status. Completion export retains
 that prior status so native issue reopening restores it:

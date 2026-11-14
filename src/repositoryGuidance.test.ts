@@ -34,7 +34,7 @@ describe('repository guidance', () => {
   it('keeps CLAUDE concise and preserves the high-value game contracts', () => {
     const guidance = readGuidance('CLAUDE.md');
     const normalized = guidance.replace(/\s+/g, ' ');
-    expect(guidance.split(/\r?\n/).length).toBeLessThanOrEqual(451);
+    expect(guidance.split(/\r?\n/).length).toBeLessThanOrEqual(350);
     for (const required of [
       'server authority',
       'focused, meaningful tests',
@@ -65,8 +65,62 @@ describe('repository guidance', () => {
     expect(guidance).toContain('git rev-parse --show-toplevel');
     expect(guidance).toContain('git rev-parse --git-common-dir');
     expect(normalized).toContain('never mix its ports with another row');
-    expect(guidance).toContain('do not stop a live process based on age');
-    expect(readGuidance('docs/WORKTREE_COORDINATION.md')).toContain('| 14 |');
+    expect(guidance).toContain('docs/WORKTREE_COORDINATION.md#emulator-rows');
+    const coordination = readGuidance('docs/WORKTREE_COORDINATION.md');
+    expect(coordination).toContain('| 14 |');
+    expect(coordination.replace(/\s+/g, ' ')).toContain('does not prove that another task is safe to stop');
+  });
+
+  it('routes model and effort choice through one policy section per agent tool', () => {
+    const claude = readGuidance('CLAUDE.md');
+    expect(claude).not.toMatch(/gpt-\d|\b(?:Astra|Luna|Terra|Sol|Opus|Sonnet|Haiku|Fable)\b/);
+    expect(claude.match(/docs\/AGENT_EXECUTION_POLICY\.md#model-and-effort-routing/g)).toHaveLength(1);
+
+    const policy = readGuidance('docs/AGENT_EXECUTION_POLICY.md');
+    const routing = policy.split(/^## Model and effort routing$/m)[1]?.split(/^## /m)[0] ?? '';
+    const codex = routing.split(/^### Codex and GPT runtimes$/m)[1]?.split(/^### /m)[0] ?? '';
+    const claudeCode = routing.split(/^### Claude Code$/m)[1]?.split(/^### /m)[0] ?? '';
+    expect(codex).toContain('New top-level coordinators default to `gpt-6-astra` with medium reasoning.');
+    expect(codex).toMatch(/Delegated workers default to `gpt-6-luna`/);
+    expect(codex).toMatch(/`gpt-6\.1-sol` for the independent risk review/);
+    expect(codex).not.toMatch(/\b(?:Opus|Sonnet|Haiku)\b/);
+    expect(claudeCode).not.toMatch(/gpt-\d/);
+    expect(claudeCode).toContain('Set `model` and `effort` explicitly on every Agent call');
+    expect(claudeCode).toContain('Fable is never authorized');
+    for (const row of [
+      /^\| Coordinator[^|\n]*\| Opus \| medium \|$/m,
+      /^\| [^|\n]*implementation[^|\n]*\| Opus \| high \|$/m,
+      /^\| Independent risk review[^|\n]*\| Opus \| max \|$/m,
+      /^\| Routine[^|\n]*review[^|\n]*\| Opus \| xhigh \|$/m,
+      /^\| Read-only[^|\n]*\| Haiku \| [a-z]+ \|$/m,
+    ]) expect(claudeCode).toMatch(row);
+  });
+
+  it.each([
+    'Delegated workers default to `gpt-6-luna`.',
+    'Use Opus at max for independent review.',
+  ])('rejects agent-tool model names in CLAUDE.md: %s', (addition) => {
+    const sources = readSources();
+    sources.set('CLAUDE.md', `${readGuidance('CLAUDE.md')}\n${addition}`);
+    const errors: string[] = [];
+    validateAgentModelEscalation({ sources, errors });
+    expect(errors).toContain('CLAUDE.md: must name no agent-tool models; point to the model and effort routing section');
+  });
+
+  it('keeps every rule moved out of CLAUDE in a destination CLAUDE points to', () => {
+    const claude = readGuidance('CLAUDE.md');
+    const normalize = (surface: string) => readGuidance(surface).replace(/\s+/g, ' ');
+    for (const [pointer, surface, rule] of [
+      ['docs/AGENT_EXECUTION_POLICY.md#release-versioning', 'docs/AGENT_EXECUTION_POLICY.md', 'Patch versions stop at `99`'],
+      ['docs/AGENT_EXECUTION_POLICY.md#independent-typography-review-for-final-releases', 'docs/AGENT_EXECUTION_POLICY.md', 'Automated typography checks do not substitute for this review.'],
+      ['docs/TICKER_BEHAVIOR.md#browser-smoke-gate', 'docs/TICKER_BEHAVIOR.md', 'prove the live Press-to-Red-Alert handoff'],
+      ['docs/agents/issue-tracker.md', 'docs/agents/issue-tracker.md', 'Include each newly queued item in the generated dependency chart'],
+      ['docs/WORKTREE_COORDINATION.md#optional-coordination', 'docs/WORKTREE_COORDINATION.md', 'Do not run a status/heartbeat polling loop.'],
+      ['docs/LOCAL_STORAGE.md#automatic-branch-closeout', 'docs/LOCAL_STORAGE.md', 'without asking the owner again'],
+    ] as const) {
+      expect(claude, `CLAUDE.md must point to ${pointer}`).toContain(pointer);
+      expect(normalize(surface), `${surface} must hold the moved rule`).toContain(rule);
+    }
   });
 
   it('describes the JSON catalog as the roadmap authority and views as generated', () => {
@@ -321,13 +375,13 @@ describe('repository guidance', () => {
   });
 
   it('preserves truthful product metadata and deployment distinctions', () => {
-    const guidance = readGuidance('CLAUDE.md');
-    const normalized = guidance.replace(/\s+/g, ' ');
+    const normalized = readGuidance('CLAUDE.md').replace(/\s+/g, ' ');
     expect(normalized).toMatch(/Player-facing work increments the application version/);
     expect(normalized).toMatch(/Tooling, tests, and documentation-only changes do not bump/);
     expect(normalized).toMatch(/A pushed workflow is not proof that production finished/);
-    expect(normalized).toMatch(/completed\/total prompt percentage from the\s+catalog snapshot/i);
-    expect(normalized).toMatch(/Only the product owner authorizes `0\.9\.x` and `1\.0\.0`/);
-    expect(normalized).toMatch(/complete 20-player set[\s\S]{0,180}end-to-end gameplay loop/i);
+    const release = readGuidance('docs/AGENT_EXECUTION_POLICY.md').replace(/\s+/g, ' ');
+    expect(release).toMatch(/completed\/total prompt percentage from the\s+catalog snapshot/i);
+    expect(release).toMatch(/Only the product owner authorizes `0\.9\.x` and `1\.0\.0`/);
+    expect(release).toMatch(/complete 20-player set[\s\S]{0,180}end-to-end gameplay loop/i);
   });
 });

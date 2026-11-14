@@ -164,3 +164,25 @@ While a server dispatch is arriving, a neutral
 `AIRSPACE CONTROL // AWAITING DISPATCH` preserves the instrument; it must not
 guess open/closed status or replay old news. Cover this pending state alongside
 the ready initial projection in ticker tests.
+
+## Browser smoke gate
+
+The shared FleetBroadcast ticker is release-critical because it is the only
+common live-news surface. Run `npm run test:ticker:browser` when a change can
+affect application chrome, joined routes, session projection, global styling,
+runtime dependencies, or the ticker harness. The deployment range carries this
+risk into exact-SHA CI, so unrelated Functions, rules, documentation, and
+tooling releases do not pay for the browser lifecycle gate.
+
+Any change to ticker selection, source priority, queue projection, animation,
+responsive geometry, or broadcast session state must prove the live
+Press-to-Red-Alert handoff: every painted Press copy remains on the physical
+track, unentered repetitions are removed, and Red Alert appends behind the
+retained tail without overlap or a blank reset. The smoke must prove an
+authoritative current message is painted with non-zero viewport geometry and
+visible text in normal and reduced motion at phone and desktop sizes,
+including a browser whose document font promise remains pending, after
+navigation and reload, without horizontal overflow. Keep its session
+projection fixture isolated to the smoke and save a viewport screenshot when a
+case fails; do not replace the real ticker with a mock or an offscreen DOM
+assertion.

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-14T11:09:24.963Z",
+  "generatedAt": "2026-11-14T15:45:50.107Z",
   "originSourceSha256": "8536b573f44cde0e480b12cf427c3bb5668f33d6564f393572964f1679086f3f",
   "catalogSha256": "6b12e82a03c4f8f6fbb76439e207fdd677bf55a57e27af32b4e6645e8238f9fb",
   "issueStates": [
@@ -1531,8 +1531,8 @@
     {
       "migrationId": "DOW-BRIEF-35-U1",
       "recordKind": "execution-brief",
-      "state": "open",
-      "stateReason": null,
+      "state": "closed",
+      "stateReason": "completed",
       "promptStatus": null,
       "readiness": "ready-for-agent",
       "execution": "active",
@@ -1542,14 +1542,16 @@
       ],
       "nativeBlockedByMigrationIds": [],
       "blockedByMigrationIds": [],
-      "completion": "not-closed",
-      "evidenceReferences": []
+      "completion": "reviewed-complete",
+      "evidenceReferences": [
+        "docs/PC10_4_EXECUTION_RECORD.md#deployment-verified"
+      ]
     },
     {
       "migrationId": "DOW-BRIEF-36-U2",
       "recordKind": "execution-brief",
-      "state": "open",
-      "stateReason": null,
+      "state": "closed",
+      "stateReason": "completed",
       "promptStatus": null,
       "readiness": "ready-for-agent",
       "execution": "active",
@@ -1559,8 +1561,10 @@
       ],
       "nativeBlockedByMigrationIds": [],
       "blockedByMigrationIds": [],
-      "completion": "not-closed",
-      "evidenceReferences": []
+      "completion": "reviewed-complete",
+      "evidenceReferences": [
+        "docs/PC10_4_EXECUTION_RECORD.md#deployment-verified"
+      ]
     },
     {
       "migrationId": "DOW-BRIEF-37-B1",
@@ -2224,8 +2228,8 @@
     {
       "migrationId": "DOW-BRIEF-59-PT5",
       "recordKind": "execution-brief",
-      "state": "open",
-      "stateReason": null,
+      "state": "closed",
+      "stateReason": "completed",
       "promptStatus": null,
       "readiness": "ready-for-agent",
       "execution": "approved-repair",
@@ -2233,8 +2237,10 @@
       "nativeParentMigrationIds": [],
       "nativeBlockedByMigrationIds": [],
       "blockedByMigrationIds": [],
-      "completion": "not-closed",
-      "evidenceReferences": []
+      "completion": "reviewed-complete",
+      "evidenceReferences": [
+        "docs/PC10_4_EXECUTION_RECORD.md#deployment-verified"
+      ]
     },
     {
       "migrationId": "DOW-BRIEF-61A-PT7A",
