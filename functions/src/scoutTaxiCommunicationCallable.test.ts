@@ -3,11 +3,13 @@ import { beforeEach, expect, it, vi } from 'vitest';
 type Fields = Record<string, unknown>;
 const mock = vi.hoisted(() => {
   const documents = new Map<string, Fields>();
-  const ref = (path: string) => ({ path, id: path.split('/').at(-1)! });
+  const ref = (path: string) => ({ path, id: path.split('/').at(-1)!, get: async () => snapshot(path) });
   const snapshot = (path: string) => ({ ...ref(path), ref: ref(path), exists: documents.has(path),
     data: () => documents.get(path), get: (field: string) => documents.get(path)?.[field] });
   const writes = vi.fn();
+  const transactions = vi.fn();
   const runTransaction = async (callback: (tx: unknown) => Promise<unknown>) => {
+    transactions();
     const queued: Array<[string, Fields]> = [];
     const result = await callback({ get: async (target: { path: string; collection?: boolean }) => {
       if (queued.length) throw new Error('Native Firestore forbids reads after writes');
@@ -25,7 +27,7 @@ const mock = vi.hoisted(() => {
     queued.forEach(([path, value]) => { writes(path, value); documents.set(path, value); });
     return result;
   };
-  return { documents, writes, db: { doc: ref, collection: (path: string) => ({ path, collection: true }), runTransaction } };
+  return { documents, writes, transactions, db: { doc: ref, collection: (path: string) => ({ path, collection: true }), runTransaction } };
 });
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mock.db,
@@ -50,7 +52,7 @@ const request = (value: Fields = data, uid = 'explorer') => ({ data: value, auth
 const put = (path: string, value: Fields) => mock.documents.set(path, value);
 
 beforeEach(() => {
-  mock.documents.clear(); mock.writes.mockClear();
+  mock.documents.clear(); mock.writes.mockClear(); mock.transactions.mockClear();
   put('sessions/s1', { phase: 'active', currentTurn: 3, chartId: 'A', chartSelectionLocked: true,
     activeRoleIds: ['wing-commander', 'quellon-explorer', 'shepherd-scientist'], activeVesselIds: ['aegis', 'quellon', 'shepherd'],
     fighterWingCounts: { 'fighter-wing-alpha': { count: 4, revision: 0 }, 'fighter-wing-bravo': { count: 0, revision: 0 } },
@@ -309,6 +311,15 @@ it('creates no navigation rate bucket for a caller outside the session', async (
   await expect(calls.readFleetGroupNavigation.run(request({ sessionId: 's1', requestId: 'nav-stranger',
     expectedNavigationRevision: 2, expectedFleetPartitionRevision: 1, expectedGroupId: 'fleet-2' }, 'stranger')))
     .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.writes).not.toHaveBeenCalled();
+});
+
+it('denies a caller outside the session from a plain membership read without opening a transaction', async () => {
+  seedSplitNavigation();
+  await expect(calls.readFleetGroupNavigation.run(request({ sessionId: 's1', requestId: 'nav-stranger-read',
+    expectedNavigationRevision: 2, expectedFleetPartitionRevision: 1, expectedGroupId: 'fleet-2' }, 'stranger')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.transactions).not.toHaveBeenCalled();
   expect(mock.writes).not.toHaveBeenCalled();
 });
 
