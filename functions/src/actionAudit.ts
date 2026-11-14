@@ -176,3 +176,80 @@ export function actionAuditMatchesReceipt(stored: unknown, binding: ReceiptBound
     storedKeys.every((key, index) => key === keys[index]) &&
     keys.every((key) => record[key] === (expected as Record<string, unknown>)[key]);
 }
+
+/** A JSON value a durable Firestore receipt stores without loss. */
+export type ActionAuditDetailValue =
+  | null | boolean | number | string
+  | readonly ActionAuditDetailValue[]
+  | { readonly [key: string]: ActionAuditDetailValue };
+
+/**
+ * The facilitator-only companion to an action audit. The metadata record stays
+ * payload-free; this record keeps the actor's explicit choice and the
+ * committed, source-defined result (calculation and consequences) so the GM
+ * can query them. Players keep only their own callable reply and the
+ * allow-listed member event.
+ */
+export type ActionAuditDetailRecord = Readonly<{
+  schemaVersion: 1;
+  sessionId: string;
+  actorUid: string;
+  action: ActionAuditAction;
+  requestId: string;
+  revision: number;
+  resolutionSource: ActionAuditResolutionSource;
+  audience: 'facilitator';
+  choice: Readonly<Record<string, ActionAuditDetailValue>>;
+  result: Readonly<Record<string, ActionAuditDetailValue>>;
+  redactionPolicy: 'action-audit-gm-detail-v1';
+  createdAt: unknown;
+}>;
+
+export type ActionAuditDetail = Readonly<{ choice: unknown; result: unknown }>;
+
+function isDetailValue(value: unknown, depth = 0): value is ActionAuditDetailValue {
+  if (depth > 8) return false;
+  if (value === null || typeof value === 'boolean' || typeof value === 'string') return true;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (Array.isArray(value)) return value.every((entry) => isDetailValue(entry, depth + 1));
+  if (typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) return false;
+  return Object.values(value).every((entry) => isDetailValue(entry, depth + 1));
+}
+
+function detailRecord(value: unknown, field: string): Readonly<Record<string, ActionAuditDetailValue>> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value) || !isDetailValue(value)) {
+    throw new Error(`${field} must be a plain JSON record`);
+  }
+  return value as Readonly<Record<string, ActionAuditDetailValue>>;
+}
+
+/** Build the facilitator-only choice and result receipt for a committed action. */
+export function buildActionAuditDetailRecord(
+  binding: ReceiptBoundActionAudit,
+  detail: ActionAuditDetail,
+  createdAt: unknown,
+): ActionAuditDetailRecord {
+  // The metadata builder owns the shared identity validation.
+  const metadata = buildActionAuditRecord({
+    ...binding,
+    actorRoleId: null,
+    phase: 'active',
+    outcome: 'committed',
+    resolutionSource: ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION[binding.action as ActionAuditAction],
+    createdAt,
+  });
+  return {
+    schemaVersion: 1,
+    sessionId: metadata.sessionId,
+    actorUid: metadata.actorUid,
+    action: metadata.action,
+    requestId: metadata.requestId,
+    revision: metadata.revision,
+    resolutionSource: metadata.resolutionSource,
+    audience: 'facilitator',
+    choice: detailRecord(detail.choice, 'choice'),
+    result: detailRecord(detail.result, 'result'),
+    redactionPolicy: 'action-audit-gm-detail-v1',
+    createdAt,
+  };
+}

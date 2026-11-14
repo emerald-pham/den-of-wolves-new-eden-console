@@ -1013,6 +1013,14 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // The facilitator-only companion keeps an automatic procedure's explicit
+      // choice and committed calculation. Players, Press and observers keep
+      // their own reply and the allow-listed member event; writes are server-owned.
+      match /actionAuditDetails/{requestId} {
+        allow get, list: if isGm(sessionId);
+        allow write: if false;
+      }
+
       // Hummingbird's server dice and pending allocation are private to the
       // currently active Quellon Explorer. The public session may expose only
       // the completed food/water cargo projection.

@@ -271,3 +271,28 @@ it('fails closed on an orphaned Macaw repair audit or a mismatched audit on repl
   mock.documents.get(macawAuditPath)!.revision = 2;
   await expect(repairConsolesFromMacaw.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
 });
+
+it('keeps the explicit choice and committed result in one facilitator-only receipt that replay never rewrites', async () => {
+  const detailPath = 'sessions/s1/actionAuditDetails/macaw-repair-1';
+  const committed = await repairConsolesFromMacaw.run(request(command));
+  expect(committed).toMatchObject({ status: 'committed' });
+  expect(mock.documents.get(detailPath)).toEqual({
+    schemaVersion: 1, sessionId: 's1', actorUid: 'holder', action: 'macaw-repair', requestId: 'macaw-repair-1',
+    revision: expect.any(Number), resolutionSource: 'server-rules', audience: 'facilitator',
+    choice: expect.objectContaining({ hostShipId: 'capybara', systemIds: ['reactor', 'storage'] }),
+    result: committed,
+    redactionPolicy: 'action-audit-gm-detail-v1', createdAt: 'server-time',
+  });
+  expect(mock.documents.get(detailPath)!.revision)
+    .toBe(mock.documents.get('sessions/s1/actionAudits/macaw-repair-1')!.revision);
+  const detail = mock.documents.get(detailPath);
+  mock.set.mockClear(); mock.update.mockClear();
+  await expect(repairConsolesFromMacaw.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.documents.get(detailPath)).toBe(detail);
+});
+
+it('writes no facilitator receipt detail for a denied actor', async () => {
+  await expect(repairConsolesFromMacaw.run(request(command, 'stranger'))).rejects.toMatchObject({ code: expect.any(String) });
+  expect([...mock.documents.keys()].some((path) => path.includes('/actionAuditDetails/'))).toBe(false);
+});

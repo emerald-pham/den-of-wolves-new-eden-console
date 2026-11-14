@@ -214,7 +214,10 @@ it('does not reroll or fork the audit when a recycled hull transaction retries',
   });
   expect(mock.randomInt).toHaveBeenCalledTimes(1);
   expect(mock.randomUUID).not.toHaveBeenCalled();
-  expect(mock.set).toHaveBeenCalledTimes(6);
+  expect(mock.set).toHaveBeenCalledTimes(8);
+  const detailCalls = mock.set.mock.calls.filter(([path]) => String(path).includes('/actionAuditDetails/'));
+  expect(detailCalls).toHaveLength(2);
+  expect(detailCalls[0]).toEqual(detailCalls[1]);
   const eventCalls = mock.set.mock.calls.filter(([path]) => String(path).includes('/damageDraws/'));
   expect(eventCalls).toHaveLength(2);
   expect(eventCalls[0]).toEqual(['sessions/s1/damageDraws/damage-test-damage',
@@ -449,7 +452,10 @@ it('does not reroll the card or event identity when Firestore retries the transa
 
   expect(mock.randomInt).toHaveBeenCalledTimes(1);
   expect(mock.randomUUID).not.toHaveBeenCalled();
-  expect(mock.set).toHaveBeenCalledTimes(8);
+  expect(mock.set).toHaveBeenCalledTimes(10);
+  const detailCalls = mock.set.mock.calls.filter(([path]) => String(path).includes('/actionAuditDetails/'));
+  expect(detailCalls).toHaveLength(2);
+  expect(detailCalls[0]).toEqual(detailCalls[1]);
   const eventCalls = mock.set.mock.calls.filter(([path]) => String(path).includes('/damageDraws/'));
   expect(eventCalls).toHaveLength(2);
   expect(eventCalls[0]).toEqual(['sessions/s1/damageDraws/damage-test-damage',
@@ -945,4 +951,65 @@ it('rejects damage and repair mutations after pursuit failure without writing', 
     .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/endgame evaluation/i) });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('keeps the GM ship choice and the committed card draw in one facilitator-only receipt', async () => {
+  const requestId = 'damage-detail-1';
+  mock.players = [{ id: 'u1', fields: { role: 'gm', connected: true, activeConsoleRoleId: 'admiral' } }];
+
+  const committed = await addShipDamage.run(request({ ...data, requestId, expectedRevision: 0 }));
+
+  expect(committed).toMatchObject({ card: { card: '10♥', systemId: 'reactor' }, destroyed: false });
+  expect(mock.set).toHaveBeenCalledWith(`sessions/s1/actionAuditDetails/${requestId}`, {
+    schemaVersion: 1, sessionId: 's1', actorUid: 'u1', action: 'ship-damage', requestId,
+    revision: 1, resolutionSource: 'server-random', audience: 'facilitator',
+    choice: { shipId: 'aegis' },
+    result: committed,
+    redactionPolicy: 'action-audit-gm-detail-v1', createdAt: 'server-time',
+  });
+});
+
+it('commits one card, audit and facilitator receipt when two GM consoles compete for the same ship revision', async () => {
+  // Firestore serializes the competing transactions; the second reads the
+  // first's committed vessel revision.
+  mock.update.mockImplementation((_path: string, fields: Record<string, unknown>) => {
+    if (typeof fields['vesselActionRevisions.aegis'] === 'number') {
+      mock.vesselActionRevisions = { ...mock.vesselActionRevisions, aegis: fields['vesselActionRevisions.aegis'] as number };
+    }
+    if (fields['shipDamage.aegis'] !== undefined) mock.damage = { ...mock.damage, aegis: fields['shipDamage.aegis'] };
+  });
+  const stored = new Map<string, Record<string, unknown>>();
+  mock.set.mockImplementation((path: string, fields: Record<string, unknown>) => { stored.set(path, fields); });
+  const baseGet = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation(async (path: string) => {
+    const fields = stored.get(path);
+    if (fields && (path.includes('/commandReceipts/') || path.includes('/actionAudits/'))) {
+      return { exists: true, get: (key: string) => fields[key], data: () => fields };
+    }
+    return baseGet(path);
+  });
+
+  const first = await addShipDamage.run(request({ ...data, requestId: 'gm-a-damage', expectedRevision: 0 }));
+  mock.owner = 'u2';
+  const second = await addShipDamage.run(request(
+    { ...data, instanceId: 'bridge-2', requestId: 'gm-b-damage', expectedRevision: 0 }, 'u2',
+  ));
+  const hijack = addShipDamage.run(request(
+    { ...data, instanceId: 'bridge-2', requestId: 'gm-a-damage', expectedRevision: 0 }, 'u2',
+  ));
+
+  expect(first).toMatchObject({ destroyed: false, card: { card: '10♥' }, revision: 0 });
+  expect(second).toMatchObject({ status: 'stale', currentRevision: 1 });
+  await expect(hijack).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.randomInt).toHaveBeenCalledTimes(1);
+  const written = (segment: string) => mock.set.mock.calls
+    .filter(([path]) => String(path).includes(segment)).map(([path]) => path);
+  expect(written('/damageDraws/')).toEqual(['sessions/s1/damageDraws/damage-gm-a-damage']);
+  expect(written('/actionAudits/')).toEqual(['sessions/s1/actionAudits/gm-a-damage']);
+  expect(written('/actionAuditDetails/')).toEqual(['sessions/s1/actionAuditDetails/gm-a-damage']);
+  const audit = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/actionAudits/gm-a-damage')?.[1];
+  expect(audit).toMatchObject({ actorUid: 'u1', redactionPolicy: 'action-audit-metadata-only-v1' });
+  expect(audit).not.toHaveProperty('card');
+  expect(mock.set.mock.calls.find(([path]) => path === 'sessions/s1/actionAuditDetails/gm-a-damage')?.[1])
+    .toMatchObject({ actorUid: 'u1', audience: 'facilitator', result: first });
 });
