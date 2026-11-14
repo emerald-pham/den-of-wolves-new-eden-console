@@ -3,10 +3,11 @@
 // functions/lib, and both otherwise surface as module-resolution failures
 // reported as test failures. Stop at once with one instruction when the
 // dependencies are missing; build the generated core before tests load.
-import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildSync } from 'esbuild';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -31,10 +32,37 @@ export function prepareFunctionsTests(root = ROOT) {
     process.stderr.write(`${error}\n`);
     process.exit(1);
   }
-  execFileSync(process.execPath, [resolve(root, 'scripts', 'build-casting-companion-core.mjs')], {
-    cwd: root,
-    stdio: 'inherit',
-  });
+  buildCastingCoreAtomically(root);
+}
+
+/**
+ * Build the casting core the way scripts/build-casting-companion-core.mjs
+ * does, into a temporary file beside it, then rename it into place. A test
+ * worker or concurrent run that already opened the previous core keeps
+ * reading it whole instead of a half-written file. The build script stays
+ * unchanged because editing it selects a Functions deploy; a test pins the
+ * two outputs to the same bytes.
+ */
+function buildCastingCoreAtomically(root) {
+  const outfile = resolve(root, 'functions', 'lib', 'casting-companion-core.cjs');
+  const temporary = resolve(dirname(outfile), `.casting-companion-core.${process.pid}.${randomBytes(6).toString('hex')}.tmp.cjs`);
+  mkdirSync(dirname(outfile), { recursive: true });
+  try {
+    buildSync({
+      absWorkingDir: root,
+      entryPoints: [resolve(root, 'functions', 'casting-companion-entry.mjs')],
+      outfile: temporary,
+      bundle: true,
+      platform: 'node',
+      format: 'cjs',
+      target: 'node22',
+      sourcemap: false,
+      logLevel: 'error',
+    });
+    renameSync(temporary, outfile);
+  } finally {
+    rmSync(temporary, { force: true });
+  }
 }
 
 export default function setup() {
