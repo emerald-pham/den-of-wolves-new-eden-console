@@ -41,6 +41,7 @@ const SAFE_IDENTIFIER = /^[\w-]{1,128}$/;
 const SAFE_CALLABLE_NAME = /^[\w.-]{1,128}$/;
 const SAFE_FIELD_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
 const MAX_REPORTED_FIELDS = 32;
+const MAX_EXAMINED_FIELDS = 256;
 
 function hashIdentifier(value: unknown, kind: 'actor' | 'session' | 'request'): string | undefined {
   return typeof value === 'string' && SAFE_IDENTIFIER.test(value)
@@ -66,11 +67,19 @@ function field(data: unknown, key: string): unknown {
 
 /**
  * Top-level request field names (never values) show which shape a malformed
- * request had. Odd or oversized names are dropped rather than echoed.
+ * request had. Odd or oversized names are dropped rather than echoed, and only
+ * the first keys are examined so a huge malformed body cannot amplify the work.
  */
 function requestFieldNames(data: unknown): string[] {
   if (typeof data !== 'object' || data === null || Array.isArray(data)) return [];
-  return Object.keys(data).filter(name => SAFE_FIELD_NAME.test(name)).sort().slice(0, MAX_REPORTED_FIELDS);
+  const names: string[] = [];
+  let examined = 0;
+  for (const name in data) {
+    if (!Object.hasOwn(data, name)) continue;
+    if (examined++ >= MAX_EXAMINED_FIELDS) break;
+    if (SAFE_FIELD_NAME.test(name)) names.push(name);
+  }
+  return names.sort().slice(0, MAX_REPORTED_FIELDS);
 }
 
 function denialDetails(details: unknown): Record<string, unknown> {
