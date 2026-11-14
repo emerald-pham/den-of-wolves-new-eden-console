@@ -175,6 +175,14 @@ describe('pull request closing-keyword gate', () => {
     expect(result.code).toBe(0);
   });
 
+  it('fails a pull request whose title would close an issue, because the merge commit carries the title', async () => {
+    const result = await checkBody('Refs #463', { env: { PR_TITLE: 'Retro tooling fixes (refs #463)' } });
+    expect(result.code).toBe(0);
+    const closing = await checkBody('Refs #463', { env: { PR_TITLE: 'Retro tooling, closes #463' } });
+    expect(closing.code).toBe(1);
+    expect(closing.output).toContain('PR title: closes #463');
+  });
+
   /** A repository whose base commit closes #1 and whose PR range holds `messages`. */
   async function pullRequestRange(messages: string[]) {
     const repository = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-pr-commits-'));
@@ -236,7 +244,7 @@ describe('pull request closing-keyword gate', () => {
     expect(workflow).toMatch(/uses: actions\/checkout@v7\n\s+with:\n\s+fetch-depth: 0/);
   });
 
-  it('re-runs on every pull request body edit without interpolating the body into a shell', () => {
+  it('re-runs on every pull request title or body edit without interpolating either into a shell', () => {
     const workflow = readFileSync(workflowPath, 'utf8');
     expect(workflow).toMatch(/pull_request:\n\s+types: \[[^\]]*\bedited\b[^\]]*\]/);
     for (const type of ['opened', 'reopened', 'synchronize']) expect(workflow).toContain(type);
@@ -244,5 +252,7 @@ describe('pull request closing-keyword gate', () => {
     expect(workflow).toContain('PR_BODY: ${{ github.event.pull_request.body }}');
     expect(workflow).toContain('run: node scripts/pr-closing-keywords.mjs');
     expect(workflow.match(/\$\{\{[^}]*body[^}]*\}\}/g)).toHaveLength(1);
+    expect(workflow).toContain('PR_TITLE: ${{ github.event.pull_request.title }}');
+    expect(workflow.match(/\$\{\{[^}]*title[^}]*\}\}/g)).toHaveLength(1);
   });
 });
