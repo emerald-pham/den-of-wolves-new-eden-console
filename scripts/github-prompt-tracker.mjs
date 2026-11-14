@@ -648,6 +648,11 @@ export async function readGitHubPromptCatalog({ sourceBytes, transport, crosswal
   };
 }
 
+/** Completion and hold release record evidence; every other update leaves `--evidence` unused. */
+function changesNeedEvidence(changes) {
+  return changes.status === 'done' || changes.closeAs === 'completed' || changes.releaseHold === true;
+}
+
 /** Update only tracker-owned fields, preserving user prose and relationships, then verify readback. */
 export async function updateGitHubIssueState({ transport, issueNumber, changes, expectedRecord, validateProjection, cwd = process.cwd() } = {}) {
   if (!Number.isInteger(issueNumber) || !changes || typeof changes !== 'object') throw new Error('An issue number and owned-field changes are required');
@@ -683,6 +688,9 @@ export async function updateGitHubIssueState({ transport, issueNumber, changes, 
   if (expectedRecord?.recordKind === 'held-future-brief' && changes.closeAs === 'completed') {
     if (fields.Hold !== 'released') throw new Error('Held future briefs cannot be completed while held');
   }
+  const evidenceReferences = changes.evidenceReferences ?? [];
+  const evidenceAccepted = changesNeedEvidence(changes) && changes.reviewed === true && changes.accepted === true
+    && validateEvidenceReferences(evidenceReferences, cwd);
   let state = current.state;
   let stateReason = current.stateReason;
   const next = { ...fields };
@@ -690,8 +698,7 @@ export async function updateGitHubIssueState({ transport, issueNumber, changes, 
     if (!promptIssue || !PROMPT_STATUSES.has(changes.status)) throw new Error('Prompt status update is invalid for this issue');
     const oldStatus = fields['Prompt status'];
     if (changes.status === 'done') {
-      const evidenceReferences = changes.evidenceReferences ?? [];
-      if (changes.reviewed !== true || changes.accepted !== true || !validateEvidenceReferences(evidenceReferences, cwd)) {
+      if (!evidenceAccepted) {
         throw new Error('Completing a prompt requires reviewed, accepted local evidence references');
       }
       if (INCOMPLETE_STATUSES.has(oldStatus)) next['Previous incomplete status'] = oldStatus;
@@ -729,8 +736,7 @@ export async function updateGitHubIssueState({ transport, issueNumber, changes, 
         || fields.Readiness !== 'held' || fields.Execution !== 'inactive') {
       throw new Error('Only an inactive held future brief can be released');
     }
-    const evidenceReferences = changes.evidenceReferences ?? [];
-    if (changes.reviewed !== true || changes.accepted !== true || !validateEvidenceReferences(evidenceReferences, cwd)) {
+    if (!evidenceAccepted) {
       throw new Error('Hold release requires reviewed, accepted local trigger/authorization evidence');
     }
     next.Hold = 'released';
@@ -740,8 +746,7 @@ export async function updateGitHubIssueState({ transport, issueNumber, changes, 
   }
   if (changes.closeAs === 'completed') {
     if (promptIssue) throw new Error('Prompt completion requires a reviewed status update');
-    const evidenceReferences = changes.evidenceReferences ?? [];
-    if (changes.reviewed !== true || changes.accepted !== true || !validateEvidenceReferences(evidenceReferences, cwd)) {
+    if (!evidenceAccepted) {
       throw new Error('Completing a brief requires reviewed, accepted local evidence references');
     }
     next.Completion = 'reviewed-accepted';
@@ -1075,10 +1080,10 @@ async function runCommand({ command, options, cwd = process.cwd() }) {
     ...structuredClone(sharedChanges),
     ...(evidenceByIssue.has(issueNumber) ? { evidenceReferences: evidenceByIssue.get(issueNumber) } : {}),
   });
-  // Reject a malformed or missing evidence reference for any listed issue before the first GitHub write.
-  const needsEvidence = sharedChanges.status === 'done' || sharedChanges.closeAs === 'completed' || sharedChanges.releaseHold === true;
-  for (const issueNumber of issueNumbers) {
-    if (evidenceByIssue.has(issueNumber) || needsEvidence) {
+  // When the update records evidence, reject a malformed or missing reference for any listed issue
+  // before the first GitHub write. Other updates leave --evidence unused, as a single update always has.
+  if (changesNeedEvidence(sharedChanges)) {
+    for (const issueNumber of issueNumbers) {
       if (!validateEvidenceReferences(evidenceByIssue.get(issueNumber) ?? [], cwd)) {
         throw new Error(`Evidence for #${issueNumber} must be reviewed, accepted local references (path#anchor to an existing file)`);
       }
@@ -1096,10 +1101,11 @@ async function runCommand({ command, options, cwd = process.cwd() }) {
   let failure = null;
   for (const [index, issueNumber] of issueNumbers.entries()) {
     const record = records[index];
-    const prompt = record.recordKind === 'prompt-acceptance'
+    const promptRecord = record.recordKind === 'prompt-acceptance';
+    const prompt = promptRecord
       ? projected.prompts.find(({ id }) => id.toUpperCase() === record.legacyId.toUpperCase())
       : null;
-    if (record.recordKind === 'prompt-acceptance' && !prompt) {
+    if (promptRecord && !prompt) {
       failure = new Error(`Prompt ${record.legacyId} is missing from the saved catalog`);
       break;
     }
