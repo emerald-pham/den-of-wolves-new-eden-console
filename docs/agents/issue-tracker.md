@@ -24,7 +24,28 @@ of project modules and CI checks do not contact GitHub.
 Read the relevant prompt definition, prerequisite links, evidence and release
 boundaries before changing work. Check the active checkpoint plan and owner
 feedback for scope and authorization. Use
-`npm run coordination:dependencies -- --prompt NNN` for read-only readiness.
+`npm run coordination:dependencies -- --prompt NNN` for read-only readiness: it
+reports the catalog row and hard prerequisites and creates no nonce, receipt,
+or other local proof artifact. `NEXT` is a useful ready-work hint, not a serial
+lock. Hard prerequisites and explicit product-only deferrals hold that prompt;
+source-backed rules ambiguity follows
+[`PRODUCT_MILESTONES.md`](../PRODUCT_MILESTONES.md). Continue independent work.
+Readiness is not a commit, merge, push, or deployment gate.
+
+### Queueing new work
+
+Include each newly queued item in the generated dependency chart and record
+useful related-work links and explicit hard prerequisites where one item
+genuinely needs another's functionality. These prerequisites describe
+implementation order and realistic readiness, not Git or CI enforcement. Do not
+add commit, merge, push, or deployment gates for them. Reuse existing cheap
+catalog checks without new enforcement machinery or release delays. If a queue
+update would disrupt an in-flight final release, prepare it separately and land
+it after that release settles.
+
+Dependency and other catalog-structure changes remain reviewed catalog edits
+with regenerated views; `node scripts/generate-prompt-views.mjs --check`
+verifies generated views against the saved snapshot.
 
 ### Issue-owned definitions
 

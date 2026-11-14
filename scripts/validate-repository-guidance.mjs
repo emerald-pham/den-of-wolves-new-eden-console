@@ -99,7 +99,7 @@ export function validateAgentModelEscalation({ sources, errors }) {
     'must halt without a higher permitted effort or stronger approved route and preserve/report the blocker', errors);
   const playbookPath = 'docs/AGENT_CAMPAIGN_PLAYBOOK.md';
   requireText(playbookPath, sourceFor(sources, playbookPath, errors),
-    /canonical model allowance[\s\S]{0,80}agent_execution_policy\.md#delegation/i,
+    /canonical model allowance[\s\S]{0,80}agent_execution_policy\.md#model-and-effort-routing/i,
     'must point to the canonical subagent model allowance', errors);
 
   for (const filePath of [EXECUTION_POLICY_PATH, playbookPath, 'AGENTS.md', 'CLAUDE.md']) {
@@ -134,7 +134,14 @@ export function validateAgentModelEscalation({ sources, errors }) {
       errors.push(`${filePath}: must not cap Terra or Sol at max when higher supported effort is permitted`);
     }
   }
-  for (const filePath of ['CLAUDE.md', playbookPath]) {
+  // CLAUDE.md loads into every agent tool's sessions, so it names no tool's
+  // models and points to the per-tool routing section instead.
+  const claude = sourceFor(sources, 'CLAUDE.md', errors);
+  if (/gpt-\d|\b(?:Astra|Luna|Terra|Sol|Opus|Sonnet|Haiku|Fable)\b/.test(claude)
+    || !/docs\/AGENT_EXECUTION_POLICY\.md#model-and-effort-routing/.test(claude)) {
+    errors.push('CLAUDE.md: must name no agent-tool models; point to the model and effort routing section');
+  }
+  for (const filePath of [EXECUTION_POLICY_PATH, playbookPath]) {
     const source = sourceFor(sources, filePath, errors);
     requireText(filePath, source, /(?:default[\s\S]{0,60}gpt-6-luna|gpt-6-luna[\s\S]{0,160}economical)/i,
       'must name GPT-6 Luna as the default delegated worker', errors);
@@ -188,6 +195,16 @@ export function validateSessionGoalGuidance({ sources, errors }) {
       'must use coordination status for current ownership or reservations', errors);
     requireText(filePath, source, /(?:never|do not)[\s\S]{0,140}(?:infer|assume)[\s\S]{0,140}(?:stale|safe)[\s\S]{0,100}age/i,
       'must not infer stale ownership from age alone', errors);
+    if (/(?:there is|requires?|must use|creates?|records?)\s+(?:an?\s+)?immutable goal artifact|\b(?:requires?|must use|records?)\s+(?:a\s+)?digest comparison/i.test(normalizeGuidance(source))) {
+      errors.push(`${filePath}: must not reintroduce immutable goal or digest gates`);
+    }
+    // CLAUDE.md keeps the always-needed rules above and points to the
+    // coordination reference for parking, polling and goal details.
+    if (filePath === 'CLAUDE.md') {
+      requireText(filePath, source, /docs\/worktree_coordination\.md#optional-coordination/i,
+        'must point to the optional coordination reference', errors);
+      continue;
+    }
     requireText(filePath, source, /park(?:ed|ing)[\s\S]{0,220}(?:next action|clear|status)/i,
       'must document a simple parked status and next action', errors);
     requireText(filePath, source, /(?:no|do not)[\s\S]{0,100}(?:status\/heartbeat|heartbeat\/status)[\s\S]{0,100}polling/i,
@@ -196,9 +213,6 @@ export function validateSessionGoalGuidance({ sources, errors }) {
       'must keep goals in chat or the ordinary session record', errors);
     requireText(filePath, source, /(?:no|without)[\s\S]{0,120}(?:immutable goal|goal artifact|digest comparison)/i,
       'must remove immutable goal and digest gates', errors);
-    if (/(?:there is|requires?|must use|creates?|records?)\s+(?:an?\s+)?immutable goal artifact|\b(?:requires?|must use|records?)\s+(?:a\s+)?digest comparison/i.test(normalizeGuidance(source))) {
-      errors.push(`${filePath}: must not reintroduce immutable goal or digest gates`);
-    }
   }
 }
 

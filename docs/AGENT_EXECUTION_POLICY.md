@@ -4,11 +4,21 @@ This file extends [`AGENTS.md`](../AGENTS.md) and
 [`CLAUDE.md`](../CLAUDE.md). Read it before delegating work, shaping a product
 checkpoint, or preparing a release.
 
-## Delegation
+## Model and effort routing
 
+Choose every agent's model and effort from the subsection for the agent tool
+you are running in. Use only identifiers and effort levels exposed by the current runtime.
+The [delegation](#delegation) ownership, review, escalation and halt rules
+apply to every tool; only the model and effort choices differ. Where a later
+section of this file names a GPT model for a role (a Luna worker, a Sol
+reviewer), a session on another tool fills that role from its own subsection.
+
+### Codex and GPT runtimes
+
+New top-level coordinators default to `gpt-6-astra` with medium reasoning.
+Delegated workers default to `gpt-6-luna`.
 Permitted subagents are GPT-6 Luna (`gpt-6-luna`), GPT-6.1 Terra
 (`gpt-6.1-terra`) and GPT-6.1 Sol (`gpt-6.1-sol`).
-Use only identifiers and effort levels exposed by the current runtime.
 GPT-6 Luna may use only `max` effort. GPT-6.1 Terra may use all
 runtime-supported effort levels. GPT-6.1 Sol may use all runtime-supported
 effort levels. Existing security-review floors and normal/fast restrictions
@@ -17,50 +27,32 @@ Keep existing model defaults and active assignments unchanged. Existing agents
 may finish current bounded assignments; apply these rules to new work and
 subsequent assignments at their normal boundary.
 
-Use a fresh subagent for each distinct task unless the previous worker's context
-is genuinely required. Before spawning, preserve any needed findings, decisions,
-remaining work, and evidence, then close finished or unused subagents owned by
-this task through supported close operations. Keep active or user-owned workers
-and transcripts intact. If the available tools cannot close a subagent, report
-that limitation rather than claiming it was closed.
+Use `gpt-6.1-sol` for the independent risk review that `CLAUDE.md` requires
+for shared session state, callable behavior (including authorization and
+rules), Firestore rules, deployment/auth infrastructure, or release and
+capacity evidence. Use `medium` or `high` for a narrow, well-tested review and
+`xhigh` for complex authority or privacy risk. Exact threat-model receipts
+still require `xhigh`. Do not run a compulsory Luna → Sol → Luna ownership
+cycle.
 
-Workers own their task-specific documentation reading and code investigation.
-The orchestrator uses their findings and evidence, inspecting source only for
-a concrete decision or blocker. Let active workers encounter routine guidance
-updates at their next normal boundary; interrupt only for a material effect on
-their current work.
-
-After a task fails, increase effort when a higher runtime-supported level is
-available for that permitted model. Deliberate test-first RED is expected
-evidence, not a failed implementation attempt.
-
-After repeated or looping failures, halt identical blind reruns and perform
-bounded diagnosis, then select a task-appropriate stronger permitted model
-route. Record the actual runtime-supported model and effort, failure evidence,
-reason and ownership transfer. Do not impose a blanket capability ranking
-between Terra and Sol or a compulsory Luna → Sol → Luna cycle.
 Determine the selected model's effort ceiling from its runtime-supported and
 permitted levels. GPT-6 Luna's permitted ceiling is `max`. Terra and Sol use
 their highest runtime-supported effort, including `ultra` when exposed.
 Being at `max` must not block Terra or Sol from increasing to supported `ultra`.
-If neither a higher permitted effort nor a task-appropriate stronger approved
-available model route remains, halt the loop, preserve evidence and report the
-blocker instead of claiming escalation.
+Do not impose a blanket capability ranking
+between Terra and Sol.
 
-Use Sol for the independent risk reviews required by `CLAUDE.md`. If a
-Luna-owned implementation fails the same acceptance gate after two distinct,
-substantive repair attempts on separate candidate commits, apply the
-escalation or halt rules above before another repair. Preserve the failed
-evidence, exact commits, checkout and coordination state, and park the previous
-worker's edit scope before any documented ownership transfer.
+If a Luna-owned implementation fails the same acceptance gate after two
+distinct, substantive repair attempts on separate candidate commits, apply the
+[delegation](#delegation) escalation or halt rules before another repair.
+Preserve the failed evidence, exact commits, checkout and coordination state,
+and park the previous worker's edit scope before any documented ownership
+transfer.
 
-### Claude Code runtime models
+### Claude Code
 
-Claude Code does not expose the subagent identifiers above, so under the
-runtime-identifier rule a Claude Code session uses this subsection instead.
-Other runtimes keep the rules above unchanged. Ownership, review, escalation
-and halt rules in this file still apply; only the model and effort choices
-differ.
+Claude Code does not expose the identifiers in the section above, so a Claude
+Code session uses this subsection instead.
 
 Set `model` and `effort` explicitly on every Agent call; this subsection is
 the explicit instruction to do so. Fable is never authorized, in any version,
@@ -76,8 +68,8 @@ newest version.
 
 | Work | Model | Effort |
 |---|---|---|
-| Orchestrator (top-level session that owns the checkpoint) | Opus | medium |
-| Bounded implementation groups, repairs, tests, reconciliation | Opus | high |
+| Coordinator (top-level session that owns the task and checkpoint) | Opus | medium |
+| Default delegated work: implementation groups, repairs, tests, reconciliation | Opus | high |
 | Hard bounded work (state the reason in the brief) | Opus | max |
 | Independent risk review required by `CLAUDE.md` | Opus | max |
 | Routine self-review or second opinion on ordinary changes | Opus | xhigh |
@@ -92,9 +84,9 @@ Rules:
   task (September 2026 snapshot).
 - Opus 5.5 (Max) ranks #1 on Agent Arena at about four times the cost of High;
   use it deliberately. The independent reviewer is never the implementer.
-- After a failed attempt, raise effort one level (high → xhigh → max) as the
-  rule above requires. A failed test with an obvious fix is progress, not a
-  failure to escalate on.
+- After a failed attempt, raise effort one level (high → xhigh → max) as
+  [delegation](#delegation) requires. A failed test with an obvious fix is
+  progress, not a failure to escalate on.
 - Haiku never writes code, reviews changes or makes decisions; its Agent Arena
   score is not distinguishable from zero.
 - Sonnet is not a default. Use it only if the user sets a cost cap that Opus
@@ -119,7 +111,7 @@ for it.
    conclusion.
 2. Only if that fails, run two fresh Opus max agents in parallel from
    different angles, such as one reasoning from the spec and first principles
-   and one building a minimal reproduction and bisecting. The orchestrator, or
+   and one building a minimal reproduction and bisecting. The coordinator, or
    a third Opus max agent, reconciles them and picks one path.
 3. Before step 2, tell the user in one line why it is needed and the rough
    cost, about 9 to 13 times a single Opus high task. This is a heads-up, not
@@ -128,11 +120,42 @@ for it.
    loop and do not substitute Fable.
 
 Record the model, effort, failure evidence, reason and any ownership transfer
-for each escalation, as required above.
+for each escalation, as [delegation](#delegation) requires.
 
 Benchmark snapshot: arena.ai Agent Arena, 2026-11-04. Opus 5.5 (Max) #1,
 20.14%, $6.79 per task; Sonnet 5.5 (Max) #3, 15.42%, $3.86; Fable 5.1 (Max)
 #5, 13.86%, $6.39; Haiku 5.5 (High) #28, 0.62%, $0.08.
+
+## Delegation
+
+Use a fresh subagent for each distinct task unless the previous worker's context
+is genuinely required. Before spawning, preserve any needed findings, decisions,
+remaining work, and evidence, then close finished or unused subagents owned by
+this task through supported close operations. Keep active or user-owned workers
+and transcripts intact. If the available tools cannot close a subagent, report
+that limitation rather than claiming it was closed.
+
+Workers own their task-specific documentation reading and code investigation.
+The orchestrator uses their findings and evidence, inspecting source only for
+a concrete decision or blocker. Let active workers encounter routine guidance
+updates at their next normal boundary; interrupt only for a material effect on
+their current work.
+
+Escalate only after actual lack of progress or a material failure: a
+substantive diagnosis and an attempted repair failed and no credible next step
+remains. After a task fails, increase effort when a higher runtime-supported level is
+available for that permitted model. Deliberate test-first RED is expected
+evidence, not a failed implementation attempt.
+
+After repeated or looping failures, halt identical blind reruns and perform
+bounded diagnosis, then select a task-appropriate stronger permitted model
+route. Record the actual runtime-supported model and effort, failure evidence,
+reason and ownership transfer. Each tool's
+[routing subsection](#model-and-effort-routing) sets its effort ceilings and
+stronger routes.
+If neither a higher permitted effort nor a task-appropriate stronger approved
+available model route remains, halt the loop, preserve evidence and report the
+blocker instead of claiming escalation.
 
 ### Checkpoint ownership and implementation groups
 
@@ -356,6 +379,47 @@ While an owner or CI run is active, wait for a meaningful completion, blocker,
 or requested checkpoint. Use a long interruptible wait with a clear owner and
 resume path. Do not loop through short status polls or send updates that only
 say the work is still running.
+
+## Release versioning
+
+Every player-facing release follows the version and changelog rule in
+[`CLAUDE.md`](../CLAUDE.md#landing-and-release). Never append one task's note
+to another version entry. Derive the visible build reference from package
+metadata rather than hardcoding a version in source, tests, or docs.
+
+Patch versions stop at `99`: after `0.x.99`, increment the minor version and
+reset the patch to zero (`0.3.99` → `0.4.0`). Never issue `0.x.100` or higher.
+If an existing release has already exceeded that limit, use the next minor
+version with patch zero for the next release; preserve published release history.
+
+Only the product owner authorizes `0.9.x` and `1.0.0`. A `1.0.0` release
+requires the complete 20-player set, an end-to-end gameplay loop, and a clear
+implemented game end; role count or placeholder screens alone do not qualify.
+Release notes should include the completed/total prompt percentage from the
+catalog snapshot used for that release, without turning the percentage into a
+second roadmap authority.
+
+## Independent typography review for final releases
+
+Owner instruction, 2026-10-08: every final product checkpoint release and
+equivalent release requires a typography reviewer independent of the
+implementer. Review the actual final built candidate, identify its commit and
+build artifact, and compare it with the intended typography contract and
+previous released build. Automated typography checks do not substitute for this
+review. Recheck affected evidence if the reviewed candidate materially changes.
+
+Inspect the actual resolved/rendered font (including platform fallback or font
+load failure), computed family, size, weight and line height, readability,
+wrapping and overflow. Use representative relevant viewports and states,
+including changed controls, dialogs/portals and recovery screens when affected.
+Choose the smallest useful configuration set; do not expand into a full actor
+or account matrix. For a global font report, sample shared chrome plus distinct
+font/inheritance paths across the app, and compare base/candidate CSS and assets.
+Record the baseline, exact artifact, platform, states, viewport/window sizes,
+findings, evidence and what was not checked. An inaccessible runtime is an
+unresolved review gap, not a pass inferred from unit, inference or source tests.
+Fix actionable typography findings and obtain the affected independent review
+before publication.
 
 ## Worktrees and cleanup
 
