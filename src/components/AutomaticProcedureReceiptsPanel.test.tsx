@@ -59,3 +59,22 @@ it('does not open the facilitator receipt read for a non-GM device and stops on 
   unmount();
   expect(mocks.stop).toHaveBeenCalledTimes(1);
 });
+
+it('tells the committed audit revision apart from the revision a damage reply reports', () => {
+  render(<AutomaticProcedureReceiptsPanel sessionId="s1" isGm />);
+  const publish = mocks.subscribeGmActionAuditDetails.mock.calls[0]![1] as
+    (details: readonly GmActionAuditDetail[]) => void;
+  act(() => publish([{
+    requestId: 'damage-1', action: 'ship-damage', actorUid: 'gm-1', revision: 1,
+    resolutionSource: 'server-random',
+    choice: { shipId: 'aegis' },
+    result: { card: { card: '10♥', systemId: 'reactor' }, destroyed: false, turn: 3, revision: 0 },
+  }]));
+
+  const receipt = screen.getByRole('article', { name: /Ship damage/ });
+  expect(receipt).toHaveTextContent('committed revision 1');
+  const result = within(receipt).getByRole('group', { name: 'Committed result' });
+  expect(within(result).getByText('reply revision').nextElementSibling).toHaveTextContent('0');
+  expect(within(result).getByText('cycle').nextElementSibling).toHaveTextContent('3');
+  expect(result).not.toHaveTextContent(/\bturn\b/);
+});
