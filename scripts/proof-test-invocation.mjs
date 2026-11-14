@@ -204,8 +204,17 @@ export async function inspectOwnedRuntime({
     .filter(record => positivePid(record?.pid))
     .map(record => ({ pid: record.pid, label: String(record.label ?? `pid ${record.pid}`),
       group: record.group === true, ...(record.startedAt ? { startedAt: String(record.startedAt) } : {}) }));
-  const allocatedPorts = [...new Set((Array.isArray(ports) ? ports : []).filter(port => Number.isSafeInteger(port) && port > 0))];
+  const portList = Array.isArray(ports) ? ports : [];
+  const validPort = port => Number.isSafeInteger(port) && port >= 1 && port <= 65_535;
+  const allocatedPorts = [...new Set(portList.filter(validPort))];
   const probeErrors = [];
+  const invalidPorts = portList.filter(port => !validPort(port));
+  if (!Array.isArray(ports) || invalidPorts.length) {
+    // An unreadable allocation cannot be inspected, so it can never read as returned.
+    probeErrors.push({ probe: 'allocated ports', error: errorRecord(new Error(
+      `allocated ports must be integers from 1 to 65535 (got ${Array.isArray(ports)
+        ? invalidPorts.map(port => JSON.stringify(port) ?? String(port)).join(', ') : typeof ports})`)) });
+  }
 
   let ownedProcesses = [];
   let foreign = [];
@@ -375,21 +384,30 @@ export async function runProofTestCommand(command, args, {
     if (ownsGroup) process.kill(-child.pid, signal);
     else child.kill(signal);
   };
+  // Every interrupt is handled until the child returns: the first is forwarded
+  // and a repeat escalates to SIGKILL, so the runner never exits early and
+  // leaves a detached proof group behind.
+  let signalsReceived = 0;
+  const deliverSignal = signal => {
+    if (!child || child.exitCode !== null || child.signalCode !== null) return;
+    try { signalChild(signal); } catch { /* The child result retains the signal request. */ }
+    forceKillTimer ??= setTimeout(() => {
+      if (child.exitCode === null && child.signalCode === null) {
+        try { signalChild('SIGKILL'); } catch { /* The child result retains the signal request. */ }
+      }
+    }, 1_000);
+  };
   const forwardSignal = signal => {
     interruptedBy ??= signal;
-    if (child && child.exitCode === null && child.signalCode === null) {
-      try { signalChild(signal); } catch { /* The child result retains the signal request. */ }
-      forceKillTimer = setTimeout(() => {
-        if (child.exitCode === null && child.signalCode === null) {
-          try { signalChild('SIGKILL'); } catch { /* The child result retains the signal request. */ }
-        }
-      }, 1_000);
-    }
+    signalsReceived += 1;
+    deliverSignal(signalsReceived > 1 ? 'SIGKILL' : signal);
   };
   const onSigint = () => forwardSignal('SIGINT');
   const onSigterm = () => forwardSignal('SIGTERM');
-  process.once('SIGINT', onSigint);
-  process.once('SIGTERM', onSigterm);
+  const onSighup = () => forwardSignal('SIGHUP');
+  process.on('SIGINT', onSigint);
+  process.on('SIGTERM', onSigterm);
+  process.on('SIGHUP', onSighup);
 
   try {
     child = spawn(command, args, {
@@ -399,7 +417,7 @@ export async function runProofTestCommand(command, args, {
       shell: false,
       detached: ownsGroup,
     });
-    if (interruptedBy) forwardSignal(interruptedBy);
+    if (interruptedBy) deliverSignal(signalsReceived > 1 ? 'SIGKILL' : interruptedBy);
     if (timeoutMs !== undefined) {
       timeoutTimer = setTimeout(() => {
         timedOut = true;
@@ -433,6 +451,7 @@ export async function runProofTestCommand(command, args, {
     clearTimeout(forceKillTimer);
     process.removeListener('SIGINT', onSigint);
     process.removeListener('SIGTERM', onSigterm);
+    process.removeListener('SIGHUP', onSighup);
     try { await log.close(); } catch (error) { logCloseError = error; }
   }
 
