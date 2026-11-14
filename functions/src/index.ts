@@ -38523,6 +38523,12 @@ export const addShipDamage = onCall<{
       );
       return replay;
     }
+    // Only an exact replay of an already-bound receipt may omit the revision;
+    // a new draw is unique to the vessel revision the console observed.
+    if (identity.expectedRevision === undefined) {
+      throw commandError('invalid-argument',
+        'expectedRevision is required for a new ship damage command.', 'malformed-input');
+    }
     if (actionAudit.exists) {
       throw commandError(
         'failed-precondition',
