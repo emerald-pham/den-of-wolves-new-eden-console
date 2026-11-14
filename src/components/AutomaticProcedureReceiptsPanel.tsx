@@ -74,7 +74,7 @@ export default function AutomaticProcedureReceiptsPanel({ sessionId, isGm }: Pro
   const [details, setDetails] = useState<readonly GmActionAuditDetail[]>([]);
 
   useEffect(() => {
-    if (!isGm || !sessionId || typeof subscribeGmActionAuditDetails !== 'function') return;
+    if (!isGm || !sessionId) return;
     let active = true;
     const stop = subscribeGmActionAuditDetails(sessionId, (next) => {
       if (active) setDetails(next);
