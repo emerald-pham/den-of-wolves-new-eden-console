@@ -317,3 +317,48 @@ it('writes no facilitator construction detail for a denied actor or a stale buil
   await expect(buildFighter.run(request({ ...base, expectedRevision: 2 }))).resolves.toMatchObject({ status: 'stale' });
   expect(mock.set.mock.calls.some(([path]) => String(path).includes('/actionAuditDetails/'))).toBe(false);
 });
+
+it('commits one construction, audit and facilitator receipt when two GM consoles compete for one AEGIS revision', async () => {
+  // Firestore serializes the competing transactions; the second reads the
+  // first's committed vessel revision.
+  mock.update.mockImplementation((_path: string, fields: Record<string, unknown>) => {
+    for (const [key, value] of Object.entries(fields)) {
+      if (key === 'vesselActionRevisions.aegis') mock.session.vesselActionRevisions = { aegis: value };
+      if (key === 'fighterWingCounts.fighter-wing-alpha') {
+        mock.session.fighterWingCounts = {
+          ...(mock.session.fighterWingCounts as Record<string, unknown>), 'fighter-wing-alpha': value,
+        };
+      }
+    }
+  });
+  mock.role = 'gm'; mock.activeRole = undefined;
+  const baseGet = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation(async (path: string) => {
+    if (path.includes('/private/shipConsoleWriteGrant')) {
+      return snapshot({
+        type: 'gm-ship-console-write-grant', sessionId: 's1', instanceId: path.split('/').at(-3),
+        uid: mock.owner, shipId: 'aegis', grantedAt: new Date(),
+      });
+    }
+    if (path.includes('/players/')) {
+      return { ...snapshot({ role: mock.role, connected: mock.connected }), id: path.split('/').at(-1) };
+    }
+    return baseGet(path);
+  });
+
+  const first = await buildFighter.run(request({ ...base, instanceId: 'gm-1', requestId: 'gm-a-build' }));
+  mock.owner = 'u2';
+  const second = await buildFighter.run(request({ ...base, instanceId: 'gm-2', requestId: 'gm-b-build' }, 'u2'));
+
+  expect(first).toMatchObject({ status: 'committed', count: 4, revision: 1 });
+  expect(second).toMatchObject({ status: 'stale', count: 4, currentRevision: 1 });
+  expect(mock.update).toHaveBeenCalledTimes(1);
+  const written = (segment: string) => mock.set.mock.calls
+    .filter(([path]) => String(path).includes(segment)).map(([path]) => path);
+  expect(written('/actionAudits/')).toEqual(['sessions/s1/actionAudits/gm-a-build']);
+  expect(written('/actionAuditDetails/')).toEqual(['sessions/s1/actionAuditDetails/gm-a-build']);
+  expect(mock.audits['sessions/s1/actionAudits/gm-a-build']).toMatchObject({
+    actorUid: 'u1', redactionPolicy: 'action-audit-metadata-only-v1',
+  });
+  expect(mock.audits['sessions/s1/actionAudits/gm-a-build']).not.toHaveProperty('count');
+});
