@@ -17,6 +17,9 @@ on:
       - 'docs/WORKTREE_COORDINATION.md'
       - 'docs/AGENT_CAMPAIGN_PLAYBOOK.md'
       - 'docs/agents/issue-tracker.md'
+      - 'docs/AGENT_EXECUTION_POLICY.md'
+      - 'docs/TICKER_BEHAVIOR.md'
+      - 'docs/LOCAL_STORAGE.md'
   push:
     branches-ignore: [main]
     paths:
@@ -34,6 +37,9 @@ on:
       - 'docs/WORKTREE_COORDINATION.md'
       - 'docs/AGENT_CAMPAIGN_PLAYBOOK.md'
       - 'docs/agents/issue-tracker.md'
+      - 'docs/AGENT_EXECUTION_POLICY.md'
+      - 'docs/TICKER_BEHAVIOR.md'
+      - 'docs/LOCAL_STORAGE.md'
   workflow_call:
     inputs:
       ref:

@@ -31,6 +31,9 @@ const DOCUMENTATION_TRIGGER_PATHS = new Set([
   'docs/WORKTREE_COORDINATION.md',
   'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
   'docs/agents/issue-tracker.md',
+  'docs/AGENT_EXECUTION_POLICY.md',
+  'docs/TICKER_BEHAVIOR.md',
+  'docs/LOCAL_STORAGE.md',
 ]);
 const POLICY_FILES = Object.freeze([
   '.github/workflows/ci.yml',
@@ -82,7 +85,7 @@ const CHROMIUM_INSTALL_ARGS = Object.freeze({
 });
 
 // Updated only alongside a reviewed workflow/scope/command contract change.
-const SUPPORTED_CI_FINGERPRINT = '48667653d186e372357adf88f5beb36f09f57665be7ef2f96a14fdfc2a9e134a';
+const SUPPORTED_CI_FINGERPRINT = '60c396315f7bdc291987d88d2c97ae30edd47deab7037ce752dcc17b3d7ab353';
 
 function fail(message) {
   throw new Error(message);
