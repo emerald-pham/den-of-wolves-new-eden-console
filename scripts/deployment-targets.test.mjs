@@ -1434,6 +1434,9 @@ test('a security-denial telemetry change redeploys every wrapped callable and no
     isAncestor: () => false,
     sourceAtRevision: (revision, path) => path === file && revision === 'candidate'
       ? `${atWired(path)}\n// later telemetry change\n` : atWired(path),
+    filesAtRevision: () => execFileSync('git', ['ls-tree', '-r', '--name-only', SECURITY_DENIAL_WIRED_REVISION, '--', 'functions/src'], {
+      encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
+    }).split('\n').filter(Boolean),
   }));
   // 207 index onCall exports, 19 module onCall exports and 2 factory-built
   // callables (TypeScript symbol trace of the wired revision).
@@ -1462,6 +1465,9 @@ test('a shared denial-reporting change redeploys every wrapped callable and the 
     isAncestor: () => false,
     sourceAtRevision: (revision, path) => path === file && revision === 'base'
       ? `${atRevision(path)}\n// earlier shared reporting\n` : atRevision(path),
+    filesAtRevision: () => execFileSync('git', ['ls-tree', '-r', '--name-only', SHARED_DENIAL_REPORTING_REVISION, '--', 'functions/src'], {
+      encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
+    }).split('\n').filter(Boolean),
   }));
   assert.equal(selected.length, 229);
   for (const name of ['castingCompanionCommand', 'rollDice', 'repairConsolesFromAlly', 'completeShuttleArrival']) {
@@ -1485,7 +1491,10 @@ test('a security-denial telemetry change fails closed when a wrapped onCall cann
       }
       return atWired(path);
     },
-  }), /security-denial telemetry/i);
+    filesAtRevision: () => execFileSync('git', ['ls-tree', '-r', '--name-only', SECURITY_DENIAL_WIRED_REVISION, '--', 'functions/src'], {
+      encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
+    }).split('\n').filter(Boolean),
+  }), /security-denial telemetry: functions\/src\/maliadesCallable\.ts/i);
 });
 
 // PC10.4 fix tip: every wrapped callable is built with the telemetry onCall,
