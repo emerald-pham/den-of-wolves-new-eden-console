@@ -443,6 +443,29 @@ describe('private security-denial telemetry', () => {
     // Input is refused before any Firestore read or roll.
     expect(mock.get).not.toHaveBeenCalled();
   });
+
+  it('records an over-budget dice request as a private rate-limit denial with its retry window', async () => {
+    session({ phase: 'active' });
+    player();
+    const roll = (index: number) => legacyRequest({
+      sessionId: 's1', requestId: `dice-limit-${index}`, sides: 6, count: 1, ...PRIVATE_PAYLOAD,
+    });
+    for (let index = 0; index < 30; index += 1) await rollDice.run(roll(index));
+    expect(securityDenials()).toEqual([]);
+
+    await expect(rollDice.run(roll(30))).rejects.toMatchObject({ code: 'resource-exhausted' });
+
+    expect(securityDenials()).toEqual([{
+      type: 'security-denial', schemaVersion: 1, callableName: 'rollDice',
+      code: 'resource-exhausted', category: 'rate-limit', commandError: 'rate-limited', retryAfterSeconds: 60,
+      authState: 'present', appCheck: 'absent',
+      actorHash: expect.stringMatching(HASH), sessionHash: expect.stringMatching(HASH),
+      requestHash: expect.stringMatching(HASH),
+    }]);
+    const rolls = [...mock.documents.values()].flatMap(fields => Array.isArray(fields.rolls) ? [fields.rolls] : []);
+    expect(rolls).toHaveLength(30);
+    expectNoPrivateValues(securityDenials(), ['dice-limit-30', 'rolls', 'u1']);
+  });
 });
 
 describe('expensive session callable rate limits', () => {
