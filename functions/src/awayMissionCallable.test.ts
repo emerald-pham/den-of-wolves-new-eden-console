@@ -1018,6 +1018,39 @@ describe('dealPrivateInitialCards', () => {
     expect(first).toMatchObject({ status: 'committed' });
   });
 
+  it('deals from the server-owned deck order, ignoring a forged order, and replays without leaking the remaining deck', async () => {
+    const forged = {
+      deckOrder: ['K♣', 'Q♣'], cardIds: ['K♣', 'Q♣'], dealtCount: 20,
+      missionDeck: { order: ['K♣', 'Q♣'], dealtCount: 20 },
+    };
+    const committed = await dealPrivateInitialCards.run(request({ ...command, ...forged }));
+    expect(committed).toMatchObject({ status: 'committed', participantCount: 2 });
+    expect(JSON.stringify(committed)).not.toMatch(/[♥♦♣]/u);
+    const handWrites = mock.set.mock.calls.filter(([ref]) => ref.path.includes('/awayMissionHands/'));
+    expect(handWrites.map(([, value]) => value.cardId)).toEqual(['A♥', '4♥']);
+    expect(mock.update).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'sessions/s1/serverState/missionDeck' }),
+      expect.objectContaining({ dealtCount: 2 }),
+    );
+    const nextUndrawnCard = deck.order[2]!;
+    const nonServerWrites = [...mock.set.mock.calls, ...mock.create.mock.calls, ...mock.update.mock.calls]
+      .filter(([ref]) => !ref.path.includes('/serverState/'));
+    expect(nonServerWrites.length).toBeGreaterThan(0);
+    expect(nonServerWrites.some(([, value]) => JSON.stringify(value).includes(nextUndrawnCard))).toBe(false);
+
+    mock.marker = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/commandReceipts/deal-1')?.[1];
+    mock.missionStartSnapshots[defaultOpportunity.id] = mock.create.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/missionStartSnapshots/${defaultOpportunity.id}`)?.[1] as Record<string, unknown>;
+    mock.set.mockClear();
+    mock.create.mockClear();
+    mock.update.mockClear();
+    await expect(dealPrivateInitialCards.run(request({ ...command, deckOrder: ['J♣'], dealtCount: 0 })))
+      .resolves.toEqual({ ...committed, status: 'replayed' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.create).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+
   it('blocks the group while an L/M base is operational without consuming cards', async () => {
     mock.arrivalPressureState = {
       type: 'wolf-base-arrival-pressure-state', groupId: 'fleet-1', chart: 'A', revision: 1,
