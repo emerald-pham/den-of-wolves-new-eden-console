@@ -732,8 +732,9 @@ Each catalog row links its own briefs through planning evidence.
 Triage is `ready-for-agent` for the approved specification. Dependency readiness
 and runtime authorization remain separate. The owner approved **PC10.1**
 runtime execution on 2026-11-04, **PC10.2** on 2026-11-05, after PC10.1
-went live, and **PC10.3** on 2026-11-10, after PC10.2 went live; PC10.4
-through PC10.9 remain paused until PC10.3 is live. PC10 was paused because no player-facing release had shipped
+went live, **PC10.3** on 2026-11-10, after PC10.2 went live, and **PC10.4**
+on 2026-11-14, after PC10.3 went live; PC10.5 through PC10.9 remain paused
+until PC10.4 is live. PC10 was paused because no player-facing release had shipped
 since 0.5.73 and the finished work sat unmerged on a long-lived integration
 branch that could not be merged whole. It resumes one small slice at a time:
 each slice is planned only after the previous release is verified on the
@@ -1235,3 +1236,24 @@ hides them on read). The named-callable deployment audit
 (`scripts/pc10-3-deployment-consumers.json`) selects every changed callable
 without a broad Functions fallback. Exact-commit CI, deployment, and gameplay
 on the live site with real accounts are not yet verified.
+
+## PC10.4 execution activated — 2026-11-14
+
+PC10.3 shipped as 0.5.77 (#460; Deploy run 42884874744), and the live site's
+`build-version.json` reported 0.5.77 on 2026-11-14. That day the owner asked
+to “work on the next decimal checkpoint”. This activates execution for
+**PC10.4 — Fair automatic actions and receipts** only: briefs U1, U2, B1, B2,
+J1 and J2 (#110–#115; PT5 #138 is already an approved repair) and their
+refinement children (#272–#293). PC10.5–PC10.9 keep their paused execution,
+and every held future brief stays held. No new ticket is created: activation
+is a change to the existing brief issues' own execution fields through the
+existing tracker writer. GitHub Issues remain the mutable authority.
+
+As with PC10.3, the slice is built ticket by ticket on current main, with its
+own helpers and focused tests; nothing is imported wholesale from the
+published candidate refs. B2 follows U1 and U2, and J2 consumes J1; each
+follows its own current source contract. Activation does not settle open
+source questions: any unresolved rule or audience question is surfaced rather
+than invented. This activation changes no completion status, acceptance,
+checkpoint membership or the 751-prompt endpoint, and grants no 0.9.x/1.0.0
+version authorization. PC10.4 release gates are unchanged.
