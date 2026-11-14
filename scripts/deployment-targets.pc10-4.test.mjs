@@ -8,7 +8,7 @@ import { classifyDeploymentRange, deploymentSelector } from './deployment-target
 // The PC10.3 release on main (last successful deployment) and the PC10.4
 // candidate whose Functions runtime source this audit pins.
 const BASELINE = '8c25a9a6889475ecb139cfef72551b2688c891aa';
-const CANDIDATE = '6f4096dc70ab042ec4ce0192cffe7c38ead86cfa';
+const CANDIDATE = '24e09e8c42c083bf1b60a1f2f45499aff3f40ed6';
 const CANDIDATE_ALIAS = 'pc10-4-candidate';
 const INVENTORY = 'scripts/pc10-4-deployment-consumers.json';
 const TELEMETRY = 'functions/src/securityDenialTelemetry.ts';
