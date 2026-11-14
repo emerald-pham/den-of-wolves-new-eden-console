@@ -9,13 +9,15 @@ import { HttpsError, onCall as sdkOnCall, type CallableRequest } from 'firebase-
  * production), never to Firestore or the client response. The record keeps
  * permitted operational metadata: which callable, the error code and category,
  * whether auth and App Check were present, and one-way hashes that let an
- * operator correlate an actor, session or request they already know. It never
+ * operator correlate an actor, session or request they already know. A schema
+ * denial also lists the request's top-level field names. It never
  * includes the request payload, error prose, headers or tokens, so credentials,
  * hands, loyalties and note bodies cannot enter it.
  */
 const DENIAL_CATEGORIES = {
   unauthenticated: 'auth',
   'permission-denied': 'authorization',
+  'invalid-argument': 'schema',
 } as const;
 
 type DeniedCode = keyof typeof DENIAL_CATEGORIES;
@@ -23,6 +25,8 @@ type AuditedRequest = Pick<CallableRequest, 'auth' | 'app' | 'data'>;
 
 const SAFE_IDENTIFIER = /^[\w-]{1,128}$/;
 const SAFE_CALLABLE_NAME = /^[\w.-]{1,128}$/;
+const SAFE_FIELD_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
+const MAX_REPORTED_FIELDS = 32;
 
 function hashIdentifier(value: unknown, kind: 'actor' | 'session' | 'request'): string | undefined {
   return typeof value === 'string' && SAFE_IDENTIFIER.test(value)
@@ -46,6 +50,15 @@ function field(data: unknown, key: string): unknown {
     : undefined;
 }
 
+/**
+ * Top-level request field names (never values) show which shape a malformed
+ * request had. Odd or oversized names are dropped rather than echoed.
+ */
+function requestFieldNames(data: unknown): string[] {
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) return [];
+  return Object.keys(data).filter(name => SAFE_FIELD_NAME.test(name)).sort().slice(0, MAX_REPORTED_FIELDS);
+}
+
 /** The permitted metadata for one denial, or undefined for a non-security failure. */
 export function securityDenialRecord(request: AuditedRequest, error: unknown): Record<string, unknown> | undefined {
   if (!(error instanceof HttpsError) || !isDeniedCode(error.code)) return undefined;
@@ -64,6 +77,7 @@ export function securityDenialRecord(request: AuditedRequest, error: unknown): R
     ...(actorHash ? { actorHash } : {}),
     ...(sessionHash ? { sessionHash } : {}),
     ...(requestHash ? { requestHash } : {}),
+    ...(error.code === 'invalid-argument' ? { requestFields: requestFieldNames(request.data) } : {}),
   };
 }
 
