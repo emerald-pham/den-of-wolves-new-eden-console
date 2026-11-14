@@ -127,8 +127,8 @@ describe('pull request deployment target dry run', () => {
     );
     expect(result.stderr).toBe('');
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain('deploy_only=hosting');
-    expect(result.stdout).not.toContain('functions');
+    expect(result.stdout).toMatch(/^targets=hosting$/m);
+    expect(result.stdout).toMatch(/^function_names=$/m);
   });
 });
 
