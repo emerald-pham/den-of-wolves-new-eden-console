@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "baseline": "8c25a9a6889475ecb139cfef72551b2688c891aa",
-  "candidate": "6f4096dc70ab042ec4ce0192cffe7c38ead86cfa",
-  "auditBoundary": "Exact PC10.4 source transition from main (8c25a9a6, the last successful deployment) to the reviewed fix candidate 6f4096dc. Every game callable is now built with the private security-denial telemetry onCall (P634): functions/src/index.ts imports it, so its consumers are every onCall export it defines (207, which also covers its changed J1/J2 audit writers, fleet-plot membership read and dice/damage commands); each module that imports the wrapper lists the callables its own onCall builds, including factory-built exports (resolvePendingScoutRequest, completeShuttleArrival). securityDenialTelemetry.ts is consumed by exactly those 228 wrapped callables, and callableDenialReporting.ts (categories, hashing and reporting wrapper shared with the casting transport) also by castingCompanionCommand. Other modules list the exported callables whose runtime code reaches a changed top-level declaration, traced through TypeScript symbol references across functions/src (type-only edits excluded). Any later edit to one of these files needs a fresh callable-consumer review.",
+  "candidate": "24e09e8c42c083bf1b60a1f2f45499aff3f40ed6",
+  "auditBoundary": "Exact PC10.4 source transition from main (8c25a9a6, the last successful deployment) to the reviewed fix candidate 24e09e8c. Every game callable is now built with the private security-denial telemetry onCall (P634): functions/src/index.ts imports it, so its consumers are every onCall export it defines (207, which also covers its changed J1/J2 audit writers, fleet-plot membership read and dice/damage commands); each module that imports the wrapper lists the callables its own onCall builds, including factory-built exports (resolvePendingScoutRequest, completeShuttleArrival). securityDenialTelemetry.ts is consumed by exactly those 228 wrapped callables, and callableDenialReporting.ts (categories, hashing and reporting wrapper shared with the casting transport) also by castingCompanionCommand. Other modules list the exported callables whose runtime code reaches a changed top-level declaration, traced through TypeScript symbol references across functions/src (type-only edits excluded). Any later edit to one of these files needs a fresh callable-consumer review.",
   "modules": {
     "functions/src/actionAudit.ts": {
       "before": "ca1fef48c8a9986dd6f8ede1854da990c01846b7c0eabcb24b78f19ac75cb5ef",
-      "after": "65902a9b26d6d04c172b89d2771a6fbdd03e20851a457ef82e8d0c0f2b447ef7",
+      "after": "db541080e04515130332978e844b5b6d602c4a7cdb4fc8811784c34a52b5b3c4",
       "consumers": [
         "addShipDamage",
         "adjustShipPopulation",
@@ -279,7 +279,7 @@
     },
     "functions/src/callableRateLimit.ts": {
       "before": "de1075e9db298a6c8de9adc4a83eb7653688fa572059cbe5dcb3737c81a56ef0",
-      "after": "c32731c25093423d829e74011c064ca868de5306d389cd4accb754133ef995a5",
+      "after": "2eb9a8f8d736c58c80a78d388b1fb7a4fcfdece819d9e840f29531d8c40a6339",
       "consumers": [
         "confirmSetup",
         "declareWolfAttack",

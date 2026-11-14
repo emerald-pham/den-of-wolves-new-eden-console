@@ -1551,12 +1551,19 @@ function airspaceClosureTaskHandlerImpacts(before, after, cwd, sourceAtRevision)
 
 // Every game callable is built with the security-denial telemetry `onCall`
 // (P634), so a change to that wrapper redeploys exactly the callables that use
-// it. They are derived from the candidate's own exports rather than a static
-// list; any wrapped `onCall` that cannot be attributed fails closed.
-const SECURITY_DENIAL_WRAPPER_IMPORT =
-  /import\s*\{[^}]*\bonCall\b[^}]*\}\s*from\s*'\.\/securityDenialTelemetry';/;
-export function securityDenialWrappedCallables(after, cwd, sourceAtRevision = null) {
-  const readAt = (file) => {
+// it. They are derived from the candidate's own sources rather than a static
+// list. Every runtime file that imports the wrapper is visited, each must use
+// the one canonical import, every `onCall` it calls must be a named callable
+// the entrypoint deploys under a canonical binding, and anything else fails
+// closed.
+const SECURITY_DENIAL_TELEMETRY_FILE = 'functions/src/securityDenialTelemetry.ts';
+const CALLABLE_DENIAL_REPORTING_FILE = 'functions/src/callableDenialReporting.ts';
+const SECURITY_DENIAL_CANONICAL_IMPORT = "import { onCall } from './securityDenialTelemetry';";
+const CANONICAL_LOCAL_BINDING =
+  /^(import|export)\s*(?:type\s*)?\{([^}]*)\}\s*from\s*'\.\/([\w.-]+)';$/gm;
+
+function revisionSourceReader(after, cwd, sourceAtRevision, purpose) {
+  return (file) => {
     let source;
     if (sourceAtRevision) source = sourceAtRevision(after, file);
     else {
@@ -1565,61 +1572,105 @@ export function securityDenialWrappedCallables(after, cwd, sourceAtRevision = nu
           encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 32 * 1024 * 1024,
         });
       } catch {
-        throw new Error(`Cannot safely read ${after}:${file} for security-denial telemetry consumers.`);
+        throw new Error(`Cannot safely read ${after}:${file} for ${purpose}.`);
       }
     }
-    if (typeof source !== 'string') {
-      throw new Error(`Cannot safely read ${after}:${file} for security-denial telemetry consumers.`);
-    }
+    if (typeof source !== 'string') throw new Error(`Cannot safely read ${after}:${file} for ${purpose}.`);
     return source;
   };
-  const callSites = source => source.match(/\bonCall\s*[<(]/g)?.length ?? 0;
-  const index = readAt('functions/src/index.ts');
-  if (!SECURITY_DENIAL_WRAPPER_IMPORT.test(index)) {
-    throw new Error('Cannot safely map security-denial telemetry: the Functions entrypoint does not use the wrapper.');
+}
+
+/** Every non-test Functions runtime file at a revision. */
+function functionsRuntimeFilesAtRevision(revision, cwd, filesAtRevision, purpose) {
+  let files;
+  if (filesAtRevision) files = filesAtRevision(revision);
+  else {
+    try {
+      files = execFileSync('git', ['ls-tree', '-r', '--name-only', revision, '--', 'functions/src'], {
+        encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 16 * 1024 * 1024,
+      }).split('\n');
+    } catch {
+      throw new Error(`Cannot safely list Functions sources at ${revision} for ${purpose}.`);
+    }
   }
-  const selected = new Set();
-  const indexCallables = [...index.matchAll(/^export\s+const\s+(\w+)\s*=\s*onCall\s*[<(]/gm)].map(match => match[1]);
-  if (indexCallables.length !== callSites(index)) {
-    throw new Error('Cannot safely map security-denial telemetry: an entrypoint onCall is not a named export.');
+  if (!Array.isArray(files)) throw new Error(`Cannot safely list Functions sources at ${revision} for ${purpose}.`);
+  return files.map(normalizeFile).filter(file => file.startsWith('functions/src/') &&
+    /\.(?:ts|js|mjs|cjs)$/.test(file) && !file.endsWith('.d.ts') && !isTestFile(file));
+}
+
+/** Whether a source names a module specifier ending in this local module, in any quoting or form. */
+function referencesLocalModule(source, moduleName) {
+  return new RegExp(`['"\`][^'"\`\\n]*\\b${moduleName}(?:\\.[cm]?[jt]s)?['"\`]`).test(source);
+}
+
+export function securityDenialWrappedCallables(after, cwd, sourceAtRevision = null, filesAtRevision = null) {
+  const purpose = 'security-denial telemetry consumers';
+  const fail = reason => new Error(`Cannot safely map security-denial telemetry: ${reason}.`);
+  const readAt = revisionSourceReader(after, cwd, sourceAtRevision, purpose);
+  const indexFile = 'functions/src/index.ts';
+  const index = readAt(indexFile);
+  // The entrypoint binds local modules only through canonical named import or
+  // re-export lines, so every deployed name below is visible to this audit.
+  const localFromClauses = index.match(/\bfrom\s*['"`]\.{1,2}\//g)?.length ?? 0;
+  const bindingLines = [...index.matchAll(CANONICAL_LOCAL_BINDING)];
+  if (localFromClauses !== bindingLines.length || /^\s*export\s*\*/m.test(index) ||
+      /\b(?:require|import)\s*\(\s*['"`]\.{1,2}\//.test(index)) {
+    throw fail('the Functions entrypoint binds a local module outside a canonical named import or re-export');
   }
-  for (const name of indexCallables) selected.add(name);
-  // Names the entrypoint takes from each local module, by import or re-export.
   const bindings = new Map();
-  for (const match of index.matchAll(/^(import|export)\s*\{([^}]*)\}\s*from\s*'\.\/([\w.-]+)';/gm)) {
-    const module = `functions/src/${match[3]}.ts`;
+  for (const [, kind, list, name] of bindingLines) {
+    const module = `functions/src/${name}.ts`;
     const names = bindings.get(module) ?? { imported: new Map(), exported: new Map() };
-    for (const part of match[2].split(',').map(item => item.trim()).filter(Boolean)) {
+    for (const part of list.split(',').map(item => item.trim()).filter(Boolean)) {
       if (part.startsWith('type ')) continue;
       const [local, alias = local] = part.split(/\s+as\s+/);
-      names[match[1] === 'import' ? 'imported' : 'exported'].set(local, alias);
+      names[kind === 'import' ? 'imported' : 'exported'].set(local, alias);
     }
     bindings.set(module, names);
   }
-  for (const [module, names] of bindings) {
-    const source = readAt(module);
-    if (!SECURITY_DENIAL_WRAPPER_IMPORT.test(source)) {
-      if (/\bfrom\s*'\.\/securityDenialTelemetry'/.test(source)) {
-        throw new Error(`Cannot safely map security-denial telemetry consumers of ${module}.`);
-      }
-      continue;
+
+  const importers = functionsRuntimeFilesAtRevision(after, cwd, filesAtRevision, purpose)
+    .filter(file => file !== SECURITY_DENIAL_TELEMETRY_FILE &&
+      referencesLocalModule(readAt(file), 'securityDenialTelemetry'));
+  if (!importers.includes(indexFile)) throw fail('the Functions entrypoint does not use the wrapper');
+
+  const selected = new Set();
+  for (const file of importers) {
+    const source = readAt(file);
+    const lines = source.split('\n');
+    const importLines = lines.filter(line => referencesLocalModule(line, 'securityDenialTelemetry'));
+    if (importLines.length !== 1 || importLines[0].trim() !== SECURITY_DENIAL_CANONICAL_IMPORT ||
+        (source.match(/securityDenialTelemetry/g)?.length ?? 0) !== 1) {
+      throw fail(`${file} does not use the one canonical wrapper import`);
     }
+    const references = source.match(/\bonCall\b/g)?.length ?? 0;
+    const callSites = source.match(/\bonCall\s*[<(]/g)?.length ?? 0;
+    if (references !== callSites + 1) throw fail(`${file} refers to the wrapper without calling it`);
     const direct = [...source.matchAll(/^export\s+const\s+(\w+)\s*=\s*onCall\s*[<(]/gm)].map(match => match[1]);
     const factories = [...source.matchAll(
       /^export\s+function\s+(\w+)\s*\([^)]*\)[^{]*\{\s*return\s+onCall\s*[<(]/gm,
     )].map(match => match[1]);
-    if (direct.length + factories.length !== callSites(source)) {
-      throw new Error(`Cannot safely map security-denial telemetry: ${module} has an unattributed onCall.`);
+    if (direct.length + factories.length !== callSites) throw fail(`${file} has an unattributed onCall`);
+    if (file === indexFile) {
+      if (factories.length) throw fail('the Functions entrypoint defines a wrapped factory');
+      for (const name of direct) selected.add(name);
+      continue;
     }
+    const names = bindings.get(file);
+    if (!names) throw fail(`${file} builds callables the entrypoint does not bind`);
     for (const name of direct) {
-      if (names.exported.has(name)) selected.add(names.exported.get(name));
+      if (names.imported.has(name) || !names.exported.has(name)) {
+        throw fail(`${file} callable ${name} is not deployed by one canonical entrypoint re-export`);
+      }
+      selected.add(names.exported.get(name));
     }
     for (const factory of factories) {
-      if (!names.imported.has(factory)) continue;
       const local = names.imported.get(factory);
-      const built = [...index.matchAll(new RegExp(`^export\\s+const\\s+(\\w+)\\s*=\\s*${local}\\s*\\(`, 'gm'))];
-      if (built.length !== 1) {
-        throw new Error(`Cannot safely map security-denial telemetry: ${module} factory ${factory} is not one export.`);
+      const built = local === undefined ? []
+        : [...index.matchAll(new RegExp(`^export\\s+const\\s+(\\w+)\\s*=\\s*${local}\\s*\\(`, 'gm'))];
+      const uses = local === undefined ? 0 : index.match(new RegExp(`\\b${local}\\b`, 'g'))?.length ?? 0;
+      if (built.length !== 1 || uses !== 2) {
+        throw fail(`${file} factory ${factory} is not built by exactly one entrypoint export`);
       }
       selected.add(built[0][1]);
     }
@@ -1629,33 +1680,24 @@ export function securityDenialWrappedCallables(after, cwd, sourceAtRevision = nu
 
 // The game wrapper and the casting transport share the denial categories,
 // hashing and reporting wrapper; a change there reaches both kinds of callable.
-function sharedDenialReportingConsumers(after, cwd, sourceAtRevision = null) {
-  const readAt = (file) => {
-    let source;
-    if (sourceAtRevision) source = sourceAtRevision(after, file);
-    else {
-      try {
-        source = execFileSync('git', ['show', `${after}:${file}`], {
-          encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 16 * 1024 * 1024,
-        });
-      } catch {
-        throw new Error(`Cannot safely read ${after}:${file} for shared denial-reporting consumers.`);
-      }
-    }
-    if (typeof source !== 'string') {
-      throw new Error(`Cannot safely read ${after}:${file} for shared denial-reporting consumers.`);
-    }
-    return source;
-  };
-  const importsShared = /\bfrom\s*'\.\/callableDenialReporting';/;
-  if (!importsShared.test(readAt('functions/src/securityDenialTelemetry.ts')) ||
-      !importsShared.test(readAt('functions/src/castingCallableTransport.ts'))) {
+// Any other importer needs its own consumer review.
+const SHARED_DENIAL_REPORTING_IMPORTERS = Object.freeze([
+  'functions/src/castingCallableTransport.ts', SECURITY_DENIAL_TELEMETRY_FILE,
+]);
+function sharedDenialReportingConsumers(after, cwd, sourceAtRevision = null, filesAtRevision = null) {
+  const purpose = 'shared denial-reporting consumers';
+  const readAt = revisionSourceReader(after, cwd, sourceAtRevision, purpose);
+  const importers = functionsRuntimeFilesAtRevision(after, cwd, filesAtRevision, purpose)
+    .filter(file => file !== CALLABLE_DENIAL_REPORTING_FILE &&
+      referencesLocalModule(readAt(file), 'callableDenialReporting'))
+    .sort();
+  if (importers.join('|') !== [...SHARED_DENIAL_REPORTING_IMPORTERS].sort().join('|')) {
     throw new Error('Cannot safely map shared denial-reporting changes outside its two audited importers.');
   }
   if (!callableIsExportedAtRevision('castingCompanionCommand', after, cwd, sourceAtRevision)) {
     throw new Error('Casting companion callable export is absent; refusing shared denial-reporting deployment.');
   }
-  return [...securityDenialWrappedCallables(after, cwd, sourceAtRevision), 'castingCompanionCommand'];
+  return [...securityDenialWrappedCallables(after, cwd, sourceAtRevision, filesAtRevision), 'castingCompanionCommand'];
 }
 
 const PC10_4_LATE_MAP_CONSUMERS = Object.freeze({
@@ -1672,7 +1714,7 @@ const CASTING_CALLABLE_SOURCES = new Set([
   'functions/src/castingCompanionCallable.ts', 'functions/src/castingCallableTransport.ts',
   'functions/casting-companion-entry.mjs', 'scripts/build-casting-companion-core.mjs',
 ]);
-function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }) {
+function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision, filesAtRevision = null }) {
   const runtimeFiles = files.map(normalizeFile).filter((file) =>
     CASTING_CALLABLE_SOURCES.has(file) || (file.startsWith('functions/src/') && !isTestFile(file) && /\.(?:ts|js|mjs|cjs)$/.test(file)));
   const selected = new Set();
@@ -1890,11 +1932,11 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
       continue;
     }
     if (file === 'functions/src/securityDenialTelemetry.ts') {
-      for (const name of securityDenialWrappedCallables(after, cwd, sourceAtRevision)) selected.add(name);
+      for (const name of securityDenialWrappedCallables(after, cwd, sourceAtRevision, filesAtRevision)) selected.add(name);
       continue;
     }
     if (file === 'functions/src/callableDenialReporting.ts') {
-      for (const name of sharedDenialReportingConsumers(after, cwd, sourceAtRevision)) selected.add(name);
+      for (const name of sharedDenialReportingConsumers(after, cwd, sourceAtRevision, filesAtRevision)) selected.add(name);
       continue;
     }
     let consumers = file === 'functions/src/pursuitEmergencyWindow.ts'
@@ -1935,7 +1977,7 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
   return [...selected];
 }
 
-export function deploymentSelector({ before, after, files, targets, cwd = process.cwd(), manual = false, sourceAtRevision = null, isAncestor = (ancestor, descendant) => revisionIsAncestor(ancestor, descendant, cwd), filesSinceBaseline } = {}) {
+export function deploymentSelector({ before, after, files, targets, cwd = process.cwd(), manual = false, sourceAtRevision = null, filesAtRevision = null, isAncestor = (ancestor, descendant) => revisionIsAncestor(ancestor, descendant, cwd), filesSinceBaseline } = {}) {
   if (!targets?.includes('functions')) return (targets ?? []).join(',');
   if (manual) throw new Error('Manual deployment with Functions requires an audited named-function selector.');
   if (!before || !after) throw new Error('Functions deployment requires a known successful deployment baseline.');
@@ -1944,7 +1986,7 @@ export function deploymentSelector({ before, after, files, targets, cwd = proces
     if (receipt.sha === before || !isAncestor(before, receipt.sha) || !isAncestor(receipt.sha, after)) continue;
     const priorFiles = filesFromGit(before, receipt.sha, cwd);
     const priorCallables = callablesChangedInRange({
-      before, after: receipt.sha, files: priorFiles, cwd, sourceAtRevision,
+      before, after: receipt.sha, files: priorFiles, cwd, sourceAtRevision, filesAtRevision,
     }).sort();
     if (priorCallables.join('|') !== [...receipt.callables].sort().join('|')) {
       throw new Error(`Changes before verified live Function baseline ${receipt.sha} do not match its audited callable receipt.`);
@@ -1958,6 +2000,7 @@ export function deploymentSelector({ before, after, files, targets, cwd = proces
     files: callableBaseline === before ? files : filesSinceBaseline ?? filesFromGit(callableBaseline, after, cwd),
     cwd,
     sourceAtRevision,
+    filesAtRevision,
   });
   if (selected.length === 0) throw new Error('Functions changed but no named callable deployment could be proven.');
   const ordered = selected;
