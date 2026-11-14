@@ -53,6 +53,7 @@ const {
   subscribeLoyaltyCensus,
   subscribeGmArrestPosseCalculation,
   subscribeGmMissionStartSnapshots,
+  subscribeGmActionAuditDetails,
   subscribeGmWolfActionReceipt,
   subscribeGmWolfSuspicionHistory,
   subscribeGmWolfHackingAlerts,
@@ -5609,4 +5610,42 @@ it('hydrates the operational Maliades member view through the real session parse
   expect(session.maliadesState).not.toHaveProperty('medium');
   expect(session.maliadesState).not.toHaveProperty('short');
   expect(sessionFrom('s1', {...member, maliadesState: {...operational, targetId: 'private-wolf'}}).maliadesState).toBeUndefined();
+});
+
+it('projects only complete facilitator automatic-procedure receipts from the server', () => {
+  const { callbacks, unsubscribeSpies } = captureSessionListener();
+  const onDetails = vi.fn();
+  const stop = subscribeGmActionAuditDetails('s1', onDetails);
+  const detail = {
+    schemaVersion: 1, sessionId: 's1', actorUid: 'holder', action: 'blacksmith-repair',
+    requestId: 'repair-1', revision: 2, resolutionSource: 'server-rules', audience: 'facilitator',
+    choice: { hostShipId: 'icebreaker', systemIds: ['reactor'] },
+    result: { status: 'committed', materialsRemaining: 1 },
+    redactionPolicy: 'action-audit-gm-detail-v1', createdAt: '2026-11-14T12:00:00.000Z',
+  };
+  const publish = (docs: readonly Record<string, unknown>[], fromCache = false) => callbacks[0]?.({
+    metadata: { fromCache },
+    docs: docs.map((data) => ({ id: String(data.requestId), data: () => data })),
+  });
+
+  expect(onDetails).toHaveBeenLastCalledWith([]);
+  publish([detail], true);
+  expect(onDetails).toHaveBeenLastCalledWith([]);
+  publish([
+    detail,
+    { ...detail, requestId: 'foreign', sessionId: 's2' },
+    { ...detail, requestId: 'metadata-only', redactionPolicy: 'action-audit-metadata-only-v1' },
+    { ...detail, requestId: 'member', audience: 'member' },
+    { ...detail, requestId: 'forged-source', resolutionSource: 'facilitator' },
+    { ...detail, requestId: 'unknown-action', action: 'forged' },
+  ]);
+  expect(onDetails).toHaveBeenLastCalledWith([{
+    requestId: 'repair-1', action: 'blacksmith-repair', actorUid: 'holder', revision: 2,
+    resolutionSource: 'server-rules',
+    choice: { hostShipId: 'icebreaker', systemIds: ['reactor'] },
+    result: { status: 'committed', materialsRemaining: 1 },
+    createdAt: '2026-11-14T12:00:00.000Z',
+  }]);
+  stop();
+  expect(unsubscribeSpies[0]).toHaveBeenCalledTimes(1);
 });
