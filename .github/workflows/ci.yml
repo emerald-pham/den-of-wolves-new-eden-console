@@ -215,6 +215,20 @@ jobs:
           fi
           echo "exact_head_commit=$EXACT_HEAD_COMMIT" >> "$GITHUB_OUTPUT"
 
+      - name: Dry-run deployment target selection for this pull request
+        if: github.event_name == 'pull_request'
+        run: |
+          # The post-merge deploy runs this selector; a range it cannot
+          # resolve fails here, with its own error, before merge.
+          head_sha=$(git rev-parse HEAD)
+          base_sha=$(git merge-base origin/main "$head_sha")
+          node scripts/deployment-targets.mjs \
+            --before "$base_sha" \
+            --verification-before "$base_sha" \
+            --after "$head_sha" \
+            --current-main-tip "$head_sha" \
+            --manual false
+
       - name: Install locked root dependencies for release contracts
         run: npm ci --prefer-offline --no-audit
 
