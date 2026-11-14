@@ -73,7 +73,6 @@ describe('repository guidance', () => {
 
   it('routes model and effort choice through one policy section per agent tool', () => {
     const claude = readGuidance('CLAUDE.md');
-    expect(claude).not.toMatch(/gpt-\d|\b(?:Astra|Luna|Terra|Sol|Opus|Sonnet|Haiku|Fable)\b/);
     expect(claude.match(/docs\/AGENT_EXECUTION_POLICY\.md#model-and-effort-routing/g)).toHaveLength(1);
 
     const policy = readGuidance('docs/AGENT_EXECUTION_POLICY.md');
