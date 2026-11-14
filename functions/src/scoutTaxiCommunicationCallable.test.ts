@@ -286,6 +286,29 @@ it('returns server-current ships and docked shuttle hosts only for the requestin
     'fleetGroupId,hostShipId,wingId')).toBe(true);
 });
 
+it('bounds an automatic navigation poll loop per member while a same-network neighbour keeps its plot', async () => {
+  seedSplitNavigation();
+  const poll = (uid: string, index: number) => calls.readFleetGroupNavigation.run({
+    data: { sessionId: 's1', requestId: `nav-poll-${uid}-${index}`, expectedNavigationRevision: 2,
+      expectedFleetPartitionRevision: 1, expectedGroupId: 'fleet-2' },
+    auth: { uid }, rawRequest: { ip: '198.51.100.25' } });
+  // One identity on three devices: twelve timed five-second samples each plus thirty
+  // identity-change refreshes each in one busy minute (126), with margin to 180.
+  for (let index = 0; index < 180; index += 1) {
+    await expect(poll('explorer', index)).resolves.toMatchObject({ groupId: 'fleet-2' });
+  }
+  await expect(poll('explorer', 180)).rejects.toMatchObject({ code: 'resource-exhausted' });
+  await expect(poll('shepherd-player', 0)).resolves.toMatchObject({ groupId: 'fleet-2' });
+});
+
+it('creates no navigation rate bucket for a caller outside the session', async () => {
+  seedSplitNavigation();
+  await expect(calls.readFleetGroupNavigation.run(request({ sessionId: 's1', requestId: 'nav-stranger',
+    expectedNavigationRevision: 2, expectedFleetPartitionRevision: 1, expectedGroupId: 'fleet-2' }, 'stranger')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.writes).not.toHaveBeenCalled();
+});
+
 it('suppresses a stale group docking while the latest server movement row says in transit', async () => {
   seedSplitNavigation();
   put('sessions/s1/shuttleDepartures/hummingbird', { status: 'in-transit', fleetGroupId: 'fleet-1' });
