@@ -78,3 +78,15 @@ it('tells the committed audit revision apart from the revision a damage reply re
   expect(within(result).getByText('cycle').nextElementSibling).toHaveTextContent('3');
   expect(result).not.toHaveTextContent(/\bturn\b/);
 });
+
+it('keeps the case-sensitive actor ID in its own identifier element so hint styling cannot uppercase it', () => {
+  const actorUid = '08pgaaRmydGHjeJQndyxdOvRmnvO';
+  render(<AutomaticProcedureReceiptsPanel sessionId="s1" isGm />);
+  const publish = mocks.subscribeGmActionAuditDetails.mock.calls[0]![1] as
+    (details: readonly GmActionAuditDetail[]) => void;
+  act(() => publish([{ ...repair, actorUid }]));
+
+  const receipt = screen.getByRole('article', { name: /Blacksmith repair/ });
+  const identifier = within(receipt).getByText(actorUid, { selector: 'code.automatic-receipts-panel__identifier' });
+  expect(identifier.textContent).toBe(actorUid);
+});
