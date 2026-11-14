@@ -14,7 +14,7 @@ const prWorkflow = readFileSync('.github/workflows/pr-body.yml', 'utf8');
 function workflowJob(workflow: string, id: string) {
   const start = workflow.indexOf(`\n  ${id}:\n`);
   expect(start, `workflow job "${id}"`).toBeGreaterThan(-1);
-  const next = workflow.slice(start + 1).search(/\n  [\w-]+:\n/);
+  const next = workflow.slice(start + 1).search(/\n {2}[\w-]+:\n/);
   return workflow.slice(start + 1, next === -1 ? undefined : start + 1 + next + 1);
 }
 
