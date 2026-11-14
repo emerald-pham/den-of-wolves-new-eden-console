@@ -611,9 +611,10 @@ import {
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
 import {
-  actionAuditActorRoleId, actionAuditMatchesReceipt, buildActionAuditDetailRecord, buildActionAuditRecord,
+  ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION, actionAuditActorRoleId, actionAuditMatchesReceipt,
+  actionAuditRecordMatches, buildActionAuditDetailRecord, buildActionAuditRecord,
   buildReceiptBoundActionAuditRecord,
-  type ActionAuditAction, type ActionAuditDetail, type ActionAuditResolutionSource,
+  type ActionAuditAction, type ActionAuditDetail,
   type ReceiptBoundActionAudit,
 } from './actionAudit';
 import {
@@ -4955,7 +4956,6 @@ function ensureVesselActionAuditForReplay(
   action: ActionAuditAction,
   requestId: string,
   result: Record<string, unknown>,
-  resolutionSource: ActionAuditResolutionSource = 'facilitator',
 ): void {
   if (result.actorUid !== actorUid || result.idempotencyKey !== requestId ||
       typeof result.phase !== 'string' ||
@@ -4995,19 +4995,11 @@ function ensureVesselActionAuditForReplay(
     requestId,
     revision: result.revision,
     outcome: 'committed',
-    resolutionSource,
+    resolutionSource: ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION[action],
     createdAt: FieldValue.serverTimestamp(),
   });
   if (auditSnapshot.exists) {
-    const stored = auditSnapshot.data();
-    const keys = Object.keys(record).sort();
-    const storedKeys = isRecord(stored) ? Object.keys(stored).sort() : [];
-    const matches = isRecord(stored) && storedKeys.length === keys.length &&
-      storedKeys.every((key, index) => key === keys[index]) &&
-      keys.every((key) => key === 'createdAt' ||
-        stored[key] === (record as Record<string, unknown>)[key]) &&
-      stored.createdAt !== undefined && stored.createdAt !== null;
-    if (!matches) {
+    if (!actionAuditRecordMatches(auditSnapshot.data(), record)) {
       throw commandError(
         'failed-precondition',
         'This vessel action receipt has a mismatched standardized audit record.',
@@ -5177,7 +5169,7 @@ function ensureFighterConstructionActionAuditForReplay(
   // Commander's choice, whether a player or a GM console instance submits it.
   ensureVesselActionAuditForReplay(
     tx, auditSnapshot, auditRef, sessionId, actorUid,
-    'fighter-construction', requestId, result, 'server-rules',
+    'fighter-construction', requestId, result,
   );
 }
 

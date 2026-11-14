@@ -166,6 +166,22 @@ export function buildReceiptBoundActionAuditRecord(
  * True only when a stored record is exactly the committed metadata its receipt
  * binds. Phase and role come from the stored original, never from replay time.
  */
+/**
+ * The one comparator for a stored metadata audit: the same fields with the same
+ * values, except that `createdAt` is any server-supplied (non-null) time.
+ */
+export function actionAuditRecordMatches(stored: unknown, expected: ActionAuditRecord): boolean {
+  if (typeof stored !== 'object' || stored === null || Array.isArray(stored)) return false;
+  const record = stored as Record<string, unknown>;
+  const keys = Object.keys(expected).sort();
+  const storedKeys = Object.keys(record).sort();
+  return storedKeys.length === keys.length &&
+    storedKeys.every((key, index) => key === keys[index]) &&
+    keys.every((key) => key === 'createdAt'
+      ? record.createdAt !== undefined && record.createdAt !== null
+      : record[key] === (expected as Record<string, unknown>)[key]);
+}
+
 export function actionAuditMatchesReceipt(stored: unknown, binding: ReceiptBoundActionAudit): boolean {
   if (typeof stored !== 'object' || stored === null || Array.isArray(stored)) return false;
   const record = stored as Record<string, unknown>;
@@ -182,11 +198,7 @@ export function actionAuditMatchesReceipt(stored: unknown, binding: ReceiptBound
   } catch {
     return false;
   }
-  const keys = Object.keys(expected).sort();
-  const storedKeys = Object.keys(record).sort();
-  return storedKeys.length === keys.length &&
-    storedKeys.every((key, index) => key === keys[index]) &&
-    keys.every((key) => record[key] === (expected as Record<string, unknown>)[key]);
+  return actionAuditRecordMatches(record, expected);
 }
 
 /** A JSON value a durable Firestore receipt stores without loss. */
