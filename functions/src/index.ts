@@ -17595,6 +17595,13 @@ export const readFleetGroupNavigation = onCall(async request => {
   const uid = requireUid(request.auth);
   const data = parseFleetGroupNavigationRequest(request.data);
   const gmView = data.viewerShipId !== undefined;
+  // Every live page samples this roster-wide plot automatically. Establish
+  // membership, then charge the member's own bucket before the collection scans.
+  const preflightActor = await db.runTransaction(tx => tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`)));
+  if (!isActivePlayer(preflightActor)) {
+    throw new HttpsError('permission-denied', 'A current session member is required.');
+  }
+  await enforceExpensiveCallableRateLimit(db, { callableName: 'readFleetGroupNavigation', sessionId: data.sessionId, uid });
   return db.runTransaction(async tx => {
     const [session, actor, navigationSnapshot, players, groupSnapshots] = await Promise.all([
       tx.get(db.doc(`sessions/${data.sessionId}`)),
@@ -38667,42 +38674,65 @@ export const addShipDamage = onCall<{
   });
 });
 
+type DiceRollResult = { id: string; rolls: number[] };
+
+function isDiceRollResult(value: unknown): value is DiceRollResult {
+  return isRecord(value) && typeof value.id === 'string' && value.id.length > 0 &&
+    Array.isArray(value.rolls) && value.rolls.length > 0 &&
+    value.rolls.every((roll) => Number.isSafeInteger(roll) && (roll as number) >= 1);
+}
+
 /**
  * Authoritative randomness. The result is written to the session event log so
- * it cannot be quietly re-rolled, and only then returned to the caller.
+ * it cannot be quietly re-rolled, and only then returned to the caller. The
+ * private command receipt binds the request id to that committed roll, so an
+ * exact retry returns it instead of sampling again.
  */
-export const rollDice = onCall<{ sessionId: string; sides: number; count: number }>(
+export const rollDice = onCall<{ sessionId: string; requestId: string; sides: number; count: number }>(
   async (request) => {
     const uid = requireUid(request.auth);
-    const { sessionId, sides, count } = requireDiceRequest(request.data ?? {});
+    const { sessionId, requestId, sides, count } = requireDiceRequest(request.data ?? {});
+    const receiptRef = commandReceiptRef(sessionId, requestId);
+    const fingerprint: CommandFingerprint = {
+      action: 'roll-dice', sessionId, requestId, actorUid: uid, instanceId: null,
+      expectedRevision: null, payload: { sides, count },
+    };
 
-    const [player, session] = await Promise.all([
+    const [player, session, prior] = await Promise.all([
       db.doc(`sessions/${sessionId}/players/${uid}`).get(),
       db.doc(`sessions/${sessionId}`).get(),
+      receiptRef.get(),
     ]);
     if (!isActivePlayer(player)) {
       throw new HttpsError('permission-denied', 'Join the session first.');
     }
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const replay = replayBoundCommand(prior, fingerprint, isDiceRollResult, 'dice roll');
+    if (replay) return replay;
     requireActiveGameplayPhase(session);
 
     await enforceExpensiveCallableRateLimit(db, { callableName: 'rollDice', sessionId, uid });
 
     const rolls = Array.from({ length: count }, () => randomInt(1, sides + 1));
     const id = randomUUID();
-    await db.doc(`sessions/${sessionId}/events/${id}`).set(buildPrivacySafeEventRecord({
-      type: 'roll',
-      payload: {
-        byUid: uid,
-        sides,
-        count,
-        rolls,
-        total: rolls.reduce((a, b) => a + b, 0),
-      },
-      createdAt: FieldValue.serverTimestamp(),
-    }));
-
-    return { id, rolls };
+    return db.runTransaction(async (tx): Promise<DiceRollResult> => {
+      const committed = replayBoundCommand(await tx.get(receiptRef), fingerprint, isDiceRollResult, 'dice roll');
+      if (committed) return committed;
+      const result: DiceRollResult = { id, rolls };
+      tx.set(db.doc(`sessions/${sessionId}/events/${id}`), buildPrivacySafeEventRecord({
+        type: 'roll',
+        payload: {
+          byUid: uid,
+          sides,
+          count,
+          rolls,
+          total: rolls.reduce((a, b) => a + b, 0),
+        },
+        createdAt: FieldValue.serverTimestamp(),
+      }));
+      tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+      return result;
+    });
   },
 );
 

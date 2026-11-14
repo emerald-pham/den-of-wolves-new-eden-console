@@ -334,7 +334,7 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/candidateRevealProjection.ts': CANDIDATE_REVEAL_CALLABLES,
   'functions/src/callableRateLimitFirestore.ts': [
     'resumeSession', 'getSessionPresence', 'listGmInstances', 'rollDice',
-    'confirmSetup', 'startGame', 'declareWolfAttack', 'runMaintenance',
+    'confirmSetup', 'startGame', 'declareWolfAttack', 'runMaintenance', 'readFleetGroupNavigation',
   ],
   'functions/src/shuttleMovementConflict.ts': [
     'requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit', 'completeShuttleArrival',
@@ -1222,7 +1222,7 @@ function commandAndControlConsoleMetadataImpacts(before, after, cwd, sourceAtRev
 
 const ALL_RATE_LIMIT_CONSUMERS = [
   'resumeSession', 'getSessionPresence', 'listGmInstances', 'rollDice',
-  'confirmSetup', 'startGame', 'declareWolfAttack', 'runMaintenance',
+  'confirmSetup', 'startGame', 'declareWolfAttack', 'runMaintenance', 'readFleetGroupNavigation',
 ];
 
 function rateLimitCallableImpacts(before, after, cwd, sourceAtRevision) {

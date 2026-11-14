@@ -22,6 +22,11 @@ export const CALLABLE_RATE_LIMIT_POLICIES = {
   // Maintenance remains interactive across allowed actions; 30/min permits a two-second burst cadence.
   // Exact completed replays bypass the gate before the conditional fleet scans.
   runMaintenance: { windowMs: 60_000, maxRequests: 30 },
+  // Every live player page and GM console samples the fleet plot every five seconds and again
+  // whenever its session identity changes. One identity on three devices in a busy minute is
+  // about 126 calls (3 x (12 timed + 30 change refreshes)); 180 keeps that margin while a tight
+  // loop is held to three roster scans per second.
+  readFleetGroupNavigation: { windowMs: 60_000, maxRequests: 180 },
 } as const;
 
 export type ExpensiveCallableName = keyof typeof CALLABLE_RATE_LIMIT_POLICIES;
