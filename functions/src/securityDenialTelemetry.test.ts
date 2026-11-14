@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
-import { onCall } from './securityDenialTelemetry';
+import { onCall, securityDenialRecord } from './securityDenialTelemetry';
 
 // These cases use the real Firebase SDK callable transport and logger, with no
 // module mocks: the captured lines are exactly what Cloud Run would hand to
@@ -151,4 +151,26 @@ it('still returns the original denial when the log sink fails', async () => {
   expect(JSON.parse(response.body)).toEqual({ error: {
     message: 'Too many requests.', status: 'RESOURCE_EXHAUSTED', details: { commandError: 'rate-limited', retryAfterSeconds: 7 },
   } });
+});
+
+it('builds the exact security denial record with its game hash domain', () => {
+  vi.stubEnv('FUNCTION_TARGET', 'rollDice');
+  try {
+    expect(securityDenialRecord(
+      { auth: { uid: 'u-1' } as never, app: undefined, data: { sessionId: 's-1', requestId: 'r-1', sides: 'x' } },
+      new HttpsError('invalid-argument', 'PRIVATE PROSE', { commandError: 'malformed-input', secret: 'PRIVATE' }),
+    )).toEqual({
+      type: 'security-denial', schemaVersion: 1, callableName: 'rollDice', code: 'invalid-argument',
+      category: 'schema', commandError: 'malformed-input', authState: 'present', appCheck: 'absent',
+      // sha256 of 'dow-security-denial-<kind>\0<value>' (independently computed literals).
+      actorHash: '8c489e6422e7aacb402716d3bbdc6427051113b183c68560f2be536f46999d04',
+      sessionHash: '1f4fea95bd4473540fd961242e3ee6d4860a3dd4eaada61d04010d139b27a434',
+      requestHash: 'f6159a3df379f3172c87fc8bd68c0b83e624ab39ae0b61238f8c82cdf4f2b02d',
+      requestFields: ['requestId', 'sessionId', 'sides'],
+    });
+    expect(securityDenialRecord({ auth: undefined, app: undefined, data: {} },
+      new HttpsError('failed-precondition', 'conflict'))).toBeUndefined();
+  } finally {
+    vi.unstubAllEnvs();
+  }
 });
