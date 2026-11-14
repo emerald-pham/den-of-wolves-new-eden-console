@@ -213,6 +213,21 @@ describe('pull request closing-keyword gate', () => {
     }
   });
 
+  it('reads every commit message whole, even one holding ASCII separator bytes', async () => {
+    const range = await pullRequestRange([
+      'feat: unit separator \x1f\n\nFixes #21',
+      'feat: record separator \x1e\n\nCloses #22',
+    ]);
+    try {
+      const result = await checkBody('Refs #463', { cwd: range.repository, env: range.env });
+      expect(result.code).toBe(1);
+      expect(result.output).toContain(`commit ${range.shas[0]!.slice(0, 12)}: Fixes #21`);
+      expect(result.output).toContain(`commit ${range.shas[1]!.slice(0, 12)}: Closes #22`);
+    } finally {
+      await rm(range.repository, { recursive: true, force: true });
+    }
+  });
+
   it('passes a pull request whose range commits close nothing, even when its base did', async () => {
     const range = await pullRequestRange(['feat: add the thing', 'fix: the selector crash']);
     try {
