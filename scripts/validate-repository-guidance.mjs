@@ -109,8 +109,8 @@ export function validateAgentModelEscalation({ sources, errors }) {
       requireText(filePath, source, /(?:read|follow|use)[\s\S]{0,160}docs\/agent_execution_policy\.md/i,
         'must point to the execution policy for delegation and ownership rules', errors);
     }
-    // The top-level coordinator is distinct from the delegated-model allowlist.
-    const delegatedSource = source.replace(/New top-level coordinators default to `gpt-6-astra` with medium reasoning\./g, '');
+    // The top-level orchestrator is distinct from the delegated-model allowlist.
+    const delegatedSource = source.replace(/New top-level orchestrators default to `gpt-6-astra` with medium reasoning\./g, '');
     const models = delegatedSource.match(/gpt-\d+(?:\.\d+)?-[a-z][a-z0-9-]*/g) ?? [];
     if (models.some((model) => !['gpt-6-luna', 'gpt-6.1-sol', 'gpt-6.1-terra'].includes(model))) {
       errors.push(`${filePath}: must not authorize unapproved subagent models`);

@@ -15,7 +15,7 @@ reviewer), a session on another tool fills that role from its own subsection.
 
 ### Codex and GPT runtimes
 
-New top-level coordinators default to `gpt-6-astra` with medium reasoning.
+New top-level orchestrators default to `gpt-6-astra` with medium reasoning.
 Delegated workers default to `gpt-6-luna`.
 Permitted subagents are GPT-6 Luna (`gpt-6-luna`), GPT-6.1 Terra
 (`gpt-6.1-terra`) and GPT-6.1 Sol (`gpt-6.1-sol`).
@@ -68,7 +68,7 @@ newest version.
 
 | Work | Model | Effort |
 |---|---|---|
-| Coordinator (top-level session that owns the task and checkpoint) | Opus | medium |
+| Orchestrator (top-level session that owns the task and checkpoint) | Opus | medium |
 | Default delegated work: implementation groups, repairs, tests, reconciliation | Opus | high |
 | Hard bounded work (state the reason in the brief) | Opus | max |
 | Independent risk review required by `CLAUDE.md` | Opus | max |
@@ -111,8 +111,8 @@ for it.
    conclusion.
 2. Only if that fails, run two fresh Opus max agents in parallel from
    different angles, such as one reasoning from the spec and first principles
-   and one building a minimal reproduction and bisecting. The coordinator, or
-   a third Opus max agent, reconciles them and picks one path.
+   and one building a minimal reproduction and bisecting. The orchestrator,
+   or a third Opus max agent, reconciles them and picks one path.
 3. Before step 2, tell the user in one line why it is needed and the rough
    cost, about 9 to 13 times a single Opus high task. This is a heads-up, not
    an approval request.
