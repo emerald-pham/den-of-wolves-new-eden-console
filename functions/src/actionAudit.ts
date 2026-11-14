@@ -163,10 +163,6 @@ export function buildReceiptBoundActionAuditRecord(
 }
 
 /**
- * True only when a stored record is exactly the committed metadata its receipt
- * binds. Phase and role come from the stored original, never from replay time.
- */
-/**
  * The one comparator for a stored metadata audit: the same fields with the same
  * values, except that `createdAt` is any server-supplied (non-null) time.
  */
@@ -182,6 +178,10 @@ export function actionAuditRecordMatches(stored: unknown, expected: ActionAuditR
       : record[key] === (expected as Record<string, unknown>)[key]);
 }
 
+/**
+ * True only when a stored record is exactly the committed metadata its receipt
+ * binds. Phase and role come from the stored original, never from replay time.
+ */
 export function actionAuditMatchesReceipt(stored: unknown, binding: ReceiptBoundActionAudit): boolean {
   if (typeof stored !== 'object' || stored === null || Array.isArray(stored)) return false;
   const record = stored as Record<string, unknown>;
