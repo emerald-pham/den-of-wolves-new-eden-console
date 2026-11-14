@@ -156,6 +156,30 @@ it('does not expose or retry a pending roll after its cycle advances', () => {
   expect(screen.queryByText(/die 1: 2 food/i)).not.toBeInTheDocument();
 });
 
+it('retries an uncertain roll with the same request id and shows the committed server dice', async () => {
+  const user = userEvent.setup();
+  rollHummingbirdHarvest
+    .mockRejectedValueOnce({ code: 'functions/unavailable' })
+    .mockImplementationOnce(async (_revision: number, requestId: string) => ({
+      ...staleReply({ ...pending, requestId }, requestId), status: 'committed',
+    }));
+  render(<HummingbirdHarvest docking={docking} fuelled={true} />);
+
+  await user.click(screen.getByRole('button', { name: /roll 2d6/i }));
+  const retry = await screen.findByRole('button', { name: /retry roll request/i });
+  const originalRequestId = rollHummingbirdHarvest.mock.calls[0]?.[1];
+  expect(originalRequestId).toEqual(expect.any(String));
+
+  await user.click(retry);
+
+  // The client sends only its revision and request identity; the dice shown
+  // are the server's committed result for that same request.
+  expect(rollHummingbirdHarvest).toHaveBeenNthCalledWith(2, 0, originalRequestId);
+  expect(await screen.findByRole('button', { name: /die 1: 2 food \/ 5 water/i })).toBeVisible();
+  expect(screen.getByRole('button', { name: /die 2: 5 food \/ 2 water/i })).toBeVisible();
+  expect(screen.queryByRole('button', { name: /retry roll request/i })).not.toBeInTheDocument();
+});
+
 it('preserves the selected die and reuses the same request id after an uncertain allocation', async () => {
   const user = userEvent.setup();
   allocateHummingbirdHarvest

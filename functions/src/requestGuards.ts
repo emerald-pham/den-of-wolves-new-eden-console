@@ -2746,16 +2746,19 @@ export function requirePressDispatchDismissalRequest(data: {
 
 export function requireDiceRequest(data: {
   sessionId?: unknown;
+  requestId?: unknown;
   sides?: unknown;
   count?: unknown;
-}): { sessionId: string; sides: number; count: number } {
+}): { sessionId: string; requestId: string; sides: number; count: number } {
   const { sides, count } = data;
   const sessionId = requiredId(data.sessionId, 'sessionId');
+  // The request id binds an exact retry to its committed roll.
+  const requestId = requiredId(data.requestId, 'requestId');
   if (typeof sides !== 'number' || !Number.isInteger(sides) || sides < 2 || sides > 1000) {
     throw new HttpsError('invalid-argument', 'sides must be 2..1000.');
   }
   if (typeof count !== 'number' || !Number.isInteger(count) || count < 1 || count > 50) {
     throw new HttpsError('invalid-argument', 'count must be 1..50.');
   }
-  return { sessionId, sides, count };
+  return { sessionId, requestId, sides, count };
 }

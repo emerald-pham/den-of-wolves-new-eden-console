@@ -394,14 +394,15 @@ describe('expensive session callable rate limits', () => {
     player();
     const identity = { callableName: 'rollDice', sessionId: 's1', uid: 'u1' } as const;
     const markerPath = `sessions/s1/serverState/callableRateLimit-${callableRateLimitDocumentId(identity)}`;
-    const forgedRequest = () => legacyRequest({
-      sessionId: 's1', sides: 6, count: 1, uid: 'u2', bypassRateLimit: true,
+    // Each roll is a distinct command; an exact retry of one is a replay instead.
+    const forgedRequest = (index: number) => legacyRequest({
+      sessionId: 's1', requestId: `dice-${index}`, sides: 6, count: 1, uid: 'u2', bypassRateLimit: true,
     }, 'u1');
 
     for (let index = 0; index < 30; index += 1) {
-      await expect(rollDice.run(forgedRequest())).resolves.toMatchObject({ rolls: [expect.any(Number)] });
+      await expect(rollDice.run(forgedRequest(index))).resolves.toMatchObject({ rolls: [expect.any(Number)] });
     }
-    await expect(rollDice.run(forgedRequest())).rejects.toMatchObject({ code: 'resource-exhausted' });
+    await expect(rollDice.run(forgedRequest(30))).rejects.toMatchObject({ code: 'resource-exhausted' });
 
     expect(read(markerPath)).toMatchObject({
       type: 'callable-rate-limit', callableName: 'rollDice', requestCount: 30,
@@ -410,6 +411,44 @@ describe('expensive session callable rate limits', () => {
     expect(read(`sessions/s1/serverState/callableRateLimit-${callableRateLimitDocumentId({
       ...identity, uid: 'u2',
     })}`)).toBeUndefined();
+  });
+
+  it('commits one server-selected dice result, ignores forged results and replays it exactly', async () => {
+    session({ phase: 'active' });
+    player();
+    put('sessions/s1/players/u2', { ...read('sessions/s1/players/u1'), uid: 'u2' });
+    const forgedRolls = Array.from({ length: 50 }, () => 1000);
+    const forged = {
+      sessionId: 's1', requestId: 'dice-1', sides: 1000, count: 50,
+      rolls: forgedRolls, total: 50_000, id: 'forged-event',
+    };
+    const rollEvents = () => [...mock.documents.entries()]
+      .filter(([path, fields]) => path.startsWith('sessions/s1/events/') && fields.type === 'roll');
+
+    const first = await rollDice.run(legacyRequest(forged)) as { id: string; rolls: number[] };
+    expect(first.id).not.toBe('forged-event');
+    expect(first.rolls).toHaveLength(50);
+    expect(first.rolls.every((roll) => Number.isInteger(roll) && roll >= 1 && roll <= 1000)).toBe(true);
+    expect(first.rolls).not.toEqual(forgedRolls);
+
+    // An exact retry, even one carrying a different forged result, returns
+    // the committed roll instead of sampling again.
+    await expect(rollDice.run(legacyRequest({ ...forged, rolls: [1], total: 1 })))
+      .resolves.toEqual(first);
+    // The request id cannot be reused for a different roll or by another actor.
+    await expect(rollDice.run(legacyRequest({ ...forged, sides: 6 })))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    await expect(rollDice.run(legacyRequest(forged, 'u2')))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    // Without a request id there is no exact retry to bind, so no roll is drawn.
+    await expect(rollDice.run(legacyRequest({ sessionId: 's1', sides: 6, count: 1 })))
+      .rejects.toMatchObject({ code: 'invalid-argument' });
+
+    expect(rollEvents()).toHaveLength(1);
+    expect(rollEvents()[0]).toEqual([`sessions/s1/events/${first.id}`, expect.objectContaining({
+      type: 'roll', byUid: 'u1', sides: 1000, count: 50, rolls: first.rolls,
+      total: first.rolls.reduce((sum, roll) => sum + roll, 0),
+    })]);
   });
 });
 
