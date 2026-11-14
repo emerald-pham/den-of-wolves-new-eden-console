@@ -394,7 +394,8 @@ describe('private security-denial telemetry', () => {
 
     expect(securityDenials()).toEqual([{
       type: 'security-denial', schemaVersion: 1, callableName: 'rollDice',
-      code: 'unauthenticated', category: 'auth', authState: 'absent', appCheck: 'absent',
+      code: 'unauthenticated', category: 'auth', commandError: 'unauthenticated',
+      authState: 'absent', appCheck: 'absent',
       sessionHash: expect.stringMatching(HASH), requestHash: expect.stringMatching(HASH),
     }]);
     expectNoPrivateValues(securityDenials(), ['dice-auth']);

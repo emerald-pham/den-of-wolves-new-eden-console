@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { warn } from 'firebase-functions/logger';
 import { HttpsError, onCall as sdkOnCall, type CallableRequest } from 'firebase-functions/v2/https';
+import { COMMAND_ERROR_KINDS } from './commandErrors';
 
 /**
  * Private security-denial telemetry for game callables (P634).
@@ -8,7 +9,8 @@ import { HttpsError, onCall as sdkOnCall, type CallableRequest } from 'firebase-
  * A denial is written only to the Functions logger (Cloud Logging in
  * production), never to Firestore or the client response. The record keeps
  * permitted operational metadata: which callable, the error code and category,
- * whether auth and App Check were present, and one-way hashes that let an
+ * whether auth and App Check were present, the fixed command-error slug and
+ * retry window the client already receives, and one-way hashes that let an
  * operator correlate an actor, session or request they already know. A schema
  * denial also lists the request's top-level field names. It never
  * includes the request payload, error prose, headers or tokens, so credentials,
@@ -18,7 +20,19 @@ const DENIAL_CATEGORIES = {
   unauthenticated: 'auth',
   'permission-denied': 'authorization',
   'invalid-argument': 'schema',
+  'resource-exhausted': 'rate-limit',
 } as const;
+
+/**
+ * Machine-readable denial kinds already sent to the client. Only these fixed
+ * slugs are copied, so arbitrary detail values never reach the record.
+ */
+const REPORTED_COMMAND_ERRORS: ReadonlySet<string> = new Set([
+  ...COMMAND_ERROR_KINDS,
+  'rate-limited',
+  'rate-limit-state-invalid',
+]);
+const MAX_RETRY_AFTER_SECONDS = 24 * 60 * 60;
 
 type DeniedCode = keyof typeof DENIAL_CATEGORIES;
 type AuditedRequest = Pick<CallableRequest, 'auth' | 'app' | 'data'>;
@@ -59,6 +73,16 @@ function requestFieldNames(data: unknown): string[] {
   return Object.keys(data).filter(name => SAFE_FIELD_NAME.test(name)).sort().slice(0, MAX_REPORTED_FIELDS);
 }
 
+function denialDetails(details: unknown): Record<string, unknown> {
+  const commandError = field(details, 'commandError');
+  const retryAfterSeconds = field(details, 'retryAfterSeconds');
+  return {
+    ...(typeof commandError === 'string' && REPORTED_COMMAND_ERRORS.has(commandError) ? { commandError } : {}),
+    ...(typeof retryAfterSeconds === 'number' && Number.isInteger(retryAfterSeconds)
+      && retryAfterSeconds >= 1 && retryAfterSeconds <= MAX_RETRY_AFTER_SECONDS ? { retryAfterSeconds } : {}),
+  };
+}
+
 /** The permitted metadata for one denial, or undefined for a non-security failure. */
 export function securityDenialRecord(request: AuditedRequest, error: unknown): Record<string, unknown> | undefined {
   if (!(error instanceof HttpsError) || !isDeniedCode(error.code)) return undefined;
@@ -72,6 +96,7 @@ export function securityDenialRecord(request: AuditedRequest, error: unknown): R
     ...(callableName ? { callableName } : {}),
     code: error.code,
     category: DENIAL_CATEGORIES[error.code],
+    ...denialDetails(error.details),
     authState: request.auth ? 'present' : 'absent',
     appCheck: request.app ? 'verified' : 'absent',
     ...(actorHash ? { actorHash } : {}),
