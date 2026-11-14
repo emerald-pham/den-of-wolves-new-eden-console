@@ -156,10 +156,12 @@ it('emits uncached build metadata for live clients to discover upgrades', () => 
 
 it('documents the release-maturity gates for later version numbers', () => {
   const agreement = readFileSync('CLAUDE.md', 'utf8');
-  expect(agreement).toContain('Only the product owner authorizes `0.9.x` and `1.0.0`');
-  expect(agreement).toContain('complete 20-player set');
-  expect(agreement).toContain('an end-to-end gameplay loop');
-  expect(agreement).toContain('implemented game end');
   expect(agreement).toContain('Player-facing work increments the application version');
   expect(agreement).toContain('documentation-only changes do not bump');
+  expect(agreement).toContain('docs/AGENT_EXECUTION_POLICY.md#release-versioning');
+  const release = readFileSync('docs/AGENT_EXECUTION_POLICY.md', 'utf8');
+  expect(release).toContain('Only the product owner authorizes `0.9.x` and `1.0.0`');
+  expect(release).toContain('complete 20-player set');
+  expect(release).toContain('an end-to-end gameplay loop');
+  expect(release).toContain('implemented game end');
 });
