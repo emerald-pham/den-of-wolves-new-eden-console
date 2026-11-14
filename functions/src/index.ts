@@ -7985,9 +7985,15 @@ export const rechargeHostConsoleFromShuttle = onCall<{
   const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
   const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
   const eventRef = db.doc(`sessions/${data.sessionId}/events/service-recharge-${data.requestId}`);
+  const actionAuditRef = vesselActionAuditRef(data.sessionId, data.requestId);
+  const auditBinding = (revision: number): ReceiptBoundActionAudit => ({
+    sessionId: data.sessionId, actorUid: uid, action: 'service-shuttle-recharge',
+    requestId: data.requestId, revision,
+  });
   return db.runTransaction(async tx => {
-    const [session, actor, receipt, event] = await Promise.all([
+    const [session, actor, receipt, event, actionAudit] = await Promise.all([
       tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(eventRef),
+      tx.get(actionAuditRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
@@ -8042,9 +8048,13 @@ export const rechargeHostConsoleFromShuttle = onCall<{
           'conflict',
         );
       }
+      verifyReceiptBoundActionAuditForReplay(
+        actionAudit, auditBinding(replay.rechargeRevision), 'service-shuttle recharge',
+      );
       return { ...replay, status: 'replayed' as const };
     }
     if (event.exists) rejectLegacyEventReplay('service-shuttle recharge');
+    rejectOrphanedActionAudit(actionAudit, 'service-shuttle recharge');
     if (session.get('phase') !== 'active') {
       throw commandError(
         'failed-precondition',
@@ -8192,6 +8202,10 @@ export const rechargeHostConsoleFromShuttle = onCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeReceiptBoundActionAudit(
+      tx, actionAuditRef, auditBinding(result.ledger.revision), actor.get('assignedRoleId'),
+      vesselActionPhase(session),
+    );
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
