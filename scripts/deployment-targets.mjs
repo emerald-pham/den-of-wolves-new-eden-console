@@ -323,7 +323,10 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
     'scavengeDestroyedShipStores', 'adjustShipResource', 'adjustShipUnrest',
     'adjustShipPopulation', 'applyShipCounterSteps',
     'runHighwallMining', 'authorFacilitatorRuleCall', 'setFighterWingCount',
-    'repairAllShipDamage', 'addShipDamage',
+    'repairAllShipDamage', 'addShipDamage', 'buildFighter',
+    'transferShuttleCargoCommand', 'rechargeHostConsoleFromShuttle',
+    'repairConsolesFromBlacksmith', 'repairConsolesFromPhilia', 'repairConsolesFromMacaw',
+    'repairConsolesFromChacau', 'repairConsolesFromAlly',
   ],
   'functions/src/pressLogEvent.ts': [
     'evacuateShuttleSurvivorsCommand', 'applyCommissarPurge',
@@ -377,7 +380,7 @@ const CALLABLES_BY_CHANGED_MODULE = Object.freeze({
   'functions/src/scoutResolutionPlan.ts': ['resolvePendingScoutRequest'],
   'functions/src/scoutResultCallable.ts': [
     'resolvePendingScoutRequest', 'readPrivateScoutResult', 'listPendingScoutRequests',
-    'listMyScoutReports', 'readMyScoutDiscoveryNote',
+    'listGmScoutResolutionLog', 'listMyScoutReports', 'readMyScoutDiscoveryNote',
   ],
   'functions/src/highwallMining.ts': ['runHighwallMining'],
   'functions/src/hummingbirdHarvestStaleReply.ts': [
@@ -1526,6 +1529,93 @@ function airspaceClosureTaskHandlerImpacts(before, after, cwd, sourceAtRevision)
   return ['parkShuttlesAtAirspaceClosure'];
 }
 
+// Every game callable is built with the security-denial telemetry `onCall`
+// (P634), so a change to that wrapper redeploys exactly the callables that use
+// it. They are derived from the candidate's own exports rather than a static
+// list; any wrapped `onCall` that cannot be attributed fails closed.
+const SECURITY_DENIAL_WRAPPER_IMPORT =
+  /import\s*\{[^}]*\bonCall\b[^}]*\}\s*from\s*'\.\/securityDenialTelemetry';/;
+export function securityDenialWrappedCallables(after, cwd, sourceAtRevision = null) {
+  const readAt = (file) => {
+    let source;
+    if (sourceAtRevision) source = sourceAtRevision(after, file);
+    else {
+      try {
+        source = execFileSync('git', ['show', `${after}:${file}`], {
+          encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 32 * 1024 * 1024,
+        });
+      } catch {
+        throw new Error(`Cannot safely read ${after}:${file} for security-denial telemetry consumers.`);
+      }
+    }
+    if (typeof source !== 'string') {
+      throw new Error(`Cannot safely read ${after}:${file} for security-denial telemetry consumers.`);
+    }
+    return source;
+  };
+  const callSites = source => source.match(/\bonCall\s*[<(]/g)?.length ?? 0;
+  const index = readAt('functions/src/index.ts');
+  if (!SECURITY_DENIAL_WRAPPER_IMPORT.test(index)) {
+    throw new Error('Cannot safely map security-denial telemetry: the Functions entrypoint does not use the wrapper.');
+  }
+  const selected = new Set();
+  const indexCallables = [...index.matchAll(/^export\s+const\s+(\w+)\s*=\s*onCall\s*[<(]/gm)].map(match => match[1]);
+  if (indexCallables.length !== callSites(index)) {
+    throw new Error('Cannot safely map security-denial telemetry: an entrypoint onCall is not a named export.');
+  }
+  for (const name of indexCallables) selected.add(name);
+  // Names the entrypoint takes from each local module, by import or re-export.
+  const bindings = new Map();
+  for (const match of index.matchAll(/^(import|export)\s*\{([^}]*)\}\s*from\s*'\.\/([\w.-]+)';/gm)) {
+    const module = `functions/src/${match[3]}.ts`;
+    const names = bindings.get(module) ?? { imported: new Map(), exported: new Map() };
+    for (const part of match[2].split(',').map(item => item.trim()).filter(Boolean)) {
+      if (part.startsWith('type ')) continue;
+      const [local, alias = local] = part.split(/\s+as\s+/);
+      names[match[1] === 'import' ? 'imported' : 'exported'].set(local, alias);
+    }
+    bindings.set(module, names);
+  }
+  for (const [module, names] of bindings) {
+    const source = readAt(module);
+    if (!SECURITY_DENIAL_WRAPPER_IMPORT.test(source)) {
+      if (/\bfrom\s*'\.\/securityDenialTelemetry'/.test(source)) {
+        throw new Error(`Cannot safely map security-denial telemetry consumers of ${module}.`);
+      }
+      continue;
+    }
+    const direct = [...source.matchAll(/^export\s+const\s+(\w+)\s*=\s*onCall\s*[<(]/gm)].map(match => match[1]);
+    const factories = [...source.matchAll(
+      /^export\s+function\s+(\w+)\s*\([^)]*\)[^{]*\{\s*return\s+onCall\s*[<(]/gm,
+    )].map(match => match[1]);
+    if (direct.length + factories.length !== callSites(source)) {
+      throw new Error(`Cannot safely map security-denial telemetry: ${module} has an unattributed onCall.`);
+    }
+    for (const name of direct) {
+      if (names.exported.has(name)) selected.add(names.exported.get(name));
+    }
+    for (const factory of factories) {
+      if (!names.imported.has(factory)) continue;
+      const local = names.imported.get(factory);
+      const built = [...index.matchAll(new RegExp(`^export\\s+const\\s+(\\w+)\\s*=\\s*${local}\\s*\\(`, 'gm'))];
+      if (built.length !== 1) {
+        throw new Error(`Cannot safely map security-denial telemetry: ${module} factory ${factory} is not one export.`);
+      }
+      selected.add(built[0][1]);
+    }
+  }
+  return [...selected];
+}
+
+const PC10_4_LATE_MAP_CONSUMERS = Object.freeze({
+  'functions/src/actionAudit.ts': [
+    'buildFighter', 'transferShuttleCargoCommand', 'rechargeHostConsoleFromShuttle',
+    'repairConsolesFromBlacksmith', 'repairConsolesFromPhilia', 'repairConsolesFromMacaw',
+    'repairConsolesFromChacau', 'repairConsolesFromAlly',
+  ],
+  'functions/src/scoutResultCallable.ts': ['listGmScoutResolutionLog'],
+});
+
 const CASTING_CALLABLE_SOURCES = new Set([
   'companion/casting.mjs', 'companion/csv.mjs', 'companion/session-contract.mjs',
   'functions/src/castingCompanionCallable.ts', 'functions/src/castingCallableTransport.ts',
@@ -1730,6 +1820,10 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
       for (const name of maliadesCallableImpacts(before, after, cwd, sourceAtRevision)) selected.add(name);
       continue;
     }
+    if (file === 'functions/src/securityDenialTelemetry.ts') {
+      for (const name of securityDenialWrappedCallables(after, cwd, sourceAtRevision)) selected.add(name);
+      continue;
+    }
     let consumers = file === 'functions/src/pursuitEmergencyWindow.ts'
       ? [...PC05_INDEX_HELPER_TRANSITION.consumers,
         'activateEndeavourEcmDevice', 'advanceEndeavourResearchTrack', 'repairMaliades']
@@ -1752,6 +1846,10 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
       // deployable only after its index export landed. Historical ranges that
       // predate that export must not target a nonexistent Function.
       if (file === 'functions/src/smallShip.ts' && name === 'repairWarriorWithDrones' &&
+          !callableIsExportedAtRevision(name, after, cwd, sourceAtRevision)) continue;
+      // PC10.4 completed these maps with callables that later releases added;
+      // ranges ending before their export must not target a missing Function.
+      if (PC10_4_LATE_MAP_CONSUMERS[file]?.includes(name) &&
           !callableIsExportedAtRevision(name, after, cwd, sourceAtRevision)) continue;
       if ((file === 'functions/src/extraShipAdmission.ts' || file === 'functions/src/replacementRoles.ts' ||
           file === 'functions/src/smallShip.ts' || file === 'functions/src/baseCapybaraCargoTransfer.ts' ||
