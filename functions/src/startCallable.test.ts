@@ -1296,6 +1296,45 @@ it('writes private automatic loyalties and a safe setup receipt in the same comm
   expect(eventWrite).not.toHaveProperty('deckOrder');
 });
 
+it('ignores a client-selected Wolf/loyalty composition and replays the server-drawn composition', async () => {
+  // Every server draw returns 0, so the Fisher-Yates Wolf pick over the eight
+  // canonical roles is wing-commander (u3). The forged payload names admiral (u2).
+  mock.randomInt.mockReturnValue(0);
+  const forged = {
+    selectedWolfRoleIds: ['admiral'], wolfRoleIds: ['admiral'], wolfCount: 2,
+    loyaltyAssignments: { u2: { kind: 'wolf-agent', suspicion: 0 }, u3: { kind: 'fleet-loyalist', suspicion: 0 } },
+    suspicionCards: [10, 10, 10, 10, 10, 10, 10], composition: { wolves: ['u2'] },
+  };
+  const startCommand = { sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 0 };
+
+  const reply = await startGame.run(request({ ...startCommand, ...forged }));
+  expect(reply).toMatchObject({
+    status: 'committed',
+    setupReceipt: { wolfCount: 1, selectedWolfRoleIds: ['wing-commander'], loyaltySource: 'automatic-default' },
+  });
+  const loyaltyKind = (uid: string) => mock.set.mock.calls.find(([ref]) =>
+    ref.path === `sessions/s1/secrets/loyalty-${uid}`)?.[1]?.payload?.kind;
+  expect(loyaltyKind('u3')).toBe('wolf-agent');
+  expect(loyaltyKind('u2')).toBe('fleet-loyalist');
+  const census = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/loyaltyCensus/current')?.[1];
+  expect(census.entries.filter((entry: { kind: string }) => entry.kind === 'wolf-agent'))
+    .toEqual([expect.objectContaining({ uid: 'u3' })]);
+  expect(census.entries.map((entry: { suspicion: number }) => entry.suspicion).sort((a: number, b: number) => a - b))
+    .toEqual([0, 0, 0, 0, 0, 5, 5, 10]);
+
+  const receipt = mock.set.mock.calls.find(([ref]) => ref.path === 'sessionStartRequests/s1_start-1')?.[1];
+  mock.priorReply = receipt?.reply;
+  mock.priorFingerprint = receipt?.fingerprint;
+  mock.update.mockClear();
+  mock.set.mockClear();
+  mock.randomInt.mockClear();
+  await expect(startGame.run(request({ ...startCommand, selectedWolfRoleIds: ['admiral'] })))
+    .resolves.toEqual({ ...reply, status: 'replayed' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
+});
+
 it('records a fresh start in the authenticated rate bucket before roster scans', async () => {
   await startGame.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'start-rate-limit', expectedSetupRevision: 0,
