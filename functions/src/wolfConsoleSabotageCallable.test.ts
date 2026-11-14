@@ -250,6 +250,58 @@ it('replays an exact resolution without a second draw or suspicion change', asyn
   expect(mock.update).not.toHaveBeenCalled();
 });
 
+it('refuses a forged damage card or clue outcome and replays the server-drawn sabotage result', async () => {
+  vi.spyOn(Date, 'now').mockReturnValue(3_500_000);
+  await startWolfConsoleVisit.run(request({
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'visit-forged', expectedCycle: 2,
+    targetUid: 'wolf-uid', targetShipId: 'dione',
+  }));
+  vi.mocked(Date.now).mockReturnValue(3_510_000);
+  const data = {
+    sessionId: 's1', instanceId: 'gm-1', requestId: 'resolve-forged',
+    visitId: 'visit-forged', expectedCycle: 2, mode: 'random',
+  };
+  const forged = {
+    targetSystemId: 'reactor', damageIndex: 0, card: '9♣', roll: 6, clueRoll: 6, total: 30,
+    increment: 10, suspicion: 20, clueTier: 'traitor-name', facilitatorInstruction: 'Name nobody.',
+  };
+  mock.runTransaction.mockClear(); mock.set.mockClear(); mock.update.mockClear();
+  cryptoMock.randomInt.mockClear();
+  await expect(resolveWolfConsoleSabotage.run(request({ ...data, ...forged })))
+    .rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(mock.runTransaction).not.toHaveBeenCalled();
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  cryptoMock.randomInt.mockImplementation((minimumOrMaximum: number, maximum?: number) =>
+    maximum === undefined ? 1 : minimumOrMaximum);
+  const committed = await resolveWolfConsoleSabotage.run(request(data));
+  expect(committed).toMatchObject({
+    status: 'committed', mode: 'random', targetSystemId: 'shuttle-bay', suspicion: 3,
+  });
+  expect(mock.documents.get('sessions/s1/wolfClueDisclosure/current')).toMatchObject({
+    oldSuspicion: 1, increment: 2, newSuspicion: 3, roll: 1, total: 4,
+    clueTier: 'none', facilitatorInstruction: 'Nothing.',
+  });
+
+  mock.runTransaction.mockClear(); mock.set.mockClear(); mock.update.mockClear();
+  cryptoMock.randomInt.mockClear();
+  cryptoMock.randomInt.mockImplementation((_minimumOrMaximum: number, maximum?: number) =>
+    maximum === undefined ? 0 : 6);
+  await expect(resolveWolfConsoleSabotage.run(request({ ...data, roll: 6, clueTier: 'traitor-name' })))
+    .rejects.toMatchObject({ code: 'invalid-argument' });
+  await expect(resolveWolfConsoleSabotage.run(request(data))).resolves.toEqual(committed);
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.documents.get('sessions/s1/wolfClueDisclosure/current')).toMatchObject({
+    roll: 1, clueTier: 'none',
+  });
+  expect(mock.documents.get('sessions/s1/wolfActionReceipts/current')).toMatchObject({
+    targetSystemId: 'shuttle-bay', newSuspicion: 3,
+  });
+});
+
 it('fails closed when suspicion history occupies a new console sabotage request without its receipt', async () => {
   vi.spyOn(Date, 'now').mockReturnValue(3_500_000);
   await startWolfConsoleVisit.run(request({

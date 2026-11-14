@@ -610,7 +610,10 @@ import {
   buildAuthoritativeEventEnvelope,
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
-import { buildActionAuditRecord, type ActionAuditAction } from './actionAudit';
+import {
+  actionAuditMatchesReceipt, buildActionAuditRecord, buildReceiptBoundActionAuditRecord,
+  type ActionAuditAction, type ActionAuditResolutionSource, type ReceiptBoundActionAudit,
+} from './actionAudit';
 import {
   createAirspaceClosureParkingTask,
   createAirspaceClosureTaskScheduler,
@@ -4863,6 +4866,48 @@ function writeVesselActionAudit(
   }));
 }
 
+/**
+ * Player shuttle receipts bind the actor, request and committed revision, but
+ * not the original phase or role. A replay therefore validates an existing
+ * audit exactly and never creates one: receipts committed before standardized
+ * audits stay unaudited instead of inventing their attribution.
+ */
+function verifyReceiptBoundActionAuditForReplay(
+  auditSnapshot: DocumentSnapshot,
+  binding: ReceiptBoundActionAudit,
+  label: string,
+): void {
+  if (!auditSnapshot.exists) return;
+  if (!actionAuditMatchesReceipt(auditSnapshot.data(), binding)) {
+    throw commandError(
+      'failed-precondition',
+      `This ${label} receipt has a mismatched standardized audit record.`,
+      'conflict',
+    );
+  }
+}
+
+function rejectOrphanedActionAudit(auditSnapshot: DocumentSnapshot, label: string): void {
+  if (!auditSnapshot.exists) return;
+  throw commandError(
+    'failed-precondition',
+    `This ${label} request has a standardized audit without its bound receipt.`,
+    'conflict',
+  );
+}
+
+function writeReceiptBoundActionAudit(
+  tx: Transaction,
+  auditRef: DocumentReference,
+  binding: ReceiptBoundActionAudit,
+  actorRoleId: unknown,
+  phase: LifecyclePhase,
+): void {
+  tx.set(auditRef, buildReceiptBoundActionAuditRecord(
+    binding, actorRoleId, phase, FieldValue.serverTimestamp(),
+  ));
+}
+
 function writeShipDamageActionAudit(
   tx: Transaction,
   auditRef: DocumentReference,
@@ -4889,6 +4934,7 @@ function ensureVesselActionAuditForReplay(
   action: ActionAuditAction,
   requestId: string,
   result: Record<string, unknown>,
+  resolutionSource: ActionAuditResolutionSource = 'facilitator',
 ): void {
   if (result.actorUid !== actorUid || result.idempotencyKey !== requestId ||
       typeof result.phase !== 'string' ||
@@ -4928,7 +4974,7 @@ function ensureVesselActionAuditForReplay(
     requestId,
     revision: result.revision,
     outcome: 'committed',
-    resolutionSource: 'facilitator',
+    resolutionSource,
     createdAt: FieldValue.serverTimestamp(),
   });
   if (auditSnapshot.exists) {
@@ -5077,6 +5123,40 @@ function ensureRepairAllShipDamageActionAuditForReplay(
   ensureVesselActionAuditForReplay(
     tx, auditSnapshot, auditRef, sessionId, actorUid,
     'repair-damage', requestId, result,
+  );
+}
+
+function ensureFighterConstructionActionAuditForReplay(
+  tx: Transaction,
+  auditSnapshot: DocumentSnapshot,
+  auditRef: DocumentReference,
+  sessionId: string,
+  actorUid: string,
+  requestId: string,
+  wingId: string,
+  expectedRevision: number,
+  result: Record<string, unknown>,
+): void {
+  const mismatch = () => commandError(
+    'failed-precondition',
+    'This fighter construction receipt does not match its standardized audit request.',
+    'conflict',
+  );
+  if (result.sessionId !== sessionId || result.requestId !== requestId ||
+      result.vesselId !== 'aegis' || result.auditId !== `fighter-build-${requestId}` ||
+      result.wingId !== wingId) {
+    throw mismatch();
+  }
+  if (result.status === 'stale') {
+    if (result.currentRevision !== result.revision || result.revision === expectedRevision) throw mismatch();
+  } else if (result.status !== 'committed' || result.revision !== expectedRevision + 1) {
+    throw mismatch();
+  }
+  // Construction is the printed Construction Bay rule applied to the Wing
+  // Commander's choice, whether a player or a GM console instance submits it.
+  ensureVesselActionAuditForReplay(
+    tx, auditSnapshot, auditRef, sessionId, actorUid,
+    'fighter-construction', requestId, result, 'server-rules',
   );
 }
 
@@ -7684,9 +7764,16 @@ export const transferShuttleCargoCommand = onCall<{
   const sessionRef = db.doc(`sessions/${data.sessionId}`);
   const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
   const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const actionAuditRef = vesselActionAuditRef(data.sessionId, data.requestId);
+  // Cargo does not advance the control revision; the audit records the exact
+  // control revision under which the committed transfer was accepted.
+  const auditBinding: ReceiptBoundActionAudit = {
+    sessionId: data.sessionId, actorUid: uid, action: 'shuttle-cargo-transfer',
+    requestId: data.requestId, revision: data.expectedControlRevision,
+  };
   return db.runTransaction(async tx => {
-    const [session, actor, receipt] = await Promise.all([
-      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef),
+    const [session, actor, receipt, actionAudit] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(actionAuditRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
@@ -7698,7 +7785,11 @@ export const transferShuttleCargoCommand = onCall<{
       (value): value is ShuttleCargoTransferReply => isShuttleCargoTransferReply(value, data.sessionId),
       'shuttle cargo transfer',
     );
-    if (replay) return { ...replay, status: 'replayed' as const };
+    if (replay) {
+      verifyReceiptBoundActionAuditForReplay(actionAudit, auditBinding, 'shuttle cargo transfer');
+      return { ...replay, status: 'replayed' as const };
+    }
+    rejectOrphanedActionAudit(actionAudit, 'shuttle cargo transfer');
     requireActionPhase(session, 'transfer', 'player');
     const groupId = actor.get('fleetGroupId');
     if (typeof groupId !== 'string' || groupId.length === 0) {
@@ -7790,6 +7881,9 @@ export const transferShuttleCargoCommand = onCall<{
       [`shuttleCargo.${data.shuttleId}`]: result.shuttleInventory,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    writeReceiptBoundActionAudit(
+      tx, actionAuditRef, auditBinding, actor.get('assignedRoleId'), vesselActionPhase(session),
+    );
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -7893,9 +7987,15 @@ export const rechargeHostConsoleFromShuttle = onCall<{
   const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
   const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
   const eventRef = db.doc(`sessions/${data.sessionId}/events/service-recharge-${data.requestId}`);
+  const actionAuditRef = vesselActionAuditRef(data.sessionId, data.requestId);
+  const auditBinding = (revision: number): ReceiptBoundActionAudit => ({
+    sessionId: data.sessionId, actorUid: uid, action: 'service-shuttle-recharge',
+    requestId: data.requestId, revision,
+  });
   return db.runTransaction(async tx => {
-    const [session, actor, receipt, event] = await Promise.all([
+    const [session, actor, receipt, event, actionAudit] = await Promise.all([
       tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(eventRef),
+      tx.get(actionAuditRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
@@ -7950,9 +8050,13 @@ export const rechargeHostConsoleFromShuttle = onCall<{
           'conflict',
         );
       }
+      verifyReceiptBoundActionAuditForReplay(
+        actionAudit, auditBinding(replay.rechargeRevision), 'service-shuttle recharge',
+      );
       return { ...replay, status: 'replayed' as const };
     }
     if (event.exists) rejectLegacyEventReplay('service-shuttle recharge');
+    rejectOrphanedActionAudit(actionAudit, 'service-shuttle recharge');
     if (session.get('phase') !== 'active') {
       throw commandError(
         'failed-precondition',
@@ -8100,6 +8204,10 @@ export const rechargeHostConsoleFromShuttle = onCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeReceiptBoundActionAudit(
+      tx, actionAuditRef, auditBinding(result.ledger.revision), actor.get('assignedRoleId'),
+      vesselActionPhase(session),
+    );
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -8184,9 +8292,15 @@ export const repairConsolesFromBlacksmith = onCall<{
   const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
   const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
   const eventRef = db.doc(`sessions/${data.sessionId}/events/blacksmith-repair-${data.requestId}`);
+  const actionAuditRef = vesselActionAuditRef(data.sessionId, data.requestId);
+  const auditBinding = (revision: number): ReceiptBoundActionAudit => ({
+    sessionId: data.sessionId, actorUid: uid, action: 'blacksmith-repair',
+    requestId: data.requestId, revision,
+  });
   return db.runTransaction(async tx => {
-    const [session, actor, receipt, event] = await Promise.all([
+    const [session, actor, receipt, event, actionAudit] = await Promise.all([
       tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(eventRef),
+      tx.get(actionAuditRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
@@ -8201,8 +8315,12 @@ export const repairConsolesFromBlacksmith = onCall<{
       (value): value is BlacksmithRepairReply => isBlacksmithRepairReply(value, fingerprint),
       'Blacksmith repair',
     );
-    if (replay) return { ...replay, status: 'replayed' as const };
+    if (replay) {
+      verifyReceiptBoundActionAuditForReplay(actionAudit, auditBinding(replay.repairRevision), 'Blacksmith repair');
+      return { ...replay, status: 'replayed' as const };
+    }
     if (event.exists) rejectLegacyEventReplay('Blacksmith repair');
+    rejectOrphanedActionAudit(actionAudit, 'Blacksmith repair');
     if (session.get('phase') !== 'active') {
       throw commandError('failed-precondition', 'Blacksmith repair is available only during active gameplay.', 'invalid-phase');
     }
@@ -8331,6 +8449,10 @@ export const repairConsolesFromBlacksmith = onCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeReceiptBoundActionAudit(
+      tx, actionAuditRef, auditBinding(reply.repairRevision), actor.get('assignedRoleId'),
+      vesselActionPhase(session),
+    );
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -8415,9 +8537,15 @@ export const repairConsolesFromPhilia = onCall<{
   const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
   const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
   const eventRef = db.doc(`sessions/${data.sessionId}/events/philia-repair-${data.requestId}`);
+  const actionAuditRef = vesselActionAuditRef(data.sessionId, data.requestId);
+  const auditBinding = (revision: number): ReceiptBoundActionAudit => ({
+    sessionId: data.sessionId, actorUid: uid, action: 'philia-repair',
+    requestId: data.requestId, revision,
+  });
   return db.runTransaction(async tx => {
-    const [session, actor, receipt, event] = await Promise.all([
+    const [session, actor, receipt, event, actionAudit] = await Promise.all([
       tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(eventRef),
+      tx.get(actionAuditRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     requireDioneEngineer(actor);
@@ -8429,8 +8557,12 @@ export const repairConsolesFromPhilia = onCall<{
       (value): value is PhiliaRepairReply => isPhiliaRepairReply(value, fingerprint),
       'Philia repair',
     );
-    if (replay) return { ...replay, status: 'replayed' as const };
+    if (replay) {
+      verifyReceiptBoundActionAuditForReplay(actionAudit, auditBinding(replay.repairRevision), 'Philia repair');
+      return { ...replay, status: 'replayed' as const };
+    }
     if (event.exists) rejectLegacyEventReplay('Philia repair');
+    rejectOrphanedActionAudit(actionAudit, 'Philia repair');
     if (session.get('phase') !== 'active') {
       throw commandError('failed-precondition', 'Philia repair is available only during active gameplay.', 'invalid-phase');
     }
@@ -8571,6 +8703,10 @@ export const repairConsolesFromPhilia = onCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeReceiptBoundActionAudit(
+      tx, actionAuditRef, auditBinding(reply.repairRevision), actor.get('assignedRoleId'),
+      vesselActionPhase(session),
+    );
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -8590,9 +8726,15 @@ export const repairConsolesFromMacaw = onCall<{
   const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
   const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
   const eventRef = db.doc(`sessions/${data.sessionId}/events/macaw-repair-${data.requestId}`);
+  const actionAuditRef = vesselActionAuditRef(data.sessionId, data.requestId);
+  const auditBinding = (revision: number): ReceiptBoundActionAudit => ({
+    sessionId: data.sessionId, actorUid: uid, action: 'macaw-repair',
+    requestId: data.requestId, revision,
+  });
   return db.runTransaction(async tx => {
-    const [session, actor, receipt, event] = await Promise.all([
+    const [session, actor, receipt, event, actionAudit] = await Promise.all([
       tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(eventRef),
+      tx.get(actionAuditRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(actor) || actor.get('role') !== 'player' ||
@@ -8606,8 +8748,12 @@ export const repairConsolesFromMacaw = onCall<{
       (value): value is MacawRepairCallableReply => isMacawRepairCallableReply(value, fingerprint),
       'Macaw repair',
     );
-    if (replay) return { ...replay, status: 'replayed' as const };
+    if (replay) {
+      verifyReceiptBoundActionAuditForReplay(actionAudit, auditBinding(replay.repairRevision), 'Macaw repair');
+      return { ...replay, status: 'replayed' as const };
+    }
     if (event.exists) rejectLegacyEventReplay('Macaw repair');
+    rejectOrphanedActionAudit(actionAudit, 'Macaw repair');
     if (session.get('phase') !== 'active') {
       throw commandError('failed-precondition', 'Macaw repair is available only during active gameplay.', 'invalid-phase');
     }
@@ -8724,6 +8870,10 @@ export const repairConsolesFromMacaw = onCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeReceiptBoundActionAudit(
+      tx, actionAuditRef, auditBinding(reply.repairRevision), actor.get('assignedRoleId'),
+      vesselActionPhase(session),
+    );
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -8949,9 +9099,15 @@ export const repairConsolesFromChacau = onCall(async request => {
   const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
   const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
   const eventRef = db.doc(`sessions/${data.sessionId}/events/chacau-repair-${data.requestId}`);
+  const actionAuditRef = vesselActionAuditRef(data.sessionId, data.requestId);
+  const auditBinding = (revision: number): ReceiptBoundActionAudit => ({
+    sessionId: data.sessionId, actorUid: uid, action: 'chacau-repair',
+    requestId: data.requestId, revision,
+  });
   return db.runTransaction(async tx => {
-    const [session, actor, receipt, event] = await Promise.all([
+    const [session, actor, receipt, event, actionAudit] = await Promise.all([
       tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(eventRef),
+      tx.get(actionAuditRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
@@ -8964,8 +9120,12 @@ export const repairConsolesFromChacau = onCall(async request => {
       (value): value is ChacauRepairReply => isChacauRepairCallableReply(value, fingerprint),
       'Chacau repair',
     );
-    if (replay) return { ...replay, status: 'replayed' as const };
+    if (replay) {
+      verifyReceiptBoundActionAuditForReplay(actionAudit, auditBinding(replay.repairRevision), 'Chacau repair');
+      return { ...replay, status: 'replayed' as const };
+    }
     if (event.exists) rejectLegacyEventReplay('Chacau repair');
+    rejectOrphanedActionAudit(actionAudit, 'Chacau repair');
     if (session.get('phase') !== 'active') {
       throw commandError('failed-precondition', 'Chacau repair is available only during active gameplay.', 'invalid-phase');
     }
@@ -9101,6 +9261,10 @@ export const repairConsolesFromChacau = onCall(async request => {
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeReceiptBoundActionAudit(
+      tx, actionAuditRef, auditBinding(reply.repairRevision), actor.get('assignedRoleId'),
+      vesselActionPhase(session),
+    );
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -39176,6 +39340,7 @@ export const buildFighter = onCall<{
     change.expectedRevision, { shipId: 'aegis', wingId: change.wingId },
   );
   const attackStateRef = db.doc(`sessions/${change.sessionId}/wolfAttackState/current`);
+  const actionAuditRef = vesselActionAuditRef(change.sessionId, identity.requestId);
   return db.runTransaction(async tx => {
     const [player, session, attackState] = await Promise.all([
       tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`)),
@@ -39188,9 +39353,22 @@ export const buildFighter = onCall<{
         (!isActivePlayer(player) || player.get('activeConsoleRoleId') !== 'wing-commander')) {
       throw new HttpsError('permission-denied', 'An active Wing Commander console is required.');
     }
-    const prior = await tx.get(receiptRef);
+    const [prior, actionAudit] = await Promise.all([tx.get(receiptRef), tx.get(actionAuditRef)]);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'fighter construction');
-    if (replay) return replay;
+    if (replay) {
+      ensureFighterConstructionActionAuditForReplay(
+        tx, actionAudit, actionAuditRef, change.sessionId, uid, identity.requestId,
+        change.wingId, change.expectedRevision, replay,
+      );
+      return replay;
+    }
+    if (actionAudit.exists) {
+      throw commandError(
+        'failed-precondition',
+        'This fighter construction request has a standardized audit without its bound receipt.',
+        'conflict',
+      );
+    }
 
     requireActionPhase(session, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
     // A launched wing's strength is fixed at the combat table until the attack releases the fleet.
@@ -39288,6 +39466,12 @@ export const buildFighter = onCall<{
       ...vesselActionRevisionPatch('aegis', revision),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    txSetIfSupported(tx, actionAuditRef, buildActionAuditRecord({
+      sessionId: change.sessionId, actorUid: uid, actorRoleId: reply.actorRoleId,
+      action: 'fighter-construction', phase: reply.phase, requestId: identity.requestId,
+      revision, outcome: 'committed', resolutionSource: 'server-rules',
+      createdAt: FieldValue.serverTimestamp(),
+    }));
     txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
