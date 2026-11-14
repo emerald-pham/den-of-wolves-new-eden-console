@@ -133,6 +133,18 @@ export function actionAuditRoleId(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
 }
 
+/**
+ * The role a player acts as for audit attribution: a replacement role first,
+ * then the original assignment, then the active console role.
+ */
+export function actionAuditActorRoleId(player: { get(field: string): unknown }): string | null {
+  for (const field of ['replacementRoleId', 'assignedRoleId', 'activeConsoleRoleId']) {
+    const roleId = actionAuditRoleId(player.get(field));
+    if (roleId !== null) return roleId;
+  }
+  return null;
+}
+
 /** Build the committed metadata for a receipt-bound action at its original phase. */
 export function buildReceiptBoundActionAuditRecord(
   binding: ReceiptBoundActionAudit,
