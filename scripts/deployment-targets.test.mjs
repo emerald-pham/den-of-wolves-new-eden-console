@@ -1447,6 +1447,26 @@ test('a security-denial telemetry change redeploys every wrapped callable and no
   }
 });
 
+// PC10.4 fix branch: casting and the game wrapper share callableDenialReporting.ts.
+const SHARED_DENIAL_REPORTING_REVISION = '086c545ac';
+test('a shared denial-reporting change redeploys every wrapped callable and the casting command', () => {
+  const file = 'functions/src/callableDenialReporting.ts';
+  const atRevision = path => execFileSync('git', ['show', `${SHARED_DENIAL_REPORTING_REVISION}:${path}`], {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 32 * 1024 * 1024,
+  });
+  const selected = selectedFunctions(deploymentSelector({
+    before: 'base', after: 'candidate', files: [file], targets: ['hosting', 'functions'],
+    isAncestor: () => false,
+    sourceAtRevision: (revision, path) => path === file && revision === 'base'
+      ? `${atRevision(path)}\n// earlier shared reporting\n` : atRevision(path),
+  }));
+  assert.equal(selected.length, 229);
+  for (const name of ['castingCompanionCommand', 'rollDice', 'repairConsolesFromAlly', 'completeShuttleArrival']) {
+    assert.ok(selected.includes(`functions:${name}`), `${name} reports denials through the shared helper`);
+  }
+  assert.ok(!selected.includes('functions:expireStalePlayers'));
+});
+
 test('a security-denial telemetry change fails closed when a wrapped onCall cannot be attributed', () => {
   const file = 'functions/src/securityDenialTelemetry.ts';
   const atWired = path => execFileSync('git', ['show', `${SECURITY_DENIAL_WIRED_REVISION}:${path}`], {
