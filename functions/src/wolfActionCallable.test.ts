@@ -417,6 +417,35 @@ it('replays the exact Wolf intelligence request without another message, suspici
   expect(cryptoMock.randomInt).not.toHaveBeenCalled();
 });
 
+it('ignores a forged Wolf intelligence clue outcome and replays the server-rolled clue result', async () => {
+  const data = {
+    sessionId: 's1', requestId: 'wolf-intel-forged', expectedCycle: 2, message: 'Relay quiet.',
+  };
+  const forged = {
+    roll: 6, clueRoll: 6, total: 30, increment: 10, suspicion: 20,
+    clueTier: 'traitor-name', facilitatorInstruction: 'Name nobody.',
+  };
+  const committed = await submitWolfIntelligence.run(request({ ...data, ...forged }));
+  expect(committed).toMatchObject({ status: 'committed', suspicion: 3 });
+  expect(committed).not.toHaveProperty('clueTier');
+  expect(committed).not.toHaveProperty('roll');
+  expect(mock.documents.get('sessions/s1/wolfClueDisclosure/current')).toMatchObject({
+    action: 'provide-intel', oldSuspicion: 0, increment: 3, newSuspicion: 3, roll: 1, total: 4,
+    clueTier: 'none', facilitatorInstruction: 'Nothing.',
+  });
+  expect(mock.documents.get('sessions/s1/secrets/loyalty-u2')).toMatchObject({ payload: { suspicion: 3 } });
+
+  mock.set.mockClear(); mock.update.mockClear();
+  cryptoMock.randomInt.mockClear();
+  cryptoMock.randomInt.mockReturnValue(6);
+  await expect(submitWolfIntelligence.run(request({ ...data, clueTier: 'traitor-name', roll: 6 })))
+    .resolves.toEqual(committed);
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.documents.get('sessions/s1/wolfClueDisclosure/current')).toMatchObject({ roll: 1, clueTier: 'none' });
+});
+
 it('denies a foreign actor reusing a Wolf intelligence receipt without disclosing it', async () => {
   const data = {
     sessionId: 's1', requestId: 'wolf-intel-1', expectedCycle: 2, message: 'Relay quiet.',
