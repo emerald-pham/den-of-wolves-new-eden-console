@@ -80,7 +80,7 @@ describe('repository guidance', () => {
     const routing = policy.split(/^## Model and effort routing$/m)[1]?.split(/^## /m)[0] ?? '';
     const codex = routing.split(/^### Codex and GPT runtimes$/m)[1]?.split(/^### /m)[0] ?? '';
     const claudeCode = routing.split(/^### Claude Code$/m)[1]?.split(/^### /m)[0] ?? '';
-    expect(codex).toContain('New top-level coordinators default to `gpt-6-astra` with medium reasoning.');
+    expect(codex).toContain('New top-level orchestrators default to `gpt-6-astra` with medium reasoning.');
     expect(codex).toMatch(/Delegated workers default to `gpt-6-luna`/);
     expect(codex).toMatch(/`gpt-6\.1-sol` for the independent risk review/);
     expect(codex).not.toMatch(/\b(?:Opus|Sonnet|Haiku)\b/);
@@ -88,12 +88,18 @@ describe('repository guidance', () => {
     expect(claudeCode).toContain('Set `model` and `effort` explicitly on every Agent call');
     expect(claudeCode).toContain('Fable is never authorized');
     for (const row of [
-      /^\| Coordinator[^|\n]*\| Opus \| medium \|$/m,
+      /^\| Orchestrator[^|\n]*\| Opus \| medium \|$/m,
       /^\| [^|\n]*implementation[^|\n]*\| Opus \| high \|$/m,
       /^\| Independent risk review[^|\n]*\| Opus \| max \|$/m,
       /^\| Routine[^|\n]*review[^|\n]*\| Opus \| xhigh \|$/m,
       /^\| Read-only[^|\n]*\| Haiku \| [a-z]+ \|$/m,
     ]) expect(claudeCode).toMatch(row);
+    // One name for the top-level role: the policy's own "orchestrator".
+    const delegation = policy.split(/^## Delegation$/m)[1]?.split(/^### /m)[0] ?? '';
+    for (const section of [routing, delegation]) {
+      expect(section).toMatch(/\borchestrator\b/);
+      expect(section).not.toMatch(/\bcoordinators?\b/i);
+    }
   });
 
   it.each([
