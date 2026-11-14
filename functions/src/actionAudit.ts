@@ -1,6 +1,11 @@
 import type { LifecyclePhase } from './lifecycle';
 
-export type ActionAuditResolutionSource = 'server-random' | 'facilitator';
+/**
+ * How a committed outcome was decided: a server random draw, a facilitator
+ * ruling, or the server applying printed rules to the actor's explicit choice
+ * (no draw and no ruling).
+ */
+export type ActionAuditResolutionSource = 'server-random' | 'facilitator' | 'server-rules';
 export const ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION = {
   'highwall-mining': 'server-random',
   'ship-damage': 'server-random',
@@ -12,6 +17,14 @@ export const ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION = {
   'ship-counter-batch': 'facilitator',
   'fighter-wing-count': 'facilitator',
   'repair-damage': 'facilitator',
+  'fighter-construction': 'server-rules',
+  'shuttle-cargo-transfer': 'server-rules',
+  'service-shuttle-recharge': 'server-rules',
+  'blacksmith-repair': 'server-rules',
+  'philia-repair': 'server-rules',
+  'macaw-repair': 'server-rules',
+  'chacau-repair': 'server-rules',
+  'ally-repair': 'server-rules',
 } as const satisfies Readonly<Record<string, ActionAuditResolutionSource>>;
 
 export type ActionAuditAction = keyof typeof ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION;
@@ -101,4 +114,65 @@ export function buildActionAuditRecord(input: BuildActionAuditRecordInput): Acti
     redactionPolicy: 'action-audit-metadata-only-v1',
     createdAt: input.createdAt,
   };
+}
+
+/** The request-bound facts a private command receipt can prove about its audit. */
+export type ReceiptBoundActionAudit = Readonly<{
+  sessionId: string;
+  actorUid: string;
+  action: ActionAuditAction;
+  requestId: string;
+  revision: number;
+}>;
+
+/**
+ * Normalize a server-owned role field into audit attribution. Missing or
+ * malformed role data is recorded as null rather than guessed.
+ */
+export function actionAuditRoleId(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+/** Build the committed metadata for a receipt-bound action at its original phase. */
+export function buildReceiptBoundActionAuditRecord(
+  binding: ReceiptBoundActionAudit,
+  actorRoleId: unknown,
+  phase: LifecyclePhase,
+  createdAt: unknown,
+): ActionAuditRecord {
+  return buildActionAuditRecord({
+    ...binding,
+    actorRoleId: actionAuditRoleId(actorRoleId),
+    phase,
+    outcome: 'committed',
+    resolutionSource: ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION[binding.action],
+    createdAt,
+  });
+}
+
+/**
+ * True only when a stored record is exactly the committed metadata its receipt
+ * binds. Phase and role come from the stored original, never from replay time.
+ */
+export function actionAuditMatchesReceipt(stored: unknown, binding: ReceiptBoundActionAudit): boolean {
+  if (typeof stored !== 'object' || stored === null || Array.isArray(stored)) return false;
+  const record = stored as Record<string, unknown>;
+  let expected: ActionAuditRecord;
+  try {
+    expected = buildActionAuditRecord({
+      ...binding,
+      actorRoleId: record.actorRoleId,
+      phase: record.phase,
+      outcome: 'committed',
+      resolutionSource: ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION[binding.action],
+      createdAt: record.createdAt,
+    });
+  } catch {
+    return false;
+  }
+  const keys = Object.keys(expected).sort();
+  const storedKeys = Object.keys(record).sort();
+  return storedKeys.length === keys.length &&
+    storedKeys.every((key, index) => key === keys[index]) &&
+    keys.every((key) => record[key] === (expected as Record<string, unknown>)[key]);
 }

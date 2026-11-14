@@ -1,5 +1,8 @@
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import {
+  actionAuditMatchesReceipt, buildReceiptBoundActionAuditRecord, type ReceiptBoundActionAudit,
+} from './actionAudit';
 import { decideActionAuthorization } from './actionMetadata';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
 import { fleetGroupRecord } from './fleetGroups';
@@ -218,11 +221,16 @@ export const repairConsolesFromAlly = onCall<{
   const actorRef = db.doc(`sessions/${command.sessionId}/players/${uid}`);
   const receiptRef = db.doc(`sessions/${command.sessionId}/commandReceipts/${command.requestId}`);
   const eventRef = db.doc(`sessions/${command.sessionId}/events/ally-repair-${command.requestId}`);
+  const actionAuditRef = db.doc(`sessions/${command.sessionId}/actionAudits/${command.requestId}`);
+  const auditBinding = (revision: number): ReceiptBoundActionAudit => ({
+    sessionId: command.sessionId, actorUid: uid, action: 'ally-repair',
+    requestId: command.requestId, revision,
+  });
   const legacyRefs = LEGACY_M1_PATHS.map((path) => db.doc(path(command.sessionId, command.requestId)));
 
   return db.runTransaction(async (tx) => {
-    const [session, actor, receipt, event, ...legacy] = await Promise.all([
-      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(eventRef),
+    const [session, actor, receipt, event, actionAudit, ...legacy] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(eventRef), tx.get(actionAuditRef),
       ...legacyRefs.map((ref) => tx.get(ref)),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
@@ -249,9 +257,20 @@ export const repairConsolesFromAlly = onCall<{
       throw new HttpsError('failed-precondition', 'This Ally repair request id is already bound to a legacy command.');
     }
     const replay = replayReply(receipt, fingerprint);
-    if (replay) return replay;
+    if (replay) {
+      // Validate, never create: a receipt that predates standardized audits
+      // does not bind its original phase or role, so it stays unaudited.
+      if (actionAudit.exists &&
+          !actionAuditMatchesReceipt(actionAudit.data(), auditBinding(replay.repairRevision))) {
+        throw new HttpsError('failed-precondition', 'This Ally repair receipt has a mismatched standardized audit record.');
+      }
+      return replay;
+    }
     if (event.exists) {
       throw new HttpsError('failed-precondition', 'This Ally repair request has an unbound event receipt.');
+    }
+    if (actionAudit.exists) {
+      throw new HttpsError('failed-precondition', 'This Ally repair request has a standardized audit without its bound receipt.');
     }
 
     if (session.get('phase') !== 'active') {
@@ -361,6 +380,9 @@ export const repairConsolesFromAlly = onCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    tx.set(actionAuditRef, buildReceiptBoundActionAuditRecord(
+      auditBinding(reply.repairRevision), actualPlayerRole(actor), 'active', FieldValue.serverTimestamp(),
+    ));
     tx.set(receiptRef, {
       fingerprint,
       result: reply,

@@ -363,3 +363,40 @@ it.each([
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
 });
+
+const philiaAuditPath = 'sessions/s1/actionAudits/repair-1';
+const philiaAuditPaths = () => [...mock.documents.keys()].filter((path) => path.includes('/actionAudits/'));
+
+it('records one attributable Philia repair audit that replay never rewrites', async () => {
+  await expect(repairConsolesFromPhilia.run(request(command))).resolves.toMatchObject({ status: 'committed', repairRevision: 1 });
+  expect(mock.documents.get(philiaAuditPath)).toEqual({
+    schemaVersion: 1, sessionId: 's1', actorUid: 'holder', actorRoleId: 'dione-engineer',
+    action: 'philia-repair', phase: 'active', requestId: 'repair-1', revision: 1,
+    outcome: 'committed', resolutionSource: 'server-rules',
+    redactionPolicy: 'action-audit-metadata-only-v1', createdAt: 'server-time',
+  });
+  const audit = mock.documents.get(philiaAuditPath);
+  mock.set.mockClear(); mock.update.mockClear();
+  await expect(repairConsolesFromPhilia.run(request(command))).resolves.toMatchObject({ status: 'replayed', repairRevision: 1 });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.documents.get(philiaAuditPath)).toBe(audit);
+});
+
+it('writes no Philia repair audit for a denied actor', async () => {
+  await expect(repairConsolesFromPhilia.run(request(command, 'stranger'))).rejects.toMatchObject({
+    code: expect.stringMatching(/permission-denied|failed-precondition/),
+  });
+  expect(philiaAuditPaths()).toEqual([]);
+});
+
+it('fails closed on an orphaned Philia repair audit or a mismatched audit on replay', async () => {
+  put(philiaAuditPath, { action: 'philia-repair' });
+  await expect(repairConsolesFromPhilia.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+
+  mock.documents.delete(philiaAuditPath);
+  await repairConsolesFromPhilia.run(request(command));
+  mock.documents.get(philiaAuditPath)!.revision = 2;
+  await expect(repairConsolesFromPhilia.run(request(command))).rejects.toMatchObject({ code: 'failed-precondition' });
+});
