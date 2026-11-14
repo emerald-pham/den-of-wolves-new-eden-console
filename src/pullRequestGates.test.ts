@@ -30,7 +30,17 @@ function runBlock(step: string) {
 describe('pull request deployment target dry run', () => {
   const stepName = 'Dry-run deployment target selection for this pull request';
 
-  async function runStepAgainst(prFiles: Record<string, string>) {
+  async function writeFiles(repository: string, files: Record<string, string>) {
+    for (const [file, contents] of Object.entries(files)) {
+      await writeFile(resolve(repository, file), contents);
+    }
+  }
+
+  /**
+   * Run the workflow step on GitHub's test merge of a feature branch into its base branch.
+   * `baseFiles` are committed to an integration base branch that main does not have yet.
+   */
+  async function runStepAgainst(prFiles: Record<string, string>, baseFiles: Record<string, string> = {}) {
     const repository = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-pr-targets-'));
     const git = (args: string[]) => execFileAsync('git', args, { cwd: repository, encoding: 'utf8' });
     try {
@@ -46,14 +56,19 @@ describe('pull request deployment target dry run', () => {
       await git(['add', '.']);
       await git(['commit', '--quiet', '-m', 'baseline']);
       await git(['update-ref', 'refs/remotes/origin/main', 'HEAD']);
-      await git(['switch', '--quiet', '--create', 'feature']);
-      for (const [file, contents] of Object.entries(prFiles)) {
-        await writeFile(resolve(repository, file), contents);
+      await git(['switch', '--quiet', '--create', 'base']);
+      if (Object.keys(baseFiles).length > 0) {
+        await writeFiles(repository, baseFiles);
+        await git(['add', '.']);
+        await git(['commit', '--quiet', '-m', 'integration base']);
       }
+      const baseSha = (await git(['rev-parse', 'HEAD'])).stdout.trim();
+      await git(['switch', '--quiet', '--create', 'feature']);
+      await writeFiles(repository, prFiles);
       await git(['add', '.']);
       await git(['commit', '--quiet', '-m', 'feature']);
       // GitHub checks out a pull request as a test merge into its base.
-      await git(['switch', '--quiet', '--detach', 'main']);
+      await git(['switch', '--quiet', '--detach', 'base']);
       await git(['merge', '--quiet', '--no-ff', '-m', 'test merge', 'feature']);
       await symlink(resolve(process.cwd(), 'scripts'), resolve(repository, 'scripts'));
       const script = resolve(repository, '.pr-target-step.sh');
@@ -61,6 +76,8 @@ describe('pull request deployment target dry run', () => {
       return await execFileAsync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', script], {
         cwd: repository,
         encoding: 'utf8',
+        // The workflow passes the event's base SHA through env.
+        env: { ...process.env, PR_BASE_SHA: baseSha },
       }).then(
         ({ stdout, stderr }) => ({ code: 0, stdout, stderr }),
         (error: { code: number; stdout: string; stderr: string }) => ({
@@ -77,6 +94,8 @@ describe('pull request deployment target dry run', () => {
   it('runs only for pull requests, before dependency installation', () => {
     const step = workflowStep(ci, stepName);
     expect(step).toContain("if: github.event_name == 'pull_request'");
+    expect(step).toContain('PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}');
+    expect(step).not.toContain('merge-base');
     expect(ci.indexOf(`- name: ${stepName}`))
       .toBeLessThan(ci.indexOf('- name: Install locked root dependencies for release contracts'));
   });
@@ -99,6 +118,17 @@ describe('pull request deployment target dry run', () => {
     expect(result.stderr).toBe('');
     expect(result.code).toBe(0);
     expect(result.stdout).toContain('deploy_only=hosting,functions:createThing');
+  });
+
+  it('checks only the pull request range when the base is an integration branch ahead of main', async () => {
+    const result = await runStepAgainst(
+      { 'src/Landing.tsx': 'export {};\n' },
+      { 'functions/src/unauditedHelper.ts': 'export const unaudited = true;\n' },
+    );
+    expect(result.stderr).toBe('');
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain('deploy_only=hosting');
+    expect(result.stdout).not.toContain('functions');
   });
 });
 
