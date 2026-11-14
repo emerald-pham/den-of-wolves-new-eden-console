@@ -1,6 +1,7 @@
 import { getFirestore, type DocumentSnapshot, type Transaction } from 'firebase-admin/firestore';
 import { isDeepStrictEqual } from 'node:util';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError } from 'firebase-functions/v2/https';
+import { onCall } from './securityDenialTelemetry';
 import { isLiveSetupGm } from './gameSetup';
 import { shipForRole } from './crewAccess';
 import { replacementRoleFor } from './replacementRoles';
