@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { actionAuditActorRoleId, buildActionAuditDetailRecord, buildActionAuditRecord } from './actionAudit';
+import {
+  actionAuditActorRoleId, actionAuditMatchesReceipt, buildActionAuditDetailRecord, buildActionAuditRecord,
+} from './actionAudit';
 
 describe('buildActionAuditRecord', () => {
   it('creates a queryable metadata-only record for a server-random action', () => {
@@ -220,5 +222,30 @@ describe('actionAuditActorRoleId', () => {
       .toBe('quellon-explorer');
     expect(actionAuditActorRoleId(player({ activeConsoleRoleId: 'admiral' }))).toBe('admiral');
     expect(actionAuditActorRoleId(player({ replacementRoleId: '  ', assignedRoleId: 7 }))).toBeNull();
+  });
+});
+
+describe('actionAuditMatchesReceipt', () => {
+  const binding = {
+    sessionId: 's1', actorUid: 'holder', action: 'shuttle-cargo-transfer', requestId: 'cargo-1', revision: 0,
+  } as const;
+  const stored = {
+    schemaVersion: 1, sessionId: 's1', actorUid: 'holder', actorRoleId: 'quellon-explorer',
+    action: 'shuttle-cargo-transfer', phase: 'active', requestId: 'cargo-1', revision: 0,
+    outcome: 'committed', resolutionSource: 'server-rules',
+    redactionPolicy: 'action-audit-metadata-only-v1', createdAt: { seconds: 1 },
+  };
+  it('accepts the exact stored audit for its receipt with any server-supplied creation time', () => {
+    expect(actionAuditMatchesReceipt(stored, binding)).toBe(true);
+    expect(actionAuditMatchesReceipt({ ...stored, createdAt: 'server-time' }, binding)).toBe(true);
+  });
+  it('rejects a missing creation time, an extra or missing field, or a different bound fact', () => {
+    expect(actionAuditMatchesReceipt({ ...stored, createdAt: null }, binding)).toBe(false);
+    expect(actionAuditMatchesReceipt({ ...stored, shipId: 'quellon' }, binding)).toBe(false);
+    const { redactionPolicy: _omitted, ...missing } = stored;
+    expect(actionAuditMatchesReceipt(missing, binding)).toBe(false);
+    expect(actionAuditMatchesReceipt({ ...stored, revision: 1 }, binding)).toBe(false);
+    expect(actionAuditMatchesReceipt({ ...stored, resolutionSource: 'facilitator' }, binding)).toBe(false);
+    expect(actionAuditMatchesReceipt([stored], binding)).toBe(false);
   });
 });
