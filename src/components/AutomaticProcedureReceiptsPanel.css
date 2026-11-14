@@ -14,6 +14,7 @@
 
 .automatic-receipts-panel__list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.75rem;
   margin: 0;
   max-height: min(60vh, 32rem);
@@ -22,7 +23,56 @@
   list-style: none;
 }
 
-.automatic-receipts-panel__receipt dd {
+.automatic-receipts-panel__receipt dd,
+.automatic-receipts-panel__receipt h4,
+.automatic-receipts-panel__receipt p {
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+/* Receipt copy stays readable: the GM micro-label size is too small for
+   facilitator evidence (the GM crisis log uses the same 0.75rem floor). */
+.automatic-receipts-panel .gm-console__hint,
+.automatic-receipts-panel .gm-console__status {
+  font-size: 0.75rem;
+}
+
+.automatic-receipts-panel__receipt [role='group'] {
+  margin-top: 0.75rem;
+}
+
+.automatic-receipts-panel__receipt dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.35rem;
+  margin: 0;
+}
+
+/* A recorded field name is a muted label beside (or, narrow, above) its value. */
+.automatic-receipts-panel__receipt dl > div {
+  display: grid;
+  grid-template-columns: minmax(0, 10rem) minmax(0, 1fr);
+  column-gap: 1rem;
+  align-items: baseline;
+}
+
+.automatic-receipts-panel__receipt dt {
+  color: var(--cic-muted);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.automatic-receipts-panel__receipt dd {
+  font-size: 0.9375rem;
+}
+
+@media (max-width: 480px) {
+  .automatic-receipts-panel__receipt dl > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.automatic-receipts-panel__list > li + li {
+  border-top: 1px solid var(--cic-rule);
+  padding-top: 0.75rem;
 }
