@@ -275,7 +275,10 @@ it('returns server-current ships and docked shuttle hosts only for the requestin
   expect(JSON.stringify(reply)).not.toContain('aegis');
   mock.writes.mockClear();
   await expect(call('fleet-1')).rejects.toMatchObject({ code: 'permission-denied' });
-  expect(mock.writes).not.toHaveBeenCalled();
+  // A current member's foreign-group attempt is charged to its own private bucket only.
+  expect(mock.writes.mock.calls.map(([path]) => path)).toEqual([
+    expect.stringMatching(/^sessions\/s1\/serverState\/callableRateLimit-[0-9a-f]{64}$/),
+  ]);
   const aegisMember = await calls.readFleetGroupNavigation.run(request({ sessionId: 's1', requestId: 'nav-aegis',
     expectedNavigationRevision: 2, expectedFleetPartitionRevision: 1, expectedGroupId: 'fleet-1' }, 'wing')) as {
       dockedFighterWings: readonly Record<string, unknown>[] };

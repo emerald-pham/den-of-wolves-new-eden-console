@@ -66,6 +66,7 @@ describe('expensive callable rate limits', () => {
       startGame: { windowMs: 60_000, maxRequests: 6 },
       declareWolfAttack: { windowMs: 60_000, maxRequests: 6 },
       runMaintenance: { windowMs: 60_000, maxRequests: 30 },
+      readFleetGroupNavigation: { windowMs: 60_000, maxRequests: 180 },
     });
     expect(CALLABLE_RATE_LIMIT_POLICIES).not.toHaveProperty('uid');
     expect(CALLABLE_RATE_LIMIT_POLICIES).not.toHaveProperty('ip');
