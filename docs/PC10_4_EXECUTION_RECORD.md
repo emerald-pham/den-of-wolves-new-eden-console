@@ -100,3 +100,12 @@ in this lane.
   judged one more test there to be duplication.
 - Row 11d relies on the strict maintenance allowlist. The forged keys exercised there are
   dice-shaped, but the allowlist refuses any unknown key.
+
+## Deployment verified
+
+- PR #462 merged to `main` as `18ac5dd10` on 2026-11-14.
+- The Deploy workflow (run 43602776464) completed successfully for that commit.
+- The live `build-version.json` at `dow-new-eden-console.web.app` reports `0.5.78`.
+- Briefs #110, #111 and #138 close on this evidence together with the acceptance matrix above. Their met refinement children close on GitHub, each with a comment pointing here.
+- Briefs #112–#115 and children #279, #282, #284 and #289 stay open with the gaps listed in the matrix.
+- The B2.2 production log sink is still unverified.
