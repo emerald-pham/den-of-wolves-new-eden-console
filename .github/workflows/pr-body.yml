@@ -1,0 +1,30 @@
+name: PR body
+
+# Separate from CI so a body edit re-runs only this check and never cancels
+# an in-flight CI run.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-body-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  closing-keywords:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Leave issue closure to the prompt tracker
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node scripts/pr-closing-keywords.mjs
