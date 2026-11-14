@@ -47,7 +47,9 @@ import {
   type QuerySnapshot,
 } from 'firebase-admin/firestore';
 import { setGlobalOptions } from 'firebase-functions/v2';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError } from 'firebase-functions/v2/https';
+// Every game callable records private security-denial telemetry (P634).
+import { onCall } from './securityDenialTelemetry';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { commandError } from './commandErrors';

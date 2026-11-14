@@ -1,5 +1,6 @@
 import { FieldValue, getFirestore, type DocumentSnapshot, type Transaction } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError } from 'firebase-functions/v2/https';
+import { onCall } from './securityDenialTelemetry';
 import { boundCoreConsoleRole } from './consoleRolePolicy';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
 import { commandError } from './commandErrors';
