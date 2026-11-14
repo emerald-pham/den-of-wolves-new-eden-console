@@ -609,7 +609,8 @@ import {
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
 import {
-  buildActionAuditRecord, type ActionAuditAction, type ActionAuditResolutionSource,
+  actionAuditMatchesReceipt, buildActionAuditRecord, buildReceiptBoundActionAuditRecord,
+  type ActionAuditAction, type ActionAuditResolutionSource, type ReceiptBoundActionAudit,
 } from './actionAudit';
 import {
   createAirspaceClosureParkingTask,
@@ -4863,6 +4864,48 @@ function writeVesselActionAudit(
   }));
 }
 
+/**
+ * Player shuttle receipts bind the actor, request and committed revision, but
+ * not the original phase or role. A replay therefore validates an existing
+ * audit exactly and never creates one: receipts committed before standardized
+ * audits stay unaudited instead of inventing their attribution.
+ */
+function verifyReceiptBoundActionAuditForReplay(
+  auditSnapshot: DocumentSnapshot,
+  binding: ReceiptBoundActionAudit,
+  label: string,
+): void {
+  if (!auditSnapshot.exists) return;
+  if (!actionAuditMatchesReceipt(auditSnapshot.data(), binding)) {
+    throw commandError(
+      'failed-precondition',
+      `This ${label} receipt has a mismatched standardized audit record.`,
+      'conflict',
+    );
+  }
+}
+
+function rejectOrphanedActionAudit(auditSnapshot: DocumentSnapshot, label: string): void {
+  if (!auditSnapshot.exists) return;
+  throw commandError(
+    'failed-precondition',
+    `This ${label} request has a standardized audit without its bound receipt.`,
+    'conflict',
+  );
+}
+
+function writeReceiptBoundActionAudit(
+  tx: Transaction,
+  auditRef: DocumentReference,
+  binding: ReceiptBoundActionAudit,
+  actorRoleId: unknown,
+  phase: LifecyclePhase,
+): void {
+  tx.set(auditRef, buildReceiptBoundActionAuditRecord(
+    binding, actorRoleId, phase, FieldValue.serverTimestamp(),
+  ));
+}
+
 function writeShipDamageActionAudit(
   tx: Transaction,
   auditRef: DocumentReference,
@@ -7719,9 +7762,16 @@ export const transferShuttleCargoCommand = onCall<{
   const sessionRef = db.doc(`sessions/${data.sessionId}`);
   const actorRef = db.doc(`sessions/${data.sessionId}/players/${uid}`);
   const receiptRef = commandReceiptRef(data.sessionId, data.requestId);
+  const actionAuditRef = vesselActionAuditRef(data.sessionId, data.requestId);
+  // Cargo does not advance the control revision; the audit records the exact
+  // control revision under which the committed transfer was accepted.
+  const auditBinding: ReceiptBoundActionAudit = {
+    sessionId: data.sessionId, actorUid: uid, action: 'shuttle-cargo-transfer',
+    requestId: data.requestId, revision: data.expectedControlRevision,
+  };
   return db.runTransaction(async tx => {
-    const [session, actor, receipt] = await Promise.all([
-      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef),
+    const [session, actor, receipt, actionAudit] = await Promise.all([
+      tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef), tx.get(actionAuditRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
@@ -7733,7 +7783,11 @@ export const transferShuttleCargoCommand = onCall<{
       (value): value is ShuttleCargoTransferReply => isShuttleCargoTransferReply(value, data.sessionId),
       'shuttle cargo transfer',
     );
-    if (replay) return { ...replay, status: 'replayed' as const };
+    if (replay) {
+      verifyReceiptBoundActionAuditForReplay(actionAudit, auditBinding, 'shuttle cargo transfer');
+      return { ...replay, status: 'replayed' as const };
+    }
+    rejectOrphanedActionAudit(actionAudit, 'shuttle cargo transfer');
     requireActionPhase(session, 'transfer', 'player');
     const groupId = actor.get('fleetGroupId');
     if (typeof groupId !== 'string' || groupId.length === 0) {
@@ -7825,6 +7879,9 @@ export const transferShuttleCargoCommand = onCall<{
       [`shuttleCargo.${data.shuttleId}`]: result.shuttleInventory,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    writeReceiptBoundActionAudit(
+      tx, actionAuditRef, auditBinding, actor.get('assignedRoleId'), vesselActionPhase(session),
+    );
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
