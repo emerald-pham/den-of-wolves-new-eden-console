@@ -27,6 +27,19 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 703, partial: 11, active: 0, missing: 37, blocked: 0,
     },
     changes: [
+      'The GM console has a private Automatic procedure receipts panel showing, for each automatic action, who made it, their choice and the committed result: fighter construction, shuttle cargo, recharge and repairs, Highwall mining and ship damage. Players and Press cannot see it.',
+      'When two facilitators add ship damage to the same ship at the same moment, only one damage draw is applied.',
+      'The fleet plot keeps its last contacts if refreshes are briefly limited, instead of going blank.',
+      '703 of 751 planned items are complete in the catalog snapshot used to build this release (93.61%).',
+    ],
+  },
+  {
+    version: '0.5.77',
+    implementationProgress: {
+      completed: 703, total: 751, percentage: '93.61%',
+      done: 703, partial: 11, active: 0, missing: 37, blocked: 0,
+    },
+    changes: [
       'If your station was taken while you were away, reconnecting returns you to station select with your unsent entries kept, including when the facilitator released it and someone else took it, instead of leaving you on the old console.',
       'An action queued before you lost connection is kept until the app is back in sync, sent once for the server to check, and you are told if it was not completed or expired.',
       'Your device keeps its seat while the app is reconnecting.',
