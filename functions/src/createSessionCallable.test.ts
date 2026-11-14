@@ -773,6 +773,57 @@ it('replays a same-mode setup retry after casting without applying another write
   expect(mock.update.mock.calls.length + mock.set.mock.calls.length).toBe(writesAfterCommit);
 });
 
+it('recovers a completed setup result from its receipt after the actor exhausts the setup budget', async () => {
+  const activeRoleIds = recommendedRoleIds(8);
+  const rateMarkers = new Map<string, Record<string, unknown>>();
+  let storedReceipt: Record<string, unknown> | undefined;
+  let phase = 'casting';
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path.includes('/serverState/callableRateLimit-')) {
+      const marker = rateMarkers.get(ref.path);
+      return { ...snapshot(marker, marker !== undefined), data: () => marker };
+    }
+    if (ref.path === 'sessions/s1') {
+      return snapshot({
+        phase, configurationLocked: false, setupRevision: 0,
+        playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+        dioneEnabled: false, capybaraEnabled: true, activeRoleIds,
+      });
+    }
+    if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1', connected: true, lastSeenAt: new Date() });
+    if (ref.path === 'sessions/s1/setupMutationRequests/completed-setup' && storedReceipt) return snapshot(storedReceipt);
+    return snapshot({}, false);
+  });
+  mock.rateLimitSet.mockImplementation((ref: { path: string }, marker: Record<string, unknown>) => {
+    rateMarkers.set(ref.path, marker);
+  });
+  mock.set.mockImplementation((ref: { path: string }, data: Record<string, unknown>) => {
+    if (ref.path === 'sessions/s1/setupMutationRequests/completed-setup') storedReceipt = data;
+  });
+  const command = (requestId: string) => request({
+    sessionId: 's1', instanceId: 'bridge', requestId, expectedSetupRevision: 0,
+    playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+    dioneEnabled: false, capybaraEnabled: true, activeRoleIds,
+  });
+
+  const committed = await confirmSetup.run(command('completed-setup'));
+  expect(committed).toMatchObject({ status: 'committed' });
+  phase = 'active';
+  for (let attempt = 1; attempt < 12; attempt += 1) {
+    await expect(confirmSetup.run(command(`failed-setup-${attempt}`))).rejects.toMatchObject({ code: 'failed-precondition' });
+  }
+  await expect(confirmSetup.run(command('over-budget-setup'))).rejects.toMatchObject({
+    code: 'resource-exhausted', details: { commandError: 'rate-limited' },
+  });
+  const writesBeforeRecovery = mock.update.mock.calls.length + mock.set.mock.calls.length;
+  const chargesBeforeRecovery = mock.rateLimitSet.mock.calls.length;
+
+  await expect(confirmSetup.run(command('completed-setup'))).resolves.toEqual({ ...committed, status: 'replayed' });
+  expect(mock.rateLimitSet).toHaveBeenCalledTimes(chargesBeforeRecovery);
+  expect(mock.update.mock.calls.length + mock.set.mock.calls.length).toBe(writesBeforeRecovery);
+});
+
 it('records a fresh setup confirmation in the authenticated rate bucket', async () => {
   const activeRoleIds = recommendedRoleIds(8);
   mock.get.mockImplementation(async (ref: { path: string }) => {

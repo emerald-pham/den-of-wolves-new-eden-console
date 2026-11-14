@@ -17431,6 +17431,13 @@ export const readFleetGroupNavigation = onCall(async request => {
   const uid = requireUid(request.auth);
   const data = parseFleetGroupNavigationRequest(request.data);
   const gmView = data.viewerShipId !== undefined;
+  // Every live page samples this roster-wide plot automatically. Establish
+  // membership, then charge the member's own bucket before the collection scans.
+  const preflightActor = await db.runTransaction(tx => tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`)));
+  if (!isActivePlayer(preflightActor)) {
+    throw new HttpsError('permission-denied', 'A current session member is required.');
+  }
+  await enforceExpensiveCallableRateLimit(db, { callableName: 'readFleetGroupNavigation', sessionId: data.sessionId, uid });
   return db.runTransaction(async tx => {
     const [session, actor, navigationSnapshot, players, groupSnapshots] = await Promise.all([
       tx.get(db.doc(`sessions/${data.sessionId}`)),

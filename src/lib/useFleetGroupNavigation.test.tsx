@@ -44,3 +44,21 @@ it('does not replay a previously committed sample after reconnect while the fres
  await act(async()=>finish(fresh));
  await waitFor(()=>expect(result.current).toEqual(fresh));
 });
+it('hides the plot while the member budget is exhausted and restores it on the next permitted sample',async()=>{
+ vi.useFakeTimers();
+ try{
+  const exhausted=Object.assign(new Error('Too many requests for this session. Please try again shortly.'),
+   {code:'functions/resource-exhausted',details:{commandError:'rate-limited',retryAfterSeconds:4}});
+  read.mockResolvedValueOnce(projection).mockRejectedValueOnce(exhausted);
+  const {result}=renderHook(()=>useFleetGroupNavigation(true));
+  await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
+  expect(result.current).toEqual(projection);
+  await act(async()=>{await vi.advanceTimersByTimeAsync(5_000);});
+  expect(result.current).toBeUndefined();
+  const next={...projection,sampledAt:'2026-10-03T01:00:10.000Z'};
+  read.mockResolvedValueOnce(next);
+  await act(async()=>{await vi.advanceTimersByTimeAsync(5_000);});
+  expect(result.current).toEqual(next);
+  expect(read).toHaveBeenCalledTimes(3);
+ }finally{vi.useRealTimers();}
+});
