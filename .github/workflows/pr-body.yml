@@ -1,7 +1,8 @@
 name: PR body
 
-# Separate from CI so a body edit re-runs only this check and never cancels
-# an in-flight CI run.
+# Checks the PR body and every commit message in the PR range. Separate from
+# CI so a body edit re-runs only this check and never cancels an in-flight
+# CI run.
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize]
@@ -19,6 +20,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v7
         with:
@@ -27,4 +30,6 @@ jobs:
       - name: Leave issue closure to the prompt tracker
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node scripts/pr-closing-keywords.mjs

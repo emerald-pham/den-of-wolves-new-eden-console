@@ -15,7 +15,7 @@ reviewer), a session on another tool fills that role from its own subsection.
 
 ### Codex and GPT runtimes
 
-New top-level coordinators default to `gpt-6-astra` with medium reasoning.
+New top-level orchestrators default to `gpt-6-astra` with medium reasoning.
 Delegated workers default to `gpt-6-luna`.
 Permitted subagents are GPT-6 Luna (`gpt-6-luna`), GPT-6.1 Terra
 (`gpt-6.1-terra`) and GPT-6.1 Sol (`gpt-6.1-sol`).
@@ -68,7 +68,7 @@ newest version.
 
 | Work | Model | Effort |
 |---|---|---|
-| Coordinator (top-level session that owns the task and checkpoint) | Opus | medium |
+| Orchestrator (top-level session that owns the task and checkpoint) | Opus | medium |
 | Default delegated work: implementation groups, repairs, tests, reconciliation | Opus | high |
 | Hard bounded work (state the reason in the brief) | Opus | max |
 | Independent risk review required by `CLAUDE.md` | Opus | max |
@@ -111,8 +111,8 @@ for it.
    conclusion.
 2. Only if that fails, run two fresh Opus max agents in parallel from
    different angles, such as one reasoning from the spec and first principles
-   and one building a minimal reproduction and bisecting. The coordinator, or
-   a third Opus max agent, reconciles them and picks one path.
+   and one building a minimal reproduction and bisecting. The orchestrator,
+   or a third Opus max agent, reconciles them and picks one path.
 3. Before step 2, tell the user in one line why it is needed and the rough
    cost, about 9 to 13 times a single Opus high task. This is a heads-up, not
    an approval request.
@@ -321,14 +321,27 @@ transition, emitted build or pixel contract.
 
 ## Browser tooling for UI proof
 
-For browser UI work, first inspect the built-in browser APIs and documentation
-actually available in the current environment. Prefer ChatGPT/Codex's supported
-built-in browser for localhost interaction and rendered or screenshot review
-where it supports the needed evidence. For ChatGPT browser specifics, consult
-the [official browser guide](https://learn.chatgpt.com/docs/browser). Use
-another browser only for a concrete unmet capability, required engine or
-authentication-context isolation, or verified built-in unavailability, and
-record the specific reason in the handback.
+For browser UI work, first inspect the browser tools and documentation actually
+available in the current environment, then choose the browser from the
+subsection for the agent tool you are running in, the same way
+[model and effort routing](#model-and-effort-routing) is split. Use another
+browser only for a concrete unmet capability, required engine or
+authentication-context isolation, or verified unavailability of the preferred
+one, and record the specific reason in the handback.
+
+### Browser for Claude Code
+
+Use the owner's real Chrome through Claude in Chrome, where the owner's
+sign-ins are.
+
+### Browser for Codex and GPT runtimes
+
+Prefer ChatGPT/Codex's supported built-in browser for localhost interaction and
+rendered or screenshot review where it supports the needed evidence. For
+ChatGPT browser specifics, consult the
+[official browser guide](https://learn.chatgpt.com/docs/browser).
+
+### Browser rules for every agent tool
 
 Keep the task's applicable skills, acceptance semantics and authentication
 actors intact, along with final-build evidence for fonts and overflow. Preserve

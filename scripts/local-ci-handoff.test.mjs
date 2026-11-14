@@ -786,6 +786,27 @@ test('paths excluded by the GitHub Actions trigger are rejected before local wor
   assert.equal(git(fixture.repo, 'ls-remote', 'origin', 'refs/heads/topic/ci-handoff'), '');
 });
 
+const RULE_DOCUMENTS = ['docs/AGENT_EXECUTION_POLICY.md', 'docs/TICKER_BEHAVIOR.md', 'docs/LOCAL_STORAGE.md'];
+
+test('both CI trigger filters list the rule documents that CLAUDE.md points to', () => {
+  const workflow = readFileSync(join(sourceRoot, '.github/workflows/ci.yml'), 'utf8');
+  const filters = [...workflow.matchAll(/^ {4}paths:\n((?: {6}- .*\n)+)/gm)].map(([, block]) =>
+    block.trim().split('\n').map((line) => line.trim().replace(/^- '|'$/g, '')));
+  assert.equal(filters.length, 2, 'pull_request and push each have one paths filter');
+  assert.deepEqual(filters[0], filters[1], 'pull_request and push filters match');
+  for (const document of RULE_DOCUMENTS) assert.ok(filters[0].includes(document), `${document} triggers CI`);
+});
+
+test('a change to a rule document alone triggers the workflow and hands off', async (t) => {
+  for (const changePath of RULE_DOCUMENTS) {
+    await t.test(changePath, async () => {
+      const fixture = createFixture({ changePath });
+      const result = await runFixtureHandoff(fixture, { runCommand: successfulAdapter([]) });
+      assert.equal(result.remoteSha, fixture.headSha);
+    });
+  }
+});
+
 test('GitHub Actions skip directives are refused before running CI', async (t) => {
   for (const message of [
     'test: skip [skip ci]',

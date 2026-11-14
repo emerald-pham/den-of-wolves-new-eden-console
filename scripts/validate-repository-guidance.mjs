@@ -64,6 +64,9 @@ const OBSOLETE_UNIVERSAL_GATES = Object.freeze([
   ],
 ]);
 
+/** Any agent tool's model or model family. CLAUDE.md loads into every tool's sessions, so it names none. */
+export const AGENT_TOOL_MODEL_PATTERN = /gpt-\d|\b(?:Astra|Luna|Terra|Sol|Opus|Sonnet|Haiku|Fable)\b/;
+
 /** Validate the compact risk-based model policy on a guidance surface. */
 export function validateAgentModelEscalation({ sources, errors }) {
   const policy = sourceFor(sources, EXECUTION_POLICY_PATH, errors);
@@ -109,8 +112,8 @@ export function validateAgentModelEscalation({ sources, errors }) {
       requireText(filePath, source, /(?:read|follow|use)[\s\S]{0,160}docs\/agent_execution_policy\.md/i,
         'must point to the execution policy for delegation and ownership rules', errors);
     }
-    // The top-level coordinator is distinct from the delegated-model allowlist.
-    const delegatedSource = source.replace(/New top-level coordinators default to `gpt-6-astra` with medium reasoning\./g, '');
+    // The top-level orchestrator is distinct from the delegated-model allowlist.
+    const delegatedSource = source.replace(/New top-level orchestrators default to `gpt-6-astra` with medium reasoning\./g, '');
     const models = delegatedSource.match(/gpt-\d+(?:\.\d+)?-[a-z][a-z0-9-]*/g) ?? [];
     if (models.some((model) => !['gpt-6-luna', 'gpt-6.1-sol', 'gpt-6.1-terra'].includes(model))) {
       errors.push(`${filePath}: must not authorize unapproved subagent models`);
@@ -137,7 +140,7 @@ export function validateAgentModelEscalation({ sources, errors }) {
   // CLAUDE.md loads into every agent tool's sessions, so it names no tool's
   // models and points to the per-tool routing section instead.
   const claude = sourceFor(sources, 'CLAUDE.md', errors);
-  if (/gpt-\d|\b(?:Astra|Luna|Terra|Sol|Opus|Sonnet|Haiku|Fable)\b/.test(claude)
+  if (AGENT_TOOL_MODEL_PATTERN.test(claude)
     || !/docs\/AGENT_EXECUTION_POLICY\.md#model-and-effort-routing/.test(claude)) {
     errors.push('CLAUDE.md: must name no agent-tool models; point to the model and effort routing section');
   }
@@ -185,26 +188,32 @@ export function validatePromptDependencyGuidance({ sources, errors }) {
   }
 }
 
+/** Coordination rules every coordination surface states, CLAUDE.md included. */
+function validateCoordinationEssentials(filePath, source, errors) {
+  requireText(filePath, source, /coordination[\s\S]{0,100}(?:optional|lightweight)/i,
+    'must make coordination optional/lightweight', errors);
+  requireText(filePath, source, /coordination:status[\s\S]{0,260}(?:owner|worktree|reservation|current)/i,
+    'must use coordination status for current ownership or reservations', errors);
+  requireText(filePath, source, /(?:never|do not)[\s\S]{0,140}(?:infer|assume)[\s\S]{0,140}(?:stale|safe)[\s\S]{0,100}age/i,
+    'must not infer stale ownership from age alone', errors);
+  if (/(?:there is|requires?|must use|creates?|records?)\s+(?:an?\s+)?immutable goal artifact|\b(?:requires?|must use|records?)\s+(?:a\s+)?digest comparison/i.test(normalizeGuidance(source))) {
+    errors.push(`${filePath}: must not reintroduce immutable goal or digest gates`);
+  }
+}
+
+/** CLAUDE.md keeps the always-needed coordination rules and points to the reference for the rest. */
+function validateClaudeCoordinationGuidance(source, errors) {
+  validateCoordinationEssentials('CLAUDE.md', source, errors);
+  requireText('CLAUDE.md', source, /docs\/worktree_coordination\.md#optional-coordination/i,
+    'must point to the optional coordination reference', errors);
+}
+
 /** Validate lightweight coordination, ownership, parking, and scope rules. */
 export function validateSessionGoalGuidance({ sources, errors }) {
-  for (const filePath of ['CLAUDE.md', 'docs/WORKTREE_COORDINATION.md', 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
+  validateClaudeCoordinationGuidance(sourceFor(sources, 'CLAUDE.md', errors), errors);
+  for (const filePath of ['docs/WORKTREE_COORDINATION.md', 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
     const source = sourceFor(sources, filePath, errors);
-    requireText(filePath, source, /coordination[\s\S]{0,100}(?:optional|lightweight)/i,
-      'must make coordination optional/lightweight', errors);
-    requireText(filePath, source, /coordination:status[\s\S]{0,260}(?:owner|worktree|reservation|current)/i,
-      'must use coordination status for current ownership or reservations', errors);
-    requireText(filePath, source, /(?:never|do not)[\s\S]{0,140}(?:infer|assume)[\s\S]{0,140}(?:stale|safe)[\s\S]{0,100}age/i,
-      'must not infer stale ownership from age alone', errors);
-    if (/(?:there is|requires?|must use|creates?|records?)\s+(?:an?\s+)?immutable goal artifact|\b(?:requires?|must use|records?)\s+(?:a\s+)?digest comparison/i.test(normalizeGuidance(source))) {
-      errors.push(`${filePath}: must not reintroduce immutable goal or digest gates`);
-    }
-    // CLAUDE.md keeps the always-needed rules above and points to the
-    // coordination reference for parking, polling and goal details.
-    if (filePath === 'CLAUDE.md') {
-      requireText(filePath, source, /docs\/worktree_coordination\.md#optional-coordination/i,
-        'must point to the optional coordination reference', errors);
-      continue;
-    }
+    validateCoordinationEssentials(filePath, source, errors);
     requireText(filePath, source, /park(?:ed|ing)[\s\S]{0,220}(?:next action|clear|status)/i,
       'must document a simple parked status and next action', errors);
     requireText(filePath, source, /(?:no|do not)[\s\S]{0,100}(?:status\/heartbeat|heartbeat\/status)[\s\S]{0,100}polling/i,
