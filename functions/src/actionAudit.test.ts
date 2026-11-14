@@ -242,7 +242,8 @@ describe('actionAuditMatchesReceipt', () => {
   it('rejects a missing creation time, an extra or missing field, or a different bound fact', () => {
     expect(actionAuditMatchesReceipt({ ...stored, createdAt: null }, binding)).toBe(false);
     expect(actionAuditMatchesReceipt({ ...stored, shipId: 'quellon' }, binding)).toBe(false);
-    const { redactionPolicy: _omitted, ...missing } = stored;
+    const missing: Record<string, unknown> = { ...stored };
+    delete missing.redactionPolicy;
     expect(actionAuditMatchesReceipt(missing, binding)).toBe(false);
     expect(actionAuditMatchesReceipt({ ...stored, revision: 1 }, binding)).toBe(false);
     expect(actionAuditMatchesReceipt({ ...stored, resolutionSource: 'facilitator' }, binding)).toBe(false);
