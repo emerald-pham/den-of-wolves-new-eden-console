@@ -608,7 +608,9 @@ import {
   buildAuthoritativeEventEnvelope,
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
-import { buildActionAuditRecord, type ActionAuditAction } from './actionAudit';
+import {
+  buildActionAuditRecord, type ActionAuditAction, type ActionAuditResolutionSource,
+} from './actionAudit';
 import {
   createAirspaceClosureParkingTask,
   createAirspaceClosureTaskScheduler,
@@ -4887,6 +4889,7 @@ function ensureVesselActionAuditForReplay(
   action: ActionAuditAction,
   requestId: string,
   result: Record<string, unknown>,
+  resolutionSource: ActionAuditResolutionSource = 'facilitator',
 ): void {
   if (result.actorUid !== actorUid || result.idempotencyKey !== requestId ||
       typeof result.phase !== 'string' ||
@@ -4926,7 +4929,7 @@ function ensureVesselActionAuditForReplay(
     requestId,
     revision: result.revision,
     outcome: 'committed',
-    resolutionSource: 'facilitator',
+    resolutionSource,
     createdAt: FieldValue.serverTimestamp(),
   });
   if (auditSnapshot.exists) {
@@ -5075,6 +5078,40 @@ function ensureRepairAllShipDamageActionAuditForReplay(
   ensureVesselActionAuditForReplay(
     tx, auditSnapshot, auditRef, sessionId, actorUid,
     'repair-damage', requestId, result,
+  );
+}
+
+function ensureFighterConstructionActionAuditForReplay(
+  tx: Transaction,
+  auditSnapshot: DocumentSnapshot,
+  auditRef: DocumentReference,
+  sessionId: string,
+  actorUid: string,
+  requestId: string,
+  wingId: string,
+  expectedRevision: number,
+  result: Record<string, unknown>,
+): void {
+  const mismatch = () => commandError(
+    'failed-precondition',
+    'This fighter construction receipt does not match its standardized audit request.',
+    'conflict',
+  );
+  if (result.sessionId !== sessionId || result.requestId !== requestId ||
+      result.vesselId !== 'aegis' || result.auditId !== `fighter-build-${requestId}` ||
+      result.wingId !== wingId) {
+    throw mismatch();
+  }
+  if (result.status === 'stale') {
+    if (result.currentRevision !== result.revision || result.revision === expectedRevision) throw mismatch();
+  } else if (result.status !== 'committed' || result.revision !== expectedRevision + 1) {
+    throw mismatch();
+  }
+  // Construction is the printed Construction Bay rule applied to the Wing
+  // Commander's choice, whether a player or a GM console instance submits it.
+  ensureVesselActionAuditForReplay(
+    tx, auditSnapshot, auditRef, sessionId, actorUid,
+    'fighter-construction', requestId, result, 'server-rules',
   );
 }
 
@@ -39144,6 +39181,7 @@ export const buildFighter = onCall<{
     change.expectedRevision, { shipId: 'aegis', wingId: change.wingId },
   );
   const attackStateRef = db.doc(`sessions/${change.sessionId}/wolfAttackState/current`);
+  const actionAuditRef = vesselActionAuditRef(change.sessionId, identity.requestId);
   return db.runTransaction(async tx => {
     const [player, session, attackState] = await Promise.all([
       tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`)),
@@ -39156,9 +39194,22 @@ export const buildFighter = onCall<{
         (!isActivePlayer(player) || player.get('activeConsoleRoleId') !== 'wing-commander')) {
       throw new HttpsError('permission-denied', 'An active Wing Commander console is required.');
     }
-    const prior = await tx.get(receiptRef);
+    const [prior, actionAudit] = await Promise.all([tx.get(receiptRef), tx.get(actionAuditRef)]);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'fighter construction');
-    if (replay) return replay;
+    if (replay) {
+      ensureFighterConstructionActionAuditForReplay(
+        tx, actionAudit, actionAuditRef, change.sessionId, uid, identity.requestId,
+        change.wingId, change.expectedRevision, replay,
+      );
+      return replay;
+    }
+    if (actionAudit.exists) {
+      throw commandError(
+        'failed-precondition',
+        'This fighter construction request has a standardized audit without its bound receipt.',
+        'conflict',
+      );
+    }
 
     requireActionPhase(session, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
     // A launched wing's strength is fixed at the combat table until the attack releases the fleet.
@@ -39256,6 +39307,12 @@ export const buildFighter = onCall<{
       ...vesselActionRevisionPatch('aegis', revision),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    txSetIfSupported(tx, actionAuditRef, buildActionAuditRecord({
+      sessionId: change.sessionId, actorUid: uid, actorRoleId: reply.actorRoleId,
+      action: 'fighter-construction', phase: reply.phase, requestId: identity.requestId,
+      revision, outcome: 'committed', resolutionSource: 'server-rules',
+      createdAt: FieldValue.serverTimestamp(),
+    }));
     txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });

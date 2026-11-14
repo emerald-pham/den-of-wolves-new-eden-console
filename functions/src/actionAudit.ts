@@ -1,6 +1,11 @@
 import type { LifecyclePhase } from './lifecycle';
 
-export type ActionAuditResolutionSource = 'server-random' | 'facilitator';
+/**
+ * How a committed outcome was decided: a server random draw, a facilitator
+ * ruling, or the server applying printed rules to the actor's explicit choice
+ * (no draw and no ruling).
+ */
+export type ActionAuditResolutionSource = 'server-random' | 'facilitator' | 'server-rules';
 export const ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION = {
   'highwall-mining': 'server-random',
   'ship-damage': 'server-random',
@@ -12,6 +17,7 @@ export const ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION = {
   'ship-counter-batch': 'facilitator',
   'fighter-wing-count': 'facilitator',
   'repair-damage': 'facilitator',
+  'fighter-construction': 'server-rules',
 } as const satisfies Readonly<Record<string, ActionAuditResolutionSource>>;
 
 export type ActionAuditAction = keyof typeof ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION;
