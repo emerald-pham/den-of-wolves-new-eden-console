@@ -1479,8 +1479,8 @@ test('one update closes several briefs with their own evidence and refreshes the
       assert.deepEqual([issue.state, issue.state_reason], ['closed', 'completed'], `#${number} is closed as completed`);
       const comments = after.comments[number] ?? [];
       assert.equal(comments.length, 1, `#${number} has one tracker-state comment`);
-      assert.match(comments[0].body, new RegExp(`Evidence references: ${reference}\\n`));
-      assert.match(comments[0].body, /Completion: reviewed-accepted/);
+      const state = JSON.parse(comments[0].body.split('\n')[1]);
+      assert.deepEqual(state.set, { Completion: 'reviewed-accepted', 'Evidence references': reference });
     }
 
     assert.equal(result.calls.filter((call) => call.startsWith('GET /') && call.includes('/issues?state=all&per_page=100&page=1')).length, 2,
