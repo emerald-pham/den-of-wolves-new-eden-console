@@ -609,8 +609,10 @@ import {
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
 import {
-  actionAuditMatchesReceipt, buildActionAuditRecord, buildReceiptBoundActionAuditRecord,
-  type ActionAuditAction, type ActionAuditResolutionSource, type ReceiptBoundActionAudit,
+  actionAuditMatchesReceipt, buildActionAuditDetailRecord, buildActionAuditRecord,
+  buildReceiptBoundActionAuditRecord,
+  type ActionAuditAction, type ActionAuditDetail, type ActionAuditResolutionSource,
+  type ReceiptBoundActionAudit,
 } from './actionAudit';
 import {
   createAirspaceClosureParkingTask,
@@ -4894,16 +4896,35 @@ function rejectOrphanedActionAudit(auditSnapshot: DocumentSnapshot, label: strin
   );
 }
 
+/**
+ * Write an automatic procedure's facilitator-only choice and committed result
+ * beside its metadata audit, in the same transaction and only when that audit
+ * is created. Replays and stale or denied requests never write it.
+ */
+function writeActionAuditDetail(
+  tx: Transaction,
+  binding: ReceiptBoundActionAudit,
+  detail: ActionAuditDetail,
+): void {
+  txSetIfSupported(
+    tx,
+    db.doc(`sessions/${binding.sessionId}/actionAuditDetails/${binding.requestId}`),
+    buildActionAuditDetailRecord(binding, detail, FieldValue.serverTimestamp()),
+  );
+}
+
 function writeReceiptBoundActionAudit(
   tx: Transaction,
   auditRef: DocumentReference,
   binding: ReceiptBoundActionAudit,
   actorRoleId: unknown,
   phase: LifecyclePhase,
+  detail: ActionAuditDetail,
 ): void {
   tx.set(auditRef, buildReceiptBoundActionAuditRecord(
     binding, actorRoleId, phase, FieldValue.serverTimestamp(),
   ));
+  writeActionAuditDetail(tx, binding, detail);
 }
 
 function writeShipDamageActionAudit(
@@ -7881,6 +7902,7 @@ export const transferShuttleCargoCommand = onCall<{
     });
     writeReceiptBoundActionAudit(
       tx, actionAuditRef, auditBinding, actor.get('assignedRoleId'), vesselActionPhase(session),
+      { choice: fingerprint.payload, result: reply },
     );
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
@@ -8204,7 +8226,7 @@ export const rechargeHostConsoleFromShuttle = onCall<{
     }));
     writeReceiptBoundActionAudit(
       tx, actionAuditRef, auditBinding(result.ledger.revision), actor.get('assignedRoleId'),
-      vesselActionPhase(session),
+      vesselActionPhase(session), { choice: fingerprint.payload, result: reply },
     );
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
@@ -8449,7 +8471,7 @@ export const repairConsolesFromBlacksmith = onCall<{
     }));
     writeReceiptBoundActionAudit(
       tx, actionAuditRef, auditBinding(reply.repairRevision), actor.get('assignedRoleId'),
-      vesselActionPhase(session),
+      vesselActionPhase(session), { choice: fingerprint.payload, result: reply },
     );
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
@@ -8703,7 +8725,7 @@ export const repairConsolesFromPhilia = onCall<{
     }));
     writeReceiptBoundActionAudit(
       tx, actionAuditRef, auditBinding(reply.repairRevision), actor.get('assignedRoleId'),
-      vesselActionPhase(session),
+      vesselActionPhase(session), { choice: fingerprint.payload, result: reply },
     );
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
@@ -8870,7 +8892,7 @@ export const repairConsolesFromMacaw = onCall<{
     }));
     writeReceiptBoundActionAudit(
       tx, actionAuditRef, auditBinding(reply.repairRevision), actor.get('assignedRoleId'),
-      vesselActionPhase(session),
+      vesselActionPhase(session), { choice: fingerprint.payload, result: reply },
     );
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
@@ -9261,7 +9283,7 @@ export const repairConsolesFromChacau = onCall(async request => {
     }));
     writeReceiptBoundActionAudit(
       tx, actionAuditRef, auditBinding(reply.repairRevision), actor.get('assignedRoleId'),
-      vesselActionPhase(session),
+      vesselActionPhase(session), { choice: fingerprint.payload, result: reply },
     );
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
@@ -38628,15 +38650,19 @@ export const addShipDamage = onCall<{
         podCapacity: destruction.capacity.podCapacity,
         createdAt: FieldValue.serverTimestamp(),
       });
+      const reply = { destroyed: true,
+        ...vesselActionEnvelope(session, player, uid, change.shipId, revision,
+          identity.requestId, 'add-damage') };
       if (destruction.createEvent) {
         writeShipDamageActionAudit(
           tx, actionAuditRef, change.sessionId, uid, vesselActorRoleId(player),
           vesselActionPhase(session), identity.requestId, revision,
         );
+        writeActionAuditDetail(tx, {
+          sessionId: change.sessionId, actorUid: uid, action: 'ship-damage',
+          requestId: identity.requestId, revision,
+        }, { choice: fingerprint.payload, result: reply });
       }
-      const reply = { destroyed: true,
-        ...vesselActionEnvelope(session, player, uid, change.shipId, revision,
-          identity.requestId, 'add-damage') };
       txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
       return reply;
     }
@@ -38669,6 +38695,10 @@ export const addShipDamage = onCall<{
       tx, actionAuditRef, change.sessionId, uid, vesselActorRoleId(player),
       vesselActionPhase(session), identity.requestId, currentRevision + 1,
     );
+    writeActionAuditDetail(tx, {
+      sessionId: change.sessionId, actorUid: uid, action: 'ship-damage',
+      requestId: identity.requestId, revision: currentRevision + 1,
+    }, { choice: fingerprint.payload, result: reply });
     txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -39470,6 +39500,10 @@ export const buildFighter = onCall<{
       revision, outcome: 'committed', resolutionSource: 'server-rules',
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeActionAuditDetail(tx, {
+      sessionId: change.sessionId, actorUid: uid, action: 'fighter-construction',
+      requestId: identity.requestId, revision,
+    }, { choice: fingerprint.payload, result: reply });
     txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -39985,6 +40019,13 @@ export const runHighwallMining = onCall<{
       resolutionSource: 'server-random',
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeActionAuditDetail(tx, {
+      sessionId: data.sessionId, actorUid: uid, action: 'highwall-mining',
+      requestId: data.requestId, revision: result.state.revision,
+    }, {
+      choice: { resource: data.resource, hostShipId: authority.hostShipId, cycle: data.expectedCycle },
+      result: reply,
+    });
     tx.set(receiptRef, {
       fingerprint, result: reply, serverRolls: rolls, createdAt: FieldValue.serverTimestamp(),
     });

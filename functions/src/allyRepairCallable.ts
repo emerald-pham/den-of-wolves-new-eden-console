@@ -1,7 +1,8 @@
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import {
-  actionAuditMatchesReceipt, buildReceiptBoundActionAuditRecord, type ReceiptBoundActionAudit,
+  actionAuditMatchesReceipt, buildActionAuditDetailRecord, buildReceiptBoundActionAuditRecord,
+  type ReceiptBoundActionAudit,
 } from './actionAudit';
 import { decideActionAuthorization } from './actionMetadata';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
@@ -383,6 +384,11 @@ export const repairConsolesFromAlly = onCall<{
     tx.set(actionAuditRef, buildReceiptBoundActionAuditRecord(
       auditBinding(reply.repairRevision), actualPlayerRole(actor), 'active', FieldValue.serverTimestamp(),
     ));
+    tx.set(db.doc(`sessions/${command.sessionId}/actionAuditDetails/${command.requestId}`),
+      buildActionAuditDetailRecord(
+        auditBinding(reply.repairRevision), { choice: fingerprint.payload, result: reply },
+        FieldValue.serverTimestamp(),
+      ));
     tx.set(receiptRef, {
       fingerprint,
       result: reply,

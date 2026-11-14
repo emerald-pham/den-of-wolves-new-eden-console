@@ -214,7 +214,10 @@ it('does not reroll or fork the audit when a recycled hull transaction retries',
   });
   expect(mock.randomInt).toHaveBeenCalledTimes(1);
   expect(mock.randomUUID).not.toHaveBeenCalled();
-  expect(mock.set).toHaveBeenCalledTimes(6);
+  expect(mock.set).toHaveBeenCalledTimes(8);
+  const detailCalls = mock.set.mock.calls.filter(([path]) => String(path).includes('/actionAuditDetails/'));
+  expect(detailCalls).toHaveLength(2);
+  expect(detailCalls[0]).toEqual(detailCalls[1]);
   const eventCalls = mock.set.mock.calls.filter(([path]) => String(path).includes('/damageDraws/'));
   expect(eventCalls).toHaveLength(2);
   expect(eventCalls[0]).toEqual(['sessions/s1/damageDraws/damage-test-damage',
@@ -408,7 +411,10 @@ it('does not reroll the card or event identity when Firestore retries the transa
 
   expect(mock.randomInt).toHaveBeenCalledTimes(1);
   expect(mock.randomUUID).not.toHaveBeenCalled();
-  expect(mock.set).toHaveBeenCalledTimes(8);
+  expect(mock.set).toHaveBeenCalledTimes(10);
+  const detailCalls = mock.set.mock.calls.filter(([path]) => String(path).includes('/actionAuditDetails/'));
+  expect(detailCalls).toHaveLength(2);
+  expect(detailCalls[0]).toEqual(detailCalls[1]);
   const eventCalls = mock.set.mock.calls.filter(([path]) => String(path).includes('/damageDraws/'));
   expect(eventCalls).toHaveLength(2);
   expect(eventCalls[0]).toEqual(['sessions/s1/damageDraws/damage-test-damage',

@@ -111,7 +111,8 @@ it('moves Macaw Scrap between the current host and Macaw atomically', async () =
   });
   expect(mock.update).toHaveBeenCalledTimes(1);
   expect(mock.set.mock.calls.map(([target]) => (target as { path: string }).path).sort()).toEqual([
-    'sessions/s1/actionAudits/macaw-scrap', 'sessions/s1/commandReceipts/macaw-scrap',
+    'sessions/s1/actionAuditDetails/macaw-scrap', 'sessions/s1/actionAudits/macaw-scrap',
+    'sessions/s1/commandReceipts/macaw-scrap',
   ]);
 });
 
