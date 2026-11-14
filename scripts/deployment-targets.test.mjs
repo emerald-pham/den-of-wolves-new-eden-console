@@ -1385,8 +1385,21 @@ test('maps the exact additive Command and Control console metadata delta to its 
   assert.deepEqual(selectedFunctions(selected), functionTargets(CONSOLE_METADATA_CALLABLES));
 });
 
+// PC10.4 integration tip: every game callable imports the telemetry onCall,
+// and the entrypoint exports every current action-audit and scout callable.
+const SECURITY_DENIAL_WIRED_REVISION = '35c5366f0cdf74ef36ab74918cb3d7eefd5969fe';
+const selectModuleAtPc10_4Tip = file => deploymentSelector({
+  before: 'base', after: 'candidate', files: [file], targets: ['hosting', 'functions'],
+  isAncestor: () => false,
+  sourceAtRevision: (revision, path) => path === 'functions/src/index.ts'
+    ? execFileSync('git', ['show', `${SECURITY_DENIAL_WIRED_REVISION}:${path}`], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 32 * 1024 * 1024,
+    })
+    : `// ${revision} ${path}\n`,
+});
+
 test('maps standardized action audit helper changes to every production consumer', () => {
-  const selected = selectorFor(['functions/src/actionAudit.ts']);
+  const selected = selectModuleAtPc10_4Tip('functions/src/actionAudit.ts');
   // Traced through TypeScript symbol references at the PC10.4 candidate: the
   // receipt-bound audit helpers reach the vessel, fighter, shuttle and every
   // console-repair writer, including the Ally module callable.
@@ -1401,15 +1414,13 @@ test('maps standardized action audit helper changes to every production consumer
 });
 
 test('maps scout result module changes to every callable it defines, including the GM resolution log', () => {
-  const selected = selectorFor(['functions/src/scoutResultCallable.ts']);
+  const selected = selectModuleAtPc10_4Tip('functions/src/scoutResultCallable.ts');
   assert.deepEqual(selectedFunctions(selected), functionTargets([
     'resolvePendingScoutRequest', 'readPrivateScoutResult', 'listPendingScoutRequests',
     'listGmScoutResolutionLog', 'listMyScoutReports', 'readMyScoutDiscoveryNote',
   ]));
 });
 
-// PC10.4 integration tip: every game callable imports the telemetry onCall.
-const SECURITY_DENIAL_WIRED_REVISION = '35c5366f0cdf74ef36ab74918cb3d7eefd5969fe';
 test('a security-denial telemetry change redeploys every wrapped callable and nothing else', () => {
   const file = 'functions/src/securityDenialTelemetry.ts';
   const atWired = path => execFileSync('git', ['show', `${SECURITY_DENIAL_WIRED_REVISION}:${path}`], {
