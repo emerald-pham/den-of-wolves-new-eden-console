@@ -137,8 +137,11 @@ describe('pull request closing-keyword gate', () => {
 
   const gateScript = resolve(process.cwd(), 'scripts/pr-closing-keywords.mjs');
 
-  async function checkBody(body: string, { cwd = process.cwd(), env = {} }: { cwd?: string; env?: Record<string, string> } = {}) {
-    return execFileAsync(process.execPath, [gateScript], {
+  async function checkBody(
+    body: string,
+    { cwd = process.cwd(), env = {}, script = gateScript }: { cwd?: string; env?: Record<string, string>; script?: string } = {},
+  ) {
+    return execFileAsync(process.execPath, [script], {
       cwd,
       encoding: 'utf8',
       env: { ...process.env, PR_BODY: body, ...env },
@@ -236,6 +239,19 @@ describe('pull request closing-keyword gate', () => {
       expect(result.code).toBe(0);
     } finally {
       await rm(range.repository, { recursive: true, force: true });
+    }
+  });
+
+  it('still runs the check when invoked through a symlink', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-pr-gate-link-'));
+    try {
+      const link = resolve(directory, 'pr-closing-keywords.mjs');
+      await symlink(gateScript, link);
+      const result = await checkBody('Closes #460', { script: link });
+      expect(result.code).toBe(1);
+      expect(result.output).toContain('PR body: Closes #460');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
     }
   });
 
