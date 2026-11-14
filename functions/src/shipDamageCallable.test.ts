@@ -403,6 +403,47 @@ it('does not write an audit for a stale ship damage receipt', async () => {
   expect(mock.set.mock.calls.some(([path]) => String(path).includes('/pressLog/'))).toBe(false);
 });
 
+it('ignores a forged damage card and replays the server-drawn card through a forged retry', async () => {
+  const requestId = 'damage-forged-card';
+  const forged = {
+    card: { card: 'A♥', systemId: 'fighter-bay-alpha', systemName: 'Fighter Bay Alpha' },
+    systemId: 'fighter-bay-alpha', cardIndex: 0, drawEntropy: 0, entropy: 0,
+    recycled: true, destroyed: true,
+  };
+  const committed = await addShipDamage.run(request({ ...data, requestId, expectedRevision: 0, ...forged }));
+  expect(committed).toMatchObject({
+    card: { card: '10♥', systemId: 'reactor', systemName: 'Reactor' }, recycled: false, destroyed: false,
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipDamage.aegis': { damagedSystemIds: ['reactor'], destroyed: false },
+  }));
+  expect(mock.set).toHaveBeenCalledWith(`sessions/s1/damageDraws/damage-${requestId}`, expect.objectContaining({
+    shipId: 'aegis', card: '10♥', systemId: 'reactor',
+  }));
+  expect(mock.randomInt).toHaveBeenCalledOnce();
+
+  const stored = (path: string) => mock.set.mock.calls.find(([target]) => target === path)?.[1] as Record<string, unknown>;
+  const receipt = stored(`sessions/s1/commandReceipts/${requestId}`);
+  const audit = stored(`sessions/s1/actionAudits/${requestId}`);
+  const previous = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation(async (path: string) => {
+    if (path === `sessions/s1/commandReceipts/${requestId}`) return snapshot(receipt);
+    if (path === `sessions/s1/actionAudits/${requestId}`) return snapshot(audit);
+    return previous(path);
+  });
+  mock.update.mockClear(); mock.set.mockClear(); mock.delete.mockClear(); mock.randomInt.mockClear();
+  mock.randomInt.mockReturnValue(0);
+
+  await expect(addShipDamage.run(request({
+    ...data, requestId, expectedRevision: 0, ...forged,
+    card: { card: '3♥', systemId: 'command-and-control', systemName: 'Command and Control' },
+  }))).resolves.toEqual(committed);
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+});
+
 it('does not reroll the card or event identity when Firestore retries the transaction', async () => {
   mock.retry = true;
   mock.randomInt.mockReturnValueOnce(3_100_000_000).mockReturnValue(0);

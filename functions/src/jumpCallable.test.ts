@@ -1728,6 +1728,45 @@ it('accepts a pursuit-10 emergency jump without a charge or fuel and damages the
   );
 });
 
+it('ignores forged emergency-jump damage cards and replays the server-drawn cards', async () => {
+  mock.charges = [];
+  mock.fuel = 0;
+  mock.pursuitGroups = { 'fleet-1': 10 };
+  mock.pursuitEmergencyWindow = {
+    type: 'pursuit-emergency-window', status: 'offered', cycle: 1,
+    navigationRevision: 0, groupIds: ['fleet-1'], openedAt: '2026-09-06T12:10:07.000Z',
+  };
+  mock.randomInt.mockReturnValue(0);
+  const command = {
+    ...data, requestId: 'emergency-forged-cards', destination: '5143', emergency: true,
+    damage: { damagedSystemIds: [], destroyed: false }, damageDraws: [{ card: 'K♥', systemId: 'shuttle-bay-omega' }],
+    cards: ['K♥'], damagedSystemIds: ['shuttle-bay-omega'], emergencyDamageEntropy: [0xffff_ffff], systemsToDamage: 0,
+  };
+
+  const committed = await jumpShip.run(request(command));
+  // Ten eligible AEGIS consoles: the drive plus half (five) are damaged, each server draw taking index 0.
+  expect(committed).toMatchObject({
+    status: 'jumped', emergency: true,
+    damage: { destroyed: false, damagedSystemIds: [
+      'jump-drive', 'fighter-bay-alpha', 'fighter-bay-bravo', 'command-and-control',
+      'missile-launchers', 'point-defence-lasers',
+    ] },
+  });
+  expect(mock.randomInt).toHaveBeenCalledTimes(5);
+  const receipt = mock.set.mock.calls.find(([path]) =>
+    path === 'sessions/s1/commandReceipts/emergency-forged-cards')?.[1];
+  mock.commandReceiptRecord = { fingerprint: receipt?.fingerprint, result: receipt?.result };
+  mock.update.mockClear();
+  mock.set.mockClear();
+  mock.randomInt.mockClear();
+  mock.randomInt.mockReturnValue(0xffff_ffff);
+
+  await expect(jumpShip.run(request({ ...command, damageDraws: [{ card: 'Q♥', systemId: 'shuttle-bay-zeta' }] })))
+    .resolves.toEqual(committed);
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
 it('applies a charged intact Icebreaker Ram Scoop to a successful emergency FTL jump', async () => {
   mock.grantedShipId = 'icebreaker';
   mock.icebreakerFuel = 4;

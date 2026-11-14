@@ -1,6 +1,7 @@
 import { randomInt } from 'node:crypto';
 import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError } from 'firebase-functions/v2/https';
+import { onCall } from './securityDenialTelemetry';
 import { commandReceiptDisposition } from './commandIdempotency';
 import { endeavourResearchTrack } from './endeavourResearch';
 import { requireEndeavourScienceDeviceBuilt } from './endeavourScienceDevices';

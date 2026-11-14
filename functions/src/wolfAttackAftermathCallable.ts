@@ -2,7 +2,8 @@ import { randomInt } from 'node:crypto';
 import {
   FieldValue, Timestamp, getFirestore, type DocumentSnapshot, type Firestore, type Transaction,
 } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError } from 'firebase-functions/v2/https';
+import { onCall } from './securityDenialTelemetry';
 import { isExtraShipAdmitted } from './extraShipAdmission';
 import { fleetGroupRecord } from './fleetGroups';
 import {

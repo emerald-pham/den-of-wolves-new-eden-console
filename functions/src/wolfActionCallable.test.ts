@@ -208,6 +208,39 @@ it('rejects client-selected beacon targets before any transaction', async () => 
   expect(mock.runTransaction).not.toHaveBeenCalled();
 });
 
+it('refuses a forged homing-beacon clue outcome and replays the server-rolled clue result', async () => {
+  const data = { sessionId: 's1', requestId: 'wolf-beacon-forged', expectedCycle: 2 };
+  const forged = {
+    roll: 6, clueRoll: 6, total: 30, increment: 10, suspicion: 20,
+    clueTier: 'traitor-name', facilitatorInstruction: 'Name nobody.',
+  };
+  await expect(submitWolfHomingBeacon.run(request({ ...data, ...forged })))
+    .rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(mock.runTransaction).not.toHaveBeenCalled();
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+
+  const committed = await submitWolfHomingBeacon.run(request(data));
+  expect(committed).toMatchObject({ status: 'committed', suspicion: 5 });
+  expect(committed).not.toHaveProperty('clueTier');
+  expect(committed).not.toHaveProperty('roll');
+  expect(mock.documents.get('sessions/s1/wolfClueDisclosure/current')).toMatchObject({
+    action: 'homing-beacon', oldSuspicion: 0, increment: 5, newSuspicion: 5, roll: 1, total: 6,
+    clueTier: 'none', facilitatorInstruction: 'Nothing.',
+  });
+
+  mock.set.mockClear(); mock.update.mockClear(); mock.runTransaction.mockClear();
+  cryptoMock.randomInt.mockClear();
+  cryptoMock.randomInt.mockReturnValue(6);
+  await expect(submitWolfHomingBeacon.run(request({ ...data, clueTier: 'traitor-name', roll: 6 })))
+    .rejects.toMatchObject({ code: 'invalid-argument' });
+  await expect(submitWolfHomingBeacon.run(request(data))).resolves.toEqual(committed);
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.documents.get('sessions/s1/wolfClueDisclosure/current')).toMatchObject({ roll: 1, clueTier: 'none' });
+  expect(mock.documents.get('sessions/s1/secrets/loyalty-u2')).toMatchObject({ payload: { suspicion: 5 } });
+});
+
 it('rejects split or malformed group navigation without consuming the cycle action', async () => {
   put('sessions/s1/serverState/navigation', {
     shipGalacticCoordinates: { aegis: '5143', dione: '0000' },
@@ -382,6 +415,35 @@ it('replays the exact Wolf intelligence request without another message, suspici
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
   expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+});
+
+it('ignores a forged Wolf intelligence clue outcome and replays the server-rolled clue result', async () => {
+  const data = {
+    sessionId: 's1', requestId: 'wolf-intel-forged', expectedCycle: 2, message: 'Relay quiet.',
+  };
+  const forged = {
+    roll: 6, clueRoll: 6, total: 30, increment: 10, suspicion: 20,
+    clueTier: 'traitor-name', facilitatorInstruction: 'Name nobody.',
+  };
+  const committed = await submitWolfIntelligence.run(request({ ...data, ...forged }));
+  expect(committed).toMatchObject({ status: 'committed', suspicion: 3 });
+  expect(committed).not.toHaveProperty('clueTier');
+  expect(committed).not.toHaveProperty('roll');
+  expect(mock.documents.get('sessions/s1/wolfClueDisclosure/current')).toMatchObject({
+    action: 'provide-intel', oldSuspicion: 0, increment: 3, newSuspicion: 3, roll: 1, total: 4,
+    clueTier: 'none', facilitatorInstruction: 'Nothing.',
+  });
+  expect(mock.documents.get('sessions/s1/secrets/loyalty-u2')).toMatchObject({ payload: { suspicion: 3 } });
+
+  mock.set.mockClear(); mock.update.mockClear();
+  cryptoMock.randomInt.mockClear();
+  cryptoMock.randomInt.mockReturnValue(6);
+  await expect(submitWolfIntelligence.run(request({ ...data, clueTier: 'traitor-name', roll: 6 })))
+    .resolves.toEqual(committed);
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.documents.get('sessions/s1/wolfClueDisclosure/current')).toMatchObject({ roll: 1, clueTier: 'none' });
 });
 
 it('denies a foreign actor reusing a Wolf intelligence receipt without disclosing it', async () => {
