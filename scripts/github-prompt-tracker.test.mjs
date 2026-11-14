@@ -1494,3 +1494,52 @@ test('one update closes several briefs with their own evidence and refreshes the
     assert.match(check.stdout, /Tracker snapshot is current \(148 issues;/);
   });
 });
+
+test('a multi-issue update rejects missing or invalid evidence for any listed issue before writing', async () => {
+  await withTrackerCli(async ({ cli, github }) => {
+    const close = ['update', '--issue', '91,92', '--close-as', 'completed', '--reviewed', '--accepted'];
+    for (const [evidence, message] of [
+      [['--evidence', '91=docs/README.md#tracker'], /Per-issue --evidence is missing for #92/],
+      [['--evidence', '91=docs/README.md#tracker', '--evidence', '92=docs/no-such-report.md#result'], /Evidence for #92 must be reviewed, accepted local references/],
+      [['--evidence', '91=docs/README.md#tracker', '--evidence', '93=docs/README.md#tracker'], /--evidence names #93, which is not a listed --issue/],
+      [['--evidence', 'docs/README.md#tracker', '--evidence', '92=docs/README.md#tracker'], /Do not mix shared --evidence with per-issue/],
+    ]) {
+      const result = await cli(...close, ...evidence);
+      assert.equal(result.status, 1, result.output);
+      assert.match(result.output, message);
+      assert.deepEqual(result.calls.filter((call) => !call.startsWith('GET ')), [], 'no GitHub write happens');
+    }
+    const after = await github();
+    assert.deepEqual(after.issues.filter(({ number }) => [91, 92].includes(number)).map(({ state }) => state), ['open', 'open']);
+    assert.deepEqual(after.comments, {});
+  });
+});
+
+test('one shared evidence reference applies to every listed issue', async () => {
+  await withTrackerCli(async ({ cli, github }) => {
+    const result = await cli('update', '--issue', '91', '--issue', '92', '--close-as', 'completed', '--reviewed', '--accepted',
+      '--evidence', 'docs/PC10_4_EXECUTION_RECORD.md#acceptance-matrix');
+    assert.equal(result.status, 0, result.output);
+    const after = await github();
+    for (const number of ['91', '92']) {
+      const state = JSON.parse(after.comments[number][0].body.split('\n')[1]);
+      assert.equal(state.set['Evidence references'], 'docs/PC10_4_EXECUTION_RECORD.md#acceptance-matrix');
+    }
+  });
+});
+
+test('a batch that fails part-way keeps the landed updates, refreshes the snapshot and names where it stopped', async () => {
+  await withTrackerCli(async ({ cli, github }) => {
+    const result = await cli('update', '--issue', '91,26,92', '--close-as', 'completed', '--reviewed', '--accepted',
+      '--evidence', 'docs/README.md#tracker');
+    assert.equal(result.status, 1, result.output);
+    assert.match(result.output, /Updated #91 and refreshed the snapshot, then stopped at #26 \(later issues were not attempted\): Prompt completion requires a reviewed status update/);
+    const after = await github();
+    const states = Object.fromEntries(after.issues.filter(({ number }) => [91, 92, 26].includes(number)).map(({ number, state }) => [number, state]));
+    assert.deepEqual(states, { 26: 'open', 91: 'closed', 92: 'open' });
+    assert.deepEqual(Object.keys(after.comments), ['91']);
+
+    const check = await cli('refresh', '--check');
+    assert.equal(check.status, 0, check.output);
+  });
+});
