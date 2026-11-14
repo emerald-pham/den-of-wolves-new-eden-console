@@ -101,3 +101,54 @@ describe('pull request deployment target dry run', () => {
     expect(result.stdout).toContain('deploy_only=hosting,functions:createThing');
   });
 });
+
+describe('pull request closing-keyword gate', () => {
+  const workflowPath = '.github/workflows/pr-body.yml';
+
+  async function checkBody(body: string) {
+    return execFileAsync(process.execPath, ['scripts/pr-closing-keywords.mjs'], {
+      encoding: 'utf8',
+      env: { ...process.env, PR_BODY: body },
+    }).then(
+      ({ stdout, stderr }) => ({ code: 0, output: `${stdout}${stderr}` }),
+      (error: { code: number; stdout: string; stderr: string }) => ({
+        code: error.code,
+        output: `${error.stdout}${error.stderr}`,
+      }),
+    );
+  }
+
+  it.each([
+    'Closes #460',
+    'This release fixes: #12 and more.',
+    'Resolved emerald-pham/den-of-wolves-new-eden-console#463',
+    'FIX https://github.com/emerald-pham/den-of-wolves-new-eden-console/issues/5',
+    'Summary\n\n- close #1\n- resolves #2',
+    'fixed #9',
+  ])('fails a body that would close an issue: %j', async (body) => {
+    const result = await checkBody(body);
+    expect(result.code).toBe(1);
+    expect(result.output).toContain('npm run prompt-tracker -- update --issue NUMBER');
+  });
+
+  it.each([
+    '',
+    'Refs #463',
+    'Part of #460. Tracker completion follows through the prompt tracker.',
+    'This fixes the selector crash.',
+    'A closed-loop check, the prefix #3 and unresolved #4 stay open.',
+  ])('passes a body that closes no issue: %j', async (body) => {
+    const result = await checkBody(body);
+    expect(result.code).toBe(0);
+  });
+
+  it('re-runs on every pull request body edit without interpolating the body into a shell', () => {
+    const workflow = readFileSync(workflowPath, 'utf8');
+    expect(workflow).toMatch(/pull_request:\n\s+types: \[[^\]]*\bedited\b[^\]]*\]/);
+    for (const type of ['opened', 'reopened', 'synchronize']) expect(workflow).toContain(type);
+    expect(workflow).not.toMatch(/\n\s+paths(-ignore)?:/);
+    expect(workflow).toContain('PR_BODY: ${{ github.event.pull_request.body }}');
+    expect(workflow).toContain('run: node scripts/pr-closing-keywords.mjs');
+    expect(workflow.match(/\$\{\{[^}]*body[^}]*\}\}/g)).toHaveLength(1);
+  });
+});
