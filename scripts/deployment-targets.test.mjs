@@ -1387,19 +1387,71 @@ test('maps the exact additive Command and Control console metadata delta to its 
 
 test('maps standardized action audit helper changes to every production consumer', () => {
   const selected = selectorFor(['functions/src/actionAudit.ts']);
-  assert.deepEqual(selected.split(','), [
-    'hosting',
-    'functions:scavengeDestroyedShipStores',
-    'functions:adjustShipResource',
-    'functions:adjustShipUnrest',
-    'functions:adjustShipPopulation',
-    'functions:applyShipCounterSteps',
-    'functions:runHighwallMining',
-    'functions:authorFacilitatorRuleCall',
-    'functions:setFighterWingCount',
-    'functions:repairAllShipDamage',
-    'functions:addShipDamage',
-  ]);
+  // Traced through TypeScript symbol references at the PC10.4 candidate: the
+  // receipt-bound audit helpers reach the vessel, fighter, shuttle and every
+  // console-repair writer, including the Ally module callable.
+  assert.deepEqual(selectedFunctions(selected), functionTargets([
+    'scavengeDestroyedShipStores', 'adjustShipResource', 'adjustShipUnrest',
+    'adjustShipPopulation', 'applyShipCounterSteps', 'runHighwallMining',
+    'authorFacilitatorRuleCall', 'setFighterWingCount', 'repairAllShipDamage',
+    'addShipDamage', 'buildFighter', 'transferShuttleCargoCommand',
+    'rechargeHostConsoleFromShuttle', 'repairConsolesFromBlacksmith', 'repairConsolesFromPhilia',
+    'repairConsolesFromMacaw', 'repairConsolesFromChacau', 'repairConsolesFromAlly',
+  ]));
+});
+
+test('maps scout result module changes to every callable it defines, including the GM resolution log', () => {
+  const selected = selectorFor(['functions/src/scoutResultCallable.ts']);
+  assert.deepEqual(selectedFunctions(selected), functionTargets([
+    'resolvePendingScoutRequest', 'readPrivateScoutResult', 'listPendingScoutRequests',
+    'listGmScoutResolutionLog', 'listMyScoutReports', 'readMyScoutDiscoveryNote',
+  ]));
+});
+
+// PC10.4 integration tip: every game callable imports the telemetry onCall.
+const SECURITY_DENIAL_WIRED_REVISION = '35c5366f0cdf74ef36ab74918cb3d7eefd5969fe';
+test('a security-denial telemetry change redeploys every wrapped callable and nothing else', () => {
+  const file = 'functions/src/securityDenialTelemetry.ts';
+  const atWired = path => execFileSync('git', ['show', `${SECURITY_DENIAL_WIRED_REVISION}:${path}`], {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 32 * 1024 * 1024,
+  });
+  const selected = selectedFunctions(deploymentSelector({
+    before: 'base', after: 'candidate', files: [file], targets: ['hosting', 'functions'],
+    isAncestor: () => false,
+    sourceAtRevision: (revision, path) => path === file && revision === 'candidate'
+      ? `${atWired(path)}\n// later telemetry change\n` : atWired(path),
+  }));
+  // 207 index onCall exports, 19 module onCall exports and 2 factory-built
+  // callables (TypeScript symbol trace of the wired revision).
+  assert.equal(selected.length, 228);
+  for (const name of ['rollDice', 'joinSession', 'addShipDamage', 'repairConsolesFromAlly',
+    'listGmScoutResolutionLog', 'resolvePendingScoutRequest', 'completeShuttleArrival',
+    'repairMaliades', 'runWolfAgentDetectorTest', 'buildEndeavourScienceDevice']) {
+    assert.ok(selected.includes(`functions:${name}`), `${name} runs through the telemetry wrapper`);
+  }
+  for (const name of ['castingCompanionCommand', 'expireStalePlayers', 'deleteInactiveSessions',
+    'automaticallyResolveScoutRequest', 'parkShuttlesAtAirspaceClosure', 'scheduleAirspaceClosureParking',
+    'advanceWolfAttackLifecycle']) {
+    assert.ok(!selected.includes(`functions:${name}`), `${name} does not use the telemetry wrapper`);
+  }
+});
+
+test('a security-denial telemetry change fails closed when a wrapped onCall cannot be attributed', () => {
+  const file = 'functions/src/securityDenialTelemetry.ts';
+  const atWired = path => execFileSync('git', ['show', `${SECURITY_DENIAL_WIRED_REVISION}:${path}`], {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 32 * 1024 * 1024,
+  });
+  assert.throws(() => deploymentSelector({
+    before: 'base', after: 'candidate', files: [file], targets: ['hosting', 'functions'],
+    isAncestor: () => false,
+    sourceAtRevision: (revision, path) => {
+      if (path === file && revision === 'candidate') return `${atWired(path)}\n// later telemetry change\n`;
+      if (path === 'functions/src/maliadesCallable.ts' && revision === 'candidate') {
+        return `${atWired(path)}\nconst hiddenCallable = onCall(CALLABLE_RUNTIME_OPTIONS, async () => null);\n`;
+      }
+      return atWired(path);
+    },
+  }), /security-denial telemetry/i);
 });
 
 test('maps Press event builder changes to every authoritative writer', () => {
