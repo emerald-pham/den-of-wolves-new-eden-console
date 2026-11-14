@@ -1153,8 +1153,10 @@ async function main() {
         '  npm run prompt-tracker -- update --issue <number> --close-as completed --reviewed --accepted --evidence <path#anchor>',
         '  npm run prompt-tracker -- update --issue <number> --release-hold --reviewed --accepted --evidence <path#anchor>',
         '  npm run prompt-tracker -- update --issue <number> --readiness <value> --execution <value>',
+        '  npm run prompt-tracker -- update --issue <n>,<n> --close-as completed --reviewed --accepted --evidence <n>=<path#anchor> --evidence <n>=<path#anchor>',
         '  npm run prompt-tracker -- export [--source <catalog.json>]',
         'Updates preserve issue prose, verify native state and relationships, and require local evidence for completion or future hold release.',
+        'Several issues share one full read before and after the batch; give per-issue --evidence <n>=<path#anchor> or one shared --evidence.',
       ].join('\n'));
       return;
     }
