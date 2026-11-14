@@ -293,6 +293,37 @@ export async function inspectOwnedRuntime({
     evidencePath, evidenceWriteError, summary: lines.join('\n') };
 }
 
+/**
+ * Map existing runtime records to owned processes and allocated ports: an
+ * emulator reservation (`pid` wrapper, detached `childPid` group, `ports`) or
+ * an explicit `{ owned, ports }` record. Records carry no start identity, so a
+ * live recorded PID remains ambiguous rather than owned.
+ */
+export function ownedRuntimeFromRecords(records) {
+  const owned = [];
+  const ports = [];
+  for (const record of Array.isArray(records) ? records : [records]) {
+    if (!record || typeof record !== 'object') continue;
+    const kind = String(record.kind ?? 'runtime');
+    if (Array.isArray(record.owned)) owned.push(...record.owned);
+    if (positivePid(record.pid)) owned.push({ pid: record.pid, label: `${kind} wrapper` });
+    if (positivePid(record.childPid)) owned.push({ pid: record.childPid, label: `${kind} child group`, group: true });
+    if (Array.isArray(record.ports)) ports.push(...record.ports);
+  }
+  return { owned, ports };
+}
+
+async function inspectRecordedRuntime(recordPath, evidenceDirectory) {
+  const runtime = ownedRuntimeFromRecords(JSON.parse(await readFile(recordPath, 'utf8')));
+  const result = await inspectOwnedRuntime({
+    ...runtime,
+    originalResult: `not part of this record (${resolve(recordPath)})`,
+    evidenceDirectory: evidenceDirectory ?? dirname(resolve(recordPath)),
+  });
+  process.stdout.write(`${result.summary}\n`);
+  process.exitCode = result.cleanReturn ? 0 : 1;
+}
+
 function commandLabel(command, args) {
   return [command, ...args].map(value => JSON.stringify(String(value))).join(' ');
 }
@@ -484,6 +515,18 @@ export async function runProofTestCommand(command, args, {
 }
 
 async function main() {
+  const inspectIndex = process.argv.indexOf('--inspect-runtime');
+  if (inspectIndex >= 0) {
+    const recordPath = process.argv[inspectIndex + 1];
+    const evidenceIndex = process.argv.indexOf('--evidence');
+    if (!recordPath || (evidenceIndex >= 0 && !process.argv[evidenceIndex + 1])) {
+      process.stderr.write('Usage: node scripts/proof-test-invocation.mjs --inspect-runtime RECORD.json [--evidence DIR]\n');
+      process.exitCode = 2;
+      return;
+    }
+    await inspectRecordedRuntime(recordPath, evidenceIndex >= 0 ? process.argv[evidenceIndex + 1] : undefined);
+    return;
+  }
   const separator = process.argv.indexOf('--');
   if (separator < 0 || !process.argv[separator + 1]) {
     process.stderr.write('Usage: node scripts/proof-test-invocation.mjs [--log PATH] -- COMMAND [ARG ...]\n');
