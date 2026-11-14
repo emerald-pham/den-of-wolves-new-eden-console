@@ -1,10 +1,14 @@
 // @vitest-environment node
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { copyFile, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import vitestConfig from '../vitest.config';
-import { functionsTestPrerequisiteError } from '../scripts/functions-test-setup.mjs';
+import { functionsTestPrerequisiteError, prepareFunctionsTests } from '../scripts/functions-test-setup.mjs';
 
 type ProjectConfig = { test?: { name?: string; globalSetup?: string | string[] } };
 const projects = (vitestConfig as { test?: { projects?: ProjectConfig[] } }).test?.projects ?? [];
@@ -47,6 +51,40 @@ describe('Functions test project prerequisites', () => {
   it('names only the dependencies that are actually missing', async () => {
     expect(functionsTestPrerequisiteError(await checkout(['firebase-admin'])))
       .toContain('(missing firebase-functions)');
+  });
+
+  it('builds the generated casting core before Functions tests load', async () => {
+    const root = await checkout(['firebase-admin', 'firebase-functions']);
+    const repository = process.cwd();
+    await mkdir(resolve(root, 'scripts'), { recursive: true });
+    await copyFile(resolve(repository, 'scripts/build-casting-companion-core.mjs'), resolve(root, 'scripts/build-casting-companion-core.mjs'));
+    await copyFile(resolve(repository, 'functions/casting-companion-entry.mjs'), resolve(root, 'functions/casting-companion-entry.mjs'));
+    await symlink(resolve(repository, 'companion'), resolve(root, 'companion'));
+    await symlink(resolve(repository, 'node_modules'), resolve(root, 'node_modules'));
+    const core = resolve(root, 'functions/lib/casting-companion-core.cjs');
+    expect(existsSync(core)).toBe(false);
+
+    prepareFunctionsTests(root);
+
+    expect(typeof createRequire(import.meta.url)(core).CastingService).toBe('function');
+  });
+
+  it('stops a checkout without Functions dependencies with only the install instruction', async () => {
+    const root = await checkout([]);
+    const setupUrl = pathToFileURL(resolve(process.cwd(), 'scripts/functions-test-setup.mjs')).href;
+    const run = spawnSync(process.execPath, [
+      '--input-type=module',
+      '-e',
+      `import { prepareFunctionsTests } from ${JSON.stringify(setupUrl)}; prepareFunctionsTests(process.argv[1]);`,
+      root,
+    ], { encoding: 'utf8' });
+    expect(run.status).toBe(1);
+    expect(run.stdout).toBe('');
+    expect(run.stderr).toBe(
+      'Functions dependencies are not installed (missing firebase-admin, firebase-functions). ' +
+      'Run `npm ci --prefix functions`, then rerun the Functions tests.\n',
+    );
+    expect(existsSync(resolve(root, 'functions/lib'))).toBe(false);
   });
 
   it('accepts a checkout whose Functions dependencies are installed', async () => {
