@@ -216,6 +216,11 @@ const mock = vi.hoisted(() => {
   };
 });
 
+// The Functions logger is the private telemetry sink (Cloud Logging in production).
+const telemetry = vi.hoisted(() => ({ warn: vi.fn() }));
+vi.mock('firebase-functions/logger', () => ({
+  warn: telemetry.warn, info: vi.fn(), error: vi.fn(), debug: vi.fn(), log: vi.fn(), write: vi.fn(),
+}));
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => mock.db,
@@ -353,6 +358,71 @@ beforeEach(() => {
 });
 
 afterEach(() => vi.useRealTimers());
+
+const HASH = /^[a-f0-9]{64}$/;
+// Credentials, hands, loyalties and note bodies a client might send or hold.
+const PRIVATE_CANARIES = ['TOKEN_CANARY', 'NOTE_BODY_CANARY', 'HAND_CANARY', 'LOYALTY_CANARY'];
+const PRIVATE_PAYLOAD = { notes: 'NOTE_BODY_CANARY', hand: ['HAND_CANARY'], loyalty: 'LOYALTY_CANARY' };
+
+function securityDenials(): Record<string, unknown>[] {
+  return telemetry.warn.mock.calls
+    .map(([, record]) => record as Record<string, unknown> | undefined)
+    .filter((record): record is Record<string, unknown> => record?.type === 'security-denial');
+}
+
+function expectNoPrivateValues(records: readonly unknown[], extra: readonly string[] = []) {
+  const serialized = JSON.stringify(records);
+  for (const canary of [...PRIVATE_CANARIES, ...extra]) expect(serialized).not.toContain(canary);
+}
+
+describe('private security-denial telemetry', () => {
+  beforeEach(() => {
+    telemetry.warn.mockClear();
+    vi.stubEnv('FUNCTION_TARGET', 'rollDice');
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('records an unauthenticated dice request as a private auth denial without credentials or payload', async () => {
+    session({ phase: 'active' });
+    player();
+    const unauthenticated = {
+      data: { sessionId: 's1', requestId: 'dice-auth', sides: 6, count: 1, ...PRIVATE_PAYLOAD },
+      rawRequest: { headers: { authorization: 'Bearer TOKEN_CANARY' } },
+    } as unknown as CallableRequest<Record<string, unknown>>;
+
+    await expect(rollDice.run(unauthenticated)).rejects.toMatchObject({ code: 'unauthenticated' });
+
+    expect(securityDenials()).toEqual([{
+      type: 'security-denial', schemaVersion: 1, callableName: 'rollDice',
+      code: 'unauthenticated', category: 'auth', authState: 'absent', appCheck: 'absent',
+      sessionHash: expect.stringMatching(HASH), requestHash: expect.stringMatching(HASH),
+    }]);
+    expectNoPrivateValues(securityDenials(), ['dice-auth']);
+    // The denial happens before any session read, roll or receipt.
+    expect(mock.get).not.toHaveBeenCalled();
+    expect([...mock.documents.keys()].filter(path => !['sessions/s1', 'sessions/s1/players/u1'].includes(path)))
+      .toEqual([]);
+  });
+
+  it('records a non-member dice request as a private authorization denial with a hashed actor', async () => {
+    session({ phase: 'active' });
+    player();
+    const outsider = legacyRequest({ sessionId: 's1', requestId: 'dice-outsider', sides: 6, count: 1, ...PRIVATE_PAYLOAD },
+      'outsider-uid');
+
+    await expect(rollDice.run(outsider)).rejects.toMatchObject({ code: 'permission-denied' });
+
+    expect(securityDenials()).toEqual([{
+      type: 'security-denial', schemaVersion: 1, callableName: 'rollDice',
+      code: 'permission-denied', category: 'authorization', authState: 'present', appCheck: 'absent',
+      actorHash: expect.stringMatching(HASH), sessionHash: expect.stringMatching(HASH),
+      requestHash: expect.stringMatching(HASH),
+    }]);
+    expectNoPrivateValues(securityDenials(), ['outsider-uid', 'dice-outsider']);
+    expect([...mock.documents.keys()].some(path => path.includes('callableRateLimit-') || path.includes('/events/')))
+      .toBe(false);
+  });
+});
 
 describe('expensive session callable rate limits', () => {
   it('limits roster reads per authenticated player and ignores client-supplied identity or bypass markers', async () => {
