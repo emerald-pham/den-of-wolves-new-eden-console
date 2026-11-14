@@ -1690,9 +1690,15 @@ test('includes unchanged callable bodies affected by PC05 index-local authority 
   }
 });
 
+// PC10.3 release on main (8c25a9a6): the last entrypoint this drift check was proved against.
+const PC05_DRIFT_AFTER_REVISION = '8c25a9a6889475ecb139cfef72551b2688c891aa';
+
 test('fails closed when PC05 shared index code changes beyond the audited candidate', () => {
   const beforeSource = execFileSync('git', ['show', '7782840d:functions/src/index.ts'], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
-  const afterSource = readFileSync('functions/src/index.ts', 'utf8') + '\n// unaudited shared helper change\n';
+  // Pin the drifted entrypoint to a fixed released revision so later
+  // checkpoints' own index guards cannot mask the PC05 refusal under test.
+  const afterSource = execFileSync('git', ['show', `${PC05_DRIFT_AFTER_REVISION}:functions/src/index.ts`],
+    { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }) + '\n// unaudited shared helper change\n';
   assert.throws(() => deploymentSelector({ before: 'base', after: 'candidate',
     files: ['functions/src/index.ts'], targets: ['functions'], isAncestor: () => false,
     sourceAtRevision: (revision) => revision === 'base' ? beforeSource : afterSource,
