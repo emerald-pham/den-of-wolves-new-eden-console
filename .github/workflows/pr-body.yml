@@ -1,8 +1,9 @@
 name: PR body
 
-# Checks the PR title, body and every commit message in the PR range.
-# Separate from CI so a title or body edit re-runs only this workflow and
-# never cancels an in-flight CI run.
+# Checks the PR title, body and every commit message in the PR range, and
+# dry-runs the post-merge deployment target selector on the PR's own range.
+# Separate from CI so a title, body or base edit re-runs only this workflow
+# and never cancels an in-flight CI run.
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize]
@@ -34,3 +35,32 @@ jobs:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node scripts/pr-closing-keywords.mjs
+
+  deploy-targets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Dry-run deployment target selection for this pull request
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # The post-merge deploy runs this selector; a range it cannot
+          # resolve fails here, with its own error, before merge. The range
+          # starts at the PR's own base, so a PR into an integration branch
+          # checks only its own changes. Its own job keeps a selector failure
+          # from hiding CI's results, and a base retarget (`edited`) re-runs it.
+          head_sha=$(git rev-parse HEAD)
+          node scripts/deployment-targets.mjs \
+            --before "$PR_BASE_SHA" \
+            --verification-before "$PR_BASE_SHA" \
+            --after "$head_sha" \
+            --current-main-tip "$head_sha" \
+            --manual false
