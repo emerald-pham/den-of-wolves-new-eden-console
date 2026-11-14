@@ -74,6 +74,7 @@ vi.mock('@/lib/shuttleCargoService', () => ({
 
 vi.mock('@/lib/firestore', () => ({
   subscribeCrisisReport: vi.fn(() => vi.fn()),
+  subscribeGmActionAuditDetails: vi.fn(() => vi.fn()),
   sessionSnapshotAuthorityFor: vi.fn(() => ({ hasServerSessionAuthority: false })),
   subscribeConnectedPlayers: vi.fn(() => vi.fn()),
   subscribeShuttleDeparture: vi.fn(() => vi.fn()),
