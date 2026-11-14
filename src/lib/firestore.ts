@@ -23,6 +23,12 @@ import { parsePdfEscortWingMemberView } from './pdfEscortWingProjection';
 import { parsePresidentialElectionProjection, parsePresidentialOfficesProjection } from './presidentialElectionProjection';
 import { parseVoyage33MovementState } from '../../functions/src/voyage33Movement';
 import { isWolfAttackMemberView } from '../../functions/src/wolfAttackAudience';
+import {
+  ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION,
+  type ActionAuditAction,
+  type ActionAuditDetailValue,
+  type ActionAuditResolutionSource,
+} from '../../functions/src/actionAudit';
 import type {
   CommissarPurgeAuthority,
   CandidateReveal,
@@ -5117,6 +5123,77 @@ export function subscribeGmMissionOpportunities(
     subscribed = false;
     unsubscribe();
     onOpportunities([]);
+  };
+}
+
+/** A facilitator-only automatic-procedure receipt: the explicit choice and committed result. */
+export type GmActionAuditDetail = Readonly<{
+  requestId: string;
+  action: ActionAuditAction;
+  actorUid: string;
+  revision: number;
+  resolutionSource: ActionAuditResolutionSource;
+  choice: Readonly<Record<string, ActionAuditDetailValue>>;
+  result: Readonly<Record<string, ActionAuditDetailValue>>;
+  createdAt?: string;
+}>;
+
+function gmActionAuditDetail(value: unknown, sessionId: string): GmActionAuditDetail | undefined {
+  const raw = recordValue(value);
+  if (!raw || raw.schemaVersion !== 1 || raw.sessionId !== sessionId ||
+      raw.audience !== 'facilitator' || raw.redactionPolicy !== 'action-audit-gm-detail-v1' ||
+      typeof raw.action !== 'string' ||
+      !Object.prototype.hasOwnProperty.call(ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION, raw.action) ||
+      raw.resolutionSource !==
+        ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION[raw.action as ActionAuditAction] ||
+      typeof raw.requestId !== 'string' || raw.requestId.length === 0 ||
+      typeof raw.actorUid !== 'string' || raw.actorUid.length === 0 ||
+      !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 0) return undefined;
+  const choice = recordValue(raw.choice);
+  const result = recordValue(raw.result);
+  if (!choice || !result) return undefined;
+  const createdAt = timestampString(raw.createdAt);
+  return {
+    requestId: raw.requestId,
+    action: raw.action as ActionAuditAction,
+    actorUid: raw.actorUid,
+    revision: raw.revision as number,
+    resolutionSource: raw.resolutionSource as ActionAuditResolutionSource,
+    choice: choice as Readonly<Record<string, ActionAuditDetailValue>>,
+    result: result as Readonly<Record<string, ActionAuditDetailValue>>,
+    ...(createdAt === undefined ? {} : { createdAt }),
+  };
+}
+
+/** Subscribe to facilitator-only automatic-procedure receipts; clients cannot write these records. */
+export function subscribeGmActionAuditDetails(
+  sessionId: string,
+  onDetails: (details: readonly GmActionAuditDetail[]) => void,
+): Unsubscribe {
+  let subscribed = true;
+  onDetails([]);
+  const unsubscribe = onSnapshot(
+    query(
+      collection(db(), `sessions/${sessionId}/actionAuditDetails`),
+      orderBy('createdAt', 'desc'),
+      limit(40),
+    ),
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      onDetails(snapshot.docs.flatMap((entry) => {
+        const parsed = gmActionAuditDetail(entry.data(), sessionId);
+        return parsed && parsed.requestId === entry.id ? [parsed] : [];
+      }));
+    },
+    () => {
+      if (subscribed) onDetails([]);
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onDetails([]);
   };
 }
 

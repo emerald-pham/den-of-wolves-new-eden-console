@@ -178,6 +178,7 @@ const GmStarmapModule = lazy(() => import('@/components/GmStarmapModule'));
 const GmScoutRevealController = lazy(() => import('@/components/GmScoutRevealController'));
 const SmallShipOperations = lazy(() => import('@/components/SmallShipOperations'));
 const AwayMissionStartPanel = lazy(() => import('@/components/AwayMissionStartPanel'));
+const AutomaticProcedureReceiptsPanel = lazy(() => import('@/components/AutomaticProcedureReceiptsPanel'));
 const BoardingSecurityTeamWorkspace = lazy(() => import('@/components/BoardingSecurityTeamWorkspace'));
 
 const SMALL_SHIP_CAPTAIN_ROLE_IDS: Readonly<Record<SmallShipId, string>> = {
@@ -3890,6 +3891,9 @@ export default function GmConsole() {
               instanceId={local.id}
               isGm={isGm}
             />
+          </Suspense>
+          <Suspense fallback={<p role="status">Opening automatic procedure receipts…</p>}>
+            <AutomaticProcedureReceiptsPanel sessionId={session?.id} isGm={isGm} />
           </Suspense>
           <GmScoutRevealController />
           <SameTableTradeBaselineWorkspace players={allPlayers} />
