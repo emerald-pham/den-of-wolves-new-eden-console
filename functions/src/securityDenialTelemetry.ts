@@ -1,6 +1,8 @@
-import { createHash } from 'node:crypto';
 import { warn } from 'firebase-functions/logger';
-import { HttpsError, onCall as sdkOnCall, type CallableRequest } from 'firebase-functions/v2/https';
+import { onCall as sdkOnCall, type CallableRequest } from 'firebase-functions/v2/https';
+import {
+  DENIAL_CATEGORIES, hashDenialIdentifier, isDeniedHttpsError, reportingDenials,
+} from './callableDenialReporting';
 import { COMMAND_ERROR_KINDS } from './commandErrors';
 
 /**
@@ -16,12 +18,6 @@ import { COMMAND_ERROR_KINDS } from './commandErrors';
  * includes the request payload, error prose, headers or tokens, so credentials,
  * hands, loyalties and note bodies cannot enter it.
  */
-const DENIAL_CATEGORIES = {
-  unauthenticated: 'auth',
-  'permission-denied': 'authorization',
-  'invalid-argument': 'schema',
-  'resource-exhausted': 'rate-limit',
-} as const;
 
 /**
  * Machine-readable denial kinds already sent to the client. Only these fixed
@@ -34,29 +30,21 @@ const REPORTED_COMMAND_ERRORS: ReadonlySet<string> = new Set([
 ]);
 const MAX_RETRY_AFTER_SECONDS = 24 * 60 * 60;
 
-type DeniedCode = keyof typeof DENIAL_CATEGORIES;
 type AuditedRequest = Pick<CallableRequest, 'auth' | 'app' | 'data'>;
 
-const SAFE_IDENTIFIER = /^[\w-]{1,128}$/;
 const SAFE_CALLABLE_NAME = /^[\w.-]{1,128}$/;
 const SAFE_FIELD_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
 const MAX_REPORTED_FIELDS = 32;
 const MAX_EXAMINED_FIELDS = 256;
 
 function hashIdentifier(value: unknown, kind: 'actor' | 'session' | 'request'): string | undefined {
-  return typeof value === 'string' && SAFE_IDENTIFIER.test(value)
-    ? createHash('sha256').update(`dow-security-denial-${kind}\0${value}`).digest('hex')
-    : undefined;
+  return hashDenialIdentifier('dow-security-denial', kind, value);
 }
 
 /** Cloud Functions names the deployed export in its runtime environment. */
 function deployedCallableName(): string | undefined {
   const name = process.env.FUNCTION_TARGET ?? process.env.K_SERVICE;
   return typeof name === 'string' && SAFE_CALLABLE_NAME.test(name) ? name : undefined;
-}
-
-function isDeniedCode(code: string): code is DeniedCode {
-  return Object.hasOwn(DENIAL_CATEGORIES, code);
 }
 
 function field(data: unknown, key: string): unknown {
@@ -94,7 +82,7 @@ function denialDetails(details: unknown): Record<string, unknown> {
 
 /** The permitted metadata for one denial, or undefined for a non-security failure. */
 export function securityDenialRecord(request: AuditedRequest, error: unknown): Record<string, unknown> | undefined {
-  if (!(error instanceof HttpsError) || !isDeniedCode(error.code)) return undefined;
+  if (!isDeniedHttpsError(error)) return undefined;
   const callableName = deployedCallableName();
   const actorHash = hashIdentifier(request.auth?.uid, 'actor');
   const sessionHash = hashIdentifier(field(request.data, 'sessionId'), 'session');
@@ -115,13 +103,9 @@ export function securityDenialRecord(request: AuditedRequest, error: unknown): R
   };
 }
 
-export function recordSecurityDenial(request: AuditedRequest, error: unknown): void {
-  try {
-    const record = securityDenialRecord(request, error);
-    if (record) warn('Callable security denial', record);
-  } catch {
-    // Telemetry must never replace or mask the original denial.
-  }
+function recordSecurityDenial(request: AuditedRequest, error: unknown): void {
+  const record = securityDenialRecord(request, error);
+  if (record) warn('Callable security denial', record);
 }
 
 /**
@@ -131,20 +115,7 @@ export function recordSecurityDenial(request: AuditedRequest, error: unknown): v
  */
 export const onCall = ((...args: unknown[]) => {
   const handler = args[args.length - 1] as (request: CallableRequest, response?: unknown) => unknown;
-  const audited = (request: CallableRequest, response?: unknown): unknown => {
-    let result: unknown;
-    try {
-      result = handler(request, response);
-    } catch (error) {
-      recordSecurityDenial(request, error);
-      throw error;
-    }
-    if (typeof (result as PromiseLike<unknown> | undefined)?.then !== 'function') return result;
-    return Promise.resolve(result).catch((error: unknown) => {
-      recordSecurityDenial(request, error);
-      throw error;
-    });
-  };
+  const audited = reportingDenials(handler, recordSecurityDenial);
   return args.length > 1
     ? (sdkOnCall as (options: unknown, wrapped: typeof audited) => unknown)(args[0], audited)
     : (sdkOnCall as (wrapped: typeof audited) => unknown)(audited);
