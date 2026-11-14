@@ -34,6 +34,8 @@ export default defineConfig({
           name: 'functions',
           environment: 'node',
           include: ['functions/src/**/*.test.ts'],
+          // Builds functions/lib inputs, or stops with one install instruction.
+          globalSetup: ['./scripts/functions-test-setup.mjs'],
         },
       },
     ],
