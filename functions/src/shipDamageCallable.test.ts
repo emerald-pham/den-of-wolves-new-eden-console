@@ -905,3 +905,19 @@ it('rejects damage and repair mutations after pursuit failure without writing', 
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 });
+
+it('keeps the GM ship choice and the committed card draw in one facilitator-only receipt', async () => {
+  const requestId = 'damage-detail-1';
+  mock.players = [{ id: 'u1', fields: { role: 'gm', connected: true, activeConsoleRoleId: 'admiral' } }];
+
+  const committed = await addShipDamage.run(request({ ...data, requestId, expectedRevision: 0 }));
+
+  expect(committed).toMatchObject({ card: { card: '10♥', systemId: 'reactor' }, destroyed: false });
+  expect(mock.set).toHaveBeenCalledWith(`sessions/s1/actionAuditDetails/${requestId}`, {
+    schemaVersion: 1, sessionId: 's1', actorUid: 'u1', action: 'ship-damage', requestId,
+    revision: 1, resolutionSource: 'server-random', audience: 'facilitator',
+    choice: { shipId: 'aegis' },
+    result: committed,
+    redactionPolicy: 'action-audit-gm-detail-v1', createdAt: 'server-time',
+  });
+});

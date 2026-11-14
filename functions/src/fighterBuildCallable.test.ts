@@ -285,3 +285,35 @@ it('fails closed on an orphaned or mismatched fighter-construction audit', async
   mock.update.mockClear();
   await expect(buildFighter.run(request(base))).rejects.toMatchObject({ code: 'failed-precondition' });
 });
+
+it('keeps the wing choice and committed construction in one facilitator-only receipt for a player or GM build', async () => {
+  const detailPath = 'sessions/s1/actionAuditDetails/build-1';
+  const committed = await buildFighter.run(request(base));
+  expect(mock.set).toHaveBeenCalledWith(detailPath, {
+    schemaVersion: 1, sessionId: 's1', actorUid: 'u1', action: 'fighter-construction', requestId: 'build-1',
+    revision: 1, resolutionSource: 'server-rules', audience: 'facilitator',
+    choice: { shipId: 'aegis', wingId: 'fighter-wing-alpha' },
+    result: committed,
+    redactionPolicy: 'action-audit-gm-detail-v1', createdAt: 'server-time',
+  });
+  expect(committed).toMatchObject({ count: 4, materials: 1, capacity: 4 });
+  mock.receipts[receiptPath] = storedReceipt();
+  mock.set.mockClear();
+  await buildFighter.run(request(base));
+  expect(mock.set).not.toHaveBeenCalled();
+
+  mock.receipts = {}; mock.audits = {}; mock.set.mockClear();
+  mock.role = 'gm'; mock.activeRole = undefined;
+  await buildFighter.run(request({ ...base, instanceId: 'gm-1' }));
+  expect(mock.set).toHaveBeenCalledWith(detailPath, expect.objectContaining({
+    actorUid: 'u1', action: 'fighter-construction', audience: 'facilitator',
+  }));
+});
+
+it('writes no facilitator construction detail for a denied actor or a stale build', async () => {
+  mock.activeRole = 'quellon-explorer';
+  await expect(buildFighter.run(request(base))).rejects.toMatchObject({ code: 'permission-denied' });
+  mock.activeRole = 'wing-commander';
+  await expect(buildFighter.run(request({ ...base, expectedRevision: 2 }))).resolves.toMatchObject({ status: 'stale' });
+  expect(mock.set.mock.calls.some(([path]) => String(path).includes('/actionAuditDetails/'))).toBe(false);
+});
