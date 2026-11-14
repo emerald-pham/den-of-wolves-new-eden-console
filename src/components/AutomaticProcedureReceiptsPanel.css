@@ -76,3 +76,11 @@
   border-top: 1px solid var(--cic-rule);
   padding-top: 0.75rem;
 }
+
+/* Firebase IDs are case-sensitive: the uppercase hint style must not repaint
+   (or copy) the actor ID in a different case from the committed result. */
+.automatic-receipts-panel__identifier {
+  font: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}

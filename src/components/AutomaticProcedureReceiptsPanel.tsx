@@ -67,7 +67,8 @@ function Receipt({ detail }: { readonly detail: GmActionAuditDetail }) {
           {actionLabel(detail.action)} // {detail.requestId}
         </h4>
         <p className="gm-console__hint">
-          {detail.resolutionSource.replace(/-/g, ' ')} // committed revision {detail.revision} // actor {detail.actorUid}
+          {detail.resolutionSource.replace(/-/g, ' ')} // committed revision {detail.revision} // actor{' '}
+          <code className="automatic-receipts-panel__identifier">{detail.actorUid}</code>
           {detail.createdAt ? ` // ${detail.createdAt}` : ''}
         </p>
         <DetailList label="Choice" values={detail.choice} />
