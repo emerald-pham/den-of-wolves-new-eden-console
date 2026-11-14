@@ -785,6 +785,30 @@ describe('standardized action audit boundary', () => {
       schemaVersion: 1, sessionId: 's1', action: 'forged', outcome: 'committed',
     }));
   });
+
+  it('lets facilitators query automatic-procedure choices and results while players, Press and observers cannot', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/actionAuditDetails/repair-1`), {
+        schemaVersion: 1, sessionId: 's1', actorUid: 'alice', action: 'blacksmith-repair',
+        requestId: 'repair-1', revision: 2, resolutionSource: 'server-rules', audience: 'facilitator',
+        choice: { expectedHostShipId: 'aegis', systemIds: ['reactor'] },
+        result: { status: 'committed', systemIds: ['reactor'], materialsRemaining: 1, repairRevision: 2 },
+        redactionPolicy: 'action-audit-gm-detail-v1', createdAt: 'server-time',
+      });
+    });
+
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/actionAuditDetails/repair-1`)));
+    await assertSucceeds(getDocs(collection(as('gm1'), `${SESSION}/actionAuditDetails`)));
+    for (const uid of ['alice', 'press', 'observer']) {
+      await assertFails(getDoc(doc(as(uid), `${SESSION}/actionAuditDetails/repair-1`)));
+      await assertFails(getDocs(collection(as(uid), `${SESSION}/actionAuditDetails`)));
+    }
+    for (const uid of ['gm1', 'alice']) {
+      await assertFails(setDoc(doc(as(uid), `${SESSION}/actionAuditDetails/forged`), {
+        schemaVersion: 1, sessionId: 's1', action: 'blacksmith-repair', choice: {}, result: {},
+      }));
+    }
+  });
 });
 
 describe('crisis state boundary', () => {

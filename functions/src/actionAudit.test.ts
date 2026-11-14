@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildActionAuditRecord } from './actionAudit';
+import { buildActionAuditDetailRecord, buildActionAuditRecord } from './actionAudit';
 
 describe('buildActionAuditRecord', () => {
   it('creates a queryable metadata-only record for a server-random action', () => {
@@ -154,5 +154,56 @@ describe('buildActionAuditRecord', () => {
     expect(record).not.toHaveProperty('shipId');
     expect(record).not.toHaveProperty('card');
     expect(record).not.toHaveProperty('systemId');
+  });
+});
+
+describe('buildActionAuditDetailRecord', () => {
+  const binding = {
+    sessionId: 'session-1', actorUid: 'holder-1', action: 'blacksmith-repair',
+    requestId: 'repair-1', revision: 2,
+  } as const;
+
+  it('keeps the explicit choice and the committed calculation in a facilitator-only receipt', () => {
+    expect(buildActionAuditDetailRecord(binding, {
+      choice: { hostShipId: 'aegis', systemIds: ['reactor'], expectedCycle: 3 },
+      result: {
+        status: 'committed', requestId: 'repair-1', systemIds: ['reactor'],
+        materialsRemaining: 1, repairRevision: 2,
+      },
+    }, 'server-time')).toEqual({
+      schemaVersion: 1,
+      sessionId: 'session-1',
+      actorUid: 'holder-1',
+      action: 'blacksmith-repair',
+      requestId: 'repair-1',
+      revision: 2,
+      resolutionSource: 'server-rules',
+      audience: 'facilitator',
+      choice: { hostShipId: 'aegis', systemIds: ['reactor'], expectedCycle: 3 },
+      result: {
+        status: 'committed', requestId: 'repair-1', systemIds: ['reactor'],
+        materialsRemaining: 1, repairRevision: 2,
+      },
+      redactionPolicy: 'action-audit-gm-detail-v1',
+      createdAt: 'server-time',
+    });
+  });
+
+  it('fails closed on values a durable receipt cannot faithfully store', () => {
+    expect(() => buildActionAuditDetailRecord(binding, {
+      choice: { systemIds: ['reactor'] }, result: { materialsRemaining: undefined },
+    }, 'server-time')).toThrow(/result/);
+    expect(() => buildActionAuditDetailRecord(binding, {
+      choice: { amount: Number.NaN }, result: {},
+    }, 'server-time')).toThrow(/choice/);
+    expect(() => buildActionAuditDetailRecord(binding, {
+      choice: ['reactor'], result: {},
+    }, 'server-time')).toThrow(/choice/);
+    expect(() => buildActionAuditDetailRecord(
+      { ...binding, action: 'unregistered' as 'blacksmith-repair' },
+      { choice: {}, result: {} }, 'server-time',
+    )).toThrow(/registered/);
+    expect(() => buildActionAuditDetailRecord(binding, { choice: {}, result: {} }, undefined))
+      .toThrow(/createdAt/);
   });
 });
