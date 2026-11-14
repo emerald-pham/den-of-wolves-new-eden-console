@@ -422,6 +422,27 @@ describe('private security-denial telemetry', () => {
     expect([...mock.documents.keys()].some(path => path.includes('callableRateLimit-') || path.includes('/events/')))
       .toBe(false);
   });
+
+  it('records a malformed dice request as a private schema denial naming fields but not their values', async () => {
+    session({ phase: 'active' });
+    player();
+    const malformed = legacyRequest({
+      sessionId: 's1', requestId: 'dice-schema', sides: 'NOTE_BODY_CANARY', count: 1, ...PRIVATE_PAYLOAD,
+    });
+
+    await expect(rollDice.run(malformed)).rejects.toMatchObject({ code: 'invalid-argument' });
+
+    expect(securityDenials()).toEqual([{
+      type: 'security-denial', schemaVersion: 1, callableName: 'rollDice',
+      code: 'invalid-argument', category: 'schema', authState: 'present', appCheck: 'absent',
+      actorHash: expect.stringMatching(HASH), sessionHash: expect.stringMatching(HASH),
+      requestHash: expect.stringMatching(HASH),
+      requestFields: ['count', 'hand', 'loyalty', 'notes', 'requestId', 'sessionId', 'sides'],
+    }]);
+    expectNoPrivateValues(securityDenials(), ['dice-schema']);
+    // Input is refused before any Firestore read or roll.
+    expect(mock.get).not.toHaveBeenCalled();
+  });
 });
 
 describe('expensive session callable rate limits', () => {
