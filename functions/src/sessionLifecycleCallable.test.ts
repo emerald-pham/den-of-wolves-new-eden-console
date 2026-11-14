@@ -394,14 +394,15 @@ describe('expensive session callable rate limits', () => {
     player();
     const identity = { callableName: 'rollDice', sessionId: 's1', uid: 'u1' } as const;
     const markerPath = `sessions/s1/serverState/callableRateLimit-${callableRateLimitDocumentId(identity)}`;
-    const forgedRequest = () => legacyRequest({
-      sessionId: 's1', sides: 6, count: 1, uid: 'u2', bypassRateLimit: true,
+    // Each roll is a distinct command; an exact retry of one is a replay instead.
+    const forgedRequest = (index: number) => legacyRequest({
+      sessionId: 's1', requestId: `dice-${index}`, sides: 6, count: 1, uid: 'u2', bypassRateLimit: true,
     }, 'u1');
 
     for (let index = 0; index < 30; index += 1) {
-      await expect(rollDice.run(forgedRequest())).resolves.toMatchObject({ rolls: [expect.any(Number)] });
+      await expect(rollDice.run(forgedRequest(index))).resolves.toMatchObject({ rolls: [expect.any(Number)] });
     }
-    await expect(rollDice.run(forgedRequest())).rejects.toMatchObject({ code: 'resource-exhausted' });
+    await expect(rollDice.run(forgedRequest(30))).rejects.toMatchObject({ code: 'resource-exhausted' });
 
     expect(read(markerPath)).toMatchObject({
       type: 'callable-rate-limit', callableName: 'rollDice', requestCount: 30,

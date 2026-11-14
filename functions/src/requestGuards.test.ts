@@ -443,7 +443,7 @@ describe('callable request guards', () => {
       () => requireSessionRequest({ sessionId: 's1/players' }),
       () => requireSessionSeatRequest({ sessionId: 's1', seatId: 'seat/one' }),
       () => requireElevationRequest({ sessionId: 's1', targetUid: '../target' }),
-      () => requireDiceRequest({ sessionId: 's1/events', sides: 6, count: 1 }),
+      () => requireDiceRequest({ sessionId: 's1/events', requestId: 'dice-1', sides: 6, count: 1 }),
     ];
 
     for (const request of malformedRequests) {
@@ -460,15 +460,16 @@ describe('callable request guards', () => {
 
   it('bounds dice sides and count', () => {
     expectHttpsError(
-      () => requireDiceRequest({ sessionId: 's1', sides: 1, count: 1 }),
+      () => requireDiceRequest({ sessionId: 's1', requestId: 'dice-1', sides: 1, count: 1 }),
       'invalid-argument',
     );
     expectHttpsError(
-      () => requireDiceRequest({ sessionId: 's1', sides: 6, count: 51 }),
+      () => requireDiceRequest({ sessionId: 's1', requestId: 'dice-1', sides: 6, count: 51 }),
       'invalid-argument',
     );
-    expect(requireDiceRequest({ sessionId: 's1', sides: 6, count: 2 })).toEqual({
+    expect(requireDiceRequest({ sessionId: 's1', requestId: 'dice-1', sides: 6, count: 2 })).toEqual({
       sessionId: 's1',
+      requestId: 'dice-1',
       sides: 6,
       count: 2,
     });
