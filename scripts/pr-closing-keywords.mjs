@@ -1,11 +1,13 @@
-// Fails a pull request whose body or commit messages would make GitHub close
-// an issue on merge. Ticket completion goes through the prompt tracker, which
+// Fails a pull request whose title, body or commit messages would make GitHub
+// close an issue on merge. Ticket completion goes through the prompt tracker, which
 // records evidence; a native closing keyword bypasses it. Commit messages
 // matter too: with merge commits, each PR commit lands on the default branch
-// and its closing keywords take effect there.
+// and its closing keywords take effect there. So does the title, which the
+// repository's merge commit message setting (PR_TITLE) copies into the merge
+// commit.
 //
-// The body arrives through the PR_BODY environment variable so it is never
-// interpolated into a shell command. PR_BASE_SHA and PR_HEAD_SHA bound the
+// The title and body arrive through the PR_TITLE and PR_BODY environment
+// variables so they are never interpolated into a shell command. PR_BASE_SHA and PR_HEAD_SHA bound the
 // commit range; the commits are read with git from a full-history checkout.
 
 import { execFileSync } from 'node:child_process';
@@ -36,8 +38,11 @@ export function findClosingCommits({ base, head, cwd = process.cwd() }) {
     .filter(({ references }) => references.length > 0);
 }
 
-export function closingFindings({ body, base, head, cwd } = {}) {
-  const findings = findClosingReferences(body).map((reference) => `PR body: ${reference}`);
+export function closingFindings({ title, body, base, head, cwd } = {}) {
+  const findings = [
+    ...findClosingReferences(title).map((reference) => `PR title: ${reference}`),
+    ...findClosingReferences(body).map((reference) => `PR body: ${reference}`),
+  ];
   if (base && head) {
     for (const { sha, references } of findClosingCommits({ base, head, cwd })) {
       for (const reference of references) findings.push(`commit ${sha.slice(0, 12)}: ${reference}`);
@@ -48,6 +53,7 @@ export function closingFindings({ body, base, head, cwd } = {}) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const findings = closingFindings({
+    title: process.env.PR_TITLE,
     body: process.env.PR_BODY,
     base: process.env.PR_BASE_SHA,
     head: process.env.PR_HEAD_SHA,

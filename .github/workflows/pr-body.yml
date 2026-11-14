@@ -1,8 +1,8 @@
 name: PR body
 
-# Checks the PR body and every commit message in the PR range. Separate from
-# CI so a body edit re-runs only this check and never cancels an in-flight
-# CI run.
+# Checks the PR title, body and every commit message in the PR range.
+# Separate from CI so a title or body edit re-runs only this workflow and
+# never cancels an in-flight CI run.
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize]
@@ -29,6 +29,7 @@ jobs:
 
       - name: Leave issue closure to the prompt tracker
         env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
